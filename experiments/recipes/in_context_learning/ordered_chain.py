@@ -1,17 +1,18 @@
-from typing import Optional, Sequence
 import random
-from metta.mettagrid.builder.envs import MettaGridConfig, make_icl_resource_chain
+from typing import Optional, Sequence
+
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.mettagrid.builder.envs import MettaGridConfig, make_icl_resource_chain
+from metta.rl.loss.loss_config import LossConfig
+from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from metta.sim.simulation_config import SimulationConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 
 from .icl_resource_chain import ICLTaskGenerator, _BuildCfg
 
@@ -127,8 +128,8 @@ class OrderedChainTaskGenerator(ICLTaskGenerator):
         )
 
         icl_env.game.reward_estimates = {
-            "most_efficient_optimal_reward": most_efficient_optimal_reward,
-            "least_efficient_optimal_reward": least_efficient_optimal_reward,
+            "best_case_efficient_reward": most_efficient_optimal_reward,
+            "worst_case_efficient_reward": least_efficient_optimal_reward,
         }
 
         icl_env.label = f"{len(resources)}resources_{num_sinks}sinks_{room_size}_{obstacle_type}_{density}"
@@ -303,7 +304,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.icl_resource_chain import (
+    from experiments.evals.icl_ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
 
@@ -345,7 +346,7 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     # Local import to   avoid circular import at module load time
-    from experiments.evals.icl_resource_chain import (
+    from experiments.evals.icl_ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
 

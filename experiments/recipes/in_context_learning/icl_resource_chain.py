@@ -1,6 +1,7 @@
 import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
+
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.mettagrid.builder import empty_converters
 from pydantic import Field
@@ -64,6 +65,27 @@ class ICLTaskGenerator(TaskGenerator):
         densities: list[str] = Field(default=[], description="Density to sample from")
         # obstacle_complexity
         max_steps: int = Field(default=256, description="Episode length")
+
+        # For source/mine regeneration behavior (None = don't override prototype)
+        source_cooldown: int | None = Field(
+            default=None,
+            description="Ticks between source regenerations (None = prototype default)",
+        )
+        source_initial_resource_count: int | None = Field(
+            default=None,
+            description="Initial stock available at source (None = prototype default)",
+        )
+        source_max_conversions: int | None = Field(
+            default=None,
+            description="Max conversions before depletion (-1 = infinite, 0 = preload only, None = prototype)",
+        )
+
+        # Resources that cannot be used multiple times within a single recipe (no duplicates)
+        # This is automatically derived from sources with max_conversions=1 or initial_resource_count=1
+        non_reusable_resources: list[str] = Field(
+            default_factory=list,
+            description="Resource types that cannot repeat within one converter recipe (auto-derived)",
+        )
 
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
