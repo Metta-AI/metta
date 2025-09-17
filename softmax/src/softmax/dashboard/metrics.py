@@ -79,15 +79,27 @@ def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: st
 
 
 @metric_goal(
+    metric_key="commits.hotfix",
+    aggregate="sum",
+    target=5,
+    comparison="<",
+    window="7d",
+    description="We shouldn't have to hotfix commits on main too often",
+)
+def get_num_revert_commits() -> int:
+    return _get_num_commits_with_phrase("hotfix", lookback_days=7, branch="main")
+
+
+@metric_goal(
     metric_key="commits.reverts",
     aggregate="sum",
     target=1.0,
     comparison="<",
     window="7d",
-    description="Keep the rolling 7-day sum of reverts below one per week.",
+    description="We shouldn't have to revert commits on main too often",
 )
-def get_num_revert_commits(lookback_days: int = 7, branch: str = "main") -> int:
-    return _get_num_commits_with_phrase("revert", lookback_days=lookback_days, branch=branch)
+def get_num_hotfix_commits() -> int:
+    return _get_num_commits_with_phrase("revert", lookback_days=7, branch="main")
 
 
 def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, Any] | None:

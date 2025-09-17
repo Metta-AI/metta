@@ -119,6 +119,7 @@
     "hasattr",
     "heavyball",
     "hookwrapper",
+    "hotfixes",
     "htmlcov",
     "httpx",
     "hyperparameters",
