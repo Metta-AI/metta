@@ -731,6 +731,29 @@ py::dict MettaGrid::grid_objects() {
   return objects;
 }
 
+py::dict MettaGrid::group_info() {
+  py::dict groups;
+  
+  // Collect unique group information from agents
+  std::map<unsigned int, std::string> group_names;
+  for (const auto& agent : _agents) {
+    unsigned int group_id = agent->group;
+    if (group_names.find(group_id) == group_names.end()) {
+      group_names[group_id] = agent->group_name;
+    }
+  }
+  
+  // Build the result dictionary
+  for (const auto& [group_id, group_name] : group_names) {
+    py::dict group_dict;
+    group_dict["group_name"] = group_name;
+    // Future extensibility: can add more properties here like reward sharing, etc.
+    groups[py::int_(group_id)] = group_dict;
+  }
+  
+  return groups;
+}
+
 py::list MettaGrid::action_names() {
   py::list names;
   for (const auto& handler : _action_handlers) {
@@ -887,6 +910,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("truncations").noconvert(),
            py::arg("rewards").noconvert())
       .def("grid_objects", &MettaGrid::grid_objects)
+      .def("group_info", &MettaGrid::group_info)
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)

@@ -70,6 +70,7 @@ public:
                    const py::array_t<RewardType, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
+  py::dict group_info();
   py::list action_names();
 
   GridCoord map_width();

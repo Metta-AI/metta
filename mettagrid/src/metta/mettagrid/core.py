@@ -289,3 +289,8 @@ class MettaGridCore:
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
         return self.__c_env_instance.grid_objects()
+
+    @property
+    def group_info(self) -> Dict[int, Dict[str, Any]]:
+        """Get group information mapping group_id → group properties."""
+        return self.__c_env_instance.group_info()
