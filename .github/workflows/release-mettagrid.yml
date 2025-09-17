@@ -159,7 +159,7 @@ jobs:
           shopt -s nullglob
           for whl in dist/*.whl; do
             echo "Before delocate for $whl"; delocate-listdeps "$whl" || true
-            delocate-wheel -w dist -v --require-archs=arm64 "$whl"
+            delocate-wheel -w dist -v --require-archs arm64 "$whl"
             rm -f "$whl"
           done
           echo "After delocate:"
