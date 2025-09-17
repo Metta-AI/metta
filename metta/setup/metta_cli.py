@@ -576,11 +576,11 @@ def cmd_clip(ctx: typer.Context):
 
 
 def main() -> None:
+    from softmax.dashboard.report import app as softmax_system_health_app
     from metta.setup.local_commands import app as local_app
     from metta.setup.symlink_setup import app as symlink_app
     from metta.setup.tools.book import app as book_app
     from metta.utils.live_run_monitor import app as run_monitor_app
-    from softmax.dashboard.report import app as softmax_system_health_app
 
     app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
     app.add_typer(local_app, name="local")
