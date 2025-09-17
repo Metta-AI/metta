@@ -122,9 +122,21 @@ find "/UI/Main":
     bottomArea.rect = irect(0, rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, rootArea.rect.w, (rootArea.rect.h.float32 * 0.25).int)
     rootArea.updatePanelsSizes()
 
-startFidget(
-  figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
-  windowTitle = "MetaScope V2",
-  entryFrame = "UI/Main",
-  windowStyle = DecoratedResizable
-)
+when isMainModule:
+
+  initFidget(
+    figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
+    windowTitle = "MetaScope V2",
+    entryFrame = "UI/Main",
+    windowStyle = DecoratedResizable
+  )
+
+  when defined(emscripten):
+    # Emscripten can't block so it will call this callback instead.
+    window.run(mainLoop)
+  else:
+    # When running native code we can block in an infinite loop.
+    while not window.closeRequested:
+      mainLoop()
+    # Destroy the window.
+    window.close()
