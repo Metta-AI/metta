@@ -56,6 +56,7 @@ class TrainTool(Tool):
         # Handle run_id being passed via cmd line
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()
+            print("888888888888888888888888888888888888888")
         if "run" in args:
             assert self.run is None, "run cannot be set via args and config"
             self.run = args["run"]
@@ -92,7 +93,8 @@ class TrainTool(Tool):
         # trainer.register(Evaluator(self.evaluation))
         # trainer.register(PolicyUploader(self.policy_uploader))
         # trainer.register(GradientStatsRecorder(self.gradient_stats))
-        # trainer.register(TrainingStatsReporter(StatsConfig(report_to_wandb=bool(wandb_run), report_to_stats_client=bool(stats_client), interval=1)))
+        # trainer.register(TrainingStatsReporter(StatsConfig(
+        # report_to_wandb=bool(wandb_run), report_to_stats_client=bool(stats_client), interval=1)))
         # trainer.register(TrainerCheckpointer(self.checkpointer, distributed_helper))
         # trainer.register(TorchProfiler(self.torch_profiler))
         # trainer.register(SystemMonitor(self.system_monitor))
