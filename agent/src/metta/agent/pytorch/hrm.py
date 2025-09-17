@@ -37,7 +37,7 @@ def rms_norm(x: torch.Tensor, variance_epsilon: float = 1e-5) -> torch.Tensor:
 # Memory
 class HRMMemory:
     def __init__(self):
-        self.carry = None
+        self.carry = {}
 
 
     def has_memory(self):
@@ -50,13 +50,11 @@ class HRMMemory:
         return self.carry
     
     def reset_memory(self):
-        self.carry = None
+        self.carry = {}
     
     def reset_env_memory(self, env_id):
         if env_id in self.carry:
             del self.carry[env_id]
-        
-    
 
 
     
@@ -500,6 +498,7 @@ class HRMBackbone(nn.Module):
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Forward pass with ACT control."""
         device = batch["env_obs"].device
+
         # Reset halted sequences in carry
         new_inner_carry = self.inner.reset_carry(carry["halted"], carry["inner_carry"])
         new_steps = torch.where(carry["halted"], torch.zeros_like(carry["steps"]), carry["steps"])
@@ -613,6 +612,8 @@ class HRM(PyTorchAgentMixin, HRMMemory):
         # self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
 
         # flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
+
+        
 
         # Decode - use the actual batch size from the hidden tensor
         if td.batch_dims > 1:
@@ -749,12 +750,15 @@ class Policy(nn.Module):
             batch = {"env_obs": observations}
             state["carry"] = self.backbone.initial_carry(batch)
 
-        # Forward through backbone
-        new_carry, outputs = self.backbone(state["carry"], {"env_obs": observations})
-        
+        prev_carry = self.get_memory()[f"{env_id}"]
 
-        # Update state
-        state["carry"] = new_carry
+        # Forward through backbone
+        new_carry, outputs = self.backbone(prev_carry, {"env_obs": observations})
+        
+        self.set_memory({
+            f"{env_id}": new_carry
+        })
+
 
         # Return hidden state
         return outputs["hidden_state"]

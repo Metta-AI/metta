@@ -92,10 +92,10 @@ class TrainerConfig(Config):
     verbose: bool = True
 
     # Batch configuration
-    # Batch size: Type 2 default chosen from sweep
-    batch_size: int = Field(default=524288, gt=0)
-    # Minibatch: Type 2 default chosen from sweep
-    minibatch_size: int = Field(default=16384, gt=0)
+    # Batch size: Type 2 default chosen from sweep - reduced for memory
+    batch_size: int = Field(default=65536, gt=0)  # Reduced from 524288
+    # Minibatch: Type 2 default chosen from sweep - reduced for memory
+    minibatch_size: int = Field(default=2048, gt=0)  # Reduced from 16384
     # BPTT horizon: Type 2 default chosen arbitrarily
     bptt_horizon: int = Field(default=64, gt=0)
     # Single epoch: Type 2 default chosen arbitrarily PPO typically uses 3-10, but 1 works with large batches
@@ -111,11 +111,11 @@ class TrainerConfig(Config):
     # Profile every 10K epochs: Infrequent to minimize overhead
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
-    # Forward minibatch
-    forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
+    # Forward minibatch - reduced for memory
+    forward_pass_minibatch_target_size: int = Field(default=512, gt=0)  # Reduced from 4096
 
-    # Async factor 2: overlaps computation and communication for efficiency
-    async_factor: int = Field(default=2, gt=0)
+    # Async factor 1: reduced parallelism to save memory
+    async_factor: int = Field(default=1, gt=0)  # Reduced from 2
 
     # scheduler registry
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
