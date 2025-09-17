@@ -46,11 +46,12 @@ def _run_bazel_build() -> None:
     else:
         config = "dbg" if debug else "opt"
 
-    # Build the Python extension
+    # Build the Python extension with auto-detected parallelism
     cmd = [
         "bazel",
         "build",
         f"--config={config}",
+        "--jobs=auto",
         "--verbose_failures",
         "//:mettagrid_c",
     ]

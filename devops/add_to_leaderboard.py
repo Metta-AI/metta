@@ -93,7 +93,7 @@ Examples:
     sim_cmd = [
         "./tools/run.py",
         "experiments.recipes.navigation.eval",
-        f"--overrides policy_uri={wandb_path}",
+        f"policy_uri={wandb_path}",
         "+eval_db_uri=wandb://stats/navigation_db",
         "+eval_db_uri=wandb://stats/navigation_db",
     ] + additional_args
