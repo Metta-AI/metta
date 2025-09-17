@@ -26,7 +26,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: minimal
+          install-mode: runtime
+
 
       - name: Push system health metrics
         env:
