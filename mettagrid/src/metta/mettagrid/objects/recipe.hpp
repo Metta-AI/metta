@@ -2,6 +2,7 @@
 #define OBJECTS_RECIPE_HPP_
 
 #include <map>
+#include <memory>
 
 #include "types.hpp"
 
@@ -23,7 +24,7 @@ public:
 };
 
 inline void bind_recipe(py::module& m) {
-  py::class_<Recipe>(m, "Recipe")
+  py::class_<Recipe, std::shared_ptr<Recipe>>(m, "Recipe")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     unsigned short>(),

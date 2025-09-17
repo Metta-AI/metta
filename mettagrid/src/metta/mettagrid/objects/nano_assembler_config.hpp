@@ -17,7 +17,7 @@ struct NanoAssemblerConfig : public GridObjectConfig {
   NanoAssemblerConfig(TypeId type_id, const std::string& type_name) : GridObjectConfig(type_id, type_name) {}
 
   // Recipes will be set separately via initialize_recipes()
-  std::vector<Recipe*> recipes;
+  std::vector<std::shared_ptr<Recipe>> recipes;
 };
 
 namespace py = pybind11;

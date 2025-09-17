@@ -136,7 +136,7 @@ private:
 
 public:
   // Recipe lookup table - 256 possible patterns (2^8)
-  std::vector<Recipe*> recipes;
+  std::vector<std::shared_ptr<Recipe>> recipes;
 
   // Current cooldown state
   bool cooling_down;
@@ -152,20 +152,10 @@ public:
   class Grid* grid;
 
   NanoAssembler(GridCoord r, GridCoord c, const NanoAssemblerConfig& cfg)
-      : recipes(256, nullptr), cooling_down(false), cooldown_remaining(0), event_manager(nullptr), grid(nullptr) {
+      : recipes(cfg.recipes), cooling_down(false), cooldown_remaining(0), event_manager(nullptr), grid(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
   }
   virtual ~NanoAssembler() = default;
-
-  // Initialize the assembler with recipes
-  void initialize_recipes(const std::vector<Recipe*>& recipe_list) {
-    if (recipe_list.size() > 256) {
-      throw std::runtime_error("Too many recipes for NanoAssembler (max 256)");
-    }
-    for (size_t i = 0; i < recipe_list.size(); i++) {
-      recipes[i] = recipe_list[i];
-    }
-  }
 
   // Set event manager for cooldown scheduling
   void set_event_manager(class EventManager* event_manager_ptr) {
@@ -187,7 +177,7 @@ public:
       return false;
     }
     uint8_t pattern = get_agent_pattern_byte();
-    Recipe* recipe = recipes[pattern];
+    Recipe* recipe = recipes[pattern].get();
     if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
       stats.incr("nano_assembler.blocked.no_recipe");
       return false;
