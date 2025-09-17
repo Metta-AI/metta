@@ -184,7 +184,10 @@ class MettaGridEnv(MettaGridPufferBase):
         if len(self._label_completions["completed_tasks"]) >= 50:
             infos["label_completions"] = self._label_completions["completion_rates"]
 
-        self.per_label_rewards[self.mg_config.label] = episode_rewards.mean()
+        if self.mg_config.label not in self.per_label_rewards:
+            self.per_label_rewards[self.mg_config.label] = []
+
+        self.per_label_rewards[self.mg_config.label].append(episode_rewards.mean())
 
         # Add attributes
         attributes: Dict[str, Any] = {
