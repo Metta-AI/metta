@@ -136,6 +136,7 @@ jobs:
           python -m pip install --upgrade pip build delocate
 
       - name: Build wheel (with Raylib)
+        if: matrix.arch == 'arm64'
         env:
           WITH_RAYLIB: "1"
         run: |
@@ -144,7 +145,16 @@ jobs:
           python -m build --wheel --outdir dist mettagrid
           ls -l dist
 
+      - name: Build wheel (headless)
+        if: matrix.arch == 'x86_64'
+        run: |
+          export BAZELISK_BASE_URL=https://github.com/bazelbuild/bazel/releases/download
+          export USE_BAZEL_VERSION=7.4.1
+          python -m build --wheel --outdir dist mettagrid
+          ls -l dist
+
       - name: Vendor macOS dylibs (delocate)
+        if: matrix.arch == 'arm64'
         run: |
           shopt -s nullglob
           for whl in dist/*.whl; do
