@@ -170,6 +170,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # If reward estimates are set, plot them compared to the mean reward
         if self.mg_config.game.reward_estimates:
+            infos["reward_estimates"] = {}
             infos["reward_estimates"][f"best_case_optimal_diff"] = (
                 self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
             )
