@@ -16,3 +16,10 @@ def eval(policy_uri: str, simulations_json_base64: str) -> SimTool:
         simulations=simulations,
         policy_uris=[policy_uri],
     )
+
+
+def eval_with_path(policy_uri: str, simulations_path: str) -> SimTool:
+    # Read simulations_json_base64 from the file
+    with open(simulations_path, "r") as f:
+        simulations_json_base64 = f.read()
+    return eval(policy_uri, simulations_json_base64)
