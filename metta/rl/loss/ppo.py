@@ -63,7 +63,11 @@ class PPO(BaseLoss):
 
         # Store experience
         segment_records = self.policy.consume_segment_memory_records()
-        self.replay.store(data_td=td, env_id=trainer_state.training_env_id, segment_records=segment_records)
+        self.replay.store(
+            data_td=td,
+            env_id=trainer_state.training_env_id,
+            segment_records=segment_records or None,
+        )
 
         return
 
@@ -99,7 +103,11 @@ class PPO(BaseLoss):
         if memory_snapshots:
             policy_state = self.policy.prepare_memory_batch(memory_snapshots, device=self.device)
         if policy_state is not None:
-            policy_td = self.policy(policy_td, action=minibatch["actions"], state=policy_state)
+            policy_td = self.policy(
+                policy_td,
+                action=minibatch["actions"],
+                state={"transformer_memory": policy_state, "hidden": None},
+            )
         else:
             policy_td = self.policy(policy_td, action=minibatch["actions"])
         shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse

@@ -49,7 +49,6 @@ class Experience:
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
-        self.current_episode_ids = torch.zeros(total_agents, device=self.device, dtype=torch.long)
         self.segment_memory: list[Optional[Dict[str, Optional[List[torch.Tensor]]]]] = [None] * self.segments
 
         # Minibatch configuration
@@ -90,11 +89,10 @@ class Experience:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
 
-    def get_rollout_context(self, env_id: slice) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def get_rollout_context(self, env_id: slice) -> tuple[torch.Tensor, torch.Tensor]:
         segment_indices = self.ep_indices[env_id].clone()
         segment_pos = self.ep_lengths[env_id].clone()
-        episode_ids = self.current_episode_ids[env_id].clone()
-        return segment_indices, segment_pos, episode_ids
+        return segment_indices, segment_pos
 
     def store(
         self,
@@ -109,7 +107,7 @@ class Experience:
         episode_lengths = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
-        for meta_key in ("_segment_indices", "_segment_pos", "_episode_ids", "_env_indices"):
+        for meta_key in ("_segment_indices", "_segment_pos"):
             if meta_key in data_td.keys():
                 del data_td[meta_key]
 
@@ -124,26 +122,6 @@ class Experience:
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
-        dones = data_td.get("dones", None)
-        truncs = data_td.get("truncateds", None)
-        if dones is not None or truncs is not None:
-            dones_mask = (
-                dones.reshape(-1).to(torch.bool)
-                if dones is not None
-                else torch.zeros(indices.shape[0], dtype=torch.bool, device=self.device)
-            )
-            trunc_mask = (
-                truncs.reshape(-1).to(torch.bool)
-                if truncs is not None
-                else torch.zeros(indices.shape[0], dtype=torch.bool, device=self.device)
-            )
-            finished = torch.logical_or(dones_mask, trunc_mask)
-            if finished.any():
-                for offset, flag in enumerate(finished.tolist()):
-                    if flag:
-                        env_abs_idx = env_id.start + offset
-                        self.current_episode_ids[env_abs_idx] += 1
-
     def _reset_completed_episodes(self, env_id) -> None:
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
@@ -151,6 +129,9 @@ class Experience:
         self.ep_lengths[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
+        new_slots = self.ep_indices[env_id]
+        for idx in new_slots.tolist():
+            self.segment_memory[idx] = None
 
     def reset_for_rollout(self) -> None:
         """Reset tracking variables for a new rollout."""
@@ -158,6 +139,7 @@ class Experience:
         self.free_idx = self.total_agents % self.segments
         self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
+        self.segment_memory = [None] * self.segments
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""

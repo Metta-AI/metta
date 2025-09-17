@@ -57,7 +57,12 @@ class TLKickstarter(BaseLoss):
         with torch.no_grad():
             self.teacher_policy(td)
 
-        self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
+        segment_records = self.policy.consume_segment_memory_records()
+        self.replay.store(
+            data_td=td,
+            env_id=trainer_state.training_env_id,
+            segment_records=segment_records or None,
+        )
 
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)

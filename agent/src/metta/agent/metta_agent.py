@@ -140,16 +140,19 @@ class MettaAgent(nn.Module):
         self.replay = experience
 
     def consume_segment_memory_records(self):
-        if hasattr(self.policy, "consume_segment_memory_records"):
-            return self.policy.consume_segment_memory_records()
+        target = self.policy
+        if hasattr(target, "consume_segment_memory_records"):
+            return target.consume_segment_memory_records()
+        if hasattr(target, "module") and hasattr(target.module, "consume_segment_memory_records"):
+            return target.module.consume_segment_memory_records()
         return []
 
     def prepare_memory_batch(self, snapshots, device: torch.device):
-        if hasattr(self.policy, "prepare_memory_batch"):
-            memory = self.policy.prepare_memory_batch(snapshots, device)
-            if memory is None:
-                return None
-            return {"transformer_memory": memory, "hidden": None}
+        target = self.policy
+        if hasattr(target, "prepare_memory_batch"):
+            return target.prepare_memory_batch(snapshots, device)
+        if hasattr(target, "module") and hasattr(target.module, "prepare_memory_batch"):
+            return target.module.prepare_memory_batch(snapshots, device)
         return None
 
     def initialize_to_environment(

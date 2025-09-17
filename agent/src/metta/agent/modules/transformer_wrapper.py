@@ -49,7 +49,6 @@ class TransformerWrapper(nn.Module):
         self.policy = policy
         self.hidden_size = hidden_size
         self.is_continuous = getattr(policy, "is_continuous", False)
-        self._env_memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
         self._pending_segment_records: List[SegmentMemoryRecord] = []
 
         for name, param in self.named_parameters():
@@ -180,22 +179,19 @@ class TransformerWrapper(nn.Module):
         Returns:
             Initial memory state dictionary
         """
+        self._pending_segment_records = []
+
         if batch_size is None:
-            self._env_memory.clear()
-            self._pending_segment_records = []
             return {
                 "transformer_memory": None,
                 "hidden": None,
                 "needs_init": True,
             }
 
+        memory = None
         if hasattr(self.policy, "initialize_memory"):
             memory = self._normalize_memory(self.policy.initialize_memory(batch_size))
-        else:
-            memory = None
 
-        self._env_memory.clear()
-        self._pending_segment_records = []
         return {
             "transformer_memory": memory,
             "hidden": None,
@@ -233,7 +229,7 @@ class TransformerWrapper(nn.Module):
 
     def prepare_memory_batch(
         self, snapshots: list[Optional[Dict[str, Optional[List[torch.Tensor]]]]], device: torch.device
-    ) -> Optional[Dict[str, Dict[str, List[torch.Tensor]]]]:
+    ) -> Optional[Dict[str, List[torch.Tensor]]]:
         """Convert per-sample memory snapshots into a batch suitable for TransformerModule."""
 
         if not snapshots or all(snapshot is None for snapshot in snapshots):
@@ -248,6 +244,7 @@ class TransformerWrapper(nn.Module):
             return None
         n_layers = transformer.n_layers
         d_model = transformer.d_model
+        dtype = next(transformer.parameters()).dtype
 
         batched_hidden: List[torch.Tensor] = []
 
@@ -261,17 +258,12 @@ class TransformerWrapper(nn.Module):
                         layer_tensor = hidden_states[layer_idx]
 
                 if layer_tensor is None or layer_tensor.numel() == 0:
-                    layer_entries.append(torch.zeros(mem_len, d_model, device=device))
+                    layer_entries.append(torch.zeros(mem_len, d_model, device=device, dtype=dtype))
                     continue
 
-                layer_tensor = layer_tensor.to(device=device)
+                layer_tensor = layer_tensor.to(device=device, dtype=dtype)
                 if layer_tensor.size(0) < mem_len:
-                    pad = torch.zeros(
-                        mem_len - layer_tensor.size(0),
-                        d_model,
-                        device=device,
-                        dtype=layer_tensor.dtype,
-                    )
+                    pad = torch.zeros(mem_len - layer_tensor.size(0), d_model, device=device, dtype=dtype)
                     layer_tensor = torch.cat([pad, layer_tensor], dim=0)
                 else:
                     layer_tensor = layer_tensor[-mem_len:]
@@ -280,48 +272,10 @@ class TransformerWrapper(nn.Module):
 
             batched_hidden.append(torch.stack(layer_entries, dim=1))
 
-        return {"transformer_memory": {"hidden_states": batched_hidden}}
-
-    def _build_batch_memory_from_env(
-        self, env_indices: torch.Tensor, device: torch.device
-    ) -> Optional[Dict[str, List[torch.Tensor]]]:
-        """Assemble current env memories into a TransformerModule-compatible batch."""
-
-        if not self._env_memory or env_indices.numel() == 0:
-            return None
-
-        snapshots: List[Optional[Dict[str, Optional[List[torch.Tensor]]]]] = []
-        for env_idx in env_indices.tolist():
-            snapshots.append(self._env_memory.get(env_idx))
-
-        prepared = self.prepare_memory_batch(snapshots, device)
-        if prepared is None:
-            return None
-        return prepared["transformer_memory"]
-
-    def _update_env_memory(
-        self, env_indices: torch.Tensor, new_memory: Optional[Dict[str, List[torch.Tensor]]]
-    ) -> None:
-        """Store updated transformer memory per environment after a forward pass."""
-
-        layer_states = self._extract_layer_states(new_memory)
-        for batch_pos, env_idx in enumerate(env_indices.tolist()):
-            if layer_states is None:
-                self._env_memory[env_idx] = None
-                continue
-            env_layers: List[torch.Tensor] = []
-            for layer_hidden in layer_states:
-                if layer_hidden.numel() == 0:
-                    env_layers.append(layer_hidden.detach().cpu())
-                    continue
-                if layer_hidden.dim() != 3:
-                    raise ValueError(f"Expected layer memory with shape (T, B, D), got {layer_hidden.shape}")
-                env_layers.append(layer_hidden[:, batch_pos].detach().cpu())
-            self._env_memory[env_idx] = {"hidden_states": env_layers}
+        return {"hidden_states": batched_hidden}
 
     def _record_segment_memory(
         self,
-        env_indices: torch.Tensor,
         segment_indices: torch.Tensor,
         segment_positions: torch.Tensor,
         memory_snapshot: Optional[Dict[str, List[torch.Tensor]]],
@@ -331,14 +285,13 @@ class TransformerWrapper(nn.Module):
         if segment_indices.numel() == 0 or segment_positions.numel() == 0:
             return
 
-        base_layers = self._extract_layer_states(memory_snapshot)
-        if base_layers is None:
+        if memory_snapshot is None or memory_snapshot.get("hidden_states") is None:
             snapshots = [None for _ in range(segment_indices.numel())]
         else:
             snapshots = []
             for idx in range(segment_indices.numel()):
                 env_layers: List[torch.Tensor] = []
-                for layer in base_layers:
+                for layer in memory_snapshot["hidden_states"]:
                     if layer.numel() == 0:
                         env_layers.append(layer.detach().cpu())
                         continue
@@ -360,18 +313,6 @@ class TransformerWrapper(nn.Module):
             return decode_fn(hidden, batch_size=batch_size)
         except TypeError:
             return decode_fn(hidden)
-
-    def _extract_layer_states(
-        self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
-    ) -> Optional[List[torch.Tensor]]:
-        if memory is None:
-            return None
-        hidden_states = memory.get("hidden_states")
-        if hidden_states is None:
-            raise ValueError("Transformer memory must include 'hidden_states'")
-        if len(hidden_states) == 0:
-            return None
-        return [layer for layer in hidden_states]
 
     def _normalize_memory(
         self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
