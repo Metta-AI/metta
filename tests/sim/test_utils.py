@@ -15,6 +15,6 @@ def test_get_or_create_policy_ids_uses_epoch_in_policy_name():
     mapping = get_or_create_policy_ids(stats_client, [(uri, None)])
 
     stats_client.create_policy.assert_called_once()
-    args, kwargs = stats_client.create_policy.call_args
-    assert args[0] == "example_run:v5"
+    called_kwargs = stats_client.create_policy.call_args.kwargs
+    assert called_kwargs["name"] == "example_run:v5"
     assert mapping[uri] == expected_id
