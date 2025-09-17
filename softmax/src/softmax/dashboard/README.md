@@ -8,3 +8,9 @@ home.softmax-research.net)
 ```bash
 uv run python -m softmax.dashboard.report
 ```
+
+or
+
+```bash
+ metta softmax-system-health report
+```
