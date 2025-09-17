@@ -80,12 +80,12 @@ def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: st
 
 
 @system_health_metric(metric_key="commits.hotfix")
-def get_num_revert_commits() -> int:
+def get_num_hotfix_commits() -> int:
     return _get_num_commits_with_phrase("hotfix", lookback_days=7, branch="main")
 
 
 @system_health_metric(metric_key="commits.reverts")
-def get_num_hotfix_commits() -> int:
+def get_num_revert_commits() -> int:
     return _get_num_commits_with_phrase("revert", lookback_days=7, branch="main")
 
 
@@ -104,15 +104,15 @@ def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, An
 
 
 @system_health_metric(metric_key="ci.tests_passing_on_main")
-def get_latest_unit_tests_failed() -> int:
+def get_latest_unit_tests_failed() -> int | None:
     run = get_latest_workflow_run(branch="main", workflow_filename="checks.yml")
     if not run:
-        return 1
+        return None
 
     run_id = run.get("id")
     if not run_id:
         logger.error(f"Failed to get run ID: {run}")
-        return 1
+        return None
 
     params = {"per_page": 100}
     with _github_client() as client:
@@ -122,7 +122,7 @@ def get_latest_unit_tests_failed() -> int:
         )
         if resp.status_code >= 400:
             logger.error(f"Failed to get jobs: {resp.status_code} {resp.text}")
-            return 1
+            return None
 
         job_statuses = _get_job_statuses_by_name(resp.json() or {})
         unit_tests_all_packages = job_statuses.get("unit tests - all packages")
@@ -134,7 +134,7 @@ def get_latest_unit_tests_failed() -> int:
         # Cancelled tests can be identified by "Unit Tests - All Packages" job being cancelled and then "Tests" failing
         canceled = unit_tests_all_packages.status == "cancelled" and tests.conclusion == "failure"
         if canceled:
-            return 1
+            return None
         return int(
             all(
                 job_status.conclusion in ("success", "skipped")
