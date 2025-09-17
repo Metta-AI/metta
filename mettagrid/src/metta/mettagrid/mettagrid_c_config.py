@@ -139,10 +139,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                     for k, v in object_config.output_resources.items()
                     if v > 0 and k in resource_name_to_id
                 },
-                max_output=object_config.max_output,
+                output_limit=object_config.output_limit,
                 max_conversions=object_config.max_conversions,
-                conversion_ticks=object_config.conversion_ticks,
-                cooldown=object_config.cooldown,
+                conversion_duration=object_config.conversion_duration,
+                cooldown_duration=object_config.cooldown_duration,
                 initial_resource_count=object_config.initial_resource_count,
                 color=object_config.color,
                 recipe_details_obs=game_config.recipe_details_obs,

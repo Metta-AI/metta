@@ -707,11 +707,11 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["inventory"] = inventory_dict;
       obj_dict["is_converting"] = converter->converting;
       obj_dict["is_cooling_down"] = converter->cooling_down;
-      obj_dict["conversion_duration"] = converter->conversion_ticks;
-      obj_dict["cooldown_duration"] = converter->cooldown;
+      obj_dict["conversion_duration"] = converter->conversion_duration;
+      obj_dict["cooldown_duration"] = converter->cooldown_duration;
       obj_dict["conversion_remaining"] = converter->conversion_remaining();
       obj_dict["cooldown_remaining"] = converter->cooldown_remaining();
-      obj_dict["output_limit"] = converter->max_output;
+      obj_dict["output_limit"] = converter->output_limit;
       obj_dict["color"] = converter->color;
       py::dict input_resources_dict;
       for (const auto& [resource, quantity] : converter->input_resources) {
@@ -733,7 +733,7 @@ py::dict MettaGrid::grid_objects() {
 
 py::dict MettaGrid::group_info() {
   py::dict groups;
-  
+
   // Collect unique group information from agents
   std::map<unsigned int, std::string> group_names;
   for (const auto& agent : _agents) {
@@ -742,7 +742,7 @@ py::dict MettaGrid::group_info() {
       group_names[group_id] = agent->group_name;
     }
   }
-  
+
   // Build the result dictionary
   for (const auto& [group_id, group_name] : group_names) {
     py::dict group_dict;
@@ -750,7 +750,7 @@ py::dict MettaGrid::group_info() {
     // Future extensibility: can add more properties here like reward sharing, etc.
     groups[py::int_(group_id)] = group_dict;
   }
-  
+
   return groups;
 }
 

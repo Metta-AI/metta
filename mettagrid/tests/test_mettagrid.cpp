@@ -382,10 +382,10 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
                                 "generator",              // type_name
                                 {{TestItems::ORE, 1}},    // input_resources
                                 {{TestItems::ARMOR, 1}},  // output_resources
-                                0,                        // max_output
+                                0,                        // output_limit
                                 -1,                       // max_conversions
-                                1,                        // conversion_ticks
-                                10,                       // cooldown
+                                1,                        // conversion_duration
+                                10,                       // cooldown_duration
                                 0,                        // initial_resource_count
                                 0,                        // color
                                 false);                   // recipe_details_obs
@@ -434,10 +434,10 @@ TEST_F(MettaGridCppTest, GetOutput) {
                                 "generator",              // type_name
                                 {{TestItems::ORE, 1}},    // input_resources
                                 {{TestItems::ARMOR, 1}},  // output_resources
-                                1,                        // max_output
+                                1,                        // output_limit
                                 -1,                       // max_conversions
-                                1,                        // conversion_ticks
-                                10,                       // cooldown
+                                1,                        // conversion_duration
+                                10,                       // cooldown_duration
                                 1,                        // initial_items
                                 0,                        // color
                                 false);                   // recipe_details_obs

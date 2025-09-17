@@ -112,10 +112,10 @@ class ConverterConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int = Field(default=0, ge=0, le=255)
-    max_output: int = Field(ge=-1, default=5)
+    output_limit: int = Field(ge=-1, default=5)
     max_conversions: int = Field(default=-1)
-    conversion_ticks: int = Field(ge=0, default=1)
-    cooldown: int = Field(ge=0)
+    conversion_duration: int = Field(ge=0, default=1)
+    cooldown_duration: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
 
