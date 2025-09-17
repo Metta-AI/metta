@@ -66,22 +66,26 @@ def _datadog_configuration() -> Configuration:
 
 @app.command()
 def report(
-    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Skip Datadog submission and print metrics."),
+    push: bool = typer.Option(False, "--push", "-p", help="Push metrics to Datadog."),
 ) -> None:
     """Collect registered metrics and optionally send them to Datadog."""
 
     init_logging()
     metrics = collect_metrics()
 
-    if dry_run or not metrics:
-        typer.echo(json.dumps(metrics, indent=2, sort_keys=True))
+    typer.echo("Metrics:")
+    typer.echo(json.dumps(metrics, indent=2, sort_keys=True))
+    if not push:
+        typer.echo("Skipping Datadog push")
         return
+
+    typer.echo("Pushing metrics to Datadog...")
 
     configuration = _datadog_configuration()
     payload = _build_series_payload(metrics)
     with ApiClient(configuration) as api_client:
         MetricsApi(api_client).submit_metrics(body=payload)
-    typer.echo(json.dumps(metrics, indent=2, sort_keys=True))
+    typer.echo("Metrics pushed to Datadog")
 
 
 def main() -> None:

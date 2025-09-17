@@ -12,5 +12,5 @@ uv run python -m softmax.dashboard.report
 or
 
 ```bash
- metta softmax-system-health report
+ metta softmax-system-health report [--push]
 ```
