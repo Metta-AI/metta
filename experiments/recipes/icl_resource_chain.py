@@ -169,7 +169,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             if room_size == "medium"
             else (12, 15)
             if room_size == "large"
-            else (5, 8)
+            else (5, 7)
         )
 
         width, height = (
