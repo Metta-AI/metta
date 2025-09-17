@@ -624,7 +624,7 @@ def train(
 
             # Check for abort every 5 epochs
             if should_run(epoch, 5):
-                if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
+                if wandb_run and abort_requested(wandb_run):
                     logger.info("Abort tag detected. Stopping the run.")
                     trainer_cfg.total_timesteps = int(agent_step)
                     wandb_run.config.update(

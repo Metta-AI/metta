@@ -56,19 +56,7 @@ def _wait_for_artifact_upload(artifact: Artifact) -> None:
 
 
 def abort_requested(wandb_run: WandbRun | None) -> bool:
-    """Check if wandb run has an 'abort' tag.
-
-    Used for graceful early stopping of training runs. When an 'abort' tag is added
-    to a wandb run, the training loop will complete its current epoch and then stop,
-    updating the total_timesteps to reflect the actual steps completed.
-
-    Args:
-        wandb_run: The wandb run to check
-        min_interval_sec: Kept for backward compatibility (no longer used)
-
-    Returns:
-        True if the run has an 'abort' tag, False otherwise
-    """
+    """Check if wandb run has an 'abort' tag."""
     if wandb_run is None:
         return False
 
