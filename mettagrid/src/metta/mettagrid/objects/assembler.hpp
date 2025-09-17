@@ -1,7 +1,6 @@
 #ifndef OBJECTS_ASSEMBLER_HPP_
 #define OBJECTS_ASSEMBLER_HPP_
 
-#include <iostream>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -195,7 +194,6 @@ public:
     if (recipe->cooldown > 0) {
       cooling_down = true;
       cooldown_remaining = recipe->cooldown;
-      std::cout << "Scheduling cooldown event for " << recipe->cooldown << " ticks" << std::endl;
       event_manager->schedule_event(EventType::CoolDown, recipe->cooldown, id, 0);
       stats.incr("assembler.cooldown_started");
     }
