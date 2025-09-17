@@ -1,7 +1,7 @@
 import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
-
+import itertools
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
     CurriculumAlgorithmConfig,
@@ -54,6 +54,211 @@ class _BuildCfg:
     converters: List[str] = field(default_factory=list)
     game_objects: Dict[str, Any] = field(default_factory=dict)
     map_builder_objects: Dict[str, int] = field(default_factory=dict)
+
+    #unordered chain variables
+    sources: List[str] = field(default_factory=list)
+
+
+class ICLTaskGenerator(TaskGenerator):
+
+    class Config(TaskGeneratorConfig["ICLTaskGenerator"]):
+        """Configuration for ICLTaskGenerator."""
+        pass
+
+    def __init__(self, config: "ICLTaskGenerator.Config"):
+        super().__init__(config)
+        self.config = config
+        self.resource_types = RESOURCE_TYPES.copy()
+        self.converter_types = CONVERTER_TYPES.copy()
+
+    def _choose_converter_name(
+        self, pool: Dict[str, Any], used: set[str], rng: random.Random
+    ) -> str:
+        choices = [name for name in pool.keys() if name not in used]
+        if not choices:
+            raise ValueError("No available converter names left to choose from.")
+        return str(rng.choice(choices))
+
+
+# sources and sinks
+
+# number of sources: number of converters that output unique resources
+# number of converters: number of converters that take as input some combination of the source resources, and output hearts
+
+
+class UnorderedChainTaskGenerator(ICLTaskGenerator):
+    #can always add sinks in later
+    class Config(TaskGeneratorConfig["ConverterChainTaskGenerator"]):
+        """Configuration for ConverterChainTaskGenerator."""
+
+        num_sources: list[int] = Field(
+            default_factory=list, description="Number of converters that output unique resources"
+        )
+        num_converters: list[int] = Field(
+            default_factory=list, description="Number of converters that take as input some combination of the source resources, and output hearts"
+        )
+        room_sizes: list[str] = Field(
+            default=["small"], description="Room size to sample from"
+        )
+        obstacle_types: list[str] = Field(
+            default=[], description="Obstacle types to sample from"
+        )
+        densities: list[str] = Field(default=[], description="Density to sample from")
+        # obstacle_complexity
+        max_steps: int = Field(default=256, description="Episode length")
+
+    def __init__(self, config: "UnorderedChainTaskGenerator.Config"):
+        super().__init__(config)
+        self.config = config
+        self.resource_types = RESOURCE_TYPES.copy()
+        self.converter_types = CONVERTER_TYPES.copy()
+
+    def _add_source(self, output_resource: str, cfg: _BuildCfg, rng: random.Random):
+        converter_name = self._choose_converter_name(
+            self.converter_types, set(cfg.used_objects), rng
+        )
+        cfg.used_objects.append(converter_name)
+        cfg.sources.append(converter_name)
+
+        converter = self.converter_types[converter_name].copy()
+
+        converter.output_resources = {output_resource: 1}
+        converter.input_resources = {}
+        cfg.all_input_resources.append(output_resource)
+        cfg.game_objects[converter_name] = converter
+        cfg.map_builder_objects[converter_name] = 1
+
+    def _add_converter(self, cfg: _BuildCfg, rng: random.Random, max_input_resources: int = 6):
+        output_resource = "heart" # can think about the output resource later
+
+        # sample some combination of source resources
+        num_input_resources = rng.randint(1, max_input_resources)
+        # this implies all sources are reusable, if we have non-reusable sources, we need to flag that
+        # and impose a constraint on the number of non-reusable source resources we can have as input
+        input_resources = list(itertools.combinations_with_replacement(cfg.all_input_resources, num_input_resources))
+        converter_name = self._choose_converter_name(
+            self.converter_types, set(cfg.used_objects), rng
+        )
+        cfg.used_objects.append(converter_name)
+        cfg.converters.append(converter_name)
+        converter = self.converter_types[converter_name].copy()
+        converter.input_resources = {}
+
+        for resource in input_resources:
+            converter.input_resources[resource] = 1
+
+        converter.output_resources = {output_resource: 1}
+
+        cfg.game_objects[converter_name] = converter
+        cfg.map_builder_objects[converter_name] = 1
+
+
+
+    def _make_env_cfg(self, cfg: _BuildCfg, rng: random.Random):
+        pass
+
+class OrderedChainTaskGenerator(ICLTaskGenerator):
+    class Config(TaskGeneratorConfig["ConverterChainTaskGenerator"]):
+        """Configuration for ConverterChainTaskGenerator."""
+
+        chain_lengths: list[int] = Field(
+            default_factory=list, description="Chain lengths to sample from"
+        )
+        num_sinks: list[int] = Field(
+            default_factory=list, description="Number of sinks to sample from"
+        )
+        room_sizes: list[str] = Field(
+            default=["small"], description="Room size to sample from"
+        )
+        obstacle_types: list[str] = Field(
+            default=[], description="Obstacle types to sample from"
+        )
+        densities: list[str] = Field(default=[], description="Density to sample from")
+        # obstacle_complexity
+        max_steps: int = Field(default=256, description="Episode length")
+
+    def _add_converter(
+        self,
+        input_resource: str,
+        output_resource: str,
+        cfg: _BuildCfg,
+        rng: random.Random,
+    ):
+        converter_name = self._choose_converter_name(
+            self.converter_types, set(cfg.used_objects), rng
+        )
+        cfg.used_objects.append(converter_name)
+        cfg.converters.append(converter_name)
+
+        converter = self.converter_types[converter_name].copy()
+        converter.output_resources = {output_resource: 1}
+
+        if input_resource == "nothing":
+            converter.input_resources = {}
+        else:
+            converter.input_resources = {input_resource: 1}
+
+            cfg.all_input_resources.append(input_resource)
+
+        cfg.game_objects[converter_name] = converter
+        cfg.map_builder_objects[converter_name] = 1
+
+    def _add_sink(self, cfg: _BuildCfg, rng: random.Random):
+        sink_name = self._choose_converter_name(
+            self.converter_types, set(cfg.used_objects), rng
+        )
+        cfg.used_objects.append(sink_name)
+        sink = self.converter_types[sink_name].copy()
+
+        for input_resource in cfg.all_input_resources:
+            sink.input_resources[input_resource] = 1
+
+        cfg.game_objects[sink_name] = sink
+        cfg.map_builder_objects[sink_name] = 1
+
+    def _make_env_cfg(
+            self,
+            resources,
+            num_sinks,
+            width,
+            height,
+            obstacle_type,
+            density,
+            avg_hop,
+            rng,
+            max_steps=256,
+        ) -> MettaGridConfig:
+            cfg = _BuildCfg()
+            resource_chain = ["nothing"] + list(resources) + ["heart"]
+
+            chain_length = len(resource_chain)
+
+            for i in range(chain_length - 1):
+                input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
+                self._add_converter(input_resource, output_resource, cfg, rng=rng)
+
+            for _ in range(num_sinks):
+                self._add_sink(cfg, rng=rng)
+
+            # longer episodes for longer chains
+            if len(cfg.used_objects) > 4:
+                max_steps = self.config.max_steps * 2
+
+            cooldown = avg_hop * (chain_length - 1)
+
+            for obj in cfg.converters:
+                cfg.game_objects[obj].cooldown = int(cooldown)
+
+            return make_icl_resource_chain(
+                num_agents=24,
+                max_steps=max_steps,
+                game_objects=cfg.game_objects,
+                map_builder_objects=cfg.map_builder_objects,
+                width=width,
+                height=height,
+                obstacle_type=obstacle_type,
+                density=density,
+            )
 
 
 class ConverterChainTaskGenerator(TaskGenerator):
