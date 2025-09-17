@@ -226,7 +226,9 @@ def test_get_replay_urls(tmp_path: Path):
     assert replay_urls[2] in env1_urls
 
     # Test combining policy URI and environment filters
-    combined_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/v1.pt"), env="env1")
+    combined_urls = db.get_replay_urls(
+        policy_uri=CheckpointManager.normalize_uri("policy1/checkpoints/v1.pt"), env="env1"
+    )
     assert len(combined_urls) == 1
     assert replay_urls[0] in combined_urls
 
