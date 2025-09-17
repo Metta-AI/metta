@@ -1,3 +1,4 @@
+from collections import deque
 from typing import Optional
 
 import numpy as np
@@ -104,14 +105,14 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         height, width = grid.shape
         visited = np.zeros((height, width), dtype=bool)
-        queue = [(start_i, start_j)]
+        queue = deque([(start_i, start_j)])
         visited[start_i, start_j] = True
 
         # Directions: up, down, left, right
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
         while queue:
-            i, j = queue.pop(0)
+            i, j = queue.popleft()
 
             # Check if we've reached the perimeter
             if i == 0 or i == height - 1 or j == 0 or j == width - 1:
