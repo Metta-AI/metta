@@ -76,6 +76,13 @@ pybind_extension(
         # Windows dependency wiring to be added when CI is enabled.
         "//conditions:default": [],
     }),
+    linkopts = select({
+        ":with_raylib_macos": [
+            # Ensure the link step matches the C++ min version
+            "-mmacosx-version-min=13.3",
+        ],
+        "//conditions:default": [],
+    }),
     includes = ["src/metta/mettagrid"],
     visibility = ["//visibility:public"],
 )
