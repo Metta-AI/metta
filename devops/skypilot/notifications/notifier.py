@@ -7,9 +7,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
-from devops.skypilot.notifications.discord import DiscordNotifier
-from devops.skypilot.notifications.github import GitHubNotifier
-from devops.skypilot.notifications.wandb import WandBNotifier
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.util.retry import retry_function
@@ -127,6 +124,8 @@ def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[s
     # Discord notification
     if config.send_discord and job_config.enable_discord_notification:
         try:
+            from devops.skypilot.notifications.discord import DiscordNotifier
+
             results["discord"] = DiscordNotifier().send_notification(config, job_config)
         except Exception as e:
             logger.error(f"Failed to send Discord notification: {e}")
@@ -135,6 +134,8 @@ def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[s
     # W&B notification
     if config.send_wandb and job_config.enable_wandb_notification:
         try:
+            from devops.skypilot.notifications.wandb import WandBNotifier
+
             results["wandb"] = WandBNotifier().send_notification(config, job_config)
         except Exception as e:
             logger.error(f"Failed to send W&B notification: {e}")
@@ -143,6 +144,8 @@ def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[s
     # GitHub status update
     if config.send_github and job_config.enable_github_status:
         try:
+            from devops.skypilot.notifications.github import GitHubNotifier
+
             results["github"] = GitHubNotifier().send_notification(config, job_config)
         except Exception as e:
             logger.error(f"Failed to send GitHub status: {e}")
