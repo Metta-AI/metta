@@ -37,6 +37,8 @@ cleanup() {
 
   sleep 1
 
+  print_job_debug_report
+
   # Override the process exit code from within the EXIT trap.
   # Note: calling `exit` inside an EXIT trap does not recurse the trap.
   exit "${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
@@ -138,10 +140,57 @@ determine_final_exit_code() {
   fi
 }
 
-# Export the cleanup function if sourced
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
-  export -f cleanup
-  export -f handle_master_cleanup
-  export -f print_final_summary
-  export -f determine_final_exit_code
-fi
+print_job_debug_report() {
+    local report=""
+
+    report+="[DEBUG] ========== JOB DEBUG REPORT ==========\n"
+    report+="[DEBUG] Timestamp: $(date '+%Y-%m-%d %H:%M:%S')\n"
+    report+="[DEBUG] Script PID: $$\n"
+    report+="[DEBUG] CMD_PID: ${CMD_PID:-'not set'}\n"
+
+    # Check current job status
+    report+="[DEBUG] Current job table:\n"
+    report+="$(jobs -l 2>&1 || echo '  No jobs found')\n"
+
+    # Check all background jobs
+    report+="[DEBUG] Background job PIDs:\n"
+    report+="$(jobs -p 2>&1 || echo '  No background jobs')\n"
+
+    # Check process group (python -m mode has PGID = CMD_PID)
+    report+="[DEBUG] Process group ${CMD_PID} members:\n"
+    report+="$(ps -eo pid,ppid,pgid,state,etime,cmd | grep "^\s*[0-9]\+\s\+[0-9]\+\s\+${CMD_PID}" 2>&1 || echo '  No processes found in group')\n"
+
+    # Check for any child processes of this script
+    report+="[DEBUG] Child processes of script (PID $$):\n"
+    report+="$(ps --ppid $$ -o pid,ppid,pgid,state,etime,cmd 2>&1 || echo '  No child processes found')\n"
+
+    # Check for zombie processes
+    report+="[DEBUG] Zombie processes:\n"
+    report+="$(ps aux | grep ' <defunct>' | grep -v grep || echo '  No zombie processes found')\n"
+
+    # Check for processes matching the module name
+    if [[ -n "${METTA_MODULE_PATH:-}" ]]; then
+        local module_name=$(basename "${METTA_MODULE_PATH}")
+        report+="[DEBUG] Processes matching module '$module_name':\n"
+        report+="$(ps aux | grep "$module_name" | grep -v grep || echo '  No matching processes found')\n"
+    fi
+
+    # Check monitor processes if they exist
+    report+="[DEBUG] Monitor processes:\n"
+    report+="$(ps aux | grep -E '(monitor_gpu|monitor_memory|cluster_stop_monitor)' | grep -v grep || echo '  No monitor processes found')\n"
+
+    # System resource state
+    report+="[DEBUG] System state:\n"
+    report+="  Load average: $(uptime | awk -F'load average:' '{print $2}')\n"
+    report+="  Memory usage:\n"
+    report+="$(free -h | sed 's/^/    /')\n"
+
+    # Check for any processes that might be holding resources
+    report+="[DEBUG] Top 5 CPU consuming processes:\n"
+    report+="$(ps aux --sort=-%cpu | head -6 | tail -5 | sed 's/^/  /')\n"
+
+    report+="[DEBUG] ========== END DEBUG REPORT ==========\n"
+
+    # Output everything at once
+    echo -ne "$report"
+}
