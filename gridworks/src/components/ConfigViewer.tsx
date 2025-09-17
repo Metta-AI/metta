@@ -35,7 +35,12 @@ const YamlScalar: FC<{
   const multiline = typeof value === "string" && value.includes("\n");
 
   let url = "";
-  const KNOWN_PACKAGES = ["mettagrid.mapgen", "metta.map"];
+  const KNOWN_PACKAGES = [
+    "mettagrid.mapgen",
+    "mettagrid.map_builder",
+    "metta.map",
+    "metta.cogworks",
+  ];
 
   const repoRoot = use(RepoRootContext);
   if (
@@ -169,6 +174,14 @@ const YamlArray: FC<{
     return <div className="text-gray-500">[]</div>;
   }
 
+  if (
+    path.includes(".map_data") &&
+    value.every((v) => typeof v === "string" && v.length === 1)
+  ) {
+    // special case for readability
+    return <div>{value.join("")}</div>;
+  }
+
   return (
     <div className="-ml-[2ch]">
       {value.map((v, i) => (
@@ -201,7 +214,7 @@ const YamlAny: FC<{
 };
 
 export const ConfigViewer: FC<{
-  value: Record<string, unknown>;
+  value: unknown;
   // The fields that weren't set explicitly (so they can still have their default values, not necessarily null).
   // The prop name mirrors `model_fields_set` in Pydantic.
   unsetFields?: string[];

@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useQueryState } from "nuqs";
 import { FC, useCallback, useMemo, useState } from "react";
 
@@ -12,6 +11,7 @@ import { ConfigViewer } from "./ConfigViewer";
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { MapViewer } from "./MapViewer";
 import { SceneTreeViewer } from "./SceneTreeViewer";
+import { StyledLink } from "./StyledLink";
 import { Tabs } from "./Tabs";
 
 // YAML viewer with the ability to click lines to filter the map list
@@ -159,13 +159,9 @@ export const StorableMapViewer: FC<{
         {url &&
           typeof window !== "undefined" &&
           window.location.pathname !== "/stored-maps/view" && (
-            <Link
-              className="text-blue-500 hover:underline"
-              href={viewStoredMapRoute(url)}
-              target="_blank"
-            >
+            <StyledLink href={viewStoredMapRoute(url)} target="_blank">
               Permalink
-            </Link>
+            </StyledLink>
           )}
       </div>
     </div>

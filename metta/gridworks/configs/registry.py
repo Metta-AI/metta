@@ -16,7 +16,14 @@ from mettagrid.util.module import load_symbol
 logger = logging.getLogger(__name__)
 
 ConfigMakerKind = Literal[
-    "MettaGridConfig", "SimulationConfig", "List[SimulationConfig]", "TrainTool", "PlayTool", "ReplayTool", "SimTool"
+    "MettaGridConfig",
+    "SimulationConfig",
+    "List[SimulationConfig]",
+    "TrainTool",
+    "PlayTool",
+    "ReplayTool",
+    "SimTool",
+    "CurriculumConfig",
 ]
 
 
