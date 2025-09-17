@@ -14,7 +14,7 @@ from wandb import Artifact
 from wandb.apis.public.runs import Run
 from wandb.errors import CommError
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.common.util.retry import retry_on_exception
 from metta.common.wandb.context import WandbRun
 from metta.mettagrid.util.file import WandbURI
@@ -70,57 +70,6 @@ def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: s
         wandb.finish()
 
 
-def ensure_wandb_run() -> wandb.Run:
-    """
-    Ensure a wandb run exists, creating/resuming if needed.
-    """
-    try:
-        import wandb
-    except ImportError as e:
-        raise RuntimeError("wandb not installed") from e
-
-    # Check if run already exists
-    if wandb.run is not None:
-        return wandb.run
-
-    # Need to create/resume a run
-    run_id = os.environ.get("METTA_RUN_ID")
-    if not run_id:
-        raise RuntimeError("No active wandb run and METTA_RUN_ID not set")
-
-    # Check if we're in offline mode (no credentials needed)
-    wandb_mode = os.environ.get("WANDB_MODE", "").lower()
-    if wandb_mode != "offline":
-        # Check credentials only if not in offline mode
-        api_key = os.environ.get("WANDB_API_KEY")
-        has_netrc = os.path.exists(os.path.expanduser("~/.netrc"))
-
-        if not api_key and not has_netrc:
-            raise RuntimeError("No wandb credentials (need WANDB_API_KEY or ~/.netrc)")
-
-        # Login if API key provided
-        if api_key:
-            wandb.login(key=api_key, relogin=True, anonymous="never")
-
-    project = os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT)
-
-    # Create/resume run
-    run = wandb.init(
-        project=project,
-        name=run_id,
-        id=run_id,
-        resume="allow",
-        reinit=True,
-    )
-
-    # Only print URL if not in offline mode
-    if wandb_mode != "offline":
-        entity = os.environ.get("WANDB_ENTITY", wandb.api.default_entity)
-        logger.info(f"✅ Wandb run: https://wandb.ai/{entity}/{project}/runs/{run_id}")
-
-    return run
-
-
 def log_to_wandb(metrics: dict[str, Any], step: int = 0, also_summary: bool = True) -> None:
     """
     Log metrics to wandb.
@@ -129,19 +78,21 @@ def log_to_wandb(metrics: dict[str, Any], step: int = 0, also_summary: bool = Tr
         metrics: Dictionary of key-value pairs to log
         step: The step to log at (default 0)
         also_summary: Whether to also add to wandb.summary (default True)
+
+    Raises:
+        RuntimeError: If no wandb run is active
     """
-    run = ensure_wandb_run()
+    if wandb.run is None:
+        raise RuntimeError("No active wandb run. Use WandbContext to initialize a run.")
 
     try:
-        import wandb
-
         # Log all metrics
         wandb.log(metrics, step=step)
 
         # Also add to summary if requested
         if also_summary:
             for key, value in metrics.items():
-                run.summary[key] = value
+                wandb.run.summary[key] = value
 
         logger.info(f"✅ Logged {len(metrics)} metrics to wandb")
 
