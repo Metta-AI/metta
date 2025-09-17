@@ -71,8 +71,12 @@ class Trainer:
         if self._cfg.heartbeat is not None:
             self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))
 
+        batch_info = self._env.batch_info
+        # VecEnv flattens agents across all environments, so track the full parallel agent count.
+        total_parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
+
         experience = Experience.from_losses(
-            self._env.meta_data.num_agents,
+            total_parallel_agents,
             self._cfg.batch_size,
             self._cfg.bptt_horizon,
             self._cfg.minibatch_size,
