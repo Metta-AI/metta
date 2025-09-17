@@ -70,7 +70,6 @@ class Dispatcher(Protocol):
     All operations are synchronous with timeouts.
     """
 
-    # TODO: Enforce automatic retries.
     # Distinction: run_id is the job's identifier in WandB, dispatch_id is the Sky Job iD, the pid, etc...
     def dispatch(self, job: "JobDefinition") -> str:
         """Start a job and return a dispatch ID"""
@@ -112,39 +111,4 @@ class ExperimentState(Protocol):
 
     @classmethod
     def model_validate(cls, data: dict[str, Any]) -> "ExperimentState":  # pragma: no cover - protocol only
-        ...
-
-
-@runtime_checkable
-class StateStore(Protocol):
-    """Abstract key-value state store for scheduler-managed experiment state.
-
-    Implementations may persist to local filesystem, databases, or other backends.
-    The interface is intentionally minimal to avoid coupling and config bloat.
-    """
-
-    def get(self, namespace: str, key: str) -> dict | None:  # pragma: no cover - protocol only
-        """Return a JSON-serializable dict for (namespace, key), or None if missing."""
-        ...
-
-    def put(self, namespace: str, key: str, value: dict) -> None:  # pragma: no cover - protocol only
-        """Persist a JSON-serializable dict for (namespace, key)."""
-        ...
-
-
-@runtime_checkable
-class SchedulerWithState(Protocol):
-    """Optional mixin protocol for schedulers that manage their own state.
-
-    The controller may call these hooks when present to load/save state around
-    the scheduling lifecycle.
-    """
-
-    def should_load_from_store(self, runs: list["RunInfo"]) -> bool:  # pragma: no cover - protocol only
-        ...
-
-    def load_from_store(self, store: StateStore, experiment_id: str) -> None:  # pragma: no cover - protocol only
-        ...
-
-    def save_to_store(self, store: StateStore, experiment_id: str) -> None:  # pragma: no cover - protocol only
         ...

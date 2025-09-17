@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from metta.common.util.retry import retry_function
@@ -12,8 +12,6 @@ from .models import JobDefinition, JobStatus, JobTypes, RunInfo
 from .protocols import (
     Dispatcher,
     ExperimentScheduler,
-    SchedulerWithState,
-    StateStore,
     Store,
 )
 from .utils import make_monitor_table
@@ -37,7 +35,6 @@ class AdaptiveController:
         config: AdaptiveConfig,
         on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
         on_job_dispatch: Optional[Callable[[JobDefinition, Store], None]] = None,
-        state_store: Optional[StateStore] = None,
     ):
         self.experiment_id = experiment_id
         self.scheduler = scheduler
@@ -46,7 +43,6 @@ class AdaptiveController:
         self.config = config
         self.on_eval_completed = on_eval_completed
         self.on_job_dispatch = on_job_dispatch
-        self.state_store = state_store
 
         # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
         self.dispatched_jobs: set[tuple[str, str]] = set()
@@ -56,12 +52,11 @@ class AdaptiveController:
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
         has_data = self.config.resume
 
-        loaded_state = False
         while True:
+            time.sleep(self.config.monitoring_interval)
             try:
                 # 1. Get current state
                 if has_data:
-                    time.sleep(self.config.monitoring_interval)
                     try:
                         runs = self.store.fetch_runs(filters={"group": self.experiment_id})
                     except Exception as e:
@@ -83,17 +78,6 @@ class AdaptiveController:
                     for line in table_lines:
                         logger.info(line)
 
-                # 1.0 Load scheduler state on first data fetch if supported
-                if not loaded_state and self.state_store is not None and isinstance(self.scheduler, SchedulerWithState):
-                    try:
-                        if self.scheduler.should_load_from_store(runs):  # type: ignore[attr-defined]
-                            self.scheduler.load_from_store(self.state_store, self.experiment_id)  # type: ignore[attr-defined]
-                            logger.info("[AdaptiveController] Loaded scheduler state from store")
-                    except Exception as e:
-                        logger.warning(f"[AdaptiveController] Failed to load scheduler state: {e}")
-                    finally:
-                        loaded_state = True
-
                 # 1.a Run post-eval completion hooks (guarded by summary flag) before any scheduling
                 if runs and self.on_eval_completed is not None:
                     for run in runs:
@@ -104,13 +88,13 @@ class AdaptiveController:
                                 logger.info(f"[AdaptiveController] Running on_eval_completed for {run.run_id}")
 
                                 retry_function(
-                                    lambda r=run, rs=runs: self.on_eval_completed(r, self.store, rs),
+                                    lambda r=run, rs=runs: self.on_eval_completed(r, self.store, rs),  # type: ignore
                                     max_retries=3,
                                     initial_delay=1.0,
                                     max_delay=30.0,
                                 )
 
-                                processed_at = datetime.utcnow().isoformat()
+                                processed_at = datetime.now(timezone.utc)
                                 self.store.update_run_summary(
                                     run.run_id,
                                     {
@@ -120,13 +104,6 @@ class AdaptiveController:
                                 )
                         except Exception as e:
                             logger.error(f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}")
-
-                # 1.b Save scheduler state after processing eval completions (if supported)
-                if self.state_store is not None and isinstance(self.scheduler, SchedulerWithState):
-                    try:
-                        self.scheduler.save_to_store(self.state_store, self.experiment_id)  # type: ignore[attr-defined]
-                    except Exception as e:
-                        logger.warning(f"[AdaptiveController] Failed to save scheduler state: {e}")
 
                 # 2. Check if scheduler says experiment is complete
                 if self.scheduler.is_experiment_complete(runs):
@@ -144,14 +121,10 @@ class AdaptiveController:
 
                 if not new_jobs:
                     # No new jobs, wait before next check
-                    time.sleep(self.config.monitoring_interval)
                     continue
 
-                # 5. Separate by job type and validate
+                # 5. Validate training job constraint
                 training_jobs = [j for j in new_jobs if j.type == JobTypes.LAUNCH_TRAINING]
-                eval_jobs = [j for j in new_jobs if j.type == JobTypes.LAUNCH_EVAL]
-
-                # 6. Validate training job constraint
                 if len(training_jobs) > available_training_slots:
                     logger.error(
                         f"[AdaptiveController] Scheduler requested {len(training_jobs)} training jobs "
@@ -159,9 +132,8 @@ class AdaptiveController:
                     )
                     continue
 
-                # 7. Dispatch all jobs
-                all_jobs = training_jobs + eval_jobs
-                for job in all_jobs:
+                # 6. Dispatch all jobs
+                for job in new_jobs:
                     # Create job key for tracking
                     job_key = (job.run_id, job.type.value)
 
@@ -178,12 +150,6 @@ class AdaptiveController:
                         # Initialize run in store (only for training jobs, eval reuses same run)
                         if job.type == JobTypes.LAUNCH_TRAINING:
                             self.store.init_run(job.run_id, group=self.experiment_id)
-                            # If scheduler attached a suggestion, persist it to summary for later hooks/optimizers
-                            suggestion = (
-                                job.metadata.get("adaptive/suggestion") if isinstance(job.metadata, dict) else None
-                            )
-                            if suggestion is not None:
-                                self.store.update_run_summary(job.run_id, {"observation/suggestion": suggestion})
 
                         # Mark eval jobs as started in store
                         elif job.type == JobTypes.LAUNCH_EVAL:
@@ -203,18 +169,10 @@ class AdaptiveController:
                     except Exception as e:
                         logger.error(f"[AdaptiveController] Failed to dispatch {job.run_id} ({job.type}): {e}")
 
-                # 8. Save scheduler state after scheduling (if supported)
-                if self.state_store is not None and isinstance(self.scheduler, SchedulerWithState):
-                    try:
-                        self.scheduler.save_to_store(self.state_store, self.experiment_id)  # type: ignore[attr-defined]
-                    except Exception as e:
-                        logger.warning(f"[AdaptiveController] Failed to save scheduler state: {e}")
-
             except KeyboardInterrupt:
                 logger.info("[AdaptiveController] Interrupted, stopping experiment")
                 break
             except Exception as e:
                 logger.error(f"[AdaptiveController] Error in control loop: {e}")
-                time.sleep(self.config.monitoring_interval)
 
         logger.info(f"[AdaptiveController] Experiment {self.experiment_id} complete")

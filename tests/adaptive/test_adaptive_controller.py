@@ -1,5 +1,6 @@
 """Tests for AdaptiveController - the core orchestration component."""
 
+from datetime import datetime
 from unittest.mock import Mock
 
 import pytest
@@ -145,7 +146,7 @@ class TestAdaptiveController:
         update_dict = call_args[0][1]
         assert update_dict["adaptive/post_eval_processed"] is True
         assert "adaptive/post_eval_processed_at" in update_dict
-        assert isinstance(update_dict["adaptive/post_eval_processed_at"], str)
+        assert isinstance(update_dict["adaptive/post_eval_processed_at"], datetime)
 
     def test_job_dispatch_hook(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test that job dispatch hook is called after store operations."""
@@ -187,27 +188,6 @@ class TestAdaptiveController:
         # Verify job was NOT dispatched again
         mock_dispatcher.dispatch.assert_not_called()
         mock_store.init_run.assert_not_called()
-
-    def test_suggestion_persistence(self, controller, mock_scheduler, mock_dispatcher, mock_store):
-        """Test that scheduler suggestions are persisted to run summary."""
-        training_job = JobDefinition(
-            run_id="test_run_001",
-            cmd="experiments.recipes.arena.train",
-            type=JobTypes.LAUNCH_TRAINING,
-            metadata={"adaptive/suggestion": {"param1": 0.5, "param2": "value"}},
-        )
-
-        mock_scheduler.schedule.return_value = [training_job]
-        mock_store.fetch_runs.return_value = []
-        mock_scheduler.is_experiment_complete.side_effect = [False, True]
-
-        controller.run()
-
-        # Verify suggestion was persisted
-        mock_store.init_run.assert_called_once_with("test_run_001", group="test_experiment")
-        mock_store.update_run_summary.assert_called_with(
-            "test_run_001", {"observation/suggestion": {"param1": 0.5, "param2": "value"}}
-        )
 
     def test_eval_job_handling(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test evaluation job dispatch flow."""

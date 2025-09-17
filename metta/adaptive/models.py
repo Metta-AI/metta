@@ -38,7 +38,6 @@ class JobStatus(StrEnum):
     IN_TRAINING = "IN TRAINING"
     TRAINING_DONE_NO_EVAL = "TRAINING DONE (NO EVAL)"
     IN_EVAL = "IN EVAL"
-    EVAL_DONE_NOT_COMPLETED = "COMPLETED (NPE)"
     COMPLETED = "COMPLETED"
     STALE = "STALE"
     FAILED = "FAILED"  # Job failed during training or evaluation
@@ -59,6 +58,7 @@ class RunInfo:
     last_updated_at: datetime | None = None
 
     # Configuration and results
+    # TODO Clean up run lifecycle management
     summary: dict | None = None
     has_started_training: bool = False
     has_completed_training: bool = False
@@ -80,7 +80,11 @@ class RunInfo:
         time_since_last_updated = (
             datetime.now() - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
         )
-        if not self.has_failed and not self.has_completed_training and time_since_last_updated > timedelta(seconds=600):
+        if (
+            not self.has_failed
+            and not self.has_completed_training
+            and time_since_last_updated > timedelta(seconds=1200)
+        ):
             return JobStatus.STALE
         if self.has_failed:
             return JobStatus.FAILED
@@ -93,9 +97,7 @@ class RunInfo:
         if self.has_started_eval and not self.has_been_evaluated:
             return JobStatus.IN_EVAL
         if self.has_been_evaluated:
-            if self.observation is not None:
-                return JobStatus.COMPLETED
-            return JobStatus.EVAL_DONE_NOT_COMPLETED
+            return JobStatus.COMPLETED
         return JobStatus.COMPLETED
 
     # Dispatch info
