@@ -164,7 +164,13 @@ class ConverterChainTaskGenerator(TaskGenerator):
         room_size = rng.choice(self.config.room_sizes)
 
         # default to small room size
-        size_range = (8,12) if room_size == "medium" else (12, 15) if room_size == "large" else (5, 8)
+        size_range = (
+            (8, 12)
+            if room_size == "medium"
+            else (12, 15)
+            if room_size == "large"
+            else (5, 8)
+        )
 
         width, height = (
             rng.randint(size_range[0], size_range[1]),
@@ -280,10 +286,9 @@ def make_mettagrid() -> MettaGridConfig:
 def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
-    chain_lengths = [2, 3, 4, 5],
-    num_sinks = [0, 1, 2],
-    room_sizes = ["small"],
-
+    chain_lengths=[2, 3, 4, 5],
+    num_sinks=[0, 1, 2],
+    room_sizes=["small"],
 ) -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=chain_lengths,
@@ -306,12 +311,14 @@ def make_curriculum(
         algorithm_config=algorithm_config,
     )
 
+
 def small_curriculum():
     return make_curriculum(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
         room_sizes=["small"],
     )
+
 
 def small_medium_curriculum():
     return make_curriculum(
@@ -320,12 +327,14 @@ def small_medium_curriculum():
         room_sizes=["small", "medium"],
     )
 
+
 def all_room_sizes_curriculum():
     return make_curriculum(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
         room_sizes=["small", "medium", "large"],
     )
+
 
 def longer_chains():
     return make_curriculum(
@@ -334,12 +343,14 @@ def longer_chains():
         room_sizes=["small", "medium", "large"],
     )
 
+
 def longer_chains_more_sinks():
     return make_curriculum(
         chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
         num_sinks=[0, 1, 2, 3, 4],
         room_sizes=["small", "medium", "large"],
     )
+
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
@@ -352,8 +363,7 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum
-        or small_curriculum(),
+        curriculum=curriculum or small_curriculum(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
@@ -388,9 +398,9 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
-    # Local import to avoid circular import at module load time
+    # Local import to   avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
         make_icl_resource_chain_eval_suite,
     )
@@ -398,6 +408,6 @@ def evaluate(
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
         simulations=simulations,
-        policy_uris=["wandb://run/george.icl.reproduce.4gpus.09-12"],
+        policy_uris=[policy_uri],
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
