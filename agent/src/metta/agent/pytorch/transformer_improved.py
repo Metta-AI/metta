@@ -209,10 +209,14 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
             hidden = hidden.unsqueeze(0)
 
         hidden, memory = self.policy.transformer(hidden, None, state.get("transformer_memory"))
-        state["transformer_memory"] = memory
+        normalized_memory = self._normalize_memory(memory)
+        if normalized_memory is not None:
+            state["transformer_memory"] = self._detach_memory(normalized_memory)
+        else:
+            state["transformer_memory"] = None
 
         if TT == 1 and env_indices is not None:
-            self._update_env_memory(env_indices, memory)
+            self._update_env_memory(env_indices, normalized_memory)
             segment_indices = td.get("_segment_indices", None)
             segment_pos = td.get("_segment_pos", None)
             if segment_indices is not None and segment_pos is not None:
@@ -224,7 +228,7 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
         else:
             hidden = hidden.squeeze(0)
 
-        logits, values = self.policy.decode_actions(hidden, B * TT)
+        logits, values = self._decode_actions(hidden, B * TT)
         if action is None:
             td = self.forward_inference(td, logits, values)
         else:
