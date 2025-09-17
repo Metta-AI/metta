@@ -22,6 +22,7 @@ def _github_client() -> Generator[httpx.Client, None, None]:
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "softmax-metrics",
             # Auth to avoid rate limiting
+            # We should replace this with a PAT before Dec 13 2026
             "Authorization": f"Basic {get_secretsmanager_secret('github/dashboard-token')}",
         },
         timeout=30,

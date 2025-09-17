@@ -69,8 +69,6 @@ def report(
     push: bool = typer.Option(False, "--push", "-p", help="Push metrics to Datadog."),
 ) -> None:
     """Collect registered metrics and optionally send them to Datadog."""
-
-    init_logging()
     metrics = collect_metrics()
 
     typer.echo("Metrics:")
@@ -89,6 +87,7 @@ def report(
 
 
 def main() -> None:
+    init_logging()
     app()
 
 
