@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 from softmax.aws.secrets_manager import get_secretsmanager_secret
-from softmax.dashboard.registry import metric_goal
+from softmax.dashboard.registry import system_health_metric
 
 logger = logging.getLogger(__name__)
 
@@ -78,26 +78,12 @@ def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: st
     return count
 
 
-@metric_goal(
-    metric_key="commits.hotfix",
-    aggregate="sum",
-    target=5,
-    comparison="<",
-    window="7d",
-    description="We shouldn't have to hotfix commits on main too often",
-)
+@system_health_metric(metric_key="commits.hotfix")
 def get_num_revert_commits() -> int:
     return _get_num_commits_with_phrase("hotfix", lookback_days=7, branch="main")
 
 
-@metric_goal(
-    metric_key="commits.reverts",
-    aggregate="sum",
-    target=1.0,
-    comparison="<",
-    window="7d",
-    description="We shouldn't have to revert commits on main too often",
-)
+@system_health_metric(metric_key="commits.reverts")
 def get_num_hotfix_commits() -> int:
     return _get_num_commits_with_phrase("revert", lookback_days=7, branch="main")
 
@@ -116,14 +102,7 @@ def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, An
         return runs[0] if runs else None
 
 
-@metric_goal(
-    metric_key="ci.tests_passing_on_main",
-    aggregate="min",
-    target=1.0,
-    comparison=">=",
-    window="1h",
-    description="Unit-test jobs should be passing on main",
-)
+@system_health_metric(metric_key="ci.tests_passing_on_main")
 def get_latest_unit_tests_failed() -> int:
     run = get_latest_workflow_run(branch="main", workflow_filename="checks.yml")
     if not run:
