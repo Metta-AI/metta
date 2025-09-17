@@ -33,6 +33,10 @@ bazel_dep(name = "abseil-cpp", version = "20250814.0")
 bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
 bazel_dep(name = "aspect_rules_lint", version = "1.6.0")
 
-# Register a simple module extension that exposes a local Raylib repository on macOS runners.
-raylib = use_extension("//:raylib_ext.bzl", "raylib_ext")
-use_repo(raylib, "raylib_homebrew")
+# Build Raylib from source using rules_foreign_cc (CMake)
+bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
+
+# Register module extension that fetches Raylib and builds a shared library
+raylib = use_extension("//bazel:raylib_cmake_ext.bzl", "raylib_cmake_ext")
+raylib.cfg(version = "5.5", sha256 = "")  # TODO: pin SHA256 for the chosen Raylib tag
+use_repo(raylib, "raylib_built")
