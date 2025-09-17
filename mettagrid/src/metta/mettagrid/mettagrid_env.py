@@ -186,9 +186,10 @@ class MettaGridEnv(MettaGridPufferBase):
 
         if self.mg_config.label not in self.per_label_rewards:
             self.per_label_rewards[self.mg_config.label] = 0
-        self.per_label_rewards[self.mg_config.label] += episode_rewards.mean()
 
-        infos["per_label_rewards"] = alpha * self.per_label_rewards[self.mg_config.label] + (1 - alpha) * episode_rewards.mean()
+        self.per_label_rewards[self.mg_config.label] = alpha * self.per_label_rewards[self.mg_config.label] + (1 - alpha) * episode_rewards.mean()
+        infos["per_label_rewards"] = self.per_label_rewards[self.mg_config.label]
+
         # Add attributes
         attributes: Dict[str, Any] = {
             "seed": self._current_seed,
