@@ -3,9 +3,9 @@ def _raylib_repo_impl(ctx):
     hb1 = ctx.attr.opt_homebrew
     hb2 = ctx.attr.usr_local
     prefix = None
-    if hb1 and ctx.os.path.exists(hb1 + "/include"):
+    if hb1 and ctx.path(hb1 + "/include").exists:
         prefix = hb1
-    elif hb2 and ctx.os.path.exists(hb2 + "/include"):
+    elif hb2 and ctx.path(hb2 + "/include").exists:
         prefix = hb2
 
     # Fall back to an empty repo if Raylib headers are unavailable.
@@ -58,4 +58,3 @@ def _raylib_ext_impl(module_ctx):
 raylib_ext = module_extension(
     implementation = _raylib_ext_impl,
 )
-
