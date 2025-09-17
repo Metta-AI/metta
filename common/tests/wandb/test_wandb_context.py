@@ -37,7 +37,7 @@ def test_wandb_config_factories():
 def test_wandb_config_uri():
     """Test URI generation."""
     cfg = WandbConfig(enabled=True, project="p", entity="e", run_id="test-123")
-    assert cfg.uri == "wandb://e/p/run/test-123:latest"
+    assert cfg.uri == "wandb://e/p/model/test-123:latest"
 
 
 def test_disabled_context():
