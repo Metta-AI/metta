@@ -229,7 +229,7 @@ class CheckpointManager:
             if epoch is None:
                 return True
             stem = path.stem
-            if stem.endswith(f":v{epoch}") or stem.endswith(f"v{epoch}"):
+            if stem.endswith(f":v{epoch}"):
                 return True
             _, version = _extract_run_and_epoch(path)
             return version == epoch
