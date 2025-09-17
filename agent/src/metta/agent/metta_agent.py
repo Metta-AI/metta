@@ -146,7 +146,10 @@ class MettaAgent(nn.Module):
 
     def prepare_memory_batch(self, snapshots, device: torch.device):
         if hasattr(self.policy, "prepare_memory_batch"):
-            return self.policy.prepare_memory_batch(snapshots, device)
+            memory = self.policy.prepare_memory_batch(snapshots, device)
+            if memory is None:
+                return None
+            return {"transformer_memory": memory, "hidden": None}
         return None
 
     def initialize_to_environment(
