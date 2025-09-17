@@ -1,4 +1,3 @@
-import logging
 import os
 import platform
 from typing import Optional
@@ -8,10 +7,10 @@ import torch
 import gitta as git
 from metta.agent.agent_config import AgentConfig
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.log_config import RankAwareLogger, getRankAwareLogger, init_logging
+from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -19,10 +18,6 @@ from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
 
-# Set up the logger class before any loggers are created
-logging.setLoggerClass(RankAwareLogger)
-
-# Now create the logger - it will be a RankAwareLogger
 logger = getRankAwareLogger(__name__)
 
 
@@ -41,9 +36,9 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    consumed_args: list[str] = ["run", "group"]
+    def invoke(self, args: dict[str, str]) -> int | None:
+        init_logging(run_dir=self.run_dir)
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         # Handle run_id being passed via cmd line
         if "run" in args:
             assert self.run is None, "run cannot be set via args and config"
@@ -79,8 +74,6 @@ class TrainTool(Tool):
         os.makedirs(self.run_dir, exist_ok=True)
 
         record_heartbeat()
-
-        init_logging(run_dir=self.run_dir)
 
         torch_dist_cfg = setup_torch_distributed(self.system.device)
 
@@ -178,8 +171,7 @@ def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | N
         cfg.trainer.evaluation.replay_dir = auto_replay_dir()
         logger.info_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
 
-    stats_client: StatsClient | None = None
-    if cfg.stats_server_uri is not None:
+    if cfg.stats_server_uri is not None and stats_client is None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
 
     # Determine git hash for remote simulations
@@ -200,7 +192,6 @@ def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | N
                 logger.info_master(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
             else:
                 logger.info_master("No git hash available for remote evaluations")
-    return stats_client
 
 
 def _minimize_config_for_debugging(cfg: TrainTool) -> TrainTool:

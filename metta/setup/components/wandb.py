@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
@@ -28,7 +29,7 @@ class WandbSetup(SetupModule):
 
         return False
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Set up Weights & Biases authentication and configuration.
 
         Handles different user types:
@@ -56,6 +57,7 @@ class WandbSetup(SetupModule):
         elif saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("Weights & Biases access should be provided via environment variables.")
             info("Skipping W&B setup.")
+            return
         else:
             info("""
                 To use Weights & Biases, you'll need an account.
@@ -84,14 +86,16 @@ class WandbSetup(SetupModule):
             # W&B outputs login status to stderr, not stdout
             output = result.stderr if result.stderr else result.stdout
             if result.returncode == 0 and "Currently logged in as:" in output:
-                import re
-
                 match = re.search(r"Currently logged in as: (\S+) \(([^)]+)\)", output)
                 if match:
                     return match.group(2)
             return None
         except Exception:
             return None
+
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return True
 
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()

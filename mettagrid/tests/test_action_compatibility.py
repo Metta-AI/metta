@@ -11,7 +11,6 @@ from metta.mettagrid.mettagrid_config import (
     AgentConfig,
     AttackActionConfig,
     GameConfig,
-    GroupConfig,
     WallConfig,
 )
 from metta.mettagrid.test_support.actions import get_agent_position, get_current_observation
@@ -30,7 +29,6 @@ def create_basic_config() -> GameConfig:
             freeze_duration=0,
             resource_limits={"ore": 10, "wood": 10},
         ),
-        groups={"default": GroupConfig(id=0, group_reward_pct=1.0)},
         actions=ActionsConfig(
             move=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), rotate=ActionConfig(enabled=True)
         ),
@@ -99,7 +97,6 @@ class TestActionOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 rotate=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), move=ActionConfig(enabled=True)
             ),
@@ -113,21 +110,20 @@ class TestActionOrdering:
         # Action order should remain the same despite different config order
         assert action_names1 == action_names2, "Action order should be deterministic"
 
-        # Verify the expected order
-        assert action_names1 == ["get_items", "move", "noop", "rotate"]
+        # Verify the expected order (put_items is now enabled by default)
+        assert action_names1 == ["get_items", "move", "noop", "put_items", "rotate"]
 
     def test_action_indices_consistency(self, basic_config, simple_map):
         """Test that action indices remain consistent."""
         env = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         action_names = env.action_names()
 
-        # Verify indices
+        # Verify indices (put_items is now enabled by default)
+        assert action_names.index("get_items") == 0
         assert action_names.index("move") == 1
         assert action_names.index("noop") == 2
-        assert action_names.index("rotate") == 3
-
-        # get_items is always present even if not explicitly configured
-        assert action_names.index("get_items") == 0
+        assert action_names.index("put_items") == 3
+        assert action_names.index("rotate") == 4
 
 
 class TestActionValidation:
@@ -193,7 +189,6 @@ class TestResourceRequirements:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 move=ActionConfig(enabled=True, required_resources={"ore": 1}),
                 noop=ActionConfig(enabled=True),
@@ -227,7 +222,6 @@ class TestResourceRequirements:
                 resource_limits={"ore": 10, "wood": 10},
                 initial_inventory={"ore": 5, "wood": 3},
             ),
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 move=ActionConfig(enabled=True, consumed_resources={"ore": 1}),
                 noop=ActionConfig(enabled=True),
@@ -243,9 +237,8 @@ class TestResourceRequirements:
         # Get initial observation
         initial_obs = get_current_observation(env, agent_idx=0)
 
-        # Feature IDs for inventory items start at 15 (ObservationFeatureCount)
-        ore_feature_id = 15
-        wood_feature_id = 16
+        ore_feature_id = env.feature_spec()["inv:ore"]["id"]
+        wood_feature_id = env.feature_spec()["inv:wood"]["id"]
 
         # Find inventory tokens by feature type
         initial_ore_count = None
@@ -329,7 +322,6 @@ class TestActionSpace:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=basic_config.actions,
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -383,7 +375,6 @@ class TestSpecialActions:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 attack=AttackActionConfig(
                     enabled=True, required_resources={}, consumed_resources={}, defense_resources={}
@@ -402,8 +393,8 @@ class TestSpecialActions:
         # Attack should be present
         assert "attack" in action_names
 
-        # Check the expected order (attack comes before other actions)
-        expected_actions = ["attack", "get_items", "move", "noop", "rotate"]
+        # Check the expected order (attack comes before other actions, put_items is enabled by default)
+        expected_actions = ["attack", "get_items", "move", "noop", "put_items", "rotate"]
         assert action_names == expected_actions
 
     def test_swap_action_registration(self, basic_config, simple_map):
@@ -416,7 +407,6 @@ class TestSpecialActions:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=ActionsConfig(
                 swap=ActionConfig(enabled=True),
                 move=ActionConfig(enabled=True),
@@ -447,7 +437,6 @@ class TestResourceOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=basic_config.actions,
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,
@@ -462,7 +451,6 @@ class TestResourceOrdering:
             obs_height=basic_config.obs_height,
             num_observation_tokens=basic_config.num_observation_tokens,
             agent=basic_config.agent,
-            groups=basic_config.groups,
             actions=basic_config.actions,
             objects=basic_config.objects,
             allow_diagonals=basic_config.allow_diagonals,

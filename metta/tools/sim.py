@@ -10,7 +10,7 @@ import torch
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.eval.eval_service import evaluate_policy
@@ -52,7 +52,7 @@ class SimTool(Tool):
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
             raise ValueError("policy_uris is required")
 

@@ -10,7 +10,6 @@
 #include "../stats_tracker.hpp"
 #include "agent_config.hpp"
 #include "constants.hpp"
-#include "objects/box.hpp"
 #include "types.hpp"
 
 class Agent : public GridObject {
@@ -44,7 +43,6 @@ public:
   GridLocation prev_location;
   std::string prev_action_name;
   unsigned int steps_without_motion;
-  Box* box;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -60,14 +58,14 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        glyph(0),
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
         reward(nullptr),
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
-        steps_without_motion(0),
-        box(nullptr) {
+        steps_without_motion(0) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }

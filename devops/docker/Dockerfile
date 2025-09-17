@@ -26,6 +26,10 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Bazel for mettagrid build
+RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && chmod +x /usr/local/bin/bazel
+
 # Configure screen
 RUN echo "defscrollback 10000" >> /root/.screenrc && \
     echo "termcapinfo xterm* ti@:te@" >> /root/.screenrc

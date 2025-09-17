@@ -15,12 +15,12 @@ from pydantic import (
 )
 from typing_extensions import Generic
 
-from metta.common.config import Config
-from metta.common.util.module import load_symbol
+from metta.mettagrid.config import Config
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
-    from metta.cogworks.curriculum.curriculum import CurriculumConfig
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -67,31 +67,17 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             )
         return cls._generator_cls
 
-    def to_curriculum(self, num_tasks: Optional[int] = None) -> "CurriculumConfig":
-        """Create a CurriculumConfig from this configuration.
-
-        Args:
-            num_tasks: Number of tasks to maintain in the unified pool
-        """
+    def to_curriculum(self, num_active_tasks: int = 16, algorithm_config=None):
+        """Create a CurriculumConfig from this TaskGeneratorConfig."""
         from metta.cogworks.curriculum.curriculum import CurriculumConfig
         from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
-        # Create learning progress algorithm hyperparameters
-        lp_config = LearningProgressConfig(
-            pool_size=num_tasks or 16,  # Use provided num_tasks or default to 16
-            sample_size=10,  # K=10 tasks to sample
-            max_samples=20,  # A=20 max samples before eviction
-            exploration_bonus=0.1,  # Balance exploration vs exploitation
-        )
+        if algorithm_config is None:
+            algorithm_config = LearningProgressConfig()
 
-        # Create curriculum with integrated learning progress algorithm
-        cc = CurriculumConfig(
-            task_generator=self,
-            num_active_tasks=lp_config.pool_size,  # Use pool_size for compatibility
-            algorithm_config=lp_config,
+        return CurriculumConfig(
+            task_generator=self, num_active_tasks=num_active_tasks, algorithm_config=algorithm_config
         )
-
-        return cc
 
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
@@ -218,7 +204,16 @@ class TaskGeneratorSet(TaskGenerator):
         self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        return rng.choices(self._sub_task_generators, weights=self._weights)[0].get_task(task_id)
+        chosen_generator = rng.choices(self._sub_task_generators, weights=self._weights)[0]
+        result = chosen_generator.get_task(task_id)
+
+        # Propagate bucket values if the chosen generator has them
+        if hasattr(chosen_generator, "_last_bucket_values"):
+            self._last_bucket_values = chosen_generator._last_bucket_values.copy()
+        else:
+            self._last_bucket_values = {}
+
+        return result
 
 
 ################################################################################
@@ -301,6 +296,9 @@ class BucketedTaskGenerator(TaskGenerator):
         overrides = {}
         for key, bucket_values in self._config.buckets.items():
             overrides[key] = self._get_bucket_value(bucket_values, rng)
+
+        # Store the bucket values for the curriculum to access
+        self._last_bucket_values = overrides.copy()
 
         # Get task from the child generator
         mg_config = self._child_generator.get_task(task_id)

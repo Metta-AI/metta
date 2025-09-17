@@ -10,7 +10,7 @@ from metta.cogworks.curriculum import (
     CurriculumConfig,
     SingleTaskGeneratorConfig,
 )
-from metta.cogworks.curriculum.task_generator import ValueRange
+from metta.cogworks.curriculum.task_generator import Span
 
 
 class TestCurriculumConfigSerialization:
@@ -70,12 +70,12 @@ class TestCurriculumConfigSerialization:
         # Check they serialize to the same JSON
         assert original.model_dump_json() == restored.model_dump_json()
 
-    def test_value_ranges(self, arena_env):
-        """Test that ValueRange objects survive round-trip."""
+    def test_span_objects(self, arena_env):
+        """Test that Span objects survive round-trip."""
         arena_tasks = cc.bucketed(arena_env)
 
-        # Add bucket with ValueRange
-        arena_tasks.add_bucket("test.param", [0, ValueRange.vr(0.5, 1.5), 2])
+        # Add bucket with Span
+        arena_tasks.add_bucket("test.param", [0, Span(0.5, 1.5), 2])
 
         original = CurriculumConfig(task_generator=arena_tasks)
 

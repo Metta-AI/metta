@@ -46,15 +46,12 @@ def make_env_func(
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
     is_training: bool = False,
-    is_serial: bool = False,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
     periodic_reset_config: Optional[PeriodicResetConfig] = None,
     **kwargs,
 ):
-    if not is_serial:
-        # Running in a new process, so we need to reinitialize logging
-        init_logging(run_dir=run_dir)
+    init_logging(run_dir=run_dir)
 
     # Extract periodic reset configuration
     final_periodic_reset_config = _extract_periodic_reset_config(curriculum, periodic_reset_config)
@@ -117,7 +114,6 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "is_training": is_training,
-        "is_serial": is_serial,
         "run_dir": run_dir,
         "periodic_reset_config": periodic_reset_config,
     }

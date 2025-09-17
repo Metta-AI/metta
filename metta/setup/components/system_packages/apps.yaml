@@ -1,0 +1,11 @@
+apps:
+  session-manager-plugin:
+    cask: session-manager-plugin
+
+  discord:
+    cask: discord
+    alternate_app_path: /Applications/Discord.app
+
+  cursor:
+    cask: cursor
+    alternate_app_path: /Applications/Cursor.app

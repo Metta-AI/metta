@@ -2,9 +2,9 @@ from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
 import metta.map.scenes.random
-import metta.mettagrid.config.envs as eb
+import metta.mettagrid.builder.envs as eb
 from metta.map.mapgen import MapGen
-from metta.mettagrid.config import building
+from metta.mettagrid.builder import building
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -71,7 +71,6 @@ def make_env(num_agents: int = 24) -> EnvConfig:
         ),
         swap=ActionConfig(enabled=True),
         # These were disabled in old config
-        place_box=ActionConfig(enabled=False),
         change_color=ActionConfig(enabled=False),
         change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
     )
@@ -115,7 +114,6 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     # Global configuration flags from old mettagrid.yaml
     env_cfg.desync_episodes = True  # Changes max_steps for first episode only
     env_cfg.game.track_movement_metrics = True
-    env_cfg.game.no_agent_interference = False
     env_cfg.game.resource_loss_prob = 0.0
     env_cfg.game.recipe_details_obs = False
 

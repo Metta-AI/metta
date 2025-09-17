@@ -23,7 +23,6 @@
 
 
 # def make_app():
-#     init_logging()
 #     app = FastAPI()
 
 #     app.add_middleware(

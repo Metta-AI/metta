@@ -1,0 +1,95 @@
+name: "Setup Environment"
+description: "Set up the environment for CI"
+inputs:
+  install-mode:
+    description: "Installation mode: 'testing', 'runtime', 'linting', or 'minimal'"
+    required: false
+    default: "testing"
+  extra-dependencies:
+    description: "Extra pip dependencies to install (newline-separated list)"
+    required: false
+    default: ""
+
+  # NOTE: This action automatically sets UV_NO_SYNC=1 to prevent uv from syncing ALL project dependencies
+  # when workflows/actions run `uv run` commands
+
+runs:
+  using: "composite"
+  steps:
+    - name: Compute extra-dependencies hash
+      id: hash
+      shell: bash
+      run: |
+        echo "${{ inputs.extra-dependencies }}" | sha256sum | cut -c1-16 > hash.txt
+        echo "hash=$(cat hash.txt)" >> "$GITHUB_OUTPUT"
+
+    - name: Install uv with built-in caching
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+        prune-cache: false
+        cache-suffix: "${{ inputs.install-mode }}-${{ steps.hash.outputs.hash }}"
+        cache-dependency-glob: |
+          uv.lock
+          **/pyproject.toml
+          .github/actions/setup-environment/dependencies-*.txt
+
+    - name: Install Bazel
+      if: inputs.install-mode != 'minimal'
+      shell: bash
+      run: |
+        curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o bazel
+        chmod +x bazel
+        if command -v sudo &> /dev/null; then
+          sudo mv bazel /usr/local/bin/bazel
+        else
+          mv bazel /usr/local/bin/bazel
+        fi
+        bazel --version
+
+    - name: Create virtual environment with uv
+      shell: bash
+      env:
+        UV_NO_SYNC: "1"
+      run: |
+        # Export environment variables
+        echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+        echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+        echo "UV_NO_SYNC=1" >> $GITHUB_ENV
+
+        uv venv
+
+        case "${{ inputs.install-mode }}" in
+
+          "minimal")
+            # don't install any packages
+            ;;
+
+          "testing")
+            uv sync --no-dev --group testing
+            ;;
+
+          "linting")
+            uv sync --no-dev --group lint
+            ;;
+
+          # used in the mettascope tests where we run code to generate outputs but do not run tests
+          "runtime")
+            uv sync --no-dev
+            ;;
+
+        esac
+
+        # Install extra dependencies if provided (inline or from files)
+        if [ -n "${{ inputs.extra-dependencies }}" ]; then
+          echo "Installing extra dependencies (inline):"
+          echo "${{ inputs.extra-dependencies }}" | while read -r dep; do
+            if [ -n "$dep" ]; then
+              echo "Installing $dep"
+              uv pip install -- "$dep"
+            fi
+          done
+        else
+          echo "No extra inline pip dependencies specified"
+        fi

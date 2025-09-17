@@ -5,6 +5,8 @@ from typing import Any
 
 import requests
 
+from metta.common.util.log_config import init_logging
+
 DISCORD_MESSAGE_CHARACTER_LIMIT = 2000
 RATE_LIMIT_DELAY = 0.5  # Delay between messages to avoid rate limiting
 MESSAGE_PREFIX = "...\r\n   \r\n"  # Prefix added to each chunk
@@ -138,6 +140,8 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
 if __name__ == "__main__":
     import os
     import sys
+
+    init_logging()
 
     # Check for webhook URL in environment variable
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")

@@ -11,6 +11,9 @@
 
 /.github/CODEOWNERS @daveey
 
+# Cost monitor
+/devops/skypilot/utils/cost_monitor.py @dominik3141
+
 # MettaScope
 /mettascope @treeform @daveey
 

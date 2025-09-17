@@ -47,7 +47,8 @@ resource "aws_iam_policy" "minimal" {
         "Action" : [
           "ec2:CreateSecurityGroup",
           "ec2:AuthorizeSecurityGroupIngress",
-          "ec2:DeleteSecurityGroup"
+          "ec2:DeleteSecurityGroup",
+          "ec2:ModifyInstanceAttribute"
         ],
         "Resource" : "arn:aws:ec2:*:${local.account_id}:*"
       },

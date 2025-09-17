@@ -517,7 +517,6 @@ def test_validate_real_generated_replay_fast() -> None:
             "--no-sync",
             "tools/run.py",
             "experiments.recipes.scratchpad.ci.replay_null",
-            "--overrides",
             f"replay_dir={tmp_dir}",
             f"stats_dir={tmp_dir}",
             "sim.env.game.max_steps=5",  # Reduce from 100 to 5 steps for faster test
@@ -545,7 +544,6 @@ def test_validate_real_generated_replay_fast() -> None:
         print(f"✓ Successfully generated and validated fresh replay: {replay_path.name}")
 
 
-@pytest.mark.integration
 def test_validate_real_generated_replay_comprehensive() -> None:
     """Generate a full-length replay using the CI setup and validate it against the strict schema."""
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -556,7 +554,6 @@ def test_validate_real_generated_replay_comprehensive() -> None:
             "--no-sync",
             "tools/run.py",
             "experiments.recipes.scratchpad.ci.replay_null",
-            "--overrides",
             f"replay_dir={tmp_dir}",
             f"stats_dir={tmp_dir}",
         ]

@@ -2,7 +2,8 @@ from metta.mettagrid.mettagrid_config import MettaGridConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
 from .curriculum_env import CurriculumEnv
-from .task import Task
+from .learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from .stats import SliceAnalyzer, StatsLogger
 from .task_generator import (
     AnyTaskGeneratorConfig,
     BucketedTaskGenerator,
@@ -14,12 +15,17 @@ from .task_generator import (
     TaskGeneratorSet,
     TaskGeneratorSetConfig,
 )
+from .task_tracker import TaskTracker
 
 __all__ = [
     "Curriculum",
     "CurriculumConfig",
     "CurriculumTask",
-    "Task",
+    "LearningProgressAlgorithm",
+    "LearningProgressConfig",
+    "StatsLogger",
+    "SliceAnalyzer",
+    "TaskTracker",
     "TaskGenerator",
     "TaskGeneratorConfig",
     "AnyTaskGeneratorConfig",
@@ -32,7 +38,8 @@ __all__ = [
     "bucketed",
     "multi_task",
     "single_task",
-    "curriculum",
+    "merge",
+    "env_curriculum",
     "CurriculumEnv",
 ]
 

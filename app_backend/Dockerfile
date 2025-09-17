@@ -7,6 +7,10 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Bazel for mettagrid build
+RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && chmod +x /usr/local/bin/bazel
+
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
 

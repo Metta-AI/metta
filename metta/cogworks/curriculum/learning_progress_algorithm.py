@@ -1,38 +1,45 @@
 """
-Learning Progress Curriculum Algorithm for Curriculum.
+Learning Progress Algorithm with integrated bidirectional scoring.
 
-This module implements the learning progress algorithm as a CurriculumAlgorithm
-that can be used with Curriculum nodes to adaptively sample tasks based on
-bidirectional learning progress tracking with local task memory pool.
+Provides intelligent task selection based on bidirectional learning progress analysis,
+using fast and slow exponential moving averages to detect learning opportunities.
 """
 
-import logging
-from typing import Any, Dict, List, Optional, Tuple
+import random
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-from gym.spaces import Discrete
-from pydantic import ConfigDict, Field
 
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumAlgorithm,
-    CurriculumAlgorithmConfig,
-    CurriculumTask,
-)
+from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from .task_tracker import TaskTracker
 
-logger = logging.getLogger(__name__)
-
-DEFAULT_SUCCESS_RATE = 0.5
+# Constants for bidirectional learning progress
+DEFAULT_SUCCESS_RATE = 0.0
+DEFAULT_WEIGHT = 1.0
+RANDOM_BASELINE_CAP = 0.75
 
 
 class LearningProgressConfig(CurriculumAlgorithmConfig):
-    """Hyperparameters for LearningProgressAlgorithm."""
+    """Configuration for learning progress with bidirectional scoring as default."""
 
     type: str = "learning_progress"
-    ema_timescale: float = Field(default=0.001, description="EMA timescale for learning progress")
-    pool_size: int = Field(default=16, description="Size of the task pool")
-    sample_size: int = Field(default=8, description="Number of tasks to sample")
-    max_samples: int = Field(default=10, description="Maximum samples before eviction")
-    exploration_bonus: float = Field(default=0.1, description="Exploration bonus for sampling")
+
+    # Bidirectional learning progress settings (now default)
+    use_bidirectional: bool = True
+    ema_timescale: float = 0.001
+    exploration_bonus: float = 0.1
+    progress_smoothing: float = 0.05  # For bidirectional reweighting
+
+    # Task distribution and sampling
+    num_active_tasks: int = 16
+    rand_task_rate: float = 0.25
+    sample_threshold: int = 10
+    memory: int = 25
+
+    # Performance and memory management
+    max_memory_tasks: int = 1000
+    max_slice_axes: int = 3  # Updated terminology
+    enable_detailed_slice_logging: bool = False  # Updated terminology
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -40,680 +47,622 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
         return LearningProgressAlgorithm(num_tasks, self)
 
-    model_config: ConfigDict = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
-        populate_by_name=True,
-    )
-
 
 class LearningProgressAlgorithm(CurriculumAlgorithm):
-    """Learning progress algorithm that manages a unified pool of tasks."""
+    """
+    Learning Progress Algorithm with integrated bidirectional scoring.
+
+    Uses bidirectional learning progress by default, combining fast and slow
+    exponential moving averages to detect learning opportunities and guide
+    intelligent task selection.
+    """
 
     def __init__(self, num_tasks: int, hypers: LearningProgressConfig):
-        # Don't initialize weights since this algorithm uses its own sampling strategy
-        super().__init__(num_tasks, hypers, initialize_weights=False)
+        super().__init__(num_tasks, hypers)
 
-        self.hypers = hypers
+        self.num_tasks = num_tasks
+        self.hypers: LearningProgressConfig = hypers
 
-        # Initialize bidirectional learning progress tracker
-        # Use a larger search space to accommodate all possible task indices
-        # The search space should be large enough for the pool size and potential task growth
-        search_space_size = max(num_tasks, hypers.pool_size * 2, 100)  # Ensure sufficient capacity
-        self._lp_tracker = BidirectionalLearningProgress(
-            search_space=search_space_size,
-            ema_timescale=hypers.ema_timescale,
-            num_active_tasks=hypers.pool_size,
-        )
+        # Initialize task tracker (moved from modules to curriculum folder)
+        self.task_tracker = TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
 
-        # Task management
-        self._task_memory: Dict[int, Tuple[int, str, int, float, float, float]] = {}
-        self._task_objects: Dict[int, CurriculumTask] = {}
-        self._task_id_to_index: Dict[int, int] = {}
-        self._next_index: int = 0
+        # Note: slice_analyzer is already initialized in parent class via StatsLogger
 
-        # Bucket tracking for completion density analysis
-        self._bucket_tracking: Dict[str, Dict[int, Any]] = {}  # bucket_name -> task_id -> value
-        self._bucket_completion_counts: Dict[str, Dict[int, int]] = {}  # bucket_name -> bin_index -> count
-        self._bucket_bins: Dict[str, List[float]] = {}  # bucket_name -> bin_edges
-        self._bucket_is_discrete: Dict[str, bool] = {}  # bucket_name -> is_discrete
-        self._bucket_completion_history: Dict[str, List[float]] = {}  # bucket_name -> completion_density_over_time
-
-    def _update_weights(self, child_idx: int, score: float):
-        """Update weights - not used in this implementation."""
-        pass
-
-    def _extract_bucket_values(self, task: CurriculumTask) -> Dict[str, Any]:
-        """Extract bucket parameter values from a task's environment configuration."""
-        bucket_values = {}
-
-        try:
-            # Access the environment configuration to extract bucket values
-            env_cfg = task.get_env_cfg()
-
-            # Look for bucket-related fields in the config
-            # This is a heuristic approach - we look for fields that might be bucket parameters
-            # The actual implementation depends on how buckets are stored in the config
-
-            # Try to access common bucket patterns
-            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "level_map"):
-                if hasattr(env_cfg.game.level_map, "num_agents"):
-                    bucket_values["game.level_map.num_agents"] = env_cfg.game.level_map.num_agents
-                if hasattr(env_cfg.game.level_map, "width"):
-                    bucket_values["game.level_map.width"] = env_cfg.game.level_map.width
-                if hasattr(env_cfg.game.level_map, "height"):
-                    bucket_values["game.level_map.height"] = env_cfg.game.level_map.height
-
-            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "actions"):
-                if hasattr(env_cfg.game.actions, "attack") and hasattr(
-                    env_cfg.game.actions.attack, "consumed_resources"
-                ):
-                    if hasattr(env_cfg.game.actions.attack.consumed_resources, "laser"):
-                        bucket_values["game.actions.attack.consumed_resources.laser"] = (
-                            env_cfg.game.actions.attack.consumed_resources.laser
-                        )
-
-            # Look for reward-related bucket parameters
-            if hasattr(env_cfg, "game") and hasattr(env_cfg.game, "agent") and hasattr(env_cfg.game.agent, "rewards"):
-                if hasattr(env_cfg.game.agent.rewards, "inventory"):
-                    for item_name in ["wood", "stone", "iron", "gold"]:
-                        if hasattr(env_cfg.game.agent.rewards.inventory, item_name):
-                            bucket_values[f"game.agent.rewards.inventory.{item_name}"] = getattr(
-                                env_cfg.game.agent.rewards.inventory, item_name
-                            )
-
-                if hasattr(env_cfg.game.agent.rewards, "inventory_max"):
-                    for item_name in ["wood", "stone", "iron", "gold"]:
-                        if hasattr(env_cfg.game.agent.rewards.inventory_max, item_name):
-                            bucket_values[f"game.agent.rewards.inventory_max.{item_name}"] = getattr(
-                                env_cfg.game.agent.rewards.inventory_max, item_name
-                            )
-
-        except Exception as e:
-            logger.debug(f"Could not extract bucket values from task: {e}")
-
-        return bucket_values
-
-    def _initialize_bucket_tracking(self, bucket_values: Dict[str, Any]):
-        """Initialize bucket tracking for newly discovered bucket parameters."""
-        for bucket_name, value in bucket_values.items():
-            if bucket_name not in self._bucket_tracking:
-                self._bucket_tracking[bucket_name] = {}
-                self._bucket_completion_counts[bucket_name] = {}
-                self._bucket_completion_history[bucket_name] = []
-
-                # Determine if bucket is discrete or continuous
-                if isinstance(value, (int, str)) or (isinstance(value, float) and value.is_integer()):
-                    self._bucket_is_discrete[bucket_name] = True
-                    # For discrete values, create bins for each unique value
-                    self._bucket_bins[bucket_name] = []
-                else:
-                    self._bucket_is_discrete[bucket_name] = False
-                    # For continuous values, create 10 histogram bins
-                    self._bucket_bins[bucket_name] = []
-
-    def _update_bucket_tracking(self, task_id: int, bucket_values: Dict[str, Any]):
-        """Update bucket tracking with new task values."""
-        for bucket_name, value in bucket_values.items():
-            if bucket_name in self._bucket_tracking:
-                self._bucket_tracking[bucket_name][task_id] = value
-
-                # Update bins for continuous parameters
-                if not self._bucket_is_discrete[bucket_name]:
-                    if not self._bucket_bins[bucket_name]:
-                        # Initialize bins for continuous parameter
-                        # We'll need to collect some data first to determine range
-                        pass
-
-                # Collect values for continuous bin initialization
-                if not self._bucket_is_discrete[bucket_name]:
-                    # Store values to initialize bins later when we have enough data
-                    if not hasattr(self, "_continuous_values_buffer"):
-                        self._continuous_values_buffer = {}
-                    if bucket_name not in self._continuous_values_buffer:
-                        self._continuous_values_buffer[bucket_name] = []
-                    self._continuous_values_buffer[bucket_name].append(float(value))
-
-                    # Initialize bins when we have enough data points
-                    if len(self._continuous_values_buffer[bucket_name]) >= 10:
-                        self._initialize_continuous_bins(bucket_name, self._continuous_values_buffer[bucket_name])
-                        # Clear buffer after initialization
-                        self._continuous_values_buffer[bucket_name] = []
-
-    def _update_bucket_completion_density(self, task_id: int, score: float):
-        """Update bucket completion density tracking when a task completes."""
-        if task_id not in self._task_objects:
-            return
-
-        # Get bucket values for this task
-        task = self._task_objects[task_id]
-        bucket_values = self._extract_bucket_values(task)
-
-        # Update completion density for each bucket
-        for bucket_name, value in bucket_values.items():
-            if bucket_name in self._bucket_tracking:
-                # Find the appropriate bin for this value
-                bin_index = self._get_bin_index(bucket_name, value)
-                if bin_index is not None:
-                    # Increment completion count for this bin
-                    if bin_index not in self._bucket_completion_counts[bucket_name]:
-                        self._bucket_completion_counts[bucket_name][bin_index] = 0
-                    self._bucket_completion_counts[bucket_name][bin_index] += 1
-
-                    # Update completion density history
-                    self._update_completion_density_history(bucket_name)
-
-    def _get_bin_index(self, bucket_name: str, value: Any) -> Optional[int]:
-        """Get the bin index for a given bucket value."""
-        if bucket_name not in self._bucket_tracking:
-            return None
-
-        if self._bucket_is_discrete[bucket_name]:
-            # For discrete values, find or create bin for this value
-            if value not in self._bucket_bins[bucket_name]:
-                self._bucket_bins[bucket_name].append(value)
-            return self._bucket_bins[bucket_name].index(value)
+        # Initialize scoring method (bidirectional by default)
+        if hypers.use_bidirectional:
+            self._init_bidirectional_scoring()
         else:
-            # For continuous values, we need to have bins initialized
-            if not self._bucket_bins[bucket_name]:
-                return None
+            self._init_basic_scoring()
 
-            # Find the appropriate bin
-            for i, (min_val, max_val) in enumerate(
-                zip(self._bucket_bins[bucket_name][:-1], self._bucket_bins[bucket_name][1:], strict=True)
-            ):
-                if min_val <= value < max_val:
-                    return i
-            return None
+        # Cache for expensive statistics computation
+        self._stats_cache: Dict[str, Any] = {}
+        self._stats_cache_valid = False
 
-    def _update_completion_density_history(self, bucket_name: str):
-        """Update the completion density history for a bucket."""
-        if bucket_name not in self._bucket_completion_counts:
-            return
+    @property
+    def lp_scorer(self):
+        """Compatibility property for tests that expect lp_scorer attribute."""
+        return self
 
-        # Calculate current completion density across all bins
-        total_completions = sum(self._bucket_completion_counts[bucket_name].values())
-        if total_completions == 0:
-            return
+    @property
+    def exploration_bonus(self):
+        """Compatibility property for tests that expect exploration_bonus attribute."""
+        return self.hypers.exploration_bonus
 
-        # Calculate density for each bin
-        densities = []
-        if self._bucket_is_discrete[bucket_name]:
-            # For discrete, normalize by total completions
-            for bin_index in range(len(self._bucket_bins[bucket_name])):
-                count = self._bucket_completion_counts[bucket_name].get(bin_index, 0)
-                density = count / total_completions if total_completions > 0 else 0.0
-                densities.append(density)
-        else:
-            # For continuous, we need bins to be initialized
-            if len(self._bucket_bins[bucket_name]) < 2:
-                return
+    def get_base_stats(self) -> Dict[str, float]:
+        """Get basic statistics that all algorithms must provide."""
+        base_stats = {"num_tasks": self.num_tasks, **self.slice_analyzer.get_base_stats()}
 
-            for bin_index in range(len(self._bucket_bins[bucket_name]) - 1):
-                count = self._bucket_completion_counts[bucket_name].get(bin_index, 0)
-                density = count / total_completions if total_completions > 0 else 0.0
-                densities.append(density)
+        # Add task tracker stats with prefix for test compatibility
+        tracker_stats = self.task_tracker.get_global_stats()
+        for key, value in tracker_stats.items():
+            base_stats[f"tracker/{key}"] = value
 
-        # Store the current density distribution
-        if densities:
-            self._bucket_completion_history[bucket_name].append(np.mean(densities))
+        return base_stats
 
-    def _initialize_continuous_bins(self, bucket_name: str, values: List[float]):
-        """Initialize histogram bins for continuous bucket parameters."""
-        if not values:
-            return
+    def stats(self, prefix: str = "") -> Dict[str, float]:
+        """Get all statistics with optional prefix. Always includes learning progress stats."""
+        cache_key = prefix if prefix else "_default"
 
-        min_val = min(values)
-        max_val = max(values)
+        if self._stats_cache_valid and cache_key in self._stats_cache:
+            return self._stats_cache[cache_key]
 
-        # Create 10 bins for continuous parameters
-        bin_edges = np.linspace(min_val, max_val, 11)  # 11 edges = 10 bins
-        self._bucket_bins[bucket_name] = bin_edges.tolist()
+        # Get base stats (required)
+        stats = self.get_base_stats()
 
-    def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
-        """Get a task from the unified pool, creating or evicting as needed."""
-        # Create new task if pool not full
-        if len(self._task_memory) < self.hypers.pool_size:
-            task_id = self._generate_task_id(rng)
-            env_cfg = task_generator.get_task(task_id)
-            task = CurriculumTask(task_id, env_cfg)
-            self._add_task_to_pool(task_id, task)
-            return task
+        if self.enable_detailed_logging:
+            detailed = self.get_detailed_stats()
+            stats.update(detailed)
 
-        # Sample from existing pool
-        selected_task_id = self._sample_from_pool()
-        if selected_task_id in self._task_objects:
-            return self._task_objects[selected_task_id]
+        # Add prefix to all keys
+        if prefix:
+            stats = {f"{prefix}{k}": v for k, v in stats.items()}
 
-        # Fallback: create new task and evict one
-        self._evict_from_pool()
-        task_id = self._generate_task_id(rng)
-        env_cfg = task_generator.get_task(task_id)
-        task = CurriculumTask(task_id, env_cfg)
-        self._add_task_to_pool(task_id, task)
-        return task
-
-    def _generate_task_id(self, rng) -> int:
-        """Generate a unique task ID."""
-        while True:
-            task_id = rng.randint(0, 1000000)
-            if task_id not in self._task_memory:
-                return task_id
-
-    def _add_task_to_pool(self, task_id: int, task: CurriculumTask):
-        """Add a task to the unified pool."""
-        if len(self._task_memory) >= self.hypers.pool_size:
-            self._evict_from_pool()
-
-        # Assign sequential index for learning progress tracking
-        self._task_id_to_index[task_id] = self._next_index
-        self._next_index += 1
-
-        # Add to memory and objects
-        self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
-        self._task_objects[task_id] = task
-
-        # Extract and track bucket values for this task
-        bucket_values = self._extract_bucket_values(task)
-        self._initialize_bucket_tracking(bucket_values)
-        self._update_bucket_tracking(task_id, bucket_values)
-
-    def _sample_from_pool(self) -> int:
-        """Sample a task from the pool based on learning progress scores."""
-        if not self._task_memory:
-            raise ValueError("No tasks in pool to sample from")
-
-        # Get learning progress scores
-        self._lp_tracker._update()
-        lp_scores = self._lp_tracker._learning_progress()
-
-        # Create sampling probabilities
-        task_ids = list(self._task_memory.keys())
-        task_probs = []
-
-        for task_id in task_ids:
-            task_index = self._task_id_to_index.get(task_id, 0)
-            lp_score = lp_scores[task_index] if task_index < len(lp_scores) else 0.0
-            prob = lp_score + self.hypers.exploration_bonus
-            task_probs.append(prob)
-
-        # Normalize probabilities
-        total_prob = sum(task_probs)
-        if total_prob > 0:
-            task_probs = [p / total_prob for p in task_probs]
-        else:
-            task_probs = [1.0 / len(task_ids)] * len(task_ids)
-
-        return np.random.choice(task_ids, p=task_probs)
-
-    def _evict_from_pool(self):
-        """Evict a task from the pool based on learning progress and sample count."""
-        if not self._task_memory:
-            return
-
-        # Find task with lowest LP score that has enough samples
-        worst_task_id = None
-        worst_score = float("inf")
-
-        for task_id, (_, _, sample_count, _, _, lp_score) in self._task_memory.items():
-            if sample_count >= self.hypers.max_samples and lp_score < worst_score:
-                worst_score = lp_score
-                worst_task_id = task_id
-
-        if worst_task_id is not None:
-            self._evict_task(worst_task_id)
-
-    def _evict_task(self, task_id: int):
-        """Evict a task from the pool."""
-        if task_id in self._task_memory:
-            del self._task_memory[task_id]
-            if task_id in self._task_objects:
-                del self._task_objects[task_id]
-
-            # Remove bucket tracking for this task
-            for bucket_name in self._bucket_tracking:
-                if task_id in self._bucket_tracking[bucket_name]:
-                    del self._bucket_tracking[bucket_name][task_id]
-
-    def update_task_performance(self, task_id: int, score: float):
-        """Update task performance and learning progress."""
-        if task_id not in self._task_memory:
-            return
-
-        # Update task memory
-        seed, family, sample_count, current_score, recent_score, lp_score = self._task_memory[task_id]
-        self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, lp_score)
-
-        # Update learning progress tracker
-        task_index = self._task_id_to_index.get(task_id, 0)
-
-        # Safety check: ensure task_index is within bounds of _outcomes
-        if task_index >= len(self._lp_tracker._outcomes):
-            logger.warning(f"Task index {task_index} out of bounds for outcomes size {len(self._lp_tracker._outcomes)}")
-            return
-
-        self._lp_tracker._outcomes[task_index].append(score)
-        self._lp_tracker._update()
-
-        # Update LP score in memory
-        raw_lp_scores = self._lp_tracker._learning_progress()
-        if task_index < len(raw_lp_scores):
-            new_lp_score = float(raw_lp_scores[task_index])
-            self._task_memory[task_id] = (seed, family, sample_count + 1, recent_score, score, new_lp_score)
-
-        # Update bucket completion density tracking
-        self._update_bucket_completion_density(task_id, score)
-
-    def _get_task_lp_score(self, task_id: int) -> float:
-        """Get the learning progress score for a specific task."""
-        if task_id not in self._task_memory:
-            return 0.0
-
-        # Force update of learning progress calculation
-        self._lp_tracker._update()
-
-        # Get the raw learning progress score, not the distribution value
-        task_index = self._task_id_to_index.get(task_id, 0)
-        raw_lp_scores = self._lp_tracker._learning_progress()
-
-        # Safety check: ensure task_index is within bounds
-        if task_index >= len(raw_lp_scores):
-            return 0.0
-
-        return float(raw_lp_scores[task_index])
-
-    def stats(self) -> dict[str, float]:
-        """Return unified statistics for the pool including bucket completion density."""
-        # Get base learning progress stats
-        base_stats = self._lp_tracker.add_stats()
-
-        # Add bucket completion density statistics
-        bucket_stats = self._get_bucket_completion_stats()
-
-        return {**base_stats, **bucket_stats}
-
-    def _get_bucket_completion_stats(self) -> dict[str, float]:
-        """Get bucket completion density statistics."""
-        stats = {}
-
-        for bucket_name in self._bucket_tracking:
-            if bucket_name not in self._bucket_completion_counts:
-                continue
-
-            # Get completion counts for this bucket
-            completion_counts = self._bucket_completion_counts[bucket_name]
-            if not completion_counts:
-                continue
-
-            # Calculate basic statistics
-            total_completions = sum(completion_counts.values())
-            if total_completions == 0:
-                continue
-
-            # Add bucket completion statistics
-            stats[f"bucket/{bucket_name}/total_completions"] = float(total_completions)
-            stats[f"bucket/{bucket_name}/num_bins"] = float(len(completion_counts))
-
-            # Calculate completion density distribution
-            if self._bucket_is_discrete[bucket_name]:
-                # For discrete buckets, show completion count per value
-                for bin_index, count in completion_counts.items():
-                    if bin_index < len(self._bucket_bins[bucket_name]):
-                        value = self._bucket_bins[bucket_name][bin_index]
-                        stats[f"bucket/{bucket_name}/value_{value}_completions"] = float(count)
-                        stats[f"bucket/{bucket_name}/value_{value}_density"] = float(count / total_completions)
-            else:
-                # For continuous buckets, show completion density across bins
-                if len(self._bucket_bins[bucket_name]) >= 2:
-                    for bin_index, count in completion_counts.items():
-                        if bin_index < len(self._bucket_bins[bucket_name]) - 1:
-                            min_val = self._bucket_bins[bucket_name][bin_index]
-                            max_val = self._bucket_bins[bucket_name][bin_index + 1]
-                            bin_center = (min_val + max_val) / 2
-                            stats[f"bucket/{bucket_name}/bin_{bin_index}_center_{bin_center:.2f}_completions"] = float(
-                                count
-                            )
-                            stats[f"bucket/{bucket_name}/bin_{bin_index}_center_{bin_center:.2f}_density"] = float(
-                                count / total_completions
-                            )
-
-            # Add completion density evolution statistics
-            if self._bucket_completion_history[bucket_name]:
-                history = self._bucket_completion_history[bucket_name]
-                stats[f"bucket/{bucket_name}/completion_density_mean"] = float(np.mean(history))
-                stats[f"bucket/{bucket_name}/completion_density_std"] = (
-                    float(np.std(history)) if len(history) > 1 else 0.0
-                )
-                stats[f"bucket/{bucket_name}/completion_density_trend"] = (
-                    float(history[-1] - history[0]) if len(history) > 1 else 0.0
-                )
+        # Cache result
+        self._stats_cache[cache_key] = stats
+        self._stats_cache_valid = True
 
         return stats
 
-    def get_bucket_summary(self) -> dict[str, dict]:
-        """Get a summary of bucket tracking for debugging and analysis."""
-        summary = {}
+    def _init_bidirectional_scoring(self):
+        """Initialize bidirectional EMA tracking (integrated from BidirectionalLearningProgressScorer)."""
+        # Bidirectional learning progress tracking
+        self._outcomes: Dict[int, List[float]] = {}
+        self._p_fast: Optional[np.ndarray] = None
+        self._p_slow: Optional[np.ndarray] = None
+        self._p_true: Optional[np.ndarray] = None
+        self._random_baseline: Optional[np.ndarray] = None
+        self._task_success_rate: np.ndarray = np.array([])
+        self._counter: Dict[int, int] = {}
+        self._update_mask: np.ndarray = np.array([])
+        self._sample_levels: np.ndarray = np.array([])
 
-        for bucket_name in self._bucket_tracking:
-            summary[bucket_name] = {
-                "is_discrete": self._bucket_is_discrete.get(bucket_name, False),
-                "num_tasks": len(self._bucket_tracking[bucket_name]),
-                "num_completions": sum(self._bucket_completion_counts.get(bucket_name, {}).values()),
-                "bins": self._bucket_bins.get(bucket_name, []),
-                "completion_history_length": len(self._bucket_completion_history.get(bucket_name, [])),
+        # Cache for task distribution and scores
+        self._task_dist: Optional[np.ndarray] = None
+        self._stale_dist = True
+        self._score_cache: Dict[int, float] = {}
+        self._cache_valid_tasks: set[int] = set()
+
+    def _init_basic_scoring(self):
+        """Initialize basic EMA tracking (fallback method)."""
+        # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
+        self._task_emas: Dict[int, tuple[float, float, int]] = {}
+        # Ensure cache is initialized for basic scoring mode
+        if not hasattr(self, "_score_cache"):
+            self._score_cache: Dict[int, float] = {}
+        if not hasattr(self, "_cache_valid_tasks"):
+            self._cache_valid_tasks: set[int] = set()
+
+    def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
+        """Score tasks using the configured method (bidirectional by default)."""
+        if self.hypers.use_bidirectional:
+            return self._score_tasks_bidirectional(task_ids)
+        else:
+            return self._score_tasks_basic(task_ids)
+
+    def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
+        """Score tasks using bidirectional learning progress."""
+        scores = {}
+        for task_id in task_ids:
+            scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
+        return scores
+
+    def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
+        """Score tasks using basic EMA variance method."""
+        scores = {}
+        for task_id in task_ids:
+            scores[task_id] = self._get_basic_learning_progress_score(task_id)
+        return scores
+
+    def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
+        """Calculate bidirectional learning progress score for a task."""
+        # Return cached score if valid
+        if task_id in self._cache_valid_tasks and task_id in self._score_cache:
+            return self._score_cache[task_id]
+
+        task_stats = self.task_tracker.get_task_stats(task_id)
+        if not task_stats or task_stats["completion_count"] < 2:
+            # New tasks get exploration bonus
+            score = self.hypers.exploration_bonus
+        elif task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+            # Tasks without sufficient data get exploration bonus
+            score = self.hypers.exploration_bonus
+        else:
+            # Calculate bidirectional learning progress
+            self._update_bidirectional_progress()
+
+            # Get task distribution if needed
+            if self._task_dist is None or self._stale_dist:
+                self._calculate_task_distribution()
+
+            # Find task index in our tracking
+            task_indices = list(self._outcomes.keys())
+            if task_id in task_indices and self._task_dist is not None:
+                task_idx = task_indices.index(task_id)
+                if task_idx < len(self._task_dist):
+                    # Use the bidirectional learning progress as score
+                    score = float(self._task_dist[task_idx])
+                else:
+                    score = self.hypers.exploration_bonus
+            else:
+                score = self.hypers.exploration_bonus
+
+        # Cache the computed score
+        self._score_cache[task_id] = score
+        self._cache_valid_tasks.add(task_id)
+        return score
+
+    def _get_basic_learning_progress_score(self, task_id: int) -> float:
+        """Calculate basic learning progress score using EMA variance."""
+        # Return cached score if valid
+        if task_id in self._cache_valid_tasks and task_id in self._score_cache:
+            return self._score_cache[task_id]
+
+        task_stats = self.task_tracker.get_task_stats(task_id)
+        if not task_stats or task_stats["completion_count"] < 2:
+            score = self.hypers.exploration_bonus
+        elif task_id not in self._task_emas:
+            score = self.hypers.exploration_bonus
+        else:
+            ema_score, ema_squared, num_samples = self._task_emas[task_id]
+
+            # Calculate variance from EMA
+            variance = max(0.0, ema_squared - ema_score * ema_score)
+            std_dev = np.sqrt(variance)
+
+            # Learning progress is approximated by variance in performance
+            learning_progress = std_dev
+
+            # Add exploration bonus for tasks with few samples
+            if num_samples < 10:
+                learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
+
+            score = learning_progress
+
+        # Cache the computed score
+        self._score_cache[task_id] = score
+        self._cache_valid_tasks.add(task_id)
+        return score
+
+    def recommend_eviction(self, task_ids: List[int]) -> Optional[int]:
+        """Recommend which task to evict based on learning progress."""
+        if not task_ids:
+            return None
+
+        scores = self.score_tasks(task_ids)
+
+        # Find task with minimum learning progress
+        min_task_id = min(task_ids, key=lambda tid: scores.get(tid, 0.0))
+        return min_task_id
+
+    def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
+        """Check if a task should be evicted based on criteria."""
+        # First check if task has enough presentations
+        task_stats = self.task_tracker.get_task_stats(task_id)
+        if task_stats is None:
+            return False
+
+        if task_stats["completion_count"] < min_presentations:
+            return False
+
+        # Check if this task has low learning progress compared to others
+        all_task_ids = self.task_tracker.get_all_tracked_tasks()
+        if len(all_task_ids) <= 1:
+            return False
+
+        scores = self.score_tasks(all_task_ids)
+        task_score = scores.get(task_id, 0.0)
+
+        # Evict if this task is in the bottom 40% of learning progress scores
+        # This ensures eviction happens more readily with small task pools
+        sorted_scores = sorted(scores.values())
+        threshold_index = max(0, int(len(sorted_scores) * 0.4))
+        threshold_score = sorted_scores[threshold_index] if sorted_scores else 0.0
+
+        return task_score <= threshold_score
+
+    def on_task_evicted(self, task_id: int) -> None:
+        """Clean up when a task is evicted."""
+        # Remove from task tracker
+        self.task_tracker.remove_task(task_id)
+
+        # Learning progress specific cleanup
+        self._remove_task_from_scoring(task_id)
+
+        # Invalidate stats cache when task state changes
+        self.invalidate_cache()
+
+    def _remove_task_from_scoring(self, task_id: int) -> None:
+        """Remove task from scoring system."""
+        if self.hypers.use_bidirectional:
+            self._outcomes.pop(task_id, None)
+            self._counter.pop(task_id, None)
+            self._score_cache.pop(task_id, None)
+            self._cache_valid_tasks.discard(task_id)
+            self._stale_dist = True
+        else:
+            self._task_emas.pop(task_id, None)
+            self._score_cache.pop(task_id, None)
+            self._cache_valid_tasks.discard(task_id)
+
+    def update_task_performance(self, task_id: int, score: float) -> None:
+        """Update task performance using the appropriate scoring method."""
+        # Update task tracker
+        self.task_tracker.update_task_performance(task_id, score)
+
+        # Update scoring method
+        if self.hypers.use_bidirectional:
+            self._update_bidirectional_ema(task_id, score)
+        else:
+            self._update_basic_ema(task_id, score)
+
+        # Invalidate stats cache
+        self.invalidate_cache()
+
+    def _choose_task_from_list(self, task_ids: List[int]) -> int:
+        """Choose a task from the provided list based on scores."""
+        if not task_ids:
+            raise ValueError("Cannot choose from empty task list")
+
+        scores = self.score_tasks(task_ids)
+        if not scores:
+            return random.choice(task_ids)
+
+        # Convert scores to probabilities for sampling
+        total_score = sum(scores.values())
+        if total_score <= 0:
+            return random.choice(task_ids)
+
+        # Create weighted probability distribution
+        weights = [scores.get(task_id, 0.0) for task_id in task_ids]
+        return random.choices(task_ids, weights=weights)[0]
+
+    def get_learning_progress_score(self, task_id: int, task_tracker=None) -> float:
+        """Get learning progress score for a specific task (compatibility method for tests)."""
+        if self.hypers.use_bidirectional:
+            return self._get_bidirectional_learning_progress_score(task_id)
+        else:
+            return self._get_basic_learning_progress_score(task_id)
+
+    def get_stats(self) -> Dict[str, float]:
+        """Get learning progress statistics (compatibility method for tests)."""
+        if self.hypers.use_bidirectional:
+            return self._get_bidirectional_detailed_stats()
+        else:
+            return self._get_basic_detailed_stats()
+
+    def update_task_with_slice_values(self, task_id: int, score: float, slice_values: Dict[str, Any]) -> None:
+        """Update task performance including slice values for analysis."""
+        # First update performance
+        self.update_task_performance(task_id, score)
+
+        # Then update slice analyzer
+        self.slice_analyzer.update_task_completion(task_id, slice_values, score)
+
+    def _update_bidirectional_ema(self, task_id: int, score: float) -> None:
+        """Update bidirectional EMA tracking for a task with new score."""
+        # Convert score to success rate (assuming score is between 0 and 1)
+        success_rate = max(0.0, min(1.0, score))
+
+        # Initialize outcomes for new tasks
+        if task_id not in self._outcomes:
+            self._outcomes[task_id] = []
+
+        # Add outcome and maintain memory limit
+        self._outcomes[task_id].append(success_rate)
+        self._outcomes[task_id] = self._outcomes[task_id][-self.hypers.memory :]
+
+        # Update counter
+        if task_id not in self._counter:
+            self._counter[task_id] = 0
+        self._counter[task_id] += 1
+
+        # Update bidirectional progress to ensure EMAs are updated
+        self._update_bidirectional_progress()
+
+        # Mark distribution as stale
+        self._stale_dist = True
+        self._cache_valid_tasks.discard(task_id)
+
+    def _update_basic_ema(self, task_id: int, score: float) -> None:
+        """Update basic EMA tracking for a task with new score."""
+        if task_id not in self._task_emas:
+            self._task_emas[task_id] = (score, score * score, 1)
+        else:
+            ema_score, ema_squared, num_samples = self._task_emas[task_id]
+
+            # Update EMAs
+            alpha = min(1.0, self.hypers.ema_timescale * num_samples)
+            new_ema_score = (1 - alpha) * ema_score + alpha * score
+            new_ema_squared = (1 - alpha) * ema_squared + alpha * (score * score)
+
+            self._task_emas[task_id] = (new_ema_score, new_ema_squared, num_samples + 1)
+
+        # Invalidate cache for this task when EMA is updated
+        self._cache_valid_tasks.discard(task_id)
+
+    def on_task_created(self, task: CurriculumTask) -> None:
+        """Handle task creation by tracking it."""
+        self.task_tracker.track_task_creation(task._task_id)
+
+        # Extract and update slice values if available
+        slice_values = task.get_slice_values()
+        if slice_values:
+            # Initial tracking with neutral score
+            self.slice_analyzer.update_task_completion(task._task_id, slice_values, 0.5)
+
+        # Invalidate stats cache when task state changes
+        self.invalidate_cache()
+
+    def get_detailed_stats(self) -> Dict[str, float]:
+        """Get detailed stats including learning progress and slice distribution analysis."""
+        stats = super().get_detailed_stats()  # Gets slice analyzer stats
+
+        # Always include learning progress stats (not just when detailed logging is enabled)
+        if self.hypers.use_bidirectional:
+            lp_stats = self._get_bidirectional_detailed_stats()
+        else:
+            lp_stats = self._get_basic_detailed_stats()
+
+        # Add lp/ prefix to learning progress stats
+        for key, value in lp_stats.items():
+            stats[f"lp/{key}"] = value
+
+        return stats
+
+    def _get_bidirectional_detailed_stats(self) -> Dict[str, float]:
+        """Get detailed bidirectional learning progress statistics."""
+        if not self._outcomes:
+            return {
+                "num_tracked_tasks": 0.0,
+                "mean_task_success_rate": 0.0,
+                "mean_learning_progress": 0.0,
+                "num_active_tasks": 0.0,
             }
 
-            # Add sample values for continuous buckets
-            if not self._bucket_is_discrete.get(bucket_name, True):
-                values = list(self._bucket_tracking[bucket_name].values())
-                if values:
-                    summary[bucket_name]["sample_values"] = values[:5]  # First 5 values
-                    summary[bucket_name]["value_range"] = (min(values), max(values))
+        self._update_bidirectional_progress()
 
-        return summary
+        stats = {
+            "num_tracked_tasks": float(len(self._outcomes)),
+            "mean_task_success_rate": float(np.mean(self._task_success_rate))
+            if len(self._task_success_rate) > 0
+            else 0.0,
+        }
 
+        if self._task_dist is not None and len(self._task_dist) > 0:
+            stats.update(
+                {
+                    "mean_sample_prob": float(np.mean(self._task_dist)),
+                    "num_zeros_lp_dist": float(np.sum(self._task_dist == 0)),
+                    "mean_learning_progress": float(np.mean(self._learning_progress())),
+                }
+            )
+        else:
+            stats.update(
+                {
+                    "mean_sample_prob": 0.0,
+                    "num_zeros_lp_dist": 0.0,
+                    "mean_learning_progress": 0.0,
+                }
+            )
 
-class BidirectionalLearningProgress:
-    """Tracks bidirectional learning progress using fast and slow exponential moving averages."""
-
-    def __init__(
-        self,
-        search_space: int | Discrete,
-        ema_timescale: float = 0.001,
-        progress_smoothing: float = 0.05,
-        num_active_tasks: int = 16,
-        rand_task_rate: float = 0.25,
-        sample_threshold: int = 10,
-        memory: int = 25,
-    ) -> None:
-        if isinstance(search_space, int):
-            search_space = Discrete(search_space)
-        assert isinstance(search_space, Discrete), (
-            f"search_space must be a Discrete space or int, got {type(search_space)}"
-        )
-        self._search_space = search_space
-        self._num_tasks = max_num_levels = search_space.n
-        self._ema_timescale = ema_timescale
-        self.progress_smoothing = progress_smoothing
-        self.num_active_tasks = int(num_active_tasks)
-        self._rand_task_rate = rand_task_rate
-        self._sample_threshold = sample_threshold
-        self._memory = int(memory)
-        self._outcomes = {}
-        for i in range(max_num_levels):
-            self._outcomes[i] = []
-        self._p_fast = None
-        self._p_slow = None
-        self._p_true = None
-        self._random_baseline = None
-        self._task_success_rate = np.zeros(max_num_levels)
-        self._mean_samples_per_eval = []
-        self._num_nans = []
-        self._update_mask = np.ones(max_num_levels).astype(bool)
-        self._sample_levels = np.arange(max_num_levels).astype(np.int32)
-        self._counter = {i: 0 for i in self._sample_levels}
-        self._task_dist = None
-        self._stale_dist = True
-
-    def add_stats(self) -> Dict[str, float]:
-        """Return learning progress statistics for logging."""
-        stats = {}
-        stats["lp/num_active_tasks"] = len(self._sample_levels) if self._sample_levels is not None else 0
-        stats["lp/mean_sample_prob"] = float(np.mean(self._task_dist)) if self._task_dist is not None else 0.0
-        stats["lp/num_zeros_lp_dist"] = int(np.sum(self._task_dist == 0)) if self._task_dist is not None else 0
-        stats["lp/task_1_success_rate"] = float(self._task_success_rate[0]) if len(self._task_success_rate) > 0 else 0.0
-        stats[f"lp/task_{self._num_tasks // 2}_success_rate"] = (
-            float(self._task_success_rate[self._num_tasks // 2])
-            if len(self._task_success_rate) > self._num_tasks // 2
-            else 0.0
-        )
-        stats["lp/last_task_success_rate"] = (
-            float(self._task_success_rate[-1]) if len(self._task_success_rate) > 0 else 0.0
-        )
-        stats["lp/task_success_rate"] = (
-            float(np.mean(self._task_success_rate)) if len(self._task_success_rate) > 0 else 0.0
-        )
-        stats["lp/mean_evals_per_task"] = float(self._mean_samples_per_eval[-1]) if self._mean_samples_per_eval else 0.0
-        stats["lp/num_nan_tasks"] = int(self._num_nans[-1]) if self._num_nans else 0
         return stats
 
-    def _update(self):
-        """Update learning progress tracking with current task outcome sequences."""
-        # Calculate learning progress for each task individually based on their outcome sequences
-        task_lp_scores = np.zeros(self._num_tasks)
+    def _get_basic_detailed_stats(self) -> Dict[str, float]:
+        """Get detailed basic learning progress statistics."""
+        if not self._task_emas:
+            return {
+                "num_tracked_tasks": 0.0,
+                "mean_num_samples": 0.0,
+                "mean_ema_score": 0.0,
+                "mean_learning_progress": 0.0,
+            }
 
-        for task_id in range(self._num_tasks):
-            outcomes = self._outcomes[task_id]
-            if len(outcomes) < 2:
-                task_lp_scores[task_id] = 0.0
-                continue
+        num_samples_list = [num_samples for _, _, num_samples in self._task_emas.values()]
+        ema_scores = [ema_score for ema_score, _, _ in self._task_emas.values()]
 
-            # Convert outcomes to numpy array
-            outcomes_array = np.array(outcomes)
+        # Calculate mean learning progress from EMA data
+        learning_progress_scores = []
+        for ema_score, ema_squared, _num_samples in self._task_emas.values():
+            variance = max(0.0, ema_squared - ema_score * ema_score)
+            std_dev = np.sqrt(variance)
+            learning_progress_scores.append(std_dev)
 
-            # Calculate fast and slow EMAs for this task's outcome sequence
-            if self._p_fast is None:
-                # Initialize EMAs
-                if self._p_fast is None:
-                    self._p_fast = np.zeros(self._num_tasks)
-                    self._p_slow = np.zeros(self._num_tasks)
-                    self._p_true = np.zeros(self._num_tasks)
+        return {
+            "num_tracked_tasks": float(len(self._task_emas)),
+            "mean_num_samples": float(np.mean(num_samples_list)),
+            "mean_ema_score": float(np.mean(ema_scores)),
+            "mean_learning_progress": float(np.mean(learning_progress_scores)) if learning_progress_scores else 0.0,
+        }
 
-                # Initialize with current outcome
-                self._p_fast[task_id] = outcomes_array[-1]
-                self._p_slow[task_id] = outcomes_array[-1]
-                self._p_true[task_id] = outcomes_array[-1]
-            else:
-                # Update EMAs for this task
-                current_outcome = outcomes_array[-1]
-                self._p_fast[task_id] = (current_outcome * self._ema_timescale) + (
-                    self._p_fast[task_id] * (1.0 - self._ema_timescale)
-                )
-                # Use a slower timescale for the slow EMA (e.g., 10x slower)
-                slow_timescale = self._ema_timescale * 0.1
-                self._p_slow[task_id] = (current_outcome * slow_timescale) + (
-                    self._p_slow[task_id] * (1.0 - slow_timescale)
-                )
-                self._p_true[task_id] = (current_outcome * self._ema_timescale) + (
-                    self._p_true[task_id] * (1.0 - self._ema_timescale)
-                )
+    # Bidirectional learning progress implementation (integrated from modules)
 
-            # Calculate learning progress as the absolute difference between fast and slow EMAs
-            task_lp_scores[task_id] = abs(self._p_fast[task_id] - self._p_slow[task_id])
-
-        # Update task success rates for statistics
-        task_success_rates = np.array(
-            [
-                np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
-                for i in range(self._num_tasks)
-            ]
-        )
-        task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
-
-        # Update statistics
-        self._task_success_rate = task_success_rates
-        self._num_nans.append(sum(np.isnan(task_success_rates)))
-        self._mean_samples_per_eval.append(np.mean([len(self._outcomes[i]) for i in range(self._num_tasks)]))
-
-        self._stale_dist = True
-        self._task_dist = None
-
-        return task_success_rates
-
-    def collect_data(self, infos):
-        """Collect task outcome data for learning progress tracking."""
-        if not bool(infos):
+    def _update_bidirectional_progress(self):
+        """Update bidirectional learning progress tracking with current task success rates."""
+        if not self._outcomes:
             return
 
-        for k, v in infos.items():
-            if "tasks" in k:
-                task_id = int(k.split("/")[1])
-                for res in v:
-                    self._outcomes[task_id].append(res)
-                    if task_id in self._sample_levels:
-                        self._counter[task_id] += 1
+        # Get all tracked task IDs
+        task_ids = sorted(self._outcomes.keys())
+        num_tasks = len(task_ids)
 
-    def _learning_progress(self, reweight: bool = False) -> np.ndarray:
-        """Calculate learning progress as the difference between fast and slow moving averages for each task."""
+        if num_tasks == 0:
+            return
+
+        # Calculate task success rates
+        task_success_rates = np.array(
+            [
+                np.mean(self._outcomes[task_id]) if self._outcomes[task_id] else DEFAULT_SUCCESS_RATE
+                for task_id in task_ids
+            ]
+        )
+
+        # Handle NaN values
+        task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
+
+        # Initialize random baseline if needed
+        if self._random_baseline is None or len(self._random_baseline) != num_tasks:
+            # Random baseline should represent baseline/random performance, typically around 0.5
+            # Don't use actual task performance as baseline - that defeats the purpose
+            self._random_baseline = np.full(num_tasks, 0.5)
+
+        # Create update mask for tasks with sufficient data
+        self._update_mask = np.array([len(self._outcomes[task_id]) >= 2 for task_id in task_ids])
+
+        if not np.any(self._update_mask):
+            return
+
+        # Handle division by zero in normalization
+        denominator = 1.0 - self._random_baseline[self._update_mask]
+        denominator = np.where(denominator <= 0, 1.0, denominator)
+
+        # Allow negative normalized rates for bidirectional algorithm
+        # This captures the full range of performance relative to baseline
+        normalized_task_success_rates = (
+            task_success_rates[self._update_mask] - self._random_baseline[self._update_mask]
+        ) / denominator
+
+        # Initialize or update fast and slow EMAs
+        if self._p_fast is None or len(self._p_fast) != num_tasks:
+            self._p_fast = np.zeros(num_tasks)
+            self._p_slow = np.zeros(num_tasks)
+            self._p_true = np.zeros(num_tasks)
+
+            self._p_fast[self._update_mask] = normalized_task_success_rates
+            self._p_slow[self._update_mask] = normalized_task_success_rates
+            self._p_true[self._update_mask] = task_success_rates[self._update_mask]
+        else:
+            # Resize arrays if needed
+            if (
+                self._p_fast is not None
+                and self._p_slow is not None
+                and self._p_true is not None
+                and len(self._p_fast) != num_tasks
+            ):
+                new_p_fast = np.zeros(num_tasks)
+                new_p_slow = np.zeros(num_tasks)
+                new_p_true = np.zeros(num_tasks)
+
+                min_len = min(len(self._p_fast), num_tasks)
+                new_p_fast[:min_len] = self._p_fast[:min_len]
+                new_p_slow[:min_len] = self._p_slow[:min_len]
+                new_p_true[:min_len] = self._p_true[:min_len]
+
+                self._p_fast = new_p_fast
+                self._p_slow = new_p_slow
+                self._p_true = new_p_true
+
+            # Update EMAs (with None checks)
+            if self._p_fast is not None and self._p_slow is not None and self._p_true is not None:
+                # Fast EMA uses the configured timescale
+                self._p_fast[self._update_mask] = (
+                    normalized_task_success_rates * self.hypers.ema_timescale
+                    + self._p_fast[self._update_mask] * (1.0 - self.hypers.ema_timescale)
+                )
+                # Slow EMA uses a much slower timescale for better differentiation
+                slow_timescale = self.hypers.ema_timescale * 0.2
+                self._p_slow[self._update_mask] = normalized_task_success_rates * slow_timescale + self._p_slow[
+                    self._update_mask
+                ] * (1.0 - slow_timescale)
+                self._p_true[self._update_mask] = task_success_rates[
+                    self._update_mask
+                ] * self.hypers.ema_timescale + self._p_true[self._update_mask] * (1.0 - self.hypers.ema_timescale)
+
+        self._task_success_rate = task_success_rates
+        self._stale_dist = True
+
+    def _learning_progress(self, reweight: bool = True) -> np.ndarray:
+        """Calculate learning progress as the difference between fast and slow moving averages."""
         if self._p_fast is None or self._p_slow is None:
-            return np.zeros(self._num_tasks)
+            return np.array([])
 
-        # Calculate learning progress for each task individually
-        lp_scores = np.zeros(self._num_tasks)
-        for task_id in range(self._num_tasks):
-            fast = self._p_fast[task_id]
-            slow = self._p_slow[task_id]
+        fast = self._reweight(self._p_fast) if reweight else self._p_fast
+        slow = self._reweight(self._p_slow) if reweight else self._p_slow
 
-            if reweight:
-                # Apply reweighting to individual task scores
-                fast_reweighted = self._reweight_single(fast)
-                slow_reweighted = self._reweight_single(slow)
-                lp_scores[task_id] = abs(fast_reweighted - slow_reweighted)
-            else:
-                lp_scores[task_id] = abs(fast - slow)
+        # Learning progress is the absolute difference between fast and slow EMAs
+        # This captures variability/change regardless of absolute performance level
+        lp = np.abs(fast - slow)
 
-        return lp_scores
+        # Add a small amount based on fast EMA to slightly favor above-baseline tasks
+        # but still prioritize change/variance
+        performance_bonus = np.maximum(fast, 0) * 0.1
 
-    def _reweight_single(self, prob: float) -> float:
-        """Apply progress smoothing reweighting to a single probability value."""
-        numerator = prob * (1.0 - self.progress_smoothing)
-        denominator = prob + self.progress_smoothing * (1.0 - 2.0 * prob)
+        return lp + performance_bonus
+
+    def _reweight(self, probs: np.ndarray) -> np.ndarray:
+        """Apply progress smoothing reweighting to probability values."""
+        numerator = probs * (1.0 - self.hypers.progress_smoothing)
+        denominator = probs + self.hypers.progress_smoothing * (1.0 - 2.0 * probs)
 
         # Handle division by zero
-        if denominator <= 0:
-            return 1.0
+        denominator = np.where(denominator <= 0, 1.0, denominator)
+        result = numerator / denominator
+        return result
 
-        return numerator / denominator
-
-    def _sigmoid(self, x: np.ndarray):
+    def _sigmoid(self, x: np.ndarray) -> np.ndarray:
         """Apply sigmoid function to array values."""
-        return 1 / (1 + np.exp(-x))
+        return 1 / (1 + np.exp(-np.clip(x, -500, 500)))  # Clip to prevent overflow
 
-    def _sample_distribution(self):
-        task_dist = np.ones(self._num_tasks) / self._num_tasks
+    def _calculate_task_distribution(self):
+        """Calculate task distribution based on bidirectional learning progress."""
+        if not self._outcomes:
+            self._task_dist = np.array([])
+            self._stale_dist = False
+            return
+
+        num_tasks = len(self._outcomes)
+        task_dist = np.ones(num_tasks) / num_tasks
+
         learning_progress = self._learning_progress()
 
-        # Only include tasks with actual learning progress (lp > 0)
-        # Remove the condition that includes tasks with _p_true > 0 but lp = 0
+        if len(learning_progress) == 0:
+            self._task_dist = task_dist
+            self._stale_dist = False
+            return
+
+        # Find tasks with positive learning progress (actual learning/change)
+        # Don't just reward any positive performance - focus on learning progress
         posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0]
 
         any_progress = len(posidxs) > 0
         subprobs = learning_progress[posidxs] if any_progress else learning_progress
 
-        # Apply sigmoid with scaling to make it less heavy-handed
-        # Scale the learning progress scores to make sigmoid less aggressive
-        scale_factor = 100.0  # Increase this to make sigmoid less aggressive
-        scaled_probs = subprobs * scale_factor
-        subprobs = self._sigmoid(scaled_probs)
+        # Standardize and apply sigmoid
+        std = np.std(subprobs)
+        if std > 0:
+            subprobs = (subprobs - np.mean(subprobs)) / std
+        else:
+            subprobs = subprobs - np.mean(subprobs)
 
-        # Normalize to sum to 1, handling zero sum case
+        subprobs = self._sigmoid(subprobs)
+
+        # Normalize to sum to 1
         sum_probs = np.sum(subprobs)
         if sum_probs > 0:
             subprobs = subprobs / sum_probs
         else:
-            # If all probabilities are zero, use uniform distribution
             subprobs = np.ones_like(subprobs) / len(subprobs)
 
+        # Assign probabilities
         if any_progress:
             task_dist = np.zeros(len(learning_progress))
             task_dist[posidxs] = subprobs
@@ -722,58 +671,3 @@ class BidirectionalLearningProgress:
 
         self._task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
-
-        # Truncate outcomes to respect memory limit
-        for i in range(self._num_tasks):
-            self._outcomes[i] = self._outcomes[i][-self._memory :]
-        return self._task_dist
-
-    def _sample_tasks(self):
-        """Sample active tasks based on current task distribution."""
-        sample_levels = []
-        self._update_mask = np.zeros(self._num_tasks).astype(bool)
-
-        # Ensure task_dist is valid
-        if self._task_dist is None or len(self._task_dist) == 0:
-            # Use uniform distribution if task_dist is not available
-            task_dist = np.ones(self._num_tasks) / self._num_tasks
-        else:
-            task_dist = self._task_dist.copy()
-
-        # Ensure task_dist sums to 1
-        sum_dist = np.sum(task_dist)
-        if sum_dist <= 0:
-            task_dist = np.ones(self._num_tasks) / self._num_tasks
-        else:
-            task_dist = task_dist / sum_dist
-
-        for _i in range(self.num_active_tasks):
-            if np.random.rand() < self._rand_task_rate:
-                level = np.random.choice(range(self._num_tasks))
-            else:
-                try:
-                    level = np.random.choice(range(self._num_tasks), p=task_dist)
-                except ValueError as e:
-                    logger.warning(f"Error in np.random.choice: {e}, using uniform distribution")
-                    level = np.random.choice(range(self._num_tasks))
-            sample_levels.append(level)
-            self._update_mask[level] = True
-        self._sample_levels = np.array(sample_levels).astype(np.int32)
-        self._counter = {i: 0 for i in self._sample_levels}
-        return self._sample_levels
-
-    def calculate_dist(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Calculate task distribution and sample levels based on learning progress."""
-        if all([v < self._sample_threshold for k, v in self._counter.items()]) and self._random_baseline is not None:
-            # Ensure we have valid task_dist and sample_levels
-            if self._task_dist is None or len(self._task_dist) == 0:
-                self._task_dist = np.ones(self._num_tasks) / self._num_tasks
-            if self._sample_levels is None or len(self._sample_levels) == 0:
-                self._sample_levels = np.arange(self._num_tasks).astype(np.int32)
-            return self._task_dist, self._sample_levels
-
-        self._task_success_rate = self._update()
-        task_dist = self._sample_distribution()
-        tasks = self._sample_tasks()
-
-        return task_dist, tasks

@@ -5,8 +5,8 @@ import pytest
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig, ValueRange
-from metta.mettagrid.config.envs import make_arena, make_navigation
+from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig, Span
+from metta.mettagrid.builder.envs import make_arena, make_navigation
 
 
 @pytest.fixture(scope="function")
@@ -28,7 +28,6 @@ def curriculum_config(arena_env):
         task_generator=SingleTaskGeneratorConfig(env=arena_env),
         max_task_id=1000,
         num_active_tasks=50,
-        new_task_rate=0.05,
     )
 
 
@@ -36,7 +35,11 @@ def curriculum_config(arena_env):
 def learning_progress_algorithm():
     """Create a learning progress algorithm configuration."""
     return LearningProgressConfig(
-        ema_timescale=0.001, pool_size=16, sample_size=8, max_samples=10, exploration_bonus=0.1
+        ema_timescale=0.001,
+        exploration_bonus=0.1,
+        max_memory_tasks=1000,
+        max_slice_axes=3,
+        enable_detailed_slice_logging=False,
     )
 
 
@@ -47,7 +50,7 @@ def production_curriculum_config(arena_env):
 
     # Add reward buckets for all resources
     for item in arena_env.game.resource_names:
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, ValueRange.vr(0, 1.0)])
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, Span(0, 1.0)])
         arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     # Add map size buckets
@@ -65,7 +68,6 @@ def production_navigation_curriculum(navigation_env):
     """Create a production-like navigation curriculum similar to navigation.py."""
     nav_tasks = cc.bucketed(navigation_env)
 
-    # Dense reward tasks
     dense_tasks = cc.bucketed(navigation_env)
     dense_tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.5, 1.0])
     dense_tasks.add_bucket("game.agent.rewards.inventory.heart_max", [1, 2])
@@ -76,15 +78,15 @@ def production_navigation_curriculum(navigation_env):
             maps.append(f"varied_terrain/{terrain}_{size}")
 
     dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [ValueRange.vr(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 50)])
 
     # Sparse tasks
     sparse_env = navigation_env.model_copy()
     sparse_env.game.map_builder = make_navigation(num_agents=4).game.map_builder
     sparse_tasks = cc.bucketed(sparse_env)
-    sparse_tasks.add_bucket("game.map_builder.width", [ValueRange.vr(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.height", [ValueRange.vr(60, 120)])
-    sparse_tasks.add_bucket("game.map_builder.objects.altar", [ValueRange.vr(1, 10)])
+    sparse_tasks.add_bucket("game.map_builder.width", [Span(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.height", [Span(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.objects.altar", [Span(1, 10)])
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
     return nav_tasks.to_curriculum()

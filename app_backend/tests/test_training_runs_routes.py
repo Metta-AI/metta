@@ -402,7 +402,3 @@ class TestTrainingRunsRoutes:
         stats_client.update_training_run_status(training_run.id, "completed")
         stats_client.update_training_run_status(training_run.id, "failed")
         stats_client.update_training_run_status(training_run.id, "running")
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "-s"])
