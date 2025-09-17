@@ -20,7 +20,8 @@ def _raylib_cc_repo_impl(ctx):
     build.append("        \"RAYLIB_BUILD_EXAMPLES\": \"OFF\",")
     build.append("        \"RAYLIB_BUILD_TESTING\": \"OFF\",")
     build.append("    },")
-    # The cmake macro will expose a cc_library target named 'raylib'.
+    build.append("    out_shared_libs = [\"raylib\"],")
+    build.append("    visibility = [\"//visibility:public\"],")
     build.append(")")
     build.append("")
 
