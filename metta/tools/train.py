@@ -16,7 +16,13 @@ from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import (
+    auto_policy_storage_decision,
+    auto_replay_dir,
+    auto_run_name,
+    auto_stats_server_uri,
+    auto_wandb_config,
+)
 
 logger = getRankAwareLogger(__name__)
 
@@ -70,6 +76,26 @@ class TrainTool(Tool):
         # Override group if provided via args (for sweep support)
         if group_override:
             self.wandb.group = group_override
+
+        if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
+            storage_decision = auto_policy_storage_decision(self.run)
+            if storage_decision.remote_prefix:
+                self.trainer.checkpoint.remote_prefix = storage_decision.remote_prefix
+                if storage_decision.reason == "env_override":
+                    logger.info_master(
+                        "Using POLICY_REMOTE_PREFIX for policy storage: %s",
+                        storage_decision.remote_prefix,
+                    )
+                else:
+                    logger.info_master(
+                        "Policies will sync to S3 at %s (Softmax AWS profile detected).",
+                        storage_decision.remote_prefix,
+                    )
+            elif storage_decision.reason == "not_connected":
+                logger.info_master(
+                    "Softmax AWS SSO not detected; policies will remain on local storage. "
+                    "Run 'metta status --components=aws' after 'aws sso login --profile softmax' to enable S3 uploads.",
+                )
 
         os.makedirs(self.run_dir, exist_ok=True)
 
