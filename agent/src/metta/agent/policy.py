@@ -6,6 +6,7 @@ implement the required methods that MettaAgent depends on."""
 from abc import ABC, abstractmethod
 
 import torch
+import torch.nn as nn
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
@@ -17,19 +18,16 @@ from metta.rl.training.training_environment import EnvironmentMetaData
 class PolicyArchitecture(Config):
     """Policy architecture configuration."""
 
-    class_path: str = "metta.agent.component_policies.fast.Fast"
-
-    clip_range: float = 0
-    analyze_weights_interval: int = 300
+    class_path: str
 
     def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""
 
         AgentClass = load_symbol(self.class_path)
-        return AgentClass(env_metadata)
+        return AgentClass(env_metadata, self)
 
 
-class Policy(ABC):
+class Policy(ABC, nn.Module):
     """Abstract base class defining the interface that all policies must implement.
     implement this interface."""
 
@@ -38,43 +36,26 @@ class Policy(ABC):
         pass
 
     @property
-    def experience_spec(self) -> Composite:
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-        )
-
-    def set_env_metadata(self, env_metadata: EnvironmentMetaData):
-        return
-
-    @property
-    @abstractmethod
-    def device(self) -> torch.device: ...
-
-    @abstractmethod
-    def to(self, device: torch.device): ...
-
-    @property
-    @abstractmethod
-    def total_params(self) -> int: ...
-
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
 
-    def on_new_training_run(self):
+    def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
         return
 
-    def on_rollout_start(self):
-        return
+    @property
+    @abstractmethod
+    def device(self) -> torch.device: ...
 
-    def on_train_mb_start(self):
-        return
+    @property
+    @abstractmethod
+    def total_params(self) -> int: ...
 
-    def on_eval_start(self):
-        return
+    @abstractmethod
+    def reset_memory(self):
+        pass
 
 
 # class PyTorchPolicyWrapper(Policy):

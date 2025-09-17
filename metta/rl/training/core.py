@@ -90,15 +90,11 @@ class CoreTrainingLoop:
             td["rewards"] = r.to(td.device)
             td["dones"] = d.float().to(td.device)
             td["truncateds"] = t.float().to(td.device)
-            td.set(
-                "training_env_id_start",
-                torch.full(
-                    td.batch_size,
-                    training_env_id.start,
-                    device=td.device,
-                    dtype=torch.long,
-                ),
-            )
+            td["training_env_ids"] = torch.arange(
+                training_env_id.start, training_env_id.stop, dtype=torch.long, device=td.device
+            ).unsqueeze(1)  # av remove unsqueeze
+            B = td.batch_size.numel()
+            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
 
             # Run rollout hooks for all losses
             # Each loss can modify td and potentially run inference
@@ -180,10 +176,6 @@ class CoreTrainingLoop:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
                     self.optimizer.step()
 
-                    # Apply weight clipping if policy supports it
-                    if hasattr(self.policy, "clip_weights"):
-                        self.policy.clip_weights()
-
                     if self.device.type == "cuda":
                         torch.cuda.synchronize()
 
@@ -212,7 +204,5 @@ class CoreTrainingLoop:
         Args:
             epoch: Current epoch
         """
-        self.policy.on_new_training_run()
-
         for loss in self.losses.values():
             loss.on_new_training_run()

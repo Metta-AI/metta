@@ -1,8 +1,6 @@
-from typing import Dict
+from typing import Any, Dict
 
-import numpy as np
 import torch
-from gymnasium import spaces
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
@@ -176,23 +174,22 @@ class Experience:
         minibatch_size: int,
         max_minibatch_size: int,
         policy_experience_spec: Composite,
-        action_space: spaces.Space,
-        losses: Dict[str, "Loss"],
+        losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
         device: torch.device | str,
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 
-        from metta.rl.losses import get_loss_experience_spec
-        # Get specs from policy and losses
-        act_dtype = torch.int32 if np.issubdtype(action_space.dtype, np.integer) else torch.float32
-        loss_spec = get_loss_experience_spec(action_space.nvec, act_dtype)
+        # from metta.rl.losses import get_loss_experience_spec
+        # # Get specs from policy and losses
+        # act_dtype = torch.int32 if np.issubdtype(action_space.dtype, np.integer) else torch.float32
+        # loss_spec = get_loss_experience_spec(action_space.nvec, act_dtype)
 
         # Merge all specs
         merged_spec_dict: dict = dict(policy_experience_spec.items())
         for loss in losses.values():
             spec = loss.get_experience_spec()
             merged_spec_dict.update(dict(spec.items()))
-        merged_spec_dict.update(dict(loss_spec.items()))
+        # merged_spec_dict.update(dict(loss_spec.items()))
 
         # Create experience buffer
         experience = Experience(
