@@ -1,8 +1,6 @@
 import logging
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Optional
 
 import torch
 
@@ -19,20 +17,7 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class EvalState:
-    """State yielded by the evaluation iterator."""
-
-    status: str  # 'initialized', 'simulation_complete', 'simulation_skipped', 'complete'
-    simulation_name: Optional[str] = None
-    simulation_index: Optional[int] = None
-    successful_simulations: Optional[int] = None
-    total_simulations: Optional[int] = None
-    reason: Optional[str] = None
-    results: Optional[EvalResults] = None
-
-
-def evaluate_policy_iterator(
+def evaluate_policy(
     *,
     checkpoint_uri: str,
     simulations: list[SimulationConfig],
@@ -44,13 +29,8 @@ def evaluate_policy_iterator(
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
     stats_client: StatsClient | None,
-) -> Iterator[EvalState]:
-    """
-    Evaluate one policy URI, yielding control between simulations for synchronization.
-
-    Yields:
-        EvalState objects at key points during evaluation to allow for synchronization.
-    """
+) -> EvalResults:
+    """Evaluate one policy URI, merging all simulations into a single StatsDB."""
     stats_dir = stats_dir or "/tmp/stats"
 
     logger.info(f"Evaluating checkpoint {checkpoint_uri}")
@@ -76,62 +56,35 @@ def evaluate_policy_iterator(
         )
         for sim in simulations
     ]
-
     successful_simulations = 0
     replay_urls: dict[str, list[str]] = {}
-    merged_db = SimulationStatsDB(Path(f"{stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
-
-    # Yield initial state
-    yield EvalState(status="initialized", total_simulations=len(sims), successful_simulations=0)
-
-    for i, sim in enumerate(sims):
+    merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
+    for sim in sims:
         try:
             record_heartbeat()
             logger.info("=== Simulation '%s' ===", sim.name)
             sim_result = sim.simulate()
             merged_db.merge_in(sim_result.stats_db)
             record_heartbeat()
-
             if replay_dir is not None:
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(policy_uri=checkpoint_uri)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls
                     logger.info(f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{sim.name}'")
-
             sim_result.stats_db.close()
             successful_simulations += 1
-
-            # Yield after each successful simulation
-            yield EvalState(
-                status="simulation_complete",
-                simulation_name=sim.name,
-                simulation_index=i,
-                successful_simulations=successful_simulations,
-                total_simulations=len(sims),
-            )
-
         except SimulationCompatibilityError as e:
             # Only skip for NPC-related compatibility issues
             error_msg = str(e).lower()
             if "npc" in error_msg or "non-player" in error_msg:
                 logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", sim.name, str(e))
-                yield EvalState(
-                    status="simulation_skipped",
-                    simulation_name=sim.name,
-                    simulation_index=i,
-                    reason=str(e),
-                    successful_simulations=successful_simulations,
-                    total_simulations=len(sims),
-                )
                 continue
             else:
                 # Re-raise for non-NPC compatibility issues
                 logger.error("Critical compatibility error in simulation '%s': %s", sim.name, str(e))
                 raise
-
     if successful_simulations == 0:
         raise RuntimeError("No simulations could be run successfully")
-
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
     eval_stats_db = EvalStatsDB(merged_db.path)
@@ -147,61 +100,12 @@ def evaluate_policy_iterator(
         replay_urls=replay_urls,
     )
 
-    # Yield final results
-    yield EvalState(
-        status="complete",
-        results=results,
-        successful_simulations=successful_simulations,
-        total_simulations=len(simulations),
-    )
-
-
-def evaluate_policy(
-    *,
-    checkpoint_uri: str,
-    simulations: list[SimulationConfig],
-    device: torch.device,
-    vectorization: str,
-    stats_dir: str | None = None,
-    replay_dir: str | None = None,
-    export_stats_db_uri: str | None = None,
-    stats_epoch_id: uuid.UUID | None = None,
-    eval_task_id: uuid.UUID | None = None,
-    stats_client: StatsClient | None,
-) -> EvalResults:
-    """
-    Evaluate one policy URI, merging all simulations into a single StatsDB.
-
-    This is a synchronous wrapper around evaluate_policy_iterator for backward compatibility.
-    """
-    evaluation_results = None
-
-    # Run the iterator to completion
-    for state in evaluate_policy_iterator(
-        checkpoint_uri=checkpoint_uri,
-        simulations=simulations,
-        device=device,
-        vectorization=vectorization,
-        stats_dir=stats_dir,
-        replay_dir=replay_dir,
-        export_stats_db_uri=export_stats_db_uri,
-        stats_epoch_id=stats_epoch_id,
-        eval_task_id=eval_task_id,
-        stats_client=stats_client,
-    ):
-        if state.status == "complete":
-            evaluation_results = state.results
-
-    if evaluation_results is None:
-        raise RuntimeError("Evaluation did not complete successfully")
-
-    return evaluation_results
+    return results
 
 
 def extract_scores(
     checkpoint_uri: str, simulations: list[SimulationConfig], stats_db: EvalStatsDB
 ) -> EvalRewardSummary:
-    """Extract category and per-simulation scores from the stats database."""
     categories: set[str] = set()
     for sim_config in simulations:
         categories.add(sim_config.name.split("/")[0])
@@ -213,7 +117,6 @@ def extract_scores(
         if score is None:
             continue
         category_scores[category] = score
-
     per_sim_scores: dict[tuple[str, str], float] = {}
     all_scores = stats_db.simulation_scores(checkpoint_uri, "reward")
     for (sim_name, _), score in all_scores.items():
