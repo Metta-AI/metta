@@ -249,9 +249,8 @@ def wait_for_cluster_ready(cluster_name: str, timeout_seconds: int = 300) -> boo
         retry_function(
             check_and_validate_status,
             max_retries=timeout_seconds // 5,
-            retry_delay=5.0,
+            max_delay=5.0,
             exceptions=(Exception,),
-            error_prefix="Cluster status check",
         )
         print(f"{green('✓')} Cluster is now UP and ready")
         return True

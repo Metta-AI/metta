@@ -42,6 +42,7 @@ struct GameConfig {
   bool track_movement_metrics = false;
   bool recipe_details_obs = false;
   bool allow_diagonals = false;
+  std::map<std::string, float> reward_estimates = {};
 };
 
 namespace py = pybind11;
@@ -79,7 +80,8 @@ inline void bind_game_config(py::module& m) {
                     // FEATURE FLAGS
                     bool,
                     bool,
-                    bool>(),
+                    bool,
+                    const std::map<std::string, float>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -95,7 +97,8 @@ inline void bind_game_config(py::module& m) {
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
            py::arg("recipe_details_obs") = false,
-           py::arg("allow_diagonals") = false)
+           py::arg("allow_diagonals") = false,
+           py::arg("reward_estimates") = std::map<std::string, float>())
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -116,7 +119,8 @@ inline void bind_game_config(py::module& m) {
       // FEATURE FLAGS
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs)
-      .def_readwrite("allow_diagonals", &GameConfig::allow_diagonals);
+      .def_readwrite("allow_diagonals", &GameConfig::allow_diagonals)
+      .def_readwrite("reward_estimates", &GameConfig::reward_estimates);
 }
 
 #endif  // METTAGRID_CONFIG_HPP_
