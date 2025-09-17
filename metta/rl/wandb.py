@@ -147,7 +147,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
             run_name, version = run_name.rsplit(":", 1)
         else:
             version = "latest"
-        return f"wandb://{entity}/{default_project}/model/{run_name}:{version}"
+        return f"wandb://{entity}/{default_project}/{run_name}:{version}"
 
     elif path.startswith("sweep/"):
         sweep_name = path[6:]
