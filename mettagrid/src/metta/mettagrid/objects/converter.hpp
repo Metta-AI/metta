@@ -226,6 +226,10 @@ public:
       return 0;
     }
     unsigned int current_time = this->event_manager->current_timestep();
+    // Prevent integer underflow when current_time < conversion_start_time
+    if (current_time < this->conversion_start_time) {
+      return this->conversion_duration;
+    }
     unsigned int elapsed = current_time - this->conversion_start_time;
     if (elapsed >= this->conversion_duration) {
       return 0;
@@ -239,6 +243,10 @@ public:
       return 0;
     }
     unsigned int current_time = this->event_manager->current_timestep();
+    // Prevent integer underflow when current_time < cooldown_start_time
+    if (current_time < this->cooldown_start_time) {
+      return this->cooldown_duration;
+    }
     unsigned int elapsed = current_time - this->cooldown_start_time;
     if (elapsed >= this->cooldown_duration) {
       return 0;
