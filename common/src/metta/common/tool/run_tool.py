@@ -203,7 +203,11 @@ def type_parse(value: Any, annotation: Any) -> Any:
 
 def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> list[tuple[str, str, Any, bool]]:
     """Recursively get field information from a Pydantic model.
-    Returns list of (path, type_str, default, required) tuples.
+    <<<<<<< HEAD
+    =======
+
+    >>>>>>> 770b59364 (feat: created an argument in run_tool.py to list the nested pydantic structure for any recipe.)
+        Returns list of (path, type_str, default, required) tuples.
     """
     fields_info = []
 
@@ -432,10 +436,10 @@ constructor/function vs configuration overrides based on introspection.
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
+    console = Console()
 
     # If help is requested without a tool path, show general help
     if known_args.help and not known_args.make_tool_cfg_path:
-        console = Console()
         console.print("[bold]Tool Runner[/bold]\n")
         console.print("Usage: ./tools/run.py <tool_path> [arguments]\n")
         console.print("  tool_path: Path to the function or Tool class (e.g., experiments.recipes.arena.train)")
