@@ -40,32 +40,30 @@ protected:
     if (!converter) {
       return false;
     }
+
     // Get output from converter
-    if (converter) {
-      if (!converter->inventory_is_accessible()) {
-        return false;
-      }
-
-      // Actions is only successful if we take at least one item.
-      bool resources_taken = false;
-
-      for (const auto& [item, _] : converter->output_resources) {
-        if (converter->inventory.count(item) == 0) {
-          continue;
-        }
-        InventoryDelta resources_available = converter->inventory[item];
-
-        InventoryDelta taken = actor->update_inventory(item, resources_available);
-
-        if (taken > 0) {
-          actor->stats.add(actor->stats.resource_name(item) + ".get", taken);
-          converter->update_inventory(item, -taken);
-          resources_taken = true;
-        }
-      }
-      return resources_taken;
+    if (!converter->inventory_is_accessible()) {
+      return false;
     }
-    return false;
+
+    // Actions is only successful if we take at least one item.
+    bool resources_taken = false;
+
+    for (const auto& [item, _] : converter->output_resources) {
+      if (converter->inventory.count(item) == 0) {
+        continue;
+      }
+      InventoryDelta resources_available = converter->inventory[item];
+
+      InventoryDelta taken = actor->update_inventory(item, resources_available);
+
+      if (taken > 0) {
+        actor->stats.add(actor->stats.resource_name(item) + ".get", taken);
+        converter->update_inventory(item, -taken);
+        resources_taken = true;
+      }
+    }
+    return resources_taken;
   }
 
 private:
