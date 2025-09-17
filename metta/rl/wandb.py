@@ -3,48 +3,85 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-import time
-import weakref
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 import torch
 import torch.nn as nn
 import wandb
 from wandb import Artifact
+from wandb.apis.public.runs import Run
 from wandb.errors import CommError
 
 from metta.common.util.constants import METTA_WANDB_ENTITY
+from metta.common.util.retry import retry_on_exception
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import WandbURI
 
 logger = logging.getLogger(__name__)
+wandb_api = wandb.Api(timeout=60)
 
-_ABORT_STATE: weakref.WeakKeyDictionary[WandbRun, Dict[str, float | bool]] = weakref.WeakKeyDictionary()
+# Create a custom retry decorator for wandb API calls with sensible defaults
+wandb_retry = retry_on_exception(
+    max_retries=3,
+    initial_delay=2.0,
+    max_delay=30.0,
+    backoff_factor=2.0,
+    exceptions=(CommError, TimeoutError, ConnectionError, OSError),
+)
 
 
-def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> bool:
-    """Check if wandb run has an 'abort' tag, throttling API calls to min_interval_sec."""
+@wandb_retry
+def _get_wandb_run(path: str) -> Run:
+    """Get wandb run object with retry."""
+    return wandb_api.run(path)
+
+
+@wandb_retry
+def _get_wandb_artifact(qname: str) -> Artifact:
+    """Get wandb artifact with retry."""
+    return wandb_api.artifact(qname)
+
+
+@wandb_retry
+def _download_artifact(artifact: Artifact, root: str) -> None:
+    """Download wandb artifact with retry."""
+    artifact.download(root=root)
+
+
+@wandb_retry
+def _wait_for_artifact_upload(artifact: Artifact) -> None:
+    """Wait for artifact upload to complete with retry."""
+    artifact.wait()
+
+
+def abort_requested(wandb_run: WandbRun | None) -> bool:
+    """Check if wandb run has an 'abort' tag.
+
+    Used for graceful early stopping of training runs. When an 'abort' tag is added
+    to a wandb run, the training loop will complete its current epoch and then stop,
+    updating the total_timesteps to reflect the actual steps completed.
+
+    Args:
+        wandb_run: The wandb run to check
+        min_interval_sec: Kept for backward compatibility (no longer used)
+
+    Returns:
+        True if the run has an 'abort' tag, False otherwise
+    """
     if wandb_run is None:
         return False
 
-    state = _ABORT_STATE.setdefault(wandb_run, {"last_check": 0.0, "cached_result": False})
-    now = time.time()
-
-    # Return cached result if within throttle interval
-    if now - state["last_check"] < min_interval_sec:
-        return bool(state["cached_result"])
-
-    # Time to check again
-    state["last_check"] = now
     try:
-        run_obj = wandb.Api().run(wandb_run.path)
-        state["cached_result"] = "abort" in run_obj.tags
+        run_obj = _get_wandb_run(wandb_run.path)
+        has_abort = "abort" in run_obj.tags
+        if has_abort:
+            logger.info(f"Abort tag found on run {wandb_run.path}")
+        return has_abort
     except Exception as e:
         logger.debug(f"Abort tag check failed: {e}")
-        state["cached_result"] = False
-
-    return bool(state["cached_result"])
+        # Don't abort on API errors - let training continue
+        return False
 
 
 POLICY_EVALUATOR_METRIC_PREFIX = "evaluator"
@@ -91,8 +128,13 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
         return None
 
     uri = WandbURI.parse(wandb_uri)
-    artifact: Artifact = wandb.Api().artifact(uri.qname())
-    metadata = artifact.metadata
+
+    try:
+        artifact = _get_wandb_artifact(uri.qname())
+        metadata = artifact.metadata
+    except Exception as e:
+        logger.warning(f"Failed to get artifact metadata for {wandb_uri}: {e}")
+        return None
 
     if metadata is None:
         return None
@@ -179,16 +221,19 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     uri = WandbURI.parse(expanded_uri)
     qname = uri.qname()
 
-    # Load artifact
+    # Load artifact with retries
     try:
         logger.debug(f"Loading artifact: {qname}")
-        artifact = wandb.Api().artifact(qname)
-    except CommError as e:
-        raise ValueError(f"Artifact not found: {qname}") from e
+        artifact = _get_wandb_artifact(qname)
+    except Exception as e:
+        raise ValueError(f"Failed to load artifact: {qname}") from e
 
     with tempfile.TemporaryDirectory() as temp_dir:
         artifact_dir = Path(temp_dir)
-        artifact.download(root=str(artifact_dir))
+
+        # Download artifact with retries
+        logger.debug(f"Downloading artifact to {artifact_dir}")
+        _download_artifact(artifact, str(artifact_dir))
 
         # Load model.pt
         model_file = artifact_dir / "model.pt"
@@ -200,9 +245,6 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
             model_file = policy_files[0]
 
         return torch.load(model_file, map_location=device, weights_only=False)
-
-
-# Minimal Wandb Artifact Upload Functions
 
 
 def upload_checkpoint_as_artifact(
@@ -240,8 +282,12 @@ def upload_checkpoint_as_artifact(
     # Log artifact to run
     run.log_artifact(artifact)
 
-    # Wait for upload to complete
-    artifact.wait()
+    # Wait for upload to complete with retries
+    try:
+        _wait_for_artifact_upload(artifact)
+    except Exception as e:
+        logger.error(f"Failed to wait for artifact upload: {e}")
+        # Even if wait fails, the artifact might still upload in the background
 
     wandb_uri = f"wandb://{run.project}/{artifact_name}:{artifact.version}"
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
