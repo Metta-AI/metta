@@ -172,7 +172,6 @@ def type_parse(value: Any, annotation: Any) -> Any:
 
 def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> list[tuple[str, str, Any, bool]]:
     """Recursively get field information from a Pydantic model.
-
     Returns list of (path, type_str, default, required) tuples.
     """
     fields_info = []
@@ -189,7 +188,7 @@ def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> l
             actual_type = annotation
         elif hasattr(annotation, "__args__"):
             # For Optional[X], Union[X, None], etc.
-            args = annotation.__args__
+            args = getattr(annotation, "__args__", ())
             non_none_types = [arg for arg in args if arg is not type(None)]
             if non_none_types:
                 actual_type = non_none_types[0] if len(non_none_types) == 1 else annotation
@@ -235,12 +234,9 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
     console.print("\n[bold cyan]Available Arguments[/bold cyan]\n")
 
     if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
-        # Tool class - list all fields recursively
         console.print("[yellow]Tool Configuration Fields:[/yellow]\n")
 
         fields_info = get_pydantic_field_info(make_tool_cfg)
-
-        # Group by top-level field
         grouped = {}
         for path, type_str, default, required in sorted(fields_info):
             top_level = path.split(".")[0]
@@ -250,55 +246,44 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
 
         for top_level, fields in grouped.items():
             for path, type_str, default, required in fields:
-                # Format the output
                 if path == top_level:
-                    # Top-level field
                     console.print(f"  [bold]{path}[/bold]", end="")
                 else:
-                    # Nested field - indent based on depth
                     depth = path.count(".")
                     indent = "    " * depth
-                    console.print(f"{indent}{path}", end="")
+                    field_name = path.split(".")[-1]
+                    console.print(f"{indent}{field_name}", end="")
 
-                # Add type info
-                console.print(f" : [dim]{type_str}[/dim]", end="")
-
-                # Add default value if not required
+                console.print(f": [dim]{type_str}[/dim]", end="")
                 if not required and default is not None:
                     if callable(default):
                         console.print(" [green](default: <factory>)[/green]", end="")
                     elif isinstance(default, BaseModel):
                         console.print(f" [green](default: <{type(default).__name__}>)[/green]", end="")
                     elif isinstance(default, str) and (default.startswith("<") and default.endswith(">")):
-                        # Skip showing placeholder defaults
                         pass
                     elif isinstance(default, str) and len(str(default)) > 100:
-                        # Truncate very long default values
                         console.print(f" [green](default: {str(default)[:100]}...)[/green]", end="")
                     else:
                         console.print(f" [green](default: {default})[/green]", end="")
                 elif required:
                     console.print(" [red](required)[/red]", end="")
 
-                console.print()  # New line
+                console.print()
 
             if top_level != list(grouped.keys())[-1]:
-                console.print()  # Extra line between groups
+                console.print()
 
     else:
-        # Factory function - list parameters
         console.print("[yellow]Function Parameters:[/yellow]\n")
 
         sig = inspect.signature(make_tool_cfg)
         for name, param in sig.parameters.items():
             console.print(f"  [bold]{name}[/bold]", end="")
 
-            # Add type annotation if available
             if param.annotation is not inspect._empty:
                 ann_str = str(param.annotation).replace("typing.", "")
-                console.print(f" : [dim]{ann_str}[/dim]", end="")
-
-            # Add default value if available
+                console.print(f": [dim]{ann_str}[/dim]", end="")
             if param.default is not inspect._empty:
                 if isinstance(param.default, BaseModel):
                     console.print(f" [green](default: {type(param.default).__name__})[/green]", end="")
@@ -309,9 +294,8 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
             else:
                 console.print(" [red](required)[/red]", end="")
 
-            console.print()  # New line
+            console.print()
 
-            # If the parameter is a Pydantic model, show its fields
             if param.annotation is not inspect._empty:
                 try:
                     if inspect.isclass(param.annotation) and issubclass(param.annotation, BaseModel):
@@ -320,7 +304,8 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
                             for path, type_str, default, required in sorted(nested_fields):
                                 depth = path.count(".")
                                 indent = "    " * (depth + 1)
-                                console.print(f"{indent}{path} : [dim]{type_str}[/dim]", end="")
+                                field_name = path.split(".")[-1]
+                                console.print(f"{indent}{field_name}: [dim]{type_str}[/dim]", end="")
                                 if not required and default is not None:
                                     if callable(default):
                                         console.print(" [green](default: <factory>)[/green]", end="")
@@ -332,18 +317,13 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
 
         console.print("\n[yellow]Returned Tool Fields:[/yellow]\n")
 
-        # Try to determine what Tool type the function returns
         try:
-            # Call with minimal/empty args to see what it returns
-            # This is a bit hacky but can work for many cases
             import tempfile
 
             with tempfile.TemporaryDirectory():
-                # Try calling with no args first
                 try:
                     result = make_tool_cfg()
                 except TypeError:
-                    # Try with None for required params
                     sig = inspect.signature(make_tool_cfg)
                     kwargs = {}
                     for name, param in sig.parameters.items():
@@ -360,7 +340,8 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
                     for path, type_str, default, required in sorted(fields_info):
                         depth = path.count(".")
                         indent = "    " * depth
-                        console.print(f"{indent}{path} : [dim]{type_str}[/dim]", end="")
+                        field_name = path.split(".")[-1] if "." in path else path
+                        console.print(f"{indent}{field_name}: [dim]{type_str}[/dim]", end="")
                         if not required and default is not None:
                             if callable(default):
                                 console.print(" [green](default: <factory>)[/green]", end="")
@@ -386,6 +367,7 @@ def main():
     """Main entry point using argparse."""
     parser = argparse.ArgumentParser(
         description="Run a tool with automatic argument classification",
+        add_help=False,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         allow_abbrev=True,
         epilog="""
@@ -407,15 +389,35 @@ constructor/function vs configuration overrides based on introspection.
     )
 
     parser.add_argument(
-        "make_tool_cfg_path", help="Path to the function or Tool class (e.g., experiments.recipes.arena.train)"
+        "make_tool_cfg_path",
+        nargs="?",
+        help="Path to the function or Tool class (e.g., experiments.recipes.arena.train)",
     )
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
     parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
-    parser.add_argument("--list-args", action="store_true", help="List all available arguments for the tool and exit")
+    parser.add_argument(
+        "-h", "--help", action="store_true", help="Show help and list all available arguments for the tool"
+    )
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
+
+    # If help is requested without a tool path, show general help
+    if known_args.help and not known_args.make_tool_cfg_path:
+        console = Console()
+        console.print("[bold]Tool Runner[/bold]\n")
+        console.print("Usage: ./tools/run.py <tool_path> [arguments]\n")
+        console.print("  tool_path: Path to the function or Tool class (e.g., experiments.recipes.arena.train)")
+        console.print("  arguments: Arguments in key=value format\n")
+        console.print("Options:")
+        console.print("  -h, --help     Show help and list all available arguments for the tool")
+        console.print("  -v, --verbose  Show detailed argument classification")
+        console.print("  --dry-run      Validate the args and exit\n")
+        console.print("Examples:")
+        console.print("  ./tools/run.py experiments.recipes.arena.train -h")
+        console.print("  ./tools/run.py experiments.recipes.arena.train run=test trainer.batch_size=1024")
+        return 0
 
     # Initialize logging and environment
     init_logging()
@@ -457,8 +459,8 @@ constructor/function vs configuration overrides based on introspection.
         console.print(f"[red]Error loading {known_args.make_tool_cfg_path}:[/red] {e}")
         return 1
 
-    # If --list-args flag is set, list arguments and exit
-    if known_args.list_args:
+    # If help flag is set, list arguments and exit
+    if known_args.help:
         list_tool_arguments(make_tool_cfg, console)
         return 0
 
