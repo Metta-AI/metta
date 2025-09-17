@@ -27,6 +27,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build as gdrive_build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
+
 from .uri import ParsedURI
 
 # --------------------------------------------------------------------------- #

@@ -2344,7 +2344,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "scipy" },
-    { name = "wandb" },
 ]
 
 [package.dev-dependencies]
@@ -2371,7 +2370,6 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "scipy", specifier = ">=1.15.3" },
-    { name = "wandb", specifier = ">=0.19.11" },
 ]
 
 [package.metadata.requires-dev]
