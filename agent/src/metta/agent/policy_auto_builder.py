@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.common.config.config import Config
+from metta.mettagrid.config import Config
 
 logger = logging.getLogger("metta_agent")
 

@@ -6,6 +6,7 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import PolicyArchitecture
+from metta.agent.policies.fast import FastConfig
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -33,7 +34,7 @@ class TrainTool(Tool):
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=PolicyArchitecture)
+    policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
     initial_policy_uri: Optional[str] = None
     policy_uploader: PolicyUploaderConfig = Field(default_factory=PolicyUploaderConfig)
 
