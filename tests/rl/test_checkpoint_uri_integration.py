@@ -1,7 +1,7 @@
-"""Consolidated tests for URI handling and checkpoint integration.
+"""Integration tests for CheckpointManager URI handling.
 
-Tests all URI formats (file, wandb, s3), real environment integration,
-end-to-end workflows, and cross-format compatibility.
+Tests CheckpointManager's integration with different URI formats (file, wandb, s3),
+real environment integration, and end-to-end workflows.
 """
 
 import tempfile
@@ -18,10 +18,6 @@ from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
 from metta.common.util.constants import METTA_WANDB_ENTITY
-from metta.common.wandb.utils import (
-    expand_wandb_uri,
-    upload_file_as_artifact,
-)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import WandbURI
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
@@ -74,8 +70,8 @@ def create_test_checkpoint(temp_dir: Path, filename: str, policy=None) -> Path:
     return checkpoint_path
 
 
-class TestFileURIHandling:
-    """Test file:// URI format handling."""
+class TestCheckpointManagerFileBackend:
+    """Test CheckpointManager's file:// URI handling."""
 
     def test_file_uri_single_checkpoint(self, temp_dir, mock_policy):
         """Test loading a single checkpoint file via file:// URI."""
@@ -145,34 +141,12 @@ class TestFileURIHandling:
             CheckpointManager.load_from_uri(uri)
 
 
-class TestWandbURIHandling:
-    """Test wandb:// URI format handling and compatibility."""
-
-    def test_wandb_uri_expansion(self):
-        """Test wandb URI expansion functionality."""
-        # Test short run format - should use METTA_WANDB_ENTITY fallback
-        short_uri = "wandb://run/my-experiment"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/model/my-experiment:latest"
-
-        # Test short run format with version
-        short_uri = "wandb://run/my-experiment:v10"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/model/my-experiment:v10"
-
-        # Test short sweep format
-        short_uri = "wandb://sweep/my-sweep"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/sweep_model/my-sweep:latest"
-
-        # Test full format (should remain unchanged)
-        full_uri = "wandb://entity/project/model/artifact:v1"
-        expanded = expand_wandb_uri(full_uri)
-        assert expanded == full_uri
+class TestCheckpointManagerWandbBackend:
+    """Test CheckpointManager's wandb:// URI handling."""
 
     @patch("metta.rl.wandb.load_policy_from_wandb_uri")
     def test_wandb_uri_loading(self, mock_load_wandb, mock_policy):
-        """Test wandb URI loading - expansion now happens inside load_policy_from_wandb_uri."""
+        """Test wandb URI loading through CheckpointManager."""
         mock_load_wandb.return_value = mock_policy
 
         # Test that the URI is passed as-is (expansion happens inside load_policy_from_wandb_uri)
@@ -185,7 +159,7 @@ class TestWandbURIHandling:
 
     @patch("metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata")
     def test_wandb_metadata_extraction(self, mock_get_metadata):
-        """Test metadata extraction from wandb URIs."""
+        """Test CheckpointManager's metadata extraction from wandb URIs."""
         mock_get_metadata.return_value = {
             "run_name": "experiment_1",
             "epoch": 25,
@@ -224,12 +198,12 @@ class TestWandbURIHandling:
             CheckpointManager.load_from_uri(uri)
 
 
-class TestS3URIHandling:
-    """Test s3:// URI format handling."""
+class TestCheckpointManagerS3Backend:
+    """Test CheckpointManager's s3:// URI handling."""
 
     @patch("metta.mettagrid.util.file.local_copy")
     def test_s3_uri_loading(self, mock_local_copy, mock_policy):
-        """Test S3 URI handling with mocked local_copy."""
+        """Test S3 URI handling through CheckpointManager."""
         mock_local_path = "/tmp/downloaded_checkpoint.pt"
         # Properly mock the context manager
         mock_local_copy.return_value.__enter__ = Mock(return_value=mock_local_path)
@@ -260,8 +234,8 @@ class TestS3URIHandling:
         assert version == 0
 
 
-class TestURIUtilities:
-    """Test URI utility functions."""
+class TestCheckpointURINormalization:
+    """Test URI normalization and validation."""
 
     def test_normalize_uri_function(self):
         """Test URI normalization functionality."""
@@ -292,10 +266,10 @@ class TestURIUtilities:
 
 
 class TestRealEnvironmentIntegration:
-    """Test integration with real MettaGrid environments and agents."""
+    """Test CheckpointManager with real MettaGrid environments."""
 
     def test_save_and_load_real_agent(self, create_env_and_agent):
-        """Test saving and loading a real MettaAgent with real environment."""
+        """Test saving and loading a real MettaAgent."""
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -346,7 +320,7 @@ class TestRealEnvironmentIntegration:
             assert "actions" in output
 
     def test_training_progress_and_selection(self, create_env_and_agent):
-        """Test saving multiple checkpoints with different scores and selecting best."""
+        """Test saving multiple checkpoints and selecting best."""
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -375,7 +349,7 @@ class TestRealEnvironmentIntegration:
 
 
 class TestEndToEndWorkflows:
-    """Test complete end-to-end workflows."""
+    """Test complete training and evaluation workflows."""
 
     def test_complete_train_save_load_eval_workflow(self):
         """Test a complete workflow from training through evaluation."""
@@ -450,12 +424,11 @@ class TestEndToEndWorkflows:
             assert metadata["epoch"] == 5
 
 
-class TestWandbArtifactFormatting:
-    """Test wandb artifact URI formatting to prevent double entity issues."""
+class TestWandbURIParsing:
+    """Test WandB URI parsing to prevent double entity issues."""
 
     def test_wandb_uri_parsing_prevents_double_entity(self):
         """Test that WandB URIs are parsed correctly without double entity issues."""
-
         # Test various wandb:// URI formats to ensure they parse correctly
         test_cases = [
             ("wandb://metta/relh.policy-cull.902.1:v0", "metta", "relh.policy-cull.902.1", "v0"),
@@ -481,29 +454,3 @@ class TestWandbArtifactFormatting:
             # Ensure no double entity issue (this was the original bug)
             parts = qname.split("/")
             assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
-
-    def test_upload_checkpoint_returns_latest_uri(self):
-        """Test that upload_file_as_artifact always returns latest URI for simplicity."""
-
-        mock_artifact = Mock()
-        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
-        mock_artifact.version = "v1"
-        mock_artifact.wait = Mock()
-
-        mock_run = Mock()
-        mock_run.project = "metta"
-        mock_run.log_artifact = Mock()
-
-        with patch("wandb.Artifact", return_value=mock_artifact):
-            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                result = upload_file_as_artifact(
-                    file_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
-                )
-
-                # Always returns :latest for simplicity and reliability
-                assert result == "wandb://metta/test-artifact:v1"
-                assert result.startswith("wandb://"), "Should start with wandb://"
-
-                # Verify the artifact upload happened
-                mock_run.log_artifact.assert_called_once_with(mock_artifact)
-                mock_artifact.wait.assert_called_once()
