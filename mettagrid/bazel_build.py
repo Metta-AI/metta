@@ -111,6 +111,32 @@ def _run_bazel_build() -> None:
     shutil.copy2(extension_file, dest)
     print(f"Copied {extension_file} to {dest}")
 
+    # If building with Raylib enabled, try to bundle the built libraylib*.dylib
+    # next to the extension so delocate can find and vendor it inside the wheel.
+    if _truthy(os.environ.get("WITH_RAYLIB")):
+        candidates = []
+        # Prefer actual installed libs over Bazel solib symlinks.
+        for path in bazel_bin.rglob("libraylib*.dylib"):
+            if "_solib_" in str(path):
+                continue
+            candidates.append(path)
+        # Fall back to solib if necessary
+        if not candidates:
+            for path in bazel_bin.rglob("*_solib_*/**/libraylib*.dylib"):
+                candidates.append(path)
+        if candidates:
+            # Choose the first candidate (deterministic order by sort)
+            candidates.sort()
+            lib_src = candidates[0]
+            lib_dest = src_dir / lib_src.name
+            try:
+                if lib_dest.exists():
+                    lib_dest.unlink()
+                shutil.copy2(lib_src, lib_dest)
+                print(f"Bundled Raylib dylib: {lib_src} -> {lib_dest}")
+            except Exception as e:
+                print(f"Warning: failed to bundle Raylib dylib from {lib_src}: {e}")
+
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     """Build a wheel, compiling the C++ extension with Bazel first."""
