@@ -152,12 +152,11 @@ class ConverterChainTaskGenerator(TaskGenerator):
             map_builder_objects=cfg.map_builder_objects,
         )
 
-        # Add periodic reset configuration as a proper attribute
-        if trials_per_episode > 1:
-            env_cfg.periodic_reset_config = PeriodicResetConfig(
-                number_of_trials_in_episode=trials_per_episode,
-                episode_length=max_steps,
-            )
+        env_cfg.periodic_reset_config = PeriodicResetConfig(
+            number_of_trials_in_episode=trials_per_episode,
+            episode_length=max_steps,
+            add_timer_to_obs=True,
+        )
 
         return env_cfg
 
