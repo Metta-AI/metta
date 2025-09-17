@@ -541,7 +541,7 @@ class TestFractionalConsumption:
 
         final_energy = self._get_energy(env)
 
-        assert 3 < final_energy < 7, 'final energy not in expected range'
+        assert 3 < final_energy < 7, "final energy not in expected range"
 
         env_low = self._build_env(0, 0.5)
         noop_idx_low = env_low.action_names().index("noop")

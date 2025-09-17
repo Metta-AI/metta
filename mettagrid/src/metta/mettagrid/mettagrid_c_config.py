@@ -205,15 +205,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         required_source = action_config.get("required_resources")
         if not required_source:
-            required_source = {
-                k: math.ceil(v)
-                for k, v in action_config["consumed_resources"].items()
-            }
+            required_source = {k: math.ceil(v) for k, v in action_config["consumed_resources"].items()}
 
         required_resources = {
-            resource_name_to_id[k]: int(math.ceil(v))
-            for k, v in required_source.items()
-            if k in resource_name_to_id
+            resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items() if k in resource_name_to_id
         }
 
         action_cpp_params = {
