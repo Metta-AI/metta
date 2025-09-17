@@ -1,5 +1,5 @@
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from experiments.recipes.icl_resource_chain import ConverterChainTaskGenerator
 

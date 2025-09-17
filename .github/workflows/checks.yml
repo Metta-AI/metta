@@ -181,7 +181,7 @@ jobs:
           sudo apt-get install -y clang-format
 
       - name: Run cpplint
-        run: ./mettagrid/tests/cpplint.sh
+        run: ./packages/mettagrid/tests/cpplint.sh
 
   observatory-typescript-check:
     name: "Observatory TypeScript Check"
@@ -396,8 +396,8 @@ jobs:
           # - https://bazel.build/reference/command-line-reference#flag--repository_cache
           # - https://bazel.build/remote/caching#disk-cache
 
-          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
-          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> packages/mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> packages/mettagrid/.bazelrc
 
           mkdir -p $HOME/.bazel-disk-cache
           mkdir -p $HOME/.bazel-repo-cache
@@ -409,14 +409,14 @@ jobs:
           path: |
             ~/.bazel-disk-cache
             ~/.bazel-repo-cache
-          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
+          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
 
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
         run: |
-          cd mettagrid
+          cd packages/mettagrid
           make coverage VERBOSE=1
 
       - name: Upload MettaGrid C++ coverage to Codecov
@@ -424,7 +424,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./mettagrid/build-debug/coverage.info
+          files: ./packages/mettagrid/build-debug/coverage.info
           flags: mettagrid_cpp
           name: mettagrid-cpp-coverage
           fail_ci_if_error: false
@@ -457,7 +457,7 @@ jobs:
           pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
-          cd mettagrid
+          cd packages/mettagrid
           pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=../mettagrid_benchmark_results.json
 
       - name: Upload Python benchmark artifacts
@@ -489,8 +489,8 @@ jobs:
       - name: Setup Bazel caching
         run: |
           # Configure Bazel to use specific cache directories
-          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> mettagrid/.bazelrc
-          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> mettagrid/.bazelrc
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> packages/mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> packages/mettagrid/.bazelrc
 
           # Ensure directories exist
           mkdir -p $HOME/.bazel-disk-cache
@@ -503,18 +503,18 @@ jobs:
           path: |
             ~/.bazel-disk-cache
             ~/.bazel-repo-cache
-          key: bazel-${{ runner.os }}-${{ hashFiles('mettagrid/MODULE.bazel', 'mettagrid/.bazelrc', '.bazelversion') }}
+          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazelversion') }}
           restore-keys: |
             bazel-${{ runner.os }}-
 
       - name: Build C++ benchmarks
         id: benchmark_build_check
         run: |
-          cd mettagrid
+          cd packages/mettagrid
           make benchmark VERBOSE=1
 
       - name: Collect benchmarks
-        working-directory: ./mettagrid
+        working-directory: ./packages/mettagrid
         run: |
           mkdir -p benchmark_output
           # Use bazel run to execute the benchmark with proper library paths
@@ -524,7 +524,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cpp-benchmark-results
-          path: mettagrid/benchmark_output/*.json
+          path: packages/mettagrid/benchmark_output/*.json
           retention-days: 1
 
   upload-benchmarks:

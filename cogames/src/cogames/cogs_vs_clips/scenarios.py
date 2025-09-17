@@ -1,5 +1,4 @@
-from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import (
+from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
@@ -8,6 +7,7 @@ from metta.mettagrid.mettagrid_config import (
     MettaGridConfig,
     WallConfig,
 )
+from mettagrid.map_builder.random import RandomMapBuilder
 
 
 def make_cogs_vs_clips_scenario() -> MettaGridConfig:

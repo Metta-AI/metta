@@ -16,7 +16,7 @@ from metta.agent.pytorch.fast import Fast as PyTorchFast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
 from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 
 class AgentConfig(Config):

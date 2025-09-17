@@ -1,5 +1,5 @@
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.cogworks.curriculum.task_generator import Span
 

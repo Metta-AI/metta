@@ -14,8 +14,8 @@ from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
-from metta.mettagrid.config import Config
-from metta.mettagrid.mettagrid_config import MettaGridConfig
+from mettagrid.config import Config
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 def get_algorithm_hypers_discriminator(v):

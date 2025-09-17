@@ -9,7 +9,7 @@ from metta.common.tool.run_tool import (
     parse_cli_args,
     parse_value,
 )
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 
 class NestedConfig(Config):

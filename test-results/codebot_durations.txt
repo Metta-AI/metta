@@ -1,0 +1,10 @@
+0.35s call     codebot/tests/codeclip/test_cli.py::TestCodeclipCLI::test_ignore_patterns
+0.35s call     codebot/tests/codeclip/test_cli.py::TestCodeclipCLI::test_pwd_relative_paths
+0.24s call     codebot/tests/codeclip/test_cli.py::TestCodeclipCLI::test_clipboard_default
+0.23s call     codebot/tests/codeclip/test_cli.py::TestCodeclipCLI::test_parent_readme_inclusion
+0.12s call     codebot/tests/codeclip/test_file.py::TestGitignoreFinding::test_find_gitignore_with_git_root
+0.09s call     codebot/tests/codeclip/test_file.py::TestGitRootAndReadmeHandling::test_find_parent_readmes_in_git_repo
+0.07s call     codebot/tests/codeclip/test_summary.py::TestCodeclipSummary::test_help_flag_shows_help
+0.07s call     codebot/tests/codeclip/test_cli.py::TestCodeclipCLI::test_multiple_directory_inputs
+0.06s call     codebot/tests/codeclip/test_cli.py::TestCodeclipCLI::test_extension_filtering
+0.05s call     codebot/tests/codeclip/test_summary.py::TestCodeclipSummary::test_extensions_filter_limits_files
