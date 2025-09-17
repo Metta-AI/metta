@@ -203,15 +203,7 @@ def type_parse(value: Any, annotation: Any) -> Any:
 
 def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> list[tuple[str, str, Any, bool]]:
     """Recursively get field information from a Pydantic model.
-<<<<<<< HEAD
-    <<<<<<< HEAD
-    =======
-
-    >>>>>>> 770b59364 (feat: created an argument in run_tool.py to list the nested pydantic structure for any recipe.)
-        Returns list of (path, type_str, default, required) tuples.
-=======
     Returns list of (path, type_str, default, required) tuples.
->>>>>>> 918bd1ae2 (change from --list_args to --help, remove space before ":" remove unnessary comments.)
     """
     fields_info = []
 
@@ -357,11 +349,6 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
         console.print("\n[yellow]Returned Tool Fields:[/yellow]\n")
 
         try:
-<<<<<<< HEAD
-=======
-            import tempfile
-
->>>>>>> 918bd1ae2 (change from --list_args to --help, remove space before ":" remove unnessary comments.)
             with tempfile.TemporaryDirectory():
                 try:
                     result = make_tool_cfg()
@@ -445,22 +432,6 @@ constructor/function vs configuration overrides based on introspection.
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
-    console = Console()
-
-    # If help is requested without a tool path, show general help
-    if known_args.help and not known_args.make_tool_cfg_path:
-        console.print("[bold]Tool Runner[/bold]\n")
-        console.print("Usage: ./tools/run.py <tool_path> [arguments]\n")
-        console.print("  tool_path: Path to the function or Tool class (e.g., experiments.recipes.arena.train)")
-        console.print("  arguments: Arguments in key=value format\n")
-        console.print("Options:")
-        console.print("  -h, --help     Show help and list all available arguments for the tool")
-        console.print("  -v, --verbose  Show detailed argument classification")
-        console.print("  --dry-run      Validate the args and exit\n")
-        console.print("Examples:")
-        console.print("  ./tools/run.py experiments.recipes.arena.train -h")
-        console.print("  ./tools/run.py experiments.recipes.arena.train run=test trainer.batch_size=1024")
-        return 0
 
     # If help is requested without a tool path, show general help
     if known_args.help and not known_args.make_tool_cfg_path:
