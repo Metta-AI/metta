@@ -308,7 +308,7 @@ def make_mettagrid() -> MettaGridConfig:
         num_sinks=[1],
         room_sizes=["large"],
         obstacle_types=["cross"],
-        densities=["dense"],
+        densities=["high"],
     )
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
     return task_generator.get_task(0)
