@@ -96,7 +96,9 @@ const configMakerSchema = z.object({
 const viewConfigSchema = z.object({
   maker: configMakerSchema,
   config: z.object({
-    value: z.record(z.string(), z.unknown()).or(z.array(z.record(z.string(), z.unknown()))),
+    value: z
+      .record(z.string(), z.unknown())
+      .or(z.array(z.record(z.string(), z.unknown()))),
     unset_fields: z.array(z.string()),
   }),
 });
@@ -121,9 +123,18 @@ export async function getConfig(path: string): Promise<Config> {
   );
 }
 
-export async function getConfigMap(path: string): Promise<StorableMap> {
+export async function getConfigMap(
+  path: string,
+  name?: string
+): Promise<StorableMap> {
+  const queryParams = new URLSearchParams();
+  queryParams.set("path", path);
+  if (name) {
+    queryParams.set("name", name);
+  }
+
   return await fetchApi(
-    `${API_URL}/configs/get-map?path=${encodeURIComponent(path)}`,
+    `${API_URL}/configs/get-map?${queryParams.toString()}`,
     storableMapSchema
   );
 }

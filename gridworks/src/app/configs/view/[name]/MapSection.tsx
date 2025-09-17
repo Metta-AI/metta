@@ -1,42 +1,22 @@
 "use client";
-import { FC, useEffect, useState } from "react";
+import { FC } from "react";
 
 import { Button } from "@/components/Button";
 import { StorableMapViewer } from "@/components/StorableMapViewer";
-import { Config, getConfigMap, StorableMap } from "@/lib/api";
+import { useMapFromConfig } from "@/hooks/useMapFromConfig";
+import { Config } from "@/lib/api";
 
-export const MapSection: FC<{ cfg: Config }> = ({ cfg }) => {
-  const [id, setId] = useState(0);
-
-  type MapState =
-    | {
-        type: "loading";
-      }
-    | {
-        type: "error";
-        error: Error;
-      }
-    | {
-        type: "map";
-        map: StorableMap;
-      };
-
-  const [map, setMap] = useState<MapState>({ type: "loading" });
-  useEffect(() => {
-    setMap({ type: "loading" });
-    getConfigMap(cfg.maker.path)
-      .then((map) => setMap({ type: "map", map }))
-      .catch((e) => {
-        console.error(e);
-        setMap({ type: "error", error: e });
-      });
-  }, [cfg.maker.path, id]);
+export const MapSection: FC<{ cfg: Config; name?: string }> = ({
+  cfg,
+  name,
+}) => {
+  const { map, reload } = useMapFromConfig(cfg, name);
 
   return (
     <section className="mb-8">
       <div className="mb-4 flex items-center gap-1">
         <h2 className="text-xl font-bold">Generated Map</h2>
-        <Button onClick={() => setId(id + 1)} size="sm">
+        <Button onClick={reload} size="sm">
           Regenerate
         </Button>
       </div>

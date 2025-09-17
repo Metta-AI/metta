@@ -4,11 +4,24 @@ import { ConfigViewer } from "@/components/ConfigViewer";
 import { Tab, Tabs } from "@/components/Tabs";
 import { Config } from "@/lib/api";
 
+import { ExploreSimulations } from "./ExploreSimulations";
 import { MapSection } from "./MapSection";
 import { RunToolSection } from "./RunToolSection";
 
 export const ConfigViewScreen: FC<{ cfg: Config }> = ({ cfg }) => {
   const tabs: Tab[] = [];
+
+  if (cfg.maker.kind === "List[SimulationConfig]") {
+    tabs.push({
+      id: "explore",
+      label: "Explore",
+      content: (
+        <div className="pt-4">
+          <ExploreSimulations cfg={cfg} />
+        </div>
+      ),
+    });
+  }
 
   tabs.push({
     id: "config",

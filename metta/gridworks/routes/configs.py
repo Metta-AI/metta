@@ -78,21 +78,13 @@ def make_configs_router() -> APIRouter:
         }
 
     @router.get("/get-map")
-    async def get_map(path: str) -> StorableMapDict | ErrorResult:
+    async def get_map(path: str, name: str | None = None) -> StorableMapDict | ErrorResult:
         cfg = get_config_maker_or_404(path)
 
-        map_builder_config = config_to_map_builder(cfg.maker())
-
-        storable_map = StorableMap.from_cfg(map_builder_config)
-        return storable_map.to_dict()
-
-    @router.get("/get-map-by-name")
-    async def get_map_by_name(path: str, name: str) -> StorableMapDict | ErrorResult:
-        cfg = registry.get_by_path(path)
-        if cfg is None:
-            raise HTTPException(status_code=404, detail=f"Config {path} not found")
-
-        map_builder_config = config_to_map_builder_by_name(cfg.maker(), name)
+        if name:
+            map_builder_config = config_to_map_builder_by_name(cfg.maker(), name)
+        else:
+            map_builder_config = config_to_map_builder(cfg.maker())
 
         storable_map = StorableMap.from_cfg(map_builder_config)
         return storable_map.to_dict()
