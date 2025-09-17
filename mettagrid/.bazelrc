@@ -57,6 +57,9 @@ build --repository_cache=~/.cache/bazel-repo
 build --jobs=auto
 build --local_test_jobs=auto
 
+# Convenience config to enable optional Raylib integration
+build:raylib --define=with_raylib=true
+
 # CI configuration - use system Python to avoid root user issues
 # Remove BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN to allow toolchain detection
 build:ci --repo_env=PYTHON_BIN_PATH=/usr/bin/python3

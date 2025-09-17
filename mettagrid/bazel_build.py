@@ -28,26 +28,37 @@ from setuptools.dist import Distribution
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
+def _truthy(value: str | None) -> bool:
+    """Return True if an env-var-like string is truthy."""
+    if value is None:
+        return False
+    return value.lower() in ("1", "true", "yes", "on")
+
+
 def _run_bazel_build() -> None:
-    """Run Bazel build to compile the C++ extension."""
+    """Run Bazel build to compile the C++ extension.
+
+    Honors environment variables:
+      - DEBUG: build with debug config when set (dbg vs opt)
+      - CI: select CI config in .bazelrc
+      - WITH_RAYLIB: when set truthy, enables optional Raylib integration
+        by adding --define=with_raylib=true (also achievable via --config=raylib)
+    """
     # Check if bazel is available
     if shutil.which("bazel") is None:
         raise RuntimeError("Bazel is required to build mettagrid. Please install Bazel: https://bazel.build/install")
 
     # Determine build configuration from environment
-    debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
+    debug = _truthy(os.environ.get("DEBUG"))
 
     # Check if running in CI environment (GitHub Actions sets CI=true)
-    is_ci = os.environ.get("CI", "").lower() == "true" or os.environ.get("GITHUB_ACTIONS", "") == "true"
+    is_ci = _truthy(os.environ.get("CI")) or _truthy(os.environ.get("GITHUB_ACTIONS"))
 
-    if is_ci:
-        # Use CI configuration to avoid root user issues with hermetic Python
-        config = "ci"
-    else:
-        config = "dbg" if debug else "opt"
+    # Use CI configuration to avoid root user issues with hermetic Python
+    config = "ci" if is_ci else ("dbg" if debug else "opt")
 
     # Build the Python extension with auto-detected parallelism
-    cmd = [
+    cmd: list[str] = [
         "bazel",
         "build",
         f"--config={config}",
@@ -56,8 +67,12 @@ def _run_bazel_build() -> None:
         "//:mettagrid_c",
     ]
 
+    # Optional Raylib toggle for GUI builds
+    if _truthy(os.environ.get("WITH_RAYLIB")):
+        cmd.insert(3, "--define=with_raylib=true")  # after --config but before target
+
     print(f"Running Bazel build: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, check=False)
 
     if result.returncode != 0:
         print("Bazel build failed. STDERR:", file=sys.stderr)

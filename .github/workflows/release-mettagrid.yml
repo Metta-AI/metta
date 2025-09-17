@@ -123,6 +123,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Raylib (Homebrew)
+        run: |
+          brew update
+          brew install raylib
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -132,11 +137,25 @@ jobs:
         uses: bazelbuild/setup-bazelisk@v3
 
       - name: Install build tooling
-        run: python -m pip install --upgrade pip build
+        run: |
+          python -m pip install --upgrade pip build delocate
 
-      - name: Build wheel
+      - name: Build wheel (with Raylib)
+        env:
+          WITH_RAYLIB: "1"
         run: |
           python -m build --wheel --outdir dist mettagrid
+          ls -l dist
+
+      - name: Vendor macOS dylibs (delocate)
+        run: |
+          shopt -s nullglob
+          for whl in dist/*.whl; do
+            echo "Before delocate for $whl"; delocate-listdeps "$whl" || true
+            delocate-wheel -w dist -v "$whl"
+            rm -f "$whl"
+          done
+          echo "After delocate:"
           ls -l dist
 
       - name: Upload wheels artifact

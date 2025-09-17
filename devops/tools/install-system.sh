@@ -227,3 +227,35 @@ ensure_tool "g++"
 ensure_tool "git"
 ensure_bazel_setup
 ensure_uv_setup
+
+# Optionally install Raylib when requested for GUI builds.
+ensure_raylib() {
+  local pkg_manager=$(detect_package_manager)
+  case "$pkg_manager" in
+    brew)
+      install_package brew raylib || true
+      ;;
+    apt)
+      # Package name on Debian/Ubuntu
+      install_package apt libraylib-dev || true
+      ;;
+    dnf|yum)
+      install_package "$pkg_manager" raylib-devel || true
+      ;;
+    pacman)
+      install_package pacman raylib || true
+      ;;
+    *)
+      echo "Raylib install skipped (unsupported package manager)"
+      ;;
+  esac
+}
+
+if [ "${WITH_RAYLIB:-}" != "" ]; then
+  case "${WITH_RAYLIB,,}" in
+    1|true|yes|on)
+      echo "WITH_RAYLIB is set; attempting to install Raylib"
+      ensure_raylib
+      ;;
+  esac
+fi
