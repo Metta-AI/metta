@@ -17,6 +17,7 @@ from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
+from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -583,6 +584,7 @@ app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs."
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
+app.add_typer(softmax_system_health_app, name="softmax-system-health")
 
 
 def main() -> None:
