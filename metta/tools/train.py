@@ -5,8 +5,8 @@ from typing import Optional
 import torch
 from pydantic import Field
 
-from metta.agent.policy import PolicyArchitecture
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policy import PolicyArchitecture
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -86,7 +86,13 @@ class TrainTool(Tool):
         env = VectorizedTrainingEnvironment(self.training_env)
         policy = self.policy_architecture.make_policy(env.meta_data)
 
-        trainer = Trainer(self.trainer, env, policy, torch.device(self.device))
+        trainer = Trainer(
+            self.trainer,
+            env,
+            policy,
+            torch.device(self.device),
+            run_name=self.run,
+        )
 
         # trainer.register(Evaluator(self.evaluation))
         # trainer.register(PolicyUploader(self.policy_uploader))

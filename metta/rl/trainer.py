@@ -38,6 +38,8 @@ class Trainer:
         env: TrainingEnvironment,
         policy: Policy,
         device: torch.device,
+        *,
+        run_name: str | None = None,
     ):
         """Initialize trainer with all components.
 
@@ -55,6 +57,7 @@ class Trainer:
 
         self._epoch = 0
         self._agent_step = 0
+        self._run_name = run_name
 
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
@@ -72,18 +75,18 @@ class Trainer:
             self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))
 
         batch_info = self._env.batch_info
-        # VecEnv flattens agents across all environments, so track the full parallel agent count.
-        total_parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
+        agents_per_env = self._env.meta_data.num_agents
+        parallel_agents = batch_info.num_envs * agents_per_env  # match vecenv's flattened agent indexing
 
         experience = Experience.from_losses(
-            total_parallel_agents,
-            self._cfg.batch_size,
-            self._cfg.bptt_horizon,
-            self._cfg.minibatch_size,
-            self._cfg.minibatch_size,
-            self._policy.get_agent_experience_spec(),
-            losses,
-            self._device,
+            total_agents=parallel_agents,
+            batch_size=self._cfg.batch_size,
+            bptt_horizon=self._cfg.bptt_horizon,
+            minibatch_size=self._cfg.minibatch_size,
+            max_minibatch_size=self._cfg.minibatch_size,
+            policy_experience_spec=self._policy.get_agent_experience_spec(),
+            losses=losses,
+            device=self._device,
         )
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
@@ -161,6 +164,7 @@ class Trainer:
             train_time=self.timer.get_last_elapsed("_train"),
             rollout_time=self.timer.get_last_elapsed("_rollout"),
             stats_time=self.timer.get_last_elapsed("_process_stats"),
+            run_name=self._run_name,
         )
 
     @staticmethod
@@ -170,9 +174,11 @@ class Trainer:
         training_env: TrainingEnvironment,
         policy: Policy,
         device: torch.device,
+        *,
+        run_name: str | None = None,
     ) -> "Trainer":
         """Create a trainer from a configuration."""
-        return Trainer(cfg, training_env, policy, device)
+        return Trainer(cfg, training_env, policy, device, run_name=run_name)
 
     def register(self, component: TrainerComponent) -> None:
         """Register a training component.
