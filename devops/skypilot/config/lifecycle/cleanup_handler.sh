@@ -128,7 +128,8 @@ print_final_summary() {
 
 determine_final_exit_code() {
   if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] \
-    || [[ "${TERMINATION_REASON}" == "completed" ]] \
+    || [[ "${TERMINATION_REASON}" == "job_completed" ]] \
+    || [[ "${TERMINATION_REASON}" == "job_failed" ]] \
     || [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
     echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0

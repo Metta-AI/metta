@@ -137,85 +137,59 @@ shutdown() {
 
   echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
 
-  # Read and preserve the termination reason if it exists
-  local termination_reason="$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || true)"
+  # Get termination reason
+  local termination_reason=$(cat "$TERMINATION_REASON_FILE" 2>/dev/null ||
+                            cat "$CLUSTER_STOP_FILE" 2>/dev/null ||
+                            echo "cluster_stop")
+  echo "$termination_reason" > "$TERMINATION_REASON_FILE"
 
-  # If no termination reason was set, check cluster stop file
-  if [[ -z "$termination_reason" ]]; then
-    if [[ -f "$CLUSTER_STOP_FILE" ]]; then
-      termination_reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || echo "cluster_stop")"
-    else
-      termination_reason="cluster_stop"
-    fi
-    # Write it to the termination reason file for cleanup handler
-    echo "$termination_reason" > "$TERMINATION_REASON_FILE"
-  fi
+  # Only proceed if we have a process to kill
+  [ -z "${CMD_PID:-}" ] && exit 0
 
-  # Kill the entire process tree gracefully
-  if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
-    echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
+  echo "[SHUTDOWN] Initiating shutdown of process tree (PID: ${CMD_PID})"
 
-    # Only master coordinates multi-node shutdown
-    if [[ "$IS_MASTER" == "true" ]]; then
-      echo "$termination_reason" > "$CLUSTER_STOP_FILE"
-      echo "[SHUTDOWN] Master node signaled all nodes to begin shutdown"
-
-      # Give workers time to detect the signal and start their own shutdown
-      echo "[SHUTDOWN] Waiting for worker nodes to begin shutdown..."
-      sleep 20
-
-    elif [[ "$IS_MASTER" != "true" ]]; then
-      # Worker waits for cluster-wide shutdown signal
-      echo "[SHUTDOWN] Worker node checking for cluster-wide shutdown signal..."
-      count=0
-      max_wait=20
-
-      while [ ! -f "$CLUSTER_STOP_FILE" ] && [ $count -lt $max_wait ]; do
-        sleep 1
-        ((count++))
-        if [ $((count % 5)) -eq 0 ]; then
-          echo "[SHUTDOWN] Worker waiting for cluster signal... ${count}/${max_wait}s"
-        fi
-      done
-
-      if [ -f "$CLUSTER_STOP_FILE" ]; then
-        echo "[SHUTDOWN] Worker node detected cluster-wide shutdown signal"
-      else
-        echo "[SHUTDOWN] Worker node timeout waiting for cluster signal, proceeding with shutdown"
-      fi
-    fi
-
-    # Now proceed with local process termination
-    # Send SIGTERM to the local process group
-    kill -TERM -"${CMD_PGID}" 2> /dev/null || true
-
-    # Wait for graceful shutdown
-    count=0
-    max_wait=30
-    while kill -0 "$CMD_PID" 2> /dev/null && [ $count -lt $max_wait ]; do
+  # Coordinate multi-node shutdown
+  if [[ "$IS_MASTER" == "true" ]]; then
+    echo "$termination_reason" > "$CLUSTER_STOP_FILE"
+    echo "[SHUTDOWN] Master signaled all nodes to begin shutdown"
+    sleep 20  # Give workers time to detect signal
+  else
+    # Worker waits for cluster-wide shutdown signal (max 20s)
+    echo "[SHUTDOWN] Worker waiting for cluster-wide shutdown signal..."
+    local count=0
+    while [ ! -f "$CLUSTER_STOP_FILE" ] && [ $count -lt 20 ]; do
       sleep 1
       ((count++))
-      if [ $((count % 5)) -eq 0 ]; then
-        echo "[SHUTDOWN] Waiting for graceful shutdown... ${count}/${max_wait}s"
-      fi
+      [ $((count % 5)) -eq 0 ] && echo "[SHUTDOWN] Still waiting... ${count}/20s"
     done
-
-    # If still alive, use SIGKILL
-    if kill -0 "$CMD_PID" 2> /dev/null; then
-      echo "[SHUTDOWN] Process didn't terminate gracefully after ${max_wait}s, using SIGKILL"
-      kill -KILL -"${CMD_PGID}" 2> /dev/null || true
-    fi
-
-    # Wait for the process to actually exit
-    if kill -0 "$CMD_PID" 2> /dev/null; then
-      echo "[SHUTDOWN] Waiting for process $CMD_PID to exit..."
-      wait "$CMD_PID" 2> /dev/null || true
-    else
-      echo "[SHUTDOWN] Process $CMD_PID already exited"
-    fi
+    echo "[SHUTDOWN] $([ -f "$CLUSTER_STOP_FILE" ] && echo "Detected" || echo "Timeout on") cluster signal"
   fi
 
-  # shutdown now calls the cleanup_handler
+  # Helper function to wait for process death
+  wait_for_exit() {
+    local pid=$1 sig=$2 max_wait=$3
+    local count=0
+
+    while kill -0 "$pid" 2>/dev/null && [ $count -lt $max_wait ]; do
+      sleep 1
+      ((count++))
+      [ $((count % 5)) -eq 0 ] && echo "[SHUTDOWN] Waiting for $sig shutdown... ${count}/${max_wait}s"
+    done
+
+    # Return 0 if process died, 1 if still alive
+    ! kill -0 "$pid" 2>/dev/null
+  }
+
+  # Try graceful shutdown first
+  kill -TERM -"${CMD_PID}" 2>/dev/null || true
+
+  if ! wait_for_exit "$CMD_PID" "graceful" 30; then
+    echo "[SHUTDOWN] Process didn't terminate gracefully, using SIGKILL"
+    kill -KILL -"${CMD_PID}" 2>/dev/null || true
+    wait_for_exit "$CMD_PID" "forced" 10 || echo "[SHUTDOWN] WARNING: Process may still be running"
+  fi
+
+  echo "[SHUTDOWN] Process $CMD_PID shutdown complete"
   exit 0
 }
 
@@ -240,45 +214,57 @@ start_monitors() {
   fi
 }
 
+
 run_cmd() {
   echo "[INFO] Starting process (node rank: $RANK)"
+  local START_TIME=$(date +%s)
 
-  export START_TIME=$(date +%s)
+  # Enable job control
+  set -m
 
-  # Build the command as an array
+  # Build and run command
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
-
-  # Add args if METTA_ARGS is not empty
-  if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(${METTA_ARGS}) # split on spaces
-  fi
+  [ -n "${METTA_ARGS:-}" ] && cmd+=(${METTA_ARGS})
 
   echo "[INFO] Running command: ${cmd[*]}"
+  "${cmd[@]}" &
+  export CMD_PID=$!  # Only export needed for monitors
 
-  # Use process substitution so $! is the trainer (not tee)
-  setsid "${cmd[@]}" &
-  export CMD_PID=$!
-
-  sleep 1
-
-  export CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2> /dev/null | tr -d ' ')
-  echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
-
+  echo "[INFO] Started process with PID: $CMD_PID"
   start_monitors
 
-  wait "$CMD_PID"
-  CMD_EXIT=$?
+  # Wait for process to exit
+  while kill -0 "$CMD_PID" 2>/dev/null; do
+      sleep 1
+  done
 
-  if [[ ! -f "$TERMINATION_REASON_FILE" ]] || [[ ! -s "$TERMINATION_REASON_FILE" ]]; then
-    if [[ "$IS_MASTER" == "true" ]]; then
-      echo "job_completed" > "$TERMINATION_REASON_FILE"
-      echo "job_completed" > "$CLUSTER_STOP_FILE"
-      echo "[INFO] Master wrote shutdown signal to cluster stop file"
-    fi
+  # Get exit code from job status
+  local JOB_INFO=$(jobs -l %1 2>&1 || echo "")
+  local CMD_EXIT=1  # Default to failure
+
+  if [[ "$JOB_INFO" =~ Exit\ ([0-9]+) ]]; then
+      CMD_EXIT=${BASH_REMATCH[1]}
+  elif [[ "$JOB_INFO" =~ Done ]]; then
+      CMD_EXIT=0
   fi
 
-  local END_TIME=$(date +%s)
-  local DURATION=$((END_TIME - START_TIME))
+  echo "[INFO] Process exited with code $CMD_EXIT"
+  set +m
+
+  # Handle completion - only write job_completed if actually successful
+  if [[ ! -s "${TERMINATION_REASON_FILE:-}" ]] && [[ "$IS_MASTER" == "true" ]]; then
+      if [[ $CMD_EXIT -eq 0 ]]; then
+          echo "job_completed" > "$TERMINATION_REASON_FILE"
+          echo "job_completed" > "$CLUSTER_STOP_FILE"
+          echo "[INFO] Master wrote shutdown signal"
+      else
+          echo "job_failed" > "$TERMINATION_REASON_FILE"
+          echo "job_failed" > "$CLUSTER_STOP_FILE"
+          echo "[INFO] Master wrote failure signal"
+      fi
+  fi
+
+  local DURATION=$(($(date +%s) - START_TIME))
   echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
 
   return $CMD_EXIT
