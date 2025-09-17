@@ -60,7 +60,7 @@ def upload_thumbnail_to_s3(thumbnail_data: bytes, episode_id: str) -> tuple[bool
 
         # Convert S3 URI to HTTP URL for database storage
         http_thumbnail_url = file_utils.http_url(s3_uri)
-        logger.info(f"Uploaded thumbnail for episode {episode_id} to {s3_uri}, HTTP URL: {http_thumbnail_url}")
+
         return True, http_thumbnail_url
 
     except Exception as e:

@@ -127,6 +127,8 @@ print_final_summary() {
 }
 
 determine_final_exit_code() {
+  echo "[DEBUG] TERMINATION_REASON='${TERMINATION_REASON}'"
+
   if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] \
     || [[ "${TERMINATION_REASON}" == "job_completed" ]] \
     || [[ "${TERMINATION_REASON}" == "job_failed" ]] \
@@ -137,6 +139,8 @@ determine_final_exit_code() {
     echo "[INFO] Will exit with code: $CMD_EXIT"
     FINAL_EXIT_CODE=$CMD_EXIT
   fi
+
+  echo "[DEBUG] FINAL_EXIT_CODE=${FINAL_EXIT_CODE}"
 }
 
 # Export the cleanup function if sourced
