@@ -72,8 +72,7 @@ runs:
             ;;
 
           "testing")
-            uv sync
-            uv pip install -r .github/actions/setup-environment/dependencies-testing.txt
+            uv sync --group testing --group dev
             ;;
 
           "linting")

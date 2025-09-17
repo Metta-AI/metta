@@ -103,6 +103,10 @@ dev = [
   "ipykernel>=6.29.5",
 ]
 lint = ["ruff>=0.11.13", "cpplint>=2.0.2"]
+testing = [
+  "gcovr>=8.3",
+  "pytest-timeout>=2.4.0",
+]
 
 [project.scripts]
 metta = "metta.setup.metta_cli:main"
