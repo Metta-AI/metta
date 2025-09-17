@@ -12,10 +12,8 @@ class GitHubNotifier(NotificationBase):
         return "GitHub"
 
     def get_required_fields(self, job_config: JobConfig) -> Dict[str, Any]:
-        """Extract GitHub-specific fields."""
-        commit_sha = job_config.metta_git_ref or ""
-
         # Validate SHA format
+        commit_sha = job_config.metta_git_ref or ""
         if commit_sha and len(commit_sha) < 40:
             raise ValueError(f'Github Status update requires a full length commit hash. len("{commit_sha}") < 40)')
 
@@ -29,7 +27,6 @@ class GitHubNotifier(NotificationBase):
         }
 
     def format_notification(self, fields: Dict[str, Any]) -> Dict[str, Any]:
-        """Format GitHub status payload."""
         state = fields.get("state", "")
         description = fields.get("description", "")
 
@@ -57,5 +54,4 @@ class GitHubNotifier(NotificationBase):
         }
 
     def send(self, payload: Dict[str, Any]) -> None:
-        """Send GitHub status."""
         post_commit_status(**payload)

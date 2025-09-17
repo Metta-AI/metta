@@ -13,18 +13,16 @@ class WandBNotifier(NotificationBase):
         return "W&B"
 
     def get_required_fields(self, job_config: JobConfig) -> Dict[str, Any]:
-        """Extract W&B-specific fields."""
         return {
-            "run_id": job_config.metta_run_id or "",
-            "project": job_config.wandb_project or "",
-            "entity": job_config.wandb_entity or "",
+            "run_id": job_config.metta_run_id,
+            "project": job_config.wandb_project,
+            "entity": job_config.wandb_entity,
             "start_time": job_config.start_time,
             "total_nodes": job_config.total_nodes,
             "task_id": job_config.skypilot_task_id,
         }
 
     def format_notification(self, fields: Dict[str, Any]) -> Dict[str, Any]:
-        """Format W&B alert payload."""
         title = fields.get("title", "")
         description = fields.get("description", "")
 
@@ -54,7 +52,6 @@ class WandBNotifier(NotificationBase):
         }
 
     def send(self, payload: Dict[str, Any]) -> None:
-        """Send W&B alert."""
         send_wandb_alert(
             title=payload["title"],
             text=payload["text"],
