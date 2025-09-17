@@ -252,8 +252,9 @@ ensure_raylib() {
 }
 
 if [ "${WITH_RAYLIB:-}" != "" ]; then
-  case "${WITH_RAYLIB,,}" in
-    1|true|yes|on)
+  # macOS ships an older bash; avoid ${var,,} expansion.
+  case "$WITH_RAYLIB" in
+    1|true|TRUE|True|yes|YES|Yes|on|ON|On)
       echo "WITH_RAYLIB is set; attempting to install Raylib"
       ensure_raylib
       ;;
