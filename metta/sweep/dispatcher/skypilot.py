@@ -1,10 +1,10 @@
 """Skypilot dispatcher implementation for distributed job execution."""
 
 import logging
-import os
 import subprocess
 import uuid
 
+from metta.common.util.constants import SKYPILOT_LAUNCH_PATH
 from metta.sweep.models import JobDefinition, JobTypes
 from metta.sweep.protocols import Dispatcher
 from metta.sweep.utils import get_display_id
@@ -23,11 +23,7 @@ class SkypilotDispatcher(Dispatcher):
         """Dispatch job using Skypilot launcher"""
 
         # Build command parts starting with the launcher script
-        cmd_parts = [
-            os.path.abspath(
-                os.path.join(os.path.dirname(__file__), "..", "..", "..", "devops", "skypilot", "launch.py")
-            )
-        ]
+        cmd_parts = [SKYPILOT_LAUNCH_PATH]
 
         # Add Skypilot flags (in order)
         # 1. Always add --no-spot
@@ -58,26 +54,17 @@ class SkypilotDispatcher(Dispatcher):
         for key, value in job.metadata.items():
             all_args.append(f"{key}={value}")
 
-        # Add all args with --args flag
+        # Add all collected args
         if all_args:
-            cmd_parts.append("--args")
             cmd_parts.extend(all_args)
 
-        # Collect all overrides (from both overrides and config)
-        all_overrides = []
-
-        # Add explicit overrides
+        # Add explicit overrides (from job.overrides dict)
         for key, value in job.overrides.items():
-            all_overrides.append(f"{key}={value}")
+            cmd_parts.append(f"{key}={value}")
 
-        # Add config from optimizer as additional overrides
+        # Add config from optimizer as additional args
         for key, value in job.config.items():
-            all_overrides.append(f"{key}={value}")
-
-        # Add all overrides with --overrides flag
-        if all_overrides:
-            cmd_parts.append("--overrides")
-            cmd_parts.extend(all_overrides)
+            cmd_parts.append(f"{key}={value}")
 
         # Extract trial portion for cleaner display (like LocalDispatcher)
         display_id = get_display_id(job.run_id)

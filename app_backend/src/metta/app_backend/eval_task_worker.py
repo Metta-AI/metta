@@ -13,6 +13,7 @@ import base64
 import json
 import logging
 import os
+import shutil
 import subprocess
 import uuid
 from abc import ABC, abstractmethod
@@ -102,44 +103,50 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_hash: str) -> None:
-        self._versioned_path = f"/tmp/metta-versioned/{git_hash}"
-        if os.path.exists(self._versioned_path):
-            logger.info(f"Versioned checkout already exists at {self._versioned_path}")
-            return
+        try:
+            self._versioned_path = f"/tmp/metta-versioned/{git_hash}"
+            if os.path.exists(self._versioned_path):
+                logger.info(f"Versioned checkout already exists at {self._versioned_path}")
+                return
 
-        logger.info(f"Setting up versioned checkout at {self._versioned_path}")
+            logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
-        os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
+            os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
-        result = subprocess.run(
-            ["git", "clone", REPO_URL, self._versioned_path],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+            result = subprocess.run(
+                ["git", "clone", REPO_URL, self._versioned_path],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to clone repository: {result.stderr}")
 
-        # Checkout the specific commit
-        result = subprocess.run(
-            ["git", "checkout", git_hash],
-            cwd=self._versioned_path,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
+            # Checkout the specific commit
+            result = subprocess.run(
+                ["git", "checkout", git_hash],
+                cwd=self._versioned_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
 
-        # Install dependencies in the versioned checkout
-        logger.info("Installing dependencies in versioned checkout...")
-        self._run_cmd_from_versioned_checkout(
-            ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
-            capture_output=True,
-        )
-        self._run_cmd_from_versioned_checkout(
-            ["uv", "run", "metta", "install"],
-        )
+            # Install dependencies in the versioned checkout
+            logger.info("Installing dependencies in versioned checkout...")
+            self._run_cmd_from_versioned_checkout(
+                ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
+                capture_output=True,
+            )
+            self._run_cmd_from_versioned_checkout(
+                ["uv", "run", "metta", "install"],
+            )
 
-        logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
+            logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
+        except Exception as e:
+            logger.error(f"Failed to set up versioned checkout: {e}", exc_info=True)
+            if os.path.exists(self._versioned_path):
+                shutil.rmtree(self._versioned_path)
+            raise
 
     @trace("worker.execute_task")
     async def execute_task(
@@ -165,10 +172,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "run",
             "tools/run.py",
             "experiments.evals.run.eval",
-            "--args",
             f"policy_uri=wandb://run/{policy_name}",
             f"simulations_json_base64={simulations_base64}",
-            "--overrides",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "push_metrics_to_wandb=true",

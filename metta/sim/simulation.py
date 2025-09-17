@@ -163,7 +163,7 @@ class Simulation:
         """Create a Simulation with sensible defaults."""
         # Create policy record from URI
         if policy_uri:
-            policy = CheckpointManager.load_from_uri(policy_uri)
+            policy = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
             policy = MockAgent()
 
