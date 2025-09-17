@@ -107,42 +107,4 @@ def make_foraging_eval_suite(
                                 )
     return sims
 
-
-def make_foraging_eval_pair() -> List[SimulationConfig]:
-    sims: list[SimulationConfig] = []
-
-    # Map 1: 2 converters, rmin=2, rmax=5, size 16x10, deposit_count=2
-    sims.append(
-        SimulationConfig(
-            name="foraging/two_maps/n2_r2-5_16x10_dep2",
-            env=make_foraging_eval_env(
-                num_converters=2,
-                carry=1,
-                cooldowns=[0],
-                rmin=2,
-                rmax=5,
-                width=16,
-                height=10,
-                deposit_count=2,
-            ),
-        )
-    )
-
-    # Map 2: 4 converters, rmin=5, rmax=10, size 40x30, deposit_count=5
-    sims.append(
-        SimulationConfig(
-            name="foraging/two_maps/n4_r5-10_40x30_dep5",
-            env=make_foraging_eval_env(
-                num_converters=4,
-                carry=1,
-                cooldowns=[0],
-                rmin=5,
-                rmax=10,
-                width=40,
-                height=30,
-                deposit_count=5,
-            ),
-        )
-    )
-
     return sims
