@@ -23,28 +23,42 @@ Usage:
     ./metta/util/live_run_monitor.py  # Monitor last 10 runs (fetch 50, display 10)
 """
 
-import argparse
 import logging
+import os
 import sys
 import time
 from datetime import datetime
-from typing import List, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
+import typer
 from rich.console import Console, Group
 from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
-from metta.sweep.models import JobStatus, RunInfo
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+
+if TYPE_CHECKING:
+    from metta.sweep.models import JobStatus, RunInfo
 
 logger = logging.getLogger(__name__)
 
 # Display limit for runs
 DISPLAY_LIMIT = 10
 
+# Typer application for CLI usage
+app = typer.Typer(
+    help="Live run monitor with rich terminal display.",
+    no_args_is_help=False,
+    rich_markup_mode="rich",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 
-def _get_status_color(status: JobStatus) -> str:
+
+def _get_status_color(status: "JobStatus") -> str:
     """Get color for run status."""
+    from metta.sweep.models import JobStatus
+
     if status == JobStatus.COMPLETED or status == JobStatus.EVAL_DONE_NOT_COMPLETED:
         return "bright_blue"
     elif status == JobStatus.IN_TRAINING:
@@ -63,7 +77,7 @@ def _get_status_color(status: JobStatus) -> str:
         return "white"
 
 
-def make_rich_monitor_table(runs: List[RunInfo]) -> Table:
+def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_agent/heart.get") -> Table:
     """Create rich table for run monitoring."""
 
     # Create table
@@ -89,9 +103,16 @@ def make_rich_monitor_table(runs: List[RunInfo]) -> Table:
         else:
             progress_str = "N/A"
 
-        # Format score
-        if run.observation and run.observation.score is not None:
-            score_str = f"{run.observation.score:.3f}"
+        # Format score from run.summary
+        if run.summary and score_metric in run.summary:
+            score_value = run.summary[score_metric]
+            if score_value is not None:
+                if isinstance(score_value, (int, float)):
+                    score_str = f"{score_value:.3f}"
+                else:
+                    score_str = str(score_value)
+            else:
+                score_str = "N/A"
         else:
             score_str = "N/A"
 
@@ -114,7 +135,13 @@ def make_rich_monitor_table(runs: List[RunInfo]) -> Table:
     return table
 
 
-def create_run_banner(group: Optional[str], name_filter: Optional[str], runs: List[RunInfo], display_limit: int = 10):
+def create_run_banner(
+    group: Optional[str],
+    name_filter: Optional[str],
+    runs: list["RunInfo"],
+    display_limit: int = 10,
+    score_metric: str = "env_agent/heart.get",
+):
     """Create a banner with run information."""
 
     # Calculate runtime from earliest run created_at
@@ -176,13 +203,13 @@ def create_run_banner(group: Optional[str], name_filter: Optional[str], runs: Li
 
     # First line with fetch/display info
     line1 = RichText(
-        f"🔄 LIVE RUN MONITOR: {filter_desc} | Fetched: {total_runs} runs, displaying at most {display_limit} runs. "
+        f"🔄 LIVE RUN MONITOR: {filter_desc} | Fetched: {total_runs} runs, "
+        f"displaying at most {display_limit} runs | Score: {score_metric}. "
     )
     line1.append("Use --help to change limits.", style="dim")
 
     # Cost line with warning
     cost_line = RichText(f"💰 Total Cost: ${total_cost:.2f} ")
-    cost_line.append("(Warning: cost is shown for a L4:4 instance until cost monitoring is fixed)", style="orange3")
 
     banner_lines = [
         line1,
@@ -208,6 +235,7 @@ def live_monitor_runs(
     clear_screen: bool = True,
     display_limit: int = 10,
     fetch_limit: int = 50,
+    score_metric: str = "env_agent/heart.get",
 ) -> None:
     """Live monitor runs with rich terminal display.
 
@@ -256,10 +284,10 @@ def live_monitor_runs(
                 return Text(warning_msg, style="bright_yellow")
 
             # Create banner using all fetched runs for accurate statistics
-            banner = create_run_banner(group, name_filter, all_runs, display_limit)
+            banner = create_run_banner(group, name_filter, all_runs, display_limit, score_metric)
 
             # Create table
-            table = make_rich_monitor_table(runs)
+            table = make_rich_monitor_table(runs, score_metric)
 
             # Create a renderable group
             display = Group(
@@ -312,7 +340,7 @@ def live_monitor_runs_test(
     """Test mode for live run monitoring with mock data."""
     from datetime import datetime, timedelta
 
-    from metta.sweep.models import JobStatus, Observation, RunInfo
+    from metta.sweep.models import JobStatus, RunInfo
 
     console = Console()
 
@@ -327,22 +355,22 @@ def live_monitor_runs_test(
             # Vary the status
             if i < 2:
                 status = JobStatus.COMPLETED
-                observation = Observation(score=0.85 + i * 0.05, cost=4.50 + i, suggestion={})
+                summary = {"env_agent/heart.get": 0.85 + i * 0.05}
                 current_steps = 1000000000
                 total_timesteps = 1000000000
             elif i < 4:
                 status = JobStatus.IN_TRAINING
-                observation = None
+                summary = {"env_agent/heart.get": 0.75 + i * 0.05}
                 current_steps = 500000000 + i * 100000000
                 total_timesteps = 1000000000
             elif i < 6:
                 status = JobStatus.PENDING
-                observation = None
+                summary = None
                 current_steps = None
                 total_timesteps = None
             else:
                 status = JobStatus.FAILED
-                observation = None
+                summary = None
                 current_steps = None
                 total_timesteps = None
 
@@ -353,7 +381,7 @@ def live_monitor_runs_test(
                 has_started_eval=status == JobStatus.COMPLETED,
                 has_been_evaluated=status == JobStatus.COMPLETED,
                 has_failed=status == JobStatus.FAILED,
-                observation=observation,
+                summary=summary,
                 cost=4.50 + i if status != JobStatus.PENDING else 0.0,
                 created_at=base_time + timedelta(minutes=i * 15),
                 current_steps=current_steps,
@@ -399,109 +427,92 @@ def live_monitor_runs_test(
         raise
 
 
-def main():
-    """CLI entry point for live run monitoring."""
-    parser = argparse.ArgumentParser(
-        description="Live monitor runs with rich terminal display",
-        epilog="""
-Examples:
-  %(prog)s --group my_group_name
-  %(prog)s --name-filter "axel.*"
-  %(prog)s --group my_group --name-filter "experiment.*"
-  %(prog)s --refresh 15 --entity myteam --project myproject
-  %(prog)s --fetch-limit 100 --display-limit 20  # Fetch more, display more
-  %(prog)s  # Monitor last 10 runs (fetch 50, display 10)
-
-The monitor will display a live table with color-coded statuses:
-  - Completed runs (blue)
-  - In training runs (green)
-  - Pending runs (gray)
-  - Training done, no eval (orange)
-  - Failed runs (red)
-        """,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument("--group", "-g", help="WandB group to monitor (optional)")
-    parser.add_argument("--name-filter", help="Regex filter for run names (e.g., 'axel.*')")
-    parser.add_argument("--refresh", "-r", type=int, default=30, help="Refresh interval in seconds (default: 30)")
-    parser.add_argument(
-        "--entity", "-e", type=str, default="metta-research", help="WandB entity (default: metta-research)"
-    )
-    parser.add_argument("--project", "-p", type=str, default="metta", help="WandB project (default: metta)")
-    parser.add_argument(
-        "--test", action="store_true", help="Run in test mode with mock data (no WandB connection required)"
-    )
-    parser.add_argument("--no-clear", action="store_true", help="Don't clear screen, append output instead")
-    parser.add_argument(
-        "--fetch-limit", type=int, default=50, help="Maximum number of runs to fetch from WandB (default: 50)"
-    )
-    parser.add_argument(
-        "--display-limit", type=int, default=10, help="Maximum number of runs to display in table (default: 10)"
-    )
-
-    args = parser.parse_args()
-
-    # Validate refresh interval
-    if args.refresh < 1:
-        print("Error: Refresh interval must be at least 1 second")
-        sys.exit(1)
-
-    # Validate limits
-    if args.fetch_limit < 1:
-        print("Error: Fetch limit must be at least 1")
-        sys.exit(1)
-    if args.display_limit < 1:
-        print("Error: Display limit must be at least 1")
-        sys.exit(1)
-    if args.display_limit > args.fetch_limit:
-        print("Warning: Display limit is greater than fetch limit, some runs may not be shown")
-        print(f"  Fetch limit: {args.fetch_limit}, Display limit: {args.display_limit}")
-
-    # Test mode with mock data
-    if args.test:
-        try:
-            live_monitor_runs_test(
-                group=args.group or "test_group",
-                refresh_interval=args.refresh,
-                clear_screen=not args.no_clear,
-                display_limit=args.display_limit,
-            )
-        except KeyboardInterrupt:
-            print("\nTest monitoring stopped by user.")
-            sys.exit(0)
+@app.callback(invoke_without_command=True)
+def cli(
+    ctx: typer.Context,
+    group: Annotated[str | None, typer.Option("--group", "-g", help="WandB group to monitor")] = None,
+    name_filter: Annotated[
+        str | None, typer.Option("--name-filter", help=f"Regex filter for run names (e.g., '{os.getenv('USER')}.*')")
+    ] = None,
+    refresh: Annotated[int, typer.Option("--refresh", "-r", help="Refresh interval in seconds")] = 30,
+    entity: Annotated[str, typer.Option("--entity", "-e", help="WandB entity")] = METTA_WANDB_ENTITY,
+    project: Annotated[str, typer.Option("--project", "-p", help="WandB project")] = METTA_WANDB_PROJECT,
+    test: Annotated[
+        bool, typer.Option("--test", help="Run in test mode with mock data (no WandB connection required)")
+    ] = False,
+    no_clear: Annotated[bool, typer.Option("--no-clear", help="Don't clear screen, append output instead")] = False,
+    fetch_limit: Annotated[int, typer.Option("--fetch-limit", help="Maximum number of runs to fetch from WandB")] = 50,
+    display_limit: Annotated[
+        int, typer.Option("--display-limit", help="Maximum number of runs to display in table")
+    ] = 10,
+    score_metric: Annotated[
+        str,
+        typer.Option(
+            "--score-metric",
+            help="Metric key in run.summary to use for score",
+        ),
+    ] = "env_agent/heart.get",
+) -> None:
+    """Default command for the live run monitor app."""
+    # If a subcommand is provided, do nothing here
+    if ctx.invoked_subcommand:
         return
 
-    # Validate WandB access
-    try:
-        import wandb
+    # Validate refresh interval
+    if refresh < 1:
+        typer.echo("Error: Refresh interval must be at least 1 second")
+        raise typer.Exit(1)
 
-        if not wandb.api.api_key:
-            print("Error: WandB API key not found. Please run 'wandb login' first.")
-            sys.exit(1)
-    except ImportError:
-        print("Error: WandB not installed. Please install with 'pip install wandb'.")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Warning: Could not validate WandB credentials: {e}")
+    # Validate limits
+    if fetch_limit < 1:
+        typer.echo("Error: Fetch limit must be at least 1")
+        raise typer.Exit(1)
+    if display_limit < 1:
+        typer.echo("Error: Display limit must be at least 1")
+        raise typer.Exit(1)
+    if display_limit > fetch_limit:
+        typer.echo("Warning: Display limit is greater than fetch limit, some runs may not be shown")
+        typer.echo(f"  Fetch limit: {fetch_limit}, Display limit: {display_limit}")
+
+    # Test mode with mock data
+    if test:
+        try:
+            live_monitor_runs_test(
+                group=group or "test_group",
+                refresh_interval=refresh,
+                clear_screen=not no_clear,
+                display_limit=display_limit,
+            )
+        except KeyboardInterrupt:
+            typer.echo("\nTest monitoring stopped by user.")
+            raise typer.Exit(0) from None
+        return
+
+    import wandb
+
+    if not wandb.api.api_key:
+        typer.echo("Error: WandB API key not found. Please run 'metta install wandb' first.")
+        raise typer.Exit(1)
 
     try:
         live_monitor_runs(
-            group=args.group,
-            name_filter=args.name_filter,
-            refresh_interval=args.refresh,
-            entity=args.entity,
-            project=args.project,
-            clear_screen=not args.no_clear,
-            display_limit=args.display_limit,
-            fetch_limit=args.fetch_limit,
+            group=group,
+            name_filter=name_filter,
+            refresh_interval=refresh,
+            entity=entity,
+            project=project,
+            clear_screen=not no_clear,
+            display_limit=display_limit,
+            fetch_limit=fetch_limit,
+            score_metric=score_metric,
         )
     except KeyboardInterrupt:
-        print("\nMonitoring stopped by user.")
-        sys.exit(0)
+        typer.echo("\nMonitoring stopped by user.")
+        raise typer.Exit(0) from None
     except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+        typer.echo(f"Error: {e}")
+        raise typer.Exit(1) from e
 
 
 if __name__ == "__main__":
-    main()
+    app()

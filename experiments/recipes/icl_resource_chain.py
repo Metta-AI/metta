@@ -67,7 +67,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             default_factory=list, description="Number of sinks to sample from"
         )
         room_sizes: list[str] = Field(
-            default=["6x6"], description="Room size to sample from"
+            default=["small"], description="Room size to sample from"
         )
         obstacle_types: list[str] = Field(
             default=[], description="Obstacle types to sample from"
@@ -180,28 +180,27 @@ class ConverterChainTaskGenerator(TaskGenerator):
         room_size = rng.choice(self.config.room_sizes)
         obstacle_type = rng.choice(self.config.obstacle_types) if len(self.config.obstacle_types) > 0 else None
         density = rng.choice(self.config.densities) if len(self.config.densities) > 0 else None
-        # by default, use a 6x6 room - to reproduce existing results
-        if room_size == "6x6":
-            width, height = 6, 6
-        else:
-            if room_size == "small":
-                size_range = (5, 8)
-            elif room_size == "medium":
-                size_range = (8, 12)
-            elif room_size == "large":
-                size_range = (12, 15)
 
-            width, height = (
-                rng.randint(size_range[0], size_range[1]),
-                rng.randint(size_range[0], size_range[1]),
-            )
+        # by default, use a small room
+        size_range = (
+            (8, 12)
+            if room_size == "medium"
+            else (12, 15)
+            if room_size == "large"
+            else (5, 8)
+        )
+
+        width, height = (
+            rng.randint(size_range[0], size_range[1]),
+            rng.randint(size_range[0], size_range[1]),
+        )
 
         max_steps = self.config.max_steps
 
         avg_hop = (width + height) / 2
 
         # optimal reward estimates for the task, to be used in evaluation
-        most_efficient_optimal_reward, least_efficient_optimal_reward = (
+        best_case_optimal_reward, worst_case_optimal_reward = (
             self._estimate_max_rewards(num_resources, num_sinks, max_steps, avg_hop)
         )
 
@@ -218,8 +217,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
 
         icl_env.game.reward_estimates = {
-            "most_efficient_optimal_reward": most_efficient_optimal_reward,
-            "least_efficient_optimal_reward": least_efficient_optimal_reward,
+            "best_case_optimal_reward": best_case_optimal_reward,
+            "worst_case_optimal_reward": worst_case_optimal_reward,
         }
 
         icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{room_size}"
@@ -234,7 +233,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         avg_hop: float,
     ) -> tuple[float, float]:
         """
-        Returns (most_efficient_reward, least_efficient_reward).
+        Returns (best_case_optimal_reward, worst_case_optimal_reward).
 
         Updates vs prior:
           * Each converter interaction = 2 actions (put + get).
@@ -310,13 +309,18 @@ def make_mettagrid() -> MettaGridConfig:
 def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    chain_lengths=[2, 3, 4, 5],
+    num_sinks=[0, 1, 2],
+    room_sizes=["small"],
+    obstacle_types=[],
+    densities=[],
 ) -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
-        chain_lengths=[2, 3, 4, 5],
-        num_sinks=[0, 1, 2],
-        room_sizes=["small"],
-        obstacle_types=["square", "cross", "L"],
-        densities=["", "balanced", "sparse", "dense"],
+        chain_lengths=chain_lengths,
+        num_sinks=num_sinks,
+        room_sizes=room_sizes,
+        obstacle_types=obstacle_types,
+        densities=densities,
     )
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -335,6 +339,55 @@ def make_curriculum(
     )
 
 
+def small_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small"],
+    )
+
+
+def small_medium_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium"],
+    )
+
+
+def all_room_sizes_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium", "large"],
+    )
+
+
+def longer_chains():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium", "large"],
+    )
+
+
+def longer_chains_more_sinks():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
+        num_sinks=[0, 1, 2, 3, 4],
+        room_sizes=["small", "medium", "large"],
+    )
+
+def terrain():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5, 6],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium", "large"],
+        obstacle_types=["square", "cross", "L"],
+        densities=["", "balanced", "sparse", "dense"],
+    )
+
+
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
@@ -346,8 +399,7 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
+        curriculum=curriculum or longer_chains(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
@@ -382,9 +434,9 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
-    # Local import to avoid circular import at module load time
+    # Local import to   avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
         make_icl_resource_chain_eval_suite,
     )
@@ -392,6 +444,6 @@ def evaluate(
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
         simulations=simulations,
-        policy_uris=["wandb://run/george.icl.reproduce.4gpus.09-12"],
+        policy_uris=[policy_uri],
         stats_server_uri="https://api.observatory.softmax-research.net",
     )

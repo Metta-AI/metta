@@ -3,6 +3,7 @@ import argparse
 import copy
 import json
 import logging
+import re
 import subprocess
 import sys
 
@@ -25,11 +26,37 @@ from metta.tools.utils.auto_config import auto_run_name
 logger = logging.getLogger("launch.py")
 
 
-def _validate_run_tool(module_path: str, tool_args: list) -> None:
-    """Validate that run.py can successfully create a tool config with the given arguments."""
-    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
-    run_cmd.extend(tool_args)
+def _validate_sky_cluster_name(run_name: str) -> bool:
+    """Validate that we will meet Sky's cluster naming requirements.
 
+    Sky requires cluster names to:
+    - Start with a letter (a-z or A-Z)
+    - Contain only letters, numbers, dashes, underscores, or dots
+    - End with a letter or number
+    """
+    # Sky's regex pattern: [a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?
+    pattern = r"^[a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?$"
+    valid = bool(re.match(pattern, run_name))
+
+    if not valid:
+        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"))
+        print("Sky cluster names must:")
+        print("  - Start with a letter (not a number)")
+        print("  - Contain only letters, numbers, dashes, underscores, or dots")
+        print("  - End with a letter or number")
+        print()
+
+    return valid
+
+
+def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> None:
+    """Validate that run.py can successfully create a tool config with the given arguments."""
+    # Build the run.py command
+    run_cmd = ["uv", "run", "--active", "tools/run.py", module_path, "--dry-run"]
+
+    # Add args if provided (run= is already included in filtered_args)
+    if filtered_args:
+        run_cmd.extend(filtered_args)
     try:
         subprocess.run(run_cmd, capture_output=True, text=True, check=True)
         print("[VALIDATION] ✅ Configuration validation successful")
@@ -176,13 +203,14 @@ Examples:
             new_run_id = arg[4:]
             if run_id is not None and new_run_id != run_id:
                 raise ValueError(f"Conflicting run IDs specified: '{run_id}' and '{new_run_id}'")
+            run_id = new_run_id
         else:
             filtered_args.append(arg)
 
     if run_id is None:
         run_id = auto_run_name()
         logger.info(f"Using auto-generated run ID: {run_id}")
-        logger.info("To specify a run ID, use --run foo or pass run=foo directly as a positional argument")
+        logger.info("To specify a run ID pass run=foo")
 
     filtered_args.append(f"run={run_id}")
 
@@ -211,7 +239,11 @@ Examples:
     assert commit_hash
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
-    _validate_run_tool(args.module_path, filtered_args)
+    _validate_run_tool(args.module_path, run_id, filtered_args)
+
+    # Validate the provided run name
+    if not _validate_sky_cluster_name(run_id):
+        sys.exit(1)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
 
@@ -220,7 +252,6 @@ Examples:
         METTA_RUN_ID=run_id,
         METTA_MODULE_PATH=args.module_path,
         METTA_ARGS=" ".join(filtered_args),
-        METTA_OVERRIDES="",  # empty for backwards compatibility
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
@@ -272,7 +303,7 @@ Examples:
 
     display_job_summary(
         job_name=run_id,
-        cmd=f"{args.module_path} (args: {filtered_args}, overrides: {args.overrides})",
+        cmd=f"{args.module_path} (args: {filtered_args})",
         task_args=[],  # We're showing args differently now
         commit_hash=commit_hash,
         git_ref=args.git_ref,
