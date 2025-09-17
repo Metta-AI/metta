@@ -1,10 +1,11 @@
-from typing import Dict
+from typing import Dict, List, Optional
 
 import torch
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
+from metta.agent.modules.transformer_wrapper import SegmentMemoryRecord
 from metta.common.util.collections import duplicates
 
 
@@ -48,6 +49,8 @@ class Experience:
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
+        self.current_episode_ids = torch.zeros(total_agents, device=self.device, dtype=torch.long)
+        self.segment_memory: list[Optional[Dict[str, Optional[List[torch.Tensor]]]]] = [None] * self.segments
 
         # Minibatch configuration
         self.minibatch_size: int = min(minibatch_size, max_minibatch_size)
@@ -87,7 +90,18 @@ class Experience:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
 
-    def store(self, data_td: TensorDict, env_id: slice) -> None:
+    def get_rollout_context(self, env_id: slice) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        segment_indices = self.ep_indices[env_id].clone()
+        segment_pos = self.ep_lengths[env_id].clone()
+        episode_ids = self.current_episode_ids[env_id].clone()
+        return segment_indices, segment_pos, episode_ids
+
+    def store(
+        self,
+        data_td: TensorDict,
+        env_id: slice,
+        segment_records: list[SegmentMemoryRecord] | None = None,
+    ) -> None:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
@@ -95,12 +109,40 @@ class Experience:
         episode_lengths = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
+        for meta_key in ("_segment_indices", "_segment_pos", "_episode_ids", "_env_indices"):
+            if meta_key in data_td.keys():
+                del data_td[meta_key]
+
         self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
+
+        if segment_records:
+            for record in segment_records:
+                self.segment_memory[record.segment_index] = record.memory
 
         self.ep_lengths[env_id] += 1
 
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
+
+        dones = data_td.get("dones", None)
+        truncs = data_td.get("truncateds", None)
+        if dones is not None or truncs is not None:
+            dones_mask = (
+                dones.reshape(-1).to(torch.bool)
+                if dones is not None
+                else torch.zeros(indices.shape[0], dtype=torch.bool, device=self.device)
+            )
+            trunc_mask = (
+                truncs.reshape(-1).to(torch.bool)
+                if truncs is not None
+                else torch.zeros(indices.shape[0], dtype=torch.bool, device=self.device)
+            )
+            finished = torch.logical_or(dones_mask, trunc_mask)
+            if finished.any():
+                for offset, flag in enumerate(finished.tolist()):
+                    if flag:
+                        env_abs_idx = env_id.start + offset
+                        self.current_episode_ids[env_abs_idx] += 1
 
     def _reset_completed_episodes(self, env_id) -> None:
         """Reset episode tracking for completed episodes."""
@@ -158,6 +200,9 @@ class Experience:
                 stats["actions_std"] = actions.std().item()
 
         return stats
+
+    def get_segment_memory(self, indices: torch.Tensor) -> list[Optional[Dict[str, Optional[List[torch.Tensor]]]]]:
+        return [self.segment_memory[idx] for idx in indices.tolist()]
 
     def give_me_empty_md_td(self) -> TensorDict:
         return TensorDict(

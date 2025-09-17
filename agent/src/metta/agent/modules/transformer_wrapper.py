@@ -3,10 +3,19 @@ Transformer wrapper for recurrent policies in PufferLib/Metta infrastructure.
 Similar to LSTMWrapper but handles transformer-style memory states and full sequences.
 """
 
-from typing import Any, Dict, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+
+
+@dataclass
+class SegmentMemoryRecord:
+    """Snapshot of transformer memory captured at the start of a replay segment."""
+
+    segment_index: int
+    memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
 
 
 class TransformerWrapper(nn.Module):
@@ -40,6 +49,8 @@ class TransformerWrapper(nn.Module):
         self.policy = policy
         self.hidden_size = hidden_size
         self.is_continuous = getattr(policy, "is_continuous", False)
+        self._env_memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
+        self._pending_segment_records: List[SegmentMemoryRecord] = []
 
         for name, param in self.named_parameters():
             if "layer_norm" in name:
@@ -178,6 +189,8 @@ class TransformerWrapper(nn.Module):
             Initial memory state dictionary
         """
         if batch_size is None:
+            self._env_memory.clear()
+            self._pending_segment_records = []
             return {
                 "transformer_memory": None,
                 "hidden": None,
@@ -189,6 +202,8 @@ class TransformerWrapper(nn.Module):
         else:
             memory = None
 
+        self._env_memory.clear()
+        self._pending_segment_records = []
         return {
             "transformer_memory": memory,
             "hidden": None,
@@ -210,3 +225,106 @@ class TransformerWrapper(nn.Module):
             return {k: self._detach_memory(v) for k, v in memory.items()}
         else:
             return memory
+
+    # ------------------------------------------------------------------
+    # Episode memory helpers
+    # ------------------------------------------------------------------
+
+    def consume_segment_memory_records(self) -> list[SegmentMemoryRecord]:
+        """Return and clear pending segment memory records captured during rollout."""
+
+        records = self._pending_segment_records
+        self._pending_segment_records = []
+        return records
+
+    def prepare_memory_batch(
+        self, snapshots: list[Optional[Dict[str, Optional[List[torch.Tensor]]]]], device: torch.device
+    ) -> Optional[Dict[str, List[torch.Tensor]]]:
+        """Convert per-sample memory snapshots into a batch suitable for TransformerModule."""
+
+        if not snapshots or all(snapshot is None for snapshot in snapshots):
+            return None
+
+        transformer = getattr(self.policy, "_transformer", None)
+        if transformer is None or transformer.memory_len <= 0:
+            return None
+
+        n_layers = transformer.n_layers
+        mem_len = transformer.memory_len
+        d_model = transformer.d_model
+        batched_hidden: List[torch.Tensor] = []
+
+        for layer_idx in range(n_layers):
+            layer_entries: List[torch.Tensor] = []
+            for snapshot in snapshots:
+                if snapshot is None or snapshot.get("hidden_states") is None:
+                    layer_entries.append(torch.zeros(mem_len, d_model, device=device))
+                    continue
+                layer_tensor = snapshot["hidden_states"][layer_idx]
+                if layer_tensor.numel() == 0:
+                    layer_entries.append(torch.zeros(mem_len, d_model, device=device))
+                    continue
+                layer_tensor = layer_tensor.to(device=device)
+                if layer_tensor.size(0) < mem_len:
+                    pad = torch.zeros(mem_len - layer_tensor.size(0), d_model, device=device, dtype=layer_tensor.dtype)
+                    layer_tensor = torch.cat([pad, layer_tensor], dim=0)
+                layer_entries.append(layer_tensor)
+            batched_hidden.append(torch.stack(layer_entries, dim=1))
+
+        return {"hidden_states": batched_hidden}
+
+    def _build_batch_memory_from_env(
+        self, env_indices: torch.Tensor, device: torch.device
+    ) -> Optional[Dict[str, List[torch.Tensor]]]:
+        """Assemble current env memories into a TransformerModule-compatible batch."""
+
+        if not self._env_memory or env_indices.numel() == 0:
+            return None
+
+        snapshots: List[Optional[Dict[str, Optional[List[torch.Tensor]]]]] = []
+        for env_idx in env_indices.tolist():
+            snapshots.append(self._env_memory.get(env_idx))
+
+        return self.prepare_memory_batch(snapshots, device)
+
+    def _update_env_memory(self, env_indices: torch.Tensor, new_memory: Dict[str, List[torch.Tensor]]) -> None:
+        """Store updated transformer memory per environment after a forward pass."""
+
+        if new_memory is None or "hidden_states" not in new_memory:
+            return
+
+        for batch_pos, env_idx in enumerate(env_indices.tolist()):
+            if new_memory["hidden_states"] is None:
+                self._env_memory[env_idx] = None
+                continue
+            layer_snapshots: List[torch.Tensor] = []
+            for layer_hidden in new_memory["hidden_states"]:
+                layer_snapshots.append(layer_hidden[:, batch_pos].detach().cpu())
+            self._env_memory[env_idx] = {"hidden_states": layer_snapshots}
+
+    def _record_segment_memory(
+        self,
+        env_indices: torch.Tensor,
+        segment_indices: torch.Tensor,
+        segment_positions: torch.Tensor,
+        memory_snapshot: Optional[Dict[str, List[torch.Tensor]]],
+    ) -> None:
+        """Capture memory snapshots for environments beginning a new replay segment."""
+
+        if segment_indices.numel() == 0 or segment_positions.numel() == 0:
+            return
+
+        if memory_snapshot is None or memory_snapshot.get("hidden_states") is None:
+            snapshots = [None for _ in range(segment_indices.numel())]
+        else:
+            snapshots = [
+                {"hidden_states": [layer[:, idx].detach().cpu() for layer in memory_snapshot["hidden_states"]]}
+                for idx in range(segment_indices.numel())
+            ]
+
+        for batch_pos, segment_idx in enumerate(segment_indices.tolist()):
+            if segment_positions[batch_pos].item() != 0:
+                continue
+            self._pending_segment_records.append(
+                SegmentMemoryRecord(segment_index=segment_idx, memory=snapshots[batch_pos])
+            )

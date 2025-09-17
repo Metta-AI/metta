@@ -1,4 +1,4 @@
-from typing import Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -62,7 +62,8 @@ class PPO(BaseLoss):
             self.policy(td)
 
         # Store experience
-        self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
+        segment_records = self.policy.consume_segment_memory_records()
+        self.replay.store(data_td=td, env_id=trainer_state.training_env_id, segment_records=segment_records)
 
         return
 
@@ -83,7 +84,7 @@ class PPO(BaseLoss):
             self.advantages, self.anneal_beta = self._on_first_mb(trainer_state)
 
         # Then sample from the buffer (this happens at every minibatch)
-        minibatch, indices, prio_weights = self._sample_minibatch(
+        minibatch, indices, prio_weights, memory_snapshots = self._sample_minibatch(
             advantages=self.advantages,
             prio_alpha=self.loss_cfg.prioritized_experience_replay.prio_alpha,
             prio_beta=self.anneal_beta,
@@ -94,7 +95,13 @@ class PPO(BaseLoss):
 
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-        policy_td = self.policy(policy_td, action=minibatch["actions"])
+        policy_state = None
+        if memory_snapshots:
+            policy_state = self.policy.prepare_memory_batch(memory_snapshots, device=self.device)
+        if policy_state is not None:
+            policy_td = self.policy(policy_td, action=minibatch["actions"], state=policy_state)
+        else:
+            policy_td = self.policy(policy_td, action=minibatch["actions"])
         shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
 
         # Finally, calculate the loss!
@@ -265,7 +272,7 @@ class PPO(BaseLoss):
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
-    ) -> tuple[TensorDict, Tensor, Tensor]:
+    ) -> tuple[TensorDict, Tensor, Tensor, list[Optional[Dict[str, Optional[List[torch.Tensor]]]]]]:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
         adv_magnitude = advantages.abs().sum(dim=1)
@@ -281,7 +288,8 @@ class PPO(BaseLoss):
             minibatch["advantages"] = advantages[idx]
             minibatch["returns"] = advantages[idx] + minibatch["values"]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
-        return minibatch.clone(), idx, prio_weights
+        memory_snapshots = self.replay.get_segment_memory(idx)
+        return minibatch.clone(), idx, prio_weights, memory_snapshots
 
 
 def compute_ppo_losses(

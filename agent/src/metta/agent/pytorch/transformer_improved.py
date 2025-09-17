@@ -183,6 +183,10 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
         if state is None:
             state = {"transformer_memory": None, "hidden": None}
 
+        env_indices = td.get("_env_indices", None)
+        if env_indices is not None:
+            env_indices = env_indices.to(torch.long)
+
         B = observations.shape[0]
         TT = observations.shape[1] if observations.dim() == 4 else 1
 
@@ -191,6 +195,12 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
 
         self.set_tensordict_fields(td, observations)
 
+        if TT == 1 and env_indices is not None and state.get("transformer_memory") is None:
+            batch_memory = self._build_batch_memory_from_env(env_indices, observations.device)
+            if batch_memory is not None:
+                state["transformer_memory"] = batch_memory
+
+        memory_before = state.get("transformer_memory")
         hidden = self.policy.encode_observations(observations, state)
 
         if TT > 1:
@@ -200,6 +210,14 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
 
         hidden, memory = self.policy.transformer(hidden, None, state.get("transformer_memory"))
         state["transformer_memory"] = memory
+
+        if TT == 1 and env_indices is not None:
+            self._update_env_memory(env_indices, memory)
+            segment_indices = td.get("_segment_indices", None)
+            segment_pos = td.get("_segment_pos", None)
+            if segment_indices is not None and segment_pos is not None:
+                self._record_segment_memory(env_indices, segment_indices, segment_pos, memory_before)
+            self._clear_finished_envs(env_indices, td)
 
         if TT > 1:
             hidden = hidden.transpose(0, 1).reshape(B * TT, -1)
@@ -215,3 +233,31 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
             td = self.forward_training(td, action, logits, values)
 
         return td
+
+    def _clear_finished_envs(self, env_indices: torch.Tensor, td: TensorDict) -> None:
+        if env_indices is None:
+            return
+
+        dones = td.get("dones", None)
+        truncs = td.get("truncateds", None)
+
+        if dones is None and truncs is None:
+            return
+
+        if dones is None:
+            done_mask = torch.zeros(env_indices.shape[0], dtype=torch.bool, device=td.device)
+        else:
+            done_mask = dones.reshape(-1).to(torch.bool)
+
+        if truncs is None:
+            trunc_mask = torch.zeros(env_indices.shape[0], dtype=torch.bool, device=td.device)
+        else:
+            trunc_mask = truncs.reshape(-1).to(torch.bool)
+
+        finished = torch.logical_or(done_mask, trunc_mask)
+        if not finished.any():
+            return
+
+        for env_idx, flag in zip(env_indices.tolist(), finished.tolist(), strict=False):
+            if flag:
+                self._env_memory.pop(env_idx, None)

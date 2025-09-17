@@ -349,6 +349,17 @@ def train(
                         td["rewards"] = r
                         td["dones"] = d.float()
                         td["truncateds"] = t.float()
+                        segment_indices, segment_pos, episode_ids = experience.get_rollout_context(training_env_id)
+                        td.set("_segment_indices", segment_indices.to(td.device))
+                        td.set("_segment_pos", segment_pos.to(td.device))
+                        td.set("_episode_ids", episode_ids.to(td.device))
+                        env_indices = torch.arange(
+                            training_env_id.start,
+                            training_env_id.stop,
+                            device=td.device,
+                            dtype=torch.long,
+                        )
+                        td.set("_env_indices", env_indices)
                         td.set(
                             "training_env_id_start",
                             torch.full(
@@ -374,7 +385,8 @@ def train(
                             with torch.no_grad():
                                 policy(td)
                             # Store experience since no loss did it
-                            experience.store(data_td=td, env_id=training_env_id)
+                            records = policy.consume_segment_memory_records()
+                            experience.store(data_td=td, env_id=training_env_id, segment_records=records)
 
                         send_observation(vecenv, td["actions"], dtype_actions, timer)
 
