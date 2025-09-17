@@ -72,18 +72,6 @@ def get_num_revert_commits(lookback_days: int = 7, branch: str = "main") -> int:
     return _get_num_commits_with_phrase("revert", lookback_days=lookback_days, branch=branch)
 
 
-@metric_goal(
-    metric_key="commits.count.fix",
-    aggregate="sum",
-    target=15.0,
-    comparison="<",
-    window="7d",
-    description="Keep the rolling 7-day sum of fix commits below 15 per week.",
-)
-def get_num_fix_commits(lookback_days: int = 7, branch: str = "main") -> int:
-    return _get_num_commits_with_phrase("fix", lookback_days=lookback_days, branch=branch)
-
-
 def get_latest_workflow_run(branch: str = "main", workflow_filename: str = "checks.yml") -> dict[str, Any] | None:
     params = {"branch": branch, "status": "completed", "per_page": 1}
     with _github_client() as client:
