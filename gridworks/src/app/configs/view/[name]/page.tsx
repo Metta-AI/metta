@@ -3,22 +3,22 @@ import Link from "next/link";
 import { JsonAsYaml } from "@/components/JsonAsYaml";
 import { configsRoute } from "@/lib/routes";
 
-import { getMettagridCfgFile } from "../../../lib/api";
+import { getConfigMaker } from "../../../../lib/api";
 import { MapSection } from "./MapSection";
 import { RunToolSection } from "./RunToolSection";
 
-interface EnvViewPageProps {
-  searchParams: Promise<{ path?: string }>;
+interface ConfigViewPage {
+  params: Promise<{ name: string }>;
 }
 
-export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
-  const { path } = await searchParams;
+export default async function ConfigViewPage({ params }: ConfigViewPage) {
+  const { name } = await params;
 
-  if (!path) {
+  if (!name) {
     throw new Error("No config name provided");
   }
 
-  const cfg = await getMettagridCfgFile(path);
+  const cfg = await getConfigMaker(name);
 
   return (
     <div className="p-4">

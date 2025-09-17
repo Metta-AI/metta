@@ -3,9 +3,9 @@ import { FC, useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { StorableMapViewer } from "@/components/StorableMapViewer";
-import { getMettagridCfgMap, MettagridCfgFile, StorableMap } from "@/lib/api";
+import { ConfigMaker, getConfigMap, StorableMap } from "@/lib/api";
 
-export const MapSection: FC<{ cfg: MettagridCfgFile }> = ({ cfg }) => {
+export const MapSection: FC<{ cfg: ConfigMaker }> = ({ cfg }) => {
   const [id, setId] = useState(0);
 
   type MapState =
@@ -24,7 +24,7 @@ export const MapSection: FC<{ cfg: MettagridCfgFile }> = ({ cfg }) => {
   const [map, setMap] = useState<MapState>({ type: "loading" });
   useEffect(() => {
     setMap({ type: "loading" });
-    getMettagridCfgMap(cfg.metadata.path)
+    getConfigMap(cfg.metadata.path)
       .then((map) => setMap({ type: "map", map }))
       .catch((e) => {
         console.error(e);

@@ -2,9 +2,9 @@
 import { FC } from "react";
 
 import { useCopyTooltip } from "@/hooks/useCopyTooltip";
-import { MettagridCfgFile } from "@/lib/api";
+import { ConfigMaker } from "@/lib/api";
 
-export const RunToolSection: FC<{ cfg: MettagridCfgFile }> = ({ cfg }) => {
+export const RunToolSection: FC<{ cfg: ConfigMaker }> = ({ cfg }) => {
   const text = `./tools/run.py ${cfg.metadata.path}`;
   const { onClick, floating, render } = useCopyTooltip(text);
 

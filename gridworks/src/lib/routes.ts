@@ -2,8 +2,8 @@ export function configsRoute() {
   return "/configs";
 }
 
-export function viewConfigRoute(path: string) {
-  return `/configs/view?path=${path}`;
+export function viewConfigRoute(name: string) {
+  return `/configs/view/${name}`;
 }
 
 export function mapEditorRoute() {

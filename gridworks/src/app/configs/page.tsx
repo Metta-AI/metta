@@ -2,10 +2,10 @@ import Link from "next/link";
 
 import { viewConfigRoute } from "@/lib/routes";
 
-import { listMettagridCfgsMetadata } from "../../lib/api";
+import { listConfigMakers } from "../../lib/api";
 
 export default async function EnvsPage() {
-  const cfgs = await listMettagridCfgsMetadata();
+  const cfgs = await listConfigMakers();
 
   return (
     <div className="p-4">

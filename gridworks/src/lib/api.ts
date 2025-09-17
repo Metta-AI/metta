@@ -86,41 +86,39 @@ export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
   );
 }
 
-const mettagridCfgFileMetadataSchema = z.object({
+const configMakerMetadataSchema = z.object({
   absolute_path: z.string(),
   path: z.string(),
   kind: z.string(),
   line: z.number(),
 });
 
-const mettagridCfgFileSchema = z.object({
-  metadata: mettagridCfgFileMetadataSchema,
+const configMakerSchema = z.object({
+  metadata: configMakerMetadataSchema,
   config: z.unknown(),
 });
 
-export type MettagridCfgFile = z.infer<typeof mettagridCfgFileSchema>;
+export type ConfigMaker = z.infer<typeof configMakerSchema>;
 
 const mettagridCfgsMetadataSchema = z.record(
   z.string(),
-  z.array(mettagridCfgFileMetadataSchema).optional()
+  z.array(configMakerMetadataSchema).optional()
 );
 
 type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
 
-export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata> {
+export async function listConfigMakers(): Promise<MettagridCfgsMetadata> {
   return await fetchApi(`${API_URL}/configs`, mettagridCfgsMetadataSchema);
 }
 
-export async function getMettagridCfgFile(
-  path: string
-): Promise<MettagridCfgFile> {
+export async function getConfigMaker(path: string): Promise<ConfigMaker> {
   return await fetchApi(
     `${API_URL}/configs/get?path=${encodeURIComponent(path)}`,
-    mettagridCfgFileSchema
+    configMakerSchema
   );
 }
 
-export async function getMettagridCfgMap(path: string): Promise<StorableMap> {
+export async function getConfigMap(path: string): Promise<StorableMap> {
   return await fetchApi(
     `${API_URL}/configs/get-map?path=${encodeURIComponent(path)}`,
     storableMapSchema
