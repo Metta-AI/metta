@@ -207,6 +207,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         _stats->incr("objects." + cell);
         nano_assembler->set_event_manager(_event_manager.get());
         nano_assembler->stats.set_environment(this);
+        nano_assembler->set_grid(_grid.get());
         continue;
       }
 
