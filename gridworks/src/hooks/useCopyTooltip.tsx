@@ -34,7 +34,9 @@ export function useCopyTooltip(text: string) {
   // Clean up any pending timers on unmount
   useEffect(
     () => () => {
-      hideTimerRef.current && clearTimeout(hideTimerRef.current);
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
     },
     []
   );

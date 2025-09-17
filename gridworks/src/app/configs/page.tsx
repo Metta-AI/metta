@@ -34,3 +34,5 @@ export default async function EnvsPage() {
     </div>
   );
 }
+
+export const dynamic = "force-dynamic";
