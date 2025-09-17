@@ -24,7 +24,6 @@ def _init_process_group() -> bool:
     world_size_str = os.environ.get("WORLD_SIZE") or os.environ.get("NUM_NODES") or "1"
     world_size = int(world_size_str) if world_size_str.strip() else 1
     if world_size <= 1:
-        logger.error("attempted _init_process_group() when world_size <=1!")
         return False
     if torch.distributed.is_initialized():
         logger.error("attempted _init_process_group() when already initialized!")
@@ -76,15 +75,15 @@ def setup_torch_distributed(device: str) -> TorchDistributedConfig:
     distributed = False
 
     if "LOCAL_RANK" in os.environ and device.startswith("cuda"):
-        _init_process_group()
+        if _init_process_group():
+            logger.info(f"Initializing NCCL distributed training on {device}")
 
-        torch.cuda.set_device(device)
-        distributed = True
-        local_rank = torch.distributed.get_rank()
-        world_size = torch.distributed.get_world_size()
-        rank = torch.distributed.get_rank()
-        master = rank == 0
-        logger.info(f"Initialized NCCL distributed training on {device}")
+            torch.cuda.set_device(device)
+            distributed = True
+            local_rank = torch.distributed.get_rank()
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+            master = rank == 0
 
     return TorchDistributedConfig(
         device=device,
