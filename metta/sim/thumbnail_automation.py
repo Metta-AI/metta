@@ -89,14 +89,14 @@ def maybe_generate_and_upload_thumbnail(replay_data: dict, episode_id: str) -> t
 
     try:
         # Generate thumbnail using core library
-        logger.info(f"Generating thumbnail for episode {episode_id}")
+        logger.debug(f"Generating thumbnail for episode {episode_id}")
         thumbnail_data = generate_thumbnail_from_replay(replay_data)
 
         # Upload using project file utilities
         success, thumbnail_url = upload_thumbnail_to_s3(thumbnail_data, episode_id)
 
         if success:
-            logger.info(f"Successfully generated and uploaded thumbnail for episode {episode_id}")
+            logger.debug(f"Successfully generated and uploaded thumbnail for episode {episode_id}")
         else:
             logger.error(f"Thumbnail generation succeeded but upload failed for episode {episode_id}")
 
