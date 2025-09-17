@@ -15,7 +15,7 @@ from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.wandb_context import WandbRun
-from metta.core.distributed import TorchDistributedConfig, disable_nccl_watchdog, enable_nccl_watchdog
+from metta.core.distributed import TorchDistributedConfig, enable_nccl_watchdog
 from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
@@ -459,7 +459,8 @@ def train(
 
             # Disable the NCCL watchdog until the next agent_step for evaluations
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
-                disable_nccl_watchdog()
+                # disable_nccl_watchdog()
+                pass
 
             # Only master needs to do bookkeeping
             if not torch_dist_cfg.is_master:
@@ -507,6 +508,7 @@ def train(
                 stats_time=timer.get_last_elapsed("_process_stats"),
                 run_name=run,
             )
+
             if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
                 # Extract the actual agent from distributed wrapper if needed
                 agent_to_save = policy.module if torch.distributed.is_initialized() else policy
