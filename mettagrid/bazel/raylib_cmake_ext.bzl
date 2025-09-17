@@ -9,9 +9,9 @@ def _raylib_cc_repo_impl(ctx):
     # Create a workspace-local repository that defines a cmake_external target
     # building a shared Raylib library from the downloaded sources.
     build = []
-    build.append('load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake_external")')
+    build.append('load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")')
     build.append("")
-    build.append("cmake_external(")
+    build.append("cmake(")
     build.append("    name = \"raylib\",")
     build.append("    lib_source = \"@raylib_src//:all\",")
     build.append("    cache_entries = {")
@@ -20,8 +20,7 @@ def _raylib_cc_repo_impl(ctx):
     build.append("        \"RAYLIB_BUILD_EXAMPLES\": \"OFF\",")
     build.append("        \"RAYLIB_BUILD_TESTING\": \"OFF\",")
     build.append("    },")
-    build.append("    # Export the shared library target under this repo")
-    build.append("    out_shared_libs = [\"raylib\"],")
+    # The cmake macro will expose a cc_library target named 'raylib'.
     build.append(")")
     build.append("")
 
@@ -65,4 +64,3 @@ raylib_cmake_ext = module_extension(
         }),
     },
 )
-
