@@ -36,24 +36,23 @@ def key_and_version(uri: str) -> tuple[str, int]:
     if parsed.scheme == "file" and parsed.local_path is not None:
         path = parsed.local_path
 
-        if path.suffix == ".pt" and is_valid_checkpoint_filename(path.name):
-            return parse_checkpoint_filename(path.name)[:2]
+        if path.suffix == ".pt":
+            return _extract_run_and_epoch(path)
 
         if path.is_dir():
             checkpoint_file = _find_latest_checkpoint_in_dir(path)
-            if checkpoint_file and is_valid_checkpoint_filename(checkpoint_file.name):
-                return parse_checkpoint_filename(checkpoint_file.name)[:2]
             if checkpoint_file:
-                return checkpoint_file.stem, 0
-
+                return _extract_run_and_epoch(checkpoint_file)
         return (path.stem if path.suffix else path.name, 0)
 
     if parsed.scheme == "s3" and parsed.key:
-        filename = Path(parsed.key).name
-        if filename.endswith(".pt") and is_valid_checkpoint_filename(filename):
-            return parse_checkpoint_filename(filename)[:2]
-        path = Path(filename)
-        return (path.stem if path.suffix else path.name, 0)
+        key_path = Path(parsed.key)
+        if key_path.suffix == ".pt":
+            try:
+                return _extract_run_and_epoch(key_path)
+            except ValueError:
+                pass
+        return (key_path.stem if key_path.suffix else key_path.name, 0)
 
     if parsed.scheme == "mock":
         return (parsed.path or "mock"), 0
@@ -61,40 +60,25 @@ def key_and_version(uri: str) -> tuple[str, int]:
     return "unknown", 0
 
 
-def is_valid_checkpoint_filename(filename: str) -> bool:
-    """Check if filename matches expected checkpoint format."""
-    if not filename.endswith(".pt"):
-        return False
-    parts = filename[:-3].split("__")
-    if len(parts) < 2:
-        return False
-    return parts[1].startswith("e") and parts[1][1:].isdigit()
+def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
+    """Infer run name and epoch from a checkpoint path."""
 
+    stem = path.stem
+    # Determine run name based on directory structure (…/<run>/checkpoints/v{epoch}.pt)
+    if path.parent.name == "checkpoints":
+        run_name = path.parent.parent.name
+    else:
+        run_name = path.parent.name
 
-def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
-    """Parse checkpoint metadata from filename.
+    if stem.startswith("v") and stem[1:].isdigit():
+        return run_name, int(stem[1:])
 
-    Returns (run_name, epoch, agent_step, total_time, score). The latter three
-    values default to zero when not present."""
-    if not is_valid_checkpoint_filename(filename):
-        raise ValueError(f"Invalid checkpoint filename format: {filename}")
+    # Legacy fallback: run__e{epoch}[__…]
+    parts = stem.split("__")
+    if len(parts) >= 2 and parts[1].startswith("e") and parts[1][1:].isdigit():
+        return parts[0], int(parts[1][1:])
 
-    parts = filename[:-3].split("__")
-    run_name = parts[0]
-    epoch = int(parts[1][1:])
-
-    agent_step = 0
-    total_time = 0
-    score = 0.0
-
-    if len(parts) > 2 and parts[2].startswith("s") and parts[2][1:].isdigit():
-        agent_step = int(parts[2][1:])
-    if len(parts) > 3 and parts[3].startswith("t") and parts[3][1:].isdigit():
-        total_time = int(parts[3][1:])
-    if len(parts) > 4 and parts[4].startswith("sc") and parts[4][2:].isdigit():
-        score = int(parts[4][2:]) / 10000.0
-
-    return run_name, epoch, agent_step, total_time, score
+    raise ValueError(f"Cannot determine run/epoch from checkpoint path: {path}")
 
 
 def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
@@ -107,16 +91,12 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
             search_dirs.append(checkpoints_subdir)
 
     for search_dir in search_dirs:
-        checkpoint_files = list(search_dir.glob("*.pt"))
+        checkpoint_files = [ckpt for ckpt in search_dir.glob("*.pt") if ckpt.stem]
         if checkpoint_files:
-            # Only return files with valid checkpoint format, sorted by epoch
-            valid_checkpoints = [
-                (ckpt, parse_checkpoint_filename(ckpt.name)[1])
-                for ckpt in checkpoint_files
-                if is_valid_checkpoint_filename(ckpt.name)
-            ]
-            if valid_checkpoints:
-                return max(valid_checkpoints, key=lambda x: x[1])[0]
+            try:
+                return max(checkpoint_files, key=lambda p: _extract_run_and_epoch(p)[1])
+            except ValueError:
+                continue
     return None
 
 
@@ -192,29 +172,16 @@ class CheckpointManager:
     def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""
         normalized_uri = CheckpointManager.normalize_uri(uri)
-        run_name, epoch = key_and_version(normalized_uri)  # Use normalized URI for metadata extraction
-        metadata: PolicyMetadata = {"run_name": run_name, "epoch": epoch, "uri": normalized_uri, "original_uri": uri}
-
-        # Add extra metadata for file:// URIs with valid checkpoint filenames
-        parsed = ParsedURI.parse(normalized_uri)
-        if parsed.scheme == "file" and parsed.local_path is not None:
-            path = parsed.local_path
-            if path.is_file() and is_valid_checkpoint_filename(path.name):
-                _, _, agent_step, total_time, score = parse_checkpoint_filename(path.name)
-                metadata["agent_step"] = agent_step
-                metadata["total_time"] = total_time
-                metadata["score"] = score
-        if parsed.scheme == "s3" and parsed.key:
-            filename = Path(parsed.key).name
-            if filename.endswith(".pt") and is_valid_checkpoint_filename(filename):
-                _, _, agent_step, total_time, score = parse_checkpoint_filename(filename)
-                metadata["agent_step"] = agent_step
-                metadata["total_time"] = total_time
-                metadata["score"] = score
-        return metadata
+        run_name, epoch = key_and_version(normalized_uri)
+        return {
+            "run_name": run_name,
+            "epoch": epoch,
+            "uri": normalized_uri,
+            "original_uri": uri,
+        }
 
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
-        pattern = f"{self.run_name}__e{epoch}.pt" if epoch is not None else f"{self.run_name}__e*.pt"
+        pattern = f"v{epoch}.pt" if epoch is not None else "v*.pt"
         return list(self.checkpoint_dir.glob(pattern))
 
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
@@ -224,7 +191,7 @@ class CheckpointManager:
             raise FileNotFoundError(f"No checkpoints found for {self.run_name} epoch={epoch}")
 
         # Select file: first if epoch specified, latest otherwise
-        agent_file = files[0] if epoch else max(files, key=lambda p: parse_checkpoint_filename(p.name)[1])
+        agent_file = files[0] if epoch else max(files, key=lambda p: _extract_run_and_epoch(p)[1])
         cache_key = str(agent_file)
 
         # Check cache
@@ -308,7 +275,7 @@ class CheckpointManager:
         checkpoint_files = self._find_checkpoint_files()
         if not checkpoint_files:
             return []
-        checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[1], reverse=True)
+        checkpoint_files.sort(key=lambda f: _extract_run_and_epoch(f)[1], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
         if self._remote_prefix:
             return [f"{self._remote_prefix}/{path.name}" for path in selected_files]
@@ -318,7 +285,7 @@ class CheckpointManager:
         agent_files = self._find_checkpoint_files()
         if len(agent_files) <= keep_last_n:
             return 0
-        agent_files.sort(key=lambda p: parse_checkpoint_filename(p.name)[1])
+        agent_files.sort(key=lambda p: _extract_run_and_epoch(p)[1])
         files_to_remove = agent_files if keep_last_n == 0 else agent_files[:-keep_last_n]
         for agent_file in files_to_remove:
             agent_file.unlink()

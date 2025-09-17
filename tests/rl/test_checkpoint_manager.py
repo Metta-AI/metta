@@ -7,7 +7,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.mocks import MockAgent
-from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import CheckpointManager
 
 
 @pytest.fixture
@@ -43,17 +43,14 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        expected_filename = "test_run__e5.pt"
+        expected_filename = "v5.pt"
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
 
-        parsed = parse_checkpoint_filename(expected_filename)
-        assert parsed[0] == "test_run"  # run name
-        assert parsed[1] == 5  # epoch
-        assert parsed[2] == 0
-        assert parsed[3] == 0
-        assert parsed[4] == 0.0
+        metadata = CheckpointManager.get_policy_metadata(agent_file.as_uri())
+        assert metadata["run_name"] == "test_run"
+        assert metadata["epoch"] == 5
 
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
         assert loaded_agent is not None
@@ -67,7 +64,7 @@ class TestBasicSaveLoad:
         metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
         manager = CheckpointManager(run="test_run", run_dir=temp_run_dir, remote_prefix="s3://bucket/checkpoints")
 
-        expected_filename = "test_run__e3.pt"
+        expected_filename = "v3.pt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
         with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
@@ -96,7 +93,7 @@ class TestBasicSaveLoad:
         # Test checkpoint selection
         latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1)
         assert len(latest_checkpoints) == 1
-        assert latest_checkpoints[0].endswith("test_run__e10.pt")
+        assert latest_checkpoints[0].endswith("v10.pt")
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent):
         # Save agent checkpoint
@@ -114,6 +111,15 @@ class TestBasicSaveLoad:
         assert loaded_trainer_state["agent_step"] == 1000
         assert loaded_trainer_state["stopwatch_state"]["elapsed_time"] == 123.45
         assert "optimizer_state" in loaded_trainer_state
+
+    def test_checkpoint_existence(self, checkpoint_manager, mock_agent):
+        # Should raise FileNotFoundError when no checkpoints exist
+        with pytest.raises(FileNotFoundError):
+            checkpoint_manager.load_agent()
+
+        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100, "total_time": 30})
+        loaded = checkpoint_manager.load_agent()
+        assert loaded is not None
 
 
 class TestCaching:
@@ -187,7 +193,7 @@ class TestCleanup:
             )
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        checkpoint_files = list(checkpoint_dir.glob("test_run__e*.pt"))
+        checkpoint_files = list(checkpoint_dir.glob("v*.pt"))
         assert len(checkpoint_files) == 10
 
         # Clean up, keeping only 5
@@ -195,10 +201,10 @@ class TestCleanup:
         assert deleted_count == 5
 
         # Verify only 5 remain (latest ones: epochs 6-10)
-        remaining_files = list(checkpoint_dir.glob("test_run__e*.pt"))
+        remaining_files = list(checkpoint_dir.glob("v*.pt"))
         assert len(remaining_files) == 5
 
-        remaining_epochs = sorted([parse_checkpoint_filename(f.name)[1] for f in remaining_files])
+        remaining_epochs = sorted(int(f.stem.lstrip("v")) for f in remaining_files)
         assert remaining_epochs == [6, 7, 8, 9, 10]
 
     def test_cleanup_with_trainer_state(self, checkpoint_manager, mock_agent):
@@ -208,56 +214,14 @@ class TestCleanup:
         checkpoint_manager.save_trainer_state(mock_optimizer, epoch=1, agent_step=1000)
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        assert (checkpoint_dir / "test_run__e1.pt").exists()
+        assert (checkpoint_dir / "v1.pt").exists()
         assert (checkpoint_dir / "trainer_state.pt").exists()
 
         # Cleanup should remove both
         deleted_count = checkpoint_manager.cleanup_old_checkpoints(keep_last_n=0)
         assert deleted_count == 1
-        assert not (checkpoint_dir / "test_run__e1.pt").exists()
+        assert not (checkpoint_dir / "v1.pt").exists()
         assert not (checkpoint_dir / "trainer_state.pt").exists()
-
-
-class TestUtilities:
-    def test_parse_checkpoint_filename_valid(self):
-        filename = "my_run__e42.pt"
-        parsed = parse_checkpoint_filename(filename)
-        assert parsed == ("my_run", 42, 0, 0, 0.0)
-
-        # Test edge cases
-        filename = "run__e0.pt"
-        parsed = parse_checkpoint_filename(filename)
-        assert parsed == ("run", 0, 0, 0, 0.0)
-
-        # Legacy filename with additional metadata should still parse
-        legacy_filename = "run__e999__s999999__t86400__sc9999.pt"
-        parsed = parse_checkpoint_filename(legacy_filename)
-        assert parsed == ("run", 999, 999999, 86400, 0.9999)
-
-    def test_parse_checkpoint_filename_invalid(self):
-        invalid_filenames = [
-            "invalid.pt",
-            "run_e5.pt",  # Wrong separators
-            "run__e.pt",  # Missing epoch value
-            "run__epoch5.pt",  # Wrong prefix
-            "run__e5.txt",  # Wrong extension
-        ]
-
-        for invalid_filename in invalid_filenames:
-            with pytest.raises(ValueError):
-                parse_checkpoint_filename(invalid_filename)
-
-    def test_checkpoint_existence(self, checkpoint_manager, mock_agent):
-        # Should raise FileNotFoundError initially
-        with pytest.raises(FileNotFoundError):
-            checkpoint_manager.load_agent()
-
-        # Save a checkpoint
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100, "total_time": 30})
-
-        # Should load successfully now
-        loaded = checkpoint_manager.load_agent()
-        assert loaded is not None
 
 
 class TestErrorHandling:
