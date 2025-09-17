@@ -30,7 +30,7 @@ Use MettaScope through the recipe system:
 uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_run/checkpoints
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/my_run_name__e10__s5000__t300__sc8000.pt
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/my_run_name/my_run_name:v10.pt
 ```
 
 ### Standalone Server
@@ -82,7 +82,7 @@ uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train
 ### Policy URI Formats
 
 - `file://./train_dir/run_name/checkpoints` - Local checkpoints
-- `s3://bucket/path/<run_id>__e10__s5000__t300__sc8000.pt` - S3 checkpoints
+- `s3://bucket/path/<run_id>/checkpoints/<run_id>:v10.pt` - S3 checkpoints
 
 ## Running Metta in VSCode/Cursor
 

@@ -43,7 +43,7 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        expected_filename = "v5.pt"
+        expected_filename = "test_run:v5.pt"
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
@@ -64,7 +64,7 @@ class TestBasicSaveLoad:
         metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
         manager = CheckpointManager(run="test_run", run_dir=temp_run_dir, remote_prefix="s3://bucket/checkpoints")
 
-        expected_filename = "v3.pt"
+        expected_filename = "test_run:v3.pt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
         with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
@@ -93,7 +93,7 @@ class TestBasicSaveLoad:
         # Test checkpoint selection
         latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1)
         assert len(latest_checkpoints) == 1
-        assert latest_checkpoints[0].endswith("v10.pt")
+        assert latest_checkpoints[0].endswith("test_run:v10.pt")
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent):
         # Save agent checkpoint
@@ -193,7 +193,7 @@ class TestCleanup:
             )
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        checkpoint_files = list(checkpoint_dir.glob("v*.pt"))
+        checkpoint_files = [p for p in checkpoint_dir.glob("*.pt") if ":v" in p.stem]
         assert len(checkpoint_files) == 10
 
         # Clean up, keeping only 5
@@ -201,10 +201,10 @@ class TestCleanup:
         assert deleted_count == 5
 
         # Verify only 5 remain (latest ones: epochs 6-10)
-        remaining_files = list(checkpoint_dir.glob("v*.pt"))
+        remaining_files = [p for p in checkpoint_dir.glob("*.pt") if ":v" in p.stem]
         assert len(remaining_files) == 5
 
-        remaining_epochs = sorted(int(f.stem.lstrip("v")) for f in remaining_files)
+        remaining_epochs = sorted(int(f.stem.split(":v")[1]) for f in remaining_files)
         assert remaining_epochs == [6, 7, 8, 9, 10]
 
     def test_cleanup_with_trainer_state(self, checkpoint_manager, mock_agent):
@@ -214,13 +214,13 @@ class TestCleanup:
         checkpoint_manager.save_trainer_state(mock_optimizer, epoch=1, agent_step=1000)
 
         checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        assert (checkpoint_dir / "v1.pt").exists()
+        assert (checkpoint_dir / "test_run:v1.pt").exists()
         assert (checkpoint_dir / "trainer_state.pt").exists()
 
         # Cleanup should remove both
         deleted_count = checkpoint_manager.cleanup_old_checkpoints(keep_last_n=0)
         assert deleted_count == 1
-        assert not (checkpoint_dir / "v1.pt").exists()
+        assert not (checkpoint_dir / "test_run:v1.pt").exists()
         assert not (checkpoint_dir / "trainer_state.pt").exists()
 
 

@@ -204,7 +204,7 @@ All tools are now run through `./tools/run.py` with recipe functions:
    uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
 
    # Using a remote S3 checkpoint
-   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/my-training-run__e12__s6000__t360__sc9100.pt
+   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
    ```
 
 3. **Analysis**: Analyze evaluation results
@@ -221,7 +221,7 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 5. **View Replays**: Watch recorded gameplay
    ```bash
-   uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1__e10__s5000__t300__sc8000.pt
+   uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
    ```
 
 #### Visualization Tools
@@ -295,7 +295,7 @@ uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpo
 uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1__e10__s5000__t300__sc8000.pt
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 #### Configuration System
@@ -414,7 +414,7 @@ recipe files:
 - Validate policy types with runtime checking
 - Use Union types for policies: `Union[MettaAgent, DistributedMettaAgent]`
 - Ensure proper type safety for policy handling throughout the system
-- Policy URIs follow format: `file://path/to/checkpoint` or `s3://bucket/path/run__e10__s5000__t300__sc8000.pt`
+- Policy URIs follow format: `file://path/to/run/checkpoints/v{epoch}.pt` or `s3://bucket/path/run/checkpoints/v{epoch}.pt`
 
 #### Device Management
 

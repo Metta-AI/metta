@@ -67,12 +67,16 @@ def create_test_checkpoint(temp_dir: Path, filename: str, policy=None) -> Path:
     return checkpoint_path
 
 
+def checkpoint_filename(run: str, epoch: int) -> str:
+    return f"{run}:v{epoch}.pt"
+
+
 class TestFileURIHandling:
     """Test file:// URI format handling."""
 
     def test_file_uri_single_checkpoint(self, temp_dir, mock_policy):
         """Test loading a single checkpoint file via file:// URI."""
-        checkpoint_file = create_test_checkpoint(temp_dir, "v5.pt", mock_policy)
+        checkpoint_file = create_test_checkpoint(temp_dir, checkpoint_filename("solo_run", 5), mock_policy)
 
         uri = f"file://{checkpoint_file}"
         loaded_policy = CheckpointManager.load_from_uri(uri)
@@ -86,9 +90,9 @@ class TestFileURIHandling:
         checkpoints_dir.mkdir(parents=True)
 
         # Create multiple checkpoint files with different epochs
-        create_test_checkpoint(checkpoints_dir, "v1.pt", mock_policy)
-        create_test_checkpoint(checkpoints_dir, "v3.pt", mock_policy)
-        create_test_checkpoint(checkpoints_dir, "v5.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, checkpoint_filename("run1", 1), mock_policy)
+        create_test_checkpoint(checkpoints_dir, checkpoint_filename("run1", 3), mock_policy)
+        create_test_checkpoint(checkpoints_dir, checkpoint_filename("run1", 5), mock_policy)
 
         # Test directory URI - should load latest (highest epoch)
         uri = f"file://{checkpoints_dir}"
@@ -103,7 +107,7 @@ class TestFileURIHandling:
         checkpoints_dir = run_dir / "checkpoints"
         checkpoints_dir.mkdir(parents=True)
 
-        create_test_checkpoint(checkpoints_dir, "v10.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, checkpoint_filename("my_run", 10), mock_policy)
 
         # Test run directory URI - should automatically look in checkpoints subdir
         uri = f"file://{run_dir}"
@@ -152,7 +156,7 @@ class TestS3URIHandling:
         with patch("torch.load", return_value=mock_policy) as mock_torch_load:
             # Also patch the specific import path used in checkpoint_manager
             with patch("metta.rl.checkpoint_manager.local_copy", mock_local_copy):
-                uri = "s3://my-bucket/path/to/checkpoint.pt"
+                uri = "s3://my-bucket/path/to/test_run:v5.pt"
                 loaded_policy = CheckpointManager.load_from_uri(uri)
 
                 assert type(loaded_policy).__name__ == type(mock_policy).__name__
@@ -162,9 +166,9 @@ class TestS3URIHandling:
     def test_s3_key_and_version_extraction(self):
         """Test extracting key and version from S3 URIs."""
         # Test S3 URI with valid checkpoint filename
-        uri = "s3://bucket/test_run/v15.pt"
+        uri = "s3://bucket/test_run/checkpoints/test_run:v15.pt"
         key, version = key_and_version(uri)
-        assert key == "my_run"
+        assert key == "test_run"
         assert version == 15
 
         # Test S3 URI with regular filename
@@ -275,15 +279,15 @@ class TestRealEnvironmentIntegration:
             # Latest checkpoint should reflect highest epoch
             latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1)
             assert len(latest_checkpoints) == 1
-            assert latest_checkpoints[0].endswith("v20.pt")
+            assert latest_checkpoints[0].endswith("progress_test:v20.pt")
 
             # Request all checkpoints and verify order (descending epoch)
             all_checkpoints = checkpoint_manager.select_checkpoints("all")
             expected_suffixes = [
-                "v20.pt",
-                "v15.pt",
-                "v10.pt",
-                "v5.pt",
+                "progress_test:v20.pt",
+                "progress_test:v15.pt",
+                "progress_test:v10.pt",
+                "progress_test:v5.pt",
             ]
             assert [uri.split("/")[-1] for uri in all_checkpoints] == expected_suffixes
 
@@ -343,12 +347,14 @@ class TestEndToEndWorkflows:
         """Test that different URI formats work together seamlessly."""
         # Create checkpoint via standard save
         mock_agent = MockAgent()
-        checkpoint_file = create_test_checkpoint(temp_dir, "v5.pt", mock_agent)
+        run_dir = temp_dir / "cross_test" / "checkpoints"
+        checkpoint_file = create_test_checkpoint(run_dir, checkpoint_filename("cross_test", 5), mock_agent)
 
         # Test different ways to reference the same checkpoint
         uris = [
             f"file://{checkpoint_file}",
-            f"file://{checkpoint_file.parent}",  # Directory form
+            f"file://{checkpoint_file.parent}",  # checkpoints directory form
+            f"file://{run_dir.parent}",  # run directory
             str(checkpoint_file),  # Plain path (should be normalized)
         ]
 

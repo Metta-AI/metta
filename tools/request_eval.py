@@ -173,7 +173,7 @@ def main():
         help="""Direct policy checkpoint URI. Can be specified multiple times for multiple policies.
         Supported formats:
         - file://path/to/checkpoint.pt
-        - s3://bucket/path/run__e10__s5000__t300__sc8000.pt
+        - s3://bucket/path/run/checkpoints/run:v10.pt
         - s3://bucket/path/to/checkpoint.pt""",
         required=True,
     )

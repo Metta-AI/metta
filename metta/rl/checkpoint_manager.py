@@ -27,8 +27,8 @@ class PolicyMetadata(TypedDict, total=False):
 
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
-    "file:///tmp/my_run__e5__s100__t60__sc5000.pt" -> ("my_run", 5)
-    "s3://bucket/my_run__e10__s200__t120__sc8000.pt" -> ("my_run", 10)
+    "file:///tmp/my_run/checkpoints/my_run:v5.pt" -> ("my_run", 5)
+    "s3://bucket/policies/my_run/checkpoints/my_run:v10.pt" -> ("my_run", 10)
     "mock://test_agent" -> ("test_agent", 0)
     """
     parsed = ParsedURI.parse(uri)
@@ -61,24 +61,55 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
 
 def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
-    """Infer run name and epoch from a checkpoint path."""
+    """Infer run name and epoch from a checkpoint path.
+
+    The parser is intentionally permissive: it understands the new
+    ``<run_name>:v{epoch}.pt`` format while falling back to directory
+    structure, leading ``v{epoch}.pt}``, or legacy ``run__e{epoch}``
+    filenames. Unexpected filenames return epoch ``0`` with a best-effort
+    run name instead of failing.
+    """
 
     stem = path.stem
-    # Determine run name based on directory structure (…/<run>/checkpoints/v{epoch}.pt)
-    if path.parent.name == "checkpoints":
-        run_name = path.parent.parent.name
-    else:
-        run_name = path.parent.name
 
-    if stem.startswith("v") and stem[1:].isdigit():
-        return run_name, int(stem[1:])
+    # Prefer run from filename (<run>:v{epoch}.pt) when present.
+    run_name: str | None = None
+    epoch = 0
 
-    # Legacy fallback: run__e{epoch}[__…]
-    parts = stem.split("__")
-    if len(parts) >= 2 and parts[1].startswith("e") and parts[1][1:].isdigit():
-        return parts[0], int(parts[1][1:])
+    if ":v" in stem:
+        candidate_run, suffix = stem.rsplit(":v", 1)
+        if candidate_run:
+            run_name = candidate_run
+        if suffix.isdigit():
+            epoch = int(suffix)
 
-    raise ValueError(f"Cannot determine run/epoch from checkpoint path: {path}")
+    # Fall back to directory structure (…/<run>/checkpoints/<file>.pt)
+    if run_name is None:
+        if path.parent.name == "checkpoints" and path.parent.parent.name:
+            run_name = path.parent.parent.name
+        elif path.parent.name not in {"", "."}:
+            run_name = path.parent.name
+        else:
+            run_name = stem
+
+    # Handle filenames like v{epoch}.pt where run name comes from directories
+    if epoch == 0 and stem.startswith("v") and stem[1:].isdigit():
+        epoch = int(stem[1:])
+
+    # Legacy ``run__e{epoch}`` filenames
+    if epoch == 0:
+        parts = stem.split("__")
+        if len(parts) >= 2 and parts[1].startswith("e") and parts[1][1:].isdigit():
+            run_name = parts[0]
+            epoch = int(parts[1][1:])
+
+    # Last resort: try to parse trailing digits after 'v'
+    if epoch == 0 and "v" in stem:
+        trailing = stem.rsplit("v", 1)[-1]
+        if trailing.isdigit():
+            epoch = int(trailing)
+
+    return run_name or "unknown", epoch
 
 
 def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
@@ -181,8 +212,24 @@ class CheckpointManager:
         }
 
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
-        pattern = f"v{epoch}.pt" if epoch is not None else "v*.pt"
-        return list(self.checkpoint_dir.glob(pattern))
+        def matches_epoch(path: Path) -> bool:
+            if epoch is None:
+                return True
+            stem = path.stem
+            if stem.endswith(f":v{epoch}") or stem.endswith(f"v{epoch}"):
+                return True
+            _, version = _extract_run_and_epoch(path)
+            return version == epoch
+
+        candidates = [
+            path for path in self.checkpoint_dir.glob("*.pt") if path.name != "trainer_state.pt" and matches_epoch(path)
+        ]
+
+        candidates.sort(
+            key=lambda p: (_extract_run_and_epoch(p)[1], p.stat().st_mtime),
+            reverse=True,
+        )
+        return candidates
 
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
         """Load agent checkpoint from local directory with LRU caching."""
@@ -231,7 +278,7 @@ class CheckpointManager:
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.run_name}__e{epoch}.pt"
+        filename = f"{self.run_name}:v{epoch}.pt"
         checkpoint_path = self.checkpoint_dir / filename
 
         # Check if we're overwriting an existing checkpoint for this epoch
@@ -248,7 +295,7 @@ class CheckpointManager:
         if existing_files:
             keys_to_remove = []
             for cached_path in self._cache.keys():
-                if Path(cached_path).name.startswith(f"{self.run_name}__e{epoch}"):
+                if Path(cached_path).name.startswith(f"{self.run_name}:v{epoch}"):
                     keys_to_remove.append(cached_path)
             for key in keys_to_remove:
                 self._cache.pop(key, None)

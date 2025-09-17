@@ -39,7 +39,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-%(prog)s --run b.username.test_run --policy-uri s3://softmax-public/checkpoints/b.username.test_run__e40__s20000__t1200__sc9500.pt
+%(prog)s --run b.username.test_run --policy-uri s3://softmax-public/checkpoints/b.username.test_run/b.username.test_run:v40.pt
 """,
     )
 
@@ -47,7 +47,7 @@ Examples:
     parser.add_argument(
         "--policy-uri",
         required=True,
-        help="Fully qualified S3 checkpoint URI (e.g., s3://bucket/path/run__e10__s5000__t300__sc8000.pt)",
+        help="Fully qualified S3 checkpoint URI (e.g., s3://bucket/path/run/checkpoints/run:v10.pt)",
     )
 
     # Capture additional arguments for Hydra
