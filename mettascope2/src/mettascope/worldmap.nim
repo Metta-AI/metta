@@ -22,10 +22,10 @@ proc useSelections*(panel: Panel) =
       gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
     if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
       gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
-        for obj in replay.objects:
-          if obj.location.at(step).xy == gridPos:
-            selection = obj
-            break
+      for obj in replay.objects:
+        if obj.location.at(step).xy == gridPos:
+          selection = obj
+          break
 
 proc drawFloor*() =
   # Draw the floor tiles.
@@ -141,12 +141,13 @@ proc drawVisualRanges*(alpha = 0.2) =
       if selection != nil and
         selection.typeId == agentTypeId and
         selection.agentId != obj.agentId:
-          continue
+        continue
       let agent = obj
       for i in 0 ..< agent.visionSize:
         for j in 0 ..< agent.visionSize:
           let
-            center = ivec2((agent.visionSize div 2).int32, (agent.visionSize div 2).int32)
+            center = ivec2((agent.visionSize div 2).int32, (
+                agent.visionSize div 2).int32)
             gridPos = agent.location.at.xy - center + ivec2(i.int32, j.int32)
 
           if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
@@ -239,41 +240,37 @@ proc drawTrajectory*() =
 
 proc drawActions*() =
   ## Draw the actions of the selected agent.
-   # # Draw all possible attacks:
-  # for agent in env.agents:
-  #   for i in 1 .. 9:
-  #     let
-  #       distance = 1 + (i - 1) div 3
-  #       offset = -((i - 1) mod 3 - 1)
-  #       targetPos = agent.pos + relativeLocation(agent.orientation, distance, offset)
-  #     bxy.drawImage(
-  #       "empty",
-  #       targetPos.vec2 * 64,
-  #       angle = 0,
-  #       scale = 2,
-  #       tint = color(1, 0, 0, 1)
-  #     )
-
-  # Draw attack actions
-  # for agentId, action in actionsArray:
-  #   if action[0] == 4:
-  #     let
-  #       distance = 1 + (action[1].int - 1) div 3
-  #       offset = -((action[1].int - 1) mod 3 - 1)
-  #       agent = env.agents[agentId]
-  #       targetPos = agent.pos + relativeLocation(agent.orientation, distance, offset)
-  #     if agent.energy > MapObjectAgentAttackCost:
-  #       discard
-  #       # bxy.drawImage(
-  #       #   "fire",
-  #       #   targetPos.vec2 * 64,
-  #       #   angle = 0
-  #       # )
-  #       # bxy.drawBubbleLine(
-  #       #   agent.pos.vec2 * 64,
-  #       #   targetPos.vec2 * 64,
-  #       #   color(1, 0, 0, 0.5)
-  #       # )
+  for obj in replay.objects:
+    # Do agent actions.
+    if obj.isAgent:
+      let actionId = obj.actionId.at
+      if (replay.drawnAgentActionMask and (1'u64 shl actionId)) != 0 and
+          obj.actionSuccess.at and
+          actionId >= 0 and actionId < replay.actionImages.len:
+        bxy.drawImage(
+          if actionId != replay.attackActionId:
+            replay.actionImages[actionId]
+          else:
+            let attackParam = obj.actionParameter.at
+            if attackParam >= 1 and attackParam <= 9:
+              replay.actionAttackImages[attackParam - 1]
+            else:
+              continue,
+          obj.location.at.xy.vec2,
+          angle = case obj.orientation.at:
+          of 0: PI / 2 # North
+          of 1: -PI / 2 # South
+          of 2: PI # West
+          of 3: 0 # East
+          else: 0, # East
+        scale = 1/200)
+    elif obj.productionProgress.at > 0:
+      bxy.drawImage(
+        "actions/converting",
+        obj.location.at.xy.vec2,
+        angle = 0,
+        scale = 1/200
+      )
 
 proc drawAgentDecorations*() =
   # Draw energy bars, shield and frozen status.
@@ -401,8 +398,8 @@ proc drawWorldMini*() =
       continue
 
     let loc = obj.location.at(step).xy
-    bxy.drawImage("minimapPip", rect((loc.x.float32) / scale - 0.5, (loc.y.float32) / scale - 0.5,
-        1, 1), agentColor(obj.agentId))
+    bxy.drawImage("minimapPip", rect((loc.x.float32) / scale - 0.5, (
+        loc.y.float32) / scale - 0.5, 1, 1), agentColor(obj.agentId))
 
   bxy.restoreTransform()
 
@@ -420,8 +417,8 @@ proc drawWorldMain*() =
   drawWalls()
   drawTrajectory()
   drawObjects()
-  # drawActions()
-  # drawAgentDecorations()
+  drawActions()
+  drawAgentDecorations()
 
   if settings.showGrid:
     drawGrid()
