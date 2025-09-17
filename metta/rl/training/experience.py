@@ -179,17 +179,11 @@ class Experience:
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 
-        # from metta.rl.losses import get_loss_experience_spec
-        # # Get specs from policy and losses
-        # act_dtype = torch.int32 if np.issubdtype(action_space.dtype, np.integer) else torch.float32
-        # loss_spec = get_loss_experience_spec(action_space.nvec, act_dtype)
-
         # Merge all specs
         merged_spec_dict: dict = dict(policy_experience_spec.items())
         for loss in losses.values():
             spec = loss.get_experience_spec()
             merged_spec_dict.update(dict(spec.items()))
-        # merged_spec_dict.update(dict(loss_spec.items()))
 
         # Create experience buffer
         experience = Experience(

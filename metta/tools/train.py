@@ -56,7 +56,6 @@ class TrainTool(Tool):
         # Handle run_id being passed via cmd line
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()
-            print("888888888888888888888888888888888888888")
         if "run" in args:
             assert self.run is None, "run cannot be set via args and config"
             self.run = args["run"]
