@@ -17,6 +17,7 @@ class LossSchedule(Config):
 
 class LossConfig(Config):
     loss_configs: Dict[str, Any] = Field(default={"ppo": PPOConfig(), "contrastive": ContrastiveConfig()})
+    enable_contrastive: bool = Field(default=True, description="Whether to enable contrastive loss")
 
     def init_losses(
         self,
@@ -28,6 +29,9 @@ class LossConfig(Config):
     ):
         losses = {}
         for loss_name, loss_config in self.loss_configs.items():
+            # Skip contrastive loss if disabled
+            if loss_name == "contrastive" and not self.enable_contrastive:
+                continue
             losses[loss_name] = loss_config.init_loss(
                 policy, trainer_cfg, vec_env, device, checkpoint_manager, loss_name, loss_config
             )

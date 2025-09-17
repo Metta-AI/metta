@@ -41,17 +41,14 @@ class ContrastiveLoss(BaseLoss):
 
         # Add projection head if needed
         if self.loss_cfg.use_projection_head:
-            # Try to get encoder output dim, fallback to value dimension
-            try:
+            # Check if encoder component exists before accessing it
+            if "encoder" in self.policy.policy.components:
                 input_dim = self.policy.policy.components["encoder"].output_dim
                 print(f"Using encoder output_dim: {input_dim}")
-            except (KeyError, AttributeError):
-                # Fallback: use value dimension (typically 1) or a reasonable default
-                input_dim = getattr(self.policy.policy.components.get("value", None), "output_dim", 1)
-                if input_dim == 1:
-                    # If value is 1D, use a reasonable default based on policy architecture
-                    input_dim = 256  # Reasonable default for policy representations
-                print(f"Using fallback input_dim: {input_dim}")
+            else:
+                # Fallback: use a reasonable default based on policy architecture
+                input_dim = 256  # Reasonable default for policy representations
+                print(f"Encoder not found, using fallback input_dim: {input_dim}")
             self.projection_head = torch.nn.Linear(input_dim, self.embedding_dim).to(device)
         else:
             self.projection_head = None
