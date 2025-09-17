@@ -15,14 +15,11 @@ dependencies = [
   "boto3>=1.38.32",
   "metta-common",
   "typer>=0.16.1",
+  "datadog-api-client>=2.43.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-
-[tool.setuptools.package-data]
-"softmax" = ["__init__.py"]
 
 [tool.uv.sources]
 metta-common = { workspace = true }

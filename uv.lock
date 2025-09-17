@@ -4068,6 +4068,7 @@ version = "0.0.1"
 source = { editable = "softmax" }
 dependencies = [
     { name = "boto3" },
+    { name = "datadog-api-client" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mcp", extra = ["cli"] },
@@ -4079,6 +4080,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.38.32" },
+    { name = "datadog-api-client", specifier = ">=2.43.0" },
     { name = "fastapi", specifier = ">=0.115.5" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.13.1" },
