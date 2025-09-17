@@ -26,7 +26,10 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/converter_config.hpp"
+#include "objects/nano_assembler.hpp"
+#include "objects/nano_assembler_config.hpp"
 #include "objects/production_handler.hpp"
+#include "objects/recipe.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
@@ -194,6 +197,20 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
+        continue;
+      }
+
+      const NanoAssemblerConfig* nano_assembler_config = dynamic_cast<const NanoAssemblerConfig*>(object_cfg);
+      if (nano_assembler_config) {
+        NanoAssembler* nano_assembler = new NanoAssembler(r, c, *nano_assembler_config);
+        _grid->add_object(nano_assembler);
+        _stats->incr("objects." + cell);
+        nano_assembler->set_event_manager(_event_manager.get());
+        nano_assembler->stats.set_environment(this);
+        // Initialize recipes if provided in config
+        if (!nano_assembler_config->recipes.empty()) {
+          nano_assembler->initialize_recipes(nano_assembler_config->recipes);
+        }
         continue;
       }
 
@@ -923,6 +940,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   bind_agent_config(m);
   bind_converter_config(m);
+  bind_nano_assembler_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);

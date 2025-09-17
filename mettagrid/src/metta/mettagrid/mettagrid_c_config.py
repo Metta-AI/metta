@@ -5,8 +5,14 @@ from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyp
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
+from metta.mettagrid.mettagrid_c import NanoAssemblerConfig as CppNanoAssemblerConfig
+from metta.mettagrid.mettagrid_c import Recipe as CppRecipe
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import AgentConfig, ConverterConfig, GameConfig, WallConfig
+from metta.mettagrid.mettagrid_config import AgentConfig, ConverterConfig, GameConfig, NanoAssemblerConfig, WallConfig
+
+FIXED_POSITIONS = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
+# Position to bit mapping: NW=0, N=1, NE=2, W=3, E=4, SW=5, S=6, SE=7
+FIXED_POSITION_TO_BITMASK = {pos: 1 << i for i, pos in enumerate(FIXED_POSITIONS)}
 
 
 def recursive_update(d, u):
@@ -16,6 +22,44 @@ def recursive_update(d, u):
         else:
             d[k] = v
     return d
+
+
+def expand_position_patterns(positions: list[str]) -> list[int]:
+    """Expand position patterns into corresponding byte patterns.
+
+    Args:
+        positions: List of position strings like ["N", "Any"]
+        "Any" means exactly one agent in any position
+        Other positions mean exactly one agent in that specific position
+
+    Returns:
+        List of byte patterns that match the position requirements
+    """
+
+    fix_positions_byte = 0
+    has_any = False
+    for pos in positions:
+        if pos == "Any":
+            has_any = True
+        else:
+            assert pos in FIXED_POSITIONS, f"Invalid position: {pos}"
+            position_bit = FIXED_POSITION_TO_BITMASK[pos]
+            assert fix_positions_byte & position_bit == 0, (
+                f"Position {pos} already set. Only one agent per position is allowed."
+            )
+            fix_positions_byte |= position_bit
+
+    if not has_any:
+        return [fix_positions_byte]
+
+    result = []
+    # Not the most elegant solution, but there are only 8 positions, so it's not too bad.
+    for i in range(256):
+        if i & fix_positions_byte != fix_positions_byte:
+            continue
+        if bin(i).count("1") == len(positions):
+            result.append(i)
+    return result
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -155,6 +199,42 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 swappable=object_config.swappable,
             )
             objects_cpp_params[object_type] = cpp_wall_config
+        elif isinstance(object_config, NanoAssemblerConfig):
+            # Convert recipes with position patterns to C++ recipes
+            # Create a mapping from byte patterns to recipes
+            recipe_map = {}  # byte_pattern -> CppRecipe
+
+            for position_pattern, recipe_config in object_config.recipes:
+                # Expand position patterns to byte patterns
+                byte_patterns = expand_position_patterns(position_pattern)
+
+                # Create C++ recipe
+                cpp_recipe = CppRecipe(
+                    input_resources={
+                        resource_name_to_id[k]: v
+                        for k, v in recipe_config.input_resources.items()
+                        if v > 0 and k in resource_name_to_id
+                    },
+                    output_resources={
+                        resource_name_to_id[k]: v
+                        for k, v in recipe_config.output_resources.items()
+                        if v > 0 and k in resource_name_to_id
+                    },
+                    cooldown=recipe_config.cooldown,
+                )
+
+                # Map this recipe to all matching byte patterns
+                for byte_pattern in byte_patterns:
+                    recipe_map[byte_pattern] = cpp_recipe
+
+            # Create a vector of 256 Recipe pointers (indexed by byte pattern)
+            cpp_recipes = [None] * 256
+            for byte_pattern, recipe in recipe_map.items():
+                cpp_recipes[byte_pattern] = recipe
+
+            cpp_nano_assembler_config = CppNanoAssemblerConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_nano_assembler_config.recipes = cpp_recipes
+            objects_cpp_params[object_type] = cpp_nano_assembler_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 

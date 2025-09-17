@@ -166,7 +166,7 @@ class GameConfig(Config):
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    objects: dict[str, ConverterConfig | WallConfig] = Field(default_factory=dict)
+    objects: dict[str, ConverterConfig | WallConfig | NanoAssemblerConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.

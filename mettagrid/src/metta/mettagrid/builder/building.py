@@ -1,4 +1,4 @@
-from metta.mettagrid.mettagrid_config import ConverterConfig, WallConfig
+from metta.mettagrid.mettagrid_config import ConverterConfig, NanoAssemblerConfig, RecipeConfig, WallConfig
 
 wall = WallConfig(type_id=1)
 block = WallConfig(type_id=14, swappable=True)
@@ -49,4 +49,88 @@ armory = ConverterConfig(
     input_resources={"ore_red": 3},
     output_resources={"armor": 1},
     cooldown=10,
+)
+
+# NanoAssembler building definitions
+nano_altar = NanoAssemblerConfig(
+    type_id=8,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 3},
+                output_resources={"heart": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+
+def make_nano_mine(color: str, type_id: int) -> NanoAssemblerConfig:
+    return NanoAssemblerConfig(
+        type_id=type_id,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    output_resources={f"ore_{color}": 1},
+                    cooldown=50,
+                ),
+            )
+        ],
+    )
+
+
+nano_mine_red = make_nano_mine("red", 2)
+nano_mine_blue = make_nano_mine("blue", 3)
+nano_mine_green = make_nano_mine("green", 4)
+
+
+def make_nano_generator(color: str, type_id: int) -> NanoAssemblerConfig:
+    return NanoAssemblerConfig(
+        type_id=type_id,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={f"ore_{color}": 1},
+                    output_resources={f"battery_{color}": 1},
+                    cooldown=25,
+                ),
+            )
+        ],
+    )
+
+
+nano_generator_red = make_nano_generator("red", 5)
+nano_generator_blue = make_nano_generator("blue", 6)
+nano_generator_green = make_nano_generator("green", 7)
+
+nano_lasery = NanoAssemblerConfig(
+    type_id=15,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+nano_armory = NanoAssemblerConfig(
+    type_id=16,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"ore_red": 3},
+                output_resources={"armor": 1},
+                cooldown=10,
+            ),
+        )
+    ],
 )
