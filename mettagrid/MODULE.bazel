@@ -39,4 +39,4 @@ bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
 # Register module extension that fetches Raylib and builds a shared library
 raylib = use_extension("//:bazel/raylib_cmake_ext.bzl", "raylib_cmake_ext")
 raylib.cfg(version = "5.5", sha256 = "aea98ecf5bc5c5e0b789a76de0083a21a70457050ea4cc2aec7566935f5e258e")
-use_repo(raylib, "raylib_built")
+use_repo(raylib, "raylib_src")

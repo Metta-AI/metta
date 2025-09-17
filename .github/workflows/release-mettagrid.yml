@@ -139,6 +139,8 @@ jobs:
         env:
           WITH_RAYLIB: "1"
         run: |
+          export BAZELISK_BASE_URL=https://github.com/bazelbuild/bazel/releases/download
+          export USE_BAZEL_VERSION=7.4.1
           python -m build --wheel --outdir dist mettagrid
           ls -l dist
 

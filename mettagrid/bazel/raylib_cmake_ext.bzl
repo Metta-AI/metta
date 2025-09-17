@@ -1,45 +1,37 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-# rules_foreign_cc rule (cmake_external) will be referenced from a generated BUILD.
-
-def _raylib_cc_repo_impl(ctx):
-    version = ctx.attr.version
-    sha256 = ctx.attr.sha256
-
-    # Create a workspace-local repository that defines a cmake_external target
-    # building a shared Raylib library from the downloaded sources.
-    build = []
-    build.append('load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")')
-    build.append("")
-    build.append("cmake(")
-    build.append("    name = \"raylib\",")
-    build.append("    lib_source = \"@raylib_src//:all\",")
-    build.append("    cache_entries = {")
-    build.append("        \"BUILD_SHARED_LIBS\": \"ON\",")
-    build.append("        \"CMAKE_BUILD_TYPE\": \"Release\",")
-    build.append("        \"RAYLIB_BUILD_EXAMPLES\": \"OFF\",")
-    build.append("        \"RAYLIB_BUILD_TESTING\": \"OFF\",")
-    build.append("    },")
-    build.append("    out_shared_libs = [\"raylib\"],")
-    build.append("    visibility = [\"//visibility:public\"],")
-    build.append(")")
-    build.append("")
-
-    ctx.file("BUILD.bazel", "\n".join(build))
-
-raylib_cc_repo = repository_rule(
-    implementation = _raylib_cc_repo_impl,
-    attrs = {
-        "version": attr.string(mandatory = True),
-        "sha256": attr.string(mandatory = True),
-    },
-)
-
 def _impl(mctx):
     mod = mctx.modules[0]
     t = mod.tags.cfg[0] if mod.tags.cfg else None
-    version = t.version if t and t.version else "5.0"
-    sha256 = t.sha256 if t and t.sha256 else ""  # fill when known
+    version = t.version if t and t.version else "5.5"
+    sha256 = t.sha256 if t and t.sha256 else None
+
+    build_content = "\n".join([
+        'load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")',
+        "",
+        "filegroup(",
+        "    name = \"all_srcs\",",
+        "    srcs = glob([\"**\"]),",
+        "    visibility = [\"//visibility:public\"],",
+        ")",
+        "",
+        "cmake(",
+        "    name = \"raylib\",",
+        "    lib_source = \":all_srcs\",",
+        "    cache_entries = {",
+        "        \"CMAKE_BUILD_TYPE\": \"Release\",",
+        "        \"BUILD_SHARED_LIBS\": \"ON\",",
+        "        \"RAYLIB_BUILD_EXAMPLES\": \"OFF\",",
+        "        \"RAYLIB_BUILD_TESTING\": \"OFF\",",
+        "    },",
+        "    install = True,",
+        "    out_shared_libs = [\"libraylib.dylib\"],",
+        "    out_lib_dir = \"lib\",",
+        "    out_include_dir = \"include\",",
+        "    visibility = [\"//visibility:public\"],",
+        ")",
+        "",
+    ])
 
     http_archive(
         name = "raylib_src",
@@ -47,13 +39,8 @@ def _impl(mctx):
             "https://github.com/raysan5/raylib/archive/refs/tags/{}.tar.gz".format(version),
         ],
         strip_prefix = "raylib-{}".format(version),
-        sha256 = sha256 if sha256 else None,
-    )
-
-    raylib_cc_repo(
-        name = "raylib_built",
-        version = version,
         sha256 = sha256,
+        build_file_content = build_content,
     )
 
 raylib_cmake_ext = module_extension(

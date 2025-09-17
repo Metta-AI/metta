@@ -71,7 +71,7 @@ pybind_extension(
     }),
     # Depend on Raylib built from source via rules_foreign_cc (Bzlmod extension)
     deps = select({
-        ":with_raylib_macos": ["@raylib_built//:raylib"],
+        ":with_raylib_macos": ["@raylib_src//:raylib"],
         "//conditions:default": [],
     }),
     linkopts = select({
