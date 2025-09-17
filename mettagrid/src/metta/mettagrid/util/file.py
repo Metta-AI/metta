@@ -1,7 +1,7 @@
 """
 file.py
 ================
-Read and write files to local, S3, or W&B.
+Read and write files to local, S3, or Google Drive locations.
 Use EFS on AWS for shared filesystems.
 """
 
@@ -20,7 +20,6 @@ from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
 import boto3
-import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -28,9 +27,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build as gdrive_build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
-from wandb.errors import CommError
-
-from .uri import ParsedURI, WandbURI
+from .uri import ParsedURI
 
 # --------------------------------------------------------------------------- #
 #  Globals                                                                     #
@@ -47,7 +44,7 @@ GOOGLE_DRIVE_TOKEN_FILE: str = os.getenv("GOOGLE_DRIVE_TOKEN_FILE", "~/.config/g
 def exists(path: str) -> bool:
     """
     Return *True* if *path* points to an existing local file, S3 object,
-    W&B artifact **version** (latest if omitted), or Google Drive file or folder.
+    or Google Drive file or folder.
     Network errors are propagated so callers can decide how to handle them.
     """
     parsed = ParsedURI.parse(path)
@@ -61,15 +58,6 @@ def exists(path: str) -> bool:
             if e.response["Error"]["Code"] in {"404", "403", "NoSuchKey"}:
                 return False
             raise
-
-    if parsed.scheme == "wandb":
-        wandb_uri = parsed.require_wandb()
-        api = wandb.Api()
-        try:
-            api.artifact(wandb_uri.qname())
-            return True
-        except CommError:
-            return False
 
     if parsed.scheme == "gdrive":
         return _gdrive_exists(parsed.raw)
@@ -85,9 +73,7 @@ def exists(path: str) -> bool:
 
 
 def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
-    """
-    Write in-memory bytes/str to *local*, *s3://*, *wandb://*, or *gdrive://* destinations.
-    """
+    """Write in-memory bytes/str to *local*, *s3://*, or *gdrive://* destinations."""
     logger = logging.getLogger(__name__)
 
     if isinstance(data, str):
@@ -105,12 +91,6 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
             logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
             raise e
 
-    if parsed.scheme == "wandb":
-        wandb_uri = parsed.require_wandb()
-        upload_bytes_to_wandb(wandb_uri, data, name=wandb_uri.artifact_path.split("/")[-1])
-        logger.info("Wrote %d B → %s", len(data), wandb_uri.http_url())
-        return
-
     if parsed.scheme == "gdrive":
         file_id = _gdrive_write_data(parsed.raw, data, content_type)
         logger.info("Wrote %d B → %s (ID: %s)", len(data), http_url(parsed.raw), file_id)
@@ -127,9 +107,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
 
 
 def write_file(path: str, local_file: str, *, content_type: str = "application/octet-stream") -> None:
-    """
-    Upload a file from disk to *s3://, *wandb://, *gdrive://* (or copy locally).
-    """
+    """Upload a file from disk to *s3://*, *gdrive://*, or copy locally."""
     logger = logging.getLogger(__name__)
 
     parsed = ParsedURI.parse(path)
@@ -138,12 +116,6 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
         bucket, key = parsed.require_s3()
         boto3.client("s3").upload_file(local_file, bucket, key, ExtraArgs={"ContentType": content_type})
         logger.info("Uploaded %s → %s (size %d B)", local_file, parsed.canonical, os.path.getsize(local_file))
-        return
-
-    if parsed.scheme == "wandb":
-        wandb_uri = parsed.require_wandb()
-        upload_file_to_wandb(wandb_uri, local_file, name=wandb_uri.artifact_path)
-        logger.info("Uploaded %s → %s (size %d B)", local_file, wandb_uri, os.path.getsize(local_file))
         return
 
     if parsed.scheme == "gdrive":
@@ -168,9 +140,7 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
 
 
 def read(path: str) -> bytes:
-    """
-    Read bytes from local path, S3 object, or W&B artifact.
-    """
+    """Read bytes from a local path or S3 object."""
     logger = logging.getLogger(__name__)
 
     parsed = ParsedURI.parse(path)
@@ -185,23 +155,6 @@ def read(path: str) -> bytes:
             logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?")
             raise
 
-    if parsed.scheme == "wandb":
-        wandb_uri = parsed.require_wandb()
-        api = wandb.Api()
-        artifact = api.artifact(wandb_uri.qname())
-        with tempfile.TemporaryDirectory(prefix="wandb_dl_") as tmp:
-            local_dir = artifact.download(root=tmp)
-            files = list(Path(local_dir).iterdir())
-            if not files:
-                raise FileNotFoundError(f"No files inside W&B artifact {wandb_uri}")
-            if len(files) > 1:
-                raise ValueError(
-                    f"Expected exactly one file inside W&B artifact {wandb_uri}, got {len(files)}: {files}"
-                )
-            data = files[0].read_bytes()
-            logger.info("Read %d B from %s", len(data), wandb_uri)
-            return data
-
     if parsed.scheme == "file" and parsed.local_path is not None:
         data = parsed.local_path.read_bytes()
         logger.info("Read %d B from %s", len(data), parsed.local_path)
@@ -213,10 +166,10 @@ def read(path: str) -> bytes:
 @contextmanager
 def local_copy(path: str):
     """
-    Yield a local *Path* for *path* (supports local / s3:// / wandb://).
+    Yield a local *Path* for *path* (supports local paths and *s3://* URIs).
 
     • Local paths are yielded as-is.
-    • Remote URIs are streamed into a NamedTemporaryFile that is removed
+    • Remote S3 URIs are streamed into a NamedTemporaryFile that is removed
       when the context exits, so callers never worry about cleanup.
 
     Usage:
@@ -225,7 +178,7 @@ def local_copy(path: str):
     """
     parsed = ParsedURI.parse(path)
 
-    if parsed.scheme in {"s3", "wandb"}:
+    if parsed.scheme == "s3":
         data = read(parsed.canonical)
         tmp = tempfile.NamedTemporaryFile(delete=False)
         tmp.write(data)
@@ -243,15 +196,10 @@ def local_copy(path: str):
 
 
 def http_url(path: str) -> str:
-    """
-    Convert *s3://* or *wandb://* URI to a public browser URL.
-    No-op for local paths.
-    """
+    """Convert *s3://* or *gdrive://* URIs to a public browser URL."""
     parsed = ParsedURI.parse(path)
     if parsed.scheme == "s3" and parsed.bucket and parsed.key:
         return f"https://{parsed.bucket}.s3.amazonaws.com/{parsed.key}"
-    if parsed.scheme == "wandb" and parsed.wandb is not None:
-        return parsed.wandb.http_url()
     if parsed.scheme == "gdrive":
         return GDriveURI.parse(path).http_url()
     return parsed.canonical if parsed.scheme == "file" else parsed.raw
@@ -265,105 +213,6 @@ def is_public_uri(url: str | None) -> bool:
         return False
     parsed = urlparse(url)
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
-
-
-def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
-    with tempfile.NamedTemporaryFile(delete=False) as fh:
-        fh.write(blob)
-        tmpname = fh.name
-    try:
-        upload_file_to_wandb(uri, tmpname, name=name)
-    finally:
-        os.unlink(tmpname)
-
-
-@contextmanager
-def wandb_export_context(project: str, entity: str) -> wandb.Run:
-    """
-    Context manager that ensures a wandb run exists for artifact exports.
-    TODO: Remove this after switching to using wandb_context
-
-    Args:
-        project: wandb project name
-        entity: wandb entity name
-
-    Yields:
-        The active wandb run object
-    """
-    # Check if there's already an active run
-    active_run = wandb.run
-
-    if active_run is not None:
-        if active_run.project != project:
-            raise ValueError(
-                f"Wandb run already active: {active_run.name}; "
-                "can't post files to a different project inside the same process"
-            )
-        run = active_run
-    else:
-        # Create a temporary run
-        run = wandb.init(
-            project=project,
-            entity=entity,
-            job_type="file-export",
-            name="file-export",
-            settings=wandb.Settings(
-                disable_code=True,
-                console="off",
-                quiet=True,
-            ),
-        )
-
-    try:
-        yield run
-    finally:
-        # TODO: We don't want to finish the run becasue we want to be able to
-        # reopen it later. However it would be good to "unset" wandb.run if we could.
-        # I'm not sure the right way to do that
-        pass
-
-
-def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
-    """
-    Upload *local_file* to W&B as the next version of
-        wandb://{uri.project}/{uri.artifact_path}:latest    (type="file")
-    • Re-uses the caller's active run if present.
-    • Otherwise creates a temporary run just for this upload and finishes it
-
-    Args:
-        uri: A WandbURI object containing project, artifact_path, and version
-        local_file: Path to the file to upload
-
-    Returns:
-        None
-
-    Raises:
-        ValueError: If uri.version is not "latest"
-    """
-    logger = logging.getLogger(__name__)
-
-    if uri.version != "latest":
-        raise ValueError(
-            "Export only supports the implicit ':latest' alias when writing to W&B (explicit versions are immutable)."
-        )
-
-    try:
-        with wandb_export_context(uri.project, uri.entity) as run:
-            # Create and log the artifact
-            artifact = wandb.Artifact(uri.artifact_path, type="file")
-            artifact.add_file(local_file, name=name)
-            run.log_artifact(artifact)
-
-            logger.info(
-                "Uploaded %s → wandb://%s/%s  (size %d B, new version)",
-                local_file,
-                uri.project,
-                uri.artifact_path,
-                os.path.getsize(local_file),
-            )
-    except Exception as e:
-        logger.error(f"Failed to upload file to wandb: {e}")
-        raise
 
 
 # --------------------------------------------------------------------------- #

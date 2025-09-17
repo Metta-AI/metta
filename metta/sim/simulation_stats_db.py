@@ -54,7 +54,7 @@ class SimulationStatsDB(EpisodeStatsDB):
     def from_uri(cls, path: str):
         """
         Creates a StatsDB instance from a URI and yields it as a context manager.
-        Supports local paths, s3://, and wandb:// URIs.
+        Supports local paths and s3:// URIs.
         The temporary file is automatically cleaned up when the context exits.
 
         Usage:
@@ -144,7 +144,7 @@ class SimulationStatsDB(EpisodeStatsDB):
           into the existing DB first and re-upload the result.
         • Otherwise simply upload **self**.
 
-        Supported URI schemes: local paths, `s3://`, `wandb://`.
+        Supported URI schemes: local paths and `s3://`.
         """
 
         if exists(dest):
