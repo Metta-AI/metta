@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import math
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -238,6 +238,7 @@ class NvidiaTransformerCore(nn.Module):
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.mem_len = mem_len
+        self.memory_len = mem_len
         self.clamp_len = clamp_len
         self.pre_lnorm = pre_lnorm
 
@@ -388,6 +389,7 @@ class TransformerNvidiaPolicy(nn.Module):
             pre_lnorm=True,
             clamp_len=max_seq_len,
         )
+        self._transformer = self.core
 
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
@@ -474,19 +476,29 @@ class TransformerNvidiaPolicy(nn.Module):
         self,
         hidden: Tensor,
         terminations: Optional[Tensor] = None,
-        memory: Optional[List[Tensor]] = None,
-    ) -> Tuple[Tensor, List[Tensor]]:
-        output, new_memory = self.core(hidden, memory)
+        memory: Optional[Dict[str, List[Tensor]]] = None,
+    ) -> Tuple[Tensor, Dict[str, List[Tensor]]]:
+        memory_list = None
+        if memory is not None:
+            hidden_states = memory.get("hidden_states")
+            if hidden_states is None:
+                raise ValueError("Transformer memory must include 'hidden_states'")
+            memory_list = hidden_states
+
+        output, new_memory = self.core(hidden, memory_list)
+
         if terminations is not None and new_memory:
             done_mask = terminations[-1].bool()
             if done_mask.any():
                 for mem in new_memory:
                     mem[:, done_mask, :] = 0
-        return output, new_memory
 
-    def initialize_memory(self, batch_size: int) -> List[Tensor]:
+        return output, {"hidden_states": new_memory}
+
+    def initialize_memory(self, batch_size: int) -> Dict[str, List[Tensor]]:
         param = next(self.parameters())
-        return self.core.initialize_memory(batch_size, device=param.device, dtype=param.dtype)
+        mem_list = self.core.initialize_memory(batch_size, device=param.device, dtype=param.dtype)
+        return {"hidden_states": mem_list}
 
 
 class TransformerNvidia(PyTorchAgentMixin, TransformerWrapper):
@@ -547,20 +559,23 @@ class TransformerNvidia(PyTorchAgentMixin, TransformerWrapper):
         else:
             hidden = hidden.unsqueeze(0)
 
-        transformer_memory = state.get("transformer_memory")
         terminations = state.get("terminations")
         if terminations is None:
             terminations = torch.zeros(seq_len, batch_size, device=hidden.device)
 
-        hidden, new_memory = self.policy.transformer(hidden, terminations, transformer_memory)
-        state["transformer_memory"] = new_memory
+        hidden, new_memory = self.policy.transformer(hidden, terminations, state.get("transformer_memory"))
+        normalized_memory = self._normalize_memory(new_memory)
+        if normalized_memory is not None:
+            state["transformer_memory"] = self._detach_memory(normalized_memory)
+        else:
+            state["transformer_memory"] = None
 
         if is_sequential:
             hidden = hidden.transpose(0, 1).contiguous().view(flat_batch, -1)
         else:
             hidden = hidden.squeeze(0)
 
-        logits, values = self.policy.decode_actions(hidden, flat_batch)
+        logits, values = self._decode_actions(hidden, flat_batch)
 
         if values.dim() > 1:
             values = values.squeeze(-1)

@@ -77,24 +77,20 @@ class TransformerWrapper(nn.Module):
         """
         hidden = self.policy.encode_observations(observations, state=state)
 
-        memory = state.get("transformer_memory", None)
-
         hidden = hidden.unsqueeze(0)
 
         terminations = state.get("terminations", torch.zeros(1, observations.shape[0], device=hidden.device))
         if terminations.dim() == 1:
             terminations = terminations.unsqueeze(0)
 
-        hidden, new_memory = self.policy.transformer(hidden, terminations, memory)
+        hidden, new_memory = self.policy.transformer(hidden, terminations, state.get("transformer_memory"))
 
         hidden = hidden.squeeze(0)
 
-        if new_memory is not None:
-            state["transformer_memory"] = self._detach_memory(new_memory)
-        else:
-            state["transformer_memory"] = new_memory
+        state["transformer_memory"] = self._detach_memory(self._normalize_memory(new_memory))
         state["hidden"] = hidden
-        logits, values = self.policy.decode_actions(hidden)
+        batch_size = hidden.shape[0]
+        logits, values = self._decode_actions(hidden, batch_size)
 
         return logits, values
 
@@ -114,7 +110,6 @@ class TransformerWrapper(nn.Module):
             values: Value estimates of shape (B, T) or (B,)
         """
         x = observations
-        memory = state.get("transformer_memory", None)
 
         # Determine input shape
         x_shape, space_shape = x.shape, self.obs_shape
@@ -148,7 +143,7 @@ class TransformerWrapper(nn.Module):
         elif terminations.dim() == 2 and terminations.shape[0] == B:
             terminations = terminations.transpose(0, 1)
 
-        hidden, new_memory = self.policy.transformer(hidden, terminations, memory)
+        hidden, new_memory = self.policy.transformer(hidden, terminations, state.get("transformer_memory"))
 
         if TT > 1:
             hidden = hidden.transpose(0, 1)
@@ -157,15 +152,12 @@ class TransformerWrapper(nn.Module):
             hidden = hidden.squeeze(0)
             flat_hidden = hidden
 
-        logits, values = self.policy.decode_actions(flat_hidden)
+        logits, values = self._decode_actions(flat_hidden, B * TT)
 
         if TT > 1:
             values = values.reshape(B, TT)
 
-        if new_memory is not None:
-            state["transformer_memory"] = self._detach_memory(new_memory)
-        else:
-            state["transformer_memory"] = new_memory
+        state["transformer_memory"] = self._detach_memory(self._normalize_memory(new_memory))
         state["hidden"] = hidden
 
         return logits, values
@@ -198,7 +190,7 @@ class TransformerWrapper(nn.Module):
             }
 
         if hasattr(self.policy, "initialize_memory"):
-            memory = self.policy.initialize_memory(batch_size)
+            memory = self._normalize_memory(self.policy.initialize_memory(batch_size))
         else:
             memory = None
 
@@ -219,6 +211,8 @@ class TransformerWrapper(nn.Module):
             return None
         elif isinstance(memory, torch.Tensor):
             return memory.detach()
+        elif isinstance(memory, list):
+            return [self._detach_memory(item) for item in memory]
         elif isinstance(memory, tuple):
             return tuple(self._detach_memory(item) for item in memory)
         elif isinstance(memory, dict):
@@ -239,39 +233,54 @@ class TransformerWrapper(nn.Module):
 
     def prepare_memory_batch(
         self, snapshots: list[Optional[Dict[str, Optional[List[torch.Tensor]]]]], device: torch.device
-    ) -> Optional[Dict[str, List[torch.Tensor]]]:
+    ) -> Optional[Dict[str, Dict[str, List[torch.Tensor]]]]:
         """Convert per-sample memory snapshots into a batch suitable for TransformerModule."""
 
         if not snapshots or all(snapshot is None for snapshot in snapshots):
             return None
 
         transformer = getattr(self.policy, "_transformer", None)
-        if transformer is None or transformer.memory_len <= 0:
-            return None
+        if transformer is None:
+            raise AttributeError("Transformer policy must expose '_transformer'")
 
-        n_layers = transformer.n_layers
         mem_len = transformer.memory_len
+        if mem_len <= 0:
+            return None
+        n_layers = transformer.n_layers
         d_model = transformer.d_model
+
         batched_hidden: List[torch.Tensor] = []
 
         for layer_idx in range(n_layers):
             layer_entries: List[torch.Tensor] = []
             for snapshot in snapshots:
-                if snapshot is None or snapshot.get("hidden_states") is None:
+                layer_tensor = None
+                if snapshot is not None and snapshot.get("hidden_states") is not None:
+                    hidden_states = snapshot["hidden_states"]
+                    if layer_idx < len(hidden_states):
+                        layer_tensor = hidden_states[layer_idx]
+
+                if layer_tensor is None or layer_tensor.numel() == 0:
                     layer_entries.append(torch.zeros(mem_len, d_model, device=device))
                     continue
-                layer_tensor = snapshot["hidden_states"][layer_idx]
-                if layer_tensor.numel() == 0:
-                    layer_entries.append(torch.zeros(mem_len, d_model, device=device))
-                    continue
+
                 layer_tensor = layer_tensor.to(device=device)
                 if layer_tensor.size(0) < mem_len:
-                    pad = torch.zeros(mem_len - layer_tensor.size(0), d_model, device=device, dtype=layer_tensor.dtype)
+                    pad = torch.zeros(
+                        mem_len - layer_tensor.size(0),
+                        d_model,
+                        device=device,
+                        dtype=layer_tensor.dtype,
+                    )
                     layer_tensor = torch.cat([pad, layer_tensor], dim=0)
+                else:
+                    layer_tensor = layer_tensor[-mem_len:]
+
                 layer_entries.append(layer_tensor)
+
             batched_hidden.append(torch.stack(layer_entries, dim=1))
 
-        return {"hidden_states": batched_hidden}
+        return {"transformer_memory": {"hidden_states": batched_hidden}}
 
     def _build_batch_memory_from_env(
         self, env_indices: torch.Tensor, device: torch.device
@@ -285,22 +294,30 @@ class TransformerWrapper(nn.Module):
         for env_idx in env_indices.tolist():
             snapshots.append(self._env_memory.get(env_idx))
 
-        return self.prepare_memory_batch(snapshots, device)
+        prepared = self.prepare_memory_batch(snapshots, device)
+        if prepared is None:
+            return None
+        return prepared["transformer_memory"]
 
-    def _update_env_memory(self, env_indices: torch.Tensor, new_memory: Dict[str, List[torch.Tensor]]) -> None:
+    def _update_env_memory(
+        self, env_indices: torch.Tensor, new_memory: Optional[Dict[str, List[torch.Tensor]]]
+    ) -> None:
         """Store updated transformer memory per environment after a forward pass."""
 
-        if new_memory is None or "hidden_states" not in new_memory:
-            return
-
+        layer_states = self._extract_layer_states(new_memory)
         for batch_pos, env_idx in enumerate(env_indices.tolist()):
-            if new_memory["hidden_states"] is None:
+            if layer_states is None:
                 self._env_memory[env_idx] = None
                 continue
-            layer_snapshots: List[torch.Tensor] = []
-            for layer_hidden in new_memory["hidden_states"]:
-                layer_snapshots.append(layer_hidden[:, batch_pos].detach().cpu())
-            self._env_memory[env_idx] = {"hidden_states": layer_snapshots}
+            env_layers: List[torch.Tensor] = []
+            for layer_hidden in layer_states:
+                if layer_hidden.numel() == 0:
+                    env_layers.append(layer_hidden.detach().cpu())
+                    continue
+                if layer_hidden.dim() != 3:
+                    raise ValueError(f"Expected layer memory with shape (T, B, D), got {layer_hidden.shape}")
+                env_layers.append(layer_hidden[:, batch_pos].detach().cpu())
+            self._env_memory[env_idx] = {"hidden_states": env_layers}
 
     def _record_segment_memory(
         self,
@@ -314,13 +331,21 @@ class TransformerWrapper(nn.Module):
         if segment_indices.numel() == 0 or segment_positions.numel() == 0:
             return
 
-        if memory_snapshot is None or memory_snapshot.get("hidden_states") is None:
+        base_layers = self._extract_layer_states(memory_snapshot)
+        if base_layers is None:
             snapshots = [None for _ in range(segment_indices.numel())]
         else:
-            snapshots = [
-                {"hidden_states": [layer[:, idx].detach().cpu() for layer in memory_snapshot["hidden_states"]]}
-                for idx in range(segment_indices.numel())
-            ]
+            snapshots = []
+            for idx in range(segment_indices.numel()):
+                env_layers: List[torch.Tensor] = []
+                for layer in base_layers:
+                    if layer.numel() == 0:
+                        env_layers.append(layer.detach().cpu())
+                        continue
+                    if layer.dim() != 3:
+                        raise ValueError(f"Expected layer memory with shape (T, B, D), got {layer.shape}")
+                    env_layers.append(layer[:, idx].detach().cpu())
+                snapshots.append({"hidden_states": env_layers})
 
         for batch_pos, segment_idx in enumerate(segment_indices.tolist()):
             if segment_positions[batch_pos].item() != 0:
@@ -328,3 +353,32 @@ class TransformerWrapper(nn.Module):
             self._pending_segment_records.append(
                 SegmentMemoryRecord(segment_index=segment_idx, memory=snapshots[batch_pos])
             )
+
+    def _decode_actions(self, hidden: torch.Tensor, batch_size: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        decode_fn = self.policy.decode_actions
+        try:
+            return decode_fn(hidden, batch_size=batch_size)
+        except TypeError:
+            return decode_fn(hidden)
+
+    def _extract_layer_states(
+        self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
+    ) -> Optional[List[torch.Tensor]]:
+        if memory is None:
+            return None
+        hidden_states = memory.get("hidden_states")
+        if hidden_states is None:
+            raise ValueError("Transformer memory must include 'hidden_states'")
+        if len(hidden_states) == 0:
+            return None
+        return [layer for layer in hidden_states]
+
+    def _normalize_memory(
+        self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
+    ) -> Optional[Dict[str, List[torch.Tensor]]]:
+        if memory is None:
+            return None
+        hidden_states = memory.get("hidden_states")
+        if hidden_states is None:
+            raise ValueError("Transformer memory must include 'hidden_states'")
+        return {"hidden_states": [layer for layer in hidden_states]}
