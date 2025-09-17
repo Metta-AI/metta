@@ -16,8 +16,14 @@ class LossSchedule(Config):
 
 
 class LossConfig(Config):
-    loss_configs: Dict[str, Any] = Field(default={"ppo": PPOConfig(), "contrastive": ContrastiveConfig()})
-    enable_contrastive: bool = Field(default=True, description="Whether to enable contrastive loss")
+    loss_configs: Dict[str, Any] = Field(default_factory=lambda: {"ppo": PPOConfig()})
+    enable_contrastive: bool = Field(default=False, description="Whether to enable contrastive loss")
+
+    def __post_init__(self):
+        """Add contrastive config only if enabled to avoid inconsistent behavior."""
+        super().__post_init__()
+        if self.enable_contrastive and "contrastive" not in self.loss_configs:
+            self.loss_configs["contrastive"] = ContrastiveConfig()
 
     def init_losses(
         self,
@@ -29,9 +35,17 @@ class LossConfig(Config):
     ):
         losses = {}
         for loss_name, loss_config in self.loss_configs.items():
-            # Skip contrastive loss if disabled
-            if loss_name == "contrastive" and not self.enable_contrastive:
-                continue
+            # Explicit check with warning for inconsistent config
+            if loss_name == "contrastive":
+                if not self.enable_contrastive:
+                    print(
+                        "WARNING: 'contrastive' found in loss_configs but enable_contrastive=False. "
+                        "Skipping contrastive loss."
+                    )
+                    continue
+                else:
+                    print("Initializing contrastive loss (enable_contrastive=True)")
+
             losses[loss_name] = loss_config.init_loss(
                 policy, trainer_cfg, vec_env, device, checkpoint_manager, loss_name, loss_config
             )

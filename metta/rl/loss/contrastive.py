@@ -22,6 +22,7 @@ class ContrastiveLoss(BaseLoss):
         "embedding_dim",
         "projection_head",
         "_projection_head_input_dim",
+        "_value_projection",
     )
 
     def __init__(
@@ -97,20 +98,32 @@ class ContrastiveLoss(BaseLoss):
         elif "features" in policy_td:
             return policy_td["features"]
         else:
-            # Fallback: use value as embeddings (expand to reasonable dimension)
+            # Fallback: use value as embeddings but warn about suboptimal choice
+            # This should only happen if policy doesn't provide proper feature representations
+            print(
+                "WARNING: Contrastive loss using value tensor as embeddings - "
+                "this is suboptimal for representation learning"
+            )
             value = policy_td["value"].squeeze(-1)  # Remove last dimension if it's 1
+
             if value.dim() == 1:
-                # If 1D, repeat to create a reasonable embedding dimension
-                value = value.unsqueeze(-1).expand(-1, self.embedding_dim)
+                # Don't expand identical values - instead create a learnable linear projection
+                # from the 1D value to embedding_dim with proper initialization
+                if not hasattr(self, "_value_projection"):
+                    self._value_projection = torch.nn.Linear(1, self.embedding_dim).to(self.device)
+                    # Initialize with small random weights to break symmetry
+                    torch.nn.init.xavier_uniform_(self._value_projection.weight)
+                    print(f"Created value->embedding projection: 1 -> {self.embedding_dim}")
+
+                # Project 1D value to embedding_dim with learned transformation
+                value = value.unsqueeze(-1)  # [N] -> [N, 1]
+                value = self._value_projection(value)  # [N, 1] -> [N, embedding_dim]
+
             return value
 
     def _compute_contrastive_loss(self, embeddings: Tensor, minibatch: TensorDict) -> Tensor:
-        """Compute the actual contrastive loss."""
+        """Compute the actual contrastive loss using proper positive/negative sampling."""
         batch_size = embeddings.shape[0]
-
-        # For simplicity, using temporal contrastive learning
-        # Positive pairs: consecutive timesteps
-        # Negative pairs: non-consecutive timesteps
 
         # Reshape to (B*T, D) if needed
         if embeddings.dim() == 3:  # (B, T, D)
@@ -118,22 +131,36 @@ class ContrastiveLoss(BaseLoss):
             embeddings = embeddings.view(B * T, D)
             batch_size = B * T
 
-        # Create positive pairs (consecutive timesteps)
-        if batch_size > 1:
-            # For each embedding, the next one is positive
-            pos_embeddings = embeddings[1:]  # Skip first
-            neg_embeddings = embeddings[:-1]  # Skip last
+        if batch_size < 4:  # Need at least 4 samples for proper contrastive learning
+            return torch.tensor(0.0, device=self.device)
 
-            # Compute similarities
-            pos_sim = F.cosine_similarity(embeddings[:-1], pos_embeddings, dim=-1)
-            neg_sim = F.cosine_similarity(embeddings[:-1], neg_embeddings, dim=-1)
+        # Create proper positive and negative pairs
+        # Positive pairs: consecutive timesteps (temporal continuity)
+        # Negative pairs: randomly shuffled embeddings (different contexts)
 
-            # Contrastive loss: maximize positive similarity, minimize negative
-            pos_loss = -torch.log(torch.sigmoid(pos_sim / self.temperature)).mean()
-            neg_loss = -torch.log(torch.sigmoid(-neg_sim / self.temperature)).mean()
+        anchor_embeddings = embeddings[:-1]  # All except last
+        pos_embeddings = embeddings[1:]  # All except first (consecutive timesteps)
 
-            contrastive_loss = (pos_loss + neg_loss) * self.contrastive_coef
-        else:
-            contrastive_loss = torch.tensor(0.0, device=self.device)
+        # Create negative embeddings by randomly shuffling indices
+        # This ensures negatives are from different contexts, not identical tensors
+        neg_indices = torch.randperm(len(pos_embeddings), device=self.device)
+        # Ensure negatives are actually different from positives
+        # If by chance neg_indices[i] == i, shift by 1
+        same_indices = neg_indices == torch.arange(len(neg_indices), device=self.device)
+        neg_indices[same_indices] = (neg_indices[same_indices] + 1) % len(neg_indices)
+        neg_embeddings = pos_embeddings[neg_indices]
 
-        return contrastive_loss
+        # Compute similarities
+        pos_sim = F.cosine_similarity(anchor_embeddings, pos_embeddings, dim=-1)
+        neg_sim = F.cosine_similarity(anchor_embeddings, neg_embeddings, dim=-1)
+
+        # InfoNCE-style contrastive loss
+        # Maximize positive similarity, minimize negative similarity
+        pos_logits = pos_sim / self.temperature
+        neg_logits = neg_sim / self.temperature
+
+        # Contrastive loss: log(exp(pos) / (exp(pos) + exp(neg)))
+        # This is equivalent to: -log(sigmoid(pos - neg))
+        contrastive_loss = -torch.log(torch.sigmoid(pos_logits - neg_logits)).mean()
+
+        return contrastive_loss * self.contrastive_coef
