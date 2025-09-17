@@ -69,7 +69,10 @@ def _run_bazel_build() -> None:
 
     # Optional Raylib toggle for GUI builds
     if _truthy(os.environ.get("WITH_RAYLIB")):
-        cmd.insert(3, "--define=with_raylib=true")  # after --config but before target
+        # after --config but before target
+        cmd.insert(3, "--define=with_raylib=true")
+        # Re-enable legacy WORKSPACE for Bazel 8 (helps resolve local repos if present)
+        cmd.insert(3, "--enable_workspace")
 
     print(f"Running Bazel build: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, check=False)
