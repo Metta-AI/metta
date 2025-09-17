@@ -1,4 +1,5 @@
 import logging
+import pickle
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
@@ -131,6 +132,16 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
     return None
 
 
+def _load_checkpoint_file(path: Path, device: str | torch.device):
+    """Load a checkpoint file, raising FileNotFoundError on corruption."""
+    try:
+        return torch.load(path, weights_only=False, map_location=device)
+    except FileNotFoundError:
+        raise
+    except (pickle.UnpicklingError, RuntimeError, OSError) as err:
+        raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
+
+
 class CheckpointManager:
     """Checkpoint manager with filename-embedded metadata and LRU cache."""
 
@@ -181,12 +192,14 @@ class CheckpointManager:
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                return torch.load(checkpoint_file, weights_only=False, map_location=device)
-            return torch.load(path, weights_only=False, map_location=device)
+                return _load_checkpoint_file(checkpoint_file, device)
+            if not path.exists():
+                raise FileNotFoundError(f"Checkpoint file not found: {path}")
+            return _load_checkpoint_file(path, device)
 
         if parsed.scheme == "s3":
             with local_copy(parsed.canonical) as local_path:
-                return torch.load(local_path, weights_only=False, map_location=device)
+                return _load_checkpoint_file(Path(local_path), device)
 
         if parsed.scheme == "mock":
             return MockAgent()
