@@ -127,4 +127,4 @@ jobs:
           AWS_SSO_NONINTERACTIVE: 1
         run: |
           echo "Running setup integration tests..."
-          metta pytest tests/setup -v
+          metta pytest tests/setup -v -n auto --dist=loadscope
