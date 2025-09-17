@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Any, Generator
+from typing import Any, Generator, NamedTuple
 
 import httpx
 
@@ -27,6 +27,29 @@ def _github_client() -> Generator[httpx.Client, None, None]:
         timeout=30,
     ) as client:
         yield client
+
+
+class GitHubJobStatus(NamedTuple):
+    """Snapshot of a GitHub Actions job's status and conclusion."""
+
+    status: str
+    conclusion: str
+
+
+def _get_job_statuses_by_name(response: dict[str, Any]) -> dict[str, GitHubJobStatus]:
+    """Return a mapping of normalized job names to their status and conclusion."""
+
+    jobs: list[dict[str, Any]] = (response or {}).get("jobs", []) if response else []
+    statuses: dict[str, GitHubJobStatus] = {}
+    for job in jobs:
+        name = str(job.get("name") or "").strip()
+        if not name:
+            continue
+        statuses[name.lower()] = GitHubJobStatus(
+            status=str(job.get("status") or "").lower(),
+            conclusion=str(job.get("conclusion") or "").lower(),
+        )
+    return statuses
 
 
 def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: str = "main") -> int:
@@ -113,12 +136,20 @@ def get_latest_unit_tests_failed() -> int:
             logger.error(f"Failed to get jobs: {resp.status_code} {resp.text}")
             return 0
 
-        jobs = (resp.json() or {}).get("jobs", [])
-        for job in jobs:
-            name = (job.get("name") or "").lower()
-            if "unit tests" in name or "unit-tests" in name or name.startswith("unit"):
-                conclusion = (job.get("conclusion") or "").lower()
-                if conclusion != "success":
-                    return 1
+        job_statuses = _get_job_statuses_by_name(resp.json() or {})
+        unit_tests_all_packages = job_statuses.get("unit tests - all packages")
+        tests = job_statuses.get("tests")
+        if not unit_tests_all_packages or not tests:
+            return 0
+
+        # Cancelled tests can be identified by "Unit Tests - All Packages" job being cancelled and then "Tests" failing
+        canceled = unit_tests_all_packages.status == "cancelled" and tests.conclusion == "failure"
+        if canceled:
+            return 0
+        return all(
+            job_status.conclusion == "success"
+            for job_status in job_statuses.values()
+            if job_status.status == "completed"
+        )
 
     return 0
