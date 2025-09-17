@@ -64,8 +64,9 @@ class AdaptiveController:
                     time.sleep(self.config.monitoring_interval)
                     try:
                         runs = self.store.fetch_runs(filters={"group": self.experiment_id})
-                    except:
-                        raise ValueError("Error when fetching WandB runs")
+                    except Exception as e:
+                        logger.error("Error when fetching WandB runs")
+                        raise e
                 else:
                     runs = []
                     has_data = True  # Skip first fetch because WandB will just timeout.
