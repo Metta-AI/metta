@@ -43,7 +43,7 @@ class DatadogAgentSetup(SetupModule):
             return False
 
     def _get_dd_api_key(self) -> str | None:
-        return os.environ.get("DD_API_KEY") or get_secretsmanager_secret("datadog/api-key")
+        return os.environ.get("DD_API_KEY") or get_secretsmanager_secret("datadog/api-key", require_exists=False)
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Getting Datadog API key...")
@@ -53,12 +53,13 @@ class DatadogAgentSetup(SetupModule):
             warning(f"Could not get Datadog API key: {e}")
             warning("Skipping Datadog agent installation.")
             return
+        if not api_key:
+            warning("No Datadog API key found. Skipping Datadog agent installation.")
+            return
 
         # Set environment variables for the install script
         env = os.environ.copy()
-        if api_key:
-            env["DD_API_KEY"] = api_key
-
+        env["DD_API_KEY"] = api_key
         env["DD_SITE"] = os.environ.get("DD_SITE", "datadoghq.com")
         env["DD_VERSION"] = os.environ.get("DD_VERSION", os.environ.get("METTA_GIT_REF", "unknown"))
         env["DD_TRACE_ENABLED"] = os.environ.get("DD_TRACE_ENABLED", "true")

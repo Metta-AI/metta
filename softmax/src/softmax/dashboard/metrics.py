@@ -22,7 +22,6 @@ def _github_client() -> Generator[httpx.Client, None, None]:
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "softmax-metrics",
-            # Authn
             "Authorization": f"Basic {get_secretsmanager_secret('github/dashboard-token')}",
         },
         timeout=30,

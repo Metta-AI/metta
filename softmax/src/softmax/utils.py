@@ -9,7 +9,7 @@ def memoize(max_age: int = 60):
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            key = str(args) + str(kwargs)
+            key = hash((args, tuple(sorted(kwargs.items()))))
             current_time = time.time()
 
             if key in cache and current_time - cache_time[key] < max_age:
