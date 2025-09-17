@@ -22,7 +22,7 @@ struct AttackActionConfig : public ActionConfig {
   std::map<InventoryItem, InventoryQuantity> defense_resources;
 
   AttackActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
-                     const std::map<InventoryItem, InventoryQuantity>& consumed_resources,
+                     const std::map<InventoryItem, InventoryProbability>& consumed_resources,
                      const std::map<InventoryItem, InventoryQuantity>& defense_resources)
       : ActionConfig(required_resources, consumed_resources), defense_resources(defense_resources) {}
 };
@@ -224,10 +224,10 @@ namespace py = pybind11;
 inline void bind_attack_action_config(py::module& m) {
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryProbability>&,
                     const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryProbability>(),
            py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
 }

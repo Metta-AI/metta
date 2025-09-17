@@ -3,7 +3,14 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
+from metta.mettagrid.mettagrid_c import (
+    MettaGrid,
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
@@ -464,3 +471,112 @@ class TestResourceOrdering:
 
         # This affects resource indices in the implementation
         # ore is index 0 in env1, but index 1 in env2
+
+
+class TestFractionalConsumption:
+    """Tests for fractional consumed resource probabilities."""
+
+    @staticmethod
+    def _build_env(
+        initial_energy: int,
+        consumed: float,
+        seed: int = 123,
+        required_resources: dict[str, int] | None = None,
+    ) -> MettaGrid:
+        consumed_map = {"energy": consumed}
+        required_map = required_resources if required_resources is not None else {}
+        config = GameConfig(
+            resource_names=["energy"],
+            num_agents=1,
+            max_steps=20,
+            obs_width=3,
+            obs_height=3,
+            num_observation_tokens=20,
+            agent=AgentConfig(initial_inventory={"energy": initial_energy}),
+            actions=ActionsConfig(
+                noop=ActionConfig(
+                    enabled=True,
+                    consumed_resources=consumed_map,
+                    required_resources=required_map,
+                ),
+                move=ActionConfig(enabled=False),
+                rotate=ActionConfig(enabled=False),
+            ),
+            objects={"wall": WallConfig(type_id=1, swappable=False)},
+            allow_diagonals=False,
+        )
+        game_map = [
+            ["wall", "wall", "wall"],
+            ["wall", "agent.default", "wall"],
+            ["wall", "wall", "wall"],
+        ]
+        env = MettaGrid(from_mettagrid_config(config), game_map, seed)
+        observations = np.zeros((1, 20, 3), dtype=dtype_observations)
+        terminals = np.zeros(1, dtype=dtype_terminals)
+        truncations = np.zeros(1, dtype=dtype_truncations)
+        rewards = np.zeros(1, dtype=dtype_rewards)
+        env.set_buffers(observations, terminals, truncations, rewards)
+        env.reset()
+        return env
+
+    @staticmethod
+    def _get_energy(env: MettaGrid) -> int:
+        objects = env.grid_objects()
+        energy_idx = env.resource_names().index("energy")
+        for obj in objects.values():
+            if "agent_id" in obj:
+                inventory = obj.get("inventory", {})
+                return int(inventory.get(energy_idx, 0))
+        raise AssertionError("Agent not found")
+
+    def test_fractional_consumption_probability(self):
+        """Test that fractional consumed resources use probabilistic deltas."""
+
+        env = self._build_env(10, 0.5)
+        noop_idx = env.action_names().index("noop")
+        actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+
+        for _ in range(10):
+            env.step(actions)
+
+        final_energy = self._get_energy(env)
+
+        assert 3 < final_energy < 7, 'final energy not in expected range'
+
+        env_low = self._build_env(0, 0.5)
+        noop_idx_low = env_low.action_names().index("noop")
+        low_actions = np.array([[noop_idx_low, 0]], dtype=dtype_actions)
+        env_low.step(low_actions)
+
+        assert not env_low.action_success()[0], "Insufficient resources should block action"
+        assert self._get_energy(env_low) == 0, "Inventory should remain empty when action fails"
+
+    def test_fractional_consumption_with_fractional_overflow(self):
+        """Fractional values above one consume one or two units per step."""
+
+        env = self._build_env(5, 1.5)
+        noop_idx = env.action_names().index("noop")
+        actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+        env.step(actions)
+
+        final_energy = self._get_energy(env)
+
+        assert final_energy in {3, 4}, "Consumption must stay within expected bounds"
+        assert env.action_success()[0], "Action should succeed when resources are available"
+
+    def test_fractional_consumption_requires_ceiled_inventory(self):
+        """Inventory below ceil(consumed) should prevent action execution."""
+
+        env = self._build_env(1, 1.5)
+        noop_idx = env.action_names().index("noop")
+        actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
+        env.step(actions)
+
+        assert not env.action_success()[0], "Action must fail without required inventory"
+        assert self._get_energy(env) == 1, "Inventory should remain unchanged on failure"
+
+    def test_fractional_consumption_invalid_requirements(self):
+        """Config with insufficient required resources should raise during build."""
+
+        with pytest.raises(RuntimeError, match="Required resources must be"):
+            self._build_env(5, 1.5, required_resources={"energy": 1})
