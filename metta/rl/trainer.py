@@ -316,6 +316,10 @@ def train(
     )
     try:
         while agent_step < trainer_cfg.total_timesteps:
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+                enable_nccl_watchdog()
+
             steps_before = agent_step
             trainer_state.agent_step = agent_step
             trainer_state.epoch = epoch
@@ -588,7 +592,8 @@ def train(
                         logger.warning(
                             "Local policy evaluation can be inefficient - consider switching to remote evaluation!"
                         )
-                        disable_nccl_watchdog()
+                        disable_nccl_watchdog()  # we will reenable after the barrier on starting the next agent_step
+
                         evaluation_results = evaluate_policy(
                             checkpoint_uri=policy_uri,
                             simulations=sims,
@@ -599,7 +604,6 @@ def train(
                             stats_client=stats_client,
                         )
 
-                        enable_nccl_watchdog()
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
                         if wandb_run is not None and evaluation_results.replay_urls:

@@ -41,28 +41,19 @@ def _init_process_group() -> bool:
 
 
 def enable_nccl_watchdog():
-    """
-    Enable (and reset) the NCCL watchdog
-    """
-    # Enable watchdog
-    os.environ["NCCL_WATCHDOG_ENABLE"] = "1"
-    os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1"
-
-    # Setting these environment variables effectively resets the timer
-    # as NCCL will read them on the next collective operation
-
-    logger.warning("NCCL watchdog enabled!")
+    """Enable NCCL watchdog if not already enabled."""
+    if os.environ.get("NCCL_WATCHDOG_ENABLE", "0") == "0":
+        os.environ["NCCL_WATCHDOG_ENABLE"] = "1"
+        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1"
+        logger.warning("NCCL watchdog enabled!")
 
 
 def disable_nccl_watchdog():
-    """
-    Disable the NCCL watchdog.
-    """
-    # Disable watchdog
-    os.environ["NCCL_WATCHDOG_ENABLE"] = "0"
-    os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
-
-    logger.warning("NCCL watchdog disabled")
+    """Disable NCCL watchdog if currently enabled."""
+    if os.environ.get("NCCL_WATCHDOG_ENABLE", "0") == "1":
+        os.environ["NCCL_WATCHDOG_ENABLE"] = "0"
+        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
+        logger.warning("NCCL watchdog disabled")
 
 
 def setup_torch_distributed(device: str) -> TorchDistributedConfig:
