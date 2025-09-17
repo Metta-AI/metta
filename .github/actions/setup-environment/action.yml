@@ -78,7 +78,7 @@ runs:
 
           "linting")
             echo "Installing dependencies for linting"
-            uv pip install -r .github/actions/setup-environment/dependencies-linting.txt
+            uv sync
             echo "Installed dependencies for linting"
             ;;
 
