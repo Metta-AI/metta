@@ -78,7 +78,7 @@ runs:
 
           "linting")
             echo "Installing dependencies for linting"
-            uv sync
+            uv sync --group lint
             echo "Installed dependencies for linting"
             ;;
 

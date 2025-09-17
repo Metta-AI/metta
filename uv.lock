@@ -2044,6 +2044,10 @@ dev = [
     { name = "ruff" },
     { name = "skypilot" },
 ]
+lint = [
+    { name = "cpplint" },
+    { name = "ruff" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2126,6 +2130,10 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.11.13" },
     { name = "skypilot", specifier = "==0.10.3" },
+]
+lint = [
+    { name = "cpplint", specifier = ">=2.0.2" },
+    { name = "ruff", specifier = ">=0.11.13" },
 ]
 
 [[package]]
