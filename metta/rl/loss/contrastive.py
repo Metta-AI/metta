@@ -21,6 +21,7 @@ class ContrastiveLoss(BaseLoss):
         "contrastive_coef",
         "embedding_dim",
         "projection_head",
+        "_projection_head_input_dim",
     )
 
     def __init__(
@@ -41,15 +42,11 @@ class ContrastiveLoss(BaseLoss):
 
         # Add projection head if needed
         if self.loss_cfg.use_projection_head:
-            # Check if encoder component exists before accessing it
-            if "encoder" in self.policy.policy.components:
-                input_dim = self.policy.policy.components["encoder"].output_dim
-                print(f"Using encoder output_dim: {input_dim}")
-            else:
-                # Fallback: use a reasonable default based on policy architecture
-                input_dim = 256  # Reasonable default for policy representations
-                print(f"Encoder not found, using fallback input_dim: {input_dim}")
-            self.projection_head = torch.nn.Linear(input_dim, self.embedding_dim).to(device)
+            # We'll determine input_dim dynamically during first forward pass
+            # This avoids hardcoded assumptions about encoder output dimensions
+            self.projection_head = None  # Will be created in first forward pass
+            self._projection_head_input_dim = None
+            print("Contrastive loss projection head will be created dynamically based on actual embedding dimensions")
         else:
             self.projection_head = None
 
@@ -68,8 +65,15 @@ class ContrastiveLoss(BaseLoss):
         # Get embeddings from policy
         embeddings = self._get_embeddings(policy_td)
 
-        # Apply projection head if needed
-        if self.projection_head is not None:
+        # Create and apply projection head if needed
+        if self.loss_cfg.use_projection_head:
+            if self.projection_head is None:
+                # Create projection head dynamically based on actual embedding dimensions
+                actual_input_dim = embeddings.shape[-1]
+                self._projection_head_input_dim = actual_input_dim
+                self.projection_head = torch.nn.Linear(actual_input_dim, self.embedding_dim).to(self.device)
+                print(f"Created contrastive loss projection head: {actual_input_dim} -> {self.embedding_dim}")
+
             embeddings = self.projection_head(embeddings)
 
         # Normalize embeddings
