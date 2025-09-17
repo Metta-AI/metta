@@ -178,8 +178,16 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_sinks = rng.choice(self.config.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
         room_size = rng.choice(self.config.room_sizes)
-        obstacle_type = rng.choice(self.config.obstacle_types) if len(self.config.obstacle_types) > 0 else None
-        density = rng.choice(self.config.densities) if len(self.config.densities) > 0 else None
+        obstacle_type = (
+            rng.choice(self.config.obstacle_types)
+            if len(self.config.obstacle_types) > 0
+            else None
+        )
+        density = (
+            rng.choice(self.config.densities)
+            if len(self.config.densities) > 0
+            else None
+        )
 
         # by default, use a small room
         size_range = (
@@ -377,6 +385,7 @@ def longer_chains_more_sinks():
         num_sinks=[0, 1, 2, 3, 4],
         room_sizes=["small", "medium", "large"],
     )
+
 
 def terrain():
     return make_curriculum(
