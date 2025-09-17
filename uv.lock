@@ -16,6 +16,7 @@ members = [
     "metta-app-backend",
     "metta-common",
     "mettagrid",
+    "softmax",
 ]
 
 [[package]]
@@ -699,6 +700,21 @@ wheels = [
 ]
 
 [[package]]
+name = "datadog-api-client"
+version = "2.43.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "python-dateutil" },
+    { name = "typing-extensions" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bd/43/c7e9884cc6465ce6a1e5ef4dd92425a14283811d9589ca8087c648e2478d/datadog_api_client-2.43.0.tar.gz", hash = "sha256:f3aec5db9bcceb39f6315e505eea908da7133a19f8475ef996ef8be8e3c84855", size = 3330418, upload-time = "2025-09-15T09:42:04.703Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b6/02/884c1fc758009958d26c7968d33e22794e920c1f5a52f5fe46c394ddcf7e/datadog_api_client-2.43.0-py3-none-any.whl", hash = "sha256:1d038b545263ad0b665f46d9d36dc0f0ed491770d9dcd68380be4685a9ae6cc3", size = 4154216, upload-time = "2025-09-15T09:42:03.202Z" },
+]
+
+[[package]]
 name = "ddtrace"
 version = "3.12.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1250,6 +1266,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc", size = 141406, upload-time = "2024-12-06T15:37:23.222Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad", size = 73517, upload-time = "2024-12-06T15:37:21.509Z" },
+]
+
+[[package]]
+name = "httpx-sse"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/fa/66bd985dd0b7c109a3bcb89272ee0bfb7e2b4d06309ad7b38ff866734b2a/httpx_sse-0.4.1.tar.gz", hash = "sha256:8f44d34414bc7b21bf3602713005c5df4917884f76072479b21f68befa4ea26e", size = 12998, upload-time = "2025-06-24T13:21:05.71Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/0a/6269e3473b09aed2dab8aa1a600c70f31f00ae1349bee30658f7e358a159/httpx_sse-0.4.1-py3-none-any.whl", hash = "sha256:cba42174344c3a5b06f255ce65b350880f962d99ead85e776f23c6618a377a37", size = 8054, upload-time = "2025-06-24T13:21:04.772Z" },
 ]
 
 [[package]]
@@ -1886,6 +1911,34 @@ wheels = [
 ]
 
 [[package]]
+name = "mcp"
+version = "1.14.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "jsonschema" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-multipart" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
+    { name = "sse-starlette" },
+    { name = "starlette" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/fd/d6e941a52446198b73e5e4a953441f667f1469aeb06fb382d9f6729d6168/mcp-1.14.0.tar.gz", hash = "sha256:2e7d98b195e08b2abc1dc6191f6f3dc0059604ac13ee6a40f88676274787fac4", size = 454855, upload-time = "2025-09-11T17:40:48.667Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/7b/84b0dd4c2c5a499d2c5d63fb7a1224c25fc4c8b6c24623fa7a566471480d/mcp-1.14.0-py3-none-any.whl", hash = "sha256:b2d27feba27b4c53d41b58aa7f4d090ae0cb740cbc4e339af10f8cbe54c4e19d", size = 163805, upload-time = "2025-09-11T17:40:46.891Z" },
+]
+
+[package.optional-dependencies]
+cli = [
+    { name = "python-dotenv" },
+    { name = "typer" },
+]
+
+[[package]]
 name = "mdit-py-plugins"
 version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1960,6 +2013,7 @@ dependencies = [
     { name = "setuptools" },
     { name = "shimmy" },
     { name = "simple-term-menu" },
+    { name = "softmax" },
     { name = "sympy" },
     { name = "tabulate" },
     { name = "tensordict" },
@@ -1989,6 +2043,10 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "skypilot" },
+]
+lint = [
+    { name = "cpplint" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
@@ -2042,6 +2100,7 @@ requires-dist = [
     { name = "setuptools", specifier = ">=80.9.0" },
     { name = "shimmy", specifier = ">=1.3.0,<2.0" },
     { name = "simple-term-menu", specifier = ">=1.6.4" },
+    { name = "softmax", editable = "softmax" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensordict", specifier = ">=0.8.3" },
@@ -2071,6 +2130,10 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.11.13" },
     { name = "skypilot", specifier = "==0.10.3" },
+]
+lint = [
+    { name = "cpplint", specifier = ">=2.0.2" },
+    { name = "ruff", specifier = ">=0.11.13" },
 ]
 
 [[package]]
@@ -4080,6 +4143,33 @@ wheels = [
 ]
 
 [[package]]
+name = "softmax"
+version = "0.0.1"
+source = { editable = "softmax" }
+dependencies = [
+    { name = "boto3" },
+    { name = "datadog-api-client" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "mcp", extra = ["cli"] },
+    { name = "metta-common" },
+    { name = "pyyaml" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.38.32" },
+    { name = "datadog-api-client", specifier = ">=2.43.0" },
+    { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.13.1" },
+    { name = "metta-common", editable = "common" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "typer", specifier = ">=0.16.1" },
+]
+
+[[package]]
 name = "soupsieve"
 version = "2.8"
 source = { registry = "https://pypi.org/simple" }
@@ -4129,6 +4219,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c9/63/49797c32bac570ed3b06c5b6b7a8361d432cd43340ccadcce8162be21bb9/sqlglot-27.10.0.tar.gz", hash = "sha256:77af99ca743b44e9469a6ded954fe9111ff5449166cc09df452b6fd0ed01fb6d", size = 5437988, upload-time = "2025-08-28T21:08:16.115Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/67/8c/a7547d8cb904d9ab0478912ed2ce2444d0fe955403db2d54cf5de076f1c9/sqlglot-27.10.0-py3-none-any.whl", hash = "sha256:3981cf61d57cbab6da254283b272387c2dc1f239ec8fe8d637b3b67f3bf5cead", size = 506563, upload-time = "2025-08-28T21:08:13.424Z" },
+]
+
+[[package]]
+name = "sse-starlette"
+version = "3.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/42/6f/22ed6e33f8a9e76ca0a412405f31abb844b779d52c5f96660766edcd737c/sse_starlette-3.0.2.tar.gz", hash = "sha256:ccd60b5765ebb3584d0de2d7a6e4f745672581de4f5005ab31c3a25d10b52b3a", size = 20985, upload-time = "2025-07-27T09:07:44.565Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/10/c78f463b4ef22eef8491f218f692be838282cd65480f6e423d7730dfd1fb/sse_starlette-3.0.2-py3-none-any.whl", hash = "sha256:16b7cbfddbcd4eaca11f7b586f3b8a080f1afe952c15813455b162edea619e5a", size = 11297, upload-time = "2025-07-27T09:07:43.268Z" },
 ]
 
 [[package]]
