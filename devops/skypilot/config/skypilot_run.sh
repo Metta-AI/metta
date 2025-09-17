@@ -253,8 +253,6 @@ run_cmd() {
   # Handle completion - only write job_completed if actually successful
   if [[ ! -s "${TERMINATION_REASON_FILE:-}" ]] && [[ "$IS_MASTER" == "true" ]] && [[ $CMD_EXIT -eq 0 ]]; then
         echo "job_completed" > "$TERMINATION_REASON_FILE"
-        echo "job_completed" > "$CLUSTER_STOP_FILE"
-        echo "[INFO] Master wrote shutdown signal"
   fi
 
   local DURATION=$(($(date +%s) - START_TIME))
@@ -293,3 +291,5 @@ else
 fi
 
 run_cmd
+
+shutdown
