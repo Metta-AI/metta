@@ -224,6 +224,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             change_glyph_params = {
                 "required_resources": action_cpp_params.get("required_resources", {}),
                 "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "priority": action_cpp_params.get("priority", 0),
+                "auto_execute": action_cpp_params.get("auto_execute", False),
                 "number_of_glyphs": action_config["number_of_glyphs"],
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)

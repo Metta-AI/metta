@@ -95,7 +95,7 @@ class ActionsConfig(Config):
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: PutItemsActionConfig = Field(default_factory=lambda: PutItemsActionConfig(enabled=False))
+    put_items: PutItemsActionConfig = Field(default_factory=lambda: PutItemsActionConfig(enabled=True))
     get_items: GetItemsActionConfig = Field(default_factory=lambda: GetItemsActionConfig(enabled=True))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
