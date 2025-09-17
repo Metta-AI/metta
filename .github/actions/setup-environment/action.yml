@@ -58,13 +58,8 @@ runs:
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
         echo "UV_NO_SYNC=1" >> $GITHUB_ENV
 
-        # Always create fresh venv (using cached packages from uv store)
-        echo "🚀 Creating fresh virtual environment..."
-        echo "Creating venv"
         uv venv
-        echo "Virtual environment created"
 
-        # Handle different installation modes
         case "${{ inputs.install-mode }}" in
 
           "minimal")
@@ -72,14 +67,11 @@ runs:
             ;;
 
           "testing")
-            uv sync
-            uv pip install -r .github/actions/setup-environment/dependencies-testing.txt
+            uv sync --no-dev --group testing
             ;;
 
           "linting")
-            echo "Installing dependencies for linting"
-            uv sync --only-group lint
-            echo "Installed dependencies for linting"
+            uv sync --no-dev --group lint
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests
