@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,12 +36,25 @@ class SupportedWandbEnvOverrides(BaseSettings):
 supported_tool_overrides = SupportedWandbEnvOverrides()
 
 
+def _merge_wandb_settings(*settings_dicts: dict[str, Any]) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    for settings in settings_dicts:
+        for key, value in settings.items():
+            if value is None:
+                continue
+            merged[key] = value
+    return merged
+
+
 def auto_wandb_config(run: str | None = None) -> WandbConfig:
     wandb_setup_module = WandbSetup()
-    cfg = WandbConfig(
-        **wandb_setup_module.to_config_settings(),  # type: ignore[arg-type]
-        **supported_tool_overrides.to_config_settings(),
+    merged_settings = _merge_wandb_settings(
+        WandbConfig.Off().model_dump(),
+        wandb_setup_module.to_config_settings(),  # type: ignore[arg-type]
+        supported_tool_overrides.to_config_settings(),
     )
+
+    cfg = WandbConfig(**merged_settings)
 
     if run:
         cfg.run_id = run
@@ -107,13 +120,16 @@ def auto_replay_dir() -> str:
     }.get("replay_dir")
 
 
-def _join_prefix(prefix: str, run: str) -> str:
+def _join_prefix(prefix: str, run: str | None) -> str:
+    if run is None:
+        return prefix.rstrip("/")
     cleaned_prefix = prefix.rstrip("/")
     return f"{cleaned_prefix}/{run}"
 
 
 @dataclass(frozen=True)
 class PolicyStorageDecision:
+    base_prefix: str | None
     remote_prefix: str | None
     reason: Literal[
         "env_override",
@@ -125,29 +141,33 @@ class PolicyStorageDecision:
 
     @property
     def using_remote(self) -> bool:
-        return self.remote_prefix is not None
+        return self.base_prefix is not None and self.reason in {"env_override", "softmax_connected"}
 
 
-def auto_policy_storage_decision(run: str) -> PolicyStorageDecision:
+def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecision:
     overrides = supported_aws_env_overrides.to_config_settings()
     override_prefix = overrides.get("policy_remote_prefix")
     if isinstance(override_prefix, str) and override_prefix:
-        return PolicyStorageDecision(remote_prefix=_join_prefix(override_prefix, run), reason="env_override")
+        cleaned = override_prefix.rstrip("/")
+        remote = _join_prefix(cleaned, run) if run else None
+        return PolicyStorageDecision(base_prefix=cleaned, remote_prefix=remote, reason="env_override")
 
     aws_setup_module = AWSSetup()
     if not aws_setup_module.is_enabled():
-        return PolicyStorageDecision(remote_prefix=None, reason="aws_not_enabled")
+        return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="aws_not_enabled")
 
     aws_settings = aws_setup_module.to_config_settings()  # type: ignore[arg-type]
     base_prefix = aws_settings.get("policy_remote_prefix")
     if not isinstance(base_prefix, str) or not base_prefix:
-        return PolicyStorageDecision(remote_prefix=None, reason="no_base_prefix")
+        return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="no_base_prefix")
+    cleaned_base = base_prefix.rstrip("/")
 
     connected_account = aws_setup_module.check_connected_as()
     if connected_account != METTA_AWS_ACCOUNT_ID:
-        return PolicyStorageDecision(remote_prefix=None, reason="not_connected")
+        return PolicyStorageDecision(base_prefix=cleaned_base, remote_prefix=None, reason="not_connected")
 
-    return PolicyStorageDecision(remote_prefix=_join_prefix(base_prefix, run), reason="softmax_connected")
+    remote = _join_prefix(cleaned_base, run) if run else None
+    return PolicyStorageDecision(base_prefix=cleaned_base, remote_prefix=remote, reason="softmax_connected")
 
 
 def auto_run_name(prefix: str | None = None) -> str:

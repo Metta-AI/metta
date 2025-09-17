@@ -94,7 +94,18 @@ class TrainTool(Tool):
             elif storage_decision.reason == "not_connected":
                 logger.info_master(
                     "Softmax AWS SSO not detected; policies will remain on local storage. "
-                    "Run 'metta status --components=aws' after 'aws sso login --profile softmax' to enable S3 uploads.",
+                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' "
+                    f"to enable uploads to {storage_decision.base_prefix}."
+                )
+            elif storage_decision.reason == "aws_not_enabled":
+                logger.info_master(
+                    "AWS component disabled; policies will remain on local storage. Run 'metta configure aws' if you "
+                    "want to set up S3 uploads.",
+                )
+            elif storage_decision.reason == "no_base_prefix":
+                logger.info_master(
+                    "Remote policy prefix is unset; policies will remain local. Run 'metta configure aws' to set a "
+                    "policy prefix or configure POLICY_REMOTE_PREFIX.",
                 )
 
         os.makedirs(self.run_dir, exist_ok=True)

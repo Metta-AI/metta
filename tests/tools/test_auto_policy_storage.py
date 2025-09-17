@@ -28,6 +28,7 @@ def test_auto_policy_storage_env_override(monkeypatch: pytest.MonkeyPatch) -> No
 
     assert decision.using_remote is True
     assert decision.reason == "env_override"
+    assert decision.base_prefix == "s3://custom-bucket/policies"
     assert decision.remote_prefix == "s3://custom-bucket/policies/demo-run"
 
 
@@ -50,6 +51,7 @@ def test_auto_policy_storage_softmax_connected(monkeypatch: pytest.MonkeyPatch) 
 
     assert decision.using_remote is True
     assert decision.reason == "softmax_connected"
+    assert decision.base_prefix == "s3://softmax-public/policies"
     assert decision.remote_prefix == "s3://softmax-public/policies/softmax-run"
 
 
@@ -72,6 +74,7 @@ def test_auto_policy_storage_not_connected(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert decision.using_remote is False
     assert decision.reason == "not_connected"
+    assert decision.base_prefix == "s3://softmax-public/policies"
     assert decision.remote_prefix is None
 
 
@@ -94,6 +97,7 @@ def test_auto_policy_storage_not_enabled(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert decision.using_remote is False
     assert decision.reason == "aws_not_enabled"
+    assert decision.base_prefix is None
     assert decision.remote_prefix is None
 
 
@@ -116,4 +120,5 @@ def test_auto_policy_storage_missing_prefix(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert decision.using_remote is False
     assert decision.reason == "no_base_prefix"
+    assert decision.base_prefix is None
     assert decision.remote_prefix is None
