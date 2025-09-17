@@ -16,7 +16,7 @@ from wandb.errors import CommError
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.retry import retry_on_exception
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 from metta.mettagrid.util.file import WandbURI
 
 logger = logging.getLogger(__name__)
@@ -440,37 +440,3 @@ def load_artifact_file(wandb_uri: str, filename: Optional[str] = None, fallback_
         persistent_path = Path(tempfile.mktemp(suffix=target_file.suffix))
         shutil.copy2(target_file, persistent_path)
         return persistent_path
-
-
-# For backward compatibility, keep the old function name
-def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
-    """Extract checkpoint metadata from a wandb artifact.
-
-    Returns a dict with keys: run_name, epoch, agent_step, total_time, score
-    or None if metadata cannot be extracted.
-
-    This is a specialized version that expects specific checkpoint metadata fields.
-    """
-    metadata = get_wandb_artifact_metadata(wandb_uri)
-    if metadata is None:
-        return None
-
-    # Check if we have all required fields
-    required_fields = ["run_name", "epoch", "agent_step", "total_time", "score"]
-    if all(field in metadata for field in required_fields):
-        # Get artifact to access version
-        try:
-            uri = WandbURI.parse(expand_wandb_uri(wandb_uri))
-            artifact = get_wandb_artifact(uri.qname())
-            version = artifact.version
-        except Exception:
-            version = "unknown"
-
-        return {
-            "run_name": f"{metadata['run_name']}:{version}",
-            "epoch": metadata["epoch"],
-            "agent_step": metadata["agent_step"],
-            "total_time": metadata["total_time"],
-            "score": metadata["score"],
-        }
-    return None

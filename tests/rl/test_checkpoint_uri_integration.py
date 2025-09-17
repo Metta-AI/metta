@@ -19,11 +19,12 @@ from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
 from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.common.wandb.utils import (
+    expand_wandb_uri,
     upload_file_as_artifact,
 )
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import WandbURI
-from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
+from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.rl.system_config import SystemConfig
 
 
@@ -169,7 +170,7 @@ class TestWandbURIHandling:
         expanded = expand_wandb_uri(full_uri)
         assert expanded == full_uri
 
-    @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
+    @patch("metta.rl.wandb.load_policy_from_wandb_uri")
     def test_wandb_uri_loading(self, mock_load_wandb, mock_policy):
         """Test wandb URI loading - expansion now happens inside load_policy_from_wandb_uri."""
         mock_load_wandb.return_value = mock_policy
@@ -212,7 +213,7 @@ class TestWandbURIHandling:
             assert key == "test"
             assert version == 5
 
-    @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
+    @patch("metta.rl.wandb.load_policy_from_wandb_uri")
     def test_wandb_error_handling(self, mock_load_wandb):
         """Test wandb URI error handling."""
         # Test network error
@@ -482,7 +483,7 @@ class TestWandbArtifactFormatting:
             assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
 
     def test_upload_checkpoint_returns_latest_uri(self):
-        """Test that upload_checkpoint_as_artifact always returns latest URI for simplicity."""
+        """Test that upload_file_as_artifact always returns latest URI for simplicity."""
 
         mock_artifact = Mock()
         mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"

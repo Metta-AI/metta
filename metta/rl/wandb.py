@@ -7,10 +7,10 @@ import logging
 import torch
 import torch.nn as nn
 
+from metta.common.wandb.context import WandbRun
 from metta.common.wandb.utils import (
     load_artifact_file,
 )
-from metta.common.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger(__name__)
 

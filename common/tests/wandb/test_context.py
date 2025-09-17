@@ -8,7 +8,7 @@ import tempfile
 import wandb
 from wandb.errors import CommError
 
-from metta.common.wandb.wandb_context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.mettagrid.config import Config
 
 
