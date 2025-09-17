@@ -302,7 +302,7 @@ def make_curriculum(
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
-            progress_smoothing=0.1,
+            progress_smoothing=0.15,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
@@ -363,7 +363,7 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or longer_chains(),
+        curriculum=curriculum or small_curriculum(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
