@@ -125,17 +125,31 @@ def _run_bazel_build() -> None:
             for path in bazel_bin.rglob("*_solib_*/**/libraylib*.dylib"):
                 candidates.append(path)
         if candidates:
-            # Choose the first candidate (deterministic order by sort)
             candidates.sort()
-            lib_src = candidates[0]
-            lib_dest = src_dir / lib_src.name
-            try:
-                if lib_dest.exists():
-                    lib_dest.unlink()
-                shutil.copy2(lib_src, lib_dest)
-                print(f"Bundled Raylib dylib: {lib_src} -> {lib_dest}")
-            except Exception as e:
-                print(f"Warning: failed to bundle Raylib dylib from {lib_src}: {e}")
+            for lib_src in candidates:
+                lib_dest = src_dir / lib_src.name
+                try:
+                    if lib_dest.exists():
+                        lib_dest.unlink()
+                    shutil.copy2(lib_src, lib_dest)
+                    print(f"Bundled Raylib dylib: {lib_src} -> {lib_dest}")
+                    # If the filename looks like libraylib.<semver>.dylib, also add a copy
+                    # named libraylib.<digits_without_dots>.dylib (e.g., 5.5.0 -> 550)
+                    name = lib_dest.name
+                    if name.startswith("libraylib.") and name.endswith(".dylib"):
+                        ver = name[len("libraylib.") : -len(".dylib")]
+                        if all(c.isdigit() or c == "." for c in ver) and "." in ver:
+                            collapsed = ver.replace(".", "")
+                            alt = src_dir / f"libraylib.{collapsed}.dylib"
+                            try:
+                                if alt.exists():
+                                    alt.unlink()
+                                shutil.copy2(lib_dest, alt)
+                                print(f"Bundled Raylib alt name: {alt}")
+                            except Exception as e:
+                                print(f"Warning: failed to create alt Raylib name {alt}: {e}")
+                except Exception as e:
+                    print(f"Warning: failed to bundle Raylib dylib from {lib_src}: {e}")
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
