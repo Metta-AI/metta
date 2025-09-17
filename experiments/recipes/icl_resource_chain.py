@@ -338,7 +338,7 @@ def all_room_sizes_curriculum():
 
 def longer_chains():
     return make_curriculum(
-        chain_lengths=[2, 3, 4, 56, 7, 8, 9, 10],
+        chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
         num_sinks=[0, 1, 2],
         room_sizes=["small", "medium", "large"],
     )
