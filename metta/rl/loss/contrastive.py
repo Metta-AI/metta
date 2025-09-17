@@ -77,10 +77,7 @@ class ContrastiveLoss(BaseLoss):
 
             embeddings = self.projection_head(embeddings)
 
-        # Normalize embeddings
-        embeddings = F.normalize(embeddings, p=2, dim=-1)
-
-        # Compute contrastive loss
+        # Compute InfoNCE contrastive loss (normalization handled internally)
         contrastive_loss = self._compute_contrastive_loss(embeddings, minibatch)
 
         # Track metrics
@@ -122,7 +119,7 @@ class ContrastiveLoss(BaseLoss):
             return value
 
     def _compute_contrastive_loss(self, embeddings: Tensor, minibatch: TensorDict) -> Tensor:
-        """Compute the actual contrastive loss using proper positive/negative sampling."""
+        """Compute InfoNCE contrastive loss following standard implementations."""
         batch_size = embeddings.shape[0]
 
         # Reshape to (B*T, D) if needed
@@ -131,36 +128,51 @@ class ContrastiveLoss(BaseLoss):
             embeddings = embeddings.view(B * T, D)
             batch_size = B * T
 
-        if batch_size < 4:  # Need at least 4 samples for proper contrastive learning
+        if batch_size < 4:  # Need minimum samples for contrastive learning
             return torch.tensor(0.0, device=self.device)
 
-        # Create proper positive and negative pairs
-        # Positive pairs: consecutive timesteps (temporal continuity)
-        # Negative pairs: randomly shuffled embeddings (different contexts)
+        # L2 normalize embeddings to unit vectors (critical for InfoNCE)
+        embeddings = F.normalize(embeddings, p=2, dim=-1)
 
-        anchor_embeddings = embeddings[:-1]  # All except last
-        pos_embeddings = embeddings[1:]  # All except first (consecutive timesteps)
+        # Create temporal positive pairs (consecutive timesteps for RL continuity)
+        anchor_embeddings = embeddings[:-1]  # [N-1, D]
+        positive_embeddings = embeddings[1:]  # [N-1, D] consecutive timesteps
 
-        # Create negative embeddings by randomly shuffling indices
-        # This ensures negatives are from different contexts, not identical tensors
-        neg_indices = torch.randperm(len(pos_embeddings), device=self.device)
-        # Ensure negatives are actually different from positives
-        # If by chance neg_indices[i] == i, shift by 1
-        same_indices = neg_indices == torch.arange(len(neg_indices), device=self.device)
-        neg_indices[same_indices] = (neg_indices[same_indices] + 1) % len(neg_indices)
-        neg_embeddings = pos_embeddings[neg_indices]
+        # InfoNCE: Use in-batch negatives for efficiency
+        # Each anchor's negatives are all other positives in the batch
+        num_pairs = len(anchor_embeddings)
 
-        # Compute similarities
-        pos_sim = F.cosine_similarity(anchor_embeddings, pos_embeddings, dim=-1)
-        neg_sim = F.cosine_similarity(anchor_embeddings, neg_embeddings, dim=-1)
+        if num_pairs < 2:
+            return torch.tensor(0.0, device=self.device)
 
-        # InfoNCE-style contrastive loss
-        # Maximize positive similarity, minimize negative similarity
-        pos_logits = pos_sim / self.temperature
-        neg_logits = neg_sim / self.temperature
+        # Compute positive similarities: [N-1]
+        positive_sim = torch.sum(anchor_embeddings * positive_embeddings, dim=-1)
 
-        # Contrastive loss: log(exp(pos) / (exp(pos) + exp(neg)))
-        # This is equivalent to: -log(sigmoid(pos - neg))
-        contrastive_loss = -torch.log(torch.sigmoid(pos_logits - neg_logits)).mean()
+        # Compute negative similarities: [N-1, N-1]
+        # Each anchor compared with ALL other positives as negatives
+        negative_sim = torch.matmul(anchor_embeddings, positive_embeddings.T)
 
-        return contrastive_loss * self.contrastive_coef
+        # Remove self-similarity on diagonal (anchor vs its own positive)
+        mask = torch.eye(num_pairs, device=self.device).bool()
+        negative_sim = negative_sim.masked_fill(mask, float("-inf"))
+
+        # InfoNCE loss computation
+        # Logits: [positive_sim, negative_sim_1, negative_sim_2, ...]
+        logits = (
+            torch.cat(
+                [
+                    positive_sim.unsqueeze(1),  # [N-1, 1]
+                    negative_sim,  # [N-1, N-1]
+                ],
+                dim=1,
+            )
+            / self.temperature
+        )  # Apply temperature scaling
+
+        # Labels: positive is always index 0
+        labels = torch.zeros(num_pairs, dtype=torch.long, device=self.device)
+
+        # InfoNCE = CrossEntropy(logits, labels) where positive is at index 0
+        infonce_loss = F.cross_entropy(logits, labels, reduction="mean")
+
+        return infonce_loss * self.contrastive_coef
