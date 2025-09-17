@@ -17,6 +17,7 @@ class PeriodicResetConfig:
 
     number_of_trials_in_episode: int = 1
     episode_length: int = 256
+    add_timer_to_obs: bool = True
 
     @property
     def trial_length(self) -> int:
@@ -55,20 +56,18 @@ class PeriodicResetEnv(PufferEnv):
         self,
         env: Env,
         config: PeriodicResetConfig,
-        add_timer_to_obs: bool = True,
     ):
         """Initialize the periodic reset environment wrapper.
 
         Args:
             env: The environment to wrap
             config: Configuration for periodic resets
-            add_timer_to_obs: Whether to add time_to_reset to observations
         """
         # We don't call super().__init__() because this wrapper
         # proxies all calls to the wrapped environment.
         self._env = env
         self._config = config
-        self._add_timer_to_obs = add_timer_to_obs
+        self._add_timer_to_obs = config.add_timer_to_obs
         self._trial_step = 0
         self._total_step = 0
 
