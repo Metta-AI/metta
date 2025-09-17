@@ -6,7 +6,7 @@ import wandb
 import wandb.sdk.wandb_run
 from wandb.errors import CommError
 
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 

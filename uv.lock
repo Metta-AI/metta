@@ -590,7 +590,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mettagrid", editable = "mettagrid" },
+    { name = "mettagrid", editable = "packages/mettagrid" },
     { name = "pufferlib", specifier = ">=3.0.0" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
@@ -2084,7 +2084,6 @@ dependencies = [
     { name = "rich" },
     { name = "scipy" },
     { name = "setuptools" },
-    { name = "shimmy" },
     { name = "simple-term-menu" },
     { name = "skypilot" },
     { name = "softmax" },
@@ -2167,7 +2166,12 @@ requires-dist = [
     { name = "metta-agent", editable = "agent" },
     { name = "metta-app-backend", editable = "app_backend" },
     { name = "metta-common", editable = "common" },
+<<<<<<< HEAD
     { name = "mettagrid", editable = "mettagrid" },
+=======
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "notebook", specifier = ">=7.4.4" },
+>>>>>>> be1d9dbc55 (cp)
     { name = "numpy", specifier = ">=1.26.4,<2" },
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pandas", specifier = ">=2.3.0" },
@@ -2187,7 +2191,6 @@ requires-dist = [
     { name = "rich", specifier = ">=13.9.4" },
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "setuptools", specifier = ">=80.9.0" },
-    { name = "shimmy", specifier = ">=1.3.0,<2.0" },
     { name = "simple-term-menu", specifier = ">=1.6.4" },
     { name = "skypilot", specifier = "==0.10.3" },
     { name = "softmax", editable = "softmax" },
@@ -2359,7 +2362,7 @@ dev = [
 [[package]]
 name = "mettagrid"
 version = "0.2.0.2"
-source = { editable = "mettagrid" }
+source = { editable = "packages/mettagrid" }
 dependencies = [
     { name = "boto3" },
     { name = "botocore" },

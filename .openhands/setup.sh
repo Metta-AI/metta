@@ -43,7 +43,7 @@ if uv run python -c "
 import metta
 print('✅ Core metta package imported successfully')
 try:
-    import metta.mettagrid
+    import mettagrid
     print('✅ Metta mettagrid module imported successfully')
 except ImportError as e:
     print(f'⚠️  Mettagrid module import issue: {e}')

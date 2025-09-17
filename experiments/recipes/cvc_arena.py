@@ -6,14 +6,12 @@ This is meant as a basic testbed for CvC buildings / mechanics, not as a full-fl
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.mettagrid.builder import building
-from metta.mettagrid.mettagrid_config import AssemblerConfig, MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -21,6 +19,8 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from mettagrid.builder import building
+from mettagrid.mettagrid_config import AssemblerConfig, MettaGridConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:

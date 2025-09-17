@@ -2,16 +2,8 @@ from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
 import metta.map.scenes.random
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from metta.map.mapgen import MapGen
-from metta.mettagrid.builder import building
-from metta.mettagrid.mettagrid_config import (
-    ActionConfig,
-    ActionsConfig,
-    AttackActionConfig,
-    ChangeGlyphActionConfig,
-    EnvConfig,
-)
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import (
     CheckpointConfig,
@@ -23,6 +15,14 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from mettagrid.builder import building
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AttackActionConfig,
+    ChangeGlyphActionConfig,
+    EnvConfig,
+)
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
