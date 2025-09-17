@@ -5,10 +5,29 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.agent.lib.nn_layer_library import LayerBase
+from metta.mettagrid.config import Config
 
 
-class ObsLatentAttn(LayerBase):
+class ObsLatentAttnConfig(Config):
+    feat_dim: int
+    out_dim: int
+    in_key: str = "obs_attr_embed_fourier"
+    out_key: str = "obs_latent_attn"
+    use_mask: bool = True
+    num_query_tokens: int = 10
+    num_heads: int = 4
+    num_layers: int = 2
+    query_token_dim: Optional[int] = 48
+    qk_dim: Optional[int] = None
+    v_dim: Optional[int] = None
+    mlp_ratio: float = 4.0
+    use_cls_token: bool = False
+
+    def instantiate(self):
+        return ObsLatentAttn(config=self)
+
+
+class ObsLatentAttn(nn.Module):
     """
     Performs multi-layer cross-attention between learnable query tokens and input features.
 
@@ -31,7 +50,6 @@ class ObsLatentAttn(LayerBase):
         out_dim (int): The final output dimension for each query token's processed features.
         use_mask (bool, optional): If True, uses an observation mask (`obs_mask` from the
             input TensorDict) to mask attention scores for padded elements in `x_features`.
-            Defaults to False.
         num_query_tokens (int, optional): The number of learnable query tokens to use.
             Defaults to 1.
         num_heads (int, optional): The number of attention heads. Defaults to 1.
@@ -60,40 +78,27 @@ class ObsLatentAttn(LayerBase):
           or `[B_TT, num_query_tokens, out_dim]` if `_use_cls_token == False`.
     """
 
-    def __init__(
-        self,
-        out_dim: int,
-        use_mask: bool = False,
-        num_query_tokens: int = 1,
-        num_heads: int = 1,
-        num_layers: int = 1,
-        query_token_dim: Optional[int] = None,
-        qk_dim: Optional[int] = None,
-        v_dim: Optional[int] = None,
-        mlp_ratio: float = 4.0,
-        use_cls_token: bool = False,
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._out_dim = out_dim
-        self._use_mask = use_mask
-        self._num_query_tokens = num_query_tokens
-        self._num_heads = num_heads
-        self._num_layers = num_layers
-        self._query_token_dim = query_token_dim
+    def __init__(self, config: Optional[ObsLatentAttnConfig] = None) -> None:
+        super().__init__()
+        self.config = config or ObsLatentAttnConfig()
+        self._out_dim = self.config.out_dim
+        self._use_mask = self.config.use_mask
+        self._num_query_tokens = self.config.num_query_tokens
+        self._num_heads = self.config.num_heads
+        self._num_layers = self.config.num_layers
+        self._query_token_dim = self.config.query_token_dim
         assert self._num_query_tokens > 0, "num_query_tokens must be greater than 0"
-        self._qk_dim = qk_dim
-        self._v_dim = v_dim
-        self._mlp_ratio = mlp_ratio
-        self._use_cls_token = use_cls_token  # simply output one latent token (the same one each time)
+        self._qk_dim = self.config.qk_dim
+        self._v_dim = self.config.v_dim
+        self._mlp_ratio = self.config.mlp_ratio
+        self._use_cls_token = self.config.use_cls_token  # simply output one latent token (the same one each time)
 
-    def _make_net(self) -> None:
         self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
         if self._use_cls_token:
             self._out_tensor_shape = [self._out_dim]
 
         # we expect input shape to be [B, M, feat_dim] where we don't know M
-        self._feat_dim = self._in_tensor_shapes[0][1]
+        self._feat_dim = self.config.feat_dim
 
         if self._query_token_dim is None:
             self._query_token_dim = self._feat_dim
@@ -148,8 +153,8 @@ class ObsLatentAttn(LayerBase):
 
         return None
 
-    def _forward(self, td: TensorDict) -> TensorDict:
-        x_features = td[self._source_components[0]["name"]]
+    def forward(self, td: TensorDict) -> TensorDict:
+        x_features = td[self.config.in_key]
         key_mask = None
         if self._use_mask:
             key_mask = td["obs_mask"]
@@ -199,32 +204,38 @@ class ObsLatentAttn(LayerBase):
             # Select first query token from [B_TT, num_query_tokens, self._out_dim] to [B_TT, self._out_dim]
             x = x[:, 0]
 
-        td[self._name] = x
+        td[self.config.out_key] = x
         return td
 
 
-class ObsSelfAttn(LayerBase):
+class ObsSelfAttnConfig(Config):
+    feat_dim: int
+    in_key: str = "obs_latent_attn"
+    out_key: str = "encoded_obs"
+    out_dim: int = 128
+    use_mask: bool = False
+    num_layers: int = 4
+    num_heads: int = 8
+    use_cls_token: bool = True
+
+    def instantiate(self):
+        return ObsSelfAttn(config=self)
+
+
+class ObsSelfAttn(nn.Module):
     """Self-attention layer for observation features with optional CLS token."""
 
-    def __init__(
-        self,
-        out_dim: int,
-        use_mask: bool = False,
-        num_layers: int = 1,
-        num_heads: int = 1,
-        use_cls_token: bool = False,
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._out_dim = out_dim
-        self._use_mask = use_mask
-        self._num_layers = num_layers
-        self._num_heads = num_heads
-        self._use_cls_token = use_cls_token
+    def __init__(self, config: Optional[ObsSelfAttnConfig] = None) -> None:
+        super().__init__()
+        self.config = config or ObsSelfAttnConfig()
+        self._feat_dim = self.config.feat_dim
+        self._out_dim = self.config.out_dim
+        self._use_mask = self.config.use_mask
+        self._num_layers = self.config.num_layers
+        self._num_heads = self.config.num_heads
+        self._use_cls_token = self.config.use_cls_token
 
-    def _make_net(self) -> None:
         # we expect input shape to be [B, M, feat_dim]
-        self._feat_dim = self._in_tensor_shapes[0][1]
 
         if self._feat_dim % self._num_heads != 0:
             raise ValueError(f"feat_dim ({self._feat_dim}) must be divisible by num_heads ({self._num_heads})")
@@ -257,8 +268,8 @@ class ObsSelfAttn(LayerBase):
 
         return None
 
-    def _forward(self, td: TensorDict) -> TensorDict:
-        x_features = td[self._source_components[0]["name"]]
+    def forward(self, td: TensorDict) -> TensorDict:
+        x_features = td[self.config.in_key]
         if self._use_cls_token:
             x_features = torch.cat([self._cls_token.expand(x_features.shape[0], -1, -1), x_features], dim=1)
 
@@ -309,5 +320,5 @@ class ObsSelfAttn(LayerBase):
         if self._use_cls_token:
             x = x[:, 0]
 
-        td[self._name] = x
+        td[self.config.out_key] = x
         return td

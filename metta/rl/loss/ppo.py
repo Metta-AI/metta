@@ -144,8 +144,8 @@ class PPO(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         """This is the PPO algorithm training loop."""
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
-        self.policy.on_train_mb_start()
         stop_update_epoch = False
+        self.policy.reset_memory()
 
         # Check if we should early stop this update epoch (on subsequent minibatches)
         if self.loss_cfg.target_kl is not None and mb_idx > 0:
@@ -171,8 +171,13 @@ class PPO(Loss):
 
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
+        B = policy_td.batch_size[0]
+        TT = policy_td.batch_size[1]
+        policy_td = policy_td.reshape(policy_td.batch_size.numel())  # flatten to BT
+        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
+
         policy_td = self.policy.forward(policy_td, action=minibatch["actions"])
-        shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
+        shared_loss_data["policy_td"] = policy_td.reshape(B, TT)  # write the policy output td for others to reuse
 
         # Finally, calculate the loss!
         loss = self._process_minibatch_update(
@@ -235,7 +240,7 @@ class PPO(Loss):
         old_act_log_prob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
         entropy = policy_td["entropy"]
-        newvalue = policy_td["value"]
+        newvalue = policy_td["values"]
 
         logratio = new_logprob - old_act_log_prob
         # Bound the log ratio to prevent extreme importance sampling ratios

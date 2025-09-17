@@ -1,146 +1,36 @@
-from typing import Tuple
+from typing import Optional
 
 import einops
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.agent.lib.nn_layer_library import LayerBase
+from metta.mettagrid.config import Config
 
 
-class ObsTokenPadStrip(LayerBase):
-    """
-    This is a top-level layer that grabs environment token observations and strips them of padding, returning a tensor
-    of shape [B, M, 3] where M is the maximum number of tokens in _any_ sequence in the batch. It also adds batch size,
-    TT, and B * TT to the tensor dict for downstream layers to use, if necessary.
-    For clarification it does not strip all padding. It finds the sequence (out of all sequences in the batch) with the
-    most dense tokens, gets that index, and then slices the obs tensor at that point. That means that it perfectly
-    eliminates the padding tokens from the the sequence with the fewest padding tokens and also removes that number of
-    padding tokens from all other sequences. In practice, the sequence with the most dense tokens can have many more
-    dense tokens than the average sequence so there is room for improvement by computing attention over ragged tensors.
-    """
+class ObsAttrCoordEmbedConfig(Config):
+    in_key: str = "obs_attr_val_norm"
+    out_key: str = "obs_attr_coord_embed"
+    attr_embed_dim: int
 
-    def __init__(
-        self,
-        obs_shape: Tuple[int, ...],
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        # Initialize feature remapping as identity by default
-        self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
-        self._remapping_active = False
-
-    def _make_net(self) -> None:
-        # unfortunately, we can't know the output shape's 0th dim (seq length) until we see the data. however,
-        # downstream layers should not need to know this in initializing any of their learnable parameters.
-        # so we just set it to 0 for now.
-        self._out_tensor_shape = [0, 3]
-
-    def update_feature_remapping(self, feature_id_remap: torch.Tensor):
-        """
-        Update the feature ID remapping table.
-
-        Args:
-            feature_id_remap: A 256-element tensor where index is new_id and value is original_id
-        """
-        self.register_buffer("feature_id_remap", feature_id_remap.to(self.feature_id_remap.device))
-        identity = torch.arange(256, dtype=torch.uint8, device=self.feature_id_remap.device)
-        self._remapping_active = not torch.equal(self.feature_id_remap, identity)
-
-    def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
-        observations = td["env_obs"]
-        M = observations.shape[1]
-
-        # Apply feature remapping if active
-        if self._remapping_active:
-            observations = observations.clone()
-            feature_ids = observations[..., 1].long()
-            remapped_ids = self.feature_id_remap[feature_ids]
-            observations[..., 1] = remapped_ids
-
-        coords = observations[..., 0]
-        obs_mask = coords == 255  # important! true means mask me
-
-        # find each row's flip‐point ie when it goes from dense to padding
-        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B]
-
-        # find the global max flip‐point as a 0‐d tensor
-        max_flip = flip_pts.max()
-        if max_flip == 0:
-            max_flip = max_flip + M  # hack to avoid 0. should instead grab
-
-        # build a 1‐D "positions" row [0,1,2,…,L−1]
-        positions = torch.arange(M, device=obs_mask.device)
-
-        # make a boolean column mask: keep all columns strictly before max_flip
-        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
-
-        observations = observations[:, keep_cols]  # shape [B, max_flip]
-        obs_mask = obs_mask[:, keep_cols]
-
-        td[self._name] = observations
-        td["obs_mask"] = obs_mask
-        return td
+    def instantiate(self):
+        return ObsAttrCoordEmbed(config=self)
 
 
-class ObsAttrValNorm(LayerBase):
-    """Normalizes attr values based on the attr index."""
-
-    def __init__(
-        self,
-        feature_normalizations: list[float],
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._feature_normalizations = list(feature_normalizations)
-        self._max_embeds = 256
-
-    def _make_net(self) -> None:
-        self._out_tensor_shape = [0, 3]
-        # Create a tensor for feature normalizations
-        # We need to handle the case where attr_idx might be 0 (padding) or larger than defined normalizations.
-        # Assuming max attr_idx is 256 (same as attr_embeds size - 1 for padding_idx).
-        # Initialize with 1.0 to avoid division by zero for unmapped indices.
-        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
-            if i < len(norm_tensor):  # Ensure we don't go out of bounds
-                norm_tensor[i] = val
-            else:
-                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
-        self.register_buffer("_norm_factors", norm_tensor)
-        return None
-
-    def _forward(self, td: TensorDict) -> TensorDict:
-        observations = td[self.src_component_name]
-
-        attr_indices = observations[..., 1].long()
-        norm_factors = self._norm_factors[attr_indices]
-        observations = observations.clone()
-        observations[..., 2] = observations[..., 2] / norm_factors
-
-        td[self._name] = observations
-        return td
-
-
-class ObsAttrCoordEmbed(LayerBase):
+class ObsAttrCoordEmbed(nn.Module):
     """Embeds attr index as, separately embeds coords, then adds them together. Finally concatenate attr value to the
     end of the embedding. Learnable coord embeddings have performed worse than Fourier features as of 6/16/2025."""
 
     def __init__(
         self,
-        attr_embed_dim: int,
-        **cfg,
+        config: Optional[ObsAttrCoordEmbedConfig] = None,
     ) -> None:
-        super().__init__(**cfg)
-        self._attr_embed_dim = attr_embed_dim  # Dimension of attribute embeddings
+        super().__init__()
+        self.config = config or ObsAttrCoordEmbedConfig()
+        self._attr_embed_dim = self.config.attr_embed_dim  # Dimension of attribute embeddings
         self._value_dim = 1
         self._feat_dim = self._attr_embed_dim + self._value_dim
         self._max_embeds = 256
-
-    def _make_net(self) -> None:
-        self._out_tensor_shape = [0, self._feat_dim]
 
         # Coord byte supports up to 16x16, so 256 possible coord values
         self._coord_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim)
@@ -151,8 +41,8 @@ class ObsAttrCoordEmbed(LayerBase):
 
         return None
 
-    def _forward(self, td: TensorDict) -> TensorDict:
-        observations = td[self.src_component_name]
+    def forward(self, td: TensorDict) -> TensorDict:
+        observations = td[self.config.in_key]
 
         coord_indices = observations[..., 0].long()
         coord_pair_embedding = self._coord_embeds(coord_indices)
@@ -177,30 +67,44 @@ class ObsAttrCoordEmbed(LayerBase):
         feat_vectors[..., : self._attr_embed_dim] = combined_embeds
         feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
 
-        td[self._name] = feat_vectors
+        td[self.config.out_key] = feat_vectors
         return td
 
 
-class ObsAttrEmbedFourier(LayerBase):
-    """An alternate to ObsAttrCoordEmbed that concatenates attr embeds w coord representation as Fourier features."""
+class ObsAttrEmbedFourierConfig(Config):
+    attr_embed_dim: int = 12
+    num_freqs: int = 6
+    in_key: str = "obs_attr_val_norm"
+    out_key: str = "obs_attr_embed_fourier"
 
-    def __init__(
-        self,
-        attr_embed_dim: int,
-        num_freqs: int = 3,
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._attr_embed_dim = attr_embed_dim  # Dimension of attribute embeddings
-        self._num_freqs = num_freqs  # fourier feature frequencies
+    def instantiate(self):
+        return ObsAttrEmbedFourier(config=self)
+
+
+class ObsAttrEmbedFourier(nn.Module):
+    """An alternate to ObsAttrCoordEmbed that concatenates attr embeds w coord representation as Fourier features.
+
+    The output feature dimension is calculated as:
+    `output_dim = attr_embed_dim + (4 * num_freqs) + 1`
+
+    Where:
+    - `attr_embed_dim` is the dimension of the attribute embedding.
+    - `num_freqs` is the number of frequencies for the Fourier features. The coordinate
+      representation dimension is `4 * num_freqs` because we have sin and cos for
+      both x and y coordinates for each frequency.
+    - `1` is for the scalar attribute value that is concatenated at the end.
+    """
+
+    def __init__(self, config: Optional[ObsAttrEmbedFourierConfig] = None) -> None:
+        super().__init__()
+        self.config = config or ObsAttrEmbedFourierConfig()
+        self._attr_embed_dim = self.config.attr_embed_dim  # Dimension of attribute embeddings
+        self._num_freqs = self.config.num_freqs  # fourier feature frequencies
         self._coord_rep_dim = 4 * self._num_freqs  # x, y, sin, cos for each freq
         self._value_dim = 1
         self._feat_dim = self._attr_embed_dim + self._coord_rep_dim + self._value_dim
         self._max_embeds = 256
         self._mu = 11.0  # hardcoding 11 as the max coord value for now (range 0-10). can grab from mettagrid_env.py
-
-    def _make_net(self) -> None:
-        self._out_tensor_shape = [0, self._feat_dim]
 
         self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
@@ -209,8 +113,8 @@ class ObsAttrEmbedFourier(LayerBase):
 
         return None
 
-    def _forward(self, td: TensorDict) -> TensorDict:
-        observations = td[self.src_component_name]
+    def forward(self, td: TensorDict) -> TensorDict:
+        observations = td[self.config.in_key]
 
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
@@ -264,26 +168,29 @@ class ObsAttrEmbedFourier(LayerBase):
         # Place normalized attribute values in the feature vector
         feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(attr_values, "... -> ... 1")
 
-        td[self._name] = feat_vectors
+        td[self.config.out_key] = feat_vectors
         return td
 
 
-class ObsAttrCoordValueEmbed(LayerBase):
+class ObsAttrCoordValueEmbedConfig(Config):
+    attr_embed_dim: int = 12
+    in_key: str = "obs_attr_val_norm"
+    out_key: str = "obs_attr_coord_value_embed"
+
+    def instantiate(self):
+        return ObsAttrCoordValueEmbed(config=self)
+
+
+class ObsAttrCoordValueEmbed(nn.Module):
     """An experiment that embeds attr value as a categorical variable. Using a normalization layer is not
     recommended."""
 
-    def __init__(
-        self,
-        attr_embed_dim: int,
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._attr_embed_dim = attr_embed_dim  # Dimension of attribute embeddings
+    def __init__(self, config: Optional[ObsAttrCoordValueEmbedConfig] = None) -> None:
+        super().__init__()
+        self.config = config or ObsAttrCoordValueEmbedConfig()
+        self._attr_embed_dim = self.config.attr_embed_dim  # Dimension of attribute embeddings
         self._value_dim = 1
         self._max_embeds = 256
-
-    def _make_net(self) -> None:
-        self._out_tensor_shape = [0, self._attr_embed_dim]
 
         self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
@@ -297,9 +204,9 @@ class ObsAttrCoordValueEmbed(LayerBase):
 
         return None
 
-    def _forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
-        observations = td[self.src_component_name]
+        observations = td[self.config.in_key]
 
         # The first element of an observation is the coordinate, which can be used as a direct index for embedding.
         coord_indices = observations[..., 0].long()
@@ -316,7 +223,7 @@ class ObsAttrCoordValueEmbed(LayerBase):
 
         combined_embeds = attr_embeds + coord_pair_embedding + val_embeds
 
-        td[self._name] = combined_embeds
+        td[self.config.out_key] = combined_embeds
         return td
 
 

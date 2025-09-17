@@ -114,13 +114,13 @@ class SLKickstarter(Loss):
         teacher_td = policy_td.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
         teacher_td = self.teacher_policy(teacher_td, action=None)
         teacher_action = teacher_td["action"].to(dtype=torch.int64).detach()
-        teacher_value = teacher_td["value"].to(dtype=torch.float32).detach()
+        teacher_value = teacher_td["values"].to(dtype=torch.float32).detach()
 
         # Student forward pass
         student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
         student_td = self.policy(student_td, action=None)
         student_action = student_td["action"].to(dtype=torch.int64)
-        student_value = student_td["value"].to(dtype=torch.float32)
+        student_value = student_td["values"].to(dtype=torch.float32)
 
         # Calculate annealing coefficient
         update_epoch = trainer_state.update_epoch

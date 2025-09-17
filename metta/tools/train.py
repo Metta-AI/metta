@@ -92,7 +92,8 @@ class TrainTool(Tool):
         # trainer.register(Evaluator(self.evaluation))
         # trainer.register(PolicyUploader(self.policy_uploader))
         # trainer.register(GradientStatsRecorder(self.gradient_stats))
-        # trainer.register(TrainingStatsReporter(StatsConfig(report_to_wandb=bool(wandb_run), report_to_stats_client=bool(stats_client), interval=1)))
+        # trainer.register(TrainingStatsReporter(StatsConfig(
+        # report_to_wandb=bool(wandb_run), report_to_stats_client=bool(stats_client), interval=1)))
         # trainer.register(TrainerCheckpointer(self.checkpointer, distributed_helper))
         # trainer.register(TorchProfiler(self.torch_profiler))
         # trainer.register(SystemMonitor(self.system_monitor))

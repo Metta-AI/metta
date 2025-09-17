@@ -86,13 +86,13 @@ class TLKickstarter(Loss):
         teacher_td = policy_td.select(*self.teacher_policy_spec.keys(include_nested=True)).clone()
         teacher_td = self.teacher_policy(teacher_td, action=None)
         teacher_action_logits = teacher_td["action_logits"].to(dtype=torch.float32)
-        teacher_value = teacher_td["value"].to(dtype=torch.float32)
+        teacher_value = teacher_td["values"].to(dtype=torch.float32)
 
         # Student forward pass
         student_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
         student_td = self.policy(student_td, action=None)
         student_action_logits = student_td["action_logits"].to(dtype=torch.float32)
-        student_value = student_td["value"].to(dtype=torch.float32)
+        student_value = student_td["values"].to(dtype=torch.float32)
 
         # action loss
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)

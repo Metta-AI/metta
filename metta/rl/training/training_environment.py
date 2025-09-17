@@ -63,6 +63,7 @@ class EnvironmentMetaData:
     num_agents: int
     observation_space: Any
     action_space: Any
+    feature_normalizations: dict[int, float]
 
 
 @dataclass
@@ -167,6 +168,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             num_agents=self._num_agents,
             observation_space=self._vecenv.driver_env.observation_space,
             action_space=self._vecenv.driver_env.action_space,
+            feature_normalizations=self._vecenv.driver_env.feature_normalizations,
         )
 
     def __repr__(self) -> str:

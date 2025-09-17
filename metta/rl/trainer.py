@@ -77,8 +77,7 @@ class Trainer:
             self._cfg.bptt_horizon,
             self._cfg.minibatch_size,
             self._cfg.minibatch_size,
-            self._policy.experience_spec,
-            self._env.single_action_space,
+            self._policy.get_agent_experience_spec(),
             losses,
             self._device,
         )
