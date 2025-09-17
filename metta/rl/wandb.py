@@ -21,12 +21,6 @@ from metta.mettagrid.util.file import WandbURI
 logger = logging.getLogger(__name__)
 
 _ABORT_STATE: weakref.WeakKeyDictionary[WandbRun, Dict[str, float | bool]] = weakref.WeakKeyDictionary()
-_WANDB_API_TIMEOUT_SECS = int(os.getenv("METTA_WANDB_API_TIMEOUT", "60"))
-
-
-def _create_wandb_api() -> wandb.Api:
-    """Create a WandB API client with a configurable timeout override."""
-    return wandb.Api(timeout=_WANDB_API_TIMEOUT_SECS)
 
 
 def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> bool:
@@ -44,7 +38,7 @@ def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> b
     # Time to check again
     state["last_check"] = now
     try:
-        run_obj = _create_wandb_api().run(wandb_run.path)
+        run_obj = wandb.Api().run(wandb_run.path)
         state["cached_result"] = "abort" in run_obj.tags
     except Exception as e:
         logger.debug(f"Abort tag check failed: {e}")
@@ -97,11 +91,7 @@ def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:
         return None
 
     uri = WandbURI.parse(wandb_uri)
-    try:
-        artifact: Artifact = _create_wandb_api().artifact(uri.qname())
-    except (CommError, TimeoutError) as exc:
-        logger.warning(f"Failed to load W&B artifact metadata for {uri.qname()}: {exc}")
-        return None
+    artifact: Artifact = wandb.Api().artifact(uri.qname())
     metadata = artifact.metadata
 
     if metadata is None:
@@ -192,7 +182,7 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     # Load artifact
     try:
         logger.debug(f"Loading artifact: {qname}")
-        artifact = _create_wandb_api().artifact(qname)
+        artifact = wandb.Api().artifact(qname)
     except CommError as e:
         raise ValueError(f"Artifact not found: {qname}") from e
 
@@ -248,15 +238,12 @@ def upload_checkpoint_as_artifact(
                 logger.warning(f"Additional file not found: {file_path}")
 
     # Log artifact to run
-    try:
-        run.log_artifact(artifact)
-        artifact.wait()
-    except (CommError, TimeoutError) as exc:
-        logger.warning(f"Failed to upload checkpoint artifact {artifact_name} to WandB: {exc}")
-        return None
+    run.log_artifact(artifact)
 
-    # qualified_name already contains entity/project/path:version
-    wandb_uri = f"wandb://{artifact.qualified_name}"
+    # Wait for upload to complete
+    artifact.wait()
+
+    wandb_uri = f"wandb://{run.project}/{artifact_name}:{artifact.version}"
     logger.info(f"Uploaded checkpoint as wandb artifact: {artifact.qualified_name}")
 
     return wandb_uri
