@@ -51,37 +51,58 @@ def make_foraging_eval_env(
 
 def make_foraging_eval_suite(
     *,
+    # Back-compat single-value overrides
     width: Optional[int] = None,
     height: Optional[int] = None,
-    deposits_per_resource: Optional[Dict[str, int]] = None,
     deposit_count: Optional[int] = None,
+    deposits_per_resource: Optional[Dict[str, int]] = None,
+    # New: per-sim variations
+    widths: Optional[List[int]] = None,
+    heights: Optional[List[int]] = None,
+    deposit_counts: Optional[List[int]] = None,
 ) -> List[SimulationConfig]:
     sims: list[SimulationConfig] = []
-    for num_converters in [2, 3, 4]:
-        for carry in [1, 2]:
-            for cooldowns in ([0], [5], [10], [0, 5, 10]):
-                for rmin, rmax in [(2, 3), (3, 6)]:
-                    dims = f"_{width}x{height}" if width and height else ""
-                    dep_suffix = (
-                        f"_dep{deposit_count}"
-                        if deposit_count is not None
-                        else ("_depmap" if deposits_per_resource else "")
-                    )
-                    name = f"foraging/n{num_converters}_carry{carry}_cd{'-'.join(map(str, cooldowns))}_r{rmin}-{rmax}{dims}{dep_suffix}"
-                    sims.append(
-                        SimulationConfig(
-                            name=name,
-                            env=make_foraging_eval_env(
-                                num_converters,
-                                carry,
-                                list(cooldowns),
-                                rmin,
-                                rmax,
-                                width=width,
-                                height=height,
-                                deposits_per_resource=deposits_per_resource,
-                                deposit_count=deposit_count,
-                            ),
-                        )
-                    )
+
+    width_choices: List[Optional[int]] = list(widths) if widths is not None else [width]
+    height_choices: List[Optional[int]] = (
+        list(heights) if heights is not None else [height]
+    )
+    dep_choices: List[Optional[int]] = (
+        list(deposit_counts) if deposit_counts is not None else [deposit_count]
+    )
+
+    for num_converters in [2, 4]:
+        for carry in [1]:
+            for cooldowns in ([0], [10]):
+                for rmin, rmax in [(2, 3), (3, 10)]:
+                    for w in width_choices:
+                        for h in height_choices:
+                            for dep in dep_choices:
+                                dims = (
+                                    f"_{w}x{h}"
+                                    if (w is not None and h is not None)
+                                    else ""
+                                )
+                                dep_suffix = (
+                                    f"_dep{dep}"
+                                    if dep is not None
+                                    else ("_depmap" if deposits_per_resource else "")
+                                )
+                                name = f"foraging/n{num_converters}_carry{carry}_cd{'-'.join(map(str, cooldowns))}_r{rmin}-{rmax}{dims}{dep_suffix}"
+                                sims.append(
+                                    SimulationConfig(
+                                        name=name,
+                                        env=make_foraging_eval_env(
+                                            num_converters,
+                                            carry,
+                                            list(cooldowns),
+                                            rmin,
+                                            rmax,
+                                            width=w,
+                                            height=h,
+                                            deposits_per_resource=deposits_per_resource,
+                                            deposit_count=dep,
+                                        ),
+                                    )
+                                )
     return sims
