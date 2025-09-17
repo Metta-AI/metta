@@ -7,7 +7,7 @@ without mixing in learning progress calculations or bucket analysis.
 
 import time
 from collections import deque
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 class TaskTracker:
@@ -130,6 +130,25 @@ class TaskTracker:
             "total_tracked_tasks": len(self._task_memory),
             "total_completions": self._cached_total_completions,
         }
+
+    def get_checkpoint_state(self) -> Dict[str, Any]:
+        """Get task tracker state for checkpointing."""
+        return {
+            "task_memory": {str(k): v for k, v in self._task_memory.items()},
+            "creation_order": list(self._task_creation_order),
+            "completion_history": list(self._completion_history),
+            "max_memory_tasks": self.max_memory_tasks,
+        }
+
+    def load_checkpoint_state(self, state: Dict[str, Any]) -> None:
+        """Load task tracker state from checkpoint."""
+        self._task_memory = {int(k): v for k, v in state["task_memory"].items()}
+        self._task_creation_order = deque(state["creation_order"], maxlen=state["max_memory_tasks"])
+        self._completion_history = deque(state.get("completion_history", []), maxlen=1000)
+        self.max_memory_tasks = state["max_memory_tasks"]
+
+        # Invalidate cache since we've restored state
+        self._cache_valid = False
 
     def _cleanup_old_tasks(self) -> None:
         """Remove oldest tasks when memory limit is exceeded."""

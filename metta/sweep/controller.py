@@ -175,7 +175,11 @@ class SweepController:
                 for run in all_run_infos:
                     if run.status == JobStatus.EVAL_DONE_NOT_COMPLETED:
                         assert run.summary is not None
-                        cost = run.cost if run.cost != 0 else run.runtime
+                        # TEMPORARY PATCH: Calculate cost as $4.6 per hour of runtime
+                        # TODO: Remove this patch when cost tracking is fixed upstream
+                        cost_per_hour = 4.6
+                        runtime_hours = run.runtime / 3600.0 if run.runtime else 0
+                        cost = cost_per_hour * runtime_hours
                         score = run.summary.get(self.protein_config.metric)
                         if score is None:
                             raise ValueError(f"No metric {self.protein_config.metric} found in run summary.")
@@ -204,9 +208,3 @@ class SweepController:
             except Exception as e:
                 logger.error(f"[SweepController] Error in control loop: {e}")
                 time.sleep(self.monitoring_interval)
-
-            finally:
-                # TODO: Graceful shutdown
-                logger.info("[SweepController] Shutting down sweep controller...")
-                time.sleep(5)
-                logger.info("[SweepController] Shutting down dispatcher")

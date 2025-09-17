@@ -145,6 +145,14 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """
         return False
 
+    def get_checkpoint_state(self) -> Dict[str, Any]:
+        """Get algorithm state for checkpointing. Override in subclasses."""
+        return {}
+
+    def load_checkpoint_state(self, state: Dict[str, Any]) -> None:
+        """Load algorithm state from checkpoint. Override in subclasses."""
+        pass
+
     def __init__(
         self, num_tasks: int, hypers: Optional[CurriculumAlgorithmConfig] = None, initialize_weights: bool = True
     ):
@@ -409,6 +417,101 @@ class Curriculum(StatsLogger):
         """Return curriculum statistics for logging purposes."""
         # Use the StatsLogger implementation
         return super().stats()
+
+    def get_checkpoint_state(self) -> Dict[str, Any]:
+        """Get curriculum state for checkpointing."""
+        state = {
+            "rng_state": self._rng.getstate(),
+            "tasks": {
+                str(task_id): {
+                    "task_id": task._task_id,
+                    "slice_values": task._slice_values,
+                    "num_completions": task._num_completions,
+                    "total_score": task._total_score,
+                    "mean_score": task._mean_score,
+                    "num_scheduled": task._num_scheduled,
+                }
+                for task_id, task in self._tasks.items()
+            },
+            "task_ids": list(self._task_ids),
+            "num_created": self._num_created,
+            "num_evicted": self._num_evicted,
+            "config_hash": self._get_config_hash(),
+        }
+
+        # Add algorithm state if present
+        if self._algorithm is not None:
+            state["algorithm_state"] = self._algorithm.get_checkpoint_state()
+
+        return state
+
+    def load_checkpoint_state(self, state: Dict[str, Any]) -> None:
+        """Load curriculum state from checkpoint."""
+        # Validate config compatibility
+        if state.get("config_hash") != self._get_config_hash():
+            import logging
+
+            logging.warning("Curriculum config changed since checkpoint - may cause issues")
+
+        # Clear existing state first since initialization would have created tasks
+        self._tasks.clear()
+        self._task_ids.clear()
+
+        # Restore RNG state
+        self._rng.setstate(state["rng_state"])
+
+        # Restore basic counters
+        self._num_created = state["num_created"]
+        self._num_evicted = state["num_evicted"]
+        self._task_ids = set(state["task_ids"])
+
+        # Restore tasks
+        self._tasks = {}
+        for task_id_str, task_data in state["tasks"].items():
+            task_id = int(task_id_str)  # JSON keys are strings
+            # Regenerate env_cfg from task_id using task generator
+            env_cfg = self._task_generator.get_task(task_id)
+            task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
+            task._num_completions = task_data["num_completions"]
+            task._total_score = task_data["total_score"]
+            task._mean_score = task_data["mean_score"]
+            task._num_scheduled = task_data["num_scheduled"]
+            self._tasks[task_id] = task
+
+        # Restore algorithm state if present - do this AFTER clearing and restoring tasks
+        if "algorithm_state" in state and self._algorithm is not None:
+            self._algorithm.load_checkpoint_state(state["algorithm_state"])
+        else:
+            # If we don't have algorithm state but we do have tasks, we need to notify
+            # the algorithm about the restored tasks so it can rebuild its tracking
+            if self._algorithm is not None:
+                for task in self._tasks.values():
+                    self._algorithm.on_task_created(task)
+
+        # Invalidate stats cache
+        self.invalidate_cache()
+
+    def _get_config_hash(self) -> str:
+        """Get a hash of the curriculum configuration for compatibility checking."""
+        import hashlib
+        import json
+
+        # Create a simplified config representation for hashing
+        config_dict = {
+            "task_generator_type": type(self._task_generator).__name__,
+            "num_active_tasks": self._config.num_active_tasks,
+            "max_task_id": self._config.max_task_id,
+            "algorithm_type": type(self._algorithm).__name__ if self._algorithm else None,
+        }
+
+        # Add task generator specific info
+        task_gen_config = self._task_generator._config
+        if hasattr(task_gen_config, "env"):
+            # Include some key environment parameters
+            config_dict["env_num_agents"] = task_gen_config.env.game.num_agents
+
+        config_str = json.dumps(config_dict, sort_keys=True)
+        return hashlib.md5(config_str.encode()).hexdigest()[:8]
 
 
 # Import concrete config classes at the end to avoid circular imports

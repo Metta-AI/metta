@@ -1,7 +1,7 @@
 import logging
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
 import torch
 
@@ -13,6 +13,9 @@ from metta.rl.wandb import (
     load_policy_from_wandb_uri,
     upload_checkpoint_as_artifact,
 )
+
+if TYPE_CHECKING:
+    from metta.cogworks.curriculum.curriculum import Curriculum
 
 logger = logging.getLogger(__name__)
 
@@ -313,6 +316,20 @@ class CheckpointManager:
             state["stopwatch_state"] = stopwatch_state
         torch.save(state, trainer_file)
 
+    def save_curriculum_state(self, curriculum: "Curriculum") -> None:
+        """Save curriculum state to checkpoint."""
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        curriculum_file = self.checkpoint_dir / "curriculum_state.pt"
+        state = curriculum.get_checkpoint_state()
+        torch.save(state, curriculum_file)
+
+    def load_curriculum_state(self) -> Optional[Dict[str, Any]]:
+        """Load curriculum state from checkpoint."""
+        curriculum_file = self.checkpoint_dir / "curriculum_state.pt"
+        if not curriculum_file.exists():
+            return None
+        return torch.load(curriculum_file, weights_only=False)
+
     def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[str]:
         """Select checkpoints and return their URIs.
 
@@ -339,4 +356,6 @@ class CheckpointManager:
         if keep_last_n == 0:
             trainer_file = self.checkpoint_dir / "trainer_state.pt"
             trainer_file.unlink(missing_ok=True)
+            curriculum_file = self.checkpoint_dir / "curriculum_state.pt"
+            curriculum_file.unlink(missing_ok=True)
         return len(files_to_remove)

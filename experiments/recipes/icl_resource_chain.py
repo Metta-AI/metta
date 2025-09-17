@@ -301,6 +301,7 @@ def make_curriculum(
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
+            progress_smoothing=0.1,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
@@ -345,12 +346,14 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
+    # Default to the research policy if none specified
+    default_policy_uri = "wandb://metta-research/metta/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
             name="in_context_resource_chain",
         ),
-        policy_uri="wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50",
+        policy_uri=default_policy_uri,
     )
 
 
