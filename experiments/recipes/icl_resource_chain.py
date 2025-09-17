@@ -123,7 +123,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
     def _make_env_cfg(
         self, resource_chain, num_sinks, trials_per_episode, rng, max_steps=256
-    ) -> tuple[MettaGridConfig, PeriodicResetConfig]:
+    ) -> MettaGridConfig:
         cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resource_chain) + ["heart"]
 
@@ -152,12 +152,14 @@ class ConverterChainTaskGenerator(TaskGenerator):
             map_builder_objects=cfg.map_builder_objects,
         )
 
-        periodic_reset_cfg = PeriodicResetConfig(
-            number_of_trials_in_episode=trials_per_episode,
-            episode_length=max_steps,
-        )
+        # Add periodic reset configuration as a proper attribute
+        if trials_per_episode > 1:
+            env_cfg.periodic_reset_config = PeriodicResetConfig(
+                number_of_trials_in_episode=trials_per_episode,
+                episode_length=max_steps,
+            )
 
-        return env_cfg, periodic_reset_cfg
+        return env_cfg
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         chain_length = rng.choice(self.config.chain_lengths)
@@ -165,15 +167,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
         trials_per_episode = rng.choice(self.config.trials_per_episode)
         resource_chain = rng.sample(self.resource_types, chain_length)
 
-        icl_env, periodic_reset_cfg = self._make_env_cfg(
+        return self._make_env_cfg(
             resource_chain, num_sinks, trials_per_episode, rng=rng
         )
-
-        # Store the periodic reset config in the environment config for later retrieval
-        # We'll add this as a custom attribute that can be accessed by the trainer
-        icl_env._periodic_reset_config = periodic_reset_cfg
-
-        return icl_env
 
 
 def make_mettagrid() -> MettaGridConfig:

@@ -16,6 +16,29 @@ from metta.rl.periodic_reset_env import PeriodicResetConfig, PeriodicResetEnv
 logger = logging.getLogger("vecenv")
 
 
+def _extract_periodic_reset_config(
+    curriculum: Curriculum, override_config: Optional[PeriodicResetConfig]
+) -> Optional[PeriodicResetConfig]:
+    """Extract periodic reset configuration from curriculum or override.
+
+    Args:
+        curriculum: The curriculum to check for embedded config
+        override_config: Optional override configuration
+
+    Returns:
+        The periodic reset config to use, or None if not configured
+    """
+    if override_config is not None:
+        return override_config
+
+    # Check if the current task has embedded periodic reset config
+    current_task = curriculum.get_task()
+    env_cfg = current_task.get_env_cfg()
+
+    # Look for the config in a standard way
+    return getattr(env_cfg, "periodic_reset_config", None)
+
+
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
@@ -33,13 +56,12 @@ def make_env_func(
         # Running in a new process, so we need to reinitialize logging
         init_logging(run_dir=run_dir)
 
-    # Get the current task and check for periodic reset config
+    # Extract periodic reset configuration
+    final_periodic_reset_config = _extract_periodic_reset_config(curriculum, periodic_reset_config)
+
+    # Create base environment
     current_task = curriculum.get_task()
     env_cfg = current_task.get_env_cfg()
-
-    # Extract periodic reset config if it exists
-    task_periodic_reset_config = getattr(env_cfg, "_periodic_reset_config", None)
-    final_periodic_reset_config = periodic_reset_config or task_periodic_reset_config
 
     env = MettaGridEnv(
         env_cfg,
@@ -49,9 +71,11 @@ def make_env_func(
         is_training=is_training,
     )
     set_buffers(env, buf)
+
+    # Apply curriculum wrapper
     env = CurriculumEnv(env, curriculum)
 
-    # Add periodic reset wrapper if configured
+    # Apply periodic reset wrapper if configured
     if final_periodic_reset_config is not None:
         env = PeriodicResetEnv(env, final_periodic_reset_config)
 
