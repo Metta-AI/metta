@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Optional
 
 from metta.common.util.log_config import getRankAwareLogger
@@ -55,23 +55,7 @@ class JobConfig:
 
 
 def log_job_config(jc: JobConfig):
-    """Log the current configuration."""
     logger.info("Run Configuration:")
-    logger.info(f"  - METTA_RUN_ID: {jc.metta_run_id or ''}")
-    logger.info(f"  - SKYPILOT_TASK_ID: {jc.skypilot_task_id or ''}")
-    logger.info(f"  - NODE_INDEX: {jc.node_index}")
-    logger.info(f"  - IS_MASTER: {jc.is_master}")
-    logger.info(f"  - TOTAL_NODES: {jc.total_nodes}")
-    logger.info(f"  - HEARTBEAT_TIMEOUT: {jc.heartbeat_timeout or 'NOT SET'}")
-    logger.info(f"  - HEARTBEAT_FILE: {jc.heartbeat_file or 'NOT SET'}")
-    logger.info(f"  - ACCUMULATED_RUNTIME_FILE: {jc.accumulated_runtime_file or 'NOT SET'}")
-
-    if jc.accumulated_runtime_sec is not None:
-        logger.info(f"  - ACCUMULATED_RUNTIME_SEC: {jc.accumulated_runtime_sec}")
-
-    logger.info(f"  - MAX_RUNTIME_HOURS: {jc.max_runtime_hours or 'NOT SET'}")
-    logger.info(f"  - RESTART_COUNT: {jc.restart_count}")
-    logger.info(f"  - TEST_NCCL: {jc.test_nccl}")
-    logger.info(f"  - DISCORD_NOTIFICATION_ENABLED: {jc.enable_discord_notification}")
-    logger.info(f"  - GITHUB_STATUS_ENABLED: {jc.enable_github_status}")
-    logger.info(f"  - WANDB_NOTIFICATION_ENABLED: {jc.enable_wandb_notification}")
+    for field in fields(jc):
+        value = getattr(jc, field.name)
+        logger.info(f"  - {field.name}: {value}")
