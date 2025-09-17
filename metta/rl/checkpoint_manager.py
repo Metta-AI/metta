@@ -6,13 +6,13 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.mettagrid.util.file import WandbURI, local_copy
-from metta.rl.wandb import (
+from metta.common.wandb.utils import (
     expand_wandb_uri,
     get_wandb_checkpoint_metadata,
-    load_policy_from_wandb_uri,
-    upload_checkpoint_as_artifact,
+    upload_file_as_artifact,
 )
+from metta.mettagrid.util.file import WandbURI, local_copy
+from metta.rl.wandb import load_policy_from_wandb_uri
 
 logger = logging.getLogger(__name__)
 
@@ -281,8 +281,8 @@ class CheckpointManager:
                 "score": metadata.get("score", 0.0),
             }
 
-            wandb_uri = upload_checkpoint_as_artifact(
-                checkpoint_path=str(checkpoint_path),
+            wandb_uri = upload_file_as_artifact(
+                file_path=str(checkpoint_path),
                 artifact_name=name,
                 metadata=wandb_metadata,
                 wandb_run=wandb_run,

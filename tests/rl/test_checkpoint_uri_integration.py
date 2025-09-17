@@ -18,11 +18,13 @@ from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
 from metta.common.util.constants import METTA_WANDB_ENTITY
+from metta.common.wandb.utils import (
+    upload_file_as_artifact,
+)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.file import WandbURI
 from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
 from metta.rl.system_config import SystemConfig
-from metta.rl.wandb import upload_checkpoint_as_artifact
 
 
 @pytest.fixture
@@ -493,8 +495,8 @@ class TestWandbArtifactFormatting:
 
         with patch("wandb.Artifact", return_value=mock_artifact):
             with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                result = upload_checkpoint_as_artifact(
-                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
+                result = upload_file_as_artifact(
+                    file_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
                 )
 
                 # Always returns :latest for simplicity and reliability
