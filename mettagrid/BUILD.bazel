@@ -60,10 +60,14 @@ pybind_extension(
         "src/metta/mettagrid/*.hpp",
         "src/metta/mettagrid/**/*.hpp",
     ]),
+    # Add macOS SDK minimum and Homebrew include search paths when Raylib is on
     copts = COPTS + select({
         ":with_raylib_macos": [
-            # std::format requires macOS 13.3 SDK; raise the deployment target
             "-mmacosx-version-min=13.3",
+            "-isystem",
+            "/opt/homebrew/include",
+            "-isystem",
+            "/usr/local/include",
         ],
         "//conditions:default": [],
     }),
@@ -71,15 +75,17 @@ pybind_extension(
         ":with_raylib": ["METTA_WITH_RAYLIB"],
         "//conditions:default": [],
     }),
-    deps = select({
-        ":with_raylib_macos": ["@raylib_homebrew//:raylib"],
-        # Windows dependency wiring to be added when CI is enabled.
-        "//conditions:default": [],
-    }),
+    # Link against Homebrew Raylib on both Intel (/usr/local) and Apple Silicon (/opt/homebrew)
     linkopts = select({
         ":with_raylib_macos": [
-            # Ensure the link step matches the C++ min version
             "-mmacosx-version-min=13.3",
+            "-L/opt/homebrew/lib",
+            "-L/usr/local/lib",
+            "-lraylib",
+            "-framework", "Cocoa",
+            "-framework", "IOKit",
+            "-framework", "CoreVideo",
+            "-framework", "OpenGL",
         ],
         "//conditions:default": [],
     }),
