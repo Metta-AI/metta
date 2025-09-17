@@ -611,6 +611,8 @@ def train(
                             stats_client=stats_client,
                         )
 
+                        enable_nccl_watchdog()
+
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
                         if wandb_run is not None and evaluation_results.replay_urls:
