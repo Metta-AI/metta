@@ -79,8 +79,6 @@ def log_to_wandb(metrics: dict[str, Any], step: int = 0, also_summary: bool = Tr
         step: The step to log at (default 0)
         also_summary: Whether to also add to wandb.summary (default True)
 
-    Raises:
-        RuntimeError: If no wandb run is active
     """
     if wandb.run is None:
         raise RuntimeError("No active wandb run. Use WandbContext to initialize a run.")
@@ -203,17 +201,6 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
       (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
     - Full URIs pass through unchanged
 
-    Args:
-        uri: Wandb URI to expand
-        default_project: Default project name for short URIs
-
-    Returns:
-        Expanded wandb URI
-
-    Notes:
-        For short URIs (run/..., sweep/...), the entity defaults to
-        the current environment `WANDB_ENTITY` or falls back to
-        `METTA_WANDB_ENTITY`.
     """
     if not uri.startswith("wandb://"):
         return uri
@@ -251,14 +238,7 @@ def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
 
 
 def get_wandb_artifact_metadata(wandb_uri: str) -> Optional[dict]:
-    """Extract metadata from a wandb artifact.
-
-    Args:
-        wandb_uri: Wandb URI of the artifact
-
-    Returns:
-        Artifact metadata dict or None if metadata cannot be extracted
-    """
+    """Extract metadata from a wandb artifact."""
     if not wandb_uri.startswith("wandb://"):
         return None
 
@@ -281,20 +261,7 @@ def upload_file_as_artifact(
     additional_files: Optional[list[str]] = None,
     primary_filename: str = "model.pt",
 ) -> Optional[str]:
-    """Upload a file to wandb as an artifact.
-
-    Args:
-        file_path: Path to the primary file to upload
-        artifact_name: Name for the wandb artifact
-        artifact_type: Type of artifact (default: "model")
-        metadata: Optional metadata dictionary
-        wandb_run: Optional wandb run (uses current run if not provided)
-        additional_files: Optional list of additional files to include
-        primary_filename: Name for the primary file in the artifact (default: "model.pt")
-
-    Returns:
-        Wandb URI of the uploaded artifact or None if upload failed
-    """
+    """Upload a file to wandb as an artifact."""
     # Use provided run or get current run
     run = wandb_run or wandb.run
     if run is None:
@@ -335,20 +302,7 @@ def upload_file_as_artifact(
 
 
 def load_artifact_file(wandb_uri: str, filename: Optional[str] = None, fallback_pattern: str = "*.pt") -> Path:
-    """Load a file from wandb artifact.
-
-    Args:
-        wandb_uri: Wandb URI (handles both short and full formats)
-        filename: Specific file to load from artifact
-        fallback_pattern: Pattern to use if filename not found (default: "*.pt")
-
-    Returns:
-        Path to the downloaded file
-
-    Raises:
-        ValueError: If URI is not a wandb:// URI
-        FileNotFoundError: If specified file not found in artifact
-    """
+    """Load a file from wandb artifact."""
     if not wandb_uri.startswith("wandb://"):
         raise ValueError(f"Not a wandb URI: {wandb_uri}")
 

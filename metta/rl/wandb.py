@@ -14,18 +14,9 @@ from metta.common.wandb.utils import (
 
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# RL-specific metric constants
-# ============================================================================
-
 POLICY_EVALUATOR_METRIC_PREFIX = "evaluator"
 POLICY_EVALUATOR_STEP_METRIC = "metric/evaluator_agent_step"
 POLICY_EVALUATOR_EPOCH_METRIC = "metric/evaluator_epoch"
-
-
-# ============================================================================
-# RL-specific metric setup
-# ============================================================================
 
 
 def setup_wandb_metrics(wandb_run: WandbRun) -> None:
@@ -51,11 +42,6 @@ def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
         wandb_run.define_metric(metric, step_metric=POLICY_EVALUATOR_STEP_METRIC)
 
 
-# ============================================================================
-# Model/policy specific utilities
-# ============================================================================
-
-
 def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     """Log model parameter count to wandb summary."""
     num_params = sum(p.numel() for p in policy.parameters())
@@ -69,13 +55,6 @@ def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu
     Accepts:
     - Short format: "wandb://run/my-run" (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
     - Full format: "wandb://entity/project/artifact:version"
-
-    Args:
-        wandb_uri: Wandb URI to load from
-        device: Device to load the model to
-
-    Returns:
-        Loaded PyTorch model
 
     Raises:
         ValueError: If URI is not a wandb:// URI
