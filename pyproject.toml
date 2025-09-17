@@ -153,6 +153,7 @@ members = [
   "gitta",
   "codebot",
   "softmax",
+  "cogames",
 ]
 
 [tool.uv.sources]
@@ -163,6 +164,6 @@ softmax = { workspace = true }
 metta-agent = { workspace = true }
 gitta = { workspace = true }
 codebot = { workspace = true }
-
+cogames = { workspace = true }
 [tool.ruff]
 exclude = ["*.ipynb"]
