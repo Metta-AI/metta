@@ -30,7 +30,7 @@ PYTHON_TEST_FOLDERS = [
     "app_backend/tests",
     "codebot/tests",
     "common/tests",
-    "mettagrid/tests",
+    "packages/mettagrid/tests",
 ]
 
 
@@ -395,11 +395,11 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
         info("  Removing root build directory...")
         shutil.rmtree(build_dir)
 
-    mettagrid_dir = cli.repo_root / "mettagrid"
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
     for build_name in ["build-debug", "build-release"]:
         build_path = mettagrid_dir / build_name
         if build_path.exists():
-            info(f"  Removing mettagrid/{build_name}...")
+            info(f"  Removing packages/mettagrid/{build_name}...")
             shutil.rmtree(build_path)
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
@@ -473,19 +473,39 @@ def cmd_ci():
         raise typer.Exit(e.returncode) from e
 
     info("\nBuilding and running C++ tests...")
-    mettagrid_dir = cli.repo_root / "mettagrid"
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
 
     try:
-        subprocess.run(["cmake", "--preset", "benchmark"], cwd=mettagrid_dir, check=True)
-        subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
-        build_dir = mettagrid_dir / "build-release"
-        subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
+        subprocess.run(["make", "test"], cwd=mettagrid_dir, check=True)
         success("C++ tests passed!")
+        # Note: Benchmarks are not run in CI as they're for performance testing, not correctness
+        # To run benchmarks manually, use: cd packages/mettagrid && make benchmark
     except subprocess.CalledProcessError as e:
         error("C++ tests failed!")
         raise typer.Exit(e.returncode) from e
 
     success("\nAll CI tests passed!")
+
+
+@app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
+def cmd_benchmark():
+    """Run performance benchmarks for the mettagrid package."""
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
+
+    info("Running mettagrid benchmarks...")
+    info("Note: This may fail if Python environment is not properly configured.")
+    info("If it fails, try running directly: cd packages/mettagrid && make benchmark")
+
+    try:
+        subprocess.run(["make", "benchmark"], cwd=mettagrid_dir, check=True)
+        success("Benchmarks completed!")
+    except subprocess.CalledProcessError as e:
+        error("Benchmark execution failed!")
+        info("\nTroubleshooting:")
+        info("1. Try building first: cd packages/mettagrid && make build-prod")
+        info("2. Run benchmark binary directly: ./build-release/test_mettagrid_env_benchmark")
+        info("3. Run Python benchmarks: uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only")
+        raise typer.Exit(e.returncode) from e
 
 
 @app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
@@ -502,6 +522,7 @@ def cmd_test(ctx: typer.Context):
     if ctx.args:
         cmd.extend(ctx.args)
     try:
+        info(f"Running: {' '.join(cmd)}")
         subprocess.run(cmd, cwd=cli.repo_root, check=True)
     except subprocess.CalledProcessError as e:
         raise typer.Exit(e.returncode) from e

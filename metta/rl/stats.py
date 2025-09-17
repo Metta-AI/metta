@@ -15,10 +15,6 @@ from metta.agent.metta_agent import PolicyAgent
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
-from metta.mettagrid.profiling.stopwatch import Stopwatch
-from metta.mettagrid.profiling.system_monitor import SystemMonitor
-from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.experience import Experience
@@ -30,6 +26,10 @@ from metta.rl.wandb import (
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
+from mettagrid.profiling.memory_monitor import MemoryMonitor
+from mettagrid.profiling.stopwatch import Stopwatch
+from mettagrid.profiling.system_monitor import SystemMonitor
+from mettagrid.util.dict_utils import unroll_nested_dict
 
 logger = logging.getLogger(__name__)
 

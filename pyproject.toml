@@ -3,7 +3,15 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["metta", "experiments", "devops", "mettascope", "cogweb", "codebot", "softmax"]
+packages = [
+  "metta",
+  "experiments",
+  "devops",
+  "mettascope",
+  "cogweb",
+  "codebot",
+  "softmax",
+]
 py-modules = []
 
 [project]
@@ -46,7 +54,6 @@ dependencies = [
   "rich>=13.9.4",
   "scipy>=1.15.3",
   "setuptools>=80.9.0",
-  "shimmy>=1.3.0,<2.0",
   "simple-term-menu>=1.6.4",
   "sympy>=1.13.3",
   "tabulate>=0.9.0",
@@ -110,33 +117,46 @@ mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
-source = ["metta", "metta.mettagrid", "metta.common", "metta.agent", "metta.app_backend"]
+source = [
+  "metta",
+  "mettagrid",
+  "metta.common",
+  "metta.agent",
+  "metta.app_backend",
+]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
+filterwarnings = [
+  "ignore::DeprecationWarning:wandb.analytics.sentry",
+  "ignore:.*Gym has been unmaintained.*:UserWarning",
+  "ignore:.*Gym has been unmaintained.*",
+  "ignore::UserWarning:gym",
+]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
 ]
 console_output_style = "progress"
-addopts = "-n auto --import-mode=importlib"
+addopts = "-n auto --import-mode=importlib -W ignore:Gym\\ has\\ been\\ unmaintained:UserWarning"
+pythonpath = [".", "packages/mettagrid/python/src"]
 
 [tool.uv]
 cache-keys = [
   { file = "pyproject.toml" },
-  { file = "mettagrid/BUILD" },
-  { file = "mettagrid/MODULE.bazel" },
+  { file = "packages/mettagrid/BUILD" },
+  { file = "packages/mettagrid/MODULE.bazel" },
   { file = "metta/**/*.{cpp,hpp}" },
 ]
 default-groups = ["dev"]
 
 [tool.uv.workspace]
 members = [
-  "mettagrid",
+  "packages/mettagrid",
   "app_backend",
   "common",
   "agent",

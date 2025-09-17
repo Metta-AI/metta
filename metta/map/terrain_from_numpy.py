@@ -10,8 +10,8 @@ from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 from pydantic import Field
 
-from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from metta.mettagrid.util.uri import ParsedURI
+from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
