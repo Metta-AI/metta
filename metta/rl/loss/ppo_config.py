@@ -43,11 +43,11 @@ class PPOConfig(Config):
     schedule: None = None  # TODO: Implement this
     # PPO hyperparameters
     # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
-    clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
+    clip_coef: float = Field(default=0.1, gt=0, le=1.0)
     # Entropy coefficient: Type 2 default chosen from sweep
-    ent_coef: float = Field(default=0.010000, ge=0)
+    ent_coef: float = Field(default=0.0021, ge=0)
     # GAE lambda: Type 2 default chosen from sweep, deviates from typical 0.95, bias/variance tradeoff
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.916, ge=0, le=1.0)
     # Gamma: Type 2 default chosen from sweep, deviates from typical 0.99, suggests shorter
     # effective horizon for multi-agent
     gamma: float = Field(default=0.977, ge=0, le=1.0)
@@ -58,7 +58,7 @@ class PPOConfig(Config):
     # Value function clipping: Matches policy clip for consistency
     vf_clip_coef: float = Field(default=0.1, ge=0)
     # Value coefficient: Type 2 default chosen from sweep, balances policy vs value loss
-    vf_coef: float = Field(default=0.897619, ge=0)
+    vf_coef: float = Field(default=0.44, ge=0)
     # L2 regularization: Disabled by default, common in RL
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
