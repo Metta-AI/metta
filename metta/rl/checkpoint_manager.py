@@ -66,25 +66,35 @@ def is_valid_checkpoint_filename(filename: str) -> bool:
     if not filename.endswith(".pt"):
         return False
     parts = filename[:-3].split("__")
-    return (
-        len(parts) == 5
-        and parts[1].startswith("e")
-        and parts[1][1:].isdigit()
-        and parts[2].startswith("s")
-        and parts[2][1:].isdigit()
-        and parts[3].startswith("t")
-        and parts[3][1:].isdigit()
-        and parts[4].startswith("sc")
-        and parts[4][2:].isdigit()
-    )
+    if len(parts) < 2:
+        return False
+    return parts[1].startswith("e") and parts[1][1:].isdigit()
 
 
 def parse_checkpoint_filename(filename: str) -> tuple[str, int, int, int, float]:
-    """Parse checkpoint metadata from filename."""
+    """Parse checkpoint metadata from filename.
+
+    Returns (run_name, epoch, agent_step, total_time, score). The latter three
+    values default to zero when not present."""
     if not is_valid_checkpoint_filename(filename):
         raise ValueError(f"Invalid checkpoint filename format: {filename}")
+
     parts = filename[:-3].split("__")
-    return (parts[0], int(parts[1][1:]), int(parts[2][1:]), int(parts[3][1:]), int(parts[4][2:]) / 10000.0)
+    run_name = parts[0]
+    epoch = int(parts[1][1:])
+
+    agent_step = 0
+    total_time = 0
+    score = 0.0
+
+    if len(parts) > 2 and parts[2].startswith("s") and parts[2][1:].isdigit():
+        agent_step = int(parts[2][1:])
+    if len(parts) > 3 and parts[3].startswith("t") and parts[3][1:].isdigit():
+        total_time = int(parts[3][1:])
+    if len(parts) > 4 and parts[4].startswith("sc") and parts[4][2:].isdigit():
+        score = int(parts[4][2:]) / 10000.0
+
+    return run_name, epoch, agent_step, total_time, score
 
 
 def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
@@ -204,7 +214,7 @@ class CheckpointManager:
         return metadata
 
     def _find_checkpoint_files(self, epoch: Optional[int] = None) -> List[Path]:
-        pattern = f"{self.run_name}__e{epoch}__s*__t*__sc*.pt" if epoch else f"{self.run_name}__e*__s*__t*__sc*.pt"
+        pattern = f"{self.run_name}__e{epoch}.pt" if epoch is not None else f"{self.run_name}__e*.pt"
         return list(self.checkpoint_dir.glob(pattern))
 
     def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
@@ -254,10 +264,7 @@ class CheckpointManager:
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        agent_step = metadata.get("agent_step", 0)
-        total_time = int(metadata.get("total_time", 0))
-        score = int(metadata.get("score", 0.0) * 10000)
-        filename = f"{self.run_name}__e{epoch}__s{agent_step}__t{total_time}__sc{score}.pt"
+        filename = f"{self.run_name}__e{epoch}.pt"
         checkpoint_path = self.checkpoint_dir / filename
 
         # Check if we're overwriting an existing checkpoint for this epoch
@@ -274,7 +281,7 @@ class CheckpointManager:
         if existing_files:
             keys_to_remove = []
             for cached_path in self._cache.keys():
-                if Path(cached_path).name.startswith(f"{self.run_name}__e{epoch}__"):
+                if Path(cached_path).name.startswith(f"{self.run_name}__e{epoch}"):
                     keys_to_remove.append(cached_path)
             for key in keys_to_remove:
                 self._cache.pop(key, None)
@@ -293,17 +300,15 @@ class CheckpointManager:
             state["stopwatch_state"] = stopwatch_state
         torch.save(state, trainer_file)
 
-    def select_checkpoints(self, strategy: str = "latest", count: int = 1, metric: str = "epoch") -> List[str]:
+    def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:
         """Select checkpoints and return their URIs.
 
-        Strategy can be "latest" or "all", and metric can be "epoch", "agent_step", "total_time", or "score".
-        Returns a list of file:// URIs for the selected checkpoints.
+        Strategy can be "latest" or "all". Checkpoints are ordered purely by epoch.
         """
         checkpoint_files = self._find_checkpoint_files()
         if not checkpoint_files:
             return []
-        metric_idx = {"epoch": 1, "agent_step": 2, "total_time": 3, "score": 4}.get(metric, 1)
-        checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[metric_idx], reverse=True)
+        checkpoint_files.sort(key=lambda f: parse_checkpoint_filename(f.name)[1], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
         if self._remote_prefix:
             return [f"{self._remote_prefix}/{path.name}" for path in selected_files]
