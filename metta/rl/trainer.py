@@ -457,8 +457,9 @@ def train(
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
 
-            # Disable the NCCL watchdog until the next agent_step
-            disable_nccl_watchdog()
+            # Disable the NCCL watchdog until the next agent_step for evaluations
+            if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
+                disable_nccl_watchdog()
 
             # Only master needs to do bookkeeping
             if not torch_dist_cfg.is_master:
