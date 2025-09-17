@@ -559,10 +559,6 @@ def train(
                 sims.extend(trainer_cfg.evaluation.simulations)
 
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
-                if evaluate_local:
-                    logger.warning(
-                        "Local policy evaluation can be inefficient - consider switching to remote evaluation!"
-                    )
 
                 if latest_wandb_uri:
                     policy_uri = latest_wandb_uri  # Already a wandb:// URI

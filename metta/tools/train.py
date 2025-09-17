@@ -1,5 +1,6 @@
 import os
 import platform
+from datetime import timedelta
 from typing import Optional
 
 import torch
@@ -75,7 +76,14 @@ class TrainTool(Tool):
 
         record_heartbeat()
 
-        torch_dist_cfg = setup_torch_distributed(self.system.device)
+        evaluate_local = self.trainer.evaluation and self.trainer.evaluation.evaluate_local
+        nccl_timeout = timedelta(minutes=1)
+        if evaluate_local:
+            # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
+            logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
+            nccl_timeout = timedelta(hours=4)
+
+        torch_dist_cfg = setup_torch_distributed(self.system.device, nccl_timeout)
 
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
