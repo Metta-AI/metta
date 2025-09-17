@@ -1,0 +1,25 @@
+# Optional local Raylib repository for macOS Homebrew installations.
+# This repository is used only when building with --define=with_raylib=true
+# on macOS and assumes Raylib is installed at /opt/homebrew.
+
+new_local_repository(
+    name = "raylib_homebrew",
+    path = "/opt/homebrew",
+    build_file_content = """
+cc_library(
+    name = "raylib",
+    hdrs = glob(["include/**/*.h"]),
+    includes = ["include"],
+    linkopts = [
+        "-Llib",
+        "-lraylib",
+        "-framework", "Cocoa",
+        "-framework", "IOKit",
+        "-framework", "CoreVideo",
+        "-framework", "OpenGL",
+    ],
+    visibility = ["//visibility:public"],
+)
+""",
+)
+

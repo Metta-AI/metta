@@ -60,39 +60,14 @@ pybind_extension(
         "src/metta/mettagrid/*.hpp",
         "src/metta/mettagrid/**/*.hpp",
     ]),
-    copts = COPTS
-        # When Raylib is enabled, expose common Homebrew include paths on macOS.
-        + select({
-            ":with_raylib_macos": [
-                "-I/usr/local/include",
-                "-I/opt/homebrew/include",
-            ],
-            "//conditions:default": [],
-        }),
+    copts = COPTS,
     defines = select({
         ":with_raylib": ["METTA_WITH_RAYLIB"],
         "//conditions:default": [],
     }),
-    # Link Raylib and required system frameworks when enabled.
-    linkopts = select({
-        ":with_raylib_macos": [
-            "-L/usr/local/lib",
-            "-L/opt/homebrew/lib",
-            "-lraylib",
-            "-framework", "Cocoa",
-            "-framework", "IOKit",
-            "-framework", "CoreVideo",
-            "-framework", "OpenGL",
-        ],
-        ":with_raylib_windows": [
-            # NOTE: Windows builds are currently disabled in CI, but
-            # these flags are provided for future enablement.
-            "-lraylib",
-            "-lopengl32",
-            "-lgdi32",
-            "-lwinmm",
-            "-lshell32",
-        ],
+    deps = select({
+        ":with_raylib_macos": ["@raylib_homebrew//:raylib"],
+        # Windows dependency wiring to be added when CI is enabled.
         "//conditions:default": [],
     }),
     includes = ["src/metta/mettagrid"],
@@ -110,4 +85,3 @@ exports_files(
     ]),
     visibility = ["//visibility:public"],
 )
-
