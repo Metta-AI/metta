@@ -3,6 +3,7 @@ import argparse
 import copy
 import json
 import logging
+import re
 import subprocess
 import sys
 
@@ -24,6 +25,29 @@ from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_sky_cluster_name(run_name: str) -> bool:
+    """Validate that we will meet Sky's cluster naming requirements.
+
+    Sky requires cluster names to:
+    - Start with a letter (a-z or A-Z)
+    - Contain only letters, numbers, dashes, underscores, or dots
+    - End with a letter or number
+    """
+    # Sky's regex pattern: [a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?
+    pattern = r"^[a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?$"
+    valid = bool(re.match(pattern, run_name))
+
+    if not valid:
+        print(red(f"[VALIDATION] ❌ Invalid run name: '{run_name}'"))
+        print("Sky cluster names must:")
+        print("  - Start with a letter (not a number)")
+        print("  - Contain only letters, numbers, dashes, underscores, or dots")
+        print("  - End with a letter or number")
+        print()
+
+    return valid
 
 
 def _validate_run_tool(module_path: str, run_id: str, filtered_args: list) -> None:
@@ -218,6 +242,10 @@ Examples:
 
     # Validate the run.py tool configuration early to catch errors before setting up the task
     _validate_run_tool(args.module_path, run_id, filtered_args)
+
+    # Validate the provided run name
+    if not _validate_sky_cluster_name(run_id):
+        sys.exit(1)
 
     task = sky.Task.from_yaml("./devops/skypilot/launch/skypilot_run.yaml")
 

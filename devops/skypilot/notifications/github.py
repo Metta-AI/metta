@@ -1,84 +1,57 @@
 #!/usr/bin/env python3
-from typing import Literal
+from typing import Any, Dict
 
+from devops.skypilot.notifications.notifier import NotificationBase
 from devops.skypilot.utils.job_config import JobConfig
 from gitta import post_commit_status
-from metta.common.util.log_config import getRankAwareLogger
-from metta.common.util.retry import retry_function
-
-logger = getRankAwareLogger(__name__)
 
 
-def set_github_status(
-    state: Literal["success", "failure", "error", "pending"], description: str, job_config: JobConfig
-) -> bool:
-    if not job_config.enable_github_status:
-        logger.debug("GitHub status updates disabled")
-        return False
+class GitHubNotifier(NotificationBase):
+    @property
+    def name(self) -> str:
+        return "GitHub"
 
-    # Extract and validate required fields
-    commit_sha = job_config.metta_git_ref or ""
-    token = job_config.github_pat
-    context = job_config.github_status_context
+    def get_required_fields(self, job_config: JobConfig) -> Dict[str, Any]:
+        # Validate SHA format
+        commit_sha = job_config.metta_git_ref or ""
+        if commit_sha and len(commit_sha) < 40:
+            raise ValueError(f'Github Status update requires a full length commit hash. len("{commit_sha}") < 40)')
 
-    if not all([state, description, commit_sha, token]):
-        logger.warning(
-            f"Skipping GitHub status - missing params: "
-            f"state={bool(state)}, desc={bool(description)}, "
-            f"sha={bool(commit_sha)}, token={'set' if token else 'missing'}"
-        )
-        return False
+        return {
+            "commit_sha": commit_sha,
+            "token": job_config.github_pat or "",
+            "repository": job_config.github_repository or "",
+            "context": job_config.github_status_context,
+            "skypilot_job_id": job_config.skypilot_job_id,
+            "metta_run_id": job_config.metta_run_id,
+        }
 
-    # Validate full SHA format
-    if len(commit_sha) < 40:
-        logger.error(f"Invalid GitHub SHA: '{commit_sha}' (expected 40 characters)")
-        return False
+    def format_notification(self, fields: Dict[str, Any]) -> Dict[str, Any]:
+        state = fields.get("state", "")
+        description = fields.get("description", "")
 
-    # Build description
-    desc = description
-    if job_config.skypilot_job_id:
-        desc += f" - [ jl {job_config.skypilot_job_id} ]"
+        if not all([state, description]):
+            raise ValueError("Missing state or description")
 
-    # Build target URL
-    target_url = None
-    if job_config.metta_run_id:
-        target_url = f"https://wandb.ai/metta-research/metta/runs/{job_config.metta_run_id}"
+        # Build description with job ID
+        desc = description
+        if fields["skypilot_job_id"]:
+            desc += f" - [ jl {fields['skypilot_job_id']} ]"
 
-    repo = job_config.github_repository
+        # Build target URL
+        target_url = None
+        if fields["metta_run_id"]:
+            target_url = f"https://wandb.ai/metta-research/metta/runs/{fields['metta_run_id']}"
 
-    if not repo:
-        logger.error("GitHub repository not configured")
-        return False
+        return {
+            "commit_sha": fields["commit_sha"],
+            "state": state,
+            "repo": fields["repository"],
+            "context": fields["context"],
+            "description": desc,
+            "target_url": target_url,
+            "token": fields["token"],
+        }
 
-    # Log detailed payload info before posting
-    logger.info(
-        f"Posting GitHub status:\n"
-        f"  repo        = {repo}\n"
-        f"  sha         = {commit_sha}\n"
-        f"  state       = {state}\n"
-        f"  context     = {context}\n"
-        f"  description = {desc}\n"
-        f"  target_url  = {target_url}"
-    )
-
-    try:
-        retry_function(
-            lambda: post_commit_status(
-                commit_sha=commit_sha,
-                state=state,
-                repo=repo,
-                context=context,
-                description=desc,
-                target_url=target_url,
-                token=token,
-            ),
-            max_retries=3,
-            initial_delay=2.0,
-            max_delay=30.0,
-        )
-        logger.info(f"✅ Successfully set GitHub status: {repo}@{commit_sha[:8]} → {state}")
-        return True
-
-    except Exception as e:
-        logger.error(f"GitHub status update failed: {e}")
-        return False
+    def send(self, payload: Dict[str, Any]) -> None:
+        post_commit_status(**payload)

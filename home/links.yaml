@@ -37,6 +37,9 @@ links:
       - name: Logs
         url: https://app.datadoghq.com/logs
         short_urls: [ddlogs]
+      - name: System Health
+        url: https://app.datadoghq.com/dashboard/j79-2k2-5ym/softmax-system-health?fromUser=true&refresh_mode=sliding&from_ts=1757895511979&to_ts=1758068311979&live=true
+        short_urls: [ddsh]
       - name: K8s pod statuses
         url: https://app.datadoghq.com/orchestration/explorer/pod?explorer-na-groups=false
         short_urls: [ddpods]

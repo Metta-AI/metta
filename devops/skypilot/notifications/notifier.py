@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
+
 import re
 import signal
+import time
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Dict, Literal, Optional
 
-from devops.skypilot.notifications.discord import send_discord_notification
-from devops.skypilot.notifications.github import set_github_status
-from devops.skypilot.notifications.wandb import send_wandb_notification
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.util.log_config import getRankAwareLogger
+from metta.common.util.retry import retry_function
 
 logger = getRankAwareLogger(__name__)
 
@@ -123,9 +124,9 @@ def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[s
     # Discord notification
     if config.send_discord and job_config.enable_discord_notification:
         try:
-            results["discord"] = send_discord_notification(
-                title=config.title, status_msg=config.description, job_config=job_config
-            )
+            from devops.skypilot.notifications.discord import DiscordNotifier
+
+            results["discord"] = DiscordNotifier().send_notification(config, job_config)
         except Exception as e:
             logger.error(f"Failed to send Discord notification: {e}")
             results["discord"] = False
@@ -133,9 +134,9 @@ def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[s
     # W&B notification
     if config.send_wandb and job_config.enable_wandb_notification:
         try:
-            results["wandb"] = send_wandb_notification(
-                title=config.title, description=config.description, job_config=job_config
-            )
+            from devops.skypilot.notifications.wandb import WandBNotifier
+
+            results["wandb"] = WandBNotifier().send_notification(config, job_config)
         except Exception as e:
             logger.error(f"Failed to send W&B notification: {e}")
             results["wandb"] = False
@@ -143,9 +144,9 @@ def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[s
     # GitHub status update
     if config.send_github and job_config.enable_github_status:
         try:
-            results["github"] = set_github_status(
-                state=config.github_state, description=config.description, job_config=job_config
-            )
+            from devops.skypilot.notifications.github import GitHubNotifier
+
+            results["github"] = GitHubNotifier().send_notification(config, job_config)
         except Exception as e:
             logger.error(f"Failed to send GitHub status: {e}")
             results["github"] = False
@@ -159,3 +160,84 @@ def send_notifications(termination_reason: str, job_config: JobConfig) -> dict[s
     )
 
     return results
+
+
+class NotificationBase(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Name of the notification type for logging."""
+        pass
+
+    @abstractmethod
+    def get_required_fields(self, job_config: JobConfig) -> Dict[str, Any]:
+        """Extract required fields from job_config. Return empty dict if validation fails."""
+        pass
+
+    @abstractmethod
+    def format_notification(self, fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Format the notification payload."""
+        pass
+
+    @abstractmethod
+    def send(self, payload: Dict[str, Any]) -> None:
+        """Send the actual notification. Should raise exception on failure."""
+        pass
+
+    def send_notification(self, notification_config: NotificationConfig, job_config: JobConfig) -> bool:
+        """Main entry point for sending notifications."""
+
+        # Get and validate required fields
+        fields = self.get_required_fields(job_config)
+        missing = [key for key, val in fields.items() if not val]
+        if missing:
+            logger.warning(f"Skipping {self.name} notification - missing params: {', '.join(missing)}")
+            return False
+
+        # Add notification config fields
+        fields.update(
+            {
+                "title": notification_config.title,
+                "description": notification_config.description,
+                "status_msg": notification_config.description,  # For Discord compatibility
+                "state": notification_config.github_state,  # For GitHub
+            }
+        )
+
+        # Format the notification
+        try:
+            payload = self.format_notification(fields)
+        except Exception as e:
+            logger.error(f"Failed to format {self.name} notification: {e}")
+            return False
+
+        # Log before sending
+        lines = [f"Sending {self.name} notification:"]
+        for key, value in payload.items():
+            if value is not None:
+                lines.append(f"  {key:<12} = {value}")
+        logger.info("\n".join(lines))
+
+        # Send with retry
+        try:
+            retry_function(
+                lambda: self.send(payload),
+                max_retries=3,
+                initial_delay=2.0,
+                max_delay=30.0,
+            )
+            logger.info(f"✅ Successfully sent {self.name} notification")
+            return True
+        except Exception as e:
+            logger.error(f"{self.name} notification failed: {e}")
+            return False
+
+    def _calculate_runtime(self, start_time: Optional[int]) -> str:
+        if not start_time:
+            return ""
+
+        current_time = int(time.time())
+        duration = current_time - start_time
+        hours = duration // 3600
+        minutes = (duration % 3600) // 60
+        return f"{hours}h {minutes}m"
