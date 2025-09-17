@@ -45,7 +45,7 @@ def enable_nccl_watchdog():
     if os.environ.get("NCCL_WATCHDOG_ENABLE", "0") == "0":
         os.environ["NCCL_WATCHDOG_ENABLE"] = "1"
         os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1"
-        logger.warning("NCCL watchdog enabled!")
+        logger.info("NCCL watchdog enabled!")
 
 
 def disable_nccl_watchdog():
@@ -53,7 +53,7 @@ def disable_nccl_watchdog():
     if os.environ.get("NCCL_WATCHDOG_ENABLE", "0") == "1":
         os.environ["NCCL_WATCHDOG_ENABLE"] = "0"
         os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
-        logger.warning("NCCL watchdog disabled")
+        logger.info("NCCL watchdog disabled")
 
 
 def setup_torch_distributed(device: str) -> TorchDistributedConfig:

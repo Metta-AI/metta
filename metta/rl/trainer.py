@@ -457,9 +457,12 @@ def train(
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
 
+            # Disable the NCCL watchdog until the next agent_step
+            disable_nccl_watchdog()
+
+            # Only master needs to do bookkeeping
             if not torch_dist_cfg.is_master:
-                # Only master needs to do bookkeeping
-                continue
+                continue  # to next agent_step
 
             torch_profiler.on_epoch_end(epoch)
 
@@ -562,11 +565,17 @@ def train(
                 sims.extend(trainer_cfg.evaluation.simulations)
 
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
+                if evaluate_local:
+                    logger.warning(
+                        "Local policy evaluation can be inefficient - consider switching to remote evaluation!"
+                    )
+
                 if latest_wandb_uri:
                     policy_uri = latest_wandb_uri  # Already a wandb:// URI
                 else:
                     checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
                     policy_uri = checkpoint_uris[0] if checkpoint_uris else None
+
                 if trainer_cfg.evaluation.evaluate_remote:
                     try:
                         # Get the most recent checkpoint URI for remote evaluation
@@ -587,13 +596,9 @@ def train(
                         logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
                         logger.error("Falling back to local evaluation")
                         evaluate_local = True
+
                 if evaluate_local:
                     if policy_uri:
-                        logger.warning(
-                            "Local policy evaluation can be inefficient - consider switching to remote evaluation!"
-                        )
-                        disable_nccl_watchdog()  # we will reenable after the barrier on starting the next agent_step
-
                         evaluation_results = evaluate_policy(
                             checkpoint_uri=policy_uri,
                             simulations=sims,
