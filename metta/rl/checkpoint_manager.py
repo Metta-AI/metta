@@ -50,7 +50,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
         key_path = Path(parsed.key)
         if key_path.suffix == ".pt":
             try:
-                return _extract_run_and_epoch(key_path)
+                return _extract_run_and_epoch(Path(key_path.name))
             except ValueError:
                 pass
         return (key_path.stem if key_path.suffix else key_path.name, 0)
