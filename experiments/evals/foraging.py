@@ -74,7 +74,7 @@ def make_foraging_eval_suite(
     for num_converters in [2, 4]:
         for carry in [1]:
             for cooldowns in ([0], [10]):
-                for rmin, rmax in [(2, 3), (3, 10)]:
+                for rmin, rmax in [(2, 3), (10, 20)]:
                     for w in width_choices:
                         for h in height_choices:
                             for dep in dep_choices:
