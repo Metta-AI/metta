@@ -13,6 +13,58 @@ from urllib.parse import unquote, urlparse
 
 
 @dataclass(frozen=True, slots=True)
+class WandbURI:
+    """Parsed representation of a W&B artifact URI."""
+
+    entity: str
+    project: str
+    artifact_path: str
+    version: str = "latest"
+
+    @classmethod
+    def parse(cls, uri: str) -> "WandbURI":
+        if not uri.startswith("wandb://"):
+            raise ValueError("W&B URI must start with wandb://")
+
+        body = uri[len("wandb://") :]
+        if ":" in body:
+            path_part, version = body.rsplit(":", 1)
+        else:
+            path_part, version = body, "latest"
+
+        if "/" not in path_part:
+            raise ValueError(
+                "Malformed W&B URI. Expected fully-qualified form: wandb://entity/project/artifact_path:version"
+            )
+
+        parts = path_part.split("/")
+        if len(parts) < 3:
+            raise ValueError(
+                "Malformed W&B URI. Expected `wandb://entity/project/artifact_path:version`. "
+                "Example: wandb://my-entity/metta/model/run-name:latest"
+            )
+
+        entity = parts[0]
+        project = parts[1]
+        artifact_path = "/".join(parts[2:])
+        if not project or not artifact_path:
+            raise ValueError("Project and artifact path must be non-empty")
+
+        return cls(entity, project, artifact_path, version)
+
+    def qname(self) -> str:
+        """Qualified name accepted by `wandb.Api().artifact(...)`."""
+        return f"{self.entity}/{self.project}/{self.artifact_path}:{self.version}"
+
+    def http_url(self) -> str:
+        """Human-readable URL for this artifact version."""
+        return f"https://wandb.ai/{self.entity}/{self.project}/artifacts/{self.artifact_path}/{self.version}"
+
+    def __str__(self) -> str:  # pragma: no cover - repr helper
+        return f"wandb://{self.entity}/{self.project}/{self.artifact_path}:{self.version}"
+
+
+@dataclass(frozen=True, slots=True)
 class ParsedURI:
     """Canonical representation for supported URI schemes."""
 
@@ -21,6 +73,7 @@ class ParsedURI:
     local_path: Optional[Path] = None
     bucket: Optional[str] = None
     key: Optional[str] = None
+    wandb: Optional[WandbURI] = None
     path: Optional[str] = None
 
     @property
@@ -30,6 +83,8 @@ class ParsedURI:
             return self.local_path.as_uri()
         if self.scheme == "s3" and self.bucket and self.key:
             return f"s3://{self.bucket}/{self.key}"
+        if self.scheme == "wandb" and self.wandb is not None:
+            return str(self.wandb)
         if self.scheme == "mock":
             return f"mock://{self.path or ''}"
         return self.raw
@@ -44,9 +99,14 @@ class ParsedURI:
             raise ValueError(f"URI '{self.raw}' is not an s3:// path")
         return self.bucket, self.key
 
+    def require_wandb(self) -> WandbURI:
+        if self.scheme != "wandb" or self.wandb is None:
+            raise ValueError(f"URI '{self.raw}' is not a wandb:// artifact")
+        return self.wandb
+
     def is_remote(self) -> bool:
         """Return True if the URI references a remote resource."""
-        return self.scheme in {"s3", "gdrive", "http"}
+        return self.scheme in {"s3", "wandb", "gdrive", "http"}
 
     @classmethod
     def parse(cls, value: str) -> "ParsedURI":
@@ -54,7 +114,13 @@ class ParsedURI:
             raise ValueError("URI cannot be empty")
 
         if value.startswith("wandb://"):
-            raise ValueError("wandb:// URIs are no longer supported")
+            wandb_uri = WandbURI.parse(value)
+            return cls(
+                raw=value,
+                scheme="wandb",
+                wandb=wandb_uri,
+                path=wandb_uri.artifact_path,
+            )
 
         if value.startswith("s3://"):
             remainder = value[5:]
@@ -93,4 +159,4 @@ class ParsedURI:
         return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
 
 
-__all__ = ["ParsedURI"]
+__all__ = ["WandbURI", "ParsedURI"]

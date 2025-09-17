@@ -37,9 +37,7 @@ class WandbConfig(Config):
 
     @property
     def uri(self):
-        if not self.run_id:
-            raise ValueError("run_id is required to build a W&B URI")
-        return f"wandb://{self.entity}/{self.project}/model/{self.run_id}:latest"
+        raise RuntimeError("Policy artifacts are no longer stored on WandB. Use local or s3:// URIs instead.")
 
 
 class WandbContext:

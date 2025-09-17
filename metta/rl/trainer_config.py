@@ -36,8 +36,8 @@ class InitialPolicyConfig(Config):
 
 
 class CheckpointConfig(Config):
-    # Checkpoint every 5 epochs
-    checkpoint_interval: int = Field(default=5, ge=0)
+    # Checkpoint every 30 epochs by default
+    checkpoint_interval: int = Field(default=30, ge=0)
     checkpoint_dir: str | None = Field(default=None)
     # Remote S3 prefix for checkpoint uploads (e.g. s3://bucket/prefix)
     remote_prefix: str | None = Field(default=None)

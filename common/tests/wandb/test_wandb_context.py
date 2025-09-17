@@ -5,6 +5,7 @@ Unit tests for WandbContext.
 import os
 import tempfile
 
+import pytest
 import wandb
 from wandb.errors import CommError
 
@@ -37,7 +38,8 @@ def test_wandb_config_factories():
 def test_wandb_config_uri():
     """Test URI generation."""
     cfg = WandbConfig(enabled=True, project="p", entity="e", run_id="test-123")
-    assert cfg.uri == "wandb://e/p/model/test-123:latest"
+    with pytest.raises(RuntimeError):
+        _ = cfg.uri
 
 
 def test_disabled_context():

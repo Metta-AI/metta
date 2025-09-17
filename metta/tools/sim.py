@@ -54,6 +54,14 @@ class SimTool(Tool):
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
 
+        for uri in self.policy_uris:
+            parsed_uri = ParsedURI.parse(uri)
+            if parsed_uri.scheme == "wandb":
+                raise ValueError(
+                    "Policy artifacts must be stored on local disk or S3. "
+                    "Download the checkpoint and re-run with a file:// or s3:// URI."
+                )
+
         stats_client: StatsClient | None = None
         if self.stats_server_uri is not None:
             stats_client = StatsClient.create(self.stats_server_uri)

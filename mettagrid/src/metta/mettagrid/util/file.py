@@ -20,6 +20,7 @@ from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
 import boto3
+import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -27,8 +28,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build as gdrive_build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
+from wandb.errors import CommError
 
-from .uri import ParsedURI
+from .uri import ParsedURI, WandbURI
 
 # --------------------------------------------------------------------------- #
 #  Globals                                                                     #
@@ -59,6 +61,15 @@ def exists(path: str) -> bool:
             if e.response["Error"]["Code"] in {"404", "403", "NoSuchKey"}:
                 return False
             raise
+
+    if parsed.scheme == "wandb":
+        wandb_uri = parsed.require_wandb()
+        api = wandb.Api()
+        try:
+            api.artifact(wandb_uri.qname())
+            return True
+        except CommError:
+            return False
 
     if parsed.scheme == "gdrive":
         return _gdrive_exists(parsed.raw)
@@ -97,6 +108,12 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
         logger.info("Wrote %d B → %s (ID: %s)", len(data), http_url(parsed.raw), file_id)
         return
 
+    if parsed.scheme == "wandb":
+        wandb_uri = parsed.require_wandb()
+        upload_bytes_to_wandb(wandb_uri, data, name=wandb_uri.artifact_path.split("/")[-1])
+        logger.info("Wrote %d B → %s", len(data), wandb_uri.http_url())
+        return
+
     if parsed.scheme == "file" and parsed.local_path is not None:
         local_path = parsed.local_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
@@ -130,6 +147,12 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
         )
         return
 
+    if parsed.scheme == "wandb":
+        wandb_uri = parsed.require_wandb()
+        upload_file_to_wandb(wandb_uri, local_file, name=wandb_uri.artifact_path)
+        logger.info("Uploaded %s → %s (size %d B)", local_file, wandb_uri, os.path.getsize(local_file))
+        return
+
     if parsed.scheme == "file" and parsed.local_path is not None:
         dst = parsed.local_path
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -156,6 +179,23 @@ def read(path: str) -> bytes:
             logger.error("AWS credentials not found -- have you run devops/aws/setup_sso.py?")
             raise
 
+    if parsed.scheme == "wandb":
+        wandb_uri = parsed.require_wandb()
+        api = wandb.Api()
+        artifact = api.artifact(wandb_uri.qname())
+        with tempfile.TemporaryDirectory(prefix="wandb_dl_") as tmp:
+            local_dir = artifact.download(root=tmp)
+            files = list(Path(local_dir).iterdir())
+            if not files:
+                raise FileNotFoundError(f"No files inside W&B artifact {wandb_uri}")
+            if len(files) > 1:
+                raise ValueError(
+                    f"Expected exactly one file inside W&B artifact {wandb_uri}, got {len(files)}: {files}"
+                )
+            data = files[0].read_bytes()
+            logger.info("Read %d B from %s", len(data), wandb_uri)
+            return data
+
     if parsed.scheme == "file" and parsed.local_path is not None:
         data = parsed.local_path.read_bytes()
         logger.info("Read %d B from %s", len(data), parsed.local_path)
@@ -179,7 +219,7 @@ def local_copy(path: str):
     """
     parsed = ParsedURI.parse(path)
 
-    if parsed.scheme == "s3":
+    if parsed.scheme in {"s3", "wandb"}:
         data = read(parsed.canonical)
         tmp = tempfile.NamedTemporaryFile(delete=False)
         tmp.write(data)
@@ -201,6 +241,8 @@ def http_url(path: str) -> str:
     parsed = ParsedURI.parse(path)
     if parsed.scheme == "s3" and parsed.bucket and parsed.key:
         return f"https://{parsed.bucket}.s3.amazonaws.com/{parsed.key}"
+    if parsed.scheme == "wandb" and parsed.wandb is not None:
+        return parsed.wandb.http_url()
     if parsed.scheme == "gdrive":
         return GDriveURI.parse(path).http_url()
     return parsed.canonical if parsed.scheme == "file" else parsed.raw
@@ -214,6 +256,76 @@ def is_public_uri(url: str | None) -> bool:
         return False
     parsed = urlparse(url)
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
+def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
+    with tempfile.NamedTemporaryFile(delete=False) as fh:
+        fh.write(blob)
+        tmpname = fh.name
+    try:
+        upload_file_to_wandb(uri, tmpname, name=name)
+    finally:
+        os.unlink(tmpname)
+
+
+@contextmanager
+def wandb_export_context(project: str, entity: str) -> wandb.Run:
+    """Ensure a wandb run exists for artifact exports."""
+
+    active_run = wandb.run
+
+    if active_run is not None:
+        if active_run.project != project:
+            raise ValueError(
+                f"Wandb run already active: {active_run.name}; "
+                "can't post files to a different project inside the same process"
+            )
+        run = active_run
+    else:
+        run = wandb.init(
+            project=project,
+            entity=entity,
+            job_type="file-export",
+            name="file-export",
+            settings=wandb.Settings(
+                disable_code=True,
+                console="off",
+                quiet=True,
+            ),
+        )
+
+    try:
+        yield run
+    finally:
+        pass
+
+
+def upload_file_to_wandb(uri: WandbURI, local_file: str, name: str) -> None:
+    """Upload *local_file* to W&B as the next version of the artifact."""
+
+    logger = logging.getLogger(__name__)
+
+    if uri.version != "latest":
+        raise ValueError(
+            "Export only supports the implicit ':latest' alias when writing to W&B (explicit versions are immutable)."
+        )
+
+    try:
+        with wandb_export_context(uri.project, uri.entity) as run:
+            artifact = wandb.Artifact(uri.artifact_path, type="file")
+            artifact.add_file(local_file, name=name)
+            run.log_artifact(artifact)
+
+            logger.info(
+                "Uploaded %s → wandb://%s/%s  (size %d B, new version)",
+                local_file,
+                uri.project,
+                uri.artifact_path,
+                os.path.getsize(local_file),
+            )
+    except Exception as e:
+        logger.error(f"Failed to upload file to wandb: {e}")
+        raise
 
 
 # --------------------------------------------------------------------------- #

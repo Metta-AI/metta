@@ -235,7 +235,7 @@ programmatic processing
       "checkpoints": [
         {
           "name": "checkpoint_1000",
-          "uri": "wandb://...",
+          "uri": "s3://my-bucket/checkpoints/abc123/abc123:v5.pt",
           "metrics": {
             "reward_avg": 15.3
           }
