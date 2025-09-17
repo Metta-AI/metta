@@ -72,8 +72,8 @@ def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: st
 
             commits: list[dict[str, Any]] = resp.json() or []
             for commit in commits:
-                message = (commit.get("commit", {}).get("message") or "").strip().lower()
-                if phrase in message:
+                message = commit.get("commit", {}).get("message") or ""
+                if phrase.lower() in message.lower():
                     count += 1
             if len(commits) < per_page:
                 break
