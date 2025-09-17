@@ -15,13 +15,13 @@ from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.wandb_context import WandbRun
-from metta.core.distributed import TorchDistributedConfig, disable_nccl_watchdog, enable_nccl_watchdog
+from metta.core.distributed import TorchDistributedConfig
 from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
+from metta.eval.eval_service import evaluate_policy_iterator
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -453,101 +453,101 @@ def train(
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
 
-            if not torch_dist_cfg.is_master:
-                # Only master needs to do bookkeeping
-                continue
-
             torch_profiler.on_epoch_end(epoch)
 
-            losses_stats = {}
-            for _lname in list(all_losses):
-                loss_obj = loss_instances[_lname]
-                losses_stats.update(loss_obj.stats())
+            if torch_dist_cfg.is_master:
+                losses_stats = {}
+                for _lname in list(all_losses):
+                    loss_obj = loss_instances[_lname]
+                    losses_stats.update(loss_obj.stats())
 
-            with timer("_process_stats"):
-                if wandb_run:
-                    process_stats(
-                        agent_cfg=agent_cfg,
-                        stats=stats_tracker.rollout_stats,
-                        losses_stats=losses_stats,
-                        evals=eval_scores,
-                        grad_stats=stats_tracker.grad_stats,
-                        experience=experience,
-                        policy=policy,
-                        timer=timer,
-                        trainer_cfg=trainer_cfg,
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        wandb_run=wandb_run,
-                        # We know these exist within master
-                        memory_monitor=memory_monitor,  # type: ignore[arg-type]
-                        system_monitor=system_monitor,  # type: ignore[arg-type]
-                        optimizer=optimizer,
-                        latest_saved_epoch=latest_saved_epoch,
-                    )
-                # Clear stats after processing
-                stats_tracker.clear_rollout_stats()
-                stats_tracker.clear_grad_stats()
+                with timer("_process_stats"):
+                    if wandb_run:
+                        process_stats(
+                            agent_cfg=agent_cfg,
+                            stats=stats_tracker.rollout_stats,
+                            losses_stats=losses_stats,
+                            evals=eval_scores,
+                            grad_stats=stats_tracker.grad_stats,
+                            experience=experience,
+                            policy=policy,
+                            timer=timer,
+                            trainer_cfg=trainer_cfg,
+                            agent_step=agent_step,
+                            epoch=epoch,
+                            wandb_run=wandb_run,
+                            # We know these exist within master
+                            memory_monitor=memory_monitor,  # type: ignore[arg-type]
+                            system_monitor=system_monitor,  # type: ignore[arg-type]
+                            optimizer=optimizer,
+                            latest_saved_epoch=latest_saved_epoch,
+                        )
+                    # Clear stats after processing
+                    stats_tracker.clear_rollout_stats()
+                    stats_tracker.clear_grad_stats()
 
-            log_training_progress(
-                epoch=epoch,
-                agent_step=agent_step,
-                prev_agent_step=steps_before,
-                total_timesteps=trainer_cfg.total_timesteps,
-                train_time=timer.get_last_elapsed("_train"),
-                rollout_time=timer.get_last_elapsed("_rollout"),
-                stats_time=timer.get_last_elapsed("_process_stats"),
-                run_name=run,
-            )
-            if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
-                # Extract the actual agent from distributed wrapper if needed
-                agent_to_save = policy.module if torch.distributed.is_initialized() else policy
-
-                # Build metadata from evaluation scores
-                metadata = {
-                    "agent_step": agent_step,
-                    "total_time": timer.get_elapsed(),
-                    "total_train_time": timer.get_all_elapsed().get("_rollout", 0)
-                    + timer.get_all_elapsed().get("_train", 0),
-                }
-
-                # Add evaluation scores if available
-                if eval_scores.category_scores or eval_scores.simulation_scores:
-                    metadata.update(
-                        {
-                            "score": eval_scores.avg_simulation_score,
-                            "avg_reward": eval_scores.avg_category_score,
-                            "category_scores": eval_scores.category_scores,
-                            "simulation_scores": {
-                                f"{cat}/{sim}": score for (cat, sim), score in eval_scores.simulation_scores.items()
-                            },
-                        }
-                    )
-
-                # Save agent and trainer state
-                # Only upload to wandb if we're at the right interval
-                should_upload_wandb = wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval)
-                metadata["upload_to_wandb"] = should_upload_wandb
-
-                wandb_uri = checkpoint_manager.save_agent(
-                    agent_to_save, epoch, metadata, wandb_run=wandb_run if should_upload_wandb else None
+                log_training_progress(
+                    epoch=epoch,
+                    agent_step=agent_step,
+                    prev_agent_step=steps_before,
+                    total_timesteps=trainer_cfg.total_timesteps,
+                    train_time=timer.get_last_elapsed("_train"),
+                    rollout_time=timer.get_last_elapsed("_rollout"),
+                    stats_time=timer.get_last_elapsed("_process_stats"),
+                    run_name=run,
                 )
-                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
-                latest_saved_epoch = epoch
+                if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
+                    # Extract the actual agent from distributed wrapper if needed
+                    agent_to_save = policy.module if torch.distributed.is_initialized() else policy
 
-                if wandb_uri:
-                    latest_wandb_uri = wandb_uri
-                    logger.info(f"Saved checkpoint to wandb: {latest_wandb_uri}")
+                    # Build metadata from evaluation scores
+                    metadata = {
+                        "agent_step": agent_step,
+                        "total_time": timer.get_elapsed(),
+                        "total_train_time": timer.get_all_elapsed().get("_rollout", 0)
+                        + timer.get_all_elapsed().get("_train", 0),
+                    }
+
+                    # Add evaluation scores if available
+                    if eval_scores.category_scores or eval_scores.simulation_scores:
+                        metadata.update(
+                            {
+                                "score": eval_scores.avg_simulation_score,
+                                "avg_reward": eval_scores.avg_category_score,
+                                "category_scores": eval_scores.category_scores,
+                                "simulation_scores": {
+                                    f"{cat}/{sim}": score for (cat, sim), score in eval_scores.simulation_scores.items()
+                                },
+                            }
+                        )
+
+                    # Save agent and trainer state
+                    # Only upload to wandb if we're at the right interval
+                    should_upload_wandb = wandb_run and should_run(
+                        epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval
+                    )
+                    metadata["upload_to_wandb"] = should_upload_wandb
+
+                    wandb_uri = checkpoint_manager.save_agent(
+                        agent_to_save, epoch, metadata, wandb_run=wandb_run if should_upload_wandb else None
+                    )
+                    checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
+                    latest_saved_epoch = epoch
+
+                    if wandb_uri:
+                        latest_wandb_uri = wandb_uri
+                        logger.info(f"Saved checkpoint to wandb: {latest_wandb_uri}")
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with CheckpointManager - use current policy directly
-                if stats_client and stats_tracker.stats_run_id:
+                if torch_dist_cfg.is_master and stats_client and stats_tracker.stats_run_id:
                     stats_tracker.stats_epoch_id = stats_client.create_epoch(
                         run_id=stats_tracker.stats_run_id,
                         start_training_epoch=stats_tracker.stats_epoch_start,
                         end_training_epoch=epoch,
                     ).id
 
+                # here each rank will collect different sims but it won't matter - only master runs
                 sims = [
                     SimulationConfig(
                         name=f"train_task_{i}",
@@ -558,12 +558,13 @@ def train(
                 sims.extend(trainer_cfg.evaluation.simulations)
 
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
+
                 if latest_wandb_uri:
                     policy_uri = latest_wandb_uri  # Already a wandb:// URI
                 else:
                     checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
                     policy_uri = checkpoint_uris[0] if checkpoint_uris else None
-                if trainer_cfg.evaluation.evaluate_remote:
+                if torch_dist_cfg.is_master and trainer_cfg.evaluation.evaluate_remote:
                     try:
                         # Get the most recent checkpoint URI for remote evaluation
                         # Prefer wandb artifact if available, otherwise use local file
@@ -583,40 +584,64 @@ def train(
                         logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
                         logger.error("Falling back to local evaluation")
                         evaluate_local = True
-                if evaluate_local:
-                    if policy_uri:
-                        logger.warning(
-                            "Local policy evaluation can be inefficient - consider switching to remote evaluation!"
-                        )
-                        disable_nccl_watchdog()
-                        evaluation_results = evaluate_policy(
-                            checkpoint_uri=policy_uri,
-                            simulations=sims,
-                            device=device,
-                            vectorization=system_cfg.vectorization,
-                            replay_dir=trainer_cfg.evaluation.replay_dir if trainer_cfg.evaluation else None,
-                            stats_epoch_id=stats_tracker.stats_epoch_id,
-                            stats_client=stats_client,
-                        )
 
-                        enable_nccl_watchdog()
-                        logger.info("Simulation complete")
-                        eval_scores = evaluation_results.scores
-                        if wandb_run is not None and evaluation_results.replay_urls:
-                            upload_replay_html(
-                                replay_urls=evaluation_results.replay_urls,
-                                agent_step=agent_step,
-                                epoch=epoch,
-                                wandb_run=wandb_run,
-                                step_metric_key="metric/epoch",
-                                epoch_metric_key="metric/epoch",
-                            )
-                    else:
+                # all ranks go down this path
+                if evaluate_local:
+                    if not policy_uri:
                         logger.warning("No checkpoint available for local evaluation")
                         evaluation_results = EvalResults(scores=EvalRewardSummary(), replay_urls={})
                         eval_scores = evaluation_results.scores
+                    else:
+                        logger.warning(
+                            "Local policy evaluation can be inefficient - consider switching to remote evaluation!"
+                        )
 
-                stats_tracker.update_epoch_tracking(epoch + 1)
+                        evaluation_results = None
+
+                        if torch_dist_cfg.is_master:
+                            # Master does the actual evaluation
+                            for state in evaluate_policy_iterator(
+                                checkpoint_uri=policy_uri,
+                                simulations=sims,
+                                device=device,
+                                vectorization=system_cfg.vectorization,
+                                replay_dir=trainer_cfg.evaluation.replay_dir if trainer_cfg.evaluation else None,
+                                stats_epoch_id=stats_tracker.stats_epoch_id,
+                                stats_client=stats_client,
+                            ):
+                                # Synchronize after each simulation
+                                if state.status in ["simulation_complete", "simulation_skipped"]:
+                                    if torch.distributed.is_initialized():
+                                        torch.distributed.barrier()
+                                elif state.status == "complete":
+                                    evaluation_results = state.results
+
+                        elif torch.distributed.is_initialized():
+                            for _ in range(len(sims)):
+                                torch.distributed.barrier()
+
+                        if torch_dist_cfg.is_master:
+                            logger.info("Simulation complete")
+
+                            assert evaluation_results  # hint mypy -- this branch is master only
+
+                            eval_scores = evaluation_results.scores if evaluation_results else None
+
+                            if wandb_run is not None and evaluation_results.replay_urls:
+                                upload_replay_html(
+                                    replay_urls=evaluation_results.replay_urls,
+                                    agent_step=agent_step,
+                                    epoch=epoch,
+                                    wandb_run=wandb_run,
+                                    step_metric_key="metric/epoch",
+                                    epoch_metric_key="metric/epoch",
+                                )
+
+                if torch_dist_cfg.is_master:
+                    stats_tracker.update_epoch_tracking(epoch + 1)
+
+            if not torch_dist_cfg.is_master:
+                continue  # to next agent_step
 
             # Compute gradient stats
             if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
