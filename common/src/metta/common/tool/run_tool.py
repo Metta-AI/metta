@@ -11,6 +11,7 @@ import logging
 import os
 import signal
 import sys
+import tempfile
 import warnings
 from typing import Any
 
@@ -318,8 +319,6 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
         console.print("\n[yellow]Returned Tool Fields:[/yellow]\n")
 
         try:
-            import tempfile
-
             with tempfile.TemporaryDirectory():
                 try:
                     result = make_tool_cfg()
