@@ -20,7 +20,7 @@ class TorchDistributedConfig(Config):
     distributed: bool
 
 
-def _init_process_group() -> bool:
+def _init_process_group(timeout: timedelta) -> bool:
     world_size_str = os.environ.get("WORLD_SIZE") or os.environ.get("NUM_NODES") or "1"
     world_size = int(world_size_str) if world_size_str.strip() else 1
     if world_size <= 1:
@@ -32,7 +32,7 @@ def _init_process_group() -> bool:
     rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
     torch.distributed.init_process_group(
         backend="nccl",
-        timeout=timedelta(seconds=30),
+        timeout=timeout,
         init_method=os.environ.get("DIST_URL", "env://"),
         world_size=world_size,
         rank=rank,
@@ -40,23 +40,7 @@ def _init_process_group() -> bool:
     return True
 
 
-def enable_nccl_watchdog():
-    """Enable NCCL watchdog if not already enabled."""
-    if os.environ.get("NCCL_WATCHDOG_ENABLE", "0") == "0":
-        os.environ["NCCL_WATCHDOG_ENABLE"] = "1"
-        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1"
-        logger.info("NCCL watchdog enabled!")
-
-
-def disable_nccl_watchdog():
-    """Disable NCCL watchdog if currently enabled."""
-    if os.environ.get("NCCL_WATCHDOG_ENABLE", "0") == "1":
-        os.environ["NCCL_WATCHDOG_ENABLE"] = "0"
-        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"
-        logger.info("NCCL watchdog disabled")
-
-
-def setup_torch_distributed(device: str) -> TorchDistributedConfig:
+def setup_torch_distributed(device: str, timeout: timedelta = timedelta(minutes=10)) -> TorchDistributedConfig:
     assert not torch.distributed.is_initialized()
 
     master = True
@@ -66,7 +50,7 @@ def setup_torch_distributed(device: str) -> TorchDistributedConfig:
     distributed = False
 
     if "LOCAL_RANK" in os.environ and device.startswith("cuda"):
-        if _init_process_group():
+        if _init_process_group(timeout):
             logger.info(f"Initializing NCCL distributed training on {device}")
 
             torch.cuda.set_device(device)
