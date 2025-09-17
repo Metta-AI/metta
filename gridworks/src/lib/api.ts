@@ -96,7 +96,7 @@ const configMakerSchema = z.object({
 const viewConfigSchema = z.object({
   maker: configMakerSchema,
   config: z.object({
-    value: z.record(z.string(), z.unknown()),
+    value: z.record(z.string(), z.unknown()).or(z.array(z.record(z.string(), z.unknown()))),
     unset_fields: z.array(z.string()),
   }),
 });

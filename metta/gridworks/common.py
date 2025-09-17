@@ -7,10 +7,10 @@ class ErrorResult(TypedDict):
     error: str
 
 
-def dump_config_with_implicit_info(config: Config) -> dict:
+def dump_config_with_implicit_info(config: Config | list[Config]) -> dict:
     fields_unset: list[str] = []
 
-    def traverse(obj: Config, prefix: str):
+    def traverse(obj: Config, prefix: str = ""):
         def with_prefix(field: str) -> str:
             return f"{prefix}.{field}" if prefix else field
 
@@ -24,7 +24,11 @@ def dump_config_with_implicit_info(config: Config) -> dict:
             if isinstance(value, Config):
                 traverse(value, with_prefix(field))
 
-    traverse(config, "")
+    if isinstance(config, list):
+        for item in config:
+            traverse(item)
+    else:
+        traverse(config)
 
     return {
         "value": config,
