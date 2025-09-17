@@ -1,6 +1,7 @@
-#ifndef OBJECTS_NANO_ASSEMBLER_HPP_
-#define OBJECTS_NANO_ASSEMBLER_HPP_
+#ifndef OBJECTS_ASSEMBLER_HPP_
+#define OBJECTS_ASSEMBLER_HPP_
 
+#include <iostream>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -10,8 +11,8 @@
 #include "../grid.hpp"
 #include "../stats_tracker.hpp"
 #include "agent.hpp"
+#include "assembler_config.hpp"
 #include "constants.hpp"
-#include "nano_assembler_config.hpp"
 #include "recipe.hpp"
 #include "types.hpp"
 #include "usable.hpp"
@@ -19,7 +20,7 @@
 // Forward declaration
 class Agent;
 
-class NanoAssembler : public Usable {
+class Assembler : public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
@@ -151,11 +152,11 @@ public:
   // Grid access for finding surrounding agents
   class Grid* grid;
 
-  NanoAssembler(GridCoord r, GridCoord c, const NanoAssemblerConfig& cfg)
+  Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : recipes(cfg.recipes), cooling_down(false), cooldown_remaining(0), event_manager(nullptr), grid(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
   }
-  virtual ~NanoAssembler() = default;
+  virtual ~Assembler() = default;
 
   // Set event manager for cooldown scheduling
   void set_event_manager(class EventManager* event_manager_ptr) {
@@ -173,29 +174,30 @@ public:
       return false;
     }
     if (cooling_down) {
-      stats.incr("nano_assembler.blocked.cooldown");
+      stats.incr("assembler.blocked.cooldown");
       return false;
     }
     uint8_t pattern = get_agent_pattern_byte();
     Recipe* recipe = recipes[pattern].get();
     if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
-      stats.incr("nano_assembler.blocked.no_recipe");
+      stats.incr("assembler.blocked.no_recipe");
       return false;
     }
     std::vector<Agent*> surrounding_agents = get_surrounding_agents();
     if (!can_afford_recipe(*recipe, surrounding_agents)) {
-      stats.incr("nano_assembler.blocked.insufficient_resources");
+      stats.incr("assembler.blocked.insufficient_resources");
       return false;
     }
     consume_resources_for_recipe(*recipe, surrounding_agents);
     give_output_to_agent(*recipe, actor);
-    stats.incr("nano_assembler.recipes_executed");
-    stats.incr("nano_assembler.recipe_pattern_" + std::to_string(pattern));
+    stats.incr("assembler.recipes_executed");
+    stats.incr("assembler.recipe_pattern_" + std::to_string(pattern));
     if (recipe->cooldown > 0) {
       cooling_down = true;
       cooldown_remaining = recipe->cooldown;
+      std::cout << "Scheduling cooldown event for " << recipe->cooldown << " ticks" << std::endl;
       event_manager->schedule_event(EventType::CoolDown, recipe->cooldown, id, 0);
-      stats.incr("nano_assembler.cooldown_started");
+      stats.incr("assembler.cooldown_started");
     }
     return true;
   }
@@ -214,8 +216,8 @@ public:
   void finish_cooldown() {
     this->cooling_down = false;
     this->cooldown_remaining = 0;
-    stats.incr("nano_assembler.cooldown_completed");
+    stats.incr("assembler.cooldown_completed");
   }
 };
 
-#endif  // OBJECTS_NANO_ASSEMBLER_HPP_
+#endif  // OBJECTS_ASSEMBLER_HPP_

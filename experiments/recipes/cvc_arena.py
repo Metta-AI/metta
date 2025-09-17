@@ -1,3 +1,8 @@
+"""A Cogs vs Clips version of the arena recipe.
+
+This is meant as a basic testbed for CvC buildings / mechanics, not as a full-fledged recipe.
+"""
+
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -8,7 +13,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.mettagrid.builder import building
-from metta.mettagrid.mettagrid_config import MettaGridConfig, NanoAssemblerConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -17,21 +22,18 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
-# TODO(dehydration): make sure this trains as well as main on arena
-# it's possible the maps are now different
-
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
-    # Replace converters with nano assemblers
+    # Replace converters with assemblers
     arena_env.game.objects.update(
         {
-            "altar": building.nano_altar,
-            "mine_red": building.nano_mine_red,
-            "generator_red": building.nano_generator_red,
-            "lasery": building.nano_lasery,
-            "armory": building.nano_armory,
+            "altar": building.assembler_altar,
+            "mine_red": building.assembler_mine_red,
+            "generator_red": building.assembler_generator_red,
+            "lasery": building.assembler_lasery,
+            "armory": building.assembler_armory,
         }
     )
 
@@ -46,11 +48,6 @@ def make_curriculum(
     arena_env = arena_env or make_mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
-
-    # arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6])
-    # arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30, 40])
-    # arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30, 40])
-    # arena_tasks.add_bucket("game.map_builder.instance_border_width", [0, 6])
 
     for item in ["ore_red", "battery_red", "laser", "armor"]:
         arena_tasks.add_bucket(
@@ -87,8 +84,8 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(name="nano_arena/basic", env=basic_env),
-        SimulationConfig(name="nano_arena/combat", env=combat_env),
+        SimulationConfig(name="cvc_arena/basic", env=basic_env),
+        SimulationConfig(name="cvc_arena/combat", env=combat_env),
     ]
 
 
@@ -103,10 +100,10 @@ def train(
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(
-                    name="nano_arena/basic", env=make_mettagrid(num_agents=24)
+                    name="cvc_arena/basic", env=make_mettagrid(num_agents=24)
                 ),
                 SimulationConfig(
-                    name="nano_arena/combat", env=make_mettagrid(num_agents=24)
+                    name="cvc_arena/combat", env=make_mettagrid(num_agents=24)
                 ),
             ],
         ),
@@ -115,7 +112,7 @@ def train(
     return TrainTool(trainer=trainer_cfg)
 
 
-def train_shaped(rewards: bool = True, nano_assemblers: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
     env_cfg = make_mettagrid()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
@@ -140,10 +137,10 @@ def train_shaped(rewards: bool = True, nano_assemblers: bool = True) -> TrainToo
             }
         )
 
-    if nano_assemblers:
+    if assemblers:
         # Update altar recipe to require battery_red input
         altar_config = env_cfg.game.objects["altar"]
-        assert isinstance(altar_config, NanoAssemblerConfig)
+        assert isinstance(altar_config, AssemblerConfig)
         altar_config.recipes[0][1].input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig(
@@ -159,12 +156,12 @@ def train_shaped(rewards: bool = True, nano_assemblers: bool = True) -> TrainToo
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="nano_arena"))
+    return PlayTool(sim=SimulationConfig(env=eval_env, name="cvc_arena"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="nano_arena"))
+    return ReplayTool(sim=SimulationConfig(env=eval_env, name="cvc_arena"))
 
 
 def evaluate(

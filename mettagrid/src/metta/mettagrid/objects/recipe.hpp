@@ -10,7 +10,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-// Recipe class for NanoAssembler
+// Recipe class for Assembler
 class Recipe {
 public:
   std::map<InventoryItem, InventoryQuantity> input_resources;

@@ -3,9 +3,9 @@
 
 #include "../event.hpp"
 #include "../grid.hpp"
+#include "assembler.hpp"
 #include "constants.hpp"
 #include "converter.hpp"
-#include "nano_assembler.hpp"
 
 // Handles the FinishConverting event
 class ProductionHandler : public EventHandler {
@@ -41,10 +41,10 @@ public:
       return;
     }
 
-    // Handle NanoAssembler cooldown
-    NanoAssembler* nano_assembler = dynamic_cast<NanoAssembler*>(obj);
-    if (nano_assembler) {
-      nano_assembler->finish_cooldown();
+    // Handle Assembler cooldown
+    Assembler* assembler = dynamic_cast<Assembler*>(obj);
+    if (assembler) {
+      assembler->finish_cooldown();
       return;
     }
   }

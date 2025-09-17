@@ -1,14 +1,14 @@
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from metta.mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
-from metta.mettagrid.mettagrid_c import NanoAssemblerConfig as CppNanoAssemblerConfig
 from metta.mettagrid.mettagrid_c import Recipe as CppRecipe
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import AgentConfig, ConverterConfig, GameConfig, NanoAssemblerConfig, WallConfig
+from metta.mettagrid.mettagrid_config import AgentConfig, AssemblerConfig, ConverterConfig, GameConfig, WallConfig
 
 FIXED_POSITIONS = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 # Position to bit mapping: NW=0, N=1, NE=2, W=3, E=4, SW=5, S=6, SE=7
@@ -199,7 +199,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 swappable=object_config.swappable,
             )
             objects_cpp_params[object_type] = cpp_wall_config
-        elif isinstance(object_config, NanoAssemblerConfig):
+        elif isinstance(object_config, AssemblerConfig):
             # Convert recipes with position patterns to C++ recipes
             # Create a mapping from byte patterns to recipes
             recipe_map = {}  # byte_pattern -> CppRecipe
@@ -232,9 +232,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             for byte_pattern, recipe in recipe_map.items():
                 cpp_recipes[byte_pattern] = recipe
 
-            cpp_nano_assembler_config = CppNanoAssemblerConfig(type_id=object_config.type_id, type_name=object_type)
-            cpp_nano_assembler_config.recipes = cpp_recipes
-            objects_cpp_params[object_type] = cpp_nano_assembler_config
+            cpp_assembler_config = CppAssemblerConfig(type_id=object_config.type_id, type_name=object_type)
+            cpp_assembler_config.recipes = cpp_recipes
+            objects_cpp_params[object_type] = cpp_assembler_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 

@@ -126,8 +126,8 @@ class RecipeConfig(Config):
     cooldown: int = Field(ge=0, default=0)
 
 
-class NanoAssemblerConfig(Config):
-    """Python nano assembler configuration."""
+class AssemblerConfig(Config):
+    """Python assembler configuration."""
 
     type_id: int = Field(default=0, ge=0, le=255)
     recipes: list[tuple[list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]], RecipeConfig]] = Field(
@@ -166,7 +166,7 @@ class GameConfig(Config):
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    objects: dict[str, ConverterConfig | WallConfig | NanoAssemblerConfig] = Field(default_factory=dict)
+    objects: dict[str, ConverterConfig | WallConfig | AssemblerConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.

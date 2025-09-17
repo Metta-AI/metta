@@ -1,4 +1,4 @@
-from metta.mettagrid.mettagrid_config import ConverterConfig, NanoAssemblerConfig, RecipeConfig, WallConfig
+from metta.mettagrid.mettagrid_config import AssemblerConfig, ConverterConfig, RecipeConfig, WallConfig
 
 wall = WallConfig(type_id=1)
 block = WallConfig(type_id=14, swappable=True)
@@ -51,8 +51,8 @@ armory = ConverterConfig(
     cooldown=10,
 )
 
-# NanoAssembler building definitions
-nano_altar = NanoAssemblerConfig(
+# Assembler building definitions
+assembler_altar = AssemblerConfig(
     type_id=8,
     recipes=[
         (
@@ -67,8 +67,8 @@ nano_altar = NanoAssemblerConfig(
 )
 
 
-def make_nano_mine(color: str, type_id: int) -> NanoAssemblerConfig:
-    return NanoAssemblerConfig(
+def make_assembler_mine(color: str, type_id: int) -> AssemblerConfig:
+    return AssemblerConfig(
         type_id=type_id,
         recipes=[
             (
@@ -82,13 +82,13 @@ def make_nano_mine(color: str, type_id: int) -> NanoAssemblerConfig:
     )
 
 
-nano_mine_red = make_nano_mine("red", 2)
-nano_mine_blue = make_nano_mine("blue", 3)
-nano_mine_green = make_nano_mine("green", 4)
+assembler_mine_red = make_assembler_mine("red", 2)
+assembler_mine_blue = make_assembler_mine("blue", 3)
+assembler_mine_green = make_assembler_mine("green", 4)
 
 
-def make_nano_generator(color: str, type_id: int) -> NanoAssemblerConfig:
-    return NanoAssemblerConfig(
+def make_assembler_generator(color: str, type_id: int) -> AssemblerConfig:
+    return AssemblerConfig(
         type_id=type_id,
         recipes=[
             (
@@ -103,11 +103,11 @@ def make_nano_generator(color: str, type_id: int) -> NanoAssemblerConfig:
     )
 
 
-nano_generator_red = make_nano_generator("red", 5)
-nano_generator_blue = make_nano_generator("blue", 6)
-nano_generator_green = make_nano_generator("green", 7)
+assembler_generator_red = make_assembler_generator("red", 5)
+assembler_generator_blue = make_assembler_generator("blue", 6)
+assembler_generator_green = make_assembler_generator("green", 7)
 
-nano_lasery = NanoAssemblerConfig(
+assembler_lasery = AssemblerConfig(
     type_id=15,
     recipes=[
         (
@@ -121,7 +121,7 @@ nano_lasery = NanoAssemblerConfig(
     ],
 )
 
-nano_armory = NanoAssemblerConfig(
+assembler_armory = AssemblerConfig(
     type_id=16,
     recipes=[
         (
