@@ -67,7 +67,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             default_factory=list, description="Number of sinks to sample from"
         )
         room_sizes: list[str] = Field(
-            default=["6x6"], description="Room size to sample from"
+            default=["small"], description="Room size to sample from"
         )
         max_steps: int = Field(default=256, description="Episode length")
 
@@ -163,21 +163,13 @@ class ConverterChainTaskGenerator(TaskGenerator):
         resources = rng.sample(self.resource_types, num_resources)
         room_size = rng.choice(self.config.room_sizes)
 
-        # by default, use a 6x6 room - to reproduce existing results
-        if room_size == "6x6":
-            width, height = 6, 6
-        else:
-            if room_size == "small":
-                size_range = (5, 8)
-            elif room_size == "medium":
-                size_range = (8, 12)
-            elif room_size == "large":
-                size_range = (12, 15)
+        # default to small room size
+        size_range = (8,12) if room_size == "medium" else (12, 15) if room_size == "large" else (5, 8)
 
-            width, height = (
-                rng.randint(size_range[0], size_range[1]),
-                rng.randint(size_range[0], size_range[1]),
-            )
+        width, height = (
+            rng.randint(size_range[0], size_range[1]),
+            rng.randint(size_range[0], size_range[1]),
+        )
 
         max_steps = self.config.max_steps
 
@@ -288,10 +280,15 @@ def make_mettagrid() -> MettaGridConfig:
 def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    chain_lengths = [2, 3, 4, 5],
+    num_sinks = [0, 1, 2],
+    room_sizes = ["small"],
+
 ) -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
-        chain_lengths=[2, 3, 4, 5],
-        num_sinks=[0, 1, 2],
+        chain_lengths=chain_lengths,
+        num_sinks=num_sinks,
+        room_sizes=room_sizes,
     )
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -309,6 +306,40 @@ def make_curriculum(
         algorithm_config=algorithm_config,
     )
 
+def small_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small"],
+    )
+
+def small_medium_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium"],
+    )
+
+def all_room_sizes_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium", "large"],
+    )
+
+def longer_chains():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 56, 7, 8, 9, 10],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium", "large"],
+    )
+
+def longer_chains_more_sinks():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
+        num_sinks=[0, 1, 2, 3, 4],
+        room_sizes=["small", "medium", "large"],
+    )
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
@@ -322,7 +353,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
+        or small_curriculum(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
