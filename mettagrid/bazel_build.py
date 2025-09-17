@@ -71,6 +71,9 @@ def _run_bazel_build() -> None:
     if _truthy(os.environ.get("WITH_RAYLIB")):
         # after --config but before target
         cmd.insert(3, "--define=with_raylib=true")
+        # Add extra diagnostics for CI when building Raylib from source
+        cmd.insert(4, "--subcommands")
+        cmd.insert(5, "--sandbox_debug")
 
     print(f"Running Bazel build: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, check=False)
