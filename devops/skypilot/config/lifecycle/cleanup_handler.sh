@@ -129,15 +129,12 @@ print_final_summary() {
 determine_final_exit_code() {
   echo "[DEBUG] TERMINATION_REASON='${TERMINATION_REASON}'"
 
-  if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] \
-    || [[ "${TERMINATION_REASON}" == "job_completed" ]] \
-    || [[ "${TERMINATION_REASON}" == "job_failed" ]] \
-    || [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
+  if [[ "${TERMINATION_REASON}" == "force_restart_test" ]]; then
+    echo "[INFO] Will exit with code 1 to trigger SkyPilot restart"
+    FINAL_EXIT_CODE=1
+  else
     echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0
-  else
-    echo "[INFO] Will exit with code: $CMD_EXIT"
-    FINAL_EXIT_CODE=$CMD_EXIT
   fi
 
   echo "[DEBUG] FINAL_EXIT_CODE=${FINAL_EXIT_CODE}"

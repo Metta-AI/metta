@@ -214,7 +214,6 @@ start_monitors() {
   fi
 }
 
-
 run_cmd() {
   echo "[INFO] Starting process (node rank: $RANK)"
   local START_TIME=$(date +%s)
@@ -252,16 +251,10 @@ run_cmd() {
   set +m
 
   # Handle completion - only write job_completed if actually successful
-  if [[ ! -s "${TERMINATION_REASON_FILE:-}" ]] && [[ "$IS_MASTER" == "true" ]]; then
-      if [[ $CMD_EXIT -eq 0 ]]; then
-          echo "job_completed" > "$TERMINATION_REASON_FILE"
-          echo "job_completed" > "$CLUSTER_STOP_FILE"
-          echo "[INFO] Master wrote shutdown signal"
-      else
-          echo "job_failed" > "$TERMINATION_REASON_FILE"
-          echo "job_failed" > "$CLUSTER_STOP_FILE"
-          echo "[INFO] Master wrote failure signal"
-      fi
+  if [[ ! -s "${TERMINATION_REASON_FILE:-}" ]] && [[ "$IS_MASTER" == "true" ]] && [[ $CMD_EXIT -eq 0 ]]; then
+        echo "job_completed" > "$TERMINATION_REASON_FILE"
+        echo "job_completed" > "$CLUSTER_STOP_FILE"
+        echo "[INFO] Master wrote shutdown signal"
   fi
 
   local DURATION=$(($(date +%s) - START_TIME))
