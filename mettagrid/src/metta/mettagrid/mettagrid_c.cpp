@@ -873,6 +873,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   PackedCoordinate::bind_packed_coordinate(m);
 
+  // Bind Recipe near its definition
+  bind_recipe(m);
+
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<const GameConfig&, const py::list&, unsigned int>())

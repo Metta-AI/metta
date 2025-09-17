@@ -120,6 +120,21 @@ class ConverterConfig(Config):
     color: int = Field(default=0, ge=0, le=255)
 
 
+class RecipeConfig(Config):
+    input_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, int] = Field(default_factory=dict)
+    cooldown: int = Field(ge=0, default=0)
+
+
+class NanoAssemblerConfig(Config):
+    """Python nano assembler configuration."""
+
+    type_id: int = Field(default=0, ge=0, le=255)
+    recipes: list[tuple[list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]], RecipeConfig]] = Field(
+        default_factory=list
+    )
+
+
 class GameConfig(Config):
     """Python game configuration."""
 
