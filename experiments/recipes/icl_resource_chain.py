@@ -393,7 +393,7 @@ def terrain():
         num_sinks=[0, 1, 2],
         room_sizes=["small", "medium", "large"],
         obstacle_types=["square", "cross", "L"],
-        densities=["", "balanced", "sparse", "dense"],
+        densities=["", "balanced", "sparse", "high"],
     )
 
 
