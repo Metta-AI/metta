@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <random>
+
 #include "mettagrid/actions/attack.hpp"
 #include "mettagrid/actions/get_output.hpp"
 #include "mettagrid/actions/noop.hpp"
@@ -338,7 +340,8 @@ TEST_F(MettaGridCppTest, AttackAction) {
   // Create attack action handler
   AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
   Attack attack(attack_cfg, &game_config);
-  attack.init(&grid);
+  std::mt19937 rng(42);
+  attack.init(&grid, &rng);
 
   // Perform attack (arg 5 targets directly in front)
   bool success = attack.handle_action(attacker->id, 5);
@@ -401,7 +404,8 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   // Create put_items action handler
   ActionConfig put_cfg({}, {});
   PutRecipeItems put(put_cfg);
-  put.init(&grid);
+  std::mt19937 rng(42);
+  put.init(&grid, &rng);
 
   // Test putting matching items
   bool success = put.handle_action(agent->id, 0);
@@ -452,7 +456,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
   // Create get_output action handler
   ActionConfig get_cfg({}, {});
   GetOutput get(get_cfg);
-  get.init(&grid);
+  std::mt19937 rng(42);
+  get.init(&grid, &rng);
 
   // Test getting output
   bool success = get.handle_action(agent->id, 0);
@@ -475,7 +480,8 @@ TEST_F(MettaGridCppTest, ActionTracking) {
 
   ActionConfig noop_cfg({}, {});
   Noop noop(noop_cfg);
-  noop.init(&grid);
+  std::mt19937 rng(42);
+  noop.init(&grid, &rng);
 
   EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 0.0f);
   noop.handle_action(agent->id, 0);  // count 1, max 1
