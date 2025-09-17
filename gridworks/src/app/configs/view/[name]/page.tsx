@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import { JsonAsYaml } from "@/components/JsonAsYaml";
+import { ConfigViewer } from "@/components/ConfigViewer";
 import { configsRoute } from "@/lib/routes";
 
-import { getConfigMaker } from "../../../../lib/api";
+import { getConfig } from "../../../../lib/api";
 import { MapSection } from "./MapSection";
 import { RunToolSection } from "./RunToolSection";
 
@@ -18,7 +18,7 @@ export default async function ConfigViewPage({ params }: ConfigViewPage) {
     throw new Error("No config name provided");
   }
 
-  const cfg = await getConfigMaker(name);
+  const cfg = await getConfig(name);
 
   return (
     <div className="p-4">
@@ -34,19 +34,19 @@ export default async function ConfigViewPage({ params }: ConfigViewPage) {
         <span>
           <a
             className="hover:underline"
-            href={`cursor://file${cfg.metadata.absolute_path}:${cfg.metadata.line}`}
+            href={`cursor://file${cfg.maker.absolute_path}:${cfg.maker.line}`}
           >
-            {cfg.metadata.path}
+            {cfg.maker.path}
           </a>
         </span>
         <span className="text-xl text-gray-400"> &rarr;</span>
-        <span className="text-xl text-gray-500"> {cfg.metadata.kind}</span>
+        <span className="text-xl text-gray-500"> {cfg.maker.kind}</span>
       </h1>
-      {cfg.metadata.kind === "MettaGridConfig" && <MapSection cfg={cfg} />}
-      {cfg.metadata.kind.endsWith("Tool") && <RunToolSection cfg={cfg} />}
+      {cfg.maker.kind === "MettaGridConfig" && <MapSection cfg={cfg} />}
+      {cfg.maker.kind.endsWith("Tool") && <RunToolSection cfg={cfg} />}
       <section className="mb-8">
         <h2 className="mb-4 text-xl font-bold">Config</h2>
-        <JsonAsYaml json={cfg.config as Record<string, unknown>} />
+        <ConfigViewer value={cfg.config.value} unsetFields={cfg.config.unset_fields} />
       </section>
     </div>
   );

@@ -8,8 +8,8 @@ import { SceneTree, StorableMap } from "@/lib/api";
 import { MettaGrid } from "@/lib/MettaGrid";
 import { viewStoredMapRoute } from "@/lib/routes";
 
+import { ConfigViewer } from "./ConfigViewer";
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
-import { JsonAsYaml } from "./JsonAsYaml";
 import { MapViewer } from "./MapViewer";
 import { SceneTreeViewer } from "./SceneTreeViewer";
 import { Tabs } from "./Tabs";
@@ -59,8 +59,8 @@ const FilterableFrontmatterViewer: FC<{
   };
 
   return (
-    <JsonAsYaml
-      json={frontmatter}
+    <ConfigViewer
+      value={frontmatter}
       isSelected={isFiltered}
       onSelectLine={handleSelectLine}
     />
@@ -121,13 +121,13 @@ export const StorableMapViewer: FC<{
                   frontmatter={map.frontmatter.config}
                 />
               ) : (
-                <JsonAsYaml json={map.frontmatter.config} />
+                <ConfigViewer value={map.frontmatter.config} />
               ),
             },
             {
               id: "metadata",
               label: "Metadata",
-              content: <JsonAsYaml json={map.frontmatter.metadata} />,
+              content: <ConfigViewer value={map.frontmatter.metadata} />,
             },
             {
               id: "scene_tree",

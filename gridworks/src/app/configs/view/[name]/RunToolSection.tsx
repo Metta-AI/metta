@@ -2,10 +2,10 @@
 import { FC } from "react";
 
 import { useCopyTooltip } from "@/hooks/useCopyTooltip";
-import { ConfigMaker } from "@/lib/api";
+import { Config } from "@/lib/api";
 
-export const RunToolSection: FC<{ cfg: ConfigMaker }> = ({ cfg }) => {
-  const text = `./tools/run.py ${cfg.metadata.path}`;
+export const RunToolSection: FC<{ cfg: Config }> = ({ cfg }) => {
+  const text = `./tools/run.py ${cfg.maker.path}`;
   const { onClick, floating, render } = useCopyTooltip(text);
 
   return (

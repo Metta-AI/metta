@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from metta.gridworks.common import ErrorResult
+from metta.gridworks.common import ErrorResult, dump_config_with_implicit_info
 from metta.gridworks.configs.registry import ConfigMakerKind, ConfigMakerRegistry
 from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
 from mettagrid.mettagrid_config import MettaGridConfig
@@ -29,8 +29,8 @@ def make_configs_router() -> APIRouter:
             if cfg is None:
                 raise HTTPException(status_code=404, detail=f"Config {path} not found")
             return {
-                "metadata": cfg.to_dict(),
-                "config": cfg.maker(),
+                "maker": cfg.to_dict(),
+                "config": dump_config_with_implicit_info(cfg.maker()),
             }
         except Exception as e:
             logger.error(f"Error getting mettagrid cfg for {path}: {e}", exc_info=True)

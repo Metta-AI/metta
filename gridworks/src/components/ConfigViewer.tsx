@@ -7,25 +7,35 @@ import { RepoRootContext } from "./RepoRootContext";
 const YamlContext = createContext<{
   isSelected?: (key: string, value: string) => boolean;
   onSelectLine?: (key: string, value: string) => void;
-}>({});
+  unsetFields: Set<string>;
+}>({ unsetFields: new Set() });
 
 const YamlKey: FC<{
   name: string;
-}> = ({ name }) => {
-  return <span className="font-semibold text-blue-900">{name}:</span>;
+  disabled?: boolean;
+}> = ({ name, disabled }) => {
+  return (
+    <span
+      className={clsx(
+        disabled ? "text-gray-500" : "font-semibold text-blue-900"
+      )}
+    >
+      {name}:
+    </span>
+  );
 };
 
 const YamlScalar: FC<{
-  value: string | number | boolean;
+  value: string | number | boolean | null;
 }> = ({ value }) => {
+  if (value === null) {
+    return <span className="text-gray-500">null</span>;
+  }
+
   const multiline = typeof value === "string" && value.includes("\n");
 
   let url = "";
-  const KNOWN_PACKAGES = [
-    "mettagrid.mapgen",
-    "mettagrid.map_builder",
-    "mettagrid.config",
-  ];
+  const KNOWN_PACKAGES = ["mettagrid.mapgen", "metta.map"];
 
   const repoRoot = use(RepoRootContext);
   if (
@@ -71,11 +81,12 @@ const YamlScalar: FC<{
   );
 };
 
-function isScalar(value: unknown): value is string | number | boolean {
+function isScalar(value: unknown): value is string | number | boolean | null {
   return (
     typeof value === "string" ||
     typeof value === "number" ||
-    typeof value === "boolean"
+    typeof value === "boolean" ||
+    value === null
   );
 }
 
@@ -88,7 +99,7 @@ const YamlKeyValue: FC<{
   const fullKey = path ? `${path}.${yamlKey}` : yamlKey;
 
   if (isScalar(value)) {
-    const { isSelected, onSelectLine } = use(YamlContext);
+    const { isSelected, onSelectLine, unsetFields } = use(YamlContext);
 
     const isActive = isSelected?.(fullKey, String(value));
 
@@ -105,16 +116,20 @@ const YamlKeyValue: FC<{
         )}
         onClick={onClick}
       >
-        <YamlKey name={yamlKey} />
+        <YamlKey name={yamlKey} disabled={unsetFields.has(fullKey)} />
         <YamlScalar value={value} />
       </div>
     );
   }
 
+  const singleLine =
+    (Array.isArray(value) && value.length === 0) ||
+    (typeof value === "object" && Object.keys(value).length === 0);
+
   return (
-    <div>
+    <div className={clsx(singleLine && "flex gap-1")}>
       <YamlKey name={yamlKey} />
-      <div className="ml-[2ch]">
+      <div className={clsx(!singleLine && "ml-[2ch]")}>
         <YamlAny value={value} path={fullKey} depth={depth + 1} />
       </div>
     </div>
@@ -126,6 +141,10 @@ const YamlObject: FC<{
   path: string;
   depth: number;
 }> = ({ value, path, depth }) => {
+  if (Object.keys(value).length === 0) {
+    return <div className="text-gray-500">{"{}"}</div>;
+  }
+
   return (
     <div>
       {Object.entries(value).map(([key, value]) => (
@@ -146,6 +165,10 @@ const YamlArray: FC<{
   path: string;
   depth: number;
 }> = ({ value, path, depth }) => {
+  if (value.length === 0) {
+    return <div className="text-gray-500">[]</div>;
+  }
+
   return (
     <div className="-ml-[2ch]">
       {value.map((v, i) => (
@@ -170,30 +193,31 @@ const YamlAny: FC<{
     return <YamlObject value={value} path={path} depth={depth} />;
   }
 
-  if (
-    typeof value === "boolean" ||
-    typeof value === "number" ||
-    typeof value === "string"
-  ) {
+  if (isScalar(value)) {
     return <YamlScalar value={value} />;
-  }
-
-  if (value === null) {
-    return <span className="text-gray-500">null</span>;
   }
 
   throw new Error(`Unknown value type: ${typeof value}`);
 };
 
-export const JsonAsYaml: FC<{
-  json: Record<string, unknown>;
+export const ConfigViewer: FC<{
+  value: Record<string, unknown>;
+  // The fields that weren't set explicitly (so they can still have their default values, not necessarily null).
+  // The prop name mirrors `model_fields_set` in Pydantic.
+  unsetFields?: string[];
   isSelected?: (key: string, value: string) => boolean;
   onSelectLine?: (key: string, value: string) => void;
-}> = ({ json, isSelected, onSelectLine }) => {
+}> = ({ value, isSelected, onSelectLine, unsetFields }) => {
   return (
-    <YamlContext.Provider value={{ isSelected, onSelectLine }}>
+    <YamlContext.Provider
+      value={{
+        isSelected,
+        onSelectLine,
+        unsetFields: new Set(unsetFields ?? []),
+      }}
+    >
       <div className="overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs">
-        <YamlAny value={json} path="" depth={0} />
+        <YamlAny value={value} path="" depth={0} />
       </div>
     </YamlContext.Provider>
   );

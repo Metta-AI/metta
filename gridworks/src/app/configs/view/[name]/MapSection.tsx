@@ -3,9 +3,9 @@ import { FC, useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { StorableMapViewer } from "@/components/StorableMapViewer";
-import { ConfigMaker, getConfigMap, StorableMap } from "@/lib/api";
+import { Config, getConfigMap, StorableMap } from "@/lib/api";
 
-export const MapSection: FC<{ cfg: ConfigMaker }> = ({ cfg }) => {
+export const MapSection: FC<{ cfg: Config }> = ({ cfg }) => {
   const [id, setId] = useState(0);
 
   type MapState =
@@ -24,13 +24,13 @@ export const MapSection: FC<{ cfg: ConfigMaker }> = ({ cfg }) => {
   const [map, setMap] = useState<MapState>({ type: "loading" });
   useEffect(() => {
     setMap({ type: "loading" });
-    getConfigMap(cfg.metadata.path)
+    getConfigMap(cfg.maker.path)
       .then((map) => setMap({ type: "map", map }))
       .catch((e) => {
         console.error(e);
         setMap({ type: "error", error: e });
       });
-  }, [cfg.metadata.path, id]);
+  }, [cfg.maker.path, id]);
 
   return (
     <section className="mb-8">

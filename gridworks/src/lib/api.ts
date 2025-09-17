@@ -86,35 +86,38 @@ export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
   );
 }
 
-const configMakerMetadataSchema = z.object({
+const configMakerSchema = z.object({
   absolute_path: z.string(),
   path: z.string(),
   kind: z.string(),
   line: z.number(),
 });
 
-const configMakerSchema = z.object({
-  metadata: configMakerMetadataSchema,
-  config: z.unknown(),
+const viewConfigSchema = z.object({
+  maker: configMakerSchema,
+  config: z.object({
+    value: z.record(z.string(), z.unknown()),
+    unset_fields: z.array(z.string()),
+  }),
 });
 
-export type ConfigMaker = z.infer<typeof configMakerSchema>;
+export type Config = z.infer<typeof viewConfigSchema>;
 
-const mettagridCfgsMetadataSchema = z.record(
+const groupedConfigMakersSchema = z.record(
   z.string(),
-  z.array(configMakerMetadataSchema).optional()
+  z.array(configMakerSchema).optional()
 );
 
-type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
+type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
 
-export async function listConfigMakers(): Promise<MettagridCfgsMetadata> {
-  return await fetchApi(`${API_URL}/configs`, mettagridCfgsMetadataSchema);
+export async function listConfigMakers(): Promise<GroupedConfigMakers> {
+  return await fetchApi(`${API_URL}/configs`, groupedConfigMakersSchema);
 }
 
-export async function getConfigMaker(path: string): Promise<ConfigMaker> {
+export async function getConfig(path: string): Promise<Config> {
   return await fetchApi(
     `${API_URL}/configs/get?path=${encodeURIComponent(path)}`,
-    configMakerSchema
+    viewConfigSchema
   );
 }
 
