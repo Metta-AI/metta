@@ -24,7 +24,7 @@ from metta.adaptive.schedulers.batched_synced import (
     BatchedSyncedSchedulerConfig,
 )
 from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig, TrainAndEvalScheduler
-from metta.adaptive.stores import FileStateStore, WandbStore
+from metta.adaptive.stores import WandbStore
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.wandb_context import WandbConfig
@@ -147,8 +147,6 @@ class AdaptiveTool(Tool):
         dispatcher = self._create_dispatcher()
 
         # Create and run controller
-        # Construct a local file state store rooted at run_dir
-        state_store = FileStateStore(self.run_dir)
         controller = AdaptiveController(
             experiment_id=experiment_id,
             scheduler=scheduler,
@@ -157,7 +155,6 @@ class AdaptiveTool(Tool):
             config=self.config,
             on_eval_completed=self.on_eval_completed,
             on_job_dispatch=self.on_job_dispatch,
-            state_store=state_store,
         )
 
         # Persist configuration
