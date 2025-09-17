@@ -170,13 +170,16 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # If reward estimates are set, plot them compared to the mean reward
         if self.mg_config.game.reward_estimates:
-            infos["reward_estimates"] = {}
-            infos["reward_estimates"][f"best_case_optimal_diff"] = (
-                self.mg_config.game.reward_estimates["best_case_optimal_reward"] - episode_rewards.mean()
-            )
-            infos["reward_estimates"][f"worst_case_optimal_diff"] = (
-                self.mg_config.game.reward_estimates["worst_case_optimal_reward"] - episode_rewards.mean()
-            )
+            estimates = self.mg_config.game.reward_estimates
+            best = estimates.get("best_case_efficient_reward")
+            worst = estimates.get("worst_case_efficient_reward")
+
+            if best is not None or worst is not None:
+                infos["reward_estimates"] = {}
+                if best is not None:
+                    infos["reward_estimates"]["best_case_efficient_diff"] = best - episode_rewards.mean()
+                if worst is not None:
+                    infos["reward_estimates"]["worst_case_efficient_diff"] = worst - episode_rewards.mean()
 
         self._update_label_completions(moving_avg_window)
 
@@ -184,9 +187,14 @@ class MettaGridEnv(MettaGridPufferBase):
         if len(self._label_completions["completed_tasks"]) >= 50:
             infos["label_completions"] = self._label_completions["completion_rates"]
 
-        infos["per_label_rewards"][self.mg_config.label] = (
-            alpha * self.per_label_rewards[self.mg_config.label] + (1 - alpha) * episode_rewards.mean()
-        )
+        # Update and report per-label moving average reward safely
+        if "per_label_rewards" not in infos:
+            infos["per_label_rewards"] = {}
+        label = self.mg_config.label
+        prev = float(self.per_label_rewards.get(label, 0.0))
+        updated = alpha * prev + (1 - alpha) * episode_rewards.mean()
+        self.per_label_rewards[label] = updated
+        infos["per_label_rewards"][label] = updated
 
         # Add attributes
         attributes: Dict[str, Any] = {
