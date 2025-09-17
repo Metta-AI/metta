@@ -112,7 +112,6 @@ class TestCommandConstruction:
             "--no-spot",
             "--gpus=1",
             "experiments.recipes.arena.train",
-            "--args",
             "run=sweep_test_trial_001",
         ]
 
@@ -130,7 +129,6 @@ class TestCommandConstruction:
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
             "experiments.recipes.arena.evaluate",
-            "--args",
             "policy_uri=s3://policies/test/policy.pt",
         ]
 
@@ -152,7 +150,6 @@ class TestCommandConstruction:
             "--no-spot",
             "--gpus=8",
             "experiments.recipes.arena.train",
-            "--args",
             "run=gpu_test",
         ]
 
@@ -175,7 +172,6 @@ class TestCommandConstruction:
             "--gpus=1",  # JobDefinition defaults to gpus=1
             "--nodes=4",
             "experiments.recipes.arena.train",
-            "--args",
             "run=node_test",
         ]
 
@@ -202,7 +198,6 @@ class TestCommandConstruction:
             "--gpus=4",
             "--nodes=2",
             "experiments.recipes.arena.train",
-            "--args",
             "run=distributed_test",
         ]
 
@@ -223,11 +218,9 @@ class TestCommandConstruction:
             "experiments.recipes.navigation.train_shaped",
             "positional_arg1",
             "positional_arg2",
-            "--args",
             "run=sweep_complex_trial_042",
             "experiment=navigation",
             "variant=shaped",
-            "--overrides",
             "trainer.batch_size=256",
             "trainer.learning_rate=0.001",
             "optimizer.momentum=0.9",
@@ -251,7 +244,6 @@ class TestCommandConstruction:
             get_launch_script_path(),
             "--no-spot",
             "experiments.recipes.arena.train",
-            "--args",
             "run=no_gpu_test",
         ]
 
@@ -273,7 +265,6 @@ class TestCommandConstruction:
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
             "experiments.recipes.arena.train",
-            "--args",
             "run=single_node_test",
         ]
 
@@ -480,7 +471,7 @@ class TestDispatcherComparison:
     """Test that SkypilotDispatcher and LocalDispatcher build identical command portions."""
 
     def test_command_equivalence_basic(self, basic_training_job):
-        """Test that both dispatchers build the same args/overrides for basic job."""
+        """Test that both dispatchers build the same args for basic job."""
         from metta.sweep import LocalDispatcher
 
         with patch("subprocess.Popen") as mock_popen:
@@ -575,15 +566,13 @@ class TestDispatcherComparison:
             local_cmd = local_call[0][0]
             sky_cmd = sky_call[0][0]
 
-            # Check that neither includes run_id (since it's LAUNCH_EVAL)
-            local_args_portion = local_cmd[local_cmd.index("--args") + 1 :]
-            sky_args_portion = sky_cmd[sky_cmd.index("--args") + 1 :]
-
             # Both should have metadata but no run_id
-            assert "policy_uri=s3://policies/test/policy.pt" in local_args_portion
-            assert "policy_uri=s3://policies/test/policy.pt" in sky_args_portion
-            assert not any("run=" in arg for arg in local_args_portion)
-            assert not any("run=" in arg for arg in sky_args_portion)
+            assert "--args" not in local_cmd
+            assert "--args" not in sky_cmd
+            assert "policy_uri=s3://policies/test/policy.pt" in local_cmd
+            assert "policy_uri=s3://policies/test/policy.pt" in sky_cmd
+            assert not any("run=" in arg for arg in local_cmd)
+            assert not any("run=" in arg for arg in sky_cmd)
 
 
 # ============================================================================
@@ -593,42 +582,6 @@ class TestDispatcherComparison:
 
 class TestEdgeCases:
     """Test edge cases and special scenarios."""
-
-    def test_empty_args_no_flag(self, mock_popen, mock_uuid):
-        """Test that --args flag is not added when there are no args."""
-        job = JobDefinition(
-            run_id="no_args_test",
-            cmd="experiments.recipes.arena.evaluate",
-            type=JobTypes.LAUNCH_EVAL,
-            # No metadata, no args
-        )
-
-        dispatcher = SkypilotDispatcher()
-        dispatcher.dispatch(job)
-
-        args, kwargs = mock_popen.call_args
-        cmd = args[0]
-
-        # Should not contain --args flag
-        assert "--args" not in cmd
-
-    def test_empty_overrides_no_flag(self, mock_popen, mock_uuid):
-        """Test that --overrides flag is not added when there are no overrides."""
-        job = JobDefinition(
-            run_id="no_overrides_test",
-            cmd="experiments.recipes.arena.train",
-            type=JobTypes.LAUNCH_TRAINING,
-            # No overrides, no config
-        )
-
-        dispatcher = SkypilotDispatcher()
-        dispatcher.dispatch(job)
-
-        args, kwargs = mock_popen.call_args
-        cmd = args[0]
-
-        # Should not contain --overrides flag
-        assert "--overrides" not in cmd
 
     def test_trial_id_extraction(self, mock_popen, mock_uuid, caplog):
         """Test that trial IDs are extracted for cleaner logging."""
