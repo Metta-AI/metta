@@ -65,7 +65,6 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
 
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
-    enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
     nav_env = nav_env or make_env()
@@ -110,8 +109,6 @@ def make_curriculum(
             ema_timescale=0.001,
             exploration_bonus=0.1,
             max_memory_tasks=1000,
-            max_slice_axes=3,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
     return nav_tasks.to_curriculum(algorithm_config=algorithm_config)
@@ -120,7 +117,6 @@ def make_curriculum(
 def train(
     run: Optional[str] = None,
     curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
@@ -133,8 +129,6 @@ def train(
                 ema_timescale=0.001,
                 exploration_bonus=0.1,
                 max_memory_tasks=1000,
-                max_slice_axes=3,  # More slices for arena complexity
-                enable_detailed_slice_logging=enable_detailed_slice_logging,
             )
         ),
         evaluation=EvaluationConfig(

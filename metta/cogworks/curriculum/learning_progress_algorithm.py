@@ -38,8 +38,6 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Performance and memory management
     max_memory_tasks: int = 1000
-    max_slice_axes: int = 3  # Updated terminology
-    enable_detailed_slice_logging: bool = False  # Updated terminology
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -66,8 +64,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Initialize task tracker (moved from modules to curriculum folder)
         self.task_tracker = TaskTracker(max_memory_tasks=hypers.max_memory_tasks)
 
-        # Note: slice_analyzer is already initialized in parent class via StatsLogger
-
         # Initialize scoring method (bidirectional by default)
         if hypers.use_bidirectional:
             self._init_bidirectional_scoring()
@@ -90,12 +86,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic statistics that all algorithms must provide."""
-        base_stats = {"num_tasks": self.num_tasks, **self.slice_analyzer.get_base_stats()}
+        base_stats: Dict[str, float] = {"num_tasks": float(self.num_tasks)}
 
         # Add task tracker stats with prefix for test compatibility
         tracker_stats = self.task_tracker.get_global_stats()
         for key, value in tracker_stats.items():
-            base_stats[f"tracker/{key}"] = value
+            base_stats[f"tracker/{key}"] = float(value)
 
         return base_stats
 
@@ -109,9 +105,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Get base stats (required)
         stats = self.get_base_stats()
 
+        # Always include learning progress detailed stats for LearningProgressAlgorithm
+        detailed = self.get_detailed_stats()
+        stats.update(detailed)
+
+        # Add additional detailed stats if enabled
         if self.enable_detailed_logging:
-            detailed = self.get_detailed_stats()
-            stats.update(detailed)
+            # No additional detailed stats currently
+            pass
 
         # Add prefix to all keys
         if prefix:
@@ -146,11 +147,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Initialize basic EMA tracking (fallback method)."""
         # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
         self._task_emas: Dict[int, tuple[float, float, int]] = {}
-        # Ensure cache is initialized for basic scoring mode
-        if not hasattr(self, "_score_cache"):
-            self._score_cache: Dict[int, float] = {}
-        if not hasattr(self, "_cache_valid_tasks"):
-            self._cache_valid_tasks: set[int] = set()
+        # Initialize cache for basic scoring mode
+        self._score_cache: Dict[int, float] = {}
+        self._cache_valid_tasks: set[int] = set()
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using the configured method (bidirectional by default)."""
@@ -350,14 +349,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         else:
             return self._get_basic_detailed_stats()
 
-    def update_task_with_slice_values(self, task_id: int, score: float, slice_values: Dict[str, Any]) -> None:
-        """Update task performance including slice values for analysis."""
-        # First update performance
-        self.update_task_performance(task_id, score)
-
-        # Then update slice analyzer
-        self.slice_analyzer.update_task_completion(task_id, slice_values, score)
-
     def _update_bidirectional_ema(self, task_id: int, score: float) -> None:
         """Update bidirectional EMA tracking for a task with new score."""
         # Convert score to success rate (assuming score is between 0 and 1)
@@ -404,18 +395,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Handle task creation by tracking it."""
         self.task_tracker.track_task_creation(task._task_id)
 
-        # Extract and update slice values if available
-        slice_values = task.get_slice_values()
-        if slice_values:
-            # Initial tracking with neutral score
-            self.slice_analyzer.update_task_completion(task._task_id, slice_values, 0.5)
-
         # Invalidate stats cache when task state changes
         self.invalidate_cache()
 
     def get_detailed_stats(self) -> Dict[str, float]:
-        """Get detailed stats including learning progress and slice distribution analysis."""
-        stats = super().get_detailed_stats()  # Gets slice analyzer stats
+        """Get detailed stats including learning progress analysis."""
+        stats = {}
 
         # Always include learning progress stats (not just when detailed logging is enabled)
         if self.hypers.use_bidirectional:

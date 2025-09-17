@@ -270,7 +270,6 @@ class TestLearningProgressProductionPatterns:
         config = LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=50,  # REDUCED from 100 for faster testing
-            enable_detailed_slice_logging=True,  # Enable detailed stats for testing
         )
         algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)  # REDUCED from 50
 
