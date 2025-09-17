@@ -312,7 +312,7 @@ For more information, see [./mettascope/README.md](./mettascope/README.md).
 Optional overrides:
 
 - `policy_uri=<path>`: Use a specific policy for NPC agents.
-  - Local checkpoints: `file://./train_dir/<run>/checkpoints`
+  - Local checkpoints: `file://./train_dir/<run>/checkpoints/<run>:v{epoch}.pt`
 - S3 checkpoints: `s3://bucket/path/<run_name>/checkpoints/<run_name>:v5.pt`
 
 ### Replay a single episode

@@ -210,10 +210,10 @@ programmatic processing
 ./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
 # Evaluate with specific policy from file
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
 # Evaluate using a remote checkpoint stored on S3
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://team-checkpoints/project/model_v0.pt
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
 ```
 
 **Key Features**:
@@ -351,7 +351,7 @@ environments with support for multiple rendering backends.
 ./tools/run.py experiments.recipes.navigation.replay policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
 
 # Generate replay from local checkpoint
-./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_run/checkpoints
+./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 ```
 
 **Key Features**:
@@ -375,7 +375,7 @@ environments with support for multiple rendering backends.
 ./tools/run.py experiments.recipes.arena.play policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt
 
 # Interactive navigation environment
-./tools/run.py experiments.recipes.navigation.play policy_uri=file://./checkpoints
+./tools/run.py experiments.recipes.navigation.play policy_uri=file://./train_dir/nav_experiment/checkpoints/nav_experiment:v8.pt
 ```
 
 **Key Features**:
@@ -758,7 +758,7 @@ GROUP BY policy_name, episode;
 
 # 4. Interactive play with best policy
 ./tools/run.py experiments.recipes.arena.play \
-   policy_uri="s3://my-bucket/checkpoints/sweeps/hyperparam_search_001/best.pt"
+   policy_uri="s3://my-bucket/checkpoints/sweeps/hyperparam_search_001/hyperparam_search_001:v42.pt"
 ```
 
 ### Map Development Workflow
