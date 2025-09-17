@@ -140,16 +140,19 @@ def get_latest_unit_tests_failed() -> int:
         unit_tests_all_packages = job_statuses.get("unit tests - all packages")
         tests = job_statuses.get("tests")
         if not unit_tests_all_packages or not tests:
+            logger.error(f"No unit tests all packages or tests job statuses found: {job_statuses}")
             return 0
 
         # Cancelled tests can be identified by "Unit Tests - All Packages" job being cancelled and then "Tests" failing
         canceled = unit_tests_all_packages.status == "cancelled" and tests.conclusion == "failure"
         if canceled:
             return 0
-        return all(
-            job_status.conclusion == "success"
-            for job_status in job_statuses.values()
-            if job_status.status == "completed"
+        return int(
+            not (
+                all(
+                    job_status.conclusion in ("success", "skipped")
+                    for job_status in job_statuses.values()
+                    if job_status.status == "completed"
+                )
+            )
         )
-
-    return 0
