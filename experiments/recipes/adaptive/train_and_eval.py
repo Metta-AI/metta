@@ -1,7 +1,5 @@
 """Simple train-and-eval adaptive experiment for PoC."""
 
-from typing import Any
-
 from metta.adaptive.adaptive_config import AdaptiveConfig
 from metta.tools.adaptive import AdaptiveTool, SchedulerType, DispatcherType
 from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig
