@@ -32,3 +32,7 @@ bazel_dep(name = "abseil-cpp", version = "20250814.0")
 # Linting and formatting with rules_lint
 bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
 bazel_dep(name = "aspect_rules_lint", version = "1.6.0")
+
+# Register a simple module extension that exposes a local Raylib repository on macOS runners.
+raylib = use_extension("//:raylib_ext.bzl", "raylib_ext")
+use_repo(raylib, "raylib_homebrew")
