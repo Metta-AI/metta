@@ -71,7 +71,7 @@ def get_num_revert_commits(lookback_days: int = 7, branch: str = "main") -> int:
     return _get_num_commits_with_phrase("revert", lookback_days=lookback_days, branch=branch)
 
 
-def get_latest_workflow_run(branch: str = "main", workflow_filename: str = "checks.yml") -> dict[str, Any] | None:
+def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, Any] | None:
     params = {"branch": branch, "status": "completed", "per_page": 1}
     with _github_client() as client:
         resp = client.get(
@@ -86,22 +86,6 @@ def get_latest_workflow_run(branch: str = "main", workflow_filename: str = "chec
 
 
 @metric_goal(
-    metric_key="ci.workflow_failing_on_main",
-    aggregate="max",
-    target=0.0,
-    comparison="<=",
-    window="1h",
-    description="Latest or max over the last hour should be zero failing workflow runs on main.",
-)
-def get_latest_workflow_run_failed(branch: str = "main", workflow_filename: str = "checks.yml") -> int:
-    run = get_latest_workflow_run(branch=branch, workflow_filename=workflow_filename)
-    if not run:
-        return 0
-    conclusion = (run.get("conclusion") or "").lower()
-    return 0 if conclusion == "success" else 1
-
-
-@metric_goal(
     metric_key="ci.tests_failing_on_main",
     aggregate="max",
     target=0.0,
@@ -109,12 +93,12 @@ def get_latest_workflow_run_failed(branch: str = "main", workflow_filename: str 
     window="1h",
     description="No unit-test jobs should fail on main",
 )
-def get_latest_unit_tests_failed(branch: str = "main", workflow_filename: str = "checks.yml") -> int:
-    run = get_latest_workflow_run(branch=branch, workflow_filename=workflow_filename)
+def get_latest_unit_tests_failed() -> int:
+    run = get_latest_workflow_run(branch="main", workflow_filename="checks.yml")
     if not run:
         return 0
 
-    run_id = run.get("id") or run.get("database_id") or run.get("run_number")
+    run_id = run.get("id")
     if not run_id:
         logger.error(f"Failed to get run ID: {run}")
         return 0
