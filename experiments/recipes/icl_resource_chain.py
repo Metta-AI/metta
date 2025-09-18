@@ -367,8 +367,8 @@ def train(
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
     # which requires a large batch size
-    trainer_cfg.batch_size = 4128768
-    trainer_cfg.bptt_horizon = 512
+    trainer_cfg.batch_size = 2064384
+    trainer_cfg.bptt_horizon = 256
 
     return TrainTool(trainer=trainer_cfg)
 
@@ -395,7 +395,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
             env=eval_env,
             name="in_context_resource_chain",
         ),
-        policy_uri="wandb://run/george.icl.reproduce.4gpus.09-12",
+        policy_uri=default_policy_uri,
     )
 
 
