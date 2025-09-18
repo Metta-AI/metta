@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -uo pipefail
 
 cd /workspace/metta
 
@@ -287,6 +287,8 @@ else
   fi
 fi
 
+echo "calling run_cmd"
 run_cmd
 
+echo "calling shutdown"
 shutdown

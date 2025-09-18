@@ -180,16 +180,6 @@ print_job_debug_report() {
     report+="[DEBUG] Monitor processes:\n"
     report+="$(ps aux | grep -E '(monitor_gpu|monitor_memory|cluster_stop_monitor)' | grep -v grep || echo '  No monitor processes found')\n"
 
-    # System resource state
-    report+="[DEBUG] System state:\n"
-    report+="  Load average: $(uptime | awk -F'load average:' '{print $2}')\n"
-    report+="  Memory usage:\n"
-    report+="$(free -h | sed 's/^/    /')\n"
-
-    # Check for any processes that might be holding resources
-    report+="[DEBUG] Top 5 CPU consuming processes:\n"
-    report+="$(ps aux --sort=-%cpu | head -6 | tail -5 | sed 's/^/  /')\n"
-
     report+="[DEBUG] ========== END DEBUG REPORT ==========\n"
 
     # Output everything at once
