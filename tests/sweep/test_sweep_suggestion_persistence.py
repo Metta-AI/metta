@@ -1,13 +1,14 @@
 """Test that sweep suggestions are properly persisted to WandB at run initialization."""
 
 import logging
-from unittest.mock import MagicMock, patch
-from metta.adaptive.stores.wandb import WandbStore
-from metta.adaptive.adaptive_controller import AdaptiveController
-from metta.adaptive.models import JobDefinition, JobTypes, RunInfo, JobStatus
-from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
-from metta.sweep.protein_config import ProteinConfig, ParameterConfig
+from unittest.mock import MagicMock
+
 from metta.adaptive import AdaptiveConfig
+from metta.adaptive.adaptive_controller import AdaptiveController
+from metta.adaptive.models import JobTypes, RunInfo
+from metta.adaptive.stores.wandb import WandbStore
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +27,10 @@ def test_suggestion_stored_at_init():
 
     # Track what was passed to init_run
     init_run_calls = []
+
     def capture_init_run(run_id, group=None, tags=None, initial_summary=None):
-        init_run_calls.append({
-            'run_id': run_id,
-            'group': group,
-            'initial_summary': initial_summary
-        })
+        init_run_calls.append({"run_id": run_id, "group": group, "initial_summary": initial_summary})
+
     mock_store.init_run.side_effect = capture_init_run
 
     # Create mock dispatcher
@@ -48,9 +47,9 @@ def test_suggestion_stored_at_init():
                 max=0.01,
                 distribution="log_normal",
                 mean=0.005,  # Required for log_normal
-                scale="auto"  # Required for log_normal
+                scale="auto",  # Required for log_normal
             )
-        }
+        },
     )
 
     scheduler_config = BatchedSyncedSchedulerConfig(
@@ -67,14 +66,10 @@ def test_suggestion_stored_at_init():
     scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
 
     # Create adaptive config
-    adaptive_config = AdaptiveConfig(
-        max_parallel=2,
-        monitoring_interval=1,
-        resume=False
-    )
+    adaptive_config = AdaptiveConfig(max_parallel=2, monitoring_interval=1, resume=False)
 
-    # Create controller
-    controller = AdaptiveController(
+    # Create controller (not used directly, but validates configuration)
+    _ = AdaptiveController(
         experiment_id="test_sweep",
         scheduler=scheduler,
         dispatcher=mock_dispatcher,
@@ -95,37 +90,32 @@ def test_suggestion_stored_at_init():
     for job in jobs:
         if job.type == JobTypes.LAUNCH_TRAINING:
             # Simulate what AdaptiveController does
-            dispatch_id = mock_dispatcher.dispatch(job)
-            mock_store.init_run(
-                job.run_id,
-                group="test_sweep",
-                initial_summary=job.metadata
-            )
+            _ = mock_dispatcher.dispatch(job)
+            mock_store.init_run(job.run_id, group="test_sweep", initial_summary=job.metadata)
 
     # Verify init_run was called with sweep/suggestion
     assert len(init_run_calls) == 2, f"Expected 2 init_run calls, got {len(init_run_calls)}"
 
-    for i, call in enumerate(init_run_calls):
+    for _, call in enumerate(init_run_calls):
         # Check that initial_summary was passed
-        assert 'initial_summary' in call
-        assert call['initial_summary'] is not None, \
-            f"initial_summary should not be None for run {call['run_id']}"
+        assert "initial_summary" in call
+        assert call["initial_summary"] is not None, f"initial_summary should not be None for run {call['run_id']}"
 
         # Check that sweep/suggestion is in the initial_summary
-        assert 'sweep/suggestion' in call['initial_summary'], \
-            f"Missing sweep/suggestion in initial_summary for run {call['run_id']}. " \
+        assert "sweep/suggestion" in call["initial_summary"], (
+            f"Missing sweep/suggestion in initial_summary for run {call['run_id']}. "
             f"Keys present: {list(call['initial_summary'].keys())}"
+        )
 
         # Check that the suggestion contains expected parameter
-        suggestion = call['initial_summary']['sweep/suggestion']
-        assert 'lr' in suggestion, \
-            f"Missing 'lr' parameter in suggestion for run {call['run_id']}. " \
-            f"Suggestion: {suggestion}"
+        suggestion = call["initial_summary"]["sweep/suggestion"]
+        assert "lr" in suggestion, (
+            f"Missing 'lr' parameter in suggestion for run {call['run_id']}. Suggestion: {suggestion}"
+        )
 
         # Verify the suggestion value is within expected range
-        lr_value = suggestion['lr']
-        assert 0.001 <= lr_value <= 0.01, \
-            f"lr value {lr_value} outside expected range [0.001, 0.01]"
+        lr_value = suggestion["lr"]
+        assert 0.001 <= lr_value <= 0.01, f"lr value {lr_value} outside expected range [0.001, 0.01]"
 
 
 def test_suggestion_not_duplicated_on_eval():
@@ -136,25 +126,24 @@ def test_suggestion_not_duplicated_on_eval():
 
     # Track what was passed to init_run and update_run_summary
     init_run_calls = []
+
     def capture_init_run(run_id, group=None, tags=None, initial_summary=None):
-        init_run_calls.append({
-            'run_id': run_id,
-            'initial_summary': initial_summary
-        })
+        init_run_calls.append({"run_id": run_id, "initial_summary": initial_summary})
+
     mock_store.init_run.side_effect = capture_init_run
 
     update_summary_calls = []
+
     def capture_update_summary(run_id, summary_update):
-        update_summary_calls.append({
-            'run_id': run_id,
-            'summary_update': summary_update
-        })
+        update_summary_calls.append({"run_id": run_id, "summary_update": summary_update})
         return True
+
     mock_store.update_run_summary.side_effect = capture_update_summary
 
     # Return a run that needs evaluation
     # RunInfo requires all fields to be set explicitly
     from datetime import datetime, timezone
+
     mock_run = RunInfo(
         run_id="test_sweep_trial_0001",
         summary={"sweep/suggestion": {"lr": 0.005}},
@@ -182,9 +171,9 @@ def test_suggestion_not_duplicated_on_eval():
                 max=0.01,
                 distribution="log_normal",
                 mean=0.005,  # Required for log_normal
-                scale="auto"  # Required for log_normal
+                scale="auto",  # Required for log_normal
             )
-        }
+        },
     )
 
     scheduler_config = BatchedSyncedSchedulerConfig(
@@ -199,22 +188,15 @@ def test_suggestion_not_duplicated_on_eval():
 
     # Create scheduler with state that knows about the training run
     from metta.sweep.schedulers.batched_synced import SchedulerState
-    state = SchedulerState(
-        runs_in_training={"test_sweep_trial_0001"},
-        runs_in_eval=set(),
-        runs_completed=set()
-    )
+
+    state = SchedulerState(runs_in_training={"test_sweep_trial_0001"}, runs_in_eval=set(), runs_completed=set())
     scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, state=state)
 
     # Create adaptive config
-    adaptive_config = AdaptiveConfig(
-        max_parallel=2,
-        monitoring_interval=1,
-        resume=False
-    )
+    adaptive_config = AdaptiveConfig(max_parallel=2, monitoring_interval=1, resume=False)
 
-    # Create controller
-    controller = AdaptiveController(
+    # Create controller (not used directly, but validates configuration)
+    _ = AdaptiveController(
         experiment_id="test_sweep",
         scheduler=scheduler,
         dispatcher=mock_dispatcher,
@@ -231,17 +213,17 @@ def test_suggestion_not_duplicated_on_eval():
 
     # Dispatch eval job (simulating what controller does)
     for job in jobs:
-        dispatch_id = mock_dispatcher.dispatch(job)
+        _ = mock_dispatcher.dispatch(job)
         if job.type == JobTypes.LAUNCH_EVAL:
             # Eval jobs should only update has_started_eval, not init_run
             mock_store.update_run_summary(job.run_id, {"has_started_eval": True})
 
     # Verify no init_run was called (eval reuses existing run)
-    assert len(init_run_calls) == 0, \
-        f"init_run should not be called for eval jobs, but got {len(init_run_calls)} calls"
+    assert len(init_run_calls) == 0, f"init_run should not be called for eval jobs, but got {len(init_run_calls)} calls"
 
     # Verify update_run_summary was called with has_started_eval only
     assert len(update_summary_calls) == 1
-    assert update_summary_calls[0]['summary_update'] == {"has_started_eval": True}
-    assert 'sweep/suggestion' not in update_summary_calls[0]['summary_update'], \
+    assert update_summary_calls[0]["summary_update"] == {"has_started_eval": True}
+    assert "sweep/suggestion" not in update_summary_calls[0]["summary_update"], (
         "Eval jobs should not update sweep/suggestion"
+    )

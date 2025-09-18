@@ -54,6 +54,11 @@ class ProteinOptimizer:
 
         logger.info(f"Loaded {len(observations)} observations into Protein optimizer")
 
+        # Handle edge case of requesting zero suggestions
+        if n_suggestions == 0:
+            logger.debug("Zero suggestions requested, returning empty list")
+            return []
+
         # Generate requested number of suggestions
         result = protein.suggest(n_suggestions=n_suggestions)
 

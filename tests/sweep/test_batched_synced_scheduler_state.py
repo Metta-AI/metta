@@ -8,17 +8,18 @@ Tests all edge cases of internal state management including:
 - Failure/stale handling
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone
+from unittest.mock import Mock, patch
 
-from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
+import pytest
+
+from metta.adaptive.models import JobStatus, RunInfo
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,
     BatchedSyncedSchedulerConfig,
-    SchedulerState
+    SchedulerState,
 )
-from metta.sweep.protein_config import ProteinConfig, ParameterConfig
 
 
 @pytest.fixture
@@ -27,15 +28,7 @@ def protein_config():
     return ProteinConfig(
         metric="test/score",
         goal="maximize",
-        parameters={
-            "lr": ParameterConfig(
-                min=1e-5,
-                max=1e-3,
-                distribution="log_normal",
-                mean=1e-4,
-                scale="auto"
-            )
-        }
+        parameters={"lr": ParameterConfig(min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto")},
     )
 
 
@@ -49,7 +42,7 @@ def scheduler_config(protein_config):
         recipe_module="test.recipe",
         train_entrypoint="train",
         eval_entrypoint="evaluate",
-        protein_config=protein_config
+        protein_config=protein_config,
     )
 
 
@@ -80,9 +73,9 @@ def create_run(run_id: str, status: JobStatus, summary: dict = None) -> RunInfo:
         has_failed = False
     else:
         last_updated_at = datetime.now(timezone.utc)
-        has_started_training = (status != JobStatus.PENDING)
-        has_completed_training = (status in [JobStatus.TRAINING_DONE_NO_EVAL, JobStatus.IN_EVAL, JobStatus.COMPLETED])
-        has_failed = (status == JobStatus.FAILED)
+        has_started_training = status != JobStatus.PENDING
+        has_completed_training = status in [JobStatus.TRAINING_DONE_NO_EVAL, JobStatus.IN_EVAL, JobStatus.COMPLETED]
+        has_failed = status == JobStatus.FAILED
 
     return RunInfo(
         run_id=run_id,
@@ -96,7 +89,7 @@ def create_run(run_id: str, status: JobStatus, summary: dict = None) -> RunInfo:
         has_been_evaluated=(status == JobStatus.COMPLETED),
         has_failed=has_failed,
         cost=100.0,
-        runtime=3600.0
+        runtime=3600.0,
     )
 
 
@@ -113,9 +106,7 @@ class TestSchedulerStateManagement:
     def test_state_serialization(self):
         """Test state serialization to dict."""
         state = SchedulerState(
-            runs_in_training={"run1", "run2"},
-            runs_in_eval={"run3"},
-            runs_completed={"run4", "run5"}
+            runs_in_training={"run1", "run2"}, runs_in_eval={"run3"}, runs_completed={"run4", "run5"}
         )
 
         dumped = state.model_dump()
@@ -125,11 +116,7 @@ class TestSchedulerStateManagement:
 
     def test_state_deserialization(self):
         """Test state deserialization from dict."""
-        data = {
-            "runs_in_training": ["run1", "run2"],
-            "runs_in_eval": ["run3"],
-            "runs_completed": ["run4", "run5"]
-        }
+        data = {"runs_in_training": ["run1", "run2"], "runs_in_eval": ["run3"], "runs_completed": ["run4", "run5"]}
 
         state = SchedulerState.model_validate(data)
         assert state.runs_in_training == {"run1", "run2"}
@@ -183,10 +170,7 @@ class TestStateUpdateLogic:
         """Test run transitioning from training to failed."""
         scheduler.state.runs_in_training = {"run1", "run2"}
 
-        runs = [
-            create_run("run1", JobStatus.FAILED),
-            create_run("run2", JobStatus.IN_TRAINING)
-        ]
+        runs = [create_run("run1", JobStatus.FAILED), create_run("run2", JobStatus.IN_TRAINING)]
         scheduler._update_state_from_runs(runs)
 
         assert "run1" not in scheduler.state.runs_in_training
@@ -206,10 +190,7 @@ class TestStateUpdateLogic:
         """Test run transitioning from eval to completed."""
         scheduler.state.runs_in_eval = {"run1", "run2"}
 
-        runs = [
-            create_run("run1", JobStatus.COMPLETED),
-            create_run("run2", JobStatus.IN_EVAL)
-        ]
+        runs = [create_run("run1", JobStatus.COMPLETED), create_run("run2", JobStatus.IN_EVAL)]
         scheduler._update_state_from_runs(runs)
 
         assert "run1" not in scheduler.state.runs_in_eval
@@ -234,7 +215,7 @@ class TestStateUpdateLogic:
         runs = [
             create_run("run1", JobStatus.IN_TRAINING),
             create_run("run2", JobStatus.COMPLETED),  # Not tracked
-            create_run("run3", JobStatus.FAILED)  # Not tracked
+            create_run("run3", JobStatus.FAILED),  # Not tracked
         ]
         scheduler._update_state_from_runs(runs)
 
@@ -276,7 +257,7 @@ class TestEvalScheduling:
         runs = [
             create_run("run1", JobStatus.TRAINING_DONE_NO_EVAL),
             create_run("run2", JobStatus.TRAINING_DONE_NO_EVAL),
-            create_run("run3", JobStatus.IN_TRAINING)
+            create_run("run3", JobStatus.IN_TRAINING),
         ]
 
         jobs = scheduler.schedule(runs, available_training_slots=5)
@@ -316,15 +297,11 @@ class TestBatchSynchronization:
     def test_new_batch_starts_when_all_complete(self, scheduler):
         """Test that new batch starts only when all runs are complete."""
         scheduler.state.runs_completed = {"run1", "run2"}
-        scheduler.optimizer.suggest.return_value = [
-            {"lr": 0.001},
-            {"lr": 0.002},
-            {"lr": 0.003}
-        ]
+        scheduler.optimizer.suggest.return_value = [{"lr": 0.001}, {"lr": 0.002}, {"lr": 0.003}]
 
         runs = [
             create_run("run1", JobStatus.COMPLETED, {"sweep/score": 0.8, "sweep/suggestion": {"lr": 0.0005}}),
-            create_run("run2", JobStatus.COMPLETED, {"sweep/score": 0.9, "sweep/suggestion": {"lr": 0.0007}})
+            create_run("run2", JobStatus.COMPLETED, {"sweep/score": 0.9, "sweep/suggestion": {"lr": 0.0007}}),
         ]
         jobs = scheduler.schedule(runs, available_training_slots=5)
 
@@ -349,10 +326,7 @@ class TestBatchSynchronization:
         scheduler.optimizer.suggest.return_value = [{"lr": 0.001}]
 
         # Already have 4 runs, only 1 remaining
-        runs = [
-            create_run(f"run{i}", JobStatus.COMPLETED)
-            for i in range(4)
-        ]
+        runs = [create_run(f"run{i}", JobStatus.COMPLETED) for i in range(4)]
         jobs = scheduler.schedule(runs, available_training_slots=10)
 
         assert len(jobs) == 1
@@ -370,7 +344,7 @@ class TestMaxTrialsHandling:
         runs = [
             create_run("run1", JobStatus.COMPLETED),
             create_run("run2", JobStatus.COMPLETED),
-            create_run("run3", JobStatus.IN_TRAINING)
+            create_run("run3", JobStatus.IN_TRAINING),
         ]
         jobs = scheduler.schedule(runs, available_training_slots=5)
 
@@ -381,10 +355,7 @@ class TestMaxTrialsHandling:
         """Test that eval jobs are still scheduled even at max_trials."""
         scheduler.config.max_trials = 2
 
-        runs = [
-            create_run("run1", JobStatus.COMPLETED),
-            create_run("run2", JobStatus.TRAINING_DONE_NO_EVAL)
-        ]
+        runs = [create_run("run1", JobStatus.COMPLETED), create_run("run2", JobStatus.TRAINING_DONE_NO_EVAL)]
         jobs = scheduler.schedule(runs, available_training_slots=5)
 
         assert len(jobs) == 1
@@ -398,7 +369,7 @@ class TestMaxTrialsHandling:
         runs = [
             create_run("run1", JobStatus.COMPLETED),
             create_run("run2", JobStatus.COMPLETED),
-            create_run("run3", JobStatus.IN_TRAINING)
+            create_run("run3", JobStatus.IN_TRAINING),
         ]
         assert not scheduler.is_experiment_complete(runs)
 
@@ -413,17 +384,17 @@ class TestObservationCollection:
     def test_collect_observations_from_completed_runs(self, scheduler):
         """Test that observations are correctly collected from completed runs."""
         runs = [
-            create_run("run1", JobStatus.COMPLETED, {
-                "sweep/score": 0.85,
-                "sweep/cost": 150.0,
-                "sweep/suggestion": {"lr": 0.001}
-            }),
-            create_run("run2", JobStatus.COMPLETED, {
-                "sweep/score": 0.90,
-                "sweep/cost": 200.0,
-                "sweep/suggestion": {"lr": 0.002}
-            }),
-            create_run("run3", JobStatus.IN_TRAINING)  # Should be ignored
+            create_run(
+                "run1",
+                JobStatus.COMPLETED,
+                {"sweep/score": 0.85, "sweep/cost": 150.0, "sweep/suggestion": {"lr": 0.001}},
+            ),
+            create_run(
+                "run2",
+                JobStatus.COMPLETED,
+                {"sweep/score": 0.90, "sweep/cost": 200.0, "sweep/suggestion": {"lr": 0.002}},
+            ),
+            create_run("run3", JobStatus.IN_TRAINING),  # Should be ignored
         ]
 
         obs = scheduler._collect_observations(runs)
@@ -438,7 +409,7 @@ class TestObservationCollection:
         """Test that runs without scores are skipped."""
         runs = [
             create_run("run1", JobStatus.COMPLETED, {"sweep/suggestion": {"lr": 0.001}}),
-            create_run("run2", JobStatus.COMPLETED, {"sweep/score": 0.9, "sweep/suggestion": {"lr": 0.002}})
+            create_run("run2", JobStatus.COMPLETED, {"sweep/score": 0.9, "sweep/suggestion": {"lr": 0.002}}),
         ]
 
         obs = scheduler._collect_observations(runs)
@@ -449,14 +420,15 @@ class TestObservationCollection:
     def test_handle_malformed_observations(self, scheduler):
         """Test that malformed observations are skipped gracefully."""
         runs = [
-            create_run("run1", JobStatus.COMPLETED, {
-                "sweep/score": "not_a_number",  # Invalid
-                "sweep/suggestion": {"lr": 0.001}
-            }),
-            create_run("run2", JobStatus.COMPLETED, {
-                "sweep/score": 0.9,
-                "sweep/suggestion": {"lr": 0.002}
-            })
+            create_run(
+                "run1",
+                JobStatus.COMPLETED,
+                {
+                    "sweep/score": "not_a_number",  # Invalid
+                    "sweep/suggestion": {"lr": 0.001},
+                },
+            ),
+            create_run("run2", JobStatus.COMPLETED, {"sweep/score": 0.9, "sweep/suggestion": {"lr": 0.002}}),
         ]
 
         obs = scheduler._collect_observations(runs)
@@ -474,11 +446,7 @@ class TestCompleteWorkflow:
         assert scheduler.state.runs_in_training == set()
 
         # 1. Schedule first batch of training
-        scheduler.optimizer.suggest.return_value = [
-            {"lr": 0.001},
-            {"lr": 0.002},
-            {"lr": 0.003}
-        ]
+        scheduler.optimizer.suggest.return_value = [{"lr": 0.001}, {"lr": 0.002}, {"lr": 0.003}]
         jobs = scheduler.schedule([], available_training_slots=5)
 
         assert len(jobs) == 3
@@ -507,10 +475,10 @@ class TestCompleteWorkflow:
 
         # 5. All completed - ready for next batch
         runs = [
-            create_run(rid, JobStatus.COMPLETED, {
-                "sweep/score": 0.8 + i*0.05,
-                "sweep/suggestion": {"lr": 0.001 + i*0.001}
-            }) for i, rid in enumerate(run_ids)
+            create_run(
+                rid, JobStatus.COMPLETED, {"sweep/score": 0.8 + i * 0.05, "sweep/suggestion": {"lr": 0.001 + i * 0.001}}
+            )
+            for i, rid in enumerate(run_ids)
         ]
         scheduler.optimizer.suggest.return_value = [{"lr": 0.004}]
         jobs = scheduler.schedule(runs, available_training_slots=5)
@@ -553,7 +521,7 @@ class TestCompleteWorkflow:
         # One run went stale, one completed eval
         runs = [
             create_run("run1", JobStatus.STALE),
-            create_run("run2", JobStatus.COMPLETED, {"sweep/score": 0.7, "sweep/suggestion": {"lr": 0.001}})
+            create_run("run2", JobStatus.COMPLETED, {"sweep/score": 0.7, "sweep/suggestion": {"lr": 0.001}}),
         ]
 
         jobs = scheduler.schedule(runs, available_training_slots=5)

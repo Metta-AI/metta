@@ -34,7 +34,7 @@ class WandbStore:
         run_id: str,
         group: str | None = None,
         tags: list[str] | None = None,
-        initial_summary: dict[str, Any] | None = None
+        initial_summary: dict[str, Any] | None = None,
     ) -> None:
         """Initialize a new run in WandB with optional initial summary data."""
         logger.info(f"[WandbStore] Initializing run {run_id} for group {group}")
@@ -197,9 +197,7 @@ class WandbStore:
             logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag found and set to True")
         else:
             eval_value = summary.get("has_started_eval") if "has_started_eval" in summary else "missing"
-            logger.debug(
-                f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}"
-            )
+            logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}")
 
         # Check for evaluator metrics (ONLY keys starting with "evaluator/")
         # This check is independent of has_started_eval flag
@@ -258,6 +256,7 @@ class WandbStore:
                 try:
                     # Parse ISO format datetime string
                     from dateutil import parser
+
                     created_at = parser.parse(run.created_at)
                     # Ensure it has UTC timezone
                     if created_at.tzinfo is None:
