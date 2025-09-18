@@ -77,7 +77,7 @@ def launch_job(
 
     # Increase heartbeat timeout only for long horizons (to tolerate longer checkpoint uploads)
     if horizon in (512, 1024):
-        cmd.extend(["--heartbeat-timeout-seconds", "900"])  # 15 minutes
+        cmd.extend(["--heartbeat-timeout-seconds", "1600"])  # 26 minutes
 
     print(f"\nLaunching {job_name}...")
     print(f"  Horizon: {horizon}, Batch size: {batch_size:,}")
