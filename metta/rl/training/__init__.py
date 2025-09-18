@@ -11,7 +11,7 @@ from metta.rl.training.hyperparameter import HyperparameterComponent, Hyperparam
 from metta.rl.training.policy_checkpointer import PolicyCheckpointer, PolicyCheckpointerConfig
 from metta.rl.training.policy_uploader import PolicyUploader, PolicyUploaderConfig
 from metta.rl.training.stats_reporter import NoOpStatsReporter, StatsConfig, StatsReporter, StatsState
-from metta.rl.training.torch_profiler_component import TorchProfilerComponent, TorchProfilerConfig
+from metta.rl.training.torch_profiler_component import TorchProfilerComponent
 from metta.rl.training.trainer_checkpointer import TrainerCheckpointer, TrainerCheckpointerConfig
 
 __all__ = [
@@ -42,7 +42,6 @@ __all__ = [
     "Config",
     # Torch profiler
     "TorchProfilerComponent",
-    "TorchProfilerConfig",
     # Heartbeat
     "HeartbeatWriter",
     "HeartbeatConfig",

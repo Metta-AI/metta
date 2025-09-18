@@ -17,7 +17,7 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import guess_device
 from metta.rl.trainer import Trainer
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     DistributedHelper,
     Evaluator,
@@ -31,7 +31,7 @@ from metta.rl.training import (
     TrainerCheckpointerConfig,
 )
 from metta.rl.training.stats_reporter import StatsConfig, StatsReporter
-from metta.rl.training.torch_profiler_component import TorchProfilerConfig
+from metta.rl.training.torch_profiler_component import TorchProfilerComponent
 from metta.rl.training.trainer_checkpointer import TrainerCheckpointer
 from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
 from metta.rl.training.wandb_logger import WandbLoggerComponent
@@ -155,6 +155,10 @@ class TrainTool(Tool):
             policy,
             torch.device(self.device),
         )
+        trainer.run_dir = self.run_dir
+
+        if not self.gradient_stats.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
+            self.gradient_stats.epoch_interval = self.trainer.grad_mean_variance_interval
 
         trainer_checkpointer = TrainerCheckpointer(
             config=self.checkpointer,
@@ -217,6 +221,16 @@ class TrainTool(Tool):
                         stats_reporter=stats_component,
                     )
                     trainer.register(evaluator_component)
+
+                    if getattr(self.torch_profiler, "interval_epochs", 0):
+                        trainer.register(
+                            TorchProfilerComponent(
+                                profiler_config=self.torch_profiler,
+                                wandb_run=wandb_run,
+                                run_dir=self.run_dir,
+                                is_master=True,
+                            )
+                        )
 
                 if wandb_run is not None and distributed_helper.is_master():
                     trainer.register(WandbLoggerComponent(wandb_run))

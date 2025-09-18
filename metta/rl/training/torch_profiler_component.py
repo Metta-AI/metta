@@ -1,84 +1,68 @@
 """Torch profiler component for training."""
 
-import logging
-from typing import Any
+from __future__ import annotations
 
-from metta.mettagrid.config import Config
+import logging
+from typing import Any, Optional
+
+from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.training.component import TrainerComponent
 
 logger = logging.getLogger(__name__)
 
 
-class TorchProfilerConfig(Config):
-    """Configuration for torch profiler."""
-
-    epoch_interval: int = 1
-
-
 class TorchProfilerComponent(TrainerComponent):
     """Manages torch profiling during training."""
 
-    def __init__(self, config: TorchProfilerConfig):
-        """Initialize torch profiler component.
-
-        Args:
-            config: Profiler configuration
-        """
-        super().__init__(config)
-        self.config = config
-        self.torch_profiler = None
+    def __init__(
+        self,
+        *,
+        profiler_config: Any,
+        wandb_run: Optional[WandbRun] = None,
+        run_dir: Optional[str] = None,
+        is_master: bool = True,
+    ) -> None:
+        interval = getattr(profiler_config, "interval_epochs", 0)
+        super().__init__(epoch_interval=max(1, interval) if interval else 0)
+        self._config = profiler_config
+        self._wandb_run = wandb_run
+        self._run_dir = run_dir
+        self._is_master = is_master
+        self._torch_profiler: Optional[TorchProfiler] = None
         self._original_train_epoch = None
-        self._wandb_run = None
-        self._run_dir = None
+        self._master_only = True
 
-    def register(self, trainer: Any) -> None:
-        """Register this component with the trainer and wrap training methods.
-
-        Args:
-            trainer: The trainer instance to register with
-        """
+    def register(self, trainer) -> None:  # type: ignore[override]
         super().register(trainer)
+        interval = getattr(self._config, "interval_epochs", 0)
+        if not interval:
+            return
 
-        # Create the torch profiler with trainer context
-        if self.torch_profiler is None:
-            # Get wandb run and run_dir from component attributes or trainer
-            wandb_run = self._wandb_run if hasattr(self, "_wandb_run") else getattr(trainer, "_wandb_run", None)
-            run_dir = self._run_dir if hasattr(self, "_run_dir") else getattr(trainer, "run_dir", None)
-
-            # Use distributed helper to check if master
-            is_master = trainer.distributed_helper.is_master() if hasattr(trainer, "distributed_helper") else True
-
-            # Get profiler config from trainer if not provided
-            profiler_config = self.config.profiler_config
-            if profiler_config is None and hasattr(trainer, "trainer") and hasattr(trainer.trainer, "profiler"):
-                profiler_config = trainer.trainer.profiler
-            self.torch_profiler = TorchProfiler(
-                master=is_master,
-                profiler_config=profiler_config,
-                wandb_run=wandb_run,
+        if self._torch_profiler is None:
+            run_dir = self._run_dir or getattr(trainer, "run_dir", None)
+            self._torch_profiler = TorchProfiler(
+                master=self._is_master,
+                profiler_config=self._config,
+                wandb_run=self._wandb_run,
                 run_dir=run_dir,
             )
 
-        # Wrap the _train_epoch method to add profiling context
-        if hasattr(trainer, "_train_epoch"):
-            original_train_epoch = trainer._train_epoch
+        original_train_epoch = trainer._train_epoch  # type: ignore[attr-defined]
 
-            def wrapped_train_epoch():
-                with self.torch_profiler:
-                    return original_train_epoch()
+        def wrapped_train_epoch():
+            if self._torch_profiler is None:
+                return original_train_epoch()
+            with self._torch_profiler:
+                return original_train_epoch()
 
-            trainer._train_epoch = wrapped_train_epoch
-            self._original_train_epoch = original_train_epoch
+        trainer._train_epoch = wrapped_train_epoch  # type: ignore[attr-defined]
+        self._original_train_epoch = original_train_epoch
 
-    def on_epoch_end(self, trainer: Any, epoch: int) -> None:
-        """Step the profiler at epoch end."""
-        if self.torch_profiler:
-            self.torch_profiler.on_epoch_end(epoch)
+    def on_epoch_end(self, trainer, epoch: int) -> None:  # type: ignore[override]
+        if self._torch_profiler:
+            self._torch_profiler.on_epoch_end(epoch)
 
-    def on_training_complete(self, trainer: Any) -> None:
-        """Finalize profiling on training completion."""
-        # TorchProfiler handles cleanup in its context manager
-        # Restore original method if we wrapped it
-        if self._original_train_epoch and hasattr(trainer, "_train_epoch"):
-            trainer._train_epoch = self._original_train_epoch
+    def on_training_complete(self, trainer) -> None:  # type: ignore[override]
+        if self._original_train_epoch is not None:
+            trainer._train_epoch = self._original_train_epoch  # type: ignore[attr-defined]
