@@ -9,9 +9,11 @@ description = "Devops support for metta projects"
 requires-python = ">=3.9"
 dependencies = ["skypilot>=0.10.3", "gitta"]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["devops*"]
+[tool.setuptools]
+packages = ["devops", "devops.skypilot", "devops.docker"]
+
+[tool.setuptools.package-dir]
+devops = "."
 
 [tool.uv.sources]
 gitta = { path = "../gitta", editable = true }
