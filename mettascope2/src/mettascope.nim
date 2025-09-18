@@ -1,4 +1,4 @@
-import std/[random, os, times, strformat, strutils],
+import std/[random, os, times, strformat, strutils, parseopt],
   boxy, opengl, windy, windy/http, chroma, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, header, footer, timeline,
   worldmap, minimap, agenttable, agenttraces, envconfig]
@@ -10,6 +10,26 @@ var topArea: Area
 var bottomArea: Area
 
 var loaded = false
+
+proc parseArgs() =
+  ## Parse command line arguments.
+  var p = initOptParser(commandLineParams())
+  while true:
+    p.next()
+    case p.kind
+    of cmdEnd:
+      break
+    of cmdLongOption, cmdShortOption:
+      case p.key
+      of "replay", "r":
+        replay = p.val
+        echo "Replay: ", replay
+      else:
+        discard
+    of cmdArgument:
+      discard
+
+parseArgs()
 
 find "/UI/Main":
 
@@ -41,6 +61,7 @@ find "/UI/Main":
     echo "onShow"
     if replay != "":
       if replay.startsWith("http"):
+        echo "Loading replay from URL: ", replay
         let req = startHttpRequest(replay)
         req.onError = proc(msg: string) =
           echo "onError: " & msg
@@ -102,6 +123,12 @@ find "/UI/Main":
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
+    globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
+      bxy.saveTransform()
+      timeline.drawTimeline(globalTimelinePanel)
+      bxy.restoreTransform()
+
+    echo "Loaded!"
     loaded = true
 
   onFrame:
