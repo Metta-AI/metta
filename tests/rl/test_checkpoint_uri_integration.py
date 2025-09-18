@@ -1,4 +1,4 @@
-"""Consolidated tests for URI handling and checkpoint integration.
+"""Integration tests for CheckpointManager URI handling.
 
 Tests file and S3 URI formats plus real environment integration.
 """
@@ -147,7 +147,7 @@ class TestS3URIHandling:
 
     @patch("mettagrid.util.file.local_copy")
     def test_s3_uri_loading(self, mock_local_copy, mock_policy):
-        """Test S3 URI handling with mocked local_copy."""
+        """Test S3 URI handling through CheckpointManager."""
         mock_local_path = "/tmp/downloaded_checkpoint.pt"
         # Properly mock the context manager
         mock_local_copy.return_value.__enter__ = Mock(return_value=mock_local_path)
@@ -178,8 +178,8 @@ class TestS3URIHandling:
         assert version == 0
 
 
-class TestURIUtilities:
-    """Test URI utility functions."""
+class TestCheckpointURINormalization:
+    """Test URI normalization and validation."""
 
     def test_normalize_uri_function(self):
         """Test URI normalization functionality."""
@@ -205,10 +205,10 @@ class TestURIUtilities:
 
 
 class TestRealEnvironmentIntegration:
-    """Test integration with real MettaGrid environments and agents."""
+    """Test CheckpointManager with real MettaGrid environments."""
 
     def test_save_and_load_real_agent(self, create_env_and_agent):
-        """Test saving and loading a real MettaAgent with real environment."""
+        """Test saving and loading a real MettaAgent."""
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -259,7 +259,7 @@ class TestRealEnvironmentIntegration:
             assert "actions" in output
 
     def test_training_progress_and_selection(self, create_env_and_agent):
-        """Test saving multiple checkpoints with different scores and selecting best."""
+        """Test saving multiple checkpoints and selecting best."""
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -293,7 +293,7 @@ class TestRealEnvironmentIntegration:
 
 
 class TestEndToEndWorkflows:
-    """Test complete end-to-end workflows."""
+    """Test complete training and evaluation workflows."""
 
     def test_complete_train_save_load_eval_workflow(self):
         """Test a complete workflow from training through evaluation."""
