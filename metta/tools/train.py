@@ -8,7 +8,7 @@ import torch
 from pydantic import Field
 
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat

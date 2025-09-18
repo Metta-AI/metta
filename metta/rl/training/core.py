@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 import torch
 
-from metta.agent.policy import Policy
+from metta.agent.policy_base import Policy
 from metta.mettagrid.config import Config
 from metta.rl.loss.loss import Loss
 from metta.rl.training.experience import Experience

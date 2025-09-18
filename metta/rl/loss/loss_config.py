@@ -8,7 +8,7 @@ from metta.rl.loss.ppo import PPOConfig
 from metta.rl.training.training_environment import TrainingEnvironment
 
 if TYPE_CHECKING:
-    from metta.agent.policy import Policy
+    from metta.agent.policy_base import Policy
 
 
 class LossSchedule(Config):

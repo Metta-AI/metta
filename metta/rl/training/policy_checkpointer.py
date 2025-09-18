@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy_base import Policy
 from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import torch
 
-from metta.agent.policy import Policy
+from metta.agent.policy_base import Policy
 from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState

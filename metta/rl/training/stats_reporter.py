@@ -131,23 +131,18 @@ class StatsReporter(TrainerComponent):
             or self._config.report_to_stats_client
             or self._config.report_to_console
         )
-        memory_monitor = system_monitor = None
         if reporting_enabled:
-            experience = getattr(getattr(trainer, "core_loop", None), "experience", None)
-            if experience is not None:
-                try:
-                    memory_monitor, system_monitor = setup_monitoring(
-                        policy=trainer.policy,
-                        experience=experience,
-                        timer=trainer.stopwatch,
-                    )
-                except Exception as exc:  # pragma: no cover - defensive best-effort
-                    logger.debug("Failed to initialize monitoring: %s", exc)
-
-        trainer.memory_monitor = memory_monitor
-        trainer.system_monitor = system_monitor
-        self._memory_monitor = memory_monitor
-        self._system_monitor = system_monitor
+            experience = getattr(trainer.core_loop, "experience", None)
+            assert experience is not None, "Expected experience buffer to be initialized"
+            memory_monitor, system_monitor = setup_monitoring(
+                policy=trainer.policy,
+                experience=experience,
+                timer=trainer.stopwatch,
+            )
+            trainer.memory_monitor = memory_monitor
+            trainer.system_monitor = system_monitor
+            self._memory_monitor = memory_monitor
+            self._system_monitor = system_monitor
 
     def _initialize_stats_run(self) -> None:
         """Initialize stats run with the stats client."""
@@ -326,11 +321,11 @@ class StatsReporter(TrainerComponent):
         if trainer is None:
             return
 
-        latest_grad_stats = getattr(trainer, "latest_grad_stats", None)
+        latest_grad_stats = trainer.latest_grad_stats if hasattr(trainer, "latest_grad_stats") else None
         if latest_grad_stats:
             self.update_grad_stats(latest_grad_stats)
 
-        experience = getattr(getattr(trainer, "core_loop", None), "experience", None)
+        experience = trainer.core_loop.experience
 
         self.report_epoch(
             epoch=trainer.epoch,

@@ -15,7 +15,7 @@ from metta.rl.loss.loss import Loss
 from metta.rl.training.training_environment import TrainingEnvironment
 
 if TYPE_CHECKING:
-    from metta.agent.policy import Policy
+    from metta.agent.policy_base import Policy
 from metta.utils.batch import calculate_prioritized_sampling_params
 
 

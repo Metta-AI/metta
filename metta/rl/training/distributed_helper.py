@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, List
 import torch
 import torch.distributed
 
-from metta.agent.policy import Policy
+from metta.agent.policy_base import Policy
 from metta.mettagrid.config import Config
 
 if TYPE_CHECKING:
