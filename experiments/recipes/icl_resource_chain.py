@@ -302,7 +302,7 @@ def make_curriculum(
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
-            progress_smoothing=0.05,
+            progress_smoothing=0.07,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
@@ -312,7 +312,7 @@ def make_curriculum(
     )
 
 
-def small_curriculum():
+def small_curriculum(progress_smoothing=0.05):
     return make_curriculum(
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
