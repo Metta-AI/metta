@@ -8,6 +8,7 @@ from typing import Any, Optional
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.training.component import TrainerComponent
+from metta.rl.training.context import TrainerContext
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +34,14 @@ class TorchProfilerComponent(TrainerComponent):
         self._original_train_epoch = None
         self._master_only = True
 
-    def register(self, trainer) -> None:  # type: ignore[override]
-        super().register(trainer)
+    def register(self, context: TrainerContext) -> None:  # type: ignore[override]
+        super().register(context)
         interval = getattr(self._config, "interval_epochs", 0)
         if not interval:
             return
 
         if self._torch_profiler is None:
-            run_dir = self._run_dir or getattr(trainer, "run_dir", None)
+            run_dir = self._run_dir or getattr(context, "run_dir", None)
             self._torch_profiler = TorchProfiler(
                 master=self._is_master,
                 profiler_config=self._config,
@@ -48,7 +49,7 @@ class TorchProfilerComponent(TrainerComponent):
                 run_dir=run_dir,
             )
 
-        original_train_epoch = trainer._train_epoch  # type: ignore[attr-defined]
+        original_train_epoch = context._train_epoch  # type: ignore[attr-defined]
 
         def wrapped_train_epoch():
             if self._torch_profiler is None:
@@ -56,13 +57,13 @@ class TorchProfilerComponent(TrainerComponent):
             with self._torch_profiler:
                 return original_train_epoch()
 
-        trainer._train_epoch = wrapped_train_epoch  # type: ignore[attr-defined]
+        context._train_epoch = wrapped_train_epoch  # type: ignore[attr-defined]
         self._original_train_epoch = original_train_epoch
 
-    def on_epoch_end(self, trainer, epoch: int) -> None:  # type: ignore[override]
+    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
         if self._torch_profiler:
             self._torch_profiler.on_epoch_end(epoch)
 
-    def on_training_complete(self, trainer) -> None:  # type: ignore[override]
+    def on_training_complete(self) -> None:  # type: ignore[override]
         if self._original_train_epoch is not None:
-            trainer._train_epoch = self._original_train_epoch  # type: ignore[attr-defined]
+            self.context._train_epoch = self._original_train_epoch  # type: ignore[attr-defined]

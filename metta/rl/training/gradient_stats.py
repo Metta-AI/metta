@@ -1,7 +1,6 @@
 """Gradient statistics computation callback."""
 
 import logging
-from typing import TYPE_CHECKING
 
 import torch
 from pydantic import Field
@@ -9,9 +8,6 @@ from pydantic import Field
 from metta.mettagrid.config import Config
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.stats_reporter import StatsReporter
-
-if TYPE_CHECKING:
-    from metta.rl.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +30,13 @@ class GradientStatsComponent(TrainerComponent):
         self._master_only = True
         self._enabled = enabled
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
+    def on_epoch_end(self, epoch: int) -> None:
         """Compute gradient statistics and stash on trainer."""
         if not self._enabled:
             return
 
-        policy = trainer.policy
+        context = self.context
+        policy = context.policy
         gradients = [param.grad.view(-1) for param in policy.parameters() if param.grad is not None]
         if not gradients:
             return
@@ -51,6 +48,6 @@ class GradientStatsComponent(TrainerComponent):
             "grad/norm": grad_tensor.norm(2).item(),
         }
 
-        stats_reporter = trainer.get_component(StatsReporter)
+        stats_reporter = context.get_component(StatsReporter)
         if stats_reporter and hasattr(stats_reporter, "update_grad_stats"):
             stats_reporter.update_grad_stats(grad_stats)
