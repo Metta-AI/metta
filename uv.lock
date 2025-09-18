@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "codebot",
+    "cogames",
     "experiments",
     "gitta",
     "metta",
@@ -573,6 +574,27 @@ requires-dist = [
     { name = "click", specifier = ">=8.0" },
     { name = "gitta", editable = "gitta" },
     { name = "tiktoken", specifier = ">=0.9.0" },
+]
+
+[[package]]
+name = "cogames"
+version = "0.2.0"
+source = { editable = "cogames" }
+dependencies = [
+    { name = "mettagrid" },
+    { name = "pufferlib" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "scipy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mettagrid", editable = "mettagrid" },
+    { name = "pufferlib", specifier = ">=3.0.0" },
+    { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "scipy", specifier = ">=1.15.3" },
 ]
 
 [[package]]
