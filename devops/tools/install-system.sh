@@ -227,3 +227,4 @@ ensure_tool "g++"
 ensure_tool "git"
 ensure_bazel_setup
 ensure_uv_setup
+ensure_tool "cmake"

@@ -56,6 +56,10 @@ def _run_bazel_build() -> None:
         "//:mettagrid_c",
     ]
 
+    # Enable Raylib for dev builds if requested via env
+    if os.environ.get("WITH_RAYLIB", "").lower() in ("1", "true", "yes", "on"):
+        cmd.insert(3, "--define=with_raylib=true")
+
     print(f"Running Bazel build: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
 

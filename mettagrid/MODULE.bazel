@@ -32,3 +32,11 @@ bazel_dep(name = "abseil-cpp", version = "20250814.0")
 # Linting and formatting with rules_lint
 bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
 bazel_dep(name = "aspect_rules_lint", version = "1.6.0")
+
+# Build Raylib from source for local developer builds
+bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
+
+raylib = use_extension("//:bazel/raylib_cmake_ext.bzl", "raylib_cmake_ext")
+# Pin Raylib source (SHA256 for v5.5)
+raylib.cfg(version = "5.5", sha256 = "aea98ecf5bc5c5e0b789a76de0083a21a70457050ea4cc2aec7566935f5e258e")
+use_repo(raylib, "raylib_src")
