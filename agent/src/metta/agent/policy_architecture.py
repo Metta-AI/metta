@@ -3,7 +3,6 @@
 from typing import List
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.obs_shim import ObsShimBox, ObsShimTokens
 from metta.mettagrid.config import Config
 from metta.mettagrid.util.module import load_symbol
 from metta.rl.training.training_environment import EnvironmentMetaData

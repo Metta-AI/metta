@@ -1,7 +1,7 @@
 import torch
 from tensordict import TensorDict
 
-from metta.agent.policy import Policy
+from metta.agent.policy_base import Policy
 
 
 class MockAgent(Policy):

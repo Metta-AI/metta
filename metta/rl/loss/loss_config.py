@@ -5,10 +5,10 @@ from pydantic import Field
 
 from metta.mettagrid.config import Config
 from metta.rl.loss.ppo import PPOConfig
-from metta.rl.training.training_environment import TrainingEnvironment
 
 if TYPE_CHECKING:
     from metta.agent.policy_base import Policy
+    from metta.rl.training.training_environment import TrainingEnvironment
 
 
 class LossSchedule(Config):
@@ -27,7 +27,7 @@ class LossConfig(Config):
         self,
         policy: "Policy",
         trainer_cfg: Any,
-        env: TrainingEnvironment,
+        env: "TrainingEnvironment",
         device: torch.device,
     ):
         losses = {}

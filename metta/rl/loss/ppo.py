@@ -10,13 +10,13 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.mettagrid.config import Config
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
+from metta.utils.batch import calculate_prioritized_sampling_params
 
 # from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.training_environment import TrainingEnvironment
 
 if TYPE_CHECKING:
     from metta.agent.policy_base import Policy
-from metta.utils.batch import calculate_prioritized_sampling_params
+    from metta.rl.training.training_environment import TrainingEnvironment
 
 
 class PrioritizedExperienceReplayConfig(Config):
@@ -79,7 +79,7 @@ class PPOConfig(Config):
         self,
         policy: "Policy",
         trainer_cfg: Any,
-        env: TrainingEnvironment,
+        env: "TrainingEnvironment",
         device: torch.device,
         instance_name: str,
         loss_config: Any,
@@ -107,9 +107,9 @@ class PPO(Loss):
 
     def __init__(
         self,
-        policy: Policy,
+        policy: "Policy",
         trainer_cfg: Any,
-        env: TrainingEnvironment,
+        env: "TrainingEnvironment",
         device: torch.device,
         instance_name: str,
         loss_config: Any,

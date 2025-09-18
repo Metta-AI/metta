@@ -21,7 +21,8 @@ from metta.agent.components.actor import (
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy_base import Policy
 
 logger = logging.getLogger(__name__)
 

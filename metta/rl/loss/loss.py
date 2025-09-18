@@ -6,10 +6,9 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
-from metta.rl.training.training_environment import TrainingEnvironment
-
 if TYPE_CHECKING:
     from metta.agent.policy_base import Policy
+    from metta.rl.training.training_environment import TrainingEnvironment
     from metta.rl.training.experience import Experience
 
 
@@ -48,7 +47,7 @@ class Loss:
         self,
         policy: "Policy",
         trainer_cfg: Any,
-        env: TrainingEnvironment,
+        env: "TrainingEnvironment",
         device: torch.device,
         instance_name: str,
         loss_config: Any,
