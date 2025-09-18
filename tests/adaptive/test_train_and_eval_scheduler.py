@@ -32,9 +32,9 @@ class TestTrainAndEvalScheduler:
 
     def test_is_experiment_complete_max_trials(self, scheduler):
         """Test experiment completion when max_trials reached."""
-        from metta.adaptive.models import Observation
+        from datetime import datetime, timezone
 
-        # Create runs up to max_trials with COMPLETED status (needs observation)
+        # Create runs up to max_trials with COMPLETED status
         runs = [
             RunInfo(
                 run_id=f"trial_{i:04d}",
@@ -42,7 +42,10 @@ class TestTrainAndEvalScheduler:
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=True,
-                observation=Observation(score=0.5, cost=1.0, suggestion={}),
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
+                summary={"sweep/score": 0.5, "sweep/cost": 1.0, "sweep/suggestion": {}},
             )
             for i in range(scheduler.config.max_trials)
         ]

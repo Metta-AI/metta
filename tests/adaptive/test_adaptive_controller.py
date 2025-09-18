@@ -58,8 +58,7 @@ class TestAdaptiveController:
         assert controller.dispatcher is mock_dispatcher
         assert controller.store is mock_store
         assert controller.config is config
-        assert controller.on_eval_completed is None
-        assert controller.on_job_dispatch is None
+        # Hooks are not stored as attributes anymore, they're passed to run()
         assert controller.dispatched_jobs == set()
 
     def test_experiment_completion_check(self, controller, mock_scheduler, mock_store):
@@ -91,8 +90,8 @@ class TestAdaptiveController:
         # Verify job was dispatched
         mock_dispatcher.dispatch.assert_called_once_with(training_job)
 
-        # Verify run was initialized in store
-        mock_store.init_run.assert_called_once_with("test_run_001", group="test_experiment")
+        # Verify run was initialized in store with initial_summary
+        mock_store.init_run.assert_called_once_with("test_run_001", group="test_experiment", initial_summary={})
 
         # Verify job tracking
         expected_job_key = ("test_run_001", JobTypes.LAUNCH_TRAINING.value)
@@ -121,7 +120,6 @@ class TestAdaptiveController:
     def test_eval_completion_hook(self, controller, mock_store):
         """Test that eval completion hook is called correctly."""
         hook_mock = Mock()
-        controller.on_eval_completed = hook_mock
 
         # Setup: run with evaluation completed but not yet processed
         evaluated_run = RunInfo(
@@ -134,7 +132,7 @@ class TestAdaptiveController:
         # Mock experiment completion after processing
         controller.scheduler.is_experiment_complete.side_effect = [False, True]
 
-        controller.run()
+        controller.run(on_eval_completed=hook_mock)
 
         # Verify hook was called
         hook_mock.assert_called_once_with(evaluated_run, mock_store, [evaluated_run])
@@ -151,7 +149,6 @@ class TestAdaptiveController:
     def test_job_dispatch_hook(self, controller, mock_scheduler, mock_dispatcher, mock_store):
         """Test that job dispatch hook is called after store operations."""
         dispatch_hook = Mock()
-        controller.on_job_dispatch = dispatch_hook
 
         # Setup: scheduler provides one training job
         training_job = JobDefinition(
@@ -163,7 +160,7 @@ class TestAdaptiveController:
         mock_store.fetch_runs.return_value = []
         mock_scheduler.is_experiment_complete.side_effect = [False, True]
 
-        controller.run()
+        controller.run(on_job_dispatch=dispatch_hook)
 
         # Verify hook was called after dispatch and store init
         dispatch_hook.assert_called_once_with(training_job, mock_store)
