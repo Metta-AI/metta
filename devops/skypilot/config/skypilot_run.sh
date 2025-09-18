@@ -138,9 +138,9 @@ shutdown() {
   echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
 
   # Get termination reason
-  local termination_reason=$(cat "$TERMINATION_REASON_FILE" 2>/dev/null ||
-                            cat "$CLUSTER_STOP_FILE" 2>/dev/null ||
-                            echo "cluster_stop")
+  local termination_reason=$(cat "$TERMINATION_REASON_FILE" 2> /dev/null \
+    || cat "$CLUSTER_STOP_FILE" 2> /dev/null \
+    || echo "cluster_stop")
   echo "$termination_reason" > "$TERMINATION_REASON_FILE"
 
   echo "[SHUTDOWN] Initiating cluster shutdown"
@@ -149,7 +149,7 @@ shutdown() {
   if [[ "$IS_MASTER" == "true" ]]; then
     echo "$termination_reason" > "$CLUSTER_STOP_FILE"
     echo "[SHUTDOWN] Master signaled all nodes to begin shutdown"
-    sleep 20  # Give workers time to detect signal
+    sleep 20 # Give workers time to detect signal
   else
     # Worker waits for cluster-wide shutdown signal (max 20s)
     echo "[SHUTDOWN] Worker waiting for cluster-wide shutdown signal..."
@@ -167,96 +167,29 @@ shutdown() {
     local pid=$1 sig=$2 max_wait=$3
     local count=0
 
-    while kill -0 "$pid" 2>/dev/null && [ $count -lt $max_wait ]; do
+    while kill -0 "$pid" 2> /dev/null && [ $count -lt $max_wait ]; do
       sleep 1
       ((count++))
       [ $((count % 5)) -eq 0 ] && echo "[SHUTDOWN] Waiting for $sig shutdown... ${count}/${max_wait}s"
     done
 
     # Return 0 if process died, 1 if still alive
-    ! kill -0 "$pid" 2>/dev/null
+    ! kill -0 "$pid" 2> /dev/null
   }
 
   # Try graceful shutdown first
-  kill -TERM -"${CMD_PID}" 2>/dev/null || true
+  kill -TERM -"${CMD_PID}" 2> /dev/null || true
 
   if ! wait_for_exit "$CMD_PID" "graceful" 30; then
     echo "[SHUTDOWN] Process didn't terminate gracefully, using SIGKILL"
-    kill -KILL -"${CMD_PID}" 2>/dev/null || true
+    kill -KILL -"${CMD_PID}" 2> /dev/null || true
     wait_for_exit "$CMD_PID" "forced" 10 || echo "[SHUTDOWN] WARNING: Process may still be running"
   fi
 
   echo "[SHUTDOWN] Process $CMD_PID shutdown complete"
   exit 0
 }
-
 trap shutdown INT TERM HUP
-
-start_monitors() {
-  if [[ -n "${HEARTBEAT_TIMEOUT:-}" ]]; then
-    bash ./devops/skypilot/config/monitors/heartbeat_monitor.sh &
-    echo "[INFO] Started heartbeat monitor"
-  fi
-  if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]]; then
-    bash ./devops/skypilot/config/monitors/timeout_monitor.sh &
-    echo "[INFO] Started timeout monitor"
-  fi
-  if [[ -n "${CLUSTER_STOP_FILE:-}" ]]; then
-    bash ./devops/skypilot/config/monitors/cluster_stop_monitor.sh &
-    echo "[INFO] Started cluster-stop monitor"
-  fi
-  if [[ "$IS_MASTER" == "true" ]] && [[ "${TEST_JOB_RESTART:-false}" == "true" ]]; then
-    bash ./devops/skypilot/config/monitors/test_job_restart_monitor.sh &
-    echo "[INFO] Started test job restart monitor"
-  fi
-}
-
-run_cmd() {
-  echo "[INFO] Starting process (node rank: $RANK)"
-  local START_TIME=$(date +%s)
-
-  # Enable job control
-  set -m
-
-  # Build and run command
-  local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
-  [ -n "${METTA_ARGS:-}" ] && cmd+=(${METTA_ARGS})
-
-  echo "[INFO] Running command: ${cmd[*]}"
-  "${cmd[@]}" &
-  export CMD_PID=$!  # Only export needed for monitors
-
-  echo "[INFO] Started process with PID: $CMD_PID"
-  start_monitors
-
-  # Wait for process to exit
-  while kill -0 "$CMD_PID" 2>/dev/null; do
-      sleep 1
-  done
-
-  # Get exit code from job status
-  local JOB_INFO=$(jobs -l %1 2>&1 || echo "")
-  local CMD_EXIT=1  # Default to failure
-
-  if [[ "$JOB_INFO" =~ Exit\ ([0-9]+) ]]; then
-      CMD_EXIT=${BASH_REMATCH[1]}
-  elif [[ "$JOB_INFO" =~ Done ]]; then
-      CMD_EXIT=0
-  fi
-
-  echo "[INFO] Process exited with code $CMD_EXIT"
-  set +m
-
-  # Handle completion - only write job_completed if actually successful
-  if [[ ! -s "${TERMINATION_REASON_FILE:-}" ]] && [[ "$IS_MASTER" == "true" ]] && [[ $CMD_EXIT -eq 0 ]]; then
-        echo "job_completed" > "$TERMINATION_REASON_FILE"
-  fi
-
-  local DURATION=$(($(date +%s) - START_TIME))
-  echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
-
-  return $CMD_EXIT
-}
 
 source ./devops/skypilot/config/lifecycle/cleanup_handler.sh
 trap cleanup EXIT
@@ -287,8 +220,64 @@ else
   fi
 fi
 
-echo "calling run_cmd"
-run_cmd
+echo "[INFO] Starting process (node rank: $RANK)"
+local START_TIME=$(date +%s)
 
-echo "calling shutdown"
+# Enable job control
+set -m
+
+# Build and run command
+local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
+[ -n "${METTA_ARGS:-}" ] && cmd+=(${METTA_ARGS})
+
+echo "[INFO] Running command: ${cmd[*]}"
+"${cmd[@]}" &
+export CMD_PID=$! # Only export needed for monitors
+
+echo "[INFO] Started process with PID: $CMD_PID"
+
+# start_monitors
+if [[ -n "${HEARTBEAT_TIMEOUT:-}" ]]; then
+  bash ./devops/skypilot/config/monitors/heartbeat_monitor.sh &
+  echo "[INFO] Started heartbeat monitor"
+fi
+if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]]; then
+  bash ./devops/skypilot/config/monitors/timeout_monitor.sh &
+  echo "[INFO] Started timeout monitor"
+fi
+if [[ -n "${CLUSTER_STOP_FILE:-}" ]]; then
+  bash ./devops/skypilot/config/monitors/cluster_stop_monitor.sh &
+  echo "[INFO] Started cluster-stop monitor"
+fi
+if [[ "$IS_MASTER" == "true" ]] && [[ "${TEST_JOB_RESTART:-false}" == "true" ]]; then
+  bash ./devops/skypilot/config/monitors/test_job_restart_monitor.sh &
+  echo "[INFO] Started test job restart monitor"
+fi
+
+# Wait for process to exit
+while kill -0 "$CMD_PID" 2> /dev/null; do
+  sleep 1
+done
+
+# Get exit code from job status
+local JOB_INFO=$(jobs -l %1 2>&1 || echo "")
+local CMD_EXIT=1 # Default to failure
+
+if [[ "$JOB_INFO" =~ Exit\ ([0-9]+) ]]; then
+  CMD_EXIT=${BASH_REMATCH[1]}
+elif [[ "$JOB_INFO" =~ Done ]]; then
+  CMD_EXIT=0
+fi
+
+echo "[INFO] Process exited with code $CMD_EXIT"
+set +m
+
+# Handle completion - only write job_completed if actually successful
+if [[ ! -s "${TERMINATION_REASON_FILE:-}" ]] && [[ "$IS_MASTER" == "true" ]] && [[ $CMD_EXIT -eq 0 ]]; then
+  echo "job_completed" > "$TERMINATION_REASON_FILE"
+fi
+
+local DURATION=$(($(date +%s) - START_TIME))
+echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
+
 shutdown

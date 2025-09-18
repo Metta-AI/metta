@@ -19,7 +19,7 @@ cleanup() {
   CMD_EXIT=${CMD_EXIT:-$?}
 
   # Read termination reason
-  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || echo "")
+  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2> /dev/null || echo "")
   echo "[INFO] Termination reason: $TERMINATION_REASON"
 
   # Master-only: Handle notifications and status updates
@@ -114,7 +114,6 @@ handle_master_cleanup() {
   uv run devops/skypilot/config/observability/set_github_status.py "$GITHUB_STATUS_STATE" "$GITHUB_STATUS_DESCRIPTION"
 }
 
-
 print_final_summary() {
   echo "[SUMMARY] ===== Job Summary ====="
   echo "[SUMMARY] Metta Run ID: ${METTA_RUN_ID}"
@@ -142,46 +141,46 @@ determine_final_exit_code() {
 }
 
 print_job_debug_report() {
-    local report=""
+  local report=""
 
-    report+="[DEBUG] ========== JOB DEBUG REPORT ==========\n"
-    report+="[DEBUG] Timestamp: $(date '+%Y-%m-%d %H:%M:%S')\n"
-    report+="[DEBUG] Script PID: $$\n"
-    report+="[DEBUG] CMD_PID: ${CMD_PID:-'not set'}\n"
+  report+="[DEBUG] ========== JOB DEBUG REPORT ==========\n"
+  report+="[DEBUG] Timestamp: $(date '+%Y-%m-%d %H:%M:%S')\n"
+  report+="[DEBUG] Script PID: $$\n"
+  report+="[DEBUG] CMD_PID: ${CMD_PID:-'not set'}\n"
 
-    # Check current job status
-    report+="[DEBUG] Current job table:\n"
-    report+="$(jobs -l 2>&1 || echo '  No jobs found')\n"
+  # Check current job status
+  report+="[DEBUG] Current job table:\n"
+  report+="$(jobs -l 2>&1 || echo '  No jobs found')\n"
 
-    # Check all background jobs
-    report+="[DEBUG] Background job PIDs:\n"
-    report+="$(jobs -p 2>&1 || echo '  No background jobs')\n"
+  # Check all background jobs
+  report+="[DEBUG] Background job PIDs:\n"
+  report+="$(jobs -p 2>&1 || echo '  No background jobs')\n"
 
-    # Check process group (python -m mode has PGID = CMD_PID)
-    report+="[DEBUG] Process group ${CMD_PID} members:\n"
-    report+="$(ps -eo pid,ppid,pgid,state,etime,cmd | grep "^\s*[0-9]\+\s\+[0-9]\+\s\+${CMD_PID}" 2>&1 || echo '  No processes found in group')\n"
+  # Check process group (python -m mode has PGID = CMD_PID)
+  report+="[DEBUG] Process group ${CMD_PID} members:\n"
+  report+="$(ps -eo pid,ppid,pgid,state,etime,cmd | grep "^\s*[0-9]\+\s\+[0-9]\+\s\+${CMD_PID}" 2>&1 || echo '  No processes found in group')\n"
 
-    # Check for any child processes of this script
-    report+="[DEBUG] Child processes of script (PID $$):\n"
-    report+="$(ps --ppid $$ -o pid,ppid,pgid,state,etime,cmd 2>&1 || echo '  No child processes found')\n"
+  # Check for any child processes of this script
+  report+="[DEBUG] Child processes of script (PID $$):\n"
+  report+="$(ps --ppid $$ -o pid,ppid,pgid,state,etime,cmd 2>&1 || echo '  No child processes found')\n"
 
-    # Check for zombie processes
-    report+="[DEBUG] Zombie processes:\n"
-    report+="$(ps aux | grep ' <defunct>' | grep -v grep || echo '  No zombie processes found')\n"
+  # Check for zombie processes
+  report+="[DEBUG] Zombie processes:\n"
+  report+="$(ps aux | grep ' <defunct>' | grep -v grep || echo '  No zombie processes found')\n"
 
-    # Check for processes matching the module name
-    if [[ -n "${METTA_MODULE_PATH:-}" ]]; then
-        local module_name=$(basename "${METTA_MODULE_PATH}")
-        report+="[DEBUG] Processes matching module '$module_name':\n"
-        report+="$(ps aux | grep "$module_name" | grep -v grep || echo '  No matching processes found')\n"
-    fi
+  # Check for processes matching the module name
+  if [[ -n "${METTA_MODULE_PATH:-}" ]]; then
+    local module_name=$(basename "${METTA_MODULE_PATH}")
+    report+="[DEBUG] Processes matching module '$module_name':\n"
+    report+="$(ps aux | grep "$module_name" | grep -v grep || echo '  No matching processes found')\n"
+  fi
 
-    # Check monitor processes if they exist
-    report+="[DEBUG] Monitor processes:\n"
-    report+="$(ps aux | grep -E '(monitor_gpu|monitor_memory|cluster_stop_monitor)' | grep -v grep || echo '  No monitor processes found')\n"
+  # Check monitor processes if they exist
+  report+="[DEBUG] Monitor processes:\n"
+  report+="$(ps aux | grep -E '(monitor_gpu|monitor_memory|cluster_stop_monitor)' | grep -v grep || echo '  No monitor processes found')\n"
 
-    report+="[DEBUG] ========== END DEBUG REPORT ==========\n"
+  report+="[DEBUG] ========== END DEBUG REPORT ==========\n"
 
-    # Output everything at once
-    echo -ne "$report"
+  # Output everything at once
+  echo -ne "$report"
 }
