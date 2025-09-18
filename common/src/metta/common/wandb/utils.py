@@ -224,11 +224,11 @@ def upload_file_as_artifact(
 
     # Add any additional files
     if additional_files:
-        for file_path in additional_files:
-            if Path(file_path).exists():
-                artifact.add_file(file_path)
+        for additional_file_path in additional_files:
+            if Path(additional_file_path).exists():
+                artifact.add_file(additional_file_path)
             else:
-                logger.warning(f"Additional file not found: {file_path}")
+                logger.warning(f"Additional file not found: {additional_file_path}")
 
     # Log artifact to run
     run.log_artifact(artifact)
