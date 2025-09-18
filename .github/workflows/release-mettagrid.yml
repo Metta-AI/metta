@@ -58,7 +58,7 @@ jobs:
       - uses: pypa/cibuildwheel@v2.16.5
         env:
           CIBW_BUILD: cp311-*
-          CIBW_SKIP: "*-musllinux*"
+          CIBW_SKIP: "*-musllinux* *i686"
           CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-14' && 'arm64' || 'x86_64' }}
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: |
