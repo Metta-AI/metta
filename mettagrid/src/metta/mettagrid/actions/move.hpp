@@ -59,7 +59,8 @@ protected:
     // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
     // objects without using them.
     if (!_grid->is_empty(target_location.r, target_location.c)) {
-      GridObject* target = _grid->object_at(target_location);
+      GridLocation object_location = {target_location.r, target_location.c, GridLayer::ObjectLayer};
+      GridObject* target = _grid->object_at(object_location);
       Usable* usable = dynamic_cast<Usable*>(target);
       if (usable) {
         return usable->onUse(actor, arg);
