@@ -1,12 +1,11 @@
 #ifndef OBJECTS_RECIPE_HPP_
 #define OBJECTS_RECIPE_HPP_
 
-#include <map>
-#include <memory>
-
-// Pybind for Recipe exposure
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
+#include <map>
+#include <memory>
 
 #include "types.hpp"
 
