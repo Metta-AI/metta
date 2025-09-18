@@ -1,37 +1,36 @@
-from typing import Optional
-
 import pufferlib.pytorch
 import torch.nn as nn
 import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 
-from metta.mettagrid.config import Config
+from metta.agent.components.component_config import ComponentConfig
 
 
-class CNNEncoderConfig(Config):
+class CNNEncoderConfig(ComponentConfig):
     """This class hardcodes for two CNNs and a two layer MLP. The box shaper and obs normalizer are not configurable."""
 
-    in_key: str = "box_obs"
-    out_key: str = "encoded_obs"
+    in_key: str
+    out_key: str
+    name: str = "cnn_encoder"
     cnn1_cfg: dict = Field(default_factory=lambda: {"out_channels": 64, "kernel_size": 5, "stride": 3})
     cnn2_cfg: dict = Field(default_factory=lambda: {"out_channels": 64, "kernel_size": 3, "stride": 1})
     fc1_cfg: dict = Field(default_factory=lambda: {"out_features": 128})
     encoded_obs_cfg: dict = Field(default_factory=lambda: {"out_features": 128})
-    num_layers: int = 0  # needs to be set before instantiating the CNNEncoder but allowing a default of 0 so it can be
-    # set programatically in the policy class.
 
-    def instantiate(self):
-        return CNNEncoder(config=self)
+    def make_component(self, env=None):
+        return CNNEncoder(config=self, env=env)
 
 
 class CNNEncoder(nn.Module):
-    def __init__(self, config: Optional[CNNEncoderConfig] = None):
+    def __init__(self, config: CNNEncoderConfig, env=None):
         super().__init__()
-        self.config = config or CNNEncoderConfig()
+        self.config = config
+
+        num_layers = max(env.feature_normalizations.keys()) + 1
 
         self.cnn1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(self.config.num_layers, **self.config.cnn1_cfg),
+            nn.Conv2d(num_layers, **self.config.cnn1_cfg),
             std=1.0,  # Match YAML orthogonal gain=1
         )
 

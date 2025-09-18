@@ -6,16 +6,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tensordict import TensorDict
 
-from metta.mettagrid.config import Config
+from metta.agent.components.component_config import ComponentConfig
 
 
-class ActorQueryConfig(Config):
+class ActorQueryConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "actor_query"
     hidden_size: int = 512
     embed_dim: int = 16
-    in_key: str = "hidden"
-    out_key: str = "query"
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ActorQuery(config=self)
 
 
@@ -27,9 +28,9 @@ class ActorQuery(nn.Module):
     Uses a lazy linear for the input
     """
 
-    def __init__(self, config: Optional[ActorQueryConfig] = None):
+    def __init__(self, config: ActorQueryConfig):
         super().__init__()
-        self.config = config or ActorQueryConfig()
+        self.config = config
         self.hidden_size = self.config.hidden_size  # input_1 dim
         self.embed_dim = self.config.embed_dim  # input_2 dim (_action_embeds_)
         self.in_key = self.config.in_key
@@ -59,14 +60,15 @@ class ActorQuery(nn.Module):
         return td
 
 
-class ActorKeyConfig(Config):
+class ActorKeyConfig(ComponentConfig):
+    query_key: str
+    embedding_key: str
+    out_key: str
+    name: str = "actor_key"
     hidden_size: int = 128
     embed_dim: int = 16
-    query_key: str = "query"
-    embedding_key: str = "action_embeddings"
-    out_key: str = "logits"
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ActorKey(config=self)
 
 
@@ -75,9 +77,9 @@ class ActorKey(nn.Module):
     Computes action scores based on a query and action embeddings (keys).
     """
 
-    def __init__(self, config: Optional[ActorKeyConfig] = None):
+    def __init__(self, config: ActorKeyConfig):
         super().__init__()
-        self.config = config or ActorKeyConfig()
+        self.config = config
         self.hidden_size = self.config.hidden_size
         self.embed_dim = self.config.embed_dim
         self.query_key = self.config.query_key
@@ -108,10 +110,11 @@ class ActorKey(nn.Module):
         return td
 
 
-class ActionProbsConfig(Config):
-    in_key: str = "logits"
+class ActionProbsConfig(ComponentConfig):
+    in_key: str
+    name: str = "action_probs"
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ActionProbs(config=self)
 
 
@@ -120,9 +123,9 @@ class ActionProbs(nn.Module):
     Computes action scores based on a query and action embeddings (keys).
     """
 
-    def __init__(self, config: Optional[ActionProbsConfig] = None):
+    def __init__(self, config: ActionProbsConfig):
         super().__init__()
-        self.config = config or ActionProbsConfig()
+        self.config = config
 
     def initialize_to_environment(
         self,

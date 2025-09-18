@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -6,7 +6,7 @@ from einops import rearrange
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.mettagrid.config import Config
+from metta.agent.components.component_config import ComponentConfig
 
 
 class LstmTrainStep(nn.Module):
@@ -34,14 +34,15 @@ class LstmTrainStep(nn.Module):
         return hidden, (h_t, c_t)
 
 
-class LSTMResetConfig(Config):
+class LSTMResetConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "lstm_reset"
     latent_size: int = 128
     hidden_size: int = 128
     num_layers: int = 2
-    in_key: str = "encoded_obs"
-    out_key: str = "hidden"
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return LSTMReset(config=self)
 
 
@@ -59,9 +60,9 @@ class LSTMReset(nn.Module):
     limitation imposed by prioritized experience replay - it doesn't let us pull from segments in temporal order.
     """
 
-    def __init__(self, config: Optional[LSTMResetConfig] = None):
+    def __init__(self, config: LSTMResetConfig):
         super().__init__()
-        self.config = config or LSTMResetConfig()
+        self.config = config
         self.latent_size = self.config.latent_size
         self.hidden_size = self.config.hidden_size
         self.num_layers = self.config.num_layers

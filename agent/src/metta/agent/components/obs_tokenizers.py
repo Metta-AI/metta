@@ -1,19 +1,18 @@
-from typing import Optional
-
 import einops
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.mettagrid.config import Config
+from metta.agent.components.component_config import ComponentConfig
 
 
-class ObsAttrCoordEmbedConfig(Config):
-    in_key: str = "obs_attr_val_norm"
-    out_key: str = "obs_attr_coord_embed"
+class ObsAttrCoordEmbedConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "obs_attr_coord_embed"
     attr_embed_dim: int
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ObsAttrCoordEmbed(config=self)
 
 
@@ -23,10 +22,10 @@ class ObsAttrCoordEmbed(nn.Module):
 
     def __init__(
         self,
-        config: Optional[ObsAttrCoordEmbedConfig] = None,
+        config: ObsAttrCoordEmbedConfig,
     ) -> None:
         super().__init__()
-        self.config = config or ObsAttrCoordEmbedConfig()
+        self.config = config
         self._attr_embed_dim = self.config.attr_embed_dim  # Dimension of attribute embeddings
         self._value_dim = 1
         self._feat_dim = self._attr_embed_dim + self._value_dim
@@ -71,13 +70,14 @@ class ObsAttrCoordEmbed(nn.Module):
         return td
 
 
-class ObsAttrEmbedFourierConfig(Config):
+class ObsAttrEmbedFourierConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "obs_attr_embed_fourier"
     attr_embed_dim: int = 12
     num_freqs: int = 6
-    in_key: str = "obs_attr_val_norm"
-    out_key: str = "obs_attr_embed_fourier"
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ObsAttrEmbedFourier(config=self)
 
 
@@ -95,9 +95,9 @@ class ObsAttrEmbedFourier(nn.Module):
     - `1` is for the scalar attribute value that is concatenated at the end.
     """
 
-    def __init__(self, config: Optional[ObsAttrEmbedFourierConfig] = None) -> None:
+    def __init__(self, config: ObsAttrEmbedFourierConfig) -> None:
         super().__init__()
-        self.config = config or ObsAttrEmbedFourierConfig()
+        self.config = config
         self._attr_embed_dim = self.config.attr_embed_dim  # Dimension of attribute embeddings
         self._num_freqs = self.config.num_freqs  # fourier feature frequencies
         self._coord_rep_dim = 4 * self._num_freqs  # x, y, sin, cos for each freq
@@ -172,12 +172,13 @@ class ObsAttrEmbedFourier(nn.Module):
         return td
 
 
-class ObsAttrCoordValueEmbedConfig(Config):
+class ObsAttrCoordValueEmbedConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "obs_attr_coord_value_embed"
     attr_embed_dim: int = 12
-    in_key: str = "obs_attr_val_norm"
-    out_key: str = "obs_attr_coord_value_embed"
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ObsAttrCoordValueEmbed(config=self)
 
 
@@ -185,9 +186,9 @@ class ObsAttrCoordValueEmbed(nn.Module):
     """An experiment that embeds attr value as a categorical variable. Using a normalization layer is not
     recommended."""
 
-    def __init__(self, config: Optional[ObsAttrCoordValueEmbedConfig] = None) -> None:
+    def __init__(self, config: ObsAttrCoordValueEmbedConfig) -> None:
         super().__init__()
-        self.config = config or ObsAttrCoordValueEmbedConfig()
+        self.config = config
         self._attr_embed_dim = self.config.attr_embed_dim  # Dimension of attribute embeddings
         self._value_dim = 1
         self._max_embeds = 256
