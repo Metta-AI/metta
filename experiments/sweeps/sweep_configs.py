@@ -274,27 +274,43 @@ PPO_FULL = ProteinConfig(
 )
 
 LP_CONFIG = custom_config(base_config=PPO_BASIC, parameters={
-    "trainer.optimizer.beta1": ParameterConfig(
+    "lp_params.progress_smoothing": ParameterConfig(
         distribution="logit_normal",
-        min=0.8,
-        max=0.95,
-        mean=0.9,
+        min=0.05,
+        max=0.15,
+        mean=0.1,
         scale="auto",
     ),
 
-    "trainer.optimizer.beta2": ParameterConfig(
+    "lp_params.exploration_bonus": ParameterConfig(
         distribution="logit_normal",
-        min=0.99,
-        max=0.999,
-        mean=0.999,
+        min=0.03,
+        max=0.15,
+        mean=0.09,
         scale="auto",
     ),
 
-    "trainer.optimizer.eps": ParameterConfig(
+    "lp_params.ema_timescale": ParameterConfig(
+        distribution="uniform",
+        min=0.001,
+        max=0.01,
+        mean=0.001,
+        scale="auto",
+    ),
+
+    "lp_params.num_active_tasks": ParameterConfig(
         distribution="log_normal",
-        min=1e-9,
-        max=1e-7,
-        mean=1e-8,
+        min=1000,
+        max=5000,
+        mean=1000,
+        scale="auto",
+    ),
+
+    "lp_params.rand_task_rate": ParameterConfig(
+        distribution="uniform",
+        min=0.1,
+        max=0.25,
+        mean=0.175,
         scale="auto",
     ),
 })
