@@ -20,6 +20,9 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     DistributedHelper,
     EvaluatorConfig,
+    PolicyCheckpointer,
+    PolicyCheckpointerConfig,
+    PolicyUploader,
     PolicyUploaderConfig,
     TrainerCheckpointerConfig,
 )
@@ -48,6 +51,7 @@ class TrainTool(Tool):
     policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
     initial_policy_uri: Optional[str] = None
     policy_uploader: PolicyUploaderConfig = Field(default_factory=PolicyUploaderConfig)
+    policy_checkpointer: PolicyCheckpointerConfig = Field(default_factory=PolicyCheckpointerConfig)
 
     stats_server_uri: Optional[str] = auto_stats_server_uri()
     wandb: WandbConfig = WandbConfig.Unconfigured()
@@ -122,15 +126,22 @@ class TrainTool(Tool):
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
-        policy = self.policy_architecture.make_policy(env.meta_data)
 
-        checkpoint_base_dir = (
-            Path(self.run_dir).parent if self.run_dir else Path(self.system.data_dir)
-        )
         checkpoint_manager = CheckpointManager(
             run=self.run or "default",
-            run_dir=str(checkpoint_base_dir),
+            run_dir=self.run_dir or str(Path(self.system.data_dir)),
             remote_prefix=self.trainer.checkpoint.remote_prefix,
+        )
+
+        policy_checkpointer = PolicyCheckpointer(
+            config=self.policy_checkpointer,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+        )
+        policy = policy_checkpointer.load_or_create_policy(
+            env.meta_data,
+            self.policy_architecture,
+            policy_uri=self.initial_policy_uri,
         )
 
         trainer = Trainer(
@@ -146,6 +157,7 @@ class TrainTool(Tool):
             distributed_helper=distributed_helper,
         )
         trainer.register(trainer_checkpointer)
+        trainer.register(policy_checkpointer)
 
         if distributed_helper.is_master():
             logger.info(f"Training environment: {env}")
@@ -160,6 +172,16 @@ class TrainTool(Tool):
 
         try:
             with wandb_manager as wandb_run:
+                if distributed_helper.is_master():
+                    policy_uploader = PolicyUploader(
+                        config=self.policy_uploader,
+                        checkpoint_manager=checkpoint_manager,
+                        distributed_helper=distributed_helper,
+                        policy_checkpointer=policy_checkpointer,
+                        wandb_run=wandb_run,
+                    )
+                    trainer.register(policy_uploader)
+
                 if wandb_run is not None and distributed_helper.is_master():
                     trainer.register(WandbLoggerComponent(wandb_run))
 

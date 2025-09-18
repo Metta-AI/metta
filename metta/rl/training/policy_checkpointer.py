@@ -1,7 +1,9 @@
 """Policy checkpoint management component."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.mettagrid.config import Config
@@ -17,7 +19,7 @@ class PolicyCheckpointerConfig(Config):
     """Configuration for policy checkpointing."""
 
     epoch_interval: int = 100
-    """How often to save policy checkpoints (in epochs)"""
+    """How often to save policy checkpoints (in epochs)."""
 
 
 class PolicyCheckpointer(TrainerComponent):
@@ -25,133 +27,113 @@ class PolicyCheckpointer(TrainerComponent):
 
     def __init__(
         self,
+        *,
         config: PolicyCheckpointerConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
-    ):
-        """Initialize policy checkpointer.
+    ) -> None:
+        super().__init__(epoch_interval=max(1, config.epoch_interval))
+        self._config = config
+        self._checkpoint_manager = checkpoint_manager
+        self._distributed = distributed_helper
+        self._latest_policy_uri: Optional[str] = None
 
-        Args:
-            config: Policy checkpointer configuration
-            checkpoint_manager: Checkpoint manager for saving/loading
-            distributed_helper: Helper for distributed training
-        """
-        super().__init__(config)
-        self.checkpoint_manager = checkpoint_manager
-        self.distributed = distributed_helper
-        self.config = config
+    # ------------------------------------------------------------------
+    # Registration helpers
+    # ------------------------------------------------------------------
+    def register(self, trainer) -> None:  # type: ignore[override]
+        super().register(trainer)
+        trainer.policy_checkpointer = self
 
+    # ------------------------------------------------------------------
+    # Public helpers
+    # ------------------------------------------------------------------
     def load_or_create_policy(
         self,
-        env: EnvironmentMetaData,
+        env_metadata: EnvironmentMetaData,
         policy_architecture: PolicyArchitecture,
+        *,
         policy_uri: Optional[str] = None,
     ) -> Policy:
-        """Load policy from checkpoint/URI or create new one.
+        """Load the latest policy checkpoint or create a new policy."""
 
-        Args:
-            env: Environment for agent initialization
-            policy_architecture_cfg: Policy architecture configuration
-            policy_uri: Optional URI to load policy from (e.g., 'wandb://...' or 'file://...')
+        policy: Optional[Policy] = None
+        candidate_uri: Optional[str] = policy_uri
 
-        Returns:
-            Policy
-        """
-        existing_policy = None
+        if candidate_uri is None:
+            existing = self._checkpoint_manager.select_checkpoints("latest", count=1)
+            candidate_uri = existing[0] if existing else None
 
-        if self.distributed.is_master():
-            # Try to load from URI first if provided
-            if policy_uri:
-                logger.info(f"Loading policy from URI: {policy_uri}")
-                try:
-                    existing_policy = self.checkpoint_manager.load_policy_from_uri(uri=policy_uri)
-                except Exception as e:
-                    logger.error(f"Failed to load from URI: {e}")
-                    raise
+        if self._distributed.is_master() and candidate_uri:
+            normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
+            try:
+                policy = self._checkpoint_manager.load_from_uri(normalized_uri)
+                self._latest_policy_uri = normalized_uri
+                logger.info("Loaded policy from %s", normalized_uri)
+            except FileNotFoundError:
+                logger.warning("Policy checkpoint %s not found; training will start fresh", normalized_uri)
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.warning("Failed to load policy from %s: %s", normalized_uri, exc)
 
-        # Broadcast agent from master to all workers
-        existing_policy = self.distributed.broadcast_from_master(existing_policy)
+        policy = self._distributed.broadcast_from_master(policy)
+        if policy is not None:
+            return policy
 
-        if existing_policy:
-            logger.info("Using loaded policy")
-            return existing_policy
-
-        # Create new agent if no checkpoint exists
-        logger.info("Creating new agent from scratch")
-        new_policy = policy_architecture.make_policy(
-            env_metadata=env.meta_data,
-            policy_architecture_cfg=policy_architecture,
-        )
-        return new_policy
-
-    def save_policy(
-        self,
-        policy: Policy,
-        epoch: int,
-        metadata: Optional[Dict[str, Any]] = None,
-        force: bool = False,
-    ) -> Optional[str]:
-        """Save policy checkpoint.
-
-        Args:
-            policy: Policy to save
-            epoch: Current epoch
-            metadata: Optional metadata to save with checkpoint
-            force: Force save even if not at interval
-
-        Returns:
-            Checkpoint URI if saved, else None
-        """
-        if not self.distributed.should_checkpoint():
-            return None
-
-        if not force and epoch % self.config.epoch_interval != 0:
-            return None
-
-        # Save checkpoint
-        checkpoint_uri = self.checkpoint_manager.save_policy_checkpoint(
-            policy=policy,
-            epoch=epoch,
-            metadata=metadata or {},
-        )
-
-        if checkpoint_uri:
-            logger.info(f"Saved policy checkpoint at epoch {epoch}: {checkpoint_uri}")
-
-        return checkpoint_uri
-
-    def save_policy_to_buffer(self, policy: Policy) -> bytes:
-        """Save policy to bytes buffer.
-
-        Args:
-            policy: Policy to save
-
-        Returns:
-            Policy as bytes
-        """
-        return self.checkpoint_manager.save_policy_checkpoint_to_buffer(policy)
+        logger.info("Creating new policy for training run")
+        return policy_architecture.make_policy(env_metadata)
 
     def get_latest_policy_uri(self) -> Optional[str]:
-        """Get URI for the latest policy checkpoint.
+        """Return the most recent checkpoint URI tracked by this component."""
+        if self._latest_policy_uri:
+            return self._latest_policy_uri
+        latest = self._checkpoint_manager.select_checkpoints("latest", count=1)
+        return latest[0] if latest else None
 
-        Returns:
-            Policy checkpoint URI or None if no checkpoint exists
-        """
-        checkpoint_uris = self.checkpoint_manager.select_policy_checkpoints("latest", count=1)
-        return checkpoint_uris[0] if checkpoint_uris else None
+    # ------------------------------------------------------------------
+    # Callback entry-points
+    # ------------------------------------------------------------------
+    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
+        trainer = self._trainer
+        if trainer is None or not self._distributed.should_checkpoint():
+            return
 
-    def on_epoch_end(self, trainer: Any, epoch: int) -> None:
-        """Save policy checkpoint at epoch end if due."""
+        if epoch % self._config.epoch_interval != 0:
+            return
 
-        # Build metadata
+        self._save_policy(trainer, epoch, force=False)
+
+    def on_training_complete(self) -> None:  # type: ignore[override]
+        trainer = self._trainer
+        if trainer is None or not self._distributed.should_checkpoint():
+            return
+
+        self._save_policy(trainer, trainer.epoch, force=True)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _policy_to_save(self, trainer) -> Policy:
+        policy: Policy = trainer.policy
+        if hasattr(policy, "module"):
+            return policy.module  # type: ignore[return-value]
+        return policy
+
+    def _collect_metadata(self, trainer, epoch: int, *, is_final: bool = False) -> dict:
+        elapsed_breakdown = trainer.stopwatch.get_all_elapsed()
         metadata = {
             "epoch": epoch,
-            "agent_step": trainer.trainer_state.agent_step,
+            "agent_step": trainer.agent_step,
+            "total_time": trainer.stopwatch.get_elapsed(),
+            "total_train_time": elapsed_breakdown.get("_rollout", 0)
+            + elapsed_breakdown.get("_train", 0),
+            "is_final": is_final,
         }
-
-        # Add evaluation scores if available
-        if hasattr(trainer, "evaluator") and trainer.evaluator:
-            eval_scores = trainer.evaluator.get_latest_scores()
+        evaluator = getattr(trainer, "evaluator", None)
+        if evaluator is not None:
+            try:
+                eval_scores = evaluator.get_latest_scores()
+            except AttributeError:
+                eval_scores = None
             if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
                 metadata.update(
                     {
@@ -159,47 +141,15 @@ class PolicyCheckpointer(TrainerComponent):
                         "avg_reward": eval_scores.avg_category_score,
                     }
                 )
+        return metadata
 
-        # Save policy
-        self.save_policy(
-            policy=trainer.policy,
-            epoch=epoch,
-            metadata=metadata,
-        )
+    def _save_policy(self, trainer, epoch: int, *, force: bool) -> None:
+        policy = self._policy_to_save(trainer)
+        metadata = self._collect_metadata(trainer, epoch, is_final=force)
 
-    def on_training_complete(self, trainer: Any) -> None:
-        """Save final policy checkpoint when training completes.
+        if not force and epoch % self._config.epoch_interval != 0:
+            return
 
-        Args:
-            trainer: The trainer instance
-        """
-        # Build final metadata
-        metadata = {
-            "agent_step": trainer.trainer_state.agent_step,
-            "epoch": trainer.trainer_state.epoch,
-            "total_time": trainer.timer.get_elapsed(),
-            "total_train_time": (
-                trainer.timer.get_all_elapsed().get("_rollout", 0) + trainer.timer.get_all_elapsed().get("_train", 0)
-            ),
-            "is_final": True,
-            "upload_to_wandb": False,
-        }
-
-        # Add final evaluation scores if available
-        if hasattr(trainer, "evaluator") and trainer.evaluator:
-            eval_scores = trainer.evaluator.get_latest_scores()
-            if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
-                metadata.update(
-                    {
-                        "score": eval_scores.avg_simulation_score,
-                        "avg_reward": eval_scores.avg_category_score,
-                    }
-                )
-
-        # Save final policy checkpoint
-        self.save_policy(
-            policy=trainer.policy,
-            epoch=trainer.trainer_state.epoch,
-            metadata=metadata,
-            force=True,  # Force save final checkpoint
-        )
+        uri = self._checkpoint_manager.save_agent(policy, epoch, metadata)
+        self._latest_policy_uri = uri
+        logger.debug("Policy checkpoint saved to %s", uri)

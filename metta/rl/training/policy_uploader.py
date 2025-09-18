@@ -1,10 +1,18 @@
 """Policy upload management component for wandb and other destinations."""
 
+from __future__ import annotations
+
 import logging
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
+
+import wandb
 
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.config import Config
+from metta.mettagrid.util.file import local_copy
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
@@ -16,7 +24,7 @@ class PolicyUploaderConfig(Config):
     """Configuration for policy uploading."""
 
     epoch_interval: int = 1000
-    """How often to upload policy to wandb (in epochs)"""
+    """How often to upload policy to wandb (in epochs)."""
 
 
 class PolicyUploader(TrainerComponent):
@@ -24,135 +32,145 @@ class PolicyUploader(TrainerComponent):
 
     def __init__(
         self,
+        *,
         config: PolicyUploaderConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
+        policy_checkpointer,
         wandb_run: Optional[WandbRun] = None,
-    ):
-        """Initialize policy uploader.
+    ) -> None:
+        super().__init__(epoch_interval=max(1, config.epoch_interval))
+        self._config = config
+        self._checkpoint_manager = checkpoint_manager
+        self._distributed = distributed_helper
+        self._policy_checkpointer = policy_checkpointer
+        self._wandb_run = wandb_run
 
-        Args:
-            config: Policy uploader configuration
-            checkpoint_manager: Checkpoint manager for uploading
-            distributed_helper: Helper for distributed training
-            wandb_run: Optional wandb run for uploading
-        """
-        super().__init__(config)
-        self.checkpoint_manager = checkpoint_manager
-        self.distributed = distributed_helper
-        self.wandb_run = wandb_run
-        self.config = config
+    def update_wandb_run(self, wandb_run: Optional[WandbRun]) -> None:
+        self._wandb_run = wandb_run
 
-    def upload_to_wandb(
+    # ------------------------------------------------------------------
+    # Callback entry-points
+    # ------------------------------------------------------------------
+    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
+        if not self._should_upload(epoch):
+            return
+
+        trainer = self._trainer
+        if trainer is None:
+            return
+
+        checkpoint_uri = self._policy_checkpointer.get_latest_policy_uri()
+        if not checkpoint_uri:
+            logger.debug("PolicyUploader: no checkpoint available for epoch %s", epoch)
+            return
+
+        metadata = {
+            "epoch": epoch,
+            "agent_step": trainer.agent_step,
+        }
+        metadata.update(self._evaluation_metadata(trainer))
+
+        self._upload(checkpoint_uri, epoch, metadata)
+
+    def on_training_complete(self) -> None:  # type: ignore[override]
+        trainer = self._trainer
+        if trainer is None:
+            return
+
+        checkpoint_uri = self._policy_checkpointer.get_latest_policy_uri()
+        if not checkpoint_uri:
+            logger.debug("PolicyUploader: no checkpoint available for final upload")
+            return
+
+        metadata = {
+            "epoch": trainer.epoch,
+            "agent_step": trainer.agent_step,
+            "final": True,
+        }
+        metadata.update(self._evaluation_metadata(trainer))
+
+        self._upload(checkpoint_uri, trainer.epoch, metadata, force=True)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _should_upload(self, epoch: int) -> bool:
+        if not self._distributed.should_checkpoint():
+            return False
+        if self._wandb_run is None:
+            return False
+        if epoch % self._config.epoch_interval != 0:
+            return False
+        return True
+
+    def _evaluation_metadata(self, trainer) -> dict[str, Any]:
+        evaluator = getattr(trainer, "evaluator", None)
+        if evaluator is None:
+            return {}
+        try:
+            scores = evaluator.get_latest_scores()
+        except AttributeError:
+            return {}
+        if not scores or not (scores.category_scores or scores.simulation_scores):
+            return {}
+        return {
+            "score": scores.avg_simulation_score,
+            "avg_reward": scores.avg_category_score,
+        }
+
+    def _upload(
         self,
         checkpoint_uri: str,
         epoch: int,
         metadata: Optional[Dict[str, Any]] = None,
+        *,
         force: bool = False,
     ) -> Optional[str]:
-        """Upload checkpoint to wandb.
-
-        Args:
-            checkpoint_uri: URI of checkpoint to upload
-            epoch: Current epoch
-            metadata: Optional metadata to include
-            force: Force upload even if not at interval
-
-        Returns:
-            Wandb URI if uploaded, else None
-        """
-        if not self.distributed.should_checkpoint():
+        if not self._distributed.should_checkpoint():
+            return None
+        if self._wandb_run is None:
+            return None
+        if not force and epoch % self._config.epoch_interval != 0:
             return None
 
-        if not self.wandb_run:
-            return None
+        artifact_name = f"policy-{epoch}"
 
-        if not force and epoch % self.config.epoch_interval != 0:
-            return None
+        with self._materialize_checkpoint(checkpoint_uri) as local_path:
+            if local_path is None:
+                return None
 
-        try:
-            artifact_name = f"policy-{epoch}"
-            wandb_uri = self.checkpoint_manager.upload_checkpoint_to_wandb(
-                checkpoint_uri=checkpoint_uri,
-                wandb_run=self.wandb_run,
-                artifact_name=artifact_name,
-                metadata=metadata,
-            )
-            logger.info(f"Uploaded policy to wandb: {wandb_uri}")
-            return wandb_uri
-        except Exception as e:
-            logger.error(f"Failed to upload to wandb: {e}")
-            return None
+            artifact = wandb.Artifact(name=artifact_name, type="model")
+            if metadata:
+                artifact.metadata.update(metadata)
+            artifact.add_file(str(local_path))
+            logger.info("Uploading policy checkpoint artifact %s", artifact_name)
+            logged_artifact = self._wandb_run.log_artifact(artifact)
+            return getattr(logged_artifact, "id", None)
 
-    def on_epoch_end(self, trainer: Any, epoch: int) -> None:
-        """Check if policy should be uploaded at epoch end."""
+    @contextmanager
+    def _materialize_checkpoint(self, checkpoint_uri: str):
+        """Yield a local file path for the given checkpoint URI."""
+        normalized_uri = CheckpointManager.normalize_uri(checkpoint_uri)
+        parsed = urlparse(normalized_uri)
 
-        # Check if we should upload
-        if epoch % self.config.epoch_interval != 0:
+        if parsed.scheme == "file":
+            local_path = Path(parsed.path)
+            if not local_path.exists():
+                logger.warning("PolicyUploader: checkpoint path %s does not exist", local_path)
+                yield None
+            else:
+                yield local_path
             return
 
-        # Get latest checkpoint URI from policy checkpointer
-        checkpoint_uri = trainer.policy_checkpointer.get_latest_policy_uri()
-        if not checkpoint_uri:
-            logger.debug(f"No checkpoint available to upload at epoch {epoch}")
+        if parsed.scheme == "s3":
+            try:
+                with local_copy(normalized_uri) as tmp_path:
+                    yield Path(tmp_path)
+            except Exception as exc:  # pragma: no cover - best effort for remote policies
+                logger.error("PolicyUploader: failed to download %s: %s", normalized_uri, exc)
+                yield None
             return
 
-        # Build metadata
-        metadata = {
-            "epoch": epoch,
-            "agent_step": trainer.trainer_state.agent_step,
-        }
-
-        # Add evaluation scores if available
-        if hasattr(trainer, "evaluator") and trainer.evaluator:
-            eval_scores = trainer.evaluator.get_latest_scores()
-            if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
-                metadata.update(
-                    {
-                        "score": eval_scores.avg_simulation_score,
-                        "avg_reward": eval_scores.avg_category_score,
-                    }
-                )
-
-        # Upload to wandb
-        self.upload_to_wandb(
-            checkpoint_uri=checkpoint_uri,
-            epoch=epoch,
-            metadata=metadata,
-        )
-
-    def on_training_complete(self, trainer: Any) -> None:
-        """Upload final policy on training completion."""
-        epoch = trainer.trainer_state.epoch
-
-        # Get latest checkpoint URI
-        checkpoint_uri = trainer.policy_checkpointer.get_latest_policy_uri()
-        if not checkpoint_uri:
-            logger.debug("No checkpoint available for final upload")
-            return
-
-        # Build metadata
-        metadata = {
-            "epoch": epoch,
-            "agent_step": trainer.trainer_state.agent_step,
-            "final": True,
-        }
-
-        # Add evaluation scores if available
-        if hasattr(trainer, "evaluator") and trainer.evaluator:
-            eval_scores = trainer.evaluator.get_latest_scores()
-            if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
-                metadata.update(
-                    {
-                        "score": eval_scores.avg_simulation_score,
-                        "avg_reward": eval_scores.avg_category_score,
-                    }
-                )
-
-        # Force upload final policy
-        self.upload_to_wandb(
-            checkpoint_uri=checkpoint_uri,
-            epoch=epoch,
-            metadata=metadata,
-            force=True,
-        )
+        logger.debug("PolicyUploader: unsupported checkpoint scheme %s", parsed.scheme)
+        yield None
