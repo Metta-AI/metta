@@ -204,6 +204,86 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertIn("--diff", result.output)
         self.assertIn("-d", result.output)
 
+    def test_ignore_patterns(self):
+        """Test ignore flag with consistent pattern matching behavior.
+
+        The -i flag supports two types of patterns:
+        1. Directory names (e.g., -i cache): Ignores ANY directory with that name
+        2. Path patterns (e.g., -i build/cache): Ignores specific relative paths
+
+        This matches the behavior of built-in ignored directories like node_modules.
+        """
+        # Create a directory structure with multiple 'cache' and 'z' directories
+        structure = {
+            "x/file1.py": "print('x file')",
+            "y/file2.py": "print('y file')",
+            "y/z/file3.py": "print('y/z file')",
+            "other/z/file4.py": "print('other/z file')",
+            "cache/file5.py": "print('root cache')",
+            "build/cache/file6.py": "print('build cache')",
+            "other/cache/file7.py": "print('other cache')",
+            "mylib/test.py": "print('mylib')",
+            "src/mylib/code.py": "print('src/mylib')",
+        }
+
+        for file_path, content in structure.items():
+            path = Path(file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+
+        # Test 1: Path pattern - ignore specific path y/z (not all 'z' directories)
+        result = self.runner.invoke(app, [".", "-i", "y/z", "-s"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT include y/z (path pattern match)
+        self.assertNotIn("y/z/file3.py", result.output)
+        self.assertNotIn("y/z file", result.output)
+
+        # SHOULD include other/z (different path)
+        self.assertIn("other/z/file4.py", result.output)
+        self.assertIn("other/z file", result.output)
+
+        # Test 2: Directory name pattern - ignore ALL 'cache' directories
+        result = self.runner.invoke(app, [".", "-i", "cache", "-s"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT include ANY cache directories
+        self.assertNotIn("cache/file5.py", result.output)
+        self.assertNotIn("build/cache/file6.py", result.output)
+        self.assertNotIn("other/cache/file7.py", result.output)
+        self.assertNotIn("root cache", result.output)
+        self.assertNotIn("build cache", result.output)
+        self.assertNotIn("other cache", result.output)
+
+        # Test 3: Path pattern - ignore specific path build/cache only
+        result = self.runner.invoke(app, [".", "-i", "build/cache", "-s"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT include build/cache (path pattern match)
+        self.assertNotIn("build/cache/file6.py", result.output)
+        self.assertNotIn("build cache", result.output)
+
+        # SHOULD include other cache directories (different paths)
+        self.assertIn("cache/file5.py", result.output)
+        self.assertIn("root cache", result.output)
+        self.assertIn("other/cache/file7.py", result.output)
+        self.assertIn("other cache", result.output)
+
+        # Test 4: Mix of directory name and path patterns
+        result = self.runner.invoke(app, [".", "-i", "z", "-i", "build/cache", "-s"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT include any 'z' directories (name pattern)
+        self.assertNotIn("y/z/file3.py", result.output)
+        self.assertNotIn("other/z/file4.py", result.output)
+
+        # Should NOT include build/cache (path pattern)
+        self.assertNotIn("build/cache/file6.py", result.output)
+
+        # SHOULD include other cache directories
+        self.assertIn("cache/file5.py", result.output)
+        self.assertIn("other/cache/file7.py", result.output)
+
 
 if __name__ == "__main__":
     unittest.main()

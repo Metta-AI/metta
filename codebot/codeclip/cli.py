@@ -57,7 +57,11 @@ def main(
     ] = None,
     ignore: Annotated[
         Optional[list[str]],
-        typer.Option("-i", "--ignore", help="Directories to ignore (e.g. -i build -i cache or -i /full/path)"),
+        typer.Option(
+            "-i",
+            "--ignore",
+            help="Ignore patterns: directory names (-i cache) or paths (-i build/cache)",
+        ),
     ] = None,
     profile: Annotated[
         bool, typer.Option("-p", "--profile", help="Show detailed token distribution analysis to stderr")
@@ -377,10 +381,5 @@ def main(
         typer.echo(profile_report, err=True)
 
 
-def cli():
-    """Entry point for the CLI."""
-    app()
-
-
 if __name__ == "__main__":
-    cli()
+    app()

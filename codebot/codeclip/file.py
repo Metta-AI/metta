@@ -195,33 +195,21 @@ def _should_ignore(
         ".hg",
     }
 
-    # Add custom ignore directories
+    # Add custom ignore patterns from -i flag
     if custom_ignore_dirs:
         for ignore_dir in custom_ignore_dirs:
-            ignore_path = Path(ignore_dir)
-            # Handle both absolute and relative paths
-            if ignore_path.is_absolute():
-                # For absolute paths, check if the current path matches or is under it
-                if str(path) == str(ignore_path) or str(path).startswith(str(ignore_path) + os.sep):
+            # Add to the ignored_dirs set for consistent pattern matching
+            # If it contains a slash, it's a path pattern, otherwise it's a directory name
+            if "/" in ignore_dir:
+                # For path patterns like "y/z" or "build/cache", check if the relative path matches
+                if rel_path == ignore_dir or rel_path.startswith(ignore_dir + os.sep):
                     return True
             else:
-                # For relative paths, check multiple ways:
-                # 1. Check if the path ends with the ignore pattern
-                # 2. Check if any part of the path matches
-                # 3. Check if the full relative path starts with the pattern
-
-                # Convert to string for comparison
-                ignore_str = str(ignore_dir)
-
-                # Check if the relative path starts with the ignore pattern
-                if rel_path == ignore_str or rel_path.startswith(ignore_str + os.sep):
-                    return True
-
-                # Also add just the directory name to the ignored set for part matching
-                # This handles cases like ignoring "marimo" anywhere in the tree
-                ignored_dirs.add(ignore_path.name)
+                # For simple directory names, add to the set for pattern matching
+                ignored_dirs.add(ignore_dir)
 
     # Check if any part of the path contains ignored directories
+    # This applies to both built-in ignored dirs and user-specified directory names
     path_parts = Path(rel_path).parts
     for part in path_parts:
         if part in ignored_dirs:
