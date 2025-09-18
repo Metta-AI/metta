@@ -88,18 +88,18 @@ class TestAdaptiveIntegration:
             dispatcher=mock_dispatcher,
             store=mock_store,
             config=config,
-            on_eval_completed=eval_hook,
-            on_job_dispatch=dispatch_hook,
         )
 
         # Mock experiment completion after one iteration
         scheduler.is_experiment_complete = Mock(side_effect=[False, True])
 
-        controller.run()
+        controller.run(
+            on_eval_completed=eval_hook,
+            on_job_dispatch=dispatch_hook,
+        )
 
-        # Verify hooks were wired correctly
-        assert controller.on_eval_completed is eval_hook
-        assert controller.on_job_dispatch is dispatch_hook
+        # The hooks are passed to run() method, not stored as attributes
+        # We'll verify they were called in the actual test execution
 
         # Verify dispatch hook was called
         assert dispatch_hook.called

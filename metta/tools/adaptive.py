@@ -19,11 +19,11 @@ from metta.adaptive.adaptive_controller import AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher
 from metta.adaptive.dispatcher.skypilot import SkypilotDispatcher
 from metta.adaptive.protocols import ExperimentState
-from metta.adaptive.schedulers.batched_synced import (
+from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig, TrainAndEvalScheduler
+from metta.sweep.schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,
     BatchedSyncedSchedulerConfig,
 )
-from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig, TrainAndEvalScheduler
 from metta.adaptive.stores import WandbStore
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
