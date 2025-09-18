@@ -195,7 +195,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             if room_size == "medium"
             else (12, 15)
             if room_size == "large"
-            else (5, 8)
+            else (5, 7)
         )
 
         width, height = (
@@ -337,7 +337,7 @@ def make_curriculum(
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=3,
-            progress_smoothing=0.15,
+            progress_smoothing=0.05,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
