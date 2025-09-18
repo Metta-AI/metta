@@ -1,7 +1,7 @@
 """Data models for adaptive experiment orchestration."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum, auto
 from typing import Any
 
@@ -76,7 +76,7 @@ class RunInfo:
     @property
     def status(self) -> JobStatus:
         time_since_last_updated = (
-            datetime.now() - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
+            datetime.now(timezone.utc) - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
         )
         if (
             not self.has_failed
