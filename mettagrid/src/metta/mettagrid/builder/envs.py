@@ -1,3 +1,5 @@
+from typing import Optional
+
 import metta.mettagrid.mapgen.scenes.random
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
 from metta.mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
@@ -173,7 +175,14 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
 
 
 def make_icl_resource_chain(
-    num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict, width: int = 6, height: int = 6
+    num_agents: int,
+    max_steps,
+    game_objects: dict,
+    map_builder_objects: dict,
+    width: int = 6,
+    height: int = 6,
+    obstacle_type: Optional[str] = None,
+    density: Optional[str] = None,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -184,7 +193,12 @@ def make_icl_resource_chain(
             map_builder=MapGen.Config(
                 instances=num_agents,
                 instance_map=PerimeterInContextMapBuilder.Config(
-                    agents=1, width=width, height=height, objects=map_builder_objects
+                    agents=1,
+                    width=width,
+                    height=height,
+                    objects=map_builder_objects,
+                    obstacle_type=obstacle_type,
+                    density=density,
                 ),
             ),
             actions=ActionsConfig(
