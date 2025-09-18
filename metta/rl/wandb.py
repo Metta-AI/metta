@@ -11,6 +11,7 @@ from typing import Dict, Optional
 import torch
 import torch.nn as nn
 import wandb
+from torch.nn.parameter import UninitializedParameter
 from wandb import Artifact
 from wandb.errors import CommError
 
@@ -76,7 +77,16 @@ def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
 
 def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     """Log model parameter count to wandb summary."""
-    num_params = sum(p.numel() for p in policy.parameters())
+    params = list(policy.parameters())
+    skipped_lazy_params = sum(isinstance(param, UninitializedParameter) for param in params)
+    num_params = sum(param.numel() for param in params if not isinstance(param, UninitializedParameter))
+
+    if skipped_lazy_params:
+        logger.debug(
+            "Skipped %d uninitialized parameters when logging model size.",
+            skipped_lazy_params,
+        )
+
     if wandb_run.summary:
         wandb_run.summary["model/total_parameters"] = num_params
 
