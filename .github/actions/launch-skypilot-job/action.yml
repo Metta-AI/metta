@@ -59,7 +59,9 @@ runs:
       uses: ./.github/actions/setup-environment
       with:
         install-mode: minimal
-        extra-dependencies: skypilot>=0.10.3
+        extra-dependencies: |
+          skypilot>=0.10.3
+          -e gitta
 
     - name: Set up Weights & Biases credentials
       shell: bash
