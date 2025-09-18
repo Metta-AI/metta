@@ -82,16 +82,6 @@ public:
       }
     }
 
-    if (has_needed_resources) {
-      for (const auto& [item, probability] : _consumed_resources) {
-        InventoryQuantity max_consumption = static_cast<InventoryQuantity>(std::ceil(probability));
-        if (actor->inventory[item] < max_consumption) {
-          has_needed_resources = false;
-          break;
-        }
-      }
-    }
-
     // Execute the action
     bool success = has_needed_resources && _handle_action(actor, arg);
 
