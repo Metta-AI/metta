@@ -44,7 +44,7 @@ jobs:
       - name: Set up Python 3.11.7
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11.7'
+          python-version: "3.11.7"
 
       - name: Install build tooling
         run: python -m pip install --upgrade pip build
@@ -126,7 +126,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11.7'
+          python-version: "3.11.7"
 
       - name: Set up Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
@@ -163,7 +163,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11.7'
+          python-version: "3.11.7"
 
       - name: Set up Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
@@ -197,7 +197,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Download sdist
         uses: actions/download-artifact@v4

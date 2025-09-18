@@ -9,7 +9,7 @@ from typing import Dict
 import torch.nn as nn
 import wandb
 
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 
 logger = logging.getLogger(__name__)
 

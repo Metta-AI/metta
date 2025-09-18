@@ -9,7 +9,7 @@ from typing import Any, Optional
 from cogweb.cogweb_client import CogwebClient
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
-from metta.common.wandb.wandb_context import WandbConfig
+from metta.common.wandb.context import WandbConfig
 from metta.sweep import JobTypes, LocalDispatcher, SweepController, SweepControllerConfig, SweepStatus
 from metta.sweep.dispatcher.routing import RoutingDispatcher
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher

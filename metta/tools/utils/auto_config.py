@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.util.constants import METTA_AWS_ACCOUNT_ID
-from metta.common.wandb.wandb_context import WandbConfig
+from metta.common.wandb.context import WandbConfig
 from metta.setup.components.aws import AWSSetup
 from metta.setup.components.observatory_key import ObservatoryKeySetup
 from metta.setup.components.wandb import WandbSetup

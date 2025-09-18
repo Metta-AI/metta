@@ -81,7 +81,7 @@ def _():
 
     from metta.rl.checkpoint_manager import CheckpointManager
 
-    from metta.common.wandb.wandb_context import WandbConfig
+    from metta.common.wandb.context import WandbConfig
     import wandb
     import torch
 

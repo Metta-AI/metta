@@ -564,16 +564,16 @@ name = "codebot"
 version = "0.1.0"
 source = { editable = "codebot" }
 dependencies = [
-    { name = "click" },
     { name = "gitta" },
     { name = "tiktoken" },
+    { name = "typer" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "click", specifier = ">=8.0" },
     { name = "gitta", editable = "gitta" },
     { name = "tiktoken", specifier = ">=0.9.0" },
+    { name = "typer", specifier = ">=0.9.0" },
 ]
 
 [[package]]
@@ -2059,16 +2059,12 @@ dependencies = [
     { name = "heavyball" },
     { name = "httpx" },
     { name = "imageio" },
-    { name = "ipywidgets" },
     { name = "jmespath" },
-    { name = "jupyterlab" },
-    { name = "marimo" },
     { name = "matplotlib" },
     { name = "metta-agent" },
     { name = "metta-app-backend" },
     { name = "metta-common" },
     { name = "mettagrid" },
-    { name = "notebook" },
     { name = "numpy" },
     { name = "omegaconf" },
     { name = "pandas" },
@@ -2090,30 +2086,26 @@ dependencies = [
     { name = "setuptools" },
     { name = "shimmy" },
     { name = "simple-term-menu" },
+    { name = "skypilot" },
     { name = "softmax" },
     { name = "sympy" },
     { name = "tabulate" },
     { name = "tensordict" },
     { name = "termcolor" },
-    { name = "testcontainers" },
     { name = "tiktoken" },
     { name = "torch" },
     { name = "torchrl" },
     { name = "tqdm" },
-    { name = "traitlets" },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "wandb" },
     { name = "wandb-core" },
-    { name = "widgetsnbextension" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "cpplint" },
     { name = "gcovr" },
-    { name = "ipykernel" },
-    { name = "ipython" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
@@ -2122,7 +2114,18 @@ dev = [
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "ruff" },
-    { name = "skypilot" },
+    { name = "testcontainers" },
+]
+interactive = [
+    { name = "anywidget" },
+    { name = "ipykernel" },
+    { name = "ipython" },
+    { name = "ipywidgets" },
+    { name = "jupyterlab" },
+    { name = "marimo" },
+    { name = "notebook" },
+    { name = "traitlets" },
+    { name = "widgetsnbextension" },
 ]
 lint = [
     { name = "cpplint" },
@@ -2133,8 +2136,10 @@ testing = [
     { name = "pytest" },
     { name = "pytest-benchmark" },
     { name = "pytest-cov" },
+    { name = "pytest-testmon" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
+    { name = "testcontainers" },
 ]
 
 [package.metadata]
@@ -2157,16 +2162,12 @@ requires-dist = [
     { name = "heavyball", specifier = ">=1.7.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "imageio", specifier = ">=2.37.0" },
-    { name = "ipywidgets", specifier = ">=8.1.7" },
     { name = "jmespath", specifier = ">=1.0.1" },
-    { name = "jupyterlab", specifier = ">=4.4.4" },
-    { name = "marimo", specifier = "==0.15.0" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "metta-agent", editable = "agent" },
     { name = "metta-app-backend", editable = "app_backend" },
     { name = "metta-common", editable = "common" },
     { name = "mettagrid", editable = "mettagrid" },
-    { name = "notebook", specifier = ">=7.4.4" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pandas", specifier = ">=2.3.0" },
@@ -2188,30 +2189,26 @@ requires-dist = [
     { name = "setuptools", specifier = ">=80.9.0" },
     { name = "shimmy", specifier = ">=1.3.0,<2.0" },
     { name = "simple-term-menu", specifier = ">=1.6.4" },
+    { name = "skypilot", specifier = "==0.10.3" },
     { name = "softmax", editable = "softmax" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensordict", specifier = ">=0.8.3" },
     { name = "termcolor", specifier = ">=2.4.0" },
-    { name = "testcontainers", specifier = ">=4.10.0" },
     { name = "tiktoken", specifier = ">=0.9.0" },
     { name = "torch", specifier = ">=2.7.1" },
     { name = "torchrl", specifier = ">=0.8.1" },
     { name = "tqdm", specifier = ">=4.67.1" },
-    { name = "traitlets", specifier = ">=5.14.3" },
     { name = "typer", specifier = ">=0.16.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
     { name = "wandb", specifier = ">=0.19.11" },
     { name = "wandb-core", specifier = ">=0.17.0b11" },
-    { name = "widgetsnbextension", specifier = ">=4.0.14" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "cpplint", specifier = ">=2.0.2" },
     { name = "gcovr", specifier = ">=8.3" },
-    { name = "ipykernel", specifier = ">=6.29.5" },
-    { name = "ipython", specifier = ">=9.4.0" },
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
@@ -2220,7 +2217,18 @@ dev = [
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.11.13" },
-    { name = "skypilot", specifier = "==0.10.3" },
+    { name = "testcontainers", specifier = ">=4.10.0" },
+]
+interactive = [
+    { name = "anywidget", specifier = ">=0.9.18" },
+    { name = "ipykernel", specifier = ">=6.29.5" },
+    { name = "ipython", specifier = ">=9.4.0" },
+    { name = "ipywidgets", specifier = ">=8.1.7" },
+    { name = "jupyterlab", specifier = ">=4.4.4" },
+    { name = "marimo", specifier = "==0.15.0" },
+    { name = "notebook", specifier = ">=7.4.4" },
+    { name = "traitlets", specifier = ">=5.14.3" },
+    { name = "widgetsnbextension", specifier = ">=4.0.14" },
 ]
 lint = [
     { name = "cpplint", specifier = ">=2.0.2" },
@@ -2231,8 +2239,10 @@ testing = [
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
     { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "pytest-testmon", specifier = ">=2.1.3" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "testcontainers", specifier = ">=4.10.0" },
 ]
 
 [[package]]
