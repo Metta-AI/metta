@@ -79,6 +79,7 @@ class FastPolicy(Policy):
             nn.Linear(config.lstm_config.hidden_size, config.critic_hidden_dim), std=np.sqrt(2)
         )
         self.critic_1 = TDM(module, in_keys=["core"], out_keys=["critic_1"])
+        self.critic_activation = nn.Tanh()
         module = pufferlib.pytorch.layer_init(nn.Linear(config.critic_hidden_dim, 1), std=1.0)
         self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
 
@@ -95,6 +96,7 @@ class FastPolicy(Policy):
         self.cnn_encoder(td)
         self.lstm(td)
         self.critic_1(td)
+        td["critic_1"] = self.critic_activation(td["critic_1"])
         self.value_head(td)
         self.action_embeddings(td)
         self.actor_query(td)

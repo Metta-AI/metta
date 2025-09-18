@@ -6,6 +6,8 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
+from metta.rl.loss.loss_config import LossConfig
+from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.rl.training.evaluator import EvaluatorConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -98,20 +100,23 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    evaluator = EvaluatorConfig(
-        simulations=[
-            SimulationConfig(
-                name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-            ),
-            SimulationConfig(
-                name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-            ),
-        ],
+    eval_simulations = [
+        SimulationConfig(name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)),
+        SimulationConfig(name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)),
+    ]
+
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+        curriculum=curriculum,
+        evaluation=EvaluationConfig(simulations=eval_simulations),
     )
 
+    evaluator_cfg = EvaluatorConfig(simulations=eval_simulations)
+
     return TrainTool(
+        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=evaluator,
+        evaluator=evaluator_cfg,
     )
 
 
