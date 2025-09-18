@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
-    CurriculumAlgorithmConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -19,6 +18,8 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from pydantic import Field
+import numpy as np
+import subprocess
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -46,6 +47,16 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
+class LPParams:
+    def __init__(self, ema_timescale: float = 0.001, exploration_bonus: float = 0.1, max_memory_tasks: int = 1000, max_slice_axes: int = 3, progress_smoothing: float = 0.1, enable_detailed_slice_logging: bool = False, num_active_tasks: int = 1000, rand_task_rate: float = 0.25):
+        self.ema_timescale = ema_timescale
+        self.exploration_bonus = exploration_bonus
+        self.max_memory_tasks = max_memory_tasks
+        self.max_slice_axes = max_slice_axes
+        self.progress_smoothing = progress_smoothing
+        self.enable_detailed_slice_logging = enable_detailed_slice_logging
+        self.num_active_tasks = num_active_tasks
+        self.rand_task_rate = rand_task_rate
 
 @dataclass
 class _BuildCfg:
@@ -74,7 +85,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
         densities: list[str] = Field(default=[], description="Density to sample from")
         # obstacle_complexity
-        max_steps: int = Field(default=256, description="Episode length")
+        max_steps: int = Field(default=512, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
@@ -139,7 +150,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         density,
         avg_hop,
         rng,
-        max_steps=256,
+        max_steps=512,
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resources) + ["heart"]
@@ -152,10 +163,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         for _ in range(num_sinks):
             self._add_sink(cfg, rng=rng)
-
-        # longer episodes for longer chains
-        if len(cfg.used_objects) > 4:
-            max_steps = self.config.max_steps * 2
 
         cooldown = avg_hop * (chain_length - 1)
 
@@ -191,11 +198,11 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         # by default, use a small room
         size_range = (
-            (8, 12)
+            (7, 10)
             if room_size == "medium"
-            else (12, 15)
+            else (10, 15)
             if room_size == "large"
-            else (5, 7)
+            else (4, 7)
         )
 
         width, height = (
@@ -315,13 +322,12 @@ def make_mettagrid() -> MettaGridConfig:
 
 
 def make_curriculum(
-    enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     chain_lengths=[2, 3, 4, 5],
     num_sinks=[0, 1, 2],
     room_sizes=["small"],
     obstacle_types=[],
     densities=[],
+    lp_params: LPParams = LPParams(),
 ) -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=chain_lengths,
@@ -330,16 +336,7 @@ def make_curriculum(
         obstacle_types=obstacle_types,
         densities=densities,
     )
-    if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,  # Enable bidirectional learning progress by default
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            max_memory_tasks=1000,
-            max_slice_axes=3,
-            progress_smoothing=0.1,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-        )
+    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
@@ -347,73 +344,33 @@ def make_curriculum(
     )
 
 
-def small_curriculum():
-    return make_curriculum(
-        chain_lengths=[2, 3, 4, 5],
-        num_sinks=[0, 1, 2],
-        room_sizes=["small"],
-    )
-
-
-def small_medium_curriculum():
-    return make_curriculum(
-        chain_lengths=[2, 3, 4, 5],
-        num_sinks=[0, 1, 2],
-        room_sizes=["small", "medium"],
-    )
-
-
-def all_room_sizes_curriculum():
-    return make_curriculum(
-        chain_lengths=[2, 3, 4, 5],
-        num_sinks=[0, 1, 2],
-        room_sizes=["small", "medium", "large"],
-    )
-
-
-def longer_chains():
-    return make_curriculum(
-        chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
-        num_sinks=[0, 1, 2],
-        room_sizes=["small", "medium", "large"],
-    )
-
-
-def longer_chains_more_sinks():
-    return make_curriculum(
-        chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
-        num_sinks=[0, 1, 2, 3, 4],
-        room_sizes=["small", "medium", "large"],
-    )
-
-
-def terrain():
-    return make_curriculum(
-        chain_lengths=[2, 3, 4, 5],
-        num_sinks=[0, 1],
-        room_sizes=["small", "medium", "large"],
-        obstacle_types=["square", "cross", "L"],
-        densities=["", "balanced", "sparse", "high"],
-    )
-
-
 def train(
-    curriculum: Optional[CurriculumConfig] = None,
-) -> TrainTool:
+    curriculum_style: str = "small", lp_params: LPParams = LPParams()) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
         make_icl_resource_chain_eval_suite,
     )
 
+    curriculum_args = {
+        "small": {"chain_lengths": [2, 3, 4, 5], "num_sinks": [0, 1, 2], "room_sizes": ["small"], "lp_params": lp_params},
+        "small_medium": {"chain_lengths": [2, 3, 4, 5], "num_sinks": [0, 1], "room_sizes": ["small", "medium"], "lp_params": lp_params},
+        "all_room_sizes": {"chain_lengths": [2, 3, 4, 5], "num_sinks": [0, 1, 2], "room_sizes": ["small", "medium", "large"], "lp_params": lp_params},
+        "longer_chains": {"chain_lengths": [2, 3, 4, 5, 6, 7, 8], "num_sinks": [0, 1, 2], "room_sizes": ["small", "medium", "large"], "lp_params": lp_params},
+        "longer_chains_more_sinks": {"chain_lengths": [2, 3, 4, 5, 6, 7, 8], "num_sinks": [0, 1, 2, 3, 4], "room_sizes": ["small", "medium", "large"], "lp_params": lp_params},
+        "terrain": {"chain_lengths": [2, 3, 4, 5], "num_sinks": [0, 1], "obstacle_types": ["square", "cross", "L"], "densities": ["", "balanced", "sparse", "high"], "lp_params": lp_params},
+    }
+
+    curriculum = make_curriculum(**curriculum_args[curriculum_style])
+
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or terrain(),
+        curriculum=curriculum,
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
     # which requires a large batch size
-    trainer_cfg.batch_size = 2064384
-    trainer_cfg.bptt_horizon = 256
+    trainer_cfg.batch_size = 4128768
+    trainer_cfg.bptt_horizon = 512
 
     return TrainTool(trainer=trainer_cfg)
 
@@ -440,7 +397,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
             env=eval_env,
             name="in_context_resource_chain",
         ),
-        policy_uri="wandb://run/george.icl.reproduce.4gpus.09-12",
+        policy_uri=default_policy_uri,
     )
 
 
@@ -458,3 +415,17 @@ def evaluate(
         policy_uris=[policy_uri],
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
+
+def experiment():
+    curriculum_styles = ["small", "small_medium", "all_room_sizes", "longer_chains", "longer_chains_more_sinks", "terrain"]
+    progress_smoothings = list(np.linspace(0.05, 0.15, 5))
+    ema_timescales = list(np.linspace(0.001, 0.01, 5))
+    exploration_bonuses = list(np.linspace(0.03, 0.15, 5))
+    num_active_tasks = list(np.linspace(500, 5000, 5))
+    rand_task_rate   = list(np.linspace(0.05, 0.4, 5))
+
+    for curriculum_style in curriculum_styles:
+        for progress_smoothing in progress_smoothings:
+            for ema_timescale in ema_timescales:
+                for exploration_bonus in exploration_bonuses:
+                    subprocess.run(["./devops/skypilot/launch.py", "experiments.recipes.icl_resource_chain.train", f"run=icl_resource_chain_{curriculum_style}_{progress_smoothing}_{ema_timescale}_{exploration_bonus}.09-18", "style", curriculum_style, "lp_params", f"progress_smoothing={progress_smoothing}", f"ema_timescale={ema_timescale}", f"exploration_bonus={exploration_bonus}", f"num_active_tasks={num_active_tasks}", f"rand_task_rate={rand_task_rate}"])

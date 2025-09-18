@@ -2,6 +2,7 @@
 
 import logging
 import os
+
 import torch
 
 from metta.mettagrid.config import Config
