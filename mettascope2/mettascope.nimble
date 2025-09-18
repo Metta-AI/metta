@@ -11,5 +11,5 @@ requires "cligen >= 1.9.0"
 requires "jsony >= 1.1.5"
 requires "windy >= 0.1.2"
 requires "puppy >= 2.1.2"
-requires "pixie#head"       # Added to ensure compatibility with fidget2#head
+requires "pixie#head"
 requires "fidget2#head"
