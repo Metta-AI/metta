@@ -37,6 +37,9 @@ class SkypilotDispatcher(Dispatcher):
         if job.nodes and job.nodes > 1:
             cmd_parts.append(f"--nodes={job.nodes}")
 
+        # 3.1 Always add long timeout
+        cmd_parts.append("--heartbeat-timeout=10000")
+
         # 4. Add the actual command (e.g., experiments.recipes.arena.train)
         cmd_parts.append(job.cmd)
 

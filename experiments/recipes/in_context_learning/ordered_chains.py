@@ -8,7 +8,12 @@ from typing import Any, Optional, Sequence
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from metta.cogworks.curriculum.curriculum import (
+from typing import Any, Dict, List, Optional, Sequence
+
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
+from metta.rl.training.evaluator import EvaluatorConfig
+from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_BASIC
+from metta.cogworks.curriculum.curriculum import
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
@@ -17,14 +22,17 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from pydantic import Field
+from mettagrid.config import Config
 
 from experiments.evals.in_context_learning.ordered_chains import (
     make_icl_resource_chain_eval_suite,
@@ -58,26 +66,27 @@ RESOURCE_TYPES = [
 ]
 
 
-class LPParams:
-    def __init__(
-        self,
-        ema_timescale: float = 0.001,
-        exploration_bonus: float = 0.15,
-        max_memory_tasks: int = 1000,
-        max_slice_axes: int = 3,
-        progress_smoothing: float = 0.15,
-        enable_detailed_slice_logging: bool = False,
-        num_active_tasks: int = 1000,
-        rand_task_rate: float = 0.25,
-    ):
-        self.ema_timescale = ema_timescale
-        self.exploration_bonus = exploration_bonus
-        self.max_memory_tasks = max_memory_tasks
-        self.max_slice_axes = max_slice_axes
-        self.progress_smoothing = progress_smoothing
-        self.enable_detailed_slice_logging = enable_detailed_slice_logging
-        self.num_active_tasks = num_active_tasks
-        self.rand_task_rate = rand_task_rate
+class LPParams(Config):
+    """Learning Progress parameters configuration."""
+
+    ema_timescale: float = Field(
+        default=0.001, description="EMA timescale for progress tracking"
+    )
+    exploration_bonus: float = Field(
+        default=0.15, description="Exploration bonus coefficient"
+    )
+    max_memory_tasks: int = Field(
+        default=1000, description="Maximum number of tasks in memory"
+    )
+    max_slice_axes: int = Field(default=3, description="Maximum number of slice axes")
+    progress_smoothing: float = Field(
+        default=0.15, description="Progress smoothing factor"
+    )
+    enable_detailed_slice_logging: bool = Field(
+        default=False, description="Enable detailed slice logging"
+    )
+    num_active_tasks: int = Field(default=1000, description="Number of active tasks")
+    rand_task_rate: float = Field(default=0.25, description="Random task sampling rate")
 
 
 curriculum_args = {
@@ -482,7 +491,14 @@ def make_curriculum(
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         **curriculum_args[curriculum_style], map_dir=map_dir
     )
-    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
+    # Handle both LPParams Config object and dict
+    if isinstance(lp_params, LPParams):
+        algorithm_config = LearningProgressConfig(**lp_params.model_dump())
+    elif isinstance(lp_params, dict):
+        algorithm_config = LearningProgressConfig(**lp_params)
+    else:
+        # If lp_params is None or something else, use default
+        algorithm_config = LearningProgressConfig()
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
@@ -656,6 +672,63 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     # Save the reward_estimates dictionary to a JSON file
     with open(f"{dir}/reward_estimates.json", "w") as f:
         json.dump(reward_estimates, f, indent=2)
+
+
+def sweep(
+    total_timesteps: int = 1000000,
+) -> SweepTool:
+    lp_protein_config = make_custom_protein_config(
+        base_config=PPO_BASIC,
+        parameters={
+            "lp_params.progress_smoothing": ParameterConfig(
+                distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
+                min=0.05,
+                max=0.15,
+                mean=0.1,
+                scale="auto",
+            ),
+            "lp_params.exploration_bonus": ParameterConfig(
+                distribution="uniform",  # Changed from logit_normal - more appropriate for 0.03-0.15 range
+                min=0.03,
+                max=0.15,
+                mean=0.09,
+                scale="auto",
+            ),
+            "lp_params.ema_timescale": ParameterConfig(
+                distribution="log_normal",  # Changed to log_normal for better exploration of small values
+                min=0.001,
+                max=0.01,
+                mean=0.00316,  # Geometric mean: sqrt(0.001 * 0.01) ≈ 0.00316
+                scale="auto",
+            ),
+            "lp_params.num_active_tasks": ParameterConfig(
+                distribution="int_uniform",  # Changed to int_uniform since this is a count of tasks
+                min=1000,
+                max=5000,
+                mean=3000,  # Arithmetic mean for uniform distribution
+                scale="auto",
+            ),
+            "lp_params.rand_task_rate": ParameterConfig(
+                distribution="uniform",
+                min=0.1,
+                max=0.25,
+                mean=0.175,
+                scale="auto",
+            ),
+        },
+    )
+
+    lp_protein_config.metric = "experience/rewards"
+
+    return SweepTool(
+        protein_config=lp_protein_config,
+        recipe_module="experiments.recipes.in_context_learning.ordered_chains",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate",
+        train_overrides={
+            "trainer.total_timesteps": total_timesteps,
+        },
+    )
 
 
 if __name__ == "__main__":

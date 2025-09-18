@@ -15,7 +15,8 @@ from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from metta.sweep.schedulers.batched_synced import BatchedSyncedSchedulerConfig
+from metta.sweep.schedulers.top_policy_no_eval import NoEvalSweepScheduler
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -113,11 +114,14 @@ class SweepTool(Tool):
     eval_entrypoint: str = "evaluate"
 
     # Controller settings
-    max_parallel_jobs: int = 1
+    max_parallel_jobs: int = 6
     monitoring_interval: int = 60
     sweep_server_uri: str = "https://api.observatory.softmax-research.net"
     gpus: int = 1  # Number of GPUs per training job
     nodes: int = 1  # Number of nodes per training job
+
+    # local test is similar to dry runs
+    local_test: bool = False
 
     # Override configurations
     train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
@@ -133,6 +137,17 @@ class SweepTool(Tool):
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
+
+        if self.local_test:
+            # Local testing configuration
+            self.dispatcher_type = DispatcherType.LOCAL
+            self.train_overrides["trainer.total_timesteps"] = 50000  # Quick 50k timesteps for testing
+
+            # We let the batch size be set in training for the quick run
+            # Use pop() to safely remove keys without raising KeyError if they don't exist
+            # The keys include the full path "trainer.batch_size" not just "batch_size"
+            self.protein_config.parameters.pop("trainer.batch_size", None)
+            self.protein_config.parameters.pop("trainer.minibatch_size", None)
 
         # Handle sweep_name being passed via cmd line
         if "sweep_name" in args:
@@ -238,7 +253,7 @@ class SweepTool(Tool):
         )
 
         # Create scheduler with Bayesian optimization
-        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
+        scheduler = NoEvalSweepScheduler(scheduler_config, store=store)
 
         # Create adaptive config
         adaptive_config = AdaptiveConfig(

@@ -1,7 +1,7 @@
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
 
-def custom_config(
+def make_custom_protein_config(
     base_config: ProteinConfig, parameters: dict[str, ParameterConfig]
 ) -> ProteinConfig:
     """Create a custom sweep configuration by extending a base config with additional parameters.
@@ -259,45 +259,4 @@ PPO_FULL = ProteinConfig(
         # expansion_rate=0.15,  # Not available in current ProteinSettings
         # seed_with_search_center=True,  # Not available in current ProteinSettings
     ),
-)
-
-LP_CONFIG = custom_config(
-    base_config=PPO_BASIC,
-    parameters={
-        "lp_params.progress_smoothing": ParameterConfig(
-            distribution="logit_normal",
-            min=0.05,
-            max=0.15,
-            mean=0.1,
-            scale="auto",
-        ),
-        "lp_params.exploration_bonus": ParameterConfig(
-            distribution="logit_normal",
-            min=0.03,
-            max=0.15,
-            mean=0.09,
-            scale="auto",
-        ),
-        "lp_params.ema_timescale": ParameterConfig(
-            distribution="uniform",
-            min=0.001,
-            max=0.01,
-            mean=0.001,
-            scale="auto",
-        ),
-        "lp_params.num_active_tasks": ParameterConfig(
-            distribution="log_normal",
-            min=1000,
-            max=5000,
-            mean=1000,
-            scale="auto",
-        ),
-        "lp_params.rand_task_rate": ParameterConfig(
-            distribution="uniform",
-            min=0.1,
-            max=0.25,
-            mean=0.175,
-            scale="auto",
-        ),
-    },
 )
