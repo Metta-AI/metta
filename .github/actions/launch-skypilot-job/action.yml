@@ -60,8 +60,7 @@ runs:
       with:
         install-mode: minimal
         extra-dependencies: |
-          skypilot>=0.10.3
-          -e gitta
+          -e devops
 
     - name: Set up Weights & Biases credentials
       shell: bash
