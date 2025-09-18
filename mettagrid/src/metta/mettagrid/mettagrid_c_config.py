@@ -139,10 +139,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 stat_name = k[:-4]
                 stat_reward_max[stat_name] = v
 
-        # Process potential initial inventory
+        # Process initial inventory
         initial_inventory = {}
         for k, v in agent_props["initial_inventory"].items():
             initial_inventory[resource_name_to_id[k]] = v
+
+        # Process resource loss probability
+        resource_loss_prob = {}
+        for k, v in agent_props["resource_loss_prob"].items():
+            resource_loss_prob[resource_name_to_id[k]] = v
 
         # Map team IDs to conventional group names
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
@@ -164,6 +169,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_id": 0,
             "type_name": "agent",
             "initial_inventory": initial_inventory,
+            "resource_loss_prob": resource_loss_prob,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -190,6 +196,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 output_resources={
                     resource_name_to_id[k]: v
                     for k, v in object_config.output_resources.items()
+                    if v > 0 and k in resource_name_to_id
+                },
+                resource_loss_prob={
+                    resource_name_to_id[k]: v
+                    for k, v in object_config.resource_loss_prob.items()
                     if v > 0 and k in resource_name_to_id
                 },
                 max_output=object_config.max_output,
@@ -319,13 +330,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
 
-    # Add resource_loss_prob
-    game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
-
-    # Set feature flags
+    # Set feature flags (order must match C++ constructor: track_movement_metrics, recipe_details_obs, allow_diagonals)
+    game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
-    game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
 
     return CppGameConfig(**game_cpp_params)
 

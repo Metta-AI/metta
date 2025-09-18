@@ -48,8 +48,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _global_obs_config(game_config.global_obs),
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
-      _track_movement_metrics(game_config.track_movement_metrics),
-      _resource_loss_prob(game_config.resource_loss_prob) {
+      _track_movement_metrics(game_config.track_movement_metrics) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -80,6 +79,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _event_manager->event_handlers.insert(
       {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
+  _event_manager->event_handlers.insert({EventType::StochasticResourceLoss, std::make_unique<StochasticResourceLossHandler>(_event_manager.get())});
 
   _action_success.resize(num_agents);
 
@@ -174,17 +174,17 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
         config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
 
-        Converter* converter = new Converter(r, c, config_with_offsets);
+        Converter* converter = new Converter(r, c, config_with_offsets, _event_manager.get(), &_rng);
         _grid->add_object(converter);
+        converter->init();  // Initialize inventory and schedule resource loss events
         _stats->incr("objects." + cell);
-        converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
         continue;
       }
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config);
+        Agent* agent = new Agent(r, c, *agent_config, _event_manager.get(), &_rng);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
@@ -476,29 +476,6 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
-  // Handle resource loss
-  for (auto& agent : _agents) {
-    if (_resource_loss_prob > 0.0f) {
-      // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
-      // Make a real copy of the agent's inventory map to avoid iterator invalidation
-      const auto inventory_copy = agent->inventory;
-      for (const auto& [item, qty] : inventory_copy) {
-        if (qty > 0) {
-          float loss = _resource_loss_prob * qty;
-          InventoryDelta lost = static_cast<InventoryDelta>(std::floor(loss));
-          // With probability equal to the fractional part, lose one more
-          if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
-            lost += 1;
-          }
-
-          if (lost > 0) {
-            agent->update_inventory(item, -lost);
-          }
-        }
-      }
-    }
-  }
-
   // Compute observations for next step
   _compute_observations(actions);
 
@@ -705,6 +682,13 @@ py::dict MettaGrid::grid_objects() {
         inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
+
+      py::dict resource_loss_prob_dict;
+      for (const auto& [resource, probability] : agent->inventory_list.get_resource_loss_prob()) {
+        resource_loss_prob_dict[py::int_(resource)] = probability;
+      }
+      obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
+
       py::dict resource_limits_dict;
       for (const auto& [resource, quantity] : agent->resource_limits) {
         resource_limits_dict[py::int_(resource)] = quantity;
@@ -725,16 +709,24 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["cooldown_duration"] = converter->cooldown;
       obj_dict["output_limit"] = converter->max_output;
       obj_dict["color"] = converter->color;
+
       py::dict input_resources_dict;
       for (const auto& [resource, quantity] : converter->input_resources) {
         input_resources_dict[py::int_(resource)] = quantity;
       }
       obj_dict["input_resources"] = input_resources_dict;
+
       py::dict output_resources_dict;
       for (const auto& [resource, quantity] : converter->output_resources) {
         output_resources_dict[py::int_(resource)] = quantity;
       }
       obj_dict["output_resources"] = output_resources_dict;
+
+      py::dict resource_loss_prob_dict;
+      for (const auto& [resource, probability] : converter->inventory_list.get_resource_loss_prob()) {
+        resource_loss_prob_dict[py::int_(resource)] = probability;
+      }
+      obj_dict["resource_loss_prob"] = resource_loss_prob_dict;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
@@ -880,6 +872,7 @@ const std::string& StatsTracker::resource_name(InventoryItem item) const {
   if (!_env) return get_no_env_resource_name();
   return _env->resource_names[item];
 }
+
 
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
