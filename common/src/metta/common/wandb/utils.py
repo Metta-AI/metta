@@ -1,5 +1,5 @@
 """
-W&B utility functions for logging, alerts, and artifact management.
+W&B utility functions for logging and alerts.
 """
 
 import logging
@@ -25,11 +25,6 @@ wandb_retry = retry_on_exception(
     backoff_factor=2.0,
     exceptions=(CommError, TimeoutError, ConnectionError, OSError),
 )
-
-
-# ============================================================================
-# Logging and alerts
-# ============================================================================
 
 
 def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: str) -> None:
