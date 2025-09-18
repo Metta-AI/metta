@@ -8,6 +8,7 @@ from pydantic import Field
 
 from metta.mettagrid.config import Config
 from metta.rl.training.component import TrainerComponent
+from metta.rl.training.stats_reporter import StatsReporter
 
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer
@@ -27,16 +28,15 @@ class GradientStatsComponent(TrainerComponent):
 
     def __init__(self, config: GradientStatsConfig):
         """Initialize gradient stats component."""
-        interval = max(1, config.epoch_interval) if config.epoch_interval else 0
-        super().__init__(epoch_interval=interval)
+        enabled = config.epoch_interval > 0
+        super().__init__(epoch_interval=config.epoch_interval if enabled else 0)
         self._config = config
         self._master_only = True
+        self._enabled = enabled
 
     def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
         """Compute gradient statistics and stash on trainer."""
-        if self._config.epoch_interval == 0:
-            return
-        if epoch % self._config.epoch_interval != 0:
+        if not self._enabled:
             return
 
         policy = trainer.policy
@@ -51,7 +51,6 @@ class GradientStatsComponent(TrainerComponent):
             "grad/norm": grad_tensor.norm(2).item(),
         }
 
-        trainer.latest_grad_stats = grad_stats
-        stats_reporter = getattr(trainer, "stats_reporter", None)
+        stats_reporter = trainer.get_component(StatsReporter)
         if stats_reporter and hasattr(stats_reporter, "update_grad_stats"):
             stats_reporter.update_grad_stats(grad_stats)

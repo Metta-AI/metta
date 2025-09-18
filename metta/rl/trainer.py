@@ -1,7 +1,7 @@
 """Main trainer facade for coordinating all training components."""
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional, Type, TypeVar
 
 import torch
 
@@ -10,6 +10,7 @@ from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 from metta.rl.training.component import TrainerCallback, TrainerComponent
+from metta.rl.training.context import TrainerContext
 from metta.rl.training.core import CoreTrainingLoop
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
@@ -18,10 +19,7 @@ from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.rl.utils import log_training_progress
 
-if TYPE_CHECKING:
-    from metta.rl.training.evaluator import Evaluator
-    from metta.rl.training.policy_checkpointer import PolicyCheckpointer
-    from metta.rl.training.stats_reporter import StatsReporter
+T_Component = TypeVar("T_Component", bound="TrainerComponent")
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -57,13 +55,9 @@ class Trainer:
         self._cfg = cfg
         self._device = device
         self._distributed_helper = DistributedHelper(self._device)
-        self._components = []
-        self.policy_checkpointer: Optional["PolicyCheckpointer"] = None
-        self.stats_reporter: Optional["StatsReporter"] = None
-        self.evaluator: Optional["Evaluator"] = None
-        self.latest_grad_stats: dict[str, float] = {}
-        self.memory_monitor = None
-        self.system_monitor = None
+        self._components: list[TrainerComponent] = []
+        self._component_map: dict[type[TrainerComponent], TrainerComponent] = {}
+        self._context = TrainerContext(self)
 
         self._epoch = 0
         self._agent_step = 0
@@ -116,6 +110,12 @@ class Trainer:
         )
         self.trainer_state.stop_rollout = False
         self.trainer_state.stop_update_epoch = False
+
+    @property
+    def context(self) -> TrainerContext:
+        """Return the shared trainer context."""
+
+        return self._context
 
     @property
     def policy(self) -> Policy:
@@ -172,8 +172,21 @@ class Trainer:
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent policy checkpoint URI if available."""
-        if self.policy_checkpointer is not None:
-            return self.policy_checkpointer.get_latest_policy_uri()
+        from metta.rl.training.policy_checkpointer import PolicyCheckpointer
+
+        policy_checkpointer = self.get_component(PolicyCheckpointer)
+        if policy_checkpointer is not None:
+            return policy_checkpointer.get_latest_policy_uri()
+        return None
+
+    def get_component(self, component_type: Type[T_Component]) -> Optional[T_Component]:
+        component = self._component_map.get(component_type)
+        if component is not None:
+            return component  # type: ignore[return-value]
+
+        for registered in self._component_map.values():
+            if isinstance(registered, component_type):
+                return registered  # type: ignore[return-value]
         return None
 
     def train(self) -> None:
@@ -268,7 +281,8 @@ class Trainer:
             return
 
         self._components.append(component)
-        component.register(self)
+        self._component_map[type(component)] = component
+        component.register(self._context)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
         """Invoke all registered callbacks of the specified type.
@@ -307,6 +321,6 @@ class Trainer:
 
         for component in self._components:
             if isinstance(component, TrainerCheckpointer):
-                component.restore(self)
+                component.restore(self._context)
                 break
             # Wandb setup will be handled by callbacks if configured

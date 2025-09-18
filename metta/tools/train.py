@@ -2,13 +2,14 @@ import contextlib
 import os
 import platform
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 from pydantic import Field
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy_base import Policy
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -75,19 +76,56 @@ class TrainTool(Tool):
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()
 
+        self._configure_run_metadata(args)
+        self._prepare_run_directories()
+
+        distributed_helper = self._create_distributed_helper()
+        env = self._create_training_environment(distributed_helper)
+
+        checkpoint_manager = self._create_checkpoint_manager()
+        policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
+        trainer = self._initialize_trainer(env, policy)
+
+        self._attach_core_components(trainer, distributed_helper, checkpoint_manager, policy_checkpointer)
+        self._log_run_configuration(distributed_helper, env)
+
+        stats_client = self._maybe_create_stats_client(distributed_helper)
+        wandb_manager = self._build_wandb_manager(distributed_helper)
+
+        try:
+            with wandb_manager as wandb_run:
+                self._register_optional_components(
+                    trainer,
+                    distributed_helper,
+                    checkpoint_manager,
+                    policy_checkpointer,
+                    stats_client,
+                    wandb_run,
+                )
+
+                if wandb_run is not None and distributed_helper.is_master():
+                    trainer.register(WandbLoggerComponent(wandb_run))
+
+                trainer.restore()
+                trainer.train()
+        finally:
+            env.close()
+            if stats_client and hasattr(stats_client, "close"):
+                stats_client.close()
+            distributed_helper.cleanup()
+
+    def _configure_run_metadata(self, args: dict[str, str]) -> Optional[str]:
         if "run" in args:
             assert self.run is None, "run cannot be set via args and config"
             self.run = args["run"]
 
         if self.run is None:
             self.run = auto_run_name(prefix="local")
+
         group_override = args.get("group")
 
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
-
-        if not self.checkpointer.checkpoint_dir:
-            self.checkpointer.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
@@ -95,12 +133,20 @@ class TrainTool(Tool):
         if group_override:
             self.wandb.group = group_override
 
+        return group_override
+
+    def _prepare_run_directories(self) -> None:
+        if not self.checkpointer.checkpoint_dir:
+            self.checkpointer.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+
         if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
             storage_decision = auto_policy_storage_decision(self.run)
             if storage_decision.remote_prefix:
                 self.trainer.checkpoint.remote_prefix = storage_decision.remote_prefix
                 if storage_decision.reason == "env_override":
-                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
+                    logger.info(
+                        "Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix
+                    )
                 else:
                     logger.info(
                         "Policies will sync to %s (Softmax AWS profile detected).",
@@ -109,8 +155,7 @@ class TrainTool(Tool):
             elif storage_decision.reason == "not_connected":
                 logger.info(
                     "Softmax AWS SSO not detected; policies will remain local. "
-                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' "
-                    "to enable uploads."
+                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' to enable uploads."
                 )
             elif storage_decision.reason == "aws_not_enabled":
                 logger.info(
@@ -126,18 +171,28 @@ class TrainTool(Tool):
         init_logging(run_dir=self.run_dir)
         record_heartbeat()
 
-        distributed_helper = DistributedHelper(torch.device(self.device))
-        distributed_helper.scale_batch_config(self.trainer)
+    def _create_distributed_helper(self) -> DistributedHelper:
+        helper = DistributedHelper(torch.device(self.device))
+        helper.scale_batch_config(self.trainer)
+        return helper
 
+    def _create_training_environment(self, distributed_helper: DistributedHelper) -> VectorizedTrainingEnvironment:
         self.training_env.seed += distributed_helper.get_rank()
-        env = VectorizedTrainingEnvironment(self.training_env)
+        return VectorizedTrainingEnvironment(self.training_env)
 
-        checkpoint_manager = CheckpointManager(
+    def _create_checkpoint_manager(self) -> CheckpointManager:
+        return CheckpointManager(
             run=self.run or "default",
             run_dir=self.run_dir or str(Path(self.system.data_dir)),
             remote_prefix=self.trainer.checkpoint.remote_prefix,
         )
 
+    def _load_or_create_policy(
+        self,
+        checkpoint_manager: CheckpointManager,
+        distributed_helper: DistributedHelper,
+        env: VectorizedTrainingEnvironment,
+    ) -> tuple[PolicyCheckpointer, Policy]:
         policy_checkpointer = PolicyCheckpointer(
             config=self.policy_checkpointer,
             checkpoint_manager=checkpoint_manager,
@@ -148,7 +203,13 @@ class TrainTool(Tool):
             self.policy_architecture,
             policy_uri=self.initial_policy_uri,
         )
+        return policy_checkpointer, policy
 
+    def _initialize_trainer(
+        self,
+        env: VectorizedTrainingEnvironment,
+        policy: Policy,
+    ) -> Trainer:
         trainer = Trainer(
             self.trainer,
             env,
@@ -160,6 +221,15 @@ class TrainTool(Tool):
         if not self.gradient_stats.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
             self.gradient_stats.epoch_interval = self.trainer.grad_mean_variance_interval
 
+        return trainer
+
+    def _attach_core_components(
+        self,
+        trainer: Trainer,
+        distributed_helper: DistributedHelper,
+        checkpoint_manager: CheckpointManager,
+        policy_checkpointer: PolicyCheckpointer,
+    ) -> None:
         trainer_checkpointer = TrainerCheckpointer(
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
@@ -168,80 +238,84 @@ class TrainTool(Tool):
         trainer.register(trainer_checkpointer)
         trainer.register(policy_checkpointer)
 
-        if distributed_helper.is_master():
-            logger.info(f"Training environment: {env}")
-            with open(os.path.join(self.run_dir, "config.json"), "w") as f:
-                f.write(self.model_dump_json(indent=2))
-                logger.info(f"Config saved to {os.path.join(self.run_dir, 'config.json')}")
+    def _log_run_configuration(
+        self,
+        distributed_helper: DistributedHelper,
+        env: VectorizedTrainingEnvironment,
+    ) -> None:
+        if not distributed_helper.is_master():
+            return
+        logger.info(f"Training environment: {env}")
+        config_path = os.path.join(self.run_dir, "config.json")
+        with open(config_path, "w") as config_file:
+            config_file.write(self.model_dump_json(indent=2))
+        logger.info(f"Config saved to {config_path}")
 
-        stats_client = None
-        if distributed_helper.is_master() and self.stats_server_uri:
-            try:
-                stats_client = StatsClient.create(self.stats_server_uri)
-            except Exception as exc:
-                logger.warning("Failed to initialize stats client: %s", exc)
-                stats_client = None
-
-        if distributed_helper.is_master() and self.wandb.enabled:
-            wandb_manager = WandbContext(self.wandb, self)
-        else:
-            wandb_manager = contextlib.nullcontext(None)
-
+    def _maybe_create_stats_client(self, distributed_helper: DistributedHelper) -> Optional[StatsClient]:
+        if not (distributed_helper.is_master() and self.stats_server_uri):
+            return None
         try:
-            with wandb_manager as wandb_run:
-                stats_component = None
+            return StatsClient.create(self.stats_server_uri)
+        except Exception as exc:
+            logger.warning("Failed to initialize stats client: %s", exc)
+            return None
 
-                if distributed_helper.is_master():
-                    policy_uploader = PolicyUploader(
-                        config=self.policy_uploader,
-                        checkpoint_manager=checkpoint_manager,
-                        distributed_helper=distributed_helper,
-                        policy_checkpointer=policy_checkpointer,
-                        wandb_run=wandb_run,
-                    )
-                    trainer.register(policy_uploader)
+    def _build_wandb_manager(self, distributed_helper: DistributedHelper):
+        if distributed_helper.is_master() and self.wandb.enabled:
+            return WandbContext(self.wandb, self)
+        return contextlib.nullcontext(None)
 
-                    stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
-                    stats_component = StatsReporter.from_config(
-                        stats_config,
-                        stats_client=stats_client,
-                        wandb_run=wandb_run,
-                    )
-                    trainer.register(stats_component)
+    def _register_optional_components(
+        self,
+        trainer: Trainer,
+        distributed_helper: DistributedHelper,
+        checkpoint_manager: CheckpointManager,
+        policy_checkpointer: PolicyCheckpointer,
+        stats_client: Optional[StatsClient],
+        wandb_run: Any,
+    ) -> None:
+        if not distributed_helper.is_master():
+            return
 
-                    if self.gradient_stats.epoch_interval:
-                        trainer.register(GradientStatsComponent(self.gradient_stats))
+        policy_uploader = PolicyUploader(
+            config=self.policy_uploader,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+            policy_checkpointer=policy_checkpointer,
+            wandb_run=wandb_run,
+        )
+        trainer.register(policy_uploader)
 
-                    evaluator_component = Evaluator(
-                        config=self.evaluator,
-                        device=torch.device(self.device),
-                        system_cfg=self.system,
-                        trainer_cfg=self.trainer,
-                        stats_client=stats_client,
-                        stats_reporter=stats_component,
-                    )
-                    trainer.register(evaluator_component)
+        stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
+        stats_component = StatsReporter.from_config(
+            stats_config,
+            stats_client=stats_client,
+            wandb_run=wandb_run,
+        )
+        trainer.register(stats_component)
 
-                    if getattr(self.torch_profiler, "interval_epochs", 0):
-                        trainer.register(
-                            TorchProfilerComponent(
-                                profiler_config=self.torch_profiler,
-                                wandb_run=wandb_run,
-                                run_dir=self.run_dir,
-                                is_master=True,
-                            )
-                        )
+        if self.gradient_stats.epoch_interval:
+            trainer.register(GradientStatsComponent(self.gradient_stats))
 
-                if wandb_run is not None and distributed_helper.is_master():
-                    trainer.register(WandbLoggerComponent(wandb_run))
+        evaluator_component = Evaluator(
+            config=self.evaluator,
+            device=torch.device(self.device),
+            system_cfg=self.system,
+            trainer_cfg=self.trainer,
+            stats_client=stats_client,
+            stats_reporter=stats_component,
+        )
+        trainer.register(evaluator_component)
 
-                trainer.restore()
-                trainer.train()
-        finally:
-            env.close()
-            if stats_client and hasattr(stats_client, "close"):
-                stats_client.close()
-            distributed_helper.cleanup()
+        if getattr(self.torch_profiler, "interval_epochs", 0):
+            trainer.register(
+                TorchProfilerComponent(
+                    profiler_config=self.torch_profiler,
+                    wandb_run=wandb_run,
+                    run_dir=self.run_dir,
+                    is_master=True,
+                )
+            )
 
     def _minimize_config_for_debugging(self) -> None:
         self.trainer.minibatch_size = min(self.trainer.minibatch_size, 1024)

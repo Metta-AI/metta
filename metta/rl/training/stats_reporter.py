@@ -23,6 +23,7 @@ from metta.rl.stats import (
     process_training_stats,
 )
 from metta.rl.training.component import TrainerComponent
+from metta.rl.training.context import TrainerContext
 
 logger = logging.getLogger(__name__)
 
@@ -118,29 +119,27 @@ class StatsReporter(TrainerComponent):
         self._stats_client = stats_client
         self._wandb_run = wandb_run
         self._state = StatsState()
+        self._memory_monitor = None
+        self._system_monitor = None
 
         # Initialize stats run if client is available
         if self._stats_client and self._config.report_to_stats_client:
             self._initialize_stats_run()
 
-    def register(self, trainer) -> None:  # type: ignore[override]
-        super().register(trainer)
-        trainer.stats_reporter = self
+    def register(self, context: TrainerContext) -> None:  # type: ignore[override]
+        super().register(context)
         reporting_enabled = (
             self._config.report_to_wandb
             or self._config.report_to_stats_client
             or self._config.report_to_console
         )
         if reporting_enabled:
-            experience = getattr(trainer.core_loop, "experience", None)
-            assert experience is not None, "Expected experience buffer to be initialized"
+            experience = context.core_loop.experience
             memory_monitor, system_monitor = setup_monitoring(
-                policy=trainer.policy,
+                policy=context.policy,
                 experience=experience,
-                timer=trainer.stopwatch,
+                timer=context.stopwatch,
             )
-            trainer.memory_monitor = memory_monitor
-            trainer.system_monitor = system_monitor
             self._memory_monitor = memory_monitor
             self._system_monitor = system_monitor
 
@@ -317,27 +316,20 @@ class StatsReporter(TrainerComponent):
 
         Args:
         """
-        trainer = self._trainer
-        if trainer is None:
-            return
-
-        latest_grad_stats = trainer.latest_grad_stats if hasattr(trainer, "latest_grad_stats") else None
-        if latest_grad_stats:
-            self.update_grad_stats(latest_grad_stats)
-
-        experience = trainer.core_loop.experience
+        context = self.context
+        experience = context.core_loop.experience
 
         self.report_epoch(
-            epoch=trainer.epoch,
-            agent_step=trainer.agent_step,
-            losses_stats=getattr(trainer, "latest_losses_stats", {}),
+            epoch=context.epoch,
+            agent_step=context.agent_step,
+            losses_stats=getattr(context, "latest_losses_stats", {}),
             experience=experience,
-            policy=trainer.policy,
-            timer=trainer.stopwatch,
-            trainer_cfg=trainer.cfg,
-            optimizer=trainer.optimizer,
-            memory_monitor=getattr(trainer, "memory_monitor", None),
-            system_monitor=getattr(trainer, "system_monitor", None),
+            policy=context.policy,
+            timer=context.stopwatch,
+            trainer_cfg=context.cfg,
+            optimizer=context.optimizer,
+            memory_monitor=self._memory_monitor,
+            system_monitor=self._system_monitor,
         )
 
     def on_training_complete(self) -> None:
@@ -346,7 +338,7 @@ class StatsReporter(TrainerComponent):
         Args:
         """
         self.finalize(status="completed")
-        cleanup_monitoring(getattr(self, "_memory_monitor", None), getattr(self, "_system_monitor", None))
+        cleanup_monitoring(self._memory_monitor, self._system_monitor)
 
     def on_failure(self) -> None:
         """Handle training failure.
@@ -355,7 +347,7 @@ class StatsReporter(TrainerComponent):
             trainer: The trainer instance
         """
         self.finalize(status="failed")
-        cleanup_monitoring(getattr(self, "_memory_monitor", None), getattr(self, "_system_monitor", None))
+        cleanup_monitoring(self._memory_monitor, self._system_monitor)
 
     # ------------------------------------------------------------------
     # Internal helpers

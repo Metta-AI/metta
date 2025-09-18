@@ -10,6 +10,7 @@ from typing import Optional
 from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
+from metta.rl.training.context import TrainerContext
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,8 @@ class _RestoredTrainerState:
 class TrainerCheckpointer(TrainerComponent):
     """Persist and restore optimizer/timing state alongside policy checkpoints."""
 
+    trainer_attr = "trainer_checkpointer"
+
     def __init__(
         self,
         *,
@@ -55,8 +58,8 @@ class TrainerCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
-    def register(self, trainer) -> None:  # type: ignore[override]
-        super().register(trainer)
+    def register(self, context: TrainerContext) -> None:  # type: ignore[override]
+        super().register(context)
         explicit_dir = self._config.checkpoint_dir
         if explicit_dir:
             Path(explicit_dir).mkdir(parents=True, exist_ok=True)
@@ -65,7 +68,7 @@ class TrainerCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Public API used by Trainer
     # ------------------------------------------------------------------
-    def restore(self, trainer) -> None:
+    def restore(self, context: TrainerContext) -> None:
         """Load trainer state if checkpoints exist and broadcast to all ranks."""
         state: Optional[_RestoredTrainerState] = None
 
@@ -86,24 +89,24 @@ class TrainerCheckpointer(TrainerComponent):
         if state is None:
             return
 
-        trainer.agent_step = state.agent_step
-        trainer.epoch = state.epoch
-        if hasattr(trainer, "trainer_state"):
-            trainer.trainer_state.agent_step = state.agent_step
-            trainer.trainer_state.epoch = state.epoch
+        context.agent_step = state.agent_step
+        context.epoch = state.epoch
+        if hasattr(context, "trainer_state"):
+            context.trainer_state.agent_step = state.agent_step
+            context.trainer_state.epoch = state.epoch
         self._latest_saved_epoch = state.epoch
 
         if state.optimizer_state:
             try:
-                trainer.optimizer.load_state_dict(state.optimizer_state)
-                if hasattr(trainer, "trainer_state"):
-                    trainer.trainer_state.optimizer = trainer.optimizer
+                context.optimizer.load_state_dict(state.optimizer_state)
+                if hasattr(context, "trainer_state"):
+                    context.trainer_state.optimizer = context.optimizer
             except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
 
         if state.stopwatch_state:
             try:
-                trainer.stopwatch.load_state(state.stopwatch_state, resume_running=True)
+                context.stopwatch.load_state(state.stopwatch_state, resume_running=True)
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Failed to restore stopwatch state: %s", exc)
 
@@ -111,36 +114,34 @@ class TrainerCheckpointer(TrainerComponent):
     # Callback entry-points
     # ------------------------------------------------------------------
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        trainer = self._trainer
-        if trainer is None or not self._distributed.should_checkpoint():
+        if not self._distributed.should_checkpoint():
             return
 
         if epoch % self._config.epoch_interval != 0:
             return
 
-        self._save_state(trainer)
+        self._save_state(self.context)
 
     def on_training_complete(self) -> None:  # type: ignore[override]
-        trainer = self._trainer
-        if trainer is None or not self._distributed.should_checkpoint():
+        if not self._distributed.should_checkpoint():
             return
 
-        self._save_state(trainer, force=True)
+        self._save_state(self.context, force=True)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _save_state(self, trainer, *, force: bool = False) -> None:
-        current_epoch = trainer.epoch
-        agent_step = trainer.agent_step
+    def _save_state(self, context: TrainerContext, *, force: bool = False) -> None:
+        current_epoch = context.epoch
+        agent_step = context.agent_step
         stopwatch_state = None
         try:
-            stopwatch_state = trainer.stopwatch.save_state()
+            stopwatch_state = context.stopwatch.save_state()
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.debug("Unable to capture stopwatch state: %s", exc)
 
         self._checkpoint_manager.save_trainer_state(
-            trainer.optimizer,
+            context.optimizer,
             current_epoch,
             agent_step,
             stopwatch_state=stopwatch_state,

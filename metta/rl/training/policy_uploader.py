@@ -15,6 +15,7 @@ from metta.mettagrid.config import Config
 from metta.mettagrid.util.file import local_copy
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
+from metta.rl.training.context import TrainerContext
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
@@ -54,11 +55,10 @@ class PolicyUploader(TrainerComponent):
     # Callback entry-points
     # ------------------------------------------------------------------
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        if not self._should_upload(epoch):
+        if not self._distributed.should_checkpoint() or self._wandb_run is None:
             return
 
-        trainer = self._trainer
-        if trainer is None:
+        if epoch % self._config.epoch_interval != 0:
             return
 
         checkpoint_uri = self._policy_checkpointer.get_latest_policy_uri()
@@ -68,15 +68,14 @@ class PolicyUploader(TrainerComponent):
 
         metadata = {
             "epoch": epoch,
-            "agent_step": trainer.agent_step,
+            "agent_step": self.context.agent_step,
         }
-        metadata.update(self._evaluation_metadata(trainer))
+        metadata.update(self._evaluation_metadata(self.context))
 
         self._upload(checkpoint_uri, epoch, metadata)
 
     def on_training_complete(self) -> None:  # type: ignore[override]
-        trainer = self._trainer
-        if trainer is None:
+        if not self._distributed.should_checkpoint() or self._wandb_run is None:
             return
 
         checkpoint_uri = self._policy_checkpointer.get_latest_policy_uri()
@@ -85,28 +84,19 @@ class PolicyUploader(TrainerComponent):
             return
 
         metadata = {
-            "epoch": trainer.epoch,
-            "agent_step": trainer.agent_step,
+            "epoch": self.context.epoch,
+            "agent_step": self.context.agent_step,
             "final": True,
         }
-        metadata.update(self._evaluation_metadata(trainer))
+        metadata.update(self._evaluation_metadata(self.context))
 
-        self._upload(checkpoint_uri, trainer.epoch, metadata, force=True)
+        self._upload(checkpoint_uri, self.context.epoch, metadata, force=True)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _should_upload(self, epoch: int) -> bool:
-        if not self._distributed.should_checkpoint():
-            return False
-        if self._wandb_run is None:
-            return False
-        if epoch % self._config.epoch_interval != 0:
-            return False
-        return True
-
-    def _evaluation_metadata(self, trainer) -> dict[str, Any]:
-        evaluator = getattr(trainer, "evaluator", None)
+    def _evaluation_metadata(self, context: TrainerContext) -> dict[str, Any]:
+        evaluator = context.get_component_by_type("Evaluator")
         if evaluator is None:
             return {}
         try:
@@ -128,13 +118,6 @@ class PolicyUploader(TrainerComponent):
         *,
         force: bool = False,
     ) -> Optional[str]:
-        if not self._distributed.should_checkpoint():
-            return None
-        if self._wandb_run is None:
-            return None
-        if not force and epoch % self._config.epoch_interval != 0:
-            return None
-
         artifact_name = f"policy-{epoch}"
 
         with self._materialize_checkpoint(checkpoint_uri) as local_path:
