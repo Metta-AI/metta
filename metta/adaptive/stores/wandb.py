@@ -29,8 +29,14 @@ class WandbStore:
         # Don't store api instance - create fresh one each time to avoid caching
 
     @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
-    def init_run(self, run_id: str, group: str | None = None, tags: list[str] | None = None) -> None:
-        """Initialize a new run in WandB."""
+    def init_run(
+        self,
+        run_id: str,
+        group: str | None = None,
+        tags: list[str] | None = None,
+        initial_summary: dict[str, Any] | None = None
+    ) -> None:
+        """Initialize a new run in WandB with optional initial summary data."""
         logger.info(f"[WandbStore] Initializing run {run_id} for group {group}")
 
         try:
@@ -49,6 +55,12 @@ class WandbStore:
 
             # Mark as initialized but not started
             run.summary["initialized"] = True
+
+            # Set any initial summary data before finishing
+            if initial_summary:
+                for key, value in initial_summary.items():
+                    run.summary[key] = value
+                logger.info(f"[WandbStore] Set initial summary data for {run_id}: {list(initial_summary.keys())}")
 
             # Finish immediately - the actual training process will resume this run
             wandb.finish()

@@ -211,6 +211,8 @@ class BatchedSyncedOptimizingScheduler:
             to_launch,
             len(observations),
         )
+        if observations:
+            logger.debug(f"[BatchedSyncedOptimizingScheduler] Observations being passed to optimizer: {observations}")
         suggestions = self.optimizer.suggest(observations, n_suggestions=to_launch)
         if not suggestions:
             logger.warning("[BatchedSyncedOptimizingScheduler] Optimizer returned no suggestions")
@@ -234,8 +236,9 @@ class BatchedSyncedOptimizingScheduler:
                 stats_server_uri=self.config.stats_server_uri,
                 train_overrides=merged_overrides,
             )
-            # Record suggestion for downstream hooks; controller can write it into summary
-            job.metadata["adaptive/suggestion"] = suggestion
+            # Record suggestion directly in metadata with sweep namespace
+            # This will be written to WandB summary when run is initialized
+            job.metadata["sweep/suggestion"] = suggestion
             jobs.append(job)
 
             # Update state: add to runs_in_training
@@ -275,12 +278,15 @@ class BatchedSyncedOptimizingScheduler:
             suggestion = summary.get("sweep/suggestion", {})
             if score is not None:
                 try:
-                    obs_list.append({
+                    obs_dict = {
                         "score": float(score),
                         "cost": float(cost) if cost is not None else 0.0,
                         "suggestion": dict(suggestion) if isinstance(suggestion, dict) else {},
-                    })
-                except Exception:
+                    }
+                    obs_list.append(obs_dict)
+                    logger.debug(f"[BatchedSyncedOptimizingScheduler] Collected observation for {run.run_id}: {obs_dict}")
+                except Exception as e:
                     # Skip malformed entries
+                    logger.warning(f"[BatchedSyncedOptimizingScheduler] Failed to collect observation for {run.run_id}: {e}")
                     continue
         return obs_list

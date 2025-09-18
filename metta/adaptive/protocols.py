@@ -52,8 +52,14 @@ class Store(Protocol):
     """
 
     # Run operations
-    def init_run(self, run_id: str, group: str | None = None, tags: list[str] | None = None) -> None:
-        """Initialize a new run"""
+    def init_run(
+        self,
+        run_id: str,
+        group: str | None = None,
+        tags: list[str] | None = None,
+        initial_summary: dict[str, Any] | None = None
+    ) -> None:
+        """Initialize a new run with optional initial summary data"""
         ...
 
     def fetch_runs(self, filters: dict) -> list["RunInfo"]:

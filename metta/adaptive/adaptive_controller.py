@@ -149,7 +149,12 @@ class AdaptiveController:
 
                         # Initialize run in store (only for training jobs, eval reuses same run)
                         if job.type == JobTypes.LAUNCH_TRAINING:
-                            self.store.init_run(job.run_id, group=self.experiment_id)
+                            # Pass job metadata as initial summary data
+                            self.store.init_run(
+                                job.run_id,
+                                group=self.experiment_id,
+                                initial_summary=job.metadata
+                            )
 
                         # Mark eval jobs as started in store
                         elif job.type == JobTypes.LAUNCH_EVAL:
