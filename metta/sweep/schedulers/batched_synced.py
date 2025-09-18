@@ -256,9 +256,17 @@ class BatchedSyncedOptimizingScheduler:
         return is_done
 
     def _collect_observations(self, runs: list[RunInfo]) -> list[dict[str, Any]]:
-        """Extract observations from run summaries written by sweep hooks."""
+        """Extract observations from run summaries written by sweep hooks.
+
+        Only collects observations from COMPLETED runs to ensure we're learning
+        from reliable, complete training results.
+        """
         obs_list: list[dict[str, Any]] = []
         for run in runs:
+            # Only collect observations from completed runs
+            if run.status != JobStatus.COMPLETED:
+                continue
+
             summary = run.summary if isinstance(run.summary, dict) else {}
             if not summary:
                 continue
