@@ -33,7 +33,6 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
 echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
-echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
@@ -52,8 +51,12 @@ METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_F
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -f devops/skypilot/utils/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    METTA_HOURLY_COST="$(uv run python devops/skypilot/utils/cost_monitor.py 2> /dev/null | tail -1 || true)"
-    echo "[RUN] METTA_HOURLY_COST set to $METTA_HOURLY_COST in $METTA_ENV_FILE by python."
+    if uv run python devops/skypilot/utils/cost_monitor.py; then
+      source "$METTA_ENV_FILE"
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+    else
+      echo "[RUN] Cost monitor script failed to run."
+    fi
   else
     echo "[RUN] Cost monitor script is missing!"
   fi
@@ -134,7 +137,19 @@ shutdown() {
 
   echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
 
-  local termination_reason="$(cat "$TERMINATION_REASON_FILE" || true)"
+  # Read and preserve the termination reason if it exists
+  local termination_reason="$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || true)"
+
+  # If no termination reason was set, check cluster stop file
+  if [[ -z "$termination_reason" ]]; then
+    if [[ -f "$CLUSTER_STOP_FILE" ]]; then
+      termination_reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || echo "cluster_stop")"
+    else
+      termination_reason="cluster_stop"
+    fi
+    # Write it to the termination reason file for cleanup handler
+    echo "$termination_reason" > "$TERMINATION_REASON_FILE"
+  fi
 
   # Kill the entire process tree gracefully
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
@@ -233,17 +248,11 @@ run_cmd() {
   # Build the command as an array
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
-  # Add --args if METTA_ARGS is not empty
+  # Add args if METTA_ARGS is not empty
   if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(--args)
     cmd+=(${METTA_ARGS}) # split on spaces
   fi
 
-  # Add --overrides if METTA_OVERRIDES is not empty
-  if [ -n "${METTA_OVERRIDES:-}" ]; then
-    cmd+=(--overrides)
-    cmd+=(${METTA_OVERRIDES}) # split on spaces
-  fi
   echo "[INFO] Running command: ${cmd[*]}"
 
   # Use process substitution so $! is the trainer (not tee)
@@ -259,6 +268,14 @@ run_cmd() {
 
   wait "$CMD_PID"
   CMD_EXIT=$?
+
+  if [[ ! -f "$TERMINATION_REASON_FILE" ]] || [[ ! -s "$TERMINATION_REASON_FILE" ]]; then
+    if [[ "$IS_MASTER" == "true" ]]; then
+      echo "job_completed" > "$TERMINATION_REASON_FILE"
+      echo "job_completed" > "$CLUSTER_STOP_FILE"
+      echo "[INFO] Master wrote shutdown signal to cluster stop file"
+    fi
+  fi
 
   local END_TIME=$(date +%s)
   local DURATION=$((END_TIME - START_TIME))

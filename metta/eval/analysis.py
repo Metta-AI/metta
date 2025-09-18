@@ -6,8 +6,8 @@ from tabulate import tabulate
 
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.mettagrid.util.file import local_copy
 from metta.rl.checkpoint_manager import CheckpointManager
+from mettagrid.util.file import local_copy
 
 
 def analyze(policy_uri: str, config: AnalysisConfig) -> None:

@@ -3,23 +3,23 @@ from typing import Any, ClassVar, List, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
-from metta.mettagrid.builder.envs import make_arena
-from metta.mettagrid.config import Config
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder.envs import make_arena
+from mettagrid.config import Config
 
 
 class OptimizerConfig(Config):
     type: Literal["adam", "muon"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
-    learning_rate: float = Field(default=0.000457, gt=0, le=1.0)
+    learning_rate: float = Field(default=0.001153637, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
     beta1: float = Field(default=0.9, ge=0, le=1.0)
     # Beta2: Standard Adam default from Kingma & Ba (2014)
     beta2: float = Field(default=0.999, ge=0, le=1.0)
     # Epsilon: Type 2 default chosen arbitrarily
-    eps: float = Field(default=1e-12, gt=0)
+    eps: float = Field(default=3.186531e-07, gt=0)
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
 
@@ -36,11 +36,11 @@ class InitialPolicyConfig(Config):
 
 
 class CheckpointConfig(Config):
-    # Checkpoint every 5 epochs
-    checkpoint_interval: int = Field(default=5, ge=0)
-    # W&B every 5 epochs
-    wandb_checkpoint_interval: int = Field(default=5, ge=0)
+    # Checkpoint every 30 epochs by default
+    checkpoint_interval: int = Field(default=30, ge=0)
     checkpoint_dir: str | None = Field(default=None)
+    # Remote S3 prefix for checkpoint uploads (e.g. s3://bucket/prefix)
+    remote_prefix: str | None = Field(default=None)
 
 
 class EvaluationConfig(Config):
@@ -157,22 +157,8 @@ class TrainerConfig(Config):
                     f"evaluate_interval must be at least as large as checkpoint_interval "
                     f"({self.evaluation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
                 )
-            if self.evaluation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval:
-                raise ValueError(
-                    f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
-                    f"({self.evaluation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
-                )
-
-        # Validate that we save policies locally at least as often as we upload to wandb
-        if (
-            self.checkpoint.wandb_checkpoint_interval != 0
-            and self.checkpoint.checkpoint_interval != 0
-            and self.checkpoint.wandb_checkpoint_interval < self.checkpoint.checkpoint_interval
-        ):
-            raise ValueError(
-                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
-                f"to ensure policies exist locally before uploading to wandb "
-                f"({self.checkpoint.wandb_checkpoint_interval} < {self.checkpoint.checkpoint_interval})"
-            )
+            if self.evaluation.evaluate_remote and self.checkpoint.remote_prefix is None:
+                # Without a remote prefix we cannot evaluate on other machines; disable remote eval.
+                self.evaluation.evaluate_remote = False
 
         return self

@@ -2,16 +2,8 @@ from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
 import metta.map.scenes.random
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from metta.map.mapgen import MapGen
-from metta.mettagrid.builder import building
-from metta.mettagrid.mettagrid_config import (
-    ActionConfig,
-    ActionsConfig,
-    AttackActionConfig,
-    ChangeGlyphActionConfig,
-    EnvConfig,
-)
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import (
     CheckpointConfig,
@@ -23,6 +15,14 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from mettagrid.builder import building
+from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AttackActionConfig,
+    ChangeGlyphActionConfig,
+    EnvConfig,
+)
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
@@ -71,7 +71,6 @@ def make_env(num_agents: int = 24) -> EnvConfig:
         ),
         swap=ActionConfig(enabled=True),
         # These were disabled in old config
-        place_box=ActionConfig(enabled=False),
         change_color=ActionConfig(enabled=False),
         change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
     )
@@ -163,7 +162,7 @@ def train() -> TrainTool:
         total_timesteps=10_000_000_000,  # 10B instead of default 50B
         checkpoint=CheckpointConfig(
             checkpoint_interval=50,  # 50 instead of default 5
-            wandb_checkpoint_interval=50,  # 50 instead of default 5
+            remote_prefix="s3://my-bucket/policies",
         ),
         evaluation=EvaluationConfig(
             simulations=make_evals(env_cfg),
@@ -222,13 +221,13 @@ def evaluate(policy_uri: str) -> SimTool:
 #     env = arena.make_env()
 #     env.game.max_steps = 100
 #     cfg = arena.replay(env)
-#     # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
+#     # cfg.policy_uri = "s3://your-bucket/checkpoints/daveey.combat.lpsm.8x4/daveey.combat.lpsm.8x4:v42.pt"
 #     return cfg
 
 
 # def evaluate(run: str = "local.alex.1") -> SimTool:
-#     cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
+#     cfg = arena.evaluate(policy_uri=f"s3://your-bucket/checkpoints/{run}/{run}:v10.pt")
 
 #     # If your run doesn't exist, try this:
-#     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
+#     # cfg = arena.evaluate(policy_uri="s3://your-bucket/checkpoints/daveey.combat.lpsm.8x4/daveey.combat.lpsm.8x4:v42.pt")
 #     return cfg

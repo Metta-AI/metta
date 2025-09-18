@@ -2,8 +2,8 @@ import logging
 
 from pydantic import Field
 
-from metta.common.config.tool import Tool
-from metta.common.wandb.wandb_context import WandbConfig
+from metta.common.tool import Tool
+from metta.common.wandb.context import WandbConfig
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
 from metta.tools.utils.auto_config import auto_wandb_config
@@ -18,6 +18,6 @@ class AnalysisTool(Tool):
     policy_uri: str
     data_dir: str = Field(default="./train_dir")
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         analyze(self.policy_uri, self.analysis)
         return 0

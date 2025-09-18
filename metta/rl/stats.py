@@ -13,12 +13,8 @@ import wandb
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
-from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
-from metta.mettagrid.profiling.stopwatch import Stopwatch
-from metta.mettagrid.profiling.system_monitor import SystemMonitor
-from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.experience import Experience
@@ -30,6 +26,10 @@ from metta.rl.wandb import (
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
+from mettagrid.profiling.memory_monitor import MemoryMonitor
+from mettagrid.profiling.stopwatch import Stopwatch
+from mettagrid.profiling.system_monitor import SystemMonitor
+from mettagrid.util.dict_utils import unroll_nested_dict
 
 logger = logging.getLogger(__name__)
 
@@ -173,10 +173,8 @@ def process_training_stats(
     overview = {}
 
     # Calculate average reward from environment stats
-    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-    if task_reward_values:
-        mean_reward = sum(task_reward_values) / len(task_reward_values)
-        overview["reward"] = mean_reward
+    if "rewards" in experience_stats:
+        overview["reward"] = experience_stats["rewards"]
 
     return {
         "mean_stats": mean_stats,
@@ -433,7 +431,6 @@ def process_policy_evaluator_stats(
                     agent_step=agent_step,  # type: ignore
                     epoch=epoch,  # type: ignore
                     wandb_run=run,
-                    metric_prefix=POLICY_EVALUATOR_METRIC_PREFIX,
                     step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
                     epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
                 )

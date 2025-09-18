@@ -26,7 +26,7 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bazel for metta-mettagrid build
+# Install Bazel for mettagrid build
 RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
     && chmod +x /usr/local/bin/bazel
 
@@ -44,7 +44,7 @@ WORKDIR /workspace/metta
 
 # Install dependencies
 COPY .python-version pyproject.toml uv.lock ./
-COPY mettagrid/pyproject.toml mettagrid/
+COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
