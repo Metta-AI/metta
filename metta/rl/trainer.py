@@ -1,7 +1,7 @@
 """Main trainer facade for coordinating all training components."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import torch
 
@@ -16,6 +16,11 @@ from metta.rl.training.heartbeat import HeartbeatWriter
 from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.rl.utils import log_training_progress
+
+if TYPE_CHECKING:
+    from metta.rl.training.evaluator import Evaluator
+    from metta.rl.training.policy_checkpointer import PolicyCheckpointer
+    from metta.rl.training.stats_reporter import StatsReporter
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -52,6 +57,12 @@ class Trainer:
         self._device = device
         self._distributed_helper = DistributedHelper(self._device)
         self._components = []
+        self.policy_checkpointer: Optional["PolicyCheckpointer"] = None
+        self.stats_reporter: Optional["StatsReporter"] = None
+        self.evaluator: Optional["Evaluator"] = None
+        self.latest_grad_stats: dict[str, float] = {}
+        self.memory_monitor = None
+        self.system_monitor = None
 
         self._epoch = 0
         self._agent_step = 0
@@ -103,6 +114,11 @@ class Trainer:
         return self._policy
 
     @property
+    def env(self) -> TrainingEnvironment:
+        """Return the active training environment wrapper."""
+        return self._env
+
+    @property
     def cfg(self) -> TrainerConfig:
         """Return the immutable trainer configuration."""
         return self._cfg
@@ -144,6 +160,12 @@ class Trainer:
     def stopwatch(self) -> Stopwatch:
         """Return the stopwatch tracking training timings."""
         return self.timer
+
+    def get_latest_policy_uri(self) -> Optional[str]:
+        """Return the most recent policy checkpoint URI if available."""
+        if self.policy_checkpointer is not None:
+            return self.policy_checkpointer.get_latest_policy_uri()
+        return None
 
     def train(self) -> None:
         """Run the main training loop."""

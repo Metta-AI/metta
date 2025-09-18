@@ -122,6 +122,10 @@ class StatsReporter(TrainerComponent):
         if self._stats_client and self._config.report_to_stats_client:
             self._initialize_stats_run()
 
+    def register(self, trainer) -> None:  # type: ignore[override]
+        super().register(trainer)
+        trainer.stats_reporter = self
+
     def _initialize_stats_run(self) -> None:
         """Initialize stats run with the stats client."""
         if not self._stats_client:

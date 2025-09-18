@@ -33,6 +33,7 @@ class PolicyCheckpointer(TrainerComponent):
         distributed_helper: DistributedHelper,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
+        self._master_only = True
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
@@ -124,8 +125,7 @@ class PolicyCheckpointer(TrainerComponent):
             "epoch": epoch,
             "agent_step": trainer.agent_step,
             "total_time": trainer.stopwatch.get_elapsed(),
-            "total_train_time": elapsed_breakdown.get("_rollout", 0)
-            + elapsed_breakdown.get("_train", 0),
+            "total_train_time": elapsed_breakdown.get("_rollout", 0) + elapsed_breakdown.get("_train", 0),
             "is_final": is_final,
         }
         evaluator = getattr(trainer, "evaluator", None)

@@ -40,6 +40,7 @@ class PolicyUploader(TrainerComponent):
         wandb_run: Optional[WandbRun] = None,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
+        self._master_only = True
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper

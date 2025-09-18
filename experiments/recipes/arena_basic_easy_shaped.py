@@ -101,8 +101,12 @@ def train(
     )
 
     eval_simulations = [
-        SimulationConfig(name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)),
-        SimulationConfig(name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)),
+        SimulationConfig(
+            name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
+        ),
+        SimulationConfig(
+            name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
+        ),
     ]
 
     trainer_cfg = TrainerConfig(

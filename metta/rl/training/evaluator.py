@@ -44,6 +44,10 @@ class EvaluatorConfig(Config):
 class NoOpEvaluator(TrainerComponent):
     """No-op evaluator for when evaluation is disabled."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._latest_scores = EvalRewardSummary()
+
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
 
@@ -83,6 +87,10 @@ class Evaluator(TrainerComponent):
         self._stats_reporter = stats_reporter
         self._latest_scores = EvalRewardSummary()
         self._stats_reporter = stats_reporter
+
+    def register(self, trainer: "Trainer") -> None:  # type: ignore[override]
+        super().register(trainer)
+        trainer.evaluator = self
 
     @classmethod
     def from_config(
@@ -175,7 +183,10 @@ class Evaluator(TrainerComponent):
         Returns:
             True if evaluation should run
         """
-        return epoch % self._config.epoch_interval == 0
+        interval = self._config.epoch_interval
+        if interval <= 0:
+            return False
+        return epoch % interval == 0
 
     def evaluate(
         self,
@@ -339,27 +350,41 @@ class Evaluator(TrainerComponent):
             trainer: The trainer instance
             epoch: Current epoch number
         """
-        # Get the latest policy checkpoint URI
-        policy_uri = trainer.get_latest_policy_uri()
+        if not self.should_evaluate(epoch):
+            return
 
-        # Get curriculum from training environment
-        from metta.rl.training.training_environment import TrainingEnvironment
+        policy_uri = None
+        if hasattr(trainer, "get_latest_policy_uri"):
+            policy_uri = trainer.get_latest_policy_uri()
+        if not policy_uri and getattr(trainer, "policy_checkpointer", None):
+            policy_uri = trainer.policy_checkpointer.get_latest_policy_uri()  # type: ignore[union-attr]
 
-        curriculum = None
-        if isinstance(trainer._env, TrainingEnvironment):
-            curriculum = trainer._env.curriculum
+        if not policy_uri:
+            logger.debug("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
+            return
 
-        # Run evaluation
+        curriculum = getattr(trainer.env, "_curriculum", None)
+        if curriculum is None:
+            logger.debug("Evaluator: curriculum unavailable; skipping evaluation")
+            return
+
+        stats_reporter = getattr(trainer, "stats_reporter", None)
+        stats_epoch_id = None
+        if stats_reporter and getattr(stats_reporter.state, "stats_run_id", None):
+            stats_epoch_id = stats_reporter.create_epoch(
+                stats_reporter.state.stats_run_id,
+                stats_reporter.state.stats_epoch_start,
+                epoch,
+            )
+            stats_reporter.update_epoch_tracking(epoch + 1)
+
         scores = self.evaluate(
             policy_uri=policy_uri,
             curriculum=curriculum,
             epoch=epoch,
-            agent_step=trainer.trainer_state.agent_step,
-            stats_epoch_id=trainer.trainer_state.stats_epoch_id
-            if hasattr(trainer.trainer_state, "stats_epoch_id")
-            else None,
+            agent_step=trainer.agent_step,
+            stats_epoch_id=stats_epoch_id,
         )
 
-        # Update stats reporter if available
         if self._stats_reporter:
             self._stats_reporter.update_eval_scores(scores)

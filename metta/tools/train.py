@@ -9,6 +9,7 @@ from pydantic import Field
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import PolicyArchitecture
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -19,6 +20,7 @@ from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     DistributedHelper,
+    Evaluator,
     EvaluatorConfig,
     PolicyCheckpointer,
     PolicyCheckpointerConfig,
@@ -165,6 +167,14 @@ class TrainTool(Tool):
                 f.write(self.model_dump_json(indent=2))
                 logger.info(f"Config saved to {os.path.join(self.run_dir, 'config.json')}")
 
+        stats_client = None
+        if distributed_helper.is_master() and self.stats_server_uri:
+            try:
+                stats_client = StatsClient.create(self.stats_server_uri)
+            except Exception as exc:
+                logger.warning("Failed to initialize stats client: %s", exc)
+                stats_client = None
+
         if distributed_helper.is_master() and self.wandb.enabled:
             wandb_manager = WandbContext(self.wandb, self)
         else:
@@ -172,6 +182,8 @@ class TrainTool(Tool):
 
         try:
             with wandb_manager as wandb_run:
+                stats_component = None
+
                 if distributed_helper.is_master():
                     policy_uploader = PolicyUploader(
                         config=self.policy_uploader,
@@ -182,23 +194,33 @@ class TrainTool(Tool):
                     )
                     trainer.register(policy_uploader)
 
+                    stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
+                    stats_component = StatsReporter.from_config(
+                        stats_config,
+                        stats_client=stats_client,
+                        wandb_run=wandb_run,
+                    )
+                    trainer.register(stats_component)
+
+                    evaluator_component = Evaluator(
+                        config=self.evaluator,
+                        device=torch.device(self.device),
+                        system_cfg=self.system,
+                        trainer_cfg=self.trainer,
+                        stats_client=stats_client,
+                        stats_reporter=stats_component,
+                    )
+                    trainer.register(evaluator_component)
+
                 if wandb_run is not None and distributed_helper.is_master():
                     trainer.register(WandbLoggerComponent(wandb_run))
-
-                if distributed_helper.is_master():
-                    stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
-                    if stats_config.report_to_wandb or stats_config.report_to_stats_client:
-                        stats_component = StatsReporter.from_config(
-                            stats_config,
-                            stats_client=None,
-                            wandb_run=wandb_run,
-                        )
-                        trainer.register(stats_component)
 
                 trainer.restore()
                 trainer.train()
         finally:
             env.close()
+            if stats_client and hasattr(stats_client, "close"):
+                stats_client.close()
             distributed_helper.cleanup()
 
     def _minimize_config_for_debugging(self) -> None:
