@@ -51,13 +51,20 @@ def create_on_eval_completed_hook(metric_path: str):
         cost = run.cost
 
         # Update the run summary with sweep data for the optimizer
-        store.update_run_summary(
-            run.run_id,
-            {
-                "sweep/score": float(score),
-                "sweep/cost": float(cost),
-            },
-        )
+        sweep_data = {
+            "sweep/score": float(score),
+            "sweep/cost": float(cost),
+        }
+
+        # Update remote store (WandB)
+        store.update_run_summary(run.run_id, sweep_data)
+
+        # CRITICAL: Also update the local run object so scheduler sees the data immediately
+        # Without this, the scheduler won't see the scores until the next WandB fetch
+        if run.summary is None:
+            run.summary = {}
+        run.summary.update(sweep_data)
+
         logger.info(f"[SweepTool] Updated sweep observation for {run.run_id}: score={score:.6f}, cost={cost:.2f}")
 
     return on_eval_completed

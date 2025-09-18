@@ -189,13 +189,13 @@ class WandbStore:
                 f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}"
             )
 
-            # Check for evaluator metrics (ONLY keys starting with "evaluator/")
-            # This avoids confusion with in-training eval metrics
-            has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
+        # Check for evaluator metrics (ONLY keys starting with "evaluator/")
+        # This check is independent of has_started_eval flag
+        has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
 
-            if has_evaluator_metrics:
-                has_started_eval = True
-                has_been_evaluated = True
+        if has_evaluator_metrics:
+            has_started_eval = True
+            has_been_evaluated = True
 
         # Extract cost and runtime first
         # TEMPORARY PATCH: Calculate cost as $4.6 per hour of runtime
