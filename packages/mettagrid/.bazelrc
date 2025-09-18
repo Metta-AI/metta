@@ -33,6 +33,12 @@ coverage --instrumentation_filter=//:mettagrid_lib,//:mettagrid_c
 build:macos --copt=-fvisibility=hidden
 build:macos --cxxopt=-stdlib=libc++
 build:macos --linkopt=-stdlib=libc++
+# Set minimum macOS deployment target to prevent platform tag issues
+build:macos --macos_minimum_os=11.0
+build:macos --copt=-mmacosx-version-min=11.0
+build:macos --linkopt=-mmacosx-version-min=11.0
+build:macos --host_copt=-mmacosx-version-min=11.0
+build:macos --host_linkopt=-mmacosx-version-min=11.0
 
 # Platform-specific settings for Linux
 build:linux --copt=-fvisibility=hidden

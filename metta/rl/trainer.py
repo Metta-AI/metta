@@ -15,6 +15,7 @@ from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.context import WandbRun
+from metta.common.wandb.utils import abort_requested
 from metta.core.distributed import TorchDistributedConfig
 from metta.core.monitoring import (
     cleanup_monitoring,
@@ -49,7 +50,6 @@ from metta.rl.utils import (
 )
 from metta.rl.vecenv import make_vecenv
 from metta.rl.wandb import (
-    abort_requested,
     log_model_parameters,
     setup_wandb_metrics,
 )
@@ -111,7 +111,7 @@ def train(
 
     # Calculate batch sizes
     num_agents = curriculum.get_task().get_env_cfg().game.num_agents
-    target_batch_size, batch_size, num_envs = calculate_batch_sizes(
+    _target_batch_size, batch_size, num_envs = calculate_batch_sizes(
         trainer_cfg.forward_pass_minibatch_target_size,
         num_agents,
         trainer_cfg.rollout_workers,
@@ -611,7 +611,7 @@ def train(
 
             # Check for abort every 5 epochs
             if should_run(epoch, 5):
-                if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
+                if wandb_run and abort_requested(wandb_run):
                     logger.info("Abort tag detected. Stopping the run.")
                     trainer_cfg.total_timesteps = int(agent_step)
                     wandb_run.config.update(
