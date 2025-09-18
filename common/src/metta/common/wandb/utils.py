@@ -4,7 +4,6 @@ W&B utility functions for logging, alerts, and artifact management.
 
 import logging
 import os
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -14,7 +13,6 @@ from wandb import Artifact
 from wandb.apis.public.runs import Run
 from wandb.errors import CommError
 
-from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.common.util.retry import retry_on_exception
 from metta.common.wandb.context import WandbRun
 from metta.mettagrid.util.file import WandbURI
@@ -180,57 +178,6 @@ def abort_requested(wandb_run: WandbRun | None) -> bool:
 
 
 # ============================================================================
-# URI utilities
-# ============================================================================
-
-
-def expand_wandb_uri(uri: str, default_project: str = "metta") -> str:
-    """Expand short wandb URI formats to full format.
-
-    Handles both short and full wandb URI formats:
-    - "wandb://run/my_run_name" ->
-      "wandb://ENTITY/metta/model/my_run_name:latest"
-      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
-    - "wandb://run/my_run_name:v5" ->
-      "wandb://ENTITY/metta/model/my_run_name:v5"
-      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
-    - "wandb://sweep/sweep_name" ->
-      "wandb://ENTITY/metta/sweep_model/sweep_name:latest"
-      (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
-    - Full URIs pass through unchanged
-
-    """
-    if not uri.startswith("wandb://"):
-        return uri
-
-    path = uri[len("wandb://") :]
-
-    if not path.startswith(("run/", "sweep/")):
-        return uri
-
-    # Default entity: respect WANDB_ENTITY if set; otherwise assume METTA_WANDB_ENTITY
-    entity = os.getenv("WANDB_ENTITY", METTA_WANDB_ENTITY)
-
-    if path.startswith("run/"):
-        run_name = path[4:]
-        if ":" in run_name:
-            run_name, version = run_name.rsplit(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{entity}/{default_project}/model/{run_name}:{version}"
-
-    elif path.startswith("sweep/"):
-        sweep_name = path[6:]
-        if ":" in sweep_name:
-            sweep_name, version = sweep_name.rsplit(":", 1)
-        else:
-            version = "latest"
-        return f"wandb://{entity}/{default_project}/sweep_model/{sweep_name}:{version}"
-
-    return uri
-
-
-# ============================================================================
 # Artifact utilities
 # ============================================================================
 
@@ -297,49 +244,3 @@ def upload_file_as_artifact(
     logger.info(f"Uploaded file as wandb artifact: {artifact.qualified_name}")
 
     return wandb_uri
-
-
-def load_artifact_file(wandb_uri: str, filename: Optional[str] = None, fallback_pattern: str = "*.pt") -> Path:
-    """Load a file from wandb artifact."""
-    if not wandb_uri.startswith("wandb://"):
-        raise ValueError(f"Not a wandb URI: {wandb_uri}")
-
-    expanded_uri = expand_wandb_uri(wandb_uri)
-    logger.info(f"Loading artifact from wandb URI: {expanded_uri}")
-    uri = WandbURI.parse(expanded_uri)
-    qname = uri.qname()
-
-    # Load artifact with retries
-    try:
-        logger.debug(f"Loading artifact: {qname}")
-        artifact = get_wandb_artifact(qname)
-    except Exception as e:
-        raise ValueError(f"Failed to load artifact: {qname}") from e
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        artifact_dir = Path(temp_dir)
-
-        # Download artifact with retries
-        logger.debug(f"Downloading artifact to {artifact_dir}")
-        download_artifact(artifact, str(artifact_dir))
-
-        # Find the requested file
-        if filename:
-            target_file = artifact_dir / filename
-            if not target_file.exists():
-                raise FileNotFoundError(f"File '{filename}' not found in artifact {wandb_uri}")
-        else:
-            # Fallback to finding files matching pattern
-            matching_files = list(artifact_dir.rglob(fallback_pattern))
-            if not matching_files:
-                raise FileNotFoundError(f"No files matching '{fallback_pattern}' in artifact {wandb_uri}")
-            target_file = matching_files[0]
-            if len(matching_files) > 1:
-                logger.warning(f"Multiple files found matching '{fallback_pattern}', using: {target_file}")
-
-        # Copy to a persistent location
-        import shutil
-
-        persistent_path = Path(tempfile.mktemp(suffix=target_file.suffix))
-        shutil.copy2(target_file, persistent_path)
-        return persistent_path

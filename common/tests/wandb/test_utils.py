@@ -7,73 +7,11 @@ from unittest.mock import Mock, patch
 from metta.common.wandb.context import WandbRun
 from metta.common.wandb.utils import (
     abort_requested,
-    expand_wandb_uri,
     get_wandb_artifact,
     get_wandb_artifact_metadata,
     get_wandb_run,
-    load_artifact_file,
     upload_file_as_artifact,
 )
-
-
-class TestURIExpansion:
-    """Test wandb URI expansion functionality."""
-
-    def test_expand_wandb_uri_run_format(self):
-        """Test expansion of short run format URIs."""
-        # Test short run format - should use METTA_WANDB_ENTITY fallback
-        short_uri = "wandb://run/my-experiment"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/model/my-experiment:latest"
-
-        # Test short run format with version
-        short_uri = "wandb://run/my-experiment:v10"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/model/my-experiment:v10"
-
-    def test_expand_wandb_uri_sweep_format(self):
-        """Test expansion of short sweep format URIs."""
-        short_uri = "wandb://sweep/my-sweep"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/sweep_model/my-sweep:latest"
-
-        # With version
-        short_uri = "wandb://sweep/my-sweep:v5"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/sweep_model/my-sweep:v5"
-
-    def test_expand_wandb_uri_full_format_unchanged(self):
-        """Test that full format URIs remain unchanged."""
-        full_uri = "wandb://entity/project/model/artifact:v1"
-        expanded = expand_wandb_uri(full_uri)
-        assert expanded == full_uri
-
-    def test_expand_wandb_uri_custom_project(self):
-        """Test URI expansion with custom default project."""
-        short_uri = "wandb://run/my-run"
-        expanded = expand_wandb_uri(short_uri, default_project="custom-project")
-        assert expanded == "wandb://metta-research/custom-project/model/my-run:latest"
-
-    def test_expand_wandb_uri_non_wandb_unchanged(self):
-        """Test that non-wandb URIs are returned unchanged."""
-        non_wandb_uris = ["file:///path/to/file.pt", "s3://bucket/path/to/model.pt", "/regular/file/path.pt"]
-        for uri in non_wandb_uris:
-            assert expand_wandb_uri(uri) == uri
-
-    def test_expand_wandb_uri_edge_cases(self):
-        """Test edge cases in URI expansion."""
-        # Empty string after wandb://
-        assert expand_wandb_uri("wandb://") == "wandb://"
-
-        # Multiple colons in artifact name
-        uri = "wandb://run/my:special:run:v1"
-        expanded = expand_wandb_uri(uri)
-        assert expanded.endswith("my:special:run:v1")
-
-        # Special characters in names
-        uri = "wandb://run/my-run_with.dots-and_underscores"
-        expanded = expand_wandb_uri(uri)
-        assert "my-run_with.dots-and_underscores" in expanded
 
 
 class TestArtifactOperations:
@@ -194,55 +132,6 @@ class TestArtifactOperations:
         """Test that non-wandb URIs return None."""
         metadata = get_wandb_artifact_metadata("file:///path/to/file.pt")
         assert metadata is None
-
-
-class TestArtifactLoading:
-    """Test loading files from artifacts."""
-
-    @patch("metta.common.wandb.utils.get_wandb_artifact")
-    @patch("metta.common.wandb.utils.download_artifact")
-    def test_load_artifact_file(self, mock_download, mock_get_artifact):
-        """Test loading a specific file from an artifact."""
-        mock_artifact = Mock()
-        mock_get_artifact.return_value = mock_artifact
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create a mock downloaded file
-            target_file = Path(tmpdir) / "model.pt"
-            target_file.write_text("model content")
-
-            # Mock the download to create the file
-            def create_file(_artifact, root):
-                (Path(root) / "model.pt").write_text("model content")
-
-            mock_download.side_effect = create_file
-
-            # Test loading
-            loaded_path = load_artifact_file("wandb://run/test", filename="model.pt")
-
-            assert loaded_path.exists()
-            assert loaded_path.suffix == ".pt"
-
-    @patch("metta.common.wandb.utils.get_wandb_artifact")
-    @patch("metta.common.wandb.utils.download_artifact")
-    def test_load_artifact_file_with_pattern(self, mock_download, mock_get_artifact):
-        """Test loading file using fallback pattern."""
-        mock_artifact = Mock()
-        mock_get_artifact.return_value = mock_artifact
-
-        with tempfile.TemporaryDirectory() as _:
-            # Mock download creates multiple .pt files
-            def create_files(artifact, root):
-                (Path(root) / "checkpoint_1.pt").write_text("checkpoint 1")
-                (Path(root) / "checkpoint_2.pt").write_text("checkpoint 2")
-
-            mock_download.side_effect = create_files
-
-            # Should load first matching file
-            loaded_path = load_artifact_file("wandb://run/test", fallback_pattern="*.pt")
-
-            assert loaded_path.exists()
-            assert loaded_path.suffix == ".pt"
 
 
 class TestRunManagement:
