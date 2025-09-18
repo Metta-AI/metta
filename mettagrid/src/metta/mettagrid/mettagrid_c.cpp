@@ -267,7 +267,7 @@ void MettaGrid::init_action_handlers() {
 
   for (size_t i = 0; i < _action_handlers.size(); i++) {
     auto& handler = _action_handlers[i];
-    handler->init(_grid.get());
+    handler->init(_grid.get(), &_rng);
     if (handler->priority > _max_action_priority) {
       _max_action_priority = handler->priority;
     }
