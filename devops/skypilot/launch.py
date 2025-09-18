@@ -15,6 +15,7 @@ from devops.skypilot.utils.job_helpers import (
     check_git_state,
     display_job_summary,
     launch_task,
+    open_job_log_from_request_id,
     set_task_secrets,
     validate_module_path,
 )
@@ -23,7 +24,7 @@ from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
 
-logger = logging.getLogger("launch.py")
+logger = logging.getLogger(__name__)
 
 
 def _validate_sky_cluster_name(run_name: str) -> bool:
@@ -174,6 +175,7 @@ Examples:
         action="store_true",
         help="Run NCCL and job restart tests",
     )
+    parser.add_argument("-jl", "--job-log", action="store_true", help="Open job log after launch")
 
     args = parser.parse_args()
 
@@ -245,7 +247,7 @@ Examples:
     if not _validate_sky_cluster_name(run_id):
         sys.exit(1)
 
-    task = sky.Task.from_yaml("./devops/skypilot/config/skypilot_run.yaml")
+    task = sky.Task.from_yaml("./devops/skypilot/launch/skypilot_run.yaml")
 
     # Prepare environment variables including status parameters
     env_updates = dict(
@@ -257,7 +259,6 @@ Examples:
         GITHUB_PAT=args.github_pat,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,
-        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
         TEST_NCCL="true" if args.run_ci_tests else "false",
     )
 
@@ -322,15 +323,16 @@ Examples:
         sys.exit(0)
 
     # Launch the task(s)
-    if args.copies == 1:
-        launch_task(task)
-    else:
-        for _ in range(1, args.copies + 1):
-            copy_task = copy.deepcopy(task)
-            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
-            copy_task.name = run_id
-            copy_task.validate_name()
-            launch_task(copy_task)
+    def prepare_task(base_task: sky.Task, env_updates, run_id):
+        task = copy.deepcopy(base_task).update_envs(env_updates)
+        task.name = run_id
+        task.validate_name()
+        return task
+
+    request_ids = [launch_task(prepare_task(task, env_updates, run_id)) for _ in range(args.copies)]
+
+    if args.job_log:
+        open_job_log_from_request_id(request_ids[0])
 
 
 if __name__ == "__main__":
