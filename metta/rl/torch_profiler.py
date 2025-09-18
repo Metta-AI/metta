@@ -8,9 +8,9 @@ import torch.profiler
 import wandb
 
 from metta.common.wandb.context import WandbRun
-from metta.mettagrid.util.file import http_url, is_public_uri, write_file
 from metta.rl.trainer_config import TorchProfilerConfig
 from metta.rl.utils import should_run
+from mettagrid.util.file import http_url, is_public_uri, write_file
 
 logger = logging.getLogger(__name__)
 

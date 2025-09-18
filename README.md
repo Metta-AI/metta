@@ -196,7 +196,6 @@ builds its configuration, and runs it. The current available tasks are:
 
   `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
 
-
 ### Runner arguments
 
 Use the runner like this:
@@ -206,6 +205,7 @@ Use the runner like this:
 ```
 
 The runner automatically classifies arguments:
+
 - **Function arguments**: Arguments that match parameters of your task function
 - **Configuration overrides**: Arguments that match fields in the Tool configuration (supports nested paths with dots)
 
@@ -244,7 +244,7 @@ Minimal example:
 
 ```python
 # experiments/user/my_tasks.py
-from metta.mettagrid.config.envs import make_arena
+from mettagrid.config.envs import make_arena
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool

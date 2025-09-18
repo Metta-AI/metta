@@ -13,11 +13,11 @@ from metta.common.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.util.uri import ParsedURI
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
+from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
