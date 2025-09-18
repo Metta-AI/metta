@@ -47,8 +47,19 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
+
 class LPParams:
-    def __init__(self, ema_timescale: float = 0.001, exploration_bonus: float = 0.1, max_memory_tasks: int = 1000, max_slice_axes: int = 3, progress_smoothing: float = 0.1, enable_detailed_slice_logging: bool = False, num_active_tasks: int = 1000, rand_task_rate: float = 0.25):
+    def __init__(
+        self,
+        ema_timescale: float = 0.001,
+        exploration_bonus: float = 0.1,
+        max_memory_tasks: int = 1000,
+        max_slice_axes: int = 3,
+        progress_smoothing: float = 0.1,
+        enable_detailed_slice_logging: bool = False,
+        num_active_tasks: int = 1000,
+        rand_task_rate: float = 0.25,
+    ):
         self.ema_timescale = ema_timescale
         self.exploration_bonus = exploration_bonus
         self.max_memory_tasks = max_memory_tasks
@@ -57,6 +68,7 @@ class LPParams:
         self.enable_detailed_slice_logging = enable_detailed_slice_logging
         self.num_active_tasks = num_active_tasks
         self.rand_task_rate = rand_task_rate
+
 
 @dataclass
 class _BuildCfg:
@@ -345,19 +357,51 @@ def make_curriculum(
 
 
 def train(
-    curriculum_style: str = "small", lp_params: LPParams = LPParams()) -> TrainTool:
+    curriculum_style: str = "small", lp_params: LPParams = LPParams()
+) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
         make_icl_resource_chain_eval_suite,
     )
 
     curriculum_args = {
-        "small": {"chain_lengths": [2, 3, 4, 5], "num_sinks": [0, 1, 2], "room_sizes": ["small"], "lp_params": lp_params},
-        "small_medium": {"chain_lengths": [2, 3, 4, 5], "num_sinks": [0, 1], "room_sizes": ["small", "medium"], "lp_params": lp_params},
-        "all_room_sizes": {"chain_lengths": [2, 3, 4, 5], "num_sinks": [0, 1, 2], "room_sizes": ["small", "medium", "large"], "lp_params": lp_params},
-        "longer_chains": {"chain_lengths": [2, 3, 4, 5, 6, 7, 8], "num_sinks": [0, 1, 2], "room_sizes": ["small", "medium", "large"], "lp_params": lp_params},
-        "longer_chains_more_sinks": {"chain_lengths": [2, 3, 4, 5, 6, 7, 8], "num_sinks": [0, 1, 2, 3, 4], "room_sizes": ["small", "medium", "large"], "lp_params": lp_params},
-        "terrain": {"chain_lengths": [2, 3, 4, 5], "num_sinks": [0, 1], "obstacle_types": ["square", "cross", "L"], "densities": ["", "balanced", "sparse", "high"], "lp_params": lp_params},
+        "small": {
+            "chain_lengths": [2, 3, 4, 5],
+            "num_sinks": [0, 1, 2],
+            "room_sizes": ["small"],
+            "lp_params": lp_params,
+        },
+        "small_medium": {
+            "chain_lengths": [2, 3, 4, 5],
+            "num_sinks": [0, 1],
+            "room_sizes": ["small", "medium"],
+            "lp_params": lp_params,
+        },
+        "all_room_sizes": {
+            "chain_lengths": [2, 3, 4, 5],
+            "num_sinks": [0, 1, 2],
+            "room_sizes": ["small", "medium", "large"],
+            "lp_params": lp_params,
+        },
+        "longer_chains": {
+            "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
+            "num_sinks": [0, 1, 2],
+            "room_sizes": ["small", "medium", "large"],
+            "lp_params": lp_params,
+        },
+        "longer_chains_more_sinks": {
+            "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
+            "num_sinks": [0, 1, 2, 3, 4],
+            "room_sizes": ["small", "medium", "large"],
+            "lp_params": lp_params,
+        },
+        "terrain": {
+            "chain_lengths": [2, 3, 4, 5],
+            "num_sinks": [0, 1],
+            "obstacle_types": ["square", "cross", "L"],
+            "densities": ["", "balanced", "sparse", "high"],
+            "lp_params": lp_params,
+        },
     }
 
     curriculum = make_curriculum(**curriculum_args[curriculum_style])
@@ -416,19 +460,44 @@ def evaluate(
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
+
 def experiment():
-    curriculum_styles = ["small", "small_medium", "all_room_sizes", "longer_chains", "longer_chains_more_sinks", "terrain"]
+    curriculum_styles = [
+        "small",
+        "small_medium",
+        "all_room_sizes",
+        "longer_chains",
+        "longer_chains_more_sinks",
+        "terrain",
+    ]
     progress_smoothings = list(np.linspace(0.05, 0.15, 5))
     ema_timescales = list(np.linspace(0.001, 0.01, 5))
     exploration_bonuses = list(np.linspace(0.03, 0.15, 5))
     num_active_tasks = list(np.linspace(500, 5000, 5))
-    rand_task_rate   = list(np.linspace(0.05, 0.4, 5))
+    rand_task_rate = list(np.linspace(0.05, 0.4, 5))
 
     for curriculum_style in curriculum_styles:
         for progress_smoothing in progress_smoothings:
             for ema_timescale in ema_timescales:
                 for exploration_bonus in exploration_bonuses:
-                    subprocess.run(["./devops/skypilot/launch.py", "experiments.recipes.icl_resource_chain.train", f"run=icl_resource_chain_{curriculum_style}_{progress_smoothing}_{ema_timescale}_{exploration_bonus}.09-18", "style", curriculum_style, "lp_params", f"progress_smoothing={progress_smoothing}", f"ema_timescale={ema_timescale}", f"exploration_bonus={exploration_bonus}", f"num_active_tasks={num_active_tasks}", f"rand_task_rate={rand_task_rate}"])
+                    subprocess.run(
+                        [
+                            "./devops/skypilot/launch.py",
+                            "experiments.recipes.icl_resource_chain.train",
+                            f"run=icl_resource_chain_{curriculum_style}_{progress_smoothing}_{ema_timescale}_{exploration_bonus}.09-18",
+                            "style",
+                            curriculum_style,
+                            "lp_params",
+                            f"progress_smoothing={progress_smoothing}",
+                            f"ema_timescale={ema_timescale}",
+                            f"exploration_bonus={exploration_bonus}",
+                            f"num_active_tasks={num_active_tasks}",
+                            f"rand_task_rate={rand_task_rate}",
+                            "--gpus=4",
+                            "--heartbeat-timeout=3600",
+                        ]
+                    )
+
 
 if __name__ == "__main__":
     experiment()
