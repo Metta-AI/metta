@@ -38,8 +38,6 @@ class Trainer:
         env: TrainingEnvironment,
         policy: Policy,
         device: torch.device,
-        *,
-        run_name: str | None = None,
     ):
         """Initialize trainer with all components.
 
@@ -57,8 +55,6 @@ class Trainer:
 
         self._epoch = 0
         self._agent_step = 0
-        self._run_name = run_name
-
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
@@ -164,7 +160,6 @@ class Trainer:
             train_time=self.timer.get_last_elapsed("_train"),
             rollout_time=self.timer.get_last_elapsed("_rollout"),
             stats_time=self.timer.get_last_elapsed("_process_stats"),
-            run_name=self._run_name,
         )
 
     @staticmethod
@@ -174,11 +169,9 @@ class Trainer:
         training_env: TrainingEnvironment,
         policy: Policy,
         device: torch.device,
-        *,
-        run_name: str | None = None,
     ) -> "Trainer":
         """Create a trainer from a configuration."""
-        return Trainer(cfg, training_env, policy, device, run_name=run_name)
+        return Trainer(cfg, training_env, policy, device)
 
     def register(self, component: TrainerComponent) -> None:
         """Register a training component.

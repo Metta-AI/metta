@@ -93,7 +93,6 @@ class TrainTool(Tool):
             env,
             policy,
             torch.device(self.device),
-            run_name=self.run,
         )
 
         # trainer.register(Evaluator(self.evaluation))
