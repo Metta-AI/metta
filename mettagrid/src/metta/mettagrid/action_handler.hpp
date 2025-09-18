@@ -43,28 +43,28 @@ public:
     for (const auto& [item, probability] : _consumed_resources) {
       if (!std::isfinite(probability) || probability < 0.0f) {
         throw std::runtime_error(
-            "Consumed resources must be non-negative and finite. Item: " + 
+            "Consumed resources must be non-negative and finite. Item: " +
             std::to_string(item) + " has invalid value: " + std::to_string(probability));
       }
-      
+
       // Guard against overflow when casting to uint8_t
       float ceiled = std::ceil(probability);
       if (ceiled > 255.0f) {
         throw std::runtime_error(
-            "Consumed resources ceiling exceeds uint8_t max (255). Item: " + 
+            "Consumed resources ceiling exceeds uint8_t max (255). Item: " +
             std::to_string(item) + " has ceiling: " + std::to_string(ceiled));
       }
     }
-    
+
     // Check that required_resources has all items from consumed_resources
     for (const auto& [item, probability] : _consumed_resources) {
       auto required_it = _required_resources.find(item);
       if (required_it == _required_resources.end()) {
         throw std::runtime_error(
-            "Consumed resource item " + std::to_string(item) + 
+            "Consumed resource item " + std::to_string(item) +
             " not found in required resources");
       }
-      
+
       // Validate required >= ceil(consumed)
       InventoryQuantity max_consumption = static_cast<InventoryQuantity>(std::ceil(probability));
       if (required_it->second < max_consumption) {
