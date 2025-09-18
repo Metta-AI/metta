@@ -47,10 +47,8 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
             env=make_icl_resource_chain_eval_env(2, 1, "medium"),
         ),
         SimulationConfig(
-
             name="in_context_learning/2c_2s_large",
             env=make_icl_resource_chain_eval_env(2, 2, "large"),
-
         ),
         SimulationConfig(
             name="in_context_learning/2c_2s_small_terrain",
@@ -82,9 +80,7 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="in_context_learning/4c_2s_medium_terrain",
-            env=make_icl_resource_chain_eval_env(
-                4, 2, "medium", ["L"], ["balanced"]
-            ),
+            env=make_icl_resource_chain_eval_env(4, 2, "medium", ["L"], ["balanced"]),
         ),
         SimulationConfig(
             name="in_context_learning/5c_2s_medium",
