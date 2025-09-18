@@ -20,8 +20,8 @@ from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     DistributedHelper,
-    Evaluator,
     EvaluatorConfig,
+    Evaluator,
     PolicyCheckpointer,
     PolicyCheckpointerConfig,
     PolicyUploader,
