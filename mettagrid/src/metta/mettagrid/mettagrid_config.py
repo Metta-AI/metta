@@ -9,6 +9,9 @@ from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 # ===== Python Configuration Models =====
 
+# Left to right, top to bottom.
+Position = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]
+
 
 class StatsRewards(Config):
     """Agent stats-based reward configuration.
@@ -75,7 +78,6 @@ class ActionsConfig(Config):
     move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
-    place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
@@ -107,14 +109,6 @@ class WallConfig(Config):
     swappable: bool = Field(default=False)
 
 
-class BoxConfig(Config):
-    """Python box configuration."""
-
-    type_id: int = Field(default=0, ge=0, le=255)
-    # We don't allow setting of returned_resources -- it should always match
-    # the consumed_resources by place_box.
-
-
 class ConverterConfig(Config):
     """Python converter configuration."""
 
@@ -127,6 +121,19 @@ class ConverterConfig(Config):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
+
+
+class RecipeConfig(Config):
+    input_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, int] = Field(default_factory=dict)
+    cooldown: int = Field(ge=0, default=0)
+
+
+class AssemblerConfig(Config):
+    """Python assembler configuration."""
+
+    type_id: int = Field(default=0, ge=0, le=255)
+    recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
 
 
 class GameConfig(Config):
@@ -160,7 +167,7 @@ class GameConfig(Config):
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
+    objects: dict[str, ConverterConfig | WallConfig | AssemblerConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.

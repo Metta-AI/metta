@@ -1,6 +1,6 @@
 import
   vmath, bumpy, windy, boxy, chroma, fidget2, fidget2/[hybridrender, common],
-  common, utils
+  common, math
 
 const HeaderSize = 30
 
@@ -15,6 +15,62 @@ proc updateMouse*(panel: Panel) =
   panel.hasMouse =
     (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
     (mouseCaptured and mouseCapturedPanel == panel)
+
+proc clampMapPan*(panel: Panel) =
+  ## Clamp pan so the world map remains at least partially visible.
+  if replay.isNil:
+    return
+
+  let zoomScale = panel.zoom * panel.zoom
+  if zoomScale <= 0:
+    return
+
+  # Map bounds in world units (tiles), assuming tiles span [i-0.5, i+0.5].
+  let
+    mapMinX = -0.5f
+    mapMinY = -0.5f
+    mapMaxX = replay.mapSize[0].float32 - 0.5f
+    mapMaxY = replay.mapSize[1].float32 - 0.5f
+
+  let
+    mapWidth = mapMaxX - mapMinX
+    mapHeight = mapMaxY - mapMinY
+
+  # View half-size in world units.
+  let
+    rectW = panel.rect.w.float32
+    rectH = panel.rect.h.float32
+    viewHalfW = rectW / (2.0f * zoomScale)
+    viewHalfH = rectH / (2.0f * zoomScale)
+
+  # Current view center in world units given screen-space pan.
+  var
+    cx = (rectW / 2.0f - panel.pos.x) / zoomScale
+    cy = (rectH / 2.0f - panel.pos.y) / zoomScale
+
+  # Require a minimum number of on-screen pixels of the map to remain visible.
+  # Scale with panel size so small panels are not over-clamped.
+  let minVisiblePixels = min(500.0f, min(rectW, rectH) * 0.5f)
+  let minVisibleWorld = minVisiblePixels / zoomScale
+
+  # Do not require more visibility than half the map size.
+  let
+    maxVisibleUnitsX = min(minVisibleWorld, mapWidth / 2.0f)
+    maxVisibleUnitsY = min(minVisibleWorld, mapHeight / 2.0f)
+
+  # Clamp the center so some of the map stays visible horizontally and vertically.
+  let
+    minCenterX = mapMinX + maxVisibleUnitsX - viewHalfW
+    maxCenterX = mapMaxX - maxVisibleUnitsX + viewHalfW
+    minCenterY = mapMinY + maxVisibleUnitsY - viewHalfH
+    maxCenterY = mapMaxY - maxVisibleUnitsY + viewHalfH
+
+  cx = cx.clamp(minCenterX, maxCenterX)
+  cy = cy.clamp(minCenterY, maxCenterY)
+
+  # Recompute screen-space pan from clamped world-space center.
+  panel.pos.x = rectW / 2.0f - cx * zoomScale
+  panel.pos.y = rectH / 2.0f - cy * zoomScale
 
 proc beginPanAndZoom*(panel: Panel) =
   ## Pan and zoom the map.
@@ -36,24 +92,28 @@ proc beginPanAndZoom*(panel: Panel) =
     panel.pos += panel.vel
 
     if window.scrollDelta.y != 0:
-      when defined(emscripten):
-        let scrollK = 0.0003
-      else:
-        let scrollK = 0.03
-      panel.zoomVel = window.scrollDelta.y * scrollK
-    else:
-      panel.zoomVel *= 0.8
+      # Apply zoom at focal point (mouse position) with consistent sensitivity.
+      let localMousePos = window.mousePos.vec2 - panel.rect.xy.vec2
+      let zoomSensitivity = 0.005
+      
+      let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
+          panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let oldWorldPoint = oldMat.inverse() * localMousePos
+      
+      # Apply zoom with multiplicative scaling.
+      # keeps zoom consistent when zoomed far out or zoomed far in.
+      let zoomFactor = pow(1.0 - zoomSensitivity, window.scrollDelta.y)
+      panel.zoom *= zoomFactor
+      panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
+      
+      let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
+          panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let newWorldPoint = newMat.inverse() * localMousePos
+      
+      # Adjust pan position to keep the same world point under the mouse.
+      panel.pos += (newWorldPoint - oldWorldPoint) * (panel.zoom*panel.zoom)
 
-    let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    panel.zoom += panel.zoomVel
-    panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
-    let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-        panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    let localMousePos = window.mousePos.vec2 - panel.rect.xy.vec2
-    let newAt = newMat.inverse() * localMousePos
-    let oldAt = oldMat.inverse() * localMousePos
-    panel.pos -= (oldAt - newAt).xy * (panel.zoom*panel.zoom)
+  clampMapPan(panel)
 
   bxy.translate(panel.pos)
   bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))

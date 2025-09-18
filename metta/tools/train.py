@@ -16,7 +16,13 @@ from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import (
+    auto_policy_storage_decision,
+    auto_replay_dir,
+    auto_run_name,
+    auto_stats_server_uri,
+    auto_wandb_config,
+)
 
 logger = getRankAwareLogger(__name__)
 
@@ -36,9 +42,7 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    consumed_args: list[str] = ["run", "group"]
-
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         init_logging(run_dir=self.run_dir)
 
         # Handle run_id being passed via cmd line
@@ -72,6 +76,37 @@ class TrainTool(Tool):
         # Override group if provided via args (for sweep support)
         if group_override:
             self.wandb.group = group_override
+
+        if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
+            storage_decision = auto_policy_storage_decision(self.run)
+            if storage_decision.remote_prefix:
+                self.trainer.checkpoint.remote_prefix = storage_decision.remote_prefix
+                if storage_decision.reason == "env_override":
+                    logger.info_master(
+                        "Using POLICY_REMOTE_PREFIX for policy storage: %s",
+                        storage_decision.remote_prefix,
+                    )
+                else:
+                    logger.info_master(
+                        "Policies will sync to S3 at %s (Softmax AWS profile detected).",
+                        storage_decision.remote_prefix,
+                    )
+            elif storage_decision.reason == "not_connected":
+                logger.info_master(
+                    "Softmax AWS SSO not detected; policies will remain on local storage. "
+                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' "
+                    f"to enable uploads to {storage_decision.base_prefix}."
+                )
+            elif storage_decision.reason == "aws_not_enabled":
+                logger.info_master(
+                    "AWS component disabled; policies will remain on local storage. Run 'metta configure aws' if you "
+                    "want to set up S3 uploads.",
+                )
+            elif storage_decision.reason == "no_base_prefix":
+                logger.info_master(
+                    "Remote policy prefix is unset; policies will remain local. Run 'metta configure aws' to set a "
+                    "policy prefix or configure POLICY_REMOTE_PREFIX.",
+                )
 
         os.makedirs(self.run_dir, exist_ok=True)
 
@@ -123,7 +158,11 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    checkpoint_manager = CheckpointManager(run=cfg.run, run_dir=cfg.run_dir)
+    checkpoint_manager = CheckpointManager(
+        run=cfg.run,
+        run_dir=cfg.run_dir,
+        remote_prefix=cfg.trainer.checkpoint.remote_prefix,
+    )
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
         cfg = _minimize_config_for_debugging(cfg)
@@ -202,7 +241,6 @@ def _minimize_config_for_debugging(cfg: TrainTool) -> TrainTool:
     cfg.trainer.async_factor = 1
     cfg.trainer.forward_pass_minibatch_target_size = min(cfg.trainer.forward_pass_minibatch_target_size, 4)
     cfg.trainer.checkpoint.checkpoint_interval = min(cfg.trainer.checkpoint.checkpoint_interval, 10)
-    cfg.trainer.checkpoint.wandb_checkpoint_interval = min(cfg.trainer.checkpoint.wandb_checkpoint_interval, 10)
     cfg.trainer.bptt_horizon = min(cfg.trainer.bptt_horizon, 8)
     if cfg.trainer.evaluation:
         cfg.trainer.evaluation.evaluate_interval = min(cfg.trainer.evaluation.evaluate_interval, 10)

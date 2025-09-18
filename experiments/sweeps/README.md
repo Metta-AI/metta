@@ -11,8 +11,8 @@ The new sweep orchestrator provides a stateless, distributed-friendly hyperparam
 ```bash
 # Run a quick test sweep with 5 trials locally
 uv run ./tools/run.py experiments.sweeps.standard.quick_test \
-    --args sweep_name=my_test_sweep max_trials=5 \
-    --overrides dispatcher_type=local
+    sweep_name=my_test_sweep max_trials=5 \
+    dispatcher_type=local
 ```
 
 ### Running with Different Recipes
@@ -20,7 +20,6 @@ uv run ./tools/run.py experiments.sweeps.standard.quick_test \
 ```bash
 # Use arena_basic_easy_shaped recipe
 uv run ./tools/run.py experiments.sweeps.standard.quick_test \
-    --args \
     sweep_name=test_arena_basic \
     recipe_module=experiments.recipes.arena_basic_easy_shaped \
     train_entrypoint=train\
@@ -33,7 +32,7 @@ uv run ./tools/run.py experiments.sweeps.standard.quick_test \
 ```bash
 # Run a full PPO sweep with 10 trials (default: train on cloud, eval locally)
 uv run ./tools/run.py experiments.sweeps.standard.ppo \
-    --args sweep_name=ppo_sweep_001 max_trials=10
+    sweep_name=ppo_sweep_001 max_trials=10
 ```
 
 ## Step-by-Step Sweep Workflow Example
@@ -44,13 +43,11 @@ Let's walk through a complete PPO sweep using a custom recipe (`arena_basic_easy
 
 ```bash
 uv run ./tools/run.py experiments.sweeps.standard.ppo \
-    --args \
     sweep_name=ppo_arena_basic \
     recipe_module=experiments.recipes.arena_basic_easy_shaped \
     train_entrypoint=train \
     eval_entrypoint=evaluate \
     max_trials=3 \
-    --overrides \
     dispatcher_type=hybrid_remote_train
 ```
 
@@ -82,9 +79,7 @@ The Protein optimizer suggests hyperparameters, and the orchestrator builds the 
     --no-spot \
     --gpus=1 \
     experiments.recipes.arena_basic_easy_shaped.train \
-    --args \
     run=ppo_arena_basic_trial_0001 \
-    --overrides \
     trainer.optimizer.learning_rate=0.0003421 \
     trainer.losses.loss_configs.ppo.clip_coef=0.182 \
     trainer.losses.loss_configs.ppo.ent_coef=0.0023 \
@@ -115,9 +110,7 @@ After training completes, the orchestrator schedules evaluation:
 **Actual dispatched command (via LocalDispatcher for evaluation):**
 ```bash
 uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.evaluate \
-    --args \
-    policy_uri=file://./train_dir/ppo_arena_basic_trial_0001/checkpoints \
-    --overrides \
+    policy_uri=file://./train_dir/ppo_arena_basic_trial_0001/checkpoints/ppo_arena_basic_trial_0001:v50.pt \
     push_metrics_to_wandb=True
 ```
 
@@ -147,9 +140,7 @@ The Protein optimizer uses Bayesian optimization to suggest better hyperparamete
     --no-spot \
     --gpus=1 \
     experiments.recipes.arena_basic_easy_shaped.train \
-    --args \
     run=ppo_arena_basic_trial_0002 \
-    --overrides \
     trainer.optimizer.learning_rate=0.0008124 \
     trainer.losses.loss_configs.ppo.clip_coef=0.095 \
     # ... other optimized parameters
@@ -209,13 +200,13 @@ The sweep system supports three dispatcher modes:
 
 ```bash
 # Force local execution
---overrides dispatcher_type=local
+dispatcher_type=local
 
 # Force cloud execution
---overrides dispatcher_type=skypilot
+dispatcher_type=skypilot
 
 # Use hybrid mode (default)
---overrides dispatcher_type=hybrid_remote_train
+dispatcher_type=hybrid_remote_train
 ```
 
 ## Configuration Structure Changes (Post-Merge)
@@ -255,7 +246,7 @@ The sweep system consists of four main components:
 
 ## Command-Line Arguments
 
-The sweep tool now accepts these arguments via `--args`:
+The sweep tool now accepts these arguments:
 
 - `sweep_name`: Name of the sweep (auto-generated if not provided)
 - `max_trials`: Maximum number of trials to run
@@ -266,7 +257,6 @@ The sweep tool now accepts these arguments via `--args`:
 Example with all arguments:
 ```bash
 uv run ./tools/run.py experiments.sweeps.standard.quick_test \
-    --args \
     sweep_name=my_custom_sweep \
     max_trials=10 \
     recipe_module=experiments.recipes.navigation \
@@ -417,7 +407,7 @@ The orchestrator is stateless and can be safely interrupted. To resume:
 ```bash
 # Simply run the same command again
 uv run ./tools/run.py experiments.sweeps.standard.ppo \
-    --args sweep_name=ppo_sweep_001 max_trials=10
+    sweep_name=ppo_sweep_001 max_trials=10
 ```
 
 The orchestrator will:
@@ -441,7 +431,7 @@ To see subprocess output for debugging:
 
 ```bash
 # Use local dispatcher with output capture
---overrides dispatcher_type=local capture_output=true
+dispatcher_type=local capture_output=true
 ```
 
 ## Examples in the Codebase

@@ -12,9 +12,11 @@ import pytest
 import metta.mettagrid.builder.envs as eb
 from metta.mettagrid import dtype_observations
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.sim import SimTool
 
 
 class TestBasicPolicyEnvironment:
@@ -133,36 +135,46 @@ class TestBasicPolicyEnvironment:
                 print("Training test timed out - likely means it's working")
 
     def test_simulation_creation(self):
-        """Test simulation configuration creation."""
+        """Test simulation configuration creation and instantiation."""
 
-        # Test creating simulation config
         env_config = eb.make_navigation(num_agents=2)
         sim_config = SimulationConfig(name="test_nav", env=env_config)
 
         assert sim_config.name == "test_nav"
         assert sim_config.env.game.num_agents == 2
 
-    def test_replay_tool_config(self):
-        """Test that replay tool can be configured."""
+        simulation = Simulation.create(
+            sim_config=sim_config,
+            device="cpu",
+            vectorization="serial",
+            policy_uri=None,
+        )
+        try:
+            assert simulation.name == "test_nav"
+        finally:
+            simulation._vecenv.close()  # type: ignore[attr-defined]
+
+    def test_sim_tool_config_with_policy_uri(self):
+        """Test that SimTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(name="test_arena", env=env_config)
 
-        replay_tool = ReplayTool(
-            sim=sim_config,
-            policy_uri=None,
-            open_browser_on_start=False,  # Don't try to open browser in tests
-        )
+        sim_tool = SimTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
 
-        assert replay_tool.sim.name == "test_arena"
-        assert replay_tool.open_browser_on_start is False
+        assert sim_tool.simulations[0].name == "test_arena"
+        assert sim_tool.policy_uris == ["mock://test_policy"]
 
-    def test_play_tool_config(self):
-        """Test that play tool can be configured."""
+    def test_play_and_replay_tools_share_run_configuration(self):
+        """Ensure basic tool wiring stays aligned with SimulationConfig usage."""
 
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(name="test_nav_play", env=env_config)
+        sim_config = SimulationConfig(name="tool_config", env=env_config)
 
         play_tool = PlayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
+        replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
 
-        assert play_tool.sim.name == "test_nav_play"
+        assert play_tool.sim.name == "tool_config"
+        assert replay_tool.sim.name == "tool_config"
+        assert play_tool.open_browser_on_start is False
+        assert replay_tool.open_browser_on_start is False

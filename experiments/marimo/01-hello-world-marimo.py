@@ -496,7 +496,6 @@ def _(
     mg_config.game.actions.change_color.enabled = False
     mg_config.game.actions.change_glyph.enabled = False
     mg_config.game.actions.swap.enabled = False
-    mg_config.game.actions.place_box.enabled = False
 
     # IMPORTANT: Match the exact training reward structure from config.json
     mg_config.game.agent.rewards = AgentRewards(
@@ -854,7 +853,7 @@ def _(
             },
             checkpoint=CheckpointConfig(
                 checkpoint_interval=20,  # Frequent checkpoints to catch peak performance
-                wandb_checkpoint_interval=20,
+                remote_prefix=f"s3://softmax-public/policies/{run_name}",
             ),
             evaluation=EvaluationConfig(
                 evaluate_interval=20,  # Frequent evaluation to monitor for unlearning
@@ -1301,7 +1300,6 @@ def _(
     mg_config2.game.actions.change_color.enabled = False
     mg_config2.game.actions.change_glyph.enabled = False
     mg_config2.game.actions.swap.enabled = False
-    mg_config2.game.actions.place_box.enabled = False
 
     # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping
     mg_config2.game.agent.rewards = AgentRewards(
@@ -1548,7 +1546,7 @@ def _(
             },
             checkpoint=CheckpointConfig(
                 checkpoint_interval=10,  # More frequent checkpoints to catch peak
-                wandb_checkpoint_interval=10,
+                remote_prefix=f"s3://softmax-public/policies/{run_name2}",
             ),
             evaluation=EvaluationConfig(
                 evaluate_interval=10,  # More frequent evaluation to monitor unlearning

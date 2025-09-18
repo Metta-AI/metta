@@ -5,6 +5,9 @@ from pathlib import Path
 
 from metta.common.util.lazypath import LazyPath
 
+# Repo root path calculation
+REPO_ROOT = Path(__file__).resolve().parents[5]  # Navigate up to repo root
+
 PROD_STATS_SERVER_URI = "https://api.observatory.softmax-research.net"
 DEV_STATS_SERVER_URI = "http://localhost:8000"
 PROD_OBSERVATORY_FRONTEND_URL = "https://observatory.softmax-research.net"
@@ -18,9 +21,11 @@ METTASCOPE_REPLAY_URL = "https://metta-ai.github.io/metta"
 METTA_AWS_ACCOUNT_ID = "751442549699"
 METTA_AWS_REGION = "us-east-1"
 METTA_SKYPILOT_URL = "skypilot-api.softmax-research.net"
+SKYPILOT_LAUNCH_PATH = str(REPO_ROOT / "devops" / "skypilot" / "launch.py")
 METTA_ENV_FILE = LazyPath(os.path.expanduser("~/.metta_env_path"))
 SOFTMAX_S3_BUCKET = "softmax-public"
 SOFTMAX_S3_BASE = f"s3://{SOFTMAX_S3_BUCKET}"
+SOFTMAX_S3_POLICY_PREFIX = f"{SOFTMAX_S3_BASE}/policies"
 RANK_ENV_VARS = [
     "SKYPILOT_NODE_RANK",  # SkyPilot clusters
     "RANK",  # PyTorch DDP
