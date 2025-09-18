@@ -23,10 +23,13 @@
 #include "grid.hpp"
 #include "hash.hpp"
 #include "objects/agent.hpp"
+#include "objects/assembler.hpp"
+#include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/converter_config.hpp"
 #include "objects/production_handler.hpp"
+#include "objects/recipe.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
@@ -194,6 +197,17 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
+        continue;
+      }
+
+      const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
+      if (assembler_config) {
+        Assembler* assembler = new Assembler(r, c, *assembler_config);
+        _grid->add_object(assembler);
+        _stats->incr("objects." + cell);
+        assembler->set_event_manager(_event_manager.get());
+        assembler->stats.set_environment(this);
+        assembler->set_grid(_grid.get());
         continue;
       }
 
@@ -873,6 +887,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   PackedCoordinate::bind_packed_coordinate(m);
 
+  // Bind Recipe near its definition
+  bind_recipe(m);
+
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<const GameConfig&, const py::list&, unsigned int>())
@@ -920,6 +937,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   bind_agent_config(m);
   bind_converter_config(m);
+  bind_assembler_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
