@@ -53,10 +53,10 @@ class AdaptiveController:
         has_data = self.config.resume
 
         while True:
-            time.sleep(self.config.monitoring_interval)
             try:
                 # 1. Get current state
                 if has_data:
+                    time.sleep(self.config.monitoring_interval)
                     try:
                         runs = self.store.fetch_runs(filters={"group": self.experiment_id})
                     except Exception as e:

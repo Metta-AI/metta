@@ -56,7 +56,7 @@ def scheduler_config(protein_config):
 @pytest.fixture
 def scheduler(scheduler_config):
     """Create scheduler instance with mocked optimizer."""
-    with patch("metta.sweep.schedulers.batched_synced.ProteinOptimizer") as mock_optimizer_class:
+    with patch("metta.sweep.optimizer.protein.ProteinOptimizer") as mock_optimizer_class:
         mock_optimizer = Mock()
         mock_optimizer_class.return_value = mock_optimizer
         scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
@@ -65,18 +65,36 @@ def scheduler(scheduler_config):
 
 
 def create_run(run_id: str, status: JobStatus, summary: dict = None) -> RunInfo:
-    """Helper to create RunInfo objects for testing."""
+    """Helper to create RunInfo objects for testing.
+
+    Note: STALE status is computed based on last_updated_at being >20 minutes old,
+    so we handle it specially.
+    """
+    from datetime import timedelta
+
+    # For STALE, set last_updated_at to be old
+    if status == JobStatus.STALE:
+        last_updated_at = datetime.now(timezone.utc) - timedelta(minutes=25)
+        has_started_training = True
+        has_completed_training = False
+        has_failed = False
+    else:
+        last_updated_at = datetime.now(timezone.utc)
+        has_started_training = (status != JobStatus.PENDING)
+        has_completed_training = (status in [JobStatus.TRAINING_DONE_NO_EVAL, JobStatus.IN_EVAL, JobStatus.COMPLETED])
+        has_failed = (status == JobStatus.FAILED)
+
     return RunInfo(
         run_id=run_id,
         group="test_exp",
         created_at=datetime.now(timezone.utc),
-        last_updated_at=datetime.now(timezone.utc),
+        last_updated_at=last_updated_at,
         summary=summary or {},
-        has_started_training=(status != JobStatus.PENDING),
-        has_completed_training=(status in [JobStatus.TRAINING_DONE_NO_EVAL, JobStatus.IN_EVAL, JobStatus.COMPLETED]),
+        has_started_training=has_started_training,
+        has_completed_training=has_completed_training,
         has_started_eval=(status in [JobStatus.IN_EVAL, JobStatus.COMPLETED]),
         has_been_evaluated=(status == JobStatus.COMPLETED),
-        has_failed=(status == JobStatus.FAILED),
+        has_failed=has_failed,
         cost=100.0,
         runtime=3600.0
     )
@@ -527,10 +545,12 @@ class TestCompleteWorkflow:
 
     def test_recovery_from_stale_runs(self, scheduler):
         """Test that scheduler recovers from stale runs and continues."""
-        scheduler.state.runs_in_training = {"run1", "run2"}
+        # Start with run1 in training, run2 in eval (more realistic scenario)
+        scheduler.state.runs_in_training = {"run1"}
+        scheduler.state.runs_in_eval = {"run2"}
         scheduler.optimizer.suggest.return_value = [{"lr": 0.005}]
 
-        # One run went stale, one completed
+        # One run went stale, one completed eval
         runs = [
             create_run("run1", JobStatus.STALE),
             create_run("run2", JobStatus.COMPLETED, {"sweep/score": 0.7, "sweep/suggestion": {"lr": 0.001}})
@@ -542,6 +562,7 @@ class TestCompleteWorkflow:
         assert len(jobs) == 1
         assert "train" in jobs[0].cmd
         assert scheduler.state.runs_in_training == {jobs[0].run_id}
+        assert scheduler.state.runs_in_eval == set()
         assert scheduler.state.runs_completed == {"run2"}
 
 
