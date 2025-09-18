@@ -1,7 +1,7 @@
 """Tests for curriculum capacity initialization and algorithm-based eviction."""
 
 import metta.cogworks.curriculum as cc
-from metta.mettagrid.builder.envs import make_arena
+from mettagrid.builder.envs import make_arena
 
 
 class TestCurriculumCapacityAndEviction:
