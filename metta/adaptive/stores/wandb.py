@@ -178,15 +178,16 @@ class WandbStore:
                 # Just initialized, never actually ran - stays PENDING
                 has_started_training = False
 
-            # Check evaluation status
-            if "has_started_eval" in summary and summary["has_started_eval"] is True:  # type: ignore
-                has_started_eval = True
-                logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag found and set to True")
-            else:
-                eval_value = summary.get("has_started_eval") if "has_started_eval" in summary else "missing"
-                logger.debug(
-                    f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}"
-                )
+        # Check evaluation status (regardless of run state)
+        # This needs to be outside the elif block because eval can cause run to go back to RUNNING
+        if "has_started_eval" in summary and summary["has_started_eval"] is True:  # type: ignore
+            has_started_eval = True
+            logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag found and set to True")
+        else:
+            eval_value = summary.get("has_started_eval") if "has_started_eval" in summary else "missing"
+            logger.debug(
+                f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}"
+            )
 
             # Check for evaluator metrics (ONLY keys starting with "evaluator/")
             # This avoids confusion with in-training eval metrics
