@@ -31,8 +31,10 @@ class TestProteinOptimizer:
     def test_unsupported_method_validation(self):
         """Test that ProteinConfig only accepts 'bayes' as method."""
         # Try to create a config with an unsupported method
-        with pytest.raises(Exception):  # Pydantic will raise a validation error
-            config = ProteinConfig(
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            ProteinConfig(
                 metric="loss",
                 goal="minimize",
                 method="grid",  # Grid search is not supported
