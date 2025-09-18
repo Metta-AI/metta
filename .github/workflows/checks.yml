@@ -287,7 +287,7 @@ jobs:
           START_TIME=$(date +%s)
 
           echo "⏳ Running tests in parallel..."
-          run_package_tests "mettagrid" "\033[1;34m" &   # Bold Blue
+          run_package_tests "packages/mettagrid" "\033[1;34m" &   # Bold Blue
           sleep 2 # mettagrid is slowest, so give time for it to grab resources
 
           run_package_tests "agent" "\033[1;31m" &        # Bold Red
