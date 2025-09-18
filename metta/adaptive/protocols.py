@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from .models import JobDefinition, Observation, RunInfo
+    from .models import JobDefinition, RunInfo
 
 
 @runtime_checkable
@@ -80,7 +80,7 @@ class Dispatcher(Protocol):
 class Optimizer(Protocol):
     """Suggests hyperparameters for new jobs."""
 
-    def suggest(self, observations: list["Observation"], n_suggestions: int = 1) -> list[dict[str, Any]]:
+    def suggest(self, observations: list[dict[str, Any]], n_suggestions: int = 1) -> list[dict[str, Any]]:
         """Suggest configurations for new jobs"""
         ...
 

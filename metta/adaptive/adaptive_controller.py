@@ -33,21 +33,21 @@ class AdaptiveController:
         dispatcher: Dispatcher,
         store: Store,
         config: AdaptiveConfig,
-        on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
-        on_job_dispatch: Optional[Callable[[JobDefinition, Store], None]] = None,
     ):
         self.experiment_id = experiment_id
         self.scheduler = scheduler
         self.dispatcher = dispatcher
         self.store = store
         self.config = config
-        self.on_eval_completed = on_eval_completed
-        self.on_job_dispatch = on_job_dispatch
 
         # Job tracking by (run_id, job_type) to handle train/eval jobs with same run_id
         self.dispatched_jobs: set[tuple[str, str]] = set()
 
-    def run(self) -> None:
+    def run(
+        self,
+        on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
+        on_job_dispatch: Optional[Callable[[JobDefinition, Store], None]] = None,
+    ) -> None:
         """Main adaptive experiment loop - everything inline."""
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
         has_data = self.config.resume
@@ -79,7 +79,7 @@ class AdaptiveController:
                         logger.info(line)
 
                 # 1.a Run post-eval completion hooks (guarded by summary flag) before any scheduling
-                if runs and self.on_eval_completed is not None:
+                if runs and on_eval_completed is not None:
                     for run in runs:
                         try:
                             summary_dict = run.summary or {}
@@ -88,7 +88,7 @@ class AdaptiveController:
                                 logger.info(f"[AdaptiveController] Running on_eval_completed for {run.run_id}")
 
                                 retry_function(
-                                    lambda r=run, rs=runs: self.on_eval_completed(r, self.store, rs),  # type: ignore
+                                    lambda r=run, rs=runs: on_eval_completed(r, self.store, rs),  # type: ignore
                                     max_retries=3,
                                     initial_delay=1.0,
                                     max_delay=30.0,
@@ -156,9 +156,9 @@ class AdaptiveController:
                             self.store.update_run_summary(job.run_id, {"has_started_eval": True})
 
                         # Call job dispatch hook if provided (after wandb initialization)
-                        if self.on_job_dispatch is not None:
+                        if on_job_dispatch is not None:
                             try:
-                                self.on_job_dispatch(job, self.store)
+                                on_job_dispatch(job, self.store)
                             except Exception as e:
                                 logger.error(f"[AdaptiveController] on_job_dispatch failed for {job.run_id}: {e}")
 

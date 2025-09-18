@@ -1,207 +1,180 @@
-"""Batched synchronized scheduler for sweep orchestration.
+"""Batched synchronized scheduler for adaptive experiments.
 
 This scheduler waits for all runs to complete (including evaluation) before
 generating a new batch of suggestions. This ensures perfect synchronization
 between batches and is ideal for comparing hyperparameters fairly.
 """
 
+from __future__ import annotations
+
 import logging
-from dataclasses import dataclass
 from typing import Any
 
-from metta.sweep.models import JobDefinition, JobStatus, RunInfo, SweepMetadata
-from metta.sweep.protocols import Optimizer
-from metta.sweep.utils import (
-    create_eval_job,
-    create_training_job,
-    generate_run_id,
-    get_display_id,
-)
+from pydantic import Field
+
+from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
+from metta.adaptive.protocols import ExperimentState
+from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
+from metta.mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class BatchedSyncedSchedulerConfig:
+class BatchedSyncedSchedulerConfig(Config):
     """Configuration for batched synchronized scheduler."""
 
     max_trials: int = 10
-    recipe_module: str = "experiments.recipes.arena"  # e.g., "experiments.recipes.arena"
-    train_entrypoint: str = "train_shaped"  # Function name for training
-    eval_entrypoint: str = "evaluate"  # Function name for evaluation
-    train_overrides: dict[str, Any] | None = None  # Additional overrides for training jobs
-    eval_args: list[str] | None = None  # Additional args for evaluation
-    eval_overrides: dict[str, Any] | None = None  # Additional overrides for evaluation
-    stats_server_uri: str | None = None  # Stats server for remote evaluations
-    gpus: int = 1  # Number of GPUs per training job
-    nodes: int = 1  # Number of nodes per training job
+    recipe_module: str = "experiments.recipes.arena"
+    train_entrypoint: str = "train"
+    eval_entrypoint: str = "evaluate"
+    train_overrides: dict[str, Any] = Field(default_factory=dict)
+    eval_overrides: dict[str, Any] = Field(default_factory=dict)
+    stats_server_uri: str | None = None
+    gpus: int = 1
+    nodes: int = 1
     batch_size: int = 4
+    experiment_id: str = "batched_synced"
+    protein_config: Any = Field(description="ProteinConfig for optimization")
 
 
 class BatchedSyncedOptimizingScheduler:
     """Scheduler that generates batches of suggestions synchronously.
 
-    This scheduler waits for ALL runs (including evaluations) to complete
-    before generating the next batch of suggestions. The batch size is
-    determined by max_parallel_jobs from the controller.
-
     Key behaviors:
-    - Only generates new suggestions when ALL runs are COMPLETED
-    - Generates exactly max_parallel_jobs suggestions at once
-    - Ensures fair comparison within each batch
-    - Prevents any overlap between batches
+    - Only generates new suggestions when ALL current runs (including evals) are complete
+    - Schedules evals for any runs with training complete and eval not yet started
+    - Generates up to `batch_size` training jobs at a time (bounded by available slots)
+    - Suggestions come from a stateless Optimizer; observations are read from run summaries
     """
 
-    def __init__(self, config: BatchedSyncedSchedulerConfig, optimizer: Optimizer):
+    def __init__(
+        self,
+        config: BatchedSyncedSchedulerConfig,
+        state: ExperimentState | None = None,
+    ):
+        from metta.sweep.optimizer.protein import ProteinOptimizer
+
         self.config = config
-        self.optimizer = optimizer
-        self._total_scheduled = 0  # Track total number of trials scheduled
-        logger.info(f"[BatchedSyncedScheduler] Initialized with max_trials={config.max_trials}")
+        self.optimizer = ProteinOptimizer(config.protein_config)
+        self.state = state
+        logger.info(
+            "[BatchedSyncedOptimizingScheduler] Initialized with max_trials=%s, batch_size=%s",
+            config.max_trials,
+            config.batch_size,
+        )
 
-    def schedule(
-        self,
-        sweep_metadata: SweepMetadata,
-        all_runs: list[RunInfo],
-        dispatched_trainings: set[str],
-        dispatched_evals: set[str],
-    ) -> list[JobDefinition]:
-        """Schedule next batch of jobs when all current runs are complete.
+    def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
+        """Schedule next jobs based on current state and available resources."""
+        jobs: list[JobDefinition] = []
 
-        Args:
-            sweep_metadata: Current sweep metadata
-            all_runs: All runs in the sweep
-            dispatched_trainings: Set of already dispatched training job IDs
-            dispatched_evals: Set of already dispatched eval job IDs
-
-        Returns:
-            List of jobs to schedule (either empty or a full batch)
-        """
-
-        # First, check for any training runs that need evaluation
-        runs_needing_eval = [
-            run
-            for run in all_runs
-            if run.status == JobStatus.TRAINING_DONE_NO_EVAL and run.run_id not in dispatched_evals
-        ]
-
-        if runs_needing_eval:
-            # Schedule evaluations for all completed training runs
-            eval_jobs = []
-            for run in runs_needing_eval:
-                eval_job = create_eval_job(
-                    run_id=run.run_id,
-                    sweep_id=sweep_metadata.sweep_id,
-                    recipe_module=self.config.recipe_module,
-                    eval_entrypoint=self.config.eval_entrypoint,
-                    stats_server_uri=self.config.stats_server_uri,
-                    eval_args=self.config.eval_args,
-                    eval_overrides=self.config.eval_overrides,
-                )
-                eval_jobs.append(eval_job)
-
-                display_id = get_display_id(run.run_id)
-                logger.info(f"[BatchedSyncedScheduler] Scheduling evaluation for {display_id}")
-
-            return eval_jobs
-
-        # Check if we've hit the trial limit
-        total_runs = len(dispatched_trainings)
-        if total_runs >= self.config.max_trials:
-            return self._handle_max_trials_reached(all_runs)
-
-        # Check if ALL runs are completed before generating next batch
-        incomplete_runs = [run for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED)]
-
-        if incomplete_runs:
-            # Still have incomplete runs, wait for them
-            logger.info(
-                f"[BatchedSyncedScheduler] Waiting for {len(incomplete_runs)} run(s) "
-                f"to complete before generating next batch"
-            )
-            return []
-
-        # All runs are complete - generate a new batch
-        return self._schedule_training_batch(sweep_metadata, all_runs, dispatched_trainings)
-
-    def _schedule_training_batch(
-        self,
-        sweep_metadata: SweepMetadata,
-        all_runs: list[RunInfo],
-        dispatched_trainings: set[str],
-    ) -> list[JobDefinition]:
-        """Schedule a batch of training jobs with optimizer suggestions.
-
-        This generates multiple suggestions at once for parallel evaluation.
-        """
-        # Determine batch size (controller will pass this via metadata or we infer)
-        # For now, we'll calculate based on how many we can still schedule
-        remaining_trials = self.config.max_trials - len(dispatched_trainings)
-
-        if remaining_trials <= 0:
-            return []
-
-        # Use the configured batch size, but don't exceed remaining trials
-        batch_size = min(remaining_trials, self.config.batch_size)
-
-        # Collect observations from completed runs
-        observations = [run.observation for run in all_runs if run.observation]
-
-        # Get batch of suggestions from optimizer
-        logger.info(f"[BatchedSyncedScheduler] Requesting {batch_size} suggestions from optimizer")
-        suggestions = self.optimizer.suggest(observations, n_suggestions=batch_size)
-
-        if not suggestions:
-            logger.warning("[BatchedSyncedScheduler] No suggestions from optimizer")
-            return []
-
-        # Create training jobs for all suggestions
-        jobs = []
-        base_trial_num = len(dispatched_trainings)
-
-        for i, suggestion in enumerate(suggestions):
-            trial_num = base_trial_num + i + 1
-            run_id = generate_run_id(sweep_metadata.sweep_id, trial_num)
-
-            # Check for duplicates (shouldn't happen but safety check)
-            if run_id in dispatched_trainings:
-                logger.warning(f"[BatchedSyncedScheduler] Run {run_id} already exists, skipping")
-                continue
-
-            # Create training job
-            job = create_training_job(
-                run_id=run_id,
-                sweep_id=sweep_metadata.sweep_id,
+        # 1) Schedule evals for any runs with training done but no eval yet
+        eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
+        for run in eval_candidates:
+            job = create_eval_job(
+                run_id=run.run_id,
+                experiment_id=self.config.experiment_id,
                 recipe_module=self.config.recipe_module,
-                train_entrypoint=self.config.train_entrypoint,
-                config=suggestion,
-                gpus=self.config.gpus,
+                eval_entrypoint=self.config.eval_entrypoint,
                 stats_server_uri=self.config.stats_server_uri,
-                train_overrides=self.config.train_overrides,
+                eval_overrides=self.config.eval_overrides,
             )
             jobs.append(job)
+            logger.info("[BatchedSyncedOptimizingScheduler] Scheduling evaluation for %s", run.run_id)
 
         if jobs:
-            logger.info(
-                f"[BatchedSyncedScheduler] 🚀 Scheduling batch of {len(jobs)} trials "
-                f"({base_trial_num + 1}-{base_trial_num + len(jobs)}/{self.config.max_trials})"
-            )
+            return jobs
 
-            # Log individual trials
-            for job in jobs:
-                display_id = get_display_id(job.run_id)
-                logger.info(f"  - {display_id}")
+        # 2) Check completion barrier and max trials
+        total_created = len(runs)
+        if total_created >= self.config.max_trials:
+            # Allow remaining jobs (if any) to finish naturally; no new training
+            logger.info(
+                "[BatchedSyncedOptimizingScheduler] Max trials reached (%s). Waiting for all to complete",
+                self.config.max_trials,
+            )
+            return []
+
+        # Barrier: wait until all runs are COMPLETED or FAILED
+        incomplete = [r for r in runs if r.status not in (JobStatus.COMPLETED, JobStatus.FAILED)]
+        if incomplete:
+            logger.info(
+                "[BatchedSyncedOptimizingScheduler] Waiting for %s run(s) to complete before next batch",
+                len(incomplete),
+            )
+            return []
+
+        # 3) Generate a new batch of training suggestions
+        remaining = self.config.max_trials - total_created
+        capacity = max(0, available_training_slots)
+        to_launch = min(self.config.batch_size, remaining, capacity)
+        if to_launch <= 0:
+            return []
+
+        # Collect observations from completed runs
+        observations = self._collect_observations(runs)
+        logger.info(
+            "[BatchedSyncedOptimizingScheduler] Requesting %s suggestion(s) from optimizer (loaded %s obs)",
+            to_launch,
+            len(observations),
+        )
+        suggestions = self.optimizer.suggest(observations, n_suggestions=to_launch)
+        if not suggestions:
+            logger.warning("[BatchedSyncedOptimizingScheduler] Optimizer returned no suggestions")
+            return []
+
+        # Build training jobs merging suggestion into overrides
+        base_trial_num = total_created
+        for i, suggestion in enumerate(suggestions):
+            trial_num = base_trial_num + i + 1
+            run_id = generate_run_id(self.config.experiment_id, trial_num)
+            merged_overrides = dict(self.config.train_overrides)
+            merged_overrides.update(suggestion)
+            job = create_training_job(
+                run_id=run_id,
+                experiment_id=self.config.experiment_id,
+                recipe_module=self.config.recipe_module,
+                train_entrypoint=self.config.train_entrypoint,
+                gpus=self.config.gpus,
+                nodes=self.config.nodes,
+                stats_server_uri=self.config.stats_server_uri,
+                train_overrides=merged_overrides,
+            )
+            # Record suggestion for downstream hooks; controller can write it into summary
+            job.metadata["adaptive/suggestion"] = suggestion
+            jobs.append(job)
+            logger.info("[BatchedSyncedOptimizingScheduler] Scheduling training %s", run_id)
 
         return jobs
 
-    def _handle_max_trials_reached(self, all_runs: list[RunInfo]) -> list[JobDefinition]:
-        """Handle case when maximum trials have been reached."""
-        # Check if all runs are complete
-        all_complete = all(run.status in (JobStatus.COMPLETED, JobStatus.FAILED) for run in all_runs)
+    def is_experiment_complete(self, runs: list[RunInfo]) -> bool:
+        completed = [r for r in runs if r.status == JobStatus.COMPLETED]
+        is_done = len(completed) >= self.config.max_trials
+        if is_done:
+            logger.info(
+                "[BatchedSyncedOptimizingScheduler] Experiment complete! %s/%s trials finished",
+                len(completed),
+                self.config.max_trials,
+            )
+        return is_done
 
-        if all_complete:
-            logger.info(f"[BatchedSyncedScheduler] ✅ All {self.config.max_trials} trials finished!")
-        else:
-            incomplete_count = sum(1 for run in all_runs if run.status not in (JobStatus.COMPLETED, JobStatus.FAILED))
-            logger.info(f"[BatchedSyncedScheduler] Waiting for {incomplete_count} remaining job(s) to complete")
-
-        return []
+    def _collect_observations(self, runs: list[RunInfo]) -> list[dict[str, Any]]:
+        """Extract observations from run summaries written by sweep hooks."""
+        obs_list: list[dict[str, Any]] = []
+        for run in runs:
+            summary = run.summary if isinstance(run.summary, dict) else {}
+            if not summary:
+                continue
+            score = summary.get("sweep/score")
+            cost = summary.get("sweep/cost")
+            suggestion = summary.get("sweep/suggestion", {})
+            if score is not None:
+                try:
+                    obs_list.append({
+                        "score": float(score),
+                        "cost": float(cost) if cost is not None else 0.0,
+                        "suggestion": dict(suggestion) if isinstance(suggestion, dict) else {},
+                    })
+                except Exception:
+                    # Skip malformed entries
+                    continue
+        return obs_list
