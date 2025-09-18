@@ -10,11 +10,18 @@ requires-python = ">=3.9"
 dependencies = ["skypilot>=0.10.3", "gitta", "metta-common", "wandb>=0.19.11"]
 
 [tool.setuptools]
-packages = ["devops", "devops.skypilot", "devops.docker", "experiments"]
+packages = [
+  "devops",
+  "devops.skypilot",
+  "devops.docker",
+  "experiments",
+  "metta.cogworks",
+]
 
 [tool.setuptools.package-dir]
 devops = "."
 experiments = "../experiments"
+"metta.cogworks" = "../metta/cogworks"
 
 [tool.uv.sources]
 gitta = { path = "../gitta", editable = true }
