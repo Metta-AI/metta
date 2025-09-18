@@ -58,9 +58,7 @@ runs:
     - name: Setup Environment
       uses: ./.github/actions/setup-environment
       with:
-        install-mode: minimal
-        extra-dependencies: |
-          -e devops
+        install-mode: runtime
 
     - name: Set up Weights & Biases credentials
       shell: bash
