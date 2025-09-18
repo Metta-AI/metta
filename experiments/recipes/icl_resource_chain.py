@@ -69,7 +69,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         room_sizes: list[str] = Field(
             default=["small"], description="Room size to sample from"
         )
-        max_steps: int = Field(default=256, description="Episode length")
+        max_steps: int = Field(default=512, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
@@ -125,7 +125,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.map_builder_objects[sink_name] = 1
 
     def _make_env_cfg(
-        self, resources, num_sinks, width, height, avg_hop, rng, max_steps=256
+        self, resources, num_sinks, width, height, avg_hop, rng, max_steps=512
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resources) + ["heart"]
@@ -140,8 +140,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
             self._add_sink(cfg, rng=rng)
 
         # longer episodes for longer chains
-        if len(cfg.used_objects) > 4:
-            max_steps = self.config.max_steps * 2
+        # if len(cfg.used_objects) > 4:
+        #     max_steps = self.config.max_steps * 2
 
         cooldown = avg_hop * (chain_length - 1)
 
