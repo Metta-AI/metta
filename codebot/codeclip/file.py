@@ -137,7 +137,11 @@ def _find_parent_readmes(path: Path) -> List[Path]:
 
 
 def _should_ignore(
-    path: Path, gitignore_rules: List[str], root_dir: Path, extensions: Optional[Tuple[str, ...]] = None
+    path: Path,
+    gitignore_rules: List[str],
+    root_dir: Path,
+    extensions: Optional[Tuple[str, ...]] = None,
+    custom_ignore_dirs: Optional[Tuple[str, ...]] = None,
 ) -> bool:
     rel_path = os.path.relpath(str(path), root_dir)
     basename = path.name
@@ -190,6 +194,32 @@ def _should_ignore(
         ".svn",
         ".hg",
     }
+
+    # Add custom ignore directories
+    if custom_ignore_dirs:
+        for ignore_dir in custom_ignore_dirs:
+            ignore_path = Path(ignore_dir)
+            # Handle both absolute and relative paths
+            if ignore_path.is_absolute():
+                # For absolute paths, check if the current path matches or is under it
+                if str(path) == str(ignore_path) or str(path).startswith(str(ignore_path) + os.sep):
+                    return True
+            else:
+                # For relative paths, check multiple ways:
+                # 1. Check if the path ends with the ignore pattern
+                # 2. Check if any part of the path matches
+                # 3. Check if the full relative path starts with the pattern
+
+                # Convert to string for comparison
+                ignore_str = str(ignore_dir)
+
+                # Check if the relative path starts with the ignore pattern
+                if rel_path == ignore_str or rel_path.startswith(ignore_str + os.sep):
+                    return True
+
+                # Also add just the directory name to the ignored set for part matching
+                # This handles cases like ignoring "marimo" anywhere in the tree
+                ignored_dirs.add(ignore_path.name)
 
     # Check if any part of the path contains ignored directories
     path_parts = Path(rel_path).parts
@@ -414,6 +444,7 @@ def _collect_files(
     processed_files: Set[Path],
     next_index: int,
     extensions: Optional[Tuple[str, ...]] = None,
+    custom_ignore_dirs: Optional[Tuple[str, ...]] = None,
 ) -> List[Document]:
     """Recursively collect files into Document objects."""
     documents = []
@@ -430,7 +461,7 @@ def _collect_files(
             current_index += 1
 
     if path_obj.is_file():
-        if not _should_ignore(path_obj, gitignore_rules, root_dir, extensions):
+        if not _should_ignore(path_obj, gitignore_rules, root_dir, extensions, custom_ignore_dirs):
             process_file(path_obj)
 
     elif path_obj.is_dir():
@@ -442,7 +473,7 @@ def _collect_files(
             filtered_dirs = []
             for d in dirs:
                 dir_path = Path(os.path.join(root, d))
-                if not _should_ignore(dir_path, gitignore_rules, root_dir, extensions):
+                if not _should_ignore(dir_path, gitignore_rules, root_dir, extensions, custom_ignore_dirs):
                     filtered_dirs.append(d)
             dirs[:] = filtered_dirs
 
@@ -453,7 +484,9 @@ def _collect_files(
             files = [
                 f
                 for f in files
-                if not _should_ignore(Path(os.path.join(root, f)), gitignore_rules, root_dir, extensions)
+                if not _should_ignore(
+                    Path(os.path.join(root, f)), gitignore_rules, root_dir, extensions, custom_ignore_dirs
+                )
             ]
 
             for file_name in sorted(files):
@@ -527,6 +560,7 @@ def get_context(
     include_git_diff: bool = False,
     diff_base: str = "origin/main",
     readmes_only: bool = False,
+    ignore_dirs: Optional[Tuple[str, ...]] = None,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Load and format context from specified paths, with basic token counting.
@@ -537,6 +571,7 @@ def get_context(
         include_git_diff: Whether to include git diff as a virtual file
         diff_base: Base reference for git diff
         readmes_only: Whether to only include README.md files
+        ignore_dirs: Optional tuple of directories to ignore
 
     Returns:
         Tuple of (formatted context string, token info dict)
@@ -587,7 +622,9 @@ def get_context(
             gitignore_path = _find_gitignore(path)
             gitignore_rules = _read_gitignore(str(gitignore_path)) if gitignore_path else []
             gitignore_root = gitignore_path.parent if gitignore_path else None
-            new_docs = _collect_files(path, gitignore_rules, gitignore_root, processed_files, next_index, extensions)
+            new_docs = _collect_files(
+                path, gitignore_rules, gitignore_root, processed_files, next_index, extensions, ignore_dirs
+            )
 
             # Stage collected files
             for doc in new_docs:

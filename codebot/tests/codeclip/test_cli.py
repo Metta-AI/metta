@@ -8,9 +8,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from click.testing import CliRunner
+from typer.testing import CliRunner
 
-from codebot.codeclip.cli import cli
+from codebot.codeclip.cli import app
 
 
 class TestCodeclipCLI(unittest.TestCase):
@@ -56,7 +56,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self._create_test_structure()
 
         # Test with multiple directories (using -s for stdout output)
-        result = self.runner.invoke(cli, ["project1", "project2", "-s"])
+        result = self.runner.invoke(app, ["project1", "project2", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Check that files from both directories are included
@@ -75,7 +75,7 @@ class TestCodeclipCLI(unittest.TestCase):
         os.chdir(subdir)
 
         # Test with relative path (using -s for stdout output)
-        result = self.runner.invoke(cli, ["../project1", "-s"])
+        result = self.runner.invoke(app, ["../project1", "-s"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("project1/main.py", result.output)
 
@@ -85,7 +85,7 @@ class TestCodeclipCLI(unittest.TestCase):
         Path("test.py").write_text("print('test')\n")
         Path("README.md").write_text("# Test\n")
 
-        result = self.runner.invoke(cli, [".", "-s"])
+        result = self.runner.invoke(app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test.py", result.output)
         self.assertIn("README.md", result.output)
@@ -95,7 +95,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self._create_test_structure()
 
         # Test filtering for Python files only
-        result = self.runner.invoke(cli, ["-e", "py", "project1", "project2", "-s"])
+        result = self.runner.invoke(app, ["-e", "py", "project1", "project2", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should include .py files
@@ -111,7 +111,7 @@ class TestCodeclipCLI(unittest.TestCase):
         Path("README.md").write_text("# Test Project\n")
 
         # Test with readmes-only flag (using -s for stdout output)
-        result = self.runner.invoke(cli, [".", "-r", "-s"])
+        result = self.runner.invoke(app, [".", "-r", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have XML format (we always use XML now)
@@ -130,7 +130,7 @@ class TestCodeclipCLI(unittest.TestCase):
         """Test XML output format (default)."""
         Path("test.py").write_text("print('test')\n")
 
-        result = self.runner.invoke(cli, [".", "-s"])
+        result = self.runner.invoke(app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have XML tags (new format)
@@ -149,7 +149,7 @@ class TestCodeclipCLI(unittest.TestCase):
         subdir.mkdir()
         (subdir / "code.py").write_text("print('code')\n")
 
-        result = self.runner.invoke(cli, ["subdir", "-s"])
+        result = self.runner.invoke(app, ["subdir", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should include both the subdirectory file and parent README
@@ -163,7 +163,7 @@ class TestCodeclipCLI(unittest.TestCase):
         Path("test.py").write_text("print('test')\n")
 
         # Clipboard is now the default behavior (no flags needed)
-        result = self.runner.invoke(cli, ["."])
+        result = self.runner.invoke(app, ["."])
         self.assertEqual(result.exit_code, 0)
 
         # Check that clipboard copy was called
@@ -177,7 +177,7 @@ class TestCodeclipCLI(unittest.TestCase):
         """Test that -s flag outputs to stdout."""
         Path("test.py").write_text("print('test')\n")
 
-        result = self.runner.invoke(cli, [".", "-s"])
+        result = self.runner.invoke(app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have file content in stdout
@@ -187,16 +187,22 @@ class TestCodeclipCLI(unittest.TestCase):
 
     def test_help_contains_all_options(self):
         """Test that help output contains all expected options."""
-        result = self.runner.invoke(cli, ["--help"])
+        result = self.runner.invoke(app, ["--help"])
         self.assertEqual(result.exit_code, 0)
 
-        # Check that all options are mentioned in help
-        self.assertIn("-s, --stdout", result.output)
-        self.assertIn("-r, --readmes", result.output)
-        self.assertIn("-e, --extension", result.output)
-        self.assertIn("-p, --profile", result.output)
-        self.assertIn("-f, --flamegraph", result.output)
-        self.assertIn("-d, --diff", result.output)
+        # Check that all options are mentioned in help (typer format)
+        self.assertIn("--stdout", result.output)
+        self.assertIn("-s", result.output)
+        self.assertIn("--readmes", result.output)
+        self.assertIn("-r", result.output)
+        self.assertIn("--extension", result.output)
+        self.assertIn("-e", result.output)
+        self.assertIn("--profile", result.output)
+        self.assertIn("-p", result.output)
+        self.assertIn("--flamegraph", result.output)
+        self.assertIn("-f", result.output)
+        self.assertIn("--diff", result.output)
+        self.assertIn("-d", result.output)
 
 
 if __name__ == "__main__":
