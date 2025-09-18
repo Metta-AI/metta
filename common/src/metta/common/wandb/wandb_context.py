@@ -37,7 +37,7 @@ class WandbConfig(Config):
 
     @property
     def uri(self):
-        return f"wandb://run/{self.run_id}"
+        raise RuntimeError("Policy artifacts are no longer stored on WandB. Use local or s3:// URIs instead.")
 
 
 class WandbContext:
