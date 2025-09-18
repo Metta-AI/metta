@@ -72,7 +72,6 @@ class RunInfo:
     total_timesteps: int | None = None  # Target timesteps from config
     current_steps: int | None = None  # Current agent_step from metrics
 
-
     @property
     def status(self) -> JobStatus:
         time_since_last_updated = (

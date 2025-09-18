@@ -14,7 +14,6 @@ from typing import Any
 from pydantic import Field
 
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
-from metta.adaptive.protocols import ExperimentState
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 from metta.mettagrid.config import Config
 
@@ -45,6 +44,7 @@ class SchedulerState:
     Tracks which runs are in training, evaluation, and completed states
     to ensure proper synchronization and prevent duplicate job dispatches.
     """
+
     runs_in_training: set[str] = field(default_factory=set)
     runs_in_eval: set[str] = field(default_factory=set)
     runs_completed: set[str] = field(default_factory=set)
@@ -105,8 +105,8 @@ class BatchedSyncedOptimizingScheduler:
             if self.state.runs_in_training or self.state.runs_in_eval:
                 logger.warning(
                     "[BatchedSyncedOptimizingScheduler] WARNING: Received empty runs list but internal state shows "
-                    f"{len(self.state.runs_in_training)} runs in training and {len(self.state.runs_in_eval)} runs in eval. "
-                    "This may indicate a data fetch issue."
+                    f"{len(self.state.runs_in_training)} runs in training and "
+                    f"{len(self.state.runs_in_eval)} runs in eval. This may indicate a data fetch issue."
                 )
             return
 
@@ -123,7 +123,9 @@ class BatchedSyncedOptimizingScheduler:
                 elif status in (JobStatus.FAILED, JobStatus.STALE):
                     # Remove from training due to failure
                     self.state.runs_in_training.discard(run_id)
-                    logger.info(f"[BatchedSyncedOptimizingScheduler] Run {run_id} removed from training due to status: {status}")
+                    logger.info(
+                        f"[BatchedSyncedOptimizingScheduler] Run {run_id} removed from training due to status: {status}"
+                    )
 
         # Update runs that have moved from eval to completed
         for run_id in list(self.state.runs_in_eval):
@@ -176,14 +178,16 @@ class BatchedSyncedOptimizingScheduler:
         # This is the key constraint for batched scheduling
         if self.state.runs_in_training:
             logger.info(
-                f"[BatchedSyncedOptimizingScheduler] Waiting for {len(self.state.runs_in_training)} training job(s) to complete before next batch"
+                f"[BatchedSyncedOptimizingScheduler] Waiting for {len(self.state.runs_in_training)} "
+                "training job(s) to complete before next batch"
             )
             return []
 
         # 3) Check if any eval jobs are still in progress - if so, wait
         if self.state.runs_in_eval:
             logger.info(
-                f"[BatchedSyncedOptimizingScheduler] Waiting for {len(self.state.runs_in_eval)} eval job(s) to complete before next batch"
+                f"[BatchedSyncedOptimizingScheduler] Waiting for {len(self.state.runs_in_eval)} "
+                "eval job(s) to complete before next batch"
             )
             return []
 
@@ -287,9 +291,13 @@ class BatchedSyncedOptimizingScheduler:
                         "suggestion": dict(suggestion) if isinstance(suggestion, dict) else {},
                     }
                     obs_list.append(obs_dict)
-                    logger.debug(f"[BatchedSyncedOptimizingScheduler] Collected observation for {run.run_id}: {obs_dict}")
+                    logger.debug(
+                        f"[BatchedSyncedOptimizingScheduler] Collected observation for {run.run_id}: {obs_dict}"
+                    )
                 except Exception as e:
                     # Skip malformed entries
-                    logger.warning(f"[BatchedSyncedOptimizingScheduler] Failed to collect observation for {run.run_id}: {e}")
+                    logger.warning(
+                        f"[BatchedSyncedOptimizingScheduler] Failed to collect observation for {run.run_id}: {e}"
+                    )
                     continue
         return obs_list
