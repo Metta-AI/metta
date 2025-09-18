@@ -1,4 +1,4 @@
-from typing import Any, Tuple
+from typing import TYPE_CHECKING, Any, Tuple
 
 import numpy as np
 import torch
@@ -7,13 +7,15 @@ from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
-from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
 
 # from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.training_environment import TrainingEnvironment
+
+if TYPE_CHECKING:
+    from metta.agent.policy import Policy
 from metta.utils.batch import calculate_prioritized_sampling_params
 
 
@@ -75,7 +77,7 @@ class PPOConfig(Config):
 
     def create(
         self,
-        policy: Policy,
+        policy: "Policy",
         trainer_cfg: Any,
         env: TrainingEnvironment,
         device: torch.device,

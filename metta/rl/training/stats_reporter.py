@@ -126,15 +126,23 @@ class StatsReporter(TrainerComponent):
     def register(self, trainer) -> None:  # type: ignore[override]
         super().register(trainer)
         trainer.stats_reporter = self
+        reporting_enabled = (
+            self._config.report_to_wandb
+            or self._config.report_to_stats_client
+            or self._config.report_to_console
+        )
         memory_monitor = system_monitor = None
-        try:
-            memory_monitor, system_monitor = setup_monitoring(
-                policy=trainer.policy,
-                experience=getattr(getattr(trainer, "core_loop", None), "experience", None),
-                timer=trainer.stopwatch,
-            )
-        except Exception as exc:
-            logger.debug("Failed to initialize monitoring: %s", exc)
+        if reporting_enabled:
+            experience = getattr(getattr(trainer, "core_loop", None), "experience", None)
+            if experience is not None:
+                try:
+                    memory_monitor, system_monitor = setup_monitoring(
+                        policy=trainer.policy,
+                        experience=experience,
+                        timer=trainer.stopwatch,
+                    )
+                except Exception as exc:  # pragma: no cover - defensive best-effort
+                    logger.debug("Failed to initialize monitoring: %s", exc)
 
         trainer.memory_monitor = memory_monitor
         trainer.system_monitor = system_monitor

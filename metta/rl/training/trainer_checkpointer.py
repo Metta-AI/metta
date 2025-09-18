@@ -88,11 +88,16 @@ class TrainerCheckpointer(TrainerComponent):
 
         trainer.agent_step = state.agent_step
         trainer.epoch = state.epoch
+        if hasattr(trainer, "trainer_state"):
+            trainer.trainer_state.agent_step = state.agent_step
+            trainer.trainer_state.epoch = state.epoch
         self._latest_saved_epoch = state.epoch
 
         if state.optimizer_state:
             try:
                 trainer.optimizer.load_state_dict(state.optimizer_state)
+                if hasattr(trainer, "trainer_state"):
+                    trainer.trainer_state.optimizer = trainer.optimizer
             except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
 
