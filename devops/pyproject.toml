@@ -14,4 +14,4 @@ where = ["."]
 include = ["devops*"]
 
 [tool.uv.sources]
-gitta = { workspace = true }
+gitta = { path = "../gitta", editable = true }
