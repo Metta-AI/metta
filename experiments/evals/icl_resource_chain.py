@@ -18,7 +18,11 @@ def update_recipe(converter, input_resource=None, output_resource=None):
 
 
 def make_icl_resource_chain_eval_env(
-    chain_length: int, num_sinks: int, room_size: str, obstacle_types: list[str] = [], densities: list[str] = []
+    chain_length: int,
+    num_sinks: int,
+    room_size: str,
+    obstacle_types: list[str] = [],
+    densities: list[str] = [],
 ) -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[chain_length],
@@ -48,7 +52,9 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="in_context_learning/3c_1s_small",
-            env=make_icl_resource_chain_eval_env(2, 2, "medium", ["square"], ["balanced"]),
+            env=make_icl_resource_chain_eval_env(
+                2, 2, "medium", ["square"], ["balanced"]
+            ),
         ),
         SimulationConfig(
             name="in_context_learning/3c_2s_small",
@@ -60,7 +66,9 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="in_context_learning/4c_1s_small",
-            env=make_icl_resource_chain_eval_env(3, 1, "medium", ["square"], ["balanced"]),
+            env=make_icl_resource_chain_eval_env(
+                3, 1, "medium", ["square"], ["balanced"]
+            ),
         ),
         SimulationConfig(
             name="in_context_learning/4c_2s_small",
@@ -72,7 +80,9 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="in_context_learning/5c_1s_small",
-            env=make_icl_resource_chain_eval_env(4, 2, "medium", ["square"], ["balanced"]),
+            env=make_icl_resource_chain_eval_env(
+                4, 2, "medium", ["square"], ["balanced"]
+            ),
         ),
         SimulationConfig(
             name="in_context_learning/5c_2s_small",
@@ -84,6 +94,8 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="in_context_learning/5c_2s_small",
-            env=make_icl_resource_chain_eval_env(5, 2, "large", ["square"], ["balanced"]),
+            env=make_icl_resource_chain_eval_env(
+                5, 2, "large", ["square"], ["balanced"]
+            ),
         ),
     ]
