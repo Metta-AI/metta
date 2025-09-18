@@ -8,8 +8,7 @@ import torch
 from pydantic import Field
 
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.agent.policy import Policy
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -144,9 +143,7 @@ class TrainTool(Tool):
             if storage_decision.remote_prefix:
                 self.trainer.checkpoint.remote_prefix = storage_decision.remote_prefix
                 if storage_decision.reason == "env_override":
-                    logger.info(
-                        "Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix
-                    )
+                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
                 else:
                     logger.info(
                         "Policies will sync to %s (Softmax AWS profile detected).",
