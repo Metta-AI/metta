@@ -9,8 +9,6 @@ var replay = ""
 var topArea: Area
 var bottomArea: Area
 
-var loaded = false
-
 find "/UI/Main":
 
   find "**/PanelHeader":
@@ -31,14 +29,17 @@ find "/UI/Main":
     onClick:
       echo "Clicked: AgentTracesPanel: ", thisNode.name
 
-  onShow:
+  onLoad:
+    echo "onLoad"
+
     # Build the atlas.
-    for path in walkDirRec("data/"):
+    for path in walkDirRec(dataDir):
       if path.endsWith(".png") and "fidget" notin path:
         echo path
-        bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
+        bxy.addImage(path.replace(dataDir & "/", "").replace(".png", ""), readImage(path))
 
-    echo "onShow"
+    utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
+
     if replay != "":
       if replay.startsWith("http"):
         let req = startHttpRequest(replay)
@@ -49,8 +50,8 @@ find "/UI/Main":
           common.replay = loadReplay(response.body, replay)
       else:
         common.replay = loadReplay(replay)
-    else:
-      common.replay = loadReplay("replays/pens.json.z")
+    elif common.replay == nil:
+      common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
 
     echo "Creating panels"
     rootArea = Area(layout: Horizontal, node: find("**/AreaHeader"))
@@ -102,11 +103,7 @@ find "/UI/Main":
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
-    loaded = true
-
   onFrame:
-    if not loaded:
-      return
 
     playControls()
 
@@ -128,7 +125,8 @@ when isMainModule:
     figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
     windowTitle = "MetaScope V2",
     entryFrame = "UI/Main",
-    windowStyle = DecoratedResizable
+    windowStyle = DecoratedResizable,
+    dataDir = "mettascope2/data"
   )
 
   when defined(emscripten):

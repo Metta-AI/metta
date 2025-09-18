@@ -59,6 +59,52 @@ type
     agents*: seq[Entity]
     mgConfig*: JsonNode
 
+  ReplayEntity* = ref object
+    ## Replay entity does not have time series and only has the current step value.
+    id*: int
+    typeId*: int
+    groupId*: int
+    agentId*: int
+    location*: IVec3
+    orientation*: int
+    inventory*: seq[ItemAmount]
+    inventoryMax*: int
+    color*: int
+
+    # Agent specific keys.
+    actionId*: int
+    actionParameter*: int
+    actionSuccess*: bool
+    currentReward*: float
+    totalReward*: float
+    isFrozen*: bool
+    frozenProgress*: int
+    frozenTime*: int
+    visionSize*: int
+
+    # Building specific keys.
+    inputResources*: seq[ItemAmount]
+    outputResources*: seq[ItemAmount]
+    recipeMax*: int
+    productionProgress*: int
+    productionTime*: int
+    cooldownProgress*: int
+    cooldownTime*: int
+
+  ReplayStep* = ref object
+    step*: int
+    objects*: seq[ReplayEntity]
+
+proc parseHook*(s: string, i: var int, v: var IVec3) =
+  var arr: array[3, int32]
+  parseHook(s, i, arr)
+  v = ivec3(arr[0], arr[1], arr[2])
+
+proc parseHook*(s: string, i: var int, v: var ItemAmount) =
+  var arr: array[2, int32]
+  parseHook(s, i, arr)
+  v = ItemAmount(itemId: arr[0], count: arr[1])
+
 proc expand[T](data: any, numSteps: int, defaultValue: T): seq[T] =
   if data == nil:
     # Use the default value.
@@ -86,12 +132,8 @@ proc expand[T](data: any, numSteps: int, defaultValue: T): seq[T] =
     # A single value is a valid sequence.
     return @[data.to(T)]
 
-
-proc loadReplay*(data: string, fileName: string): Replay =
+proc loadReplayString*(jsonData: string, fileName: string): Replay =
   ## Load a replay from a string.
-
-  # Decompress with zippy deflate:
-  let jsonData = zippy.uncompress(data)
   let jsonObj = fromJson(jsonData)
 
   doAssert jsonObj["version"].getInt == 2
@@ -242,6 +284,57 @@ proc loadReplay*(data: string, fileName: string): Replay =
 
   return replay
 
+proc loadReplay*(data: string, fileName: string): Replay =
+  ## Load a replay from a string.
+  let jsonData = zippy.uncompress(data)
+  return loadReplayString(jsonData, fileName)
+
 proc loadReplay*(fileName: string): Replay =
+  ## Load a replay from a file.
   let data = readFile(fileName)
   return loadReplay(data, fileName)
+
+proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
+  ## Apply a replay step to the replay.
+  let agentTypeIndex = replay.typeNames.find("agent")
+  for obj in objects:
+    let index = obj.id - 1
+    while index >= replay.objects.len:
+      replay.objects.add(Entity(id: obj.id))
+
+    let entity = replay.objects[index]
+    doAssert entity.id == obj.id, "Object id mismatch"
+
+    entity.typeId = obj.typeId
+    if obj.typeId == agentTypeIndex:
+      entity.isAgent = true
+    entity.groupId = obj.groupId
+    entity.agentId = obj.agentId
+    entity.location.add(obj.location)
+    entity.orientation.add(obj.orientation)
+    entity.inventory.add(obj.inventory)
+    entity.inventoryMax = obj.inventoryMax
+    entity.color.add(obj.color)
+    entity.actionId.add(obj.actionId)
+    entity.actionParameter.add(obj.actionParameter)
+    entity.actionSuccess.add(obj.actionSuccess)
+    entity.currentReward.add(obj.currentReward)
+    entity.totalReward.add(obj.totalReward)
+    entity.isFrozen.add(obj.isFrozen)
+    entity.frozenProgress.add(obj.frozenProgress)
+    entity.frozenTime = obj.frozenTime
+    entity.visionSize = obj.visionSize
+    entity.inputResources = obj.inputResources
+    entity.outputResources = obj.outputResources
+    entity.recipeMax = obj.recipeMax
+    entity.productionProgress.add(obj.productionProgress)
+    entity.productionTime = obj.productionTime
+    entity.cooldownProgress.add(obj.cooldownProgress)
+    entity.cooldownTime = obj.cooldownTime
+
+  replay.maxSteps = max(replay.maxSteps, step + 1)
+
+proc apply*(replay: Replay, replayStepJsonData: string) =
+  ## Apply a replay step to the replay.
+  let replayStep = fromJson(replayStepJsonData, ReplayStep)
+  replay.apply(replayStep.step, replayStep.objects)
