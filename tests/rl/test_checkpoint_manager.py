@@ -13,8 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 @pytest.fixture
 def temp_run_dir():
     with tempfile.TemporaryDirectory() as tmpdir:
-        run_dir = Path(tmpdir) / "test_run"
-        yield run_dir
+        yield Path(tmpdir)
 
 
 @pytest.fixture

@@ -298,8 +298,8 @@ def test_mine_token_remapping_scenario():
         assert agent.original_feature_mapping["mine"] == 1
 
         # Save after initial training
-        run_dir = Path(tmpdir) / "mining_agent"
-        checkpoint_manager = CheckpointManager(run="mining_agent", run_dir=run_dir)
+        base_dir = Path(tmpdir)
+        checkpoint_manager = CheckpointManager(run="mining_agent", run_dir=base_dir)
         checkpoint_manager.save_agent(agent, epoch=1, metadata={"agent_step": 1000, "total_time": 60})
 
         # === PHASE 2: Continue Training with mine=2 and new 'gold' feature ===
@@ -402,8 +402,8 @@ def test_end_to_end_initialize_to_environment_workflow():
         }
 
         # Save using CheckpointManager - original_feature_mapping is automatically saved with the agent
-        run_dir = Path(tmpdir) / "test_policy"
-        checkpoint_manager = CheckpointManager(run="test_policy", run_dir=run_dir)
+        base_dir = Path(tmpdir)
+        checkpoint_manager = CheckpointManager(run="test_policy", run_dir=base_dir)
 
         # Create simple metadata (no need to manually save original_feature_mapping)
         metadata = {

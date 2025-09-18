@@ -157,7 +157,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
 
     checkpoint_manager = CheckpointManager(
         run=cfg.run,
-        run_dir=cfg.run_dir,
+        run_dir=cfg.system.data_dir,
         remote_prefix=cfg.trainer.checkpoint.remote_prefix,
     )
 
