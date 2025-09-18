@@ -88,6 +88,11 @@ def get_notification_config(termination_reason: str, job_config: JobConfig) -> N
             description="Job ran to completion.",
             github_state="success",
         ),
+        "force_restart_test": NotificationConfig(
+            title="🔧 SkyPilot Job Restarted",
+            description="Job restarted to test automatic recovery.",
+            github_state="pending",
+        ),
     }
 
     # Handle dynamic exit code cases
