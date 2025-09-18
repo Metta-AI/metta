@@ -3,6 +3,7 @@
 
 #include "../event.hpp"
 #include "../grid.hpp"
+#include "assembler.hpp"
 #include "constants.hpp"
 #include "converter.hpp"
 
@@ -28,12 +29,24 @@ public:
   explicit CoolDownHandler(EventManager* event_manager) : EventHandler(event_manager) {}
 
   void handle_event(GridObjectId obj_id, EventArg /*arg*/) override {
-    Converter* converter = static_cast<Converter*>(this->event_manager->grid->object(obj_id));
-    if (!converter) {
+    GridObject* obj = this->event_manager->grid->object(obj_id);
+    if (!obj) {
       return;
     }
 
-    converter->finish_cooldown();
+    // Handle Converter cooldown
+    Converter* converter = dynamic_cast<Converter*>(obj);
+    if (converter) {
+      converter->finish_cooldown();
+      return;
+    }
+
+    // Handle Assembler cooldown
+    Assembler* assembler = dynamic_cast<Assembler*>(obj);
+    if (assembler) {
+      assembler->finish_cooldown();
+      return;
+    }
   }
 };
 

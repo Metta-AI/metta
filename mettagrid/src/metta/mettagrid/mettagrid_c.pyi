@@ -131,16 +131,16 @@ class ActionConfig:
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
     ) -> None: ...
     required_resources: dict[int, int]
-    consumed_resources: dict[int, int]
+    consumed_resources: dict[int, float]
 
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
         defense_resources: dict[int, int] = {},
     ) -> None: ...
     defense_resources: dict[int, int]
@@ -149,7 +149,7 @@ class ChangeGlyphActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
         number_of_glyphs: int = ...,
     ) -> None: ...
     number_of_glyphs: int

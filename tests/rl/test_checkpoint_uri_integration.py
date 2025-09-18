@@ -1,7 +1,6 @@
 """Consolidated tests for URI handling and checkpoint integration.
 
-Tests all URI formats (file, wandb, s3), real environment integration,
-end-to-end workflows, and cross-format compatibility.
+Tests file and S3 URI formats plus real environment integration.
 """
 
 import tempfile
@@ -11,19 +10,15 @@ from unittest.mock import Mock, patch
 import pytest
 import torch
 from tensordict import TensorDict
-from wandb.errors import CommError
 
 import metta.mettagrid.builder.envs as eb
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
-from metta.common.util.constants import METTA_WANDB_ENTITY
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.file import WandbURI
-from metta.rl.checkpoint_manager import CheckpointManager, expand_wandb_uri, key_and_version
+from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.rl.system_config import SystemConfig
-from metta.rl.wandb import get_wandb_checkpoint_metadata, upload_checkpoint_as_artifact
 
 
 @pytest.fixture
@@ -72,12 +67,16 @@ def create_test_checkpoint(temp_dir: Path, filename: str, policy=None) -> Path:
     return checkpoint_path
 
 
+def checkpoint_filename(run: str, epoch: int) -> str:
+    return f"{run}:v{epoch}.pt"
+
+
 class TestFileURIHandling:
     """Test file:// URI format handling."""
 
     def test_file_uri_single_checkpoint(self, temp_dir, mock_policy):
         """Test loading a single checkpoint file via file:// URI."""
-        checkpoint_file = create_test_checkpoint(temp_dir, "test_run__e5__s1000__t120__sc7500.pt", mock_policy)
+        checkpoint_file = create_test_checkpoint(temp_dir, checkpoint_filename("solo_run", 5), mock_policy)
 
         uri = f"file://{checkpoint_file}"
         loaded_policy = CheckpointManager.load_from_uri(uri)
@@ -91,9 +90,9 @@ class TestFileURIHandling:
         checkpoints_dir.mkdir(parents=True)
 
         # Create multiple checkpoint files with different epochs
-        create_test_checkpoint(checkpoints_dir, "run1__e1__s500__t60__sc5000.pt", mock_policy)
-        create_test_checkpoint(checkpoints_dir, "run1__e3__s1500__t180__sc8000.pt", mock_policy)
-        create_test_checkpoint(checkpoints_dir, "run1__e5__s2500__t300__sc9500.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, checkpoint_filename("run1", 1), mock_policy)
+        create_test_checkpoint(checkpoints_dir, checkpoint_filename("run1", 3), mock_policy)
+        create_test_checkpoint(checkpoints_dir, checkpoint_filename("run1", 5), mock_policy)
 
         # Test directory URI - should load latest (highest epoch)
         uri = f"file://{checkpoints_dir}"
@@ -108,7 +107,7 @@ class TestFileURIHandling:
         checkpoints_dir = run_dir / "checkpoints"
         checkpoints_dir.mkdir(parents=True)
 
-        create_test_checkpoint(checkpoints_dir, "my_run__e10__s5000__t600__sc9000.pt", mock_policy)
+        create_test_checkpoint(checkpoints_dir, checkpoint_filename("my_run", 10), mock_policy)
 
         # Test run directory URI - should automatically look in checkpoints subdir
         uri = f"file://{run_dir}"
@@ -143,94 +142,6 @@ class TestFileURIHandling:
             CheckpointManager.load_from_uri(uri)
 
 
-class TestWandbURIHandling:
-    """Test wandb:// URI format handling and compatibility."""
-
-    def test_wandb_uri_expansion(self):
-        """Test wandb URI expansion functionality."""
-        # Test short run format - should use METTA_WANDB_ENTITY fallback
-        short_uri = "wandb://run/my-experiment"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/model/my-experiment:latest"
-
-        # Test short run format with version
-        short_uri = "wandb://run/my-experiment:v10"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/model/my-experiment:v10"
-
-        # Test short sweep format
-        short_uri = "wandb://sweep/my-sweep"
-        expanded = expand_wandb_uri(short_uri)
-        assert expanded == "wandb://metta-research/metta/sweep_model/my-sweep:latest"
-
-        # Test full format (should remain unchanged)
-        full_uri = "wandb://entity/project/model/artifact:v1"
-        expanded = expand_wandb_uri(full_uri)
-        assert expanded == full_uri
-
-    @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
-    def test_wandb_uri_loading(self, mock_load_wandb, mock_policy):
-        """Test wandb URI loading - expansion now happens inside load_policy_from_wandb_uri."""
-        mock_load_wandb.return_value = mock_policy
-
-        # Test that the URI is passed as-is (expansion happens inside load_policy_from_wandb_uri)
-        uri = "wandb://run/my-experiment"
-        loaded_policy = CheckpointManager.load_from_uri(uri)
-
-        assert type(loaded_policy).__name__ == type(mock_policy).__name__
-        # Verify the original URI was passed (expansion happens inside the function)
-        mock_load_wandb.assert_called_once_with("wandb://run/my-experiment", device="cpu")
-
-    @patch("metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata")
-    def test_wandb_metadata_extraction(self, mock_get_metadata):
-        """Test metadata extraction from wandb URIs."""
-        mock_get_metadata.return_value = {
-            "run_name": "experiment_1",
-            "epoch": 25,
-            "agent_step": 12500,
-            "total_time": 750,
-            "score": 0.95,
-        }
-
-        uri = "wandb://run/experiment_1"
-        metadata = CheckpointManager.get_policy_metadata(uri)
-
-        # Should call with expanded URI using METTA_WANDB_ENTITY
-        mock_get_metadata.assert_called_once_with("wandb://metta-research/metta/model/experiment_1:latest")
-
-        assert metadata["run_name"] == "experiment_1"
-        assert metadata["epoch"] == 25
-        assert metadata["original_uri"] == uri  # Original short form preserved
-
-    def test_get_wandb_metadata_handles_comm_error(self):
-        """Ensure network issues when fetching metadata do not raise."""
-        with patch("metta.rl.wandb._create_wandb_api") as mock_api:
-            mock_api.return_value.artifact.side_effect = CommError("timeout")
-
-            metadata = get_wandb_checkpoint_metadata("wandb://entity/project/model/run:v1")
-
-        assert metadata is None
-
-    def test_wandb_key_and_version_extraction(self):
-        """Test extracting key and version from wandb URIs."""
-        with patch(
-            "metta.rl.checkpoint_manager.get_wandb_checkpoint_metadata", return_value={"run_name": "test", "epoch": 5}
-        ):
-            key, version = key_and_version("wandb://run/test")
-            assert key == "test"
-            assert version == 5
-
-    @patch("metta.rl.checkpoint_manager.load_policy_from_wandb_uri")
-    def test_wandb_error_handling(self, mock_load_wandb):
-        """Test wandb URI error handling."""
-        # Test network error
-        mock_load_wandb.side_effect = RuntimeError("Network error")
-
-        uri = "wandb://run/test"
-        with pytest.raises(RuntimeError, match="Network error"):
-            CheckpointManager.load_from_uri(uri)
-
-
 class TestS3URIHandling:
     """Test s3:// URI format handling."""
 
@@ -245,7 +156,7 @@ class TestS3URIHandling:
         with patch("torch.load", return_value=mock_policy) as mock_torch_load:
             # Also patch the specific import path used in checkpoint_manager
             with patch("metta.rl.checkpoint_manager.local_copy", mock_local_copy):
-                uri = "s3://my-bucket/path/to/checkpoint.pt"
+                uri = "s3://my-bucket/path/to/test_run:v5.pt"
                 loaded_policy = CheckpointManager.load_from_uri(uri)
 
                 assert type(loaded_policy).__name__ == type(mock_policy).__name__
@@ -255,9 +166,9 @@ class TestS3URIHandling:
     def test_s3_key_and_version_extraction(self):
         """Test extracting key and version from S3 URIs."""
         # Test S3 URI with valid checkpoint filename
-        uri = "s3://bucket/path/to/my_run__e15__s7500__t450__sc8500.pt"
+        uri = "s3://bucket/test_run/checkpoints/test_run:v15.pt"
         key, version = key_and_version(uri)
-        assert key == "my_run"
+        assert key == "test_run"
         assert version == 15
 
         # Test S3 URI with regular filename
@@ -276,11 +187,6 @@ class TestURIUtilities:
         result = CheckpointManager.normalize_uri("/path/to/checkpoint.pt")
         assert result.startswith("file://")
         assert result.endswith("/path/to/checkpoint.pt")
-
-        # Test wandb URI passthrough (expansion happens in wandb.py now)
-        wandb_short = "wandb://run/test"
-        normalized = CheckpointManager.normalize_uri(wandb_short)
-        assert normalized == "wandb://run/test"  # Should be unchanged
 
         # Test already normalized URIs remain unchanged
         file_uri = "file:///path/to/checkpoint.pt"
@@ -338,7 +244,7 @@ class TestRealEnvironmentIntegration:
             checkpoint_manager.save_agent(agent, epoch=10, metadata={"agent_step": 5000, "total_time": 300})
 
             # Get checkpoint URI using public API
-            checkpoint_uris = checkpoint_manager.select_checkpoints(strategy="latest", count=1, metric="epoch")
+            checkpoint_uris = checkpoint_manager.select_checkpoints(strategy="latest", count=1)
             checkpoint_uri = checkpoint_uris[0] if checkpoint_uris else None
             assert checkpoint_uri is not None
 
@@ -370,15 +276,20 @@ class TestRealEnvironmentIntegration:
             for epoch, metadata in training_data:
                 checkpoint_manager.save_agent(agent, epoch=epoch, metadata=metadata)
 
-            # Test selection by score (should get epoch 15 with score 0.9)
-            best_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="score")
-            assert len(best_checkpoints) == 1
-            assert best_checkpoints[0].endswith("progress_test__e15__s3000__t180__sc9000.pt")
-
-            # Test selection by latest epoch (should get epoch 20)
-            latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="epoch")
+            # Latest checkpoint should reflect highest epoch
+            latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1)
             assert len(latest_checkpoints) == 1
-            assert latest_checkpoints[0].endswith("progress_test__e20__s4000__t240__sc6000.pt")
+            assert latest_checkpoints[0].endswith("progress_test:v20.pt")
+
+            # Request all checkpoints and verify order (descending epoch)
+            all_checkpoints = checkpoint_manager.select_checkpoints("all")
+            expected_suffixes = [
+                "progress_test:v20.pt",
+                "progress_test:v15.pt",
+                "progress_test:v10.pt",
+                "progress_test:v5.pt",
+            ]
+            assert [uri.split("/")[-1] for uri in all_checkpoints] == expected_suffixes
 
 
 class TestEndToEndWorkflows:
@@ -436,12 +347,14 @@ class TestEndToEndWorkflows:
         """Test that different URI formats work together seamlessly."""
         # Create checkpoint via standard save
         mock_agent = MockAgent()
-        checkpoint_file = create_test_checkpoint(temp_dir, "cross_test__e5__s1000__t120__sc7500.pt", mock_agent)
+        run_dir = temp_dir / "cross_test" / "checkpoints"
+        checkpoint_file = create_test_checkpoint(run_dir, checkpoint_filename("cross_test", 5), mock_agent)
 
         # Test different ways to reference the same checkpoint
         uris = [
             f"file://{checkpoint_file}",
-            f"file://{checkpoint_file.parent}",  # Directory form
+            f"file://{checkpoint_file.parent}",  # checkpoints directory form
+            f"file://{run_dir.parent}",  # run directory
             str(checkpoint_file),  # Plain path (should be normalized)
         ]
 
@@ -455,82 +368,3 @@ class TestEndToEndWorkflows:
             metadata = CheckpointManager.get_policy_metadata(uri)
             assert metadata["run_name"] == "cross_test"
             assert metadata["epoch"] == 5
-
-
-class TestWandbArtifactFormatting:
-    """Test wandb artifact URI formatting to prevent double entity issues."""
-
-    def test_wandb_uri_parsing_prevents_double_entity(self):
-        """Test that WandB URIs are parsed correctly without double entity issues."""
-
-        # Test various wandb:// URI formats to ensure they parse correctly
-        test_cases = [
-            ("wandb://metta/relh.policy-cull.902.1:v0", "metta", "relh.policy-cull.902.1", "v0"),
-            ("wandb://test-project/my-artifact:latest", "test-project", "my-artifact", "latest"),
-            ("wandb://another-project/artifact-name:v42", "another-project", "artifact-name", "v42"),
-        ]
-
-        for wandb_uri, expected_project, expected_artifact_path, expected_version in test_cases:
-            # Parse the URI
-            parsed_uri = WandbURI.parse(wandb_uri)
-
-            # Verify components are extracted correctly
-            assert parsed_uri.project == expected_project
-            assert parsed_uri.artifact_path == expected_artifact_path
-            assert parsed_uri.version == expected_version
-
-            # Most importantly: verify that qname() uses the configured entity
-            # and doesn't create double entity paths
-            qname = parsed_uri.qname()
-            expected_qname = f"{METTA_WANDB_ENTITY}/{expected_project}/{expected_artifact_path}:{expected_version}"
-            assert qname == expected_qname
-
-            # Ensure no double entity issue (this was the original bug)
-            parts = qname.split("/")
-            assert len(parts) == 3, f"qname should have exactly 3 parts, got: {qname}"
-
-    def test_upload_checkpoint_returns_latest_uri(self):
-        """Test that upload_checkpoint_as_artifact always returns latest URI for simplicity."""
-
-        mock_artifact = Mock()
-        mock_artifact.qualified_name = "metta-research/metta/test-artifact:v1"
-        mock_artifact.version = "v1"
-        mock_artifact.wait = Mock()
-
-        mock_run = Mock()
-        mock_run.project = "metta"
-        mock_run.log_artifact = Mock()
-
-        with patch("wandb.Artifact", return_value=mock_artifact):
-            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                result = upload_checkpoint_as_artifact(
-                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
-                )
-
-                # Always returns qualified artifact URI for simplicity and reliability
-                assert result == "wandb://metta-research/metta/test-artifact:v1"
-                assert result.startswith("wandb://"), "Should start with wandb://"
-
-                # Verify the artifact upload happened
-                mock_run.log_artifact.assert_called_once_with(mock_artifact)
-                mock_artifact.wait.assert_called_once()
-
-    def test_upload_checkpoint_handles_comm_error(self):
-        """Uploading failures should be logged but not raise."""
-
-        mock_artifact = Mock()
-        mock_artifact.wait = Mock()
-
-        mock_run = Mock()
-        mock_run.project = "metta"
-        mock_run.log_artifact.side_effect = CommError("timeout")
-
-        with patch("wandb.Artifact", return_value=mock_artifact):
-            with tempfile.NamedTemporaryFile(suffix=".pt") as tmp_file:
-                result = upload_checkpoint_as_artifact(
-                    checkpoint_path=tmp_file.name, artifact_name="test-artifact", wandb_run=mock_run
-                )
-
-        assert result is None
-        mock_run.log_artifact.assert_called_once()
-        mock_artifact.wait.assert_not_called()

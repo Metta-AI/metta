@@ -186,7 +186,7 @@ def create_eval_job(
         type=JobTypes.LAUNCH_EVAL,
         args=eval_args or [],
         overrides=overrides,
-        metadata={"policy_uri": f"wandb://metta/{run_id}"},
+        metadata={"policy_uri": f"s3://policies/{run_id}/latest.pt"},
     )
 
 

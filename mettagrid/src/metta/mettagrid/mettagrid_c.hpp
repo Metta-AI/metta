@@ -21,6 +21,7 @@
 
 #include "grid_object.hpp"
 #include "mettagrid_config.hpp"
+#include "objects/assembler.hpp"
 #include "packed_coordinate.hpp"
 #include "types.hpp"
 
@@ -35,6 +36,7 @@ class GridObject;
 
 struct GridObjectConfig;
 struct ConverterConfig;
+struct AssemblerConfig;
 struct WallConfig;
 struct BoxConfig;
 struct AgentConfig;
