@@ -10,10 +10,11 @@ requires-python = ">=3.9"
 dependencies = ["skypilot>=0.10.3", "gitta", "metta-common", "wandb>=0.19.11"]
 
 [tool.setuptools]
-packages = ["devops", "devops.skypilot", "devops.docker"]
+packages = ["devops", "devops.skypilot", "devops.docker", "experiments"]
 
 [tool.setuptools.package-dir]
 devops = "."
+experiments = "../experiments"
 
 [tool.uv.sources]
 gitta = { path = "../gitta", editable = true }
