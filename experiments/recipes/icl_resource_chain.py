@@ -430,3 +430,5 @@ def experiment():
                 for exploration_bonus in exploration_bonuses:
                     subprocess.run(["./devops/skypilot/launch.py", "experiments.recipes.icl_resource_chain.train", f"run=icl_resource_chain_{curriculum_style}_{progress_smoothing}_{ema_timescale}_{exploration_bonus}.09-18", "style", curriculum_style, "lp_params", f"progress_smoothing={progress_smoothing}", f"ema_timescale={ema_timescale}", f"exploration_bonus={exploration_bonus}", f"num_active_tasks={num_active_tasks}", f"rand_task_rate={rand_task_rate}"])
 
+if __name__ == "__main__":
+    experiment()
