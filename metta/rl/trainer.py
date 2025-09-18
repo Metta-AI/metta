@@ -71,8 +71,9 @@ class Trainer:
             self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))
 
         batch_info = self._env.batch_info
-        agents_per_env = self._env.meta_data.num_agents
-        parallel_agents = batch_info.num_envs * agents_per_env  # match vecenv's flattened agent indexing
+        parallel_agents = getattr(self._env, "total_parallel_agents", None)
+        if parallel_agents is None:
+            parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
 
         experience = Experience.from_losses(
             total_agents=parallel_agents,

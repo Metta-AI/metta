@@ -183,6 +183,9 @@ class CoreTrainingLoop:
                 for loss_obj in self.losses.values():
                     loss_obj.on_mb_end(epoch, mb_idx)
 
+                if stop_update_epoch:
+                    break
+
             epochs_trained += 1
             if stop_update_epoch:
                 break

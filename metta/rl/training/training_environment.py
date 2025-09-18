@@ -195,6 +195,14 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         )
 
     @property
+    def total_parallel_agents(self) -> int:
+        """Total agent slots tracked across all vectorized environments."""
+        vecenv_agents = getattr(self._vecenv, "num_agents", None)
+        if isinstance(vecenv_agents, int):
+            return vecenv_agents
+        return self._num_envs * self._num_agents
+
+    @property
     def single_action_space(self) -> Any:
         return self._vecenv.single_action_space
 
