@@ -4,6 +4,7 @@ from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSe
 from metta.tools.sweep import SweepTool
 from metta.tools.sweep import DispatcherType
 
+
 def ppo(
     recipe: str = "experiments.recipes.arena",
     train: str = "train",

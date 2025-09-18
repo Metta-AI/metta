@@ -1,7 +1,9 @@
-from typing import List
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
-def custom_config(base_config: ProteinConfig, parameters: dict[str, ParameterConfig]) -> ProteinConfig:
+
+def custom_config(
+    base_config: ProteinConfig, parameters: dict[str, ParameterConfig]
+) -> ProteinConfig:
     """Create a custom sweep configuration by extending a base config with additional parameters.
 
     This allows experimentalists to easily define new parameter spaces by starting with
@@ -56,6 +58,7 @@ def custom_config(base_config: ProteinConfig, parameters: dict[str, ParameterCon
         settings=base_config.settings,
     )
 
+
 # 8 Parameters
 PPO_BASIC = ProteinConfig(
     metric="evaluator/eval_arena/score",  # Metric to optimize
@@ -64,20 +67,18 @@ PPO_BASIC = ProteinConfig(
     parameters={
         "trainer.batch_size": ParameterConfig(
             distribution="uniform_pow2",
-            min=524288,    # 2^19 - Rollout batch PoW
-            max=4194304,   # 2^22 - Rollout batch PoW
+            min=524288,  # 2^19 - Rollout batch PoW
+            max=4194304,  # 2^22 - Rollout batch PoW
             mean=1048576,  # 2^20 - Rollout batch PoW
             scale="auto",
         ),
-
         "trainer.minibatch_size": ParameterConfig(
             distribution="uniform_pow2",
-            min=2048,      # 2^11 - Minibatch PoW
-            max=32768,     # 2^15 - Minibatch PoW
-            mean=8192,     # 2^13 - Minibatch PoW
+            min=2048,  # 2^11 - Minibatch PoW
+            max=32768,  # 2^15 - Minibatch PoW
+            mean=8192,  # 2^13 - Minibatch PoW
             scale="auto",
         ),
-
         # 1. Learning rate - log scale from 1e-5 to 1e-2
         "trainer.optimizer.learning_rate": ParameterConfig(
             min=1e-5,
@@ -148,28 +149,25 @@ PPO_FULL = ProteinConfig(
         # Batch configuration
         "trainer.batch_size": ParameterConfig(
             distribution="uniform_pow2",
-            min=524288,    # 2^19 - Rollout batch PoW
-            max=4194304,   # 2^22 - Rollout batch PoW
+            min=524288,  # 2^19 - Rollout batch PoW
+            max=4194304,  # 2^22 - Rollout batch PoW
             mean=1048576,  # 2^20 - Rollout batch PoW
             scale="auto",
         ),
-
         "trainer.minibatch_size": ParameterConfig(
             distribution="uniform_pow2",
-            min=2048,      # 2^11 - Minibatch PoW
-            max=32768,     # 2^15 - Minibatch PoW
-            mean=8192,     # 2^13 - Minibatch PoW
+            min=2048,  # 2^11 - Minibatch PoW
+            max=32768,  # 2^15 - Minibatch PoW
+            mean=8192,  # 2^13 - Minibatch PoW
             scale="auto",
         ),
-
         "trainer.bptt_horizon": ParameterConfig(
             distribution="uniform_pow2",
-            min=8,         # 2^3 - BPTT horizon PoW
-            max=32,        # 2^5 - BPTT horizon PoW
-            mean=16,       # 2^4 - BPTT horizon PoW
+            min=8,  # 2^3 - BPTT horizon PoW
+            max=32,  # 2^5 - BPTT horizon PoW
+            mean=16,  # 2^4 - BPTT horizon PoW
             scale="auto",
         ),
-
         # PPO parameters
         "trainer.losses.loss_configs.ppo.gamma": ParameterConfig(
             distribution="logit_normal",
@@ -178,7 +176,6 @@ PPO_FULL = ProteinConfig(
             mean=0.99,
             scale="auto",
         ),
-
         "trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
             distribution="logit_normal",
             min=0.9,
@@ -186,7 +183,6 @@ PPO_FULL = ProteinConfig(
             mean=0.95,
             scale="auto",
         ),
-
         "trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
             distribution="logit_normal",
             min=0.1,
@@ -194,7 +190,6 @@ PPO_FULL = ProteinConfig(
             mean=0.2,
             scale="auto",
         ),
-
         "trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
             distribution="logit_normal",
             min=0.3,
@@ -202,7 +197,6 @@ PPO_FULL = ProteinConfig(
             mean=0.5,
             scale="auto",
         ),
-
         "trainer.losses.loss_configs.ppo.vf_clip_coef": ParameterConfig(
             distribution="log_normal",
             min=5.0,
@@ -210,7 +204,6 @@ PPO_FULL = ProteinConfig(
             mean=10.0,
             scale="auto",
         ),
-
         "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
             distribution="log_normal",
             min=5e-4,
@@ -218,7 +211,6 @@ PPO_FULL = ProteinConfig(
             mean=1e-3,
             scale="auto",
         ),
-
         # Update configuration
         "trainer.update_epochs": ParameterConfig(
             distribution="int_uniform",
@@ -227,7 +219,6 @@ PPO_FULL = ProteinConfig(
             mean=3,
             scale="auto",
         ),
-
         # Optimizer parameters
         "trainer.optimizer.learning_rate": ParameterConfig(
             distribution="log_normal",
@@ -236,7 +227,6 @@ PPO_FULL = ProteinConfig(
             mean=3e-4,
             scale="auto",
         ),
-
         "trainer.optimizer.beta1": ParameterConfig(
             distribution="logit_normal",
             min=0.8,
@@ -244,7 +234,6 @@ PPO_FULL = ProteinConfig(
             mean=0.9,
             scale="auto",
         ),
-
         "trainer.optimizer.beta2": ParameterConfig(
             distribution="logit_normal",
             min=0.99,
@@ -252,7 +241,6 @@ PPO_FULL = ProteinConfig(
             mean=0.999,
             scale="auto",
         ),
-
         "trainer.optimizer.eps": ParameterConfig(
             distribution="log_normal",
             min=1e-9,
