@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import torch as torch
 
-from metta.common.tool import Tool
+from metta.common.tool.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
@@ -17,10 +17,11 @@ from metta.tools.utils.auto_config import auto_wandb_config
 logger = logging.getLogger(__name__)
 
 
-class PlayTool(Tool):
+class PlayTool(Tool[SimulationConfig]):
     wandb: WandbConfig = auto_wandb_config()
-    sim: SimulationConfig
+    config: SimulationConfig
     policy_uri: str | None = None
+
     replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True

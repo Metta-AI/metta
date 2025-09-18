@@ -5,7 +5,7 @@ import platform
 from urllib.parse import quote
 
 import mettascope.server as server
-from metta.common.tool import Tool
+from metta.common.tool.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
@@ -16,14 +16,15 @@ from metta.tools.utils.auto_config import auto_wandb_config
 logger = logging.getLogger(__name__)
 
 
-class ReplayTool(Tool):
+class ReplayTool(Tool[SimulationConfig]):
     """Tool for generating and viewing replay files in MettaScope.
     Creates a simulation specifically to generate replay files and automatically
     opens them in a browser for visualization. This tool focuses on replay viewing
     and browser integration, unlike SimTool which focuses on policy evaluation."""
 
     wandb: WandbConfig = auto_wandb_config()
-    sim: SimulationConfig
+    config: SimulationConfig
+
     policy_uri: str | None = None
     replay_dir: str = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
@@ -32,7 +33,7 @@ class ReplayTool(Tool):
     def invoke(self, args: dict[str, str]) -> int | None:
         # Create simulation using CheckpointManager integration
         sim = Simulation.create(
-            sim_config=self.sim,
+            sim_config=self.config,
             device=self.system.device,
             vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,
@@ -66,7 +67,7 @@ def open_browser(replay_url: str, cfg: ReplayTool) -> None:
             play_cfg = PlayTool(
                 system=cfg.system,
                 wandb=cfg.wandb,
-                sim=cfg.sim,
+                config=cfg.config,
                 policy_uri=cfg.policy_uri,
                 replay_dir=cfg.replay_dir,
                 stats_dir=cfg.stats_dir,

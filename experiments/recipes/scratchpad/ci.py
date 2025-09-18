@@ -1,60 +1,51 @@
 from experiments.recipes import arena
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
+from metta.rl.trainer_config import TrainerConfig
+from metta.sim.simulation_config import SimulationConfig
 
 # CI-friendly runtime: tiny steps and small batches.
 
 
-def train() -> TrainTool:
-    cfg = arena.train(curriculum=arena.make_curriculum(arena.make_mettagrid()))
+def trainer() -> TrainerConfig:
+    """CI-friendly training configuration."""
+    cfg = arena.trainer(curriculum=arena.curriculum(arena.mettagrid()))
 
-    cfg.wandb.enabled = False
-    cfg.system.vectorization = "serial"
-    cfg.trainer.total_timesteps = 16  # Minimal steps for smoke testing.
-    cfg.trainer.minibatch_size = 8
-    cfg.trainer.batch_size = 1536
-    cfg.trainer.bptt_horizon = 8
-    cfg.trainer.forward_pass_minibatch_target_size = 192
-    cfg.trainer.checkpoint.checkpoint_interval = 0
-    cfg.trainer.checkpoint.remote_prefix = None
-    if cfg.trainer.evaluation is not None:
-        cfg.trainer.evaluation.evaluate_interval = 0
+    # Apply CI-friendly settings
+    cfg.total_timesteps = 16  # Minimal steps for smoke testing
+    cfg.minibatch_size = 8
+    cfg.batch_size = 1536
+    cfg.bptt_horizon = 8
+    cfg.forward_pass_minibatch_target_size = 192
+    cfg.checkpoint.checkpoint_interval = 0
+    cfg.checkpoint.wandb_checkpoint_interval = 0
+    if cfg.evaluation is not None:
+        cfg.evaluation.evaluate_interval = 0
 
-    cfg.run = "smoke_test"
     return cfg
 
 
-def replay() -> ReplayTool:
-    env = arena.make_mettagrid()
+def simulation() -> SimulationConfig:
+    """CI-friendly simulation configuration for replay/play."""
+    env = arena.mettagrid()
     env.game.max_steps = 100
-    cfg = arena.replay(env)
-    cfg.wandb.enabled = False
-    cfg.system.vectorization = "serial"
-    cfg.open_browser_on_start = False
-    cfg.sim.env.label = cfg.sim.env.label or "mettagrid"
-    return cfg
+    env.label = env.label or "mettagrid"
+    return SimulationConfig(env=env, name="ci_test")
 
 
-def replay_null() -> ReplayTool:
-    cfg = replay()
-    cfg.policy_uri = None
-    return cfg
+def replay_simulation() -> SimulationConfig:
+    """Simulation config specifically for replay tool."""
+    return simulation()
 
 
-def play() -> PlayTool:
-    env = arena.make_mettagrid()
-    env.game.max_steps = 100
-    cfg = arena.play(env)
-    cfg.wandb.enabled = False
-    cfg.system.vectorization = "serial"
-    cfg.open_browser_on_start = False
-    cfg.sim.env.label = cfg.sim.env.label or "mettagrid"
-    return cfg
+def replay_null() -> SimulationConfig:
+    """Simulation config for replay with null policy (for testing)."""
+    return simulation()
 
 
-def play_null() -> PlayTool:
-    # Mock policy test.
-    cfg = play()
-    cfg.policy_uri = None
-    return cfg
+def play_simulation() -> SimulationConfig:
+    """Simulation config specifically for play tool."""
+    return simulation()
+
+
+def play_null() -> SimulationConfig:
+    """Simulation config for play with null policy (for testing)."""
+    return simulation()

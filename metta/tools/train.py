@@ -10,7 +10,7 @@ from pydantic import Field
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.tool import Tool
+from metta.common.tool.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
@@ -54,7 +54,8 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
-class TrainTool(Tool):
+class TrainTool(Tool[TrainerConfig]):
+    config: TrainerConfig = TrainerConfig()
     run: Optional[str] = None
     run_dir: Optional[str] = None
     device: str = guess_device()
