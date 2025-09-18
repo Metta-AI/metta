@@ -21,6 +21,7 @@ from metta.rl.training import (
     PolicyUploaderConfig,
     TrainerCheckpointerConfig,
 )
+from metta.rl.training.stats_reporter import StatsConfig, StatsReporter
 from metta.rl.training.torch_profiler_component import TorchProfilerConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
 from metta.rl.training.wandb_logger import WandbLoggerComponent
@@ -46,6 +47,7 @@ class TrainTool(Tool):
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     checkpointer: TrainerCheckpointerConfig = Field(default_factory=TrainerCheckpointerConfig)
+    stats: StatsConfig = Field(default_factory=StatsConfig)
 
     # Optional configurations xcxc
     map_preview_uri: str | None = None
@@ -127,8 +129,19 @@ class TrainTool(Tool):
 
         try:
             with wandb_manager as wandb_run:
-                if wandb_run is not None:
+                if wandb_run is not None and distributed_helper.is_master():
                     trainer.register(WandbLoggerComponent(wandb_run))
+
+                if distributed_helper.is_master():
+                    stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
+                    if stats_config.report_to_wandb or stats_config.report_to_stats_client:
+                        stats_component = StatsReporter.from_config(
+                            stats_config,
+                            stats_client=None,
+                            wandb_run=wandb_run,
+                        )
+                        trainer.register(stats_component)
+
                 trainer.train()
         finally:
             env.close()
