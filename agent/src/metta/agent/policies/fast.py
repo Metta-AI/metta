@@ -36,6 +36,7 @@ class FastConfig(PolicyArchitecture):
     classes as layers (ie self.critic_1), wrap them in a TensorDictModule, and intermix."""
 
     class_path: str = "metta.agent.policies.fast.FastPolicy"
+
     obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
     cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(in_key="obs_normalizer", out_key="encoded_obs")
     lstm_config: LSTMConfig = LSTMConfig(
