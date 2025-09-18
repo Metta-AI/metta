@@ -22,12 +22,17 @@ jobs:
           key: ${{ runner.os }}-nimble-${{ hashFiles('mettascope2/mettascope.nimble') }}
           restore-keys: |
             ${{ runner.os }}-nimble-
+
       - uses: jiro4989/setup-nim-action@v2
         with:
           # repo-token is used for rate limiting.
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: cd mettascope2 && nimble install -y
+      - run: |
+          cd mettascope2
+          nimble install pixie@#head -y  # Explicitly install pixie#head first
+          nimble install fidget2@#head -y  # Reinstall fidget2 to ensure it uses the new pixie
+          nimble install -y  # Then install remaining dependencies
 
       - name: Build mettascope2 (release)
         run: cd mettascope2 && nim c -d:release --out:mettascope src/mettascope.nim
