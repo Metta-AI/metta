@@ -67,15 +67,15 @@ class ICLTaskGenerator(TaskGenerator):
         max_steps: int = Field(default=256, description="Episode length")
 
         # For source/mine regeneration behavior (None = don't override prototype)
-        source_cooldown: int | None = Field(
+        source_cooldown: int | list[int] | None = Field(
             default=None,
             description="Ticks between source regenerations (None = prototype default)",
         )
-        source_initial_resource_count: int | None = Field(
+        source_initial_resource_count: int | list[int | None] | None = Field(
             default=None,
             description="Initial stock available at source (None = prototype default)",
         )
-        source_max_conversions: int | None = Field(
+        source_max_conversions: int | list[int | None] | None = Field(
             default=None,
             description="Max conversions before depletion (-1 = infinite, 0 = preload only, None = prototype)",
         )
@@ -85,6 +85,12 @@ class ICLTaskGenerator(TaskGenerator):
         non_reusable_resources: list[str] = Field(
             default_factory=list,
             description="Resource types that cannot repeat within one converter recipe (auto-derived)",
+        )
+
+        # Maximum number of input resources for converters
+        max_recipe_inputs: list[int] | None = Field(
+            default=None,
+            description="Maximum number of input resources per converter. If None, scales with num_resources",
         )
 
     def __init__(self, config: "ICLTaskGenerator.Config"):
@@ -108,6 +114,14 @@ class ICLTaskGenerator(TaskGenerator):
         cfg = self.config
         num_resources = rng.choice(cfg.num_resources)
         num_sinks = rng.choice(cfg.num_sinks)
+
+        # Safety caps: avoid sampling beyond available pools and keep tasks bounded
+        max_resource_types = len(self.resource_types)
+        # Limit sources so we don't exhaust converter names after allocating sinks
+        max_source_objects = max(0, len(self.converter_types) - num_sinks)
+        # Cap at 4 per request and ensure feasibility
+        num_resources = min(num_resources, 4, max_resource_types, max_source_objects)
+
         resources = rng.sample(self.resource_types, num_resources)
         room_size = rng.choice(cfg.room_sizes)
         obstacle_type = (

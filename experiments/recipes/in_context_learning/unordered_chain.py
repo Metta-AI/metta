@@ -30,6 +30,40 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         self.resource_types = RESOURCE_TYPES.copy()
         self.converter_types = CONVERTER_TYPES.copy()
 
+    def _setup_task(self, rng: random.Random):
+        # Get base task setup from parent
+        base_result = super()._setup_task(rng)
+
+        # Select max_recipe_inputs if specified
+        if self.config.max_recipe_inputs is not None:
+            max_recipe_inputs = rng.choice(self.config.max_recipe_inputs)
+        else:
+            max_recipe_inputs = None
+
+        # Select source configuration if specified as lists
+        if isinstance(self.config.source_cooldown, list):
+            source_cooldown = rng.choice(self.config.source_cooldown)
+        else:
+            source_cooldown = self.config.source_cooldown
+
+        if isinstance(self.config.source_initial_resource_count, list):
+            source_initial = rng.choice(self.config.source_initial_resource_count)
+        else:
+            source_initial = self.config.source_initial_resource_count
+
+        if isinstance(self.config.source_max_conversions, list):
+            source_max_conv = rng.choice(self.config.source_max_conversions)
+        else:
+            source_max_conv = self.config.source_max_conversions
+
+        # Update config for this specific task
+        self.config.source_cooldown = source_cooldown
+        self.config.source_initial_resource_count = source_initial
+        self.config.source_max_conversions = source_max_conv
+
+        # Return base results plus max_recipe_inputs
+        return base_result + (max_recipe_inputs,)
+
     def _add_source(self, output_resource: str, cfg: _BuildCfg, rng: random.Random):
         source_name = self._choose_converter_name(
             self.converter_types, set(cfg.used_objects), rng
@@ -42,14 +76,23 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         converter.output_resources = {output_resource: 1}
         converter.input_resources = {}
         # Configure regeneration/depletion only if overrides are provided
-        if self.config.source_cooldown is not None:
-            converter.cooldown = int(self.config.source_cooldown)
-        if self.config.source_initial_resource_count is not None:
-            converter.initial_resource_count = int(
-                self.config.source_initial_resource_count
-            )
-        if self.config.source_max_conversions is not None:
-            converter.max_conversions = int(self.config.source_max_conversions)
+        cooldown_cfg = self.config.source_cooldown
+        if isinstance(cooldown_cfg, list):
+            cooldown_cfg = rng.choice(cooldown_cfg) if len(cooldown_cfg) > 0 else None
+        if cooldown_cfg is not None:
+            converter.cooldown = int(cooldown_cfg)
+
+        initial_cfg = self.config.source_initial_resource_count
+        if isinstance(initial_cfg, list):
+            initial_cfg = rng.choice(initial_cfg) if len(initial_cfg) > 0 else None
+        if initial_cfg is not None:
+            converter.initial_resource_count = int(initial_cfg)
+
+        max_conv_cfg = self.config.source_max_conversions
+        if isinstance(max_conv_cfg, list):
+            max_conv_cfg = rng.choice(max_conv_cfg) if len(max_conv_cfg) > 0 else None
+        if max_conv_cfg is not None:
+            converter.max_conversions = int(max_conv_cfg)
 
         # Derive non-reusable status: resource is non-reusable only if exactly 1 can ever be obtained
         initial_count = (
@@ -196,6 +239,7 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         density,
         rng,
         max_steps=256,
+        max_recipe_inputs=None,
     ):
         cfg = _BuildCfg()
 
@@ -205,8 +249,14 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         for resource in resources:
             self._add_source(resource, cfg, rng=rng)
 
+        # Use provided max_recipe_inputs or calculate based on resources
+        if max_recipe_inputs is None:
+            # Scale max recipe complexity with number of resources
+            # More resources available -> potentially more complex recipes
+            max_recipe_inputs = min(6, max(2, len(resources) - 1))
+
         for _ in range(num_converters):
-            self._add_converter(cfg, rng=rng)
+            self._add_converter(cfg, rng=rng, max_input_resources=max_recipe_inputs)
 
         return make_icl_resource_chain(
             num_agents=24,
@@ -220,9 +270,16 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         )
 
     def _generate_task(self, task_id: int, rng: random.Random):
-        resources, num_converters, room_size, obstacle_type, density, width, height = (
-            self._setup_task(rng)
-        )
+        (
+            resources,
+            num_converters,
+            room_size,
+            obstacle_type,
+            density,
+            width,
+            height,
+            max_recipe_inputs,
+        ) = self._setup_task(rng)
 
         icl_env = self._make_env_cfg(
             resources,
@@ -233,6 +290,7 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
             density=density,
             rng=rng,
             max_steps=self.config.max_steps,
+            max_recipe_inputs=max_recipe_inputs,
         )
         most_efficient_optimal_reward, least_efficient_optimal_reward = 0, 0
         icl_env.game.reward_estimates = {
@@ -246,11 +304,16 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
 
 def make_mettagrid() -> MettaGridConfig:
     task_generator_cfg = ICLTaskGenerator.Config(
-        num_resources=[3],
-        num_sinks=[1],
-        room_sizes=["large"],
-        obstacle_types=["cross"],
-        densities=["high"],
+        num_resources=[4],
+        num_sinks=[2],
+        room_sizes=["small"],
+        obstacle_types=[],
+        densities=[],
+        max_recipe_inputs=[2],
+        # Default to continuous resources for interactive play
+        source_initial_resource_count=None,
+        source_max_conversions=None,
+        source_cooldown=25,
     )
     task_generator = UnorderedChainTaskGenerator(task_generator_cfg)
     return task_generator.get_task(0)
@@ -259,18 +322,26 @@ def make_mettagrid() -> MettaGridConfig:
 def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[LearningProgressConfig] = None,
-    num_resources=[2, 3, 4, 5],
-    num_converters=[0, 1, 2],
-    room_sizes=["small"],
+    num_resources=[4, 6, 8],
+    num_converters=[1, 2, 3],
+    room_sizes=["small", "medium", "large"],
     obstacle_types=[],
     densities=[],
+    max_recipe_inputs=[1, 2, 3],
 ) -> CurriculumConfig:
+    # Training curriculum that matches evaluation scenarios
     task_generator_cfg = ICLTaskGenerator.Config(
         num_resources=num_resources,
         num_sinks=num_converters,
         room_sizes=room_sizes,
         obstacle_types=obstacle_types,
         densities=densities,
+        max_recipe_inputs=max_recipe_inputs,
+        # Mix of resource generation behaviors during training
+        # The task generator will randomly select from these
+        source_initial_resource_count=[None, 1],  # None = continuous, 1 = singleton
+        source_max_conversions=[None, 0],  # None = infinite, 0 = no regeneration
+        source_cooldown=25,
     )
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -315,7 +386,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            name="icl_unordered_chains",
         ),
     )
 
@@ -325,7 +396,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            name="icl_unordered_chains",
         ),
         policy_uri="wandb://run/george.icl.reproduce.4gpus.09-12",
     )
