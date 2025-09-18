@@ -21,8 +21,6 @@ from metta.mettagrid.util.file import WandbURI
 
 logger = logging.getLogger(__name__)
 
-# Global wandb API instance with timeout
-wandb_api = wandb.Api(timeout=60)
 
 # Create a custom retry decorator for wandb API calls with sensible defaults
 wandb_retry = retry_on_exception(
@@ -138,13 +136,13 @@ def log_debug_info() -> None:
 @wandb_retry
 def get_wandb_run(path: str) -> Run:
     """Get wandb run object with retry."""
-    return wandb_api.run(path)
+    return wandb.Api(timeout=60).run(path)
 
 
 @wandb_retry
 def get_wandb_artifact(qname: str) -> Artifact:
     """Get wandb artifact with retry."""
-    return wandb_api.artifact(qname)
+    return wandb.Api(timeout=60).artifact(qname)
 
 
 @wandb_retry
