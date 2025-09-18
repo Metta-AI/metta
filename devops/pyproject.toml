@@ -7,7 +7,7 @@ name = "metta-devops"
 version = "0.1.0"
 description = "Devops support for metta projects"
 requires-python = ">=3.9"
-dependencies = ["skypilot>=0.10.3", "gitta"]
+dependencies = ["skypilot>=0.10.3", "gitta", "wandb>=0.19.11"]
 
 [tool.setuptools]
 packages = ["devops", "devops.skypilot", "devops.docker"]
