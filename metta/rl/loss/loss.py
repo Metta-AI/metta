@@ -6,11 +6,11 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
-from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 
 if TYPE_CHECKING:
     from metta.agent.policy_base import Policy
+    from metta.rl.training.experience import Experience
 
 
 class Loss:
@@ -187,7 +187,7 @@ class Loss:
         for k in self.loss_tracker.keys():
             self.loss_tracker[k].clear()
 
-    def attach_replay_buffer(self, experience: Experience) -> None:
+    def attach_replay_buffer(self, experience: "Experience") -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
 
