@@ -13,7 +13,7 @@ import wandb
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
 from metta.mettagrid.profiling.stopwatch import Stopwatch
@@ -173,10 +173,8 @@ def process_training_stats(
     overview = {}
 
     # Calculate average reward from environment stats
-    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-    if task_reward_values:
-        mean_reward = sum(task_reward_values) / len(task_reward_values)
-        overview["reward"] = mean_reward
+    if "rewards" in experience_stats:
+        overview["reward"] = experience_stats["rewards"]
 
     return {
         "mean_stats": mean_stats,

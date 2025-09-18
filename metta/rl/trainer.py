@@ -14,7 +14,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 from metta.core.distributed import TorchDistributedConfig
 from metta.core.monitoring import (
     cleanup_monitoring,
