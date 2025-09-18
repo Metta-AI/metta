@@ -164,7 +164,7 @@ members = [
   "gitta",
   "codebot",
   "softmax",
-  "cogames",
+  "packages/cogames",
 ]
 
 [tool.uv.sources]
