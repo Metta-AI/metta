@@ -67,16 +67,20 @@ runs:
             ;;
 
           "testing")
-            uv sync --no-dev --group testing
+            # Install main dependencies + testing group, excluding interactive and dev
+            # uv sync --no-group interactive --no-group dev --group testing
+            uv sync --only-group testing
             ;;
 
           "linting")
-            uv sync --no-dev --group lint
+            # Install only the lint group, excluding the main, interactive and dev deps
+            uv sync --only-group lint
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests
           "runtime")
-            uv sync --no-dev
+            # Install only main dependencies, excluding all groups
+            uv sync --no-group interactive --no-group dev
             ;;
 
         esac
