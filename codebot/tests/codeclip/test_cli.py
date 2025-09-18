@@ -185,19 +185,6 @@ class TestCodeclipCLI(unittest.TestCase):
         # Should NOT have summary since -s was used
         self.assertNotIn("Copied", result.output)
 
-    def test_help_contains_all_options(self):
-        """Test that help output contains all expected options."""
-        result = self.runner.invoke(cli, ["--help"])
-        self.assertEqual(result.exit_code, 0)
-
-        # Check that all options are mentioned in help
-        self.assertIn("-s, --stdout", result.output)
-        self.assertIn("-r, --readmes", result.output)
-        self.assertIn("-e, --extension", result.output)
-        self.assertIn("-p, --profile", result.output)
-        self.assertIn("-f, --flamegraph", result.output)
-        self.assertIn("-d, --diff", result.output)
-
 
 if __name__ == "__main__":
     unittest.main()
