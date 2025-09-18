@@ -72,8 +72,6 @@ class RunInfo:
     total_timesteps: int | None = None  # Target timesteps from config
     current_steps: int | None = None  # Current agent_step from metrics
 
-    # Evaluation results
-    observation: Observation | None = None
 
     @property
     def status(self) -> JobStatus:

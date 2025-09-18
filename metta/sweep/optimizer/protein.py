@@ -4,7 +4,6 @@ import logging
 from typing import Any
 
 from metta.common.util.numpy_helpers import clean_numpy_types
-from metta.sweep.models import Observation
 from metta.sweep.protein import Protein
 from metta.sweep.protein_config import ProteinConfig
 
@@ -22,7 +21,7 @@ class ProteinOptimizer:
         if config.method != "bayes":
             raise ValueError(f"Unsupported optimization method: {config.method}. Only 'bayes' is supported.")
 
-    def suggest(self, observations: list[Observation], n_suggestions: int = 1) -> list[dict[str, Any]]:
+    def suggest(self, observations: list[dict[str, Any]], n_suggestions: int = 1) -> list[dict[str, Any]]:
         """Generate hyperparameter suggestions."""
         # Create fresh Protein instance (stateless)
         protein_dict = self.config.to_protein_dict()
@@ -47,9 +46,9 @@ class ProteinOptimizer:
         # Load all observations
         for obs in observations:
             protein.observe(
-                hypers=obs.suggestion,
-                score=obs.score,
-                cost=obs.cost,
+                hypers=obs.get("suggestion", {}),
+                score=obs.get("score", 0.0),
+                cost=obs.get("cost", 0.0),
                 is_failure=False,  # We don't track failures currently
             )
 
