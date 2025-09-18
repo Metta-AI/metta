@@ -1,10 +1,10 @@
 import logging
 from typing import Any, Tuple
 
-from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
-from metta.mettagrid.profiling.stopwatch import Stopwatch
-from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.rl.experience import Experience
+from mettagrid.profiling.memory_monitor import MemoryMonitor
+from mettagrid.profiling.stopwatch import Stopwatch
+from mettagrid.profiling.system_monitor import SystemMonitor
 
 logger = logging.getLogger(__name__)
 

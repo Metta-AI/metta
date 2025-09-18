@@ -15,14 +15,14 @@ sys.path.extend(
 
 from codeclip.file import get_context
 
-from metta.mettagrid.util.file import write_data
+from mettagrid.util.file import write_data
 
 # Simple fileset definitions
 FILESETS = {
     "readme": ["README.md"],
     "docs": ["README.md", "AGENTS.md", "CLAUDE.md", "roadmap.md", "LICENSE"],
     "rl": ["metta/rl/**/*"],
-    "mettagrid": ["mettagrid/**/*"],
+    "mettagrid": ["packages/mettagrid/**/*"],
     "mettascope": ["mettascope/**/*"],
     "agent": ["agent/**/*"],
     "common": ["common/**/*"],

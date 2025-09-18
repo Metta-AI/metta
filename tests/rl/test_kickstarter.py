@@ -45,14 +45,14 @@ class TestKickstarter:
         self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env
     ):
         """Test initialization when a teacher URI is provided."""
-        mock_config.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "s3://bucket/teacher/uri"
 
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
 
         assert kickstarter.enabled is True
         assert kickstarter.teacher_cfgs is not None
         assert len(kickstarter.teacher_cfgs) == 1
-        assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher/uri"
+        assert kickstarter.teacher_cfgs[0].teacher_uri == "s3://bucket/teacher/uri"
         assert kickstarter.teacher_cfgs[0].action_loss_coef == 0.5
         assert kickstarter.teacher_cfgs[0].value_loss_coef == 0.5
 
@@ -62,8 +62,8 @@ class TestKickstarter:
     ):
         """Test initialization when additional teachers are provided."""
         mock_config.additional_teachers = [
-            KickstartTeacherConfig(teacher_uri="wandb://teacher1/uri", action_loss_coef=0.3, value_loss_coef=0.7),
-            KickstartTeacherConfig(teacher_uri="wandb://teacher2/uri", action_loss_coef=0.6, value_loss_coef=0.4),
+            KickstartTeacherConfig(teacher_uri="s3://bucket/teacher1/uri", action_loss_coef=0.3, value_loss_coef=0.7),
+            KickstartTeacherConfig(teacher_uri="s3://bucket/teacher2/uri", action_loss_coef=0.6, value_loss_coef=0.4),
         ]
 
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
@@ -71,13 +71,13 @@ class TestKickstarter:
         assert kickstarter.enabled is True
         assert kickstarter.teacher_cfgs is not None
         assert len(kickstarter.teacher_cfgs) == 2
-        assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher1/uri"
-        assert kickstarter.teacher_cfgs[1].teacher_uri == "wandb://teacher2/uri"
+        assert kickstarter.teacher_cfgs[0].teacher_uri == "s3://bucket/teacher1/uri"
+        assert kickstarter.teacher_cfgs[1].teacher_uri == "s3://bucket/teacher2/uri"
 
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
     def test_anneal_factor_calculation(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the calculation of the anneal factor."""
-        mock_config.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "s3://bucket/teacher/uri"
 
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
 
@@ -117,7 +117,7 @@ class TestKickstarter:
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
     def test_loss_after_kickstart_steps(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the loss method after kickstart steps have been exceeded."""
-        mock_config.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "s3://bucket/teacher/uri"
 
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
         kickstarter.enabled = True
@@ -137,7 +137,7 @@ class TestKickstarter:
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
     def test_loss_with_annealing(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the loss method with annealing."""
-        mock_config.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "s3://bucket/teacher/uri"
 
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
         kickstarter.enabled = True
