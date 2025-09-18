@@ -128,8 +128,14 @@ PPO_BASIC = ProteinConfig(
         ),
     },
     settings=ProteinSettings(
-        num_random_samples=20,  # Start with 20 random samples for better exploration in large sweeps
-        max_suggestion_cost=7200 * 1.5,  # 3 hours max per trial (for quick testing)
+        num_random_samples=20,
+        max_suggestion_cost=3600 * 6,
+        resample_frequency=3,
+        global_search_scale=1.0,
+        random_suggestions=15,
+        suggestions_per_pareto=32,
+        # expansion_rate=0.15,  # Not available in current ProteinSettings
+        # seed_with_search_center=True,  # Not available in current ProteinSettings
     ),
 )
 
@@ -257,7 +263,7 @@ PPO_FULL = ProteinConfig(
     },
     settings=ProteinSettings(
         num_random_samples=20,
-        max_suggestion_cost=3600,
+        max_suggestion_cost=3600 * 6,  # 6 hours
         resample_frequency=3,
         global_search_scale=1.0,
         random_suggestions=15,
