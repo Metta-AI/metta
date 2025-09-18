@@ -172,10 +172,10 @@ class MettaGridEnv(MettaGridPufferBase):
         if self.mg_config.game.reward_estimates:
             infos["reward_estimates"] = {}
             infos["reward_estimates"]["best_case_optimal_diff"] = (
-                self.mg_config.game.reward_estimates["most_efficient_optimal_reward"] - episode_rewards.mean()
+                self.mg_config.game.reward_estimates["best_case_optimal_reward"] - episode_rewards.mean()
             )
             infos["reward_estimates"]["worst_case_optimal_diff"] = (
-                self.mg_config.game.reward_estimates["least_efficient_optimal_reward"] - episode_rewards.mean()
+                self.mg_config.game.reward_estimates["worst_case_optimal_reward"] - episode_rewards.mean()
             )
 
         self._update_label_completions(moving_avg_window)
