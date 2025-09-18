@@ -16,6 +16,8 @@ jobs:
 
       - name: Build mettascope2
         uses: ./.github/actions/build-mettascope2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload native binary
         uses: actions/upload-artifact@v4

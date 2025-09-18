@@ -1,6 +1,12 @@
 name: "Build mettascope2 (native + emscripten)"
 description: |
   Builds the native and browser (emscripten) versions of mettascope2.
+
+inputs:
+  repo-token:
+    description: "GitHub token used for API rate limiting during Nim setup"
+    required: true
+
 runs:
   using: "composite"
   steps:
@@ -15,7 +21,7 @@ runs:
     - name: Setup Nim
       uses: jiro4989/setup-nim-action@v2
       with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        repo-token: ${{ inputs.repo-token }}
 
     - name: Setup Emscripten
       uses: mymindstorm/setup-emsdk@v14

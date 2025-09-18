@@ -79,6 +79,8 @@ jobs:
 
       - name: Build mettascope2
         uses: ./.github/actions/build-mettascope2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
