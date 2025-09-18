@@ -212,7 +212,8 @@ class TestRealEnvironmentIntegration:
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_manager = CheckpointManager(run="integration_test", run_dir=tmpdir)
+            base_dir = Path(tmpdir)
+            checkpoint_manager = CheckpointManager(run="integration_test", run_dir=base_dir)
 
             # Test forward pass before saving
             obs = env.reset()[0]
@@ -238,7 +239,8 @@ class TestRealEnvironmentIntegration:
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_manager = CheckpointManager(run="uri_test", run_dir=tmpdir)
+            base_dir = Path(tmpdir)
+            checkpoint_manager = CheckpointManager(run="uri_test", run_dir=base_dir)
 
             # Save agent
             checkpoint_manager.save_agent(agent, epoch=10, metadata={"agent_step": 5000, "total_time": 300})
@@ -263,7 +265,8 @@ class TestRealEnvironmentIntegration:
         env, agent = create_env_and_agent
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            checkpoint_manager = CheckpointManager(run="progress_test", run_dir=tmpdir)
+            base_dir = Path(tmpdir)
+            checkpoint_manager = CheckpointManager(run="progress_test", run_dir=base_dir)
 
             # Simulate training progress with improving scores
             training_data = [
@@ -321,7 +324,8 @@ class TestEndToEndWorkflows:
             policy.initialize_to_environment(features, original_env.action_names, original_env.max_action_args, "cpu")
 
             # Step 2: Save trained policy
-            checkpoint_manager = CheckpointManager(run="workflow_test", run_dir=tmpdir)
+            base_dir = Path(tmpdir)
+            checkpoint_manager = CheckpointManager(run="workflow_test", run_dir=base_dir)
             metadata = {"agent_step": 10000, "epoch": 50, "score": 0.95}
             checkpoint_manager.save_agent(policy, epoch=50, metadata=metadata)
 

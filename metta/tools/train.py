@@ -58,13 +58,13 @@ class TrainTool(Tool):
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
 
-        # Set policy_uri if not set
-        if not self.policy_uri:
-            self.policy_uri = CheckpointManager.normalize_uri(f"{self.run_dir}/checkpoints")
-
-        # Set up checkpoint and replay directories
+        # Set up checkpoint directory before deriving policy URIs
         if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+            self.trainer.checkpoint.checkpoint_dir = os.path.join(self.run_dir, "checkpoints")
+
+        # Set policy_uri if not set (default to local checkpoints directory)
+        if not self.policy_uri:
+            self.policy_uri = CheckpointManager.normalize_uri(self.trainer.checkpoint.checkpoint_dir)
 
         # Initialize policy_architecture if not provided
         if self.policy_architecture is None:
@@ -113,9 +113,6 @@ class TrainTool(Tool):
         record_heartbeat()
 
         torch_dist_cfg = setup_torch_distributed(self.system.device)
-
-        if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
         logger.info_master(
             f"Training {self.run} on "
