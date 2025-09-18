@@ -517,7 +517,6 @@ def test_validate_real_generated_replay_fast() -> None:
             "--no-sync",
             "tools/run.py",
             "experiments.recipes.scratchpad.ci.replay_null",
-            "--overrides",
             f"replay_dir={tmp_dir}",
             f"stats_dir={tmp_dir}",
             "sim.env.game.max_steps=5",  # Reduce from 100 to 5 steps for faster test
@@ -555,7 +554,6 @@ def test_validate_real_generated_replay_comprehensive() -> None:
             "--no-sync",
             "tools/run.py",
             "experiments.recipes.scratchpad.ci.replay_null",
-            "--overrides",
             f"replay_dir={tmp_dir}",
             f"stats_dir={tmp_dir}",
         ]

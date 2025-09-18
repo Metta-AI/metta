@@ -14,7 +14,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 from metta.core.distributed import TorchDistributedConfig
 from metta.core.monitoring import (
     cleanup_monitoring,
@@ -165,7 +165,7 @@ def train(
     agent_step = trainer_state["agent_step"] if trainer_state else 0
     epoch = trainer_state["epoch"] if trainer_state else 0
     latest_saved_epoch = epoch  # Track the epoch of the latest saved checkpoint
-    latest_wandb_uri = None  # Track the last uploaded wandb artifact URI
+    latest_remote_policy_uri = None  # Track the last uploaded remote checkpoint URI
 
     if trainer_state:
         logger.info(f"Restored from checkpoint at {agent_step} steps")
@@ -524,20 +524,12 @@ def train(
                         }
                     )
 
-                # Save agent and trainer state
-                # Only upload to wandb if we're at the right interval
-                should_upload_wandb = wandb_run and should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval)
-                metadata["upload_to_wandb"] = should_upload_wandb
-
-                wandb_uri = checkpoint_manager.save_agent(
-                    agent_to_save, epoch, metadata, wandb_run=wandb_run if should_upload_wandb else None
-                )
+                # Save agent and trainer state (always upload to remote prefix if configured)
+                policy_uri = checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
                 checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
                 latest_saved_epoch = epoch
-
-                if wandb_uri:
-                    latest_wandb_uri = wandb_uri
-                    logger.info(f"Saved checkpoint to wandb: {latest_wandb_uri}")
+                latest_remote_policy_uri = policy_uri
+                logger.info(f"Saved checkpoint to {policy_uri}")
 
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with CheckpointManager - use current policy directly
@@ -558,8 +550,8 @@ def train(
                 sims.extend(trainer_cfg.evaluation.simulations)
 
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
-                if latest_wandb_uri:
-                    policy_uri = latest_wandb_uri  # Already a wandb:// URI
+                if latest_remote_policy_uri:
+                    policy_uri = latest_remote_policy_uri
                 else:
                     checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
                     policy_uri = checkpoint_uris[0] if checkpoint_uris else None
@@ -671,16 +663,9 @@ def train(
             }
         )
 
-    # Mark as final checkpoint and always upload to wandb if wandb is configured
     final_metadata["is_final"] = True
-    final_metadata["upload_to_wandb"] = bool(wandb_run)  # Always upload final checkpoint
 
-    checkpoint_manager.save_agent(
-        agent_to_save,
-        epoch,
-        final_metadata,
-        wandb_run=wandb_run,  # Upload final checkpoint if wandb is available
-    )
+    checkpoint_manager.save_agent(agent_to_save, epoch, final_metadata)
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
 
     cleanup_monitoring(memory_monitor, system_monitor)

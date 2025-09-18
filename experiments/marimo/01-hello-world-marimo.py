@@ -81,7 +81,7 @@ def _():
 
     from metta.rl.checkpoint_manager import CheckpointManager
 
-    from metta.common.wandb.wandb_context import WandbConfig
+    from metta.common.wandb.context import WandbConfig
     import wandb
     import torch
 
@@ -853,7 +853,7 @@ def _(
             },
             checkpoint=CheckpointConfig(
                 checkpoint_interval=20,  # Frequent checkpoints to catch peak performance
-                wandb_checkpoint_interval=20,
+                remote_prefix=f"s3://softmax-public/policies/{run_name}",
             ),
             evaluation=EvaluationConfig(
                 evaluate_interval=20,  # Frequent evaluation to monitor for unlearning
@@ -1546,7 +1546,7 @@ def _(
             },
             checkpoint=CheckpointConfig(
                 checkpoint_interval=10,  # More frequent checkpoints to catch peak
-                wandb_checkpoint_interval=10,
+                remote_prefix=f"s3://softmax-public/policies/{run_name2}",
             ),
             evaluation=EvaluationConfig(
                 evaluate_interval=10,  # More frequent evaluation to monitor unlearning

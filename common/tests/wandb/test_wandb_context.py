@@ -5,10 +5,11 @@ Unit tests for WandbContext.
 import os
 import tempfile
 
+import pytest
 import wandb
 from wandb.errors import CommError
 
-from metta.common.wandb.wandb_context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.mettagrid.config import Config
 
 
@@ -37,7 +38,8 @@ def test_wandb_config_factories():
 def test_wandb_config_uri():
     """Test URI generation."""
     cfg = WandbConfig(enabled=True, project="p", entity="e", run_id="test-123")
-    assert cfg.uri == "wandb://run/test-123"
+    with pytest.raises(RuntimeError):
+        _ = cfg.uri
 
 
 def test_disabled_context():
