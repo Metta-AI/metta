@@ -24,7 +24,7 @@ def help_configs() -> None:
     info('policy = CheckpointManager.load_from_uri("file://./train_dir/my_run/checkpoints/my_run:v12.pt")')
     info('policy = CheckpointManager.load_from_uri("s3://bucket/path/my_run/checkpoints/my_run:v12.pt")')
     success("# Create checkpoint manager:")
-    info('cm = CheckpointManager(run="my_run", run_dir="./train_dir", checkpoint_dir="./train_dir/my_run/checkpoints")')
+    info('cm = CheckpointManager(run="my_run", run_dir="./train_dir")')
 
 
 # Create a new IPython config object

@@ -28,16 +28,13 @@ from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
 
 class TestTrainerCheckpointIntegration:
     def setup_method(self) -> None:
-        self.temp_dir = tempfile.mkdtemp()
-        self.run_dir = os.path.join(self.temp_dir, "test_run")
-        self.checkpoint_dir = os.path.join(self.run_dir, "checkpoints")
-        os.makedirs(self.checkpoint_dir, exist_ok=True)
+        self.temp_dir = Path(tempfile.mkdtemp())
 
     def teardown_method(self) -> None:
-        if os.path.exists(self.temp_dir):
+        if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir)
 
-    def _create_minimal_config(self) -> tuple[TrainerConfig, AgentConfig, SystemConfig]:
+    def _create_minimal_config(self, checkpoint_dir: Path) -> tuple[TrainerConfig, AgentConfig, SystemConfig]:
         trainer_cfg = TrainerConfig(
             total_timesteps=1000,
             batch_size=512,
@@ -50,7 +47,7 @@ class TestTrainerCheckpointIntegration:
             curriculum=env_curriculum(make_arena(num_agents=6)),
             checkpoint=CheckpointConfig(
                 checkpoint_interval=2,
-                checkpoint_dir=self.checkpoint_dir,
+                checkpoint_dir=str(checkpoint_dir),
                 remote_prefix=None,
             ),
             evaluation=None,
@@ -61,7 +58,7 @@ class TestTrainerCheckpointIntegration:
         system_cfg = SystemConfig(
             device="cpu",
             vectorization="serial",
-            data_dir=self.temp_dir,
+            data_dir=str(self.temp_dir),
             seed=42,
         )
 
@@ -77,20 +74,22 @@ class TestTrainerCheckpointIntegration:
             world_size=1,
         )
 
+    def _prepare_run(self, run_name: str) -> tuple[Path, Path, TrainerConfig, AgentConfig, SystemConfig]:
+        run_dir = self.temp_dir / run_name
+        checkpoint_dir = run_dir / "checkpoints"
+        trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config(checkpoint_dir)
+        return run_dir, checkpoint_dir, trainer_cfg, agent_cfg, system_cfg
+
     def test_trainer_checkpoint_save_and_resume(self) -> None:
-        trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config()
+        run_name = "test_checkpoint_run"
+        run_dir, checkpoint_dir, trainer_cfg, agent_cfg, system_cfg = self._prepare_run(run_name)
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
-        checkpoint_manager = CheckpointManager(
-            run="test_checkpoint_run",
-            run_dir=self.run_dir,
-            checkpoint_dir=self.checkpoint_dir,
-        )
+        checkpoint_manager = CheckpointManager(run=run_name, run_dir=run_dir)
 
-        print("Starting first training run...")
         train(
-            run_dir=self.run_dir,
+            run_dir=str(run_dir),
             run="test_checkpoint_run",
             system_cfg=system_cfg,
             agent_cfg=agent_cfg,
@@ -102,7 +101,7 @@ class TestTrainerCheckpointIntegration:
             torch_dist_cfg=torch_dist_cfg,
         )
 
-        trainer_state_path = Path(self.checkpoint_dir) / "trainer_state.pt"
+        trainer_state_path = checkpoint_dir / "trainer_state.pt"
         assert trainer_state_path.exists(), "Trainer checkpoint was not created"
 
         trainer_state = checkpoint_manager.load_trainer_state()
@@ -117,20 +116,12 @@ class TestTrainerCheckpointIntegration:
         first_run_agent_step = trainer_state["agent_step"]
         first_run_epoch = trainer_state["epoch"]
 
-        print(f"First run completed: agent_step={first_run_agent_step}, epoch={first_run_epoch}")
-
-        print("Starting second training run (resume from checkpoint)...")
-
         trainer_cfg.total_timesteps = first_run_agent_step + 500
 
-        checkpoint_manager_2 = CheckpointManager(
-            run="test_checkpoint_run",
-            run_dir=self.run_dir,
-            checkpoint_dir=self.checkpoint_dir,
-        )
+        checkpoint_manager_2 = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
-            run_dir=self.run_dir,
+            run_dir=str(run_dir),
             run="test_checkpoint_run",
             system_cfg=system_cfg,
             agent_cfg=agent_cfg,
@@ -152,29 +143,22 @@ class TestTrainerCheckpointIntegration:
             f"Epoch should have increased or stayed same: {trainer_state_2['epoch']} < {first_run_epoch}"
         )
 
-        print(f"Second run completed: agent_step={trainer_state_2['agent_step']}, epoch={trainer_state_2['epoch']}")
-
         policy_files_2 = list(Path(checkpoint_manager_2.checkpoint_dir).glob("*.pt"))
         policy_files_2 = [f for f in policy_files_2 if f.name != "trainer_state.pt"]
         assert len(policy_files_2) >= len(policy_files), "Should have at least as many policy files"
 
-        print("Checkpoint save and resume test passed!")
-
     def test_checkpoint_fields_are_preserved(self) -> None:
-        trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config()
+        run_name = "test_checkpoint_fields"
+        run_dir, _, trainer_cfg, agent_cfg, system_cfg = self._prepare_run(run_name)
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
         trainer_cfg.checkpoint.checkpoint_interval = 1
 
-        checkpoint_manager = CheckpointManager(
-            run="test_checkpoint_fields",
-            run_dir=self.run_dir,
-            checkpoint_dir=self.checkpoint_dir,
-        )
+        checkpoint_manager = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
-            run_dir=self.run_dir,
+            run_dir=str(run_dir),
             run="test_checkpoint_fields",
             system_cfg=system_cfg,
             agent_cfg=agent_cfg,
@@ -201,24 +185,16 @@ class TestTrainerCheckpointIntegration:
         policy_uris = checkpoint_manager.select_checkpoints()
         assert len(policy_uris) > 0, "No policy checkpoints found"
 
-        print("Checkpoint fields preservation test passed!")
-        print(f"Checkpoint details: agent_step={trainer_state['agent_step']}, epoch={trainer_state['epoch']}")
-        print(f"Policy URIs: {policy_uris[:1]}")
-        print(f"Optimizer state keys: {list(trainer_state['optimizer_state'].keys())[:5]}...")
-
     def test_policy_loading_from_checkpoint(self) -> None:
-        trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config()
+        run_name = "test_policy_loading"
+        run_dir, _, trainer_cfg, agent_cfg, system_cfg = self._prepare_run(run_name)
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
-        checkpoint_manager = CheckpointManager(
-            run="test_policy_loading",
-            run_dir=self.run_dir,
-            checkpoint_dir=self.checkpoint_dir,
-        )
+        checkpoint_manager = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
-            run_dir=self.run_dir,
+            run_dir=str(run_dir),
             run="test_policy_loading",
             system_cfg=system_cfg,
             agent_cfg=agent_cfg,
@@ -245,11 +221,10 @@ class TestTrainerCheckpointIntegration:
         policy = checkpoint_manager.load_from_uri(policy_uri, device=device)
         assert policy is not None, "Failed to load policy from URI"
 
-        print(f"Policy loading test passed! Policy loaded from: {policy_uri}")
-
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
     def test_checkpoint_with_gpu_device(self) -> None:
-        trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config()
+        run_name = "test_gpu_checkpoint"
+        run_dir, _, trainer_cfg, agent_cfg, system_cfg = self._prepare_run(run_name)
 
         system_cfg.device = "cuda"
         device = torch.device(system_cfg.device)
@@ -259,14 +234,10 @@ class TestTrainerCheckpointIntegration:
         trainer_cfg.minibatch_size = 32
         trainer_cfg.forward_pass_minibatch_target_size = 16
 
-        checkpoint_manager = CheckpointManager(
-            run="test_gpu_checkpoint",
-            run_dir=self.run_dir,
-            checkpoint_dir=self.checkpoint_dir,
-        )
+        checkpoint_manager = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
-            run_dir=self.run_dir,
+            run_dir=str(run_dir),
             run="test_gpu_checkpoint",
             system_cfg=system_cfg,
             agent_cfg=agent_cfg,
@@ -281,8 +252,6 @@ class TestTrainerCheckpointIntegration:
         trainer_state = checkpoint_manager.load_trainer_state()
         assert trainer_state is not None, "Failed to create checkpoint with GPU"
         assert trainer_state["agent_step"] > 0, "No training progress recorded"
-
-        print("GPU checkpoint test passed!")
 
 
 if __name__ == "__main__":

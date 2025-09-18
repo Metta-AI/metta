@@ -159,7 +159,6 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         run=cfg.run,
         run_dir=cfg.run_dir,
         remote_prefix=cfg.trainer.checkpoint.remote_prefix,
-        checkpoint_dir=cfg.trainer.checkpoint.checkpoint_dir,
     )
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
