@@ -82,7 +82,11 @@ class TestTrainerCheckpointIntegration:
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
-        checkpoint_manager = CheckpointManager(run="test_checkpoint_run", run_dir=self.run_dir)
+        checkpoint_manager = CheckpointManager(
+            run="test_checkpoint_run",
+            run_dir=self.run_dir,
+            checkpoint_dir=self.checkpoint_dir,
+        )
 
         print("Starting first training run...")
         train(
@@ -98,7 +102,7 @@ class TestTrainerCheckpointIntegration:
             torch_dist_cfg=torch_dist_cfg,
         )
 
-        trainer_state_path = Path(self.run_dir) / "test_checkpoint_run" / "checkpoints" / "trainer_state.pt"
+        trainer_state_path = Path(self.checkpoint_dir) / "trainer_state.pt"
         assert trainer_state_path.exists(), "Trainer checkpoint was not created"
 
         trainer_state = checkpoint_manager.load_trainer_state()
@@ -119,7 +123,11 @@ class TestTrainerCheckpointIntegration:
 
         trainer_cfg.total_timesteps = first_run_agent_step + 500
 
-        checkpoint_manager_2 = CheckpointManager(run="test_checkpoint_run", run_dir=self.run_dir)
+        checkpoint_manager_2 = CheckpointManager(
+            run="test_checkpoint_run",
+            run_dir=self.run_dir,
+            checkpoint_dir=self.checkpoint_dir,
+        )
 
         train(
             run_dir=self.run_dir,
@@ -159,7 +167,11 @@ class TestTrainerCheckpointIntegration:
 
         trainer_cfg.checkpoint.checkpoint_interval = 1
 
-        checkpoint_manager = CheckpointManager(run="test_checkpoint_fields", run_dir=self.run_dir)
+        checkpoint_manager = CheckpointManager(
+            run="test_checkpoint_fields",
+            run_dir=self.run_dir,
+            checkpoint_dir=self.checkpoint_dir,
+        )
 
         train(
             run_dir=self.run_dir,
@@ -199,7 +211,11 @@ class TestTrainerCheckpointIntegration:
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
-        checkpoint_manager = CheckpointManager(run="test_policy_loading", run_dir=self.run_dir)
+        checkpoint_manager = CheckpointManager(
+            run="test_policy_loading",
+            run_dir=self.run_dir,
+            checkpoint_dir=self.checkpoint_dir,
+        )
 
         train(
             run_dir=self.run_dir,
@@ -243,7 +259,11 @@ class TestTrainerCheckpointIntegration:
         trainer_cfg.minibatch_size = 32
         trainer_cfg.forward_pass_minibatch_target_size = 16
 
-        checkpoint_manager = CheckpointManager(run="test_gpu_checkpoint", run_dir=self.run_dir)
+        checkpoint_manager = CheckpointManager(
+            run="test_gpu_checkpoint",
+            run_dir=self.run_dir,
+            checkpoint_dir=self.checkpoint_dir,
+        )
 
         train(
             run_dir=self.run_dir,

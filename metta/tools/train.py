@@ -58,13 +58,13 @@ class TrainTool(Tool):
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
 
-        # Set policy_uri if not set
-        if not self.policy_uri:
-            self.policy_uri = CheckpointManager.normalize_uri(f"{self.run_dir}/checkpoints")
-
-        # Set up checkpoint and replay directories
+        # Set up checkpoint directory before deriving policy URIs
         if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+            self.trainer.checkpoint.checkpoint_dir = os.path.join(self.run_dir, "checkpoints")
+
+        # Set policy_uri if not set (default to local checkpoints directory)
+        if not self.policy_uri:
+            self.policy_uri = CheckpointManager.normalize_uri(self.trainer.checkpoint.checkpoint_dir)
 
         # Initialize policy_architecture if not provided
         if self.policy_architecture is None:
@@ -114,9 +114,6 @@ class TrainTool(Tool):
 
         torch_dist_cfg = setup_torch_distributed(self.system.device)
 
-        if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
-
         logger.info_master(
             f"Training {self.run} on "
             + f"{os.environ.get('NODE_INDEX', '0')}: "
@@ -162,6 +159,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         run=cfg.run,
         run_dir=cfg.run_dir,
         remote_prefix=cfg.trainer.checkpoint.remote_prefix,
+        checkpoint_dir=cfg.trainer.checkpoint.checkpoint_dir,
     )
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:

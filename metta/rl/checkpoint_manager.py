@@ -151,6 +151,7 @@ class CheckpointManager:
         run_dir: str = "./train_dir",
         cache_size: int = 3,
         remote_prefix: str | None = None,
+        checkpoint_dir: str | None = None,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -163,7 +164,7 @@ class CheckpointManager:
         self.run = run
         self.run_name = run
         self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
+        self.checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else self.run_dir / self.run / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
         self._remote_prefix = None
