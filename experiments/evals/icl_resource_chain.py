@@ -1,5 +1,5 @@
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from experiments.recipes.icl_resource_chain import ConverterChainTaskGenerator
 
@@ -52,14 +52,6 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
             env=make_icl_resource_chain_eval_env(3, 2),
         ),
         SimulationConfig(
-            name="in_context_learning/chain_length3_3sink",
-            env=make_icl_resource_chain_eval_env(3, 3),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length3_4sink",
-            env=make_icl_resource_chain_eval_env(3, 4),
-        ),
-        SimulationConfig(
             name="in_context_learning/chain_length4_0sink",
             env=make_icl_resource_chain_eval_env(4, 0),
         ),
@@ -72,14 +64,6 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
             env=make_icl_resource_chain_eval_env(4, 2),
         ),
         SimulationConfig(
-            name="in_context_learning/chain_length4_3sink",
-            env=make_icl_resource_chain_eval_env(4, 3),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length4_4sink",
-            env=make_icl_resource_chain_eval_env(4, 4),
-        ),
-        SimulationConfig(
             name="in_context_learning/chain_length5_0sink",
             env=make_icl_resource_chain_eval_env(5, 0),
         ),
@@ -90,45 +74,5 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
         SimulationConfig(
             name="in_context_learning/chain_length5_2sink",
             env=make_icl_resource_chain_eval_env(5, 2),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length5_3sink",
-            env=make_icl_resource_chain_eval_env(5, 3),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length5_4sink",
-            env=make_icl_resource_chain_eval_env(5, 4),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length5_5sink",
-            env=make_icl_resource_chain_eval_env(5, 5),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length6_0sink",
-            env=make_icl_resource_chain_eval_env(6, 0),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length6_1sink",
-            env=make_icl_resource_chain_eval_env(6, 1),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length6_2sink",
-            env=make_icl_resource_chain_eval_env(6, 2),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length6_3sink",
-            env=make_icl_resource_chain_eval_env(6, 3),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length7_1sink",
-            env=make_icl_resource_chain_eval_env(7, 1),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length7_2sink",
-            env=make_icl_resource_chain_eval_env(7, 2),
-        ),
-        SimulationConfig(
-            name="in_context_learning/chain_length7_3sink",
-            env=make_icl_resource_chain_eval_env(7, 3),
         ),
     ]

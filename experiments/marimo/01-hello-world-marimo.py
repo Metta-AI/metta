@@ -68,7 +68,7 @@ def _():
     import anywidget
     import traitlets
     from IPython.display import display
-    from metta.mettagrid import MettaGridEnv
+    from mettagrid import MettaGridEnv
 
     # Import MettaScope replay viewer
     try:
@@ -81,7 +81,7 @@ def _():
 
     from metta.rl.checkpoint_manager import CheckpointManager
 
-    from metta.common.wandb.wandb_context import WandbConfig
+    from metta.common.wandb.context import WandbConfig
     import wandb
     import torch
 
@@ -102,14 +102,14 @@ def _():
     )
 
     # Additional imports for cells
-    from metta.mettagrid.builder.envs import make_arena
-    from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-    from metta.mettagrid.mettagrid_config import (
+    from mettagrid.builder.envs import make_arena
+    from mettagrid.map_builder.ascii import AsciiMapBuilder
+    from mettagrid.config.mettagrid_config import (
         AgentRewards,
         StatsRewards,
     )
-    from metta.mettagrid.config import Config
-    from metta.mettagrid.test_support.actions import generate_valid_random_actions
+    from mettagrid.config import Config
+    from mettagrid.test_support.actions import generate_valid_random_actions
     from metta.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td
     import pprint
@@ -853,7 +853,7 @@ def _(
             },
             checkpoint=CheckpointConfig(
                 checkpoint_interval=20,  # Frequent checkpoints to catch peak performance
-                wandb_checkpoint_interval=20,
+                remote_prefix=f"s3://softmax-public/policies/{run_name}",
             ),
             evaluation=EvaluationConfig(
                 evaluate_interval=20,  # Frequent evaluation to monitor for unlearning
@@ -1546,7 +1546,7 @@ def _(
             },
             checkpoint=CheckpointConfig(
                 checkpoint_interval=10,  # More frequent checkpoints to catch peak
-                wandb_checkpoint_interval=10,
+                remote_prefix=f"s3://softmax-public/policies/{run_name2}",
             ),
             evaluation=EvaluationConfig(
                 evaluate_interval=10,  # More frequent evaluation to monitor unlearning

@@ -20,9 +20,9 @@ from typing_extensions import TypeVar
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from metta.mettagrid.config import Config
-from metta.mettagrid.util.module import load_symbol
 from metta.rl.system_config import seed_everything
+from mettagrid.config import Config
+from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +203,8 @@ def main():
         epilog="""
 Examples:
   %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
-  %(prog)s experiments.recipes.arena.play policy_uri=file://./checkpoints --verbose
+  %(prog)s experiments.recipes.arena.play \
+    policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
   %(prog)s experiments.recipes.arena.train optim='{"lr":1e-3,"beta1":0.9}'
 
 Rules:

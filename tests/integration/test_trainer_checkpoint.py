@@ -19,11 +19,11 @@ import torch
 from metta.agent.agent_config import AgentConfig
 from metta.cogworks.curriculum import env_curriculum
 from metta.core.distributed import TorchDistributedConfig
-from metta.mettagrid.builder.envs import make_arena
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer import train
 from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
+from mettagrid.builder.envs import make_arena
 
 
 class TestTrainerCheckpointIntegration:
@@ -50,8 +50,8 @@ class TestTrainerCheckpointIntegration:
             curriculum=env_curriculum(make_arena(num_agents=6)),
             checkpoint=CheckpointConfig(
                 checkpoint_interval=2,
-                wandb_checkpoint_interval=2,
                 checkpoint_dir=self.checkpoint_dir,
+                remote_prefix=None,
             ),
             evaluation=None,
         )
