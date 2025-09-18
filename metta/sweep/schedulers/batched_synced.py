@@ -248,13 +248,16 @@ class BatchedSyncedOptimizingScheduler:
         return jobs
 
     def is_experiment_complete(self, runs: list[RunInfo]) -> bool:
-        completed = [r for r in runs if r.status == JobStatus.COMPLETED]
-        is_done = len(completed) >= self.config.max_trials
+        # Count all finished runs (COMPLETED, FAILED, STALE) toward the trial limit
+        finished = [r for r in runs if r.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE)]
+        is_done = len(finished) >= self.config.max_trials
         if is_done:
+            completed = [r for r in runs if r.status == JobStatus.COMPLETED]
             logger.info(
-                "[BatchedSyncedOptimizingScheduler] Experiment complete! %s/%s trials finished",
-                len(completed),
+                "[BatchedSyncedOptimizingScheduler] Experiment complete! %s/%s trials finished (%s successful)",
+                len(finished),
                 self.config.max_trials,
+                len(completed),
             )
         return is_done
 
