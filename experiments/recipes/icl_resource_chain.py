@@ -323,7 +323,7 @@ def make_curriculum(
     obstacle_types=[],
     densities=[],
 ) -> CurriculumConfig:
-    task_generator_cfg = ConverterChainTaskGenerator.Config(
+    task_generator_cfg = Convert./deerChainTaskGenerator.Config(
         chain_lengths=chain_lengths,
         num_sinks=num_sinks,
         room_sizes=room_sizes,
@@ -389,9 +389,9 @@ def longer_chains_more_sinks():
 
 def terrain():
     return make_curriculum(
-        chain_lengths=[2, 3, 4, 5, 6],
-        num_sinks=[0, 1, 2],
-        room_sizes=["small", "medium", "large"],
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1],
+        room_sizes=["small", "medium"],
         obstacle_types=["square", "cross", "L"],
         densities=["", "balanced", "sparse", "high"],
     )
