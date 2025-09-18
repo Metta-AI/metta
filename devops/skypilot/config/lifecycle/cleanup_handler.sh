@@ -146,7 +146,15 @@ print_job_debug_report() {
   report+="[DEBUG] ========== JOB DEBUG REPORT ==========\n"
   report+="[DEBUG] Timestamp: $(date '+%Y-%m-%d %H:%M:%S')\n"
   report+="[DEBUG] Script PID: $$\n"
-  report+="[DEBUG] CMD_PID: ${CMD_PID:-'not set'}\n"
+
+  if [[ -z "${CMD_PID:-}" ]]; then
+    report+="[DEBUG] CMD_PID: not set — skipping debug report\n"
+    report+="[DEBUG] ========== END DEBUG REPORT ==========\n"
+    echo -ne "$report"
+    return
+  fi
+
+  report+="[DEBUG] CMD_PID: ${CMD_PID}\n"
 
   # Check current job status
   report+="[DEBUG] Current job table:\n"
@@ -157,7 +165,7 @@ print_job_debug_report() {
   report+="$(jobs -p 2>&1 || echo '  No background jobs')\n"
 
   # Check process group (python -m mode has PGID = CMD_PID)
-  report+="[DEBUG] Process group ${CMD_PID} members:\n"
+  report+="[DEBUG] Process group members:\n"
   report+="$(ps -eo pid,ppid,pgid,state,etime,cmd | grep "^\s*[0-9]\+\s\+[0-9]\+\s\+${CMD_PID}" 2>&1 || echo '  No processes found in group')\n"
 
   # Check for any child processes of this script
@@ -170,7 +178,8 @@ print_job_debug_report() {
 
   # Check for processes matching the module name
   if [[ -n "${METTA_MODULE_PATH:-}" ]]; then
-    local module_name=$(basename "${METTA_MODULE_PATH}")
+    local module_name
+    module_name=$(basename "${METTA_MODULE_PATH}")
     report+="[DEBUG] Processes matching module '$module_name':\n"
     report+="$(ps aux | grep "$module_name" | grep -v grep || echo '  No matching processes found')\n"
   fi
@@ -181,6 +190,5 @@ print_job_debug_report() {
 
   report+="[DEBUG] ========== END DEBUG REPORT ==========\n"
 
-  # Output everything at once
   echo -ne "$report"
 }

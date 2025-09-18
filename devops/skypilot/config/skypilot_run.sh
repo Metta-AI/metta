@@ -221,22 +221,22 @@ else
 fi
 
 echo "[INFO] Starting process (node rank: $RANK)"
-local START_TIME=$(date +%s)
+START_TIME=$(date +%s)
 
 # Enable job control
 set -m
 
 # Build and run command
-local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
+cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 [ -n "${METTA_ARGS:-}" ] && cmd+=(${METTA_ARGS})
 
 echo "[INFO] Running command: ${cmd[*]}"
 "${cmd[@]}" &
-export CMD_PID=$! # Only export needed for monitors
+export CMD_PID=$!  # Export only if monitors need to access it
 
 echo "[INFO] Started process with PID: $CMD_PID"
 
-# start_monitors
+# Start monitors
 if [[ -n "${HEARTBEAT_TIMEOUT:-}" ]]; then
   bash ./devops/skypilot/config/monitors/heartbeat_monitor.sh &
   echo "[INFO] Started heartbeat monitor"
@@ -255,13 +255,13 @@ if [[ "$IS_MASTER" == "true" ]] && [[ "${TEST_JOB_RESTART:-false}" == "true" ]];
 fi
 
 # Wait for process to exit
-while kill -0 "$CMD_PID" 2> /dev/null; do
+while kill -0 "$CMD_PID" 2>/dev/null; do
   sleep 1
 done
 
 # Get exit code from job status
-local JOB_INFO=$(jobs -l %1 2>&1 || echo "")
-local CMD_EXIT=1 # Default to failure
+JOB_INFO=$(jobs -l %1 2>&1 || echo "")
+CMD_EXIT=1  # Default to failure
 
 if [[ "$JOB_INFO" =~ Exit\ ([0-9]+) ]]; then
   CMD_EXIT=${BASH_REMATCH[1]}
@@ -272,12 +272,12 @@ fi
 echo "[INFO] Process exited with code $CMD_EXIT"
 set +m
 
-# Handle completion - only write job_completed if actually successful
+# Handle completion
 if [[ ! -s "${TERMINATION_REASON_FILE:-}" ]] && [[ "$IS_MASTER" == "true" ]] && [[ $CMD_EXIT -eq 0 ]]; then
   echo "job_completed" > "$TERMINATION_REASON_FILE"
 fi
 
-local DURATION=$(($(date +%s) - START_TIME))
+DURATION=$(($(date +%s) - START_TIME))
 echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
 
 shutdown
