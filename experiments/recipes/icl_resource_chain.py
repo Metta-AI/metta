@@ -288,7 +288,7 @@ def make_curriculum(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     chain_lengths=[2, 3, 4, 5],
     num_sinks=[0, 1, 2],
-    room_sizes=["small", "medium", "large"],
+    room_sizes=["small"],
 ) -> CurriculumConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=chain_lengths,
