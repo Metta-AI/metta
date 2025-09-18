@@ -470,11 +470,11 @@ def experiment():
         "longer_chains_more_sinks",
         "terrain",
     ]
-    progress_smoothings = list(np.linspace(0.05, 0.15, 5))
-    ema_timescales = list(np.linspace(0.001, 0.01, 5))
-    exploration_bonuses = list(np.linspace(0.03, 0.15, 5))
-    num_active_tasks = list(np.linspace(500, 5000, 5))
-    rand_task_rate = list(np.linspace(0.05, 0.4, 5))
+    progress_smoothings = list(np.linspace(0.05, 0.15, 3))
+    ema_timescales = list(np.linspace(0.001, 0.01, 3))
+    exploration_bonuses = list(np.linspace(0.03, 0.15, 3))
+    num_active_tasks = list(np.linspace(1000, 5000, 3))
+    rand_task_rate = list(np.linspace(0.05, 0.4, 3))
 
     for curriculum_style in curriculum_styles:
         for progress_smoothing in progress_smoothings:
