@@ -3,6 +3,7 @@ from typing import Optional
 import metta.mettagrid.mapgen.scenes.random
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
 from metta.mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
+from metta.mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mapgen.mapgen import MapGen
 from metta.mettagrid.mettagrid_config import (
@@ -214,6 +215,50 @@ def make_icl_resource_chain(
                     },
                 ),
                 default_resource_limit=1,
+                resource_limits={"heart": 15},
+            ),
+        )
+    )
+    return cfg
+
+def make_icl_assembler(
+    num_agents: int,
+    num_instances: int,
+    max_steps,
+    game_objects: dict,
+    map_builder_objects: dict,
+    width: int = 6,
+    height: int = 6,
+    ) -> MettaGridConfig:
+    game_objects["wall"] = empty_converters.wall
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            max_steps=max_steps,
+            num_agents=num_agents * num_instances,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_agents,
+                # TODO GEORGE: implement AssemblerMapBuilder, where all objects are surrounded by empty space
+                instance_map=AssemblerMapBuilder.Config(
+                    agents=num_agents,
+                    width=width,
+                    height=height,
+                    objects=map_builder_objects,
+                ),
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                get_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory={
+                        "heart": 1,
+                    },
+                ),
+                default_resource_limit=1,
+                # TODO GEORGE: think about resource limits
                 resource_limits={"heart": 15},
             ),
         )
