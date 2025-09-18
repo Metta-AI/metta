@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "cogames"
 version = "0.2.0"
@@ -14,3 +18,17 @@ dependencies = [
 
 [project.scripts]
 demo = "cogames.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cogames"]
+
+[tool.setuptools.package-data]
+cogames = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["cogames"]

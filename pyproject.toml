@@ -161,7 +161,6 @@ members = [
   "agent",
   "app_backend",
   "codebot",
-  "cogames",
   "common",
   "experiments",
   "gitta",
