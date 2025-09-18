@@ -33,7 +33,6 @@ runs:
         cache-dependency-glob: |
           uv.lock
           **/pyproject.toml
-          .github/actions/setup-environment/dependencies-*.txt
 
     - name: Install Bazel
       if: inputs.install-mode != 'minimal'

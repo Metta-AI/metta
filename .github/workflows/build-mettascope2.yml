@@ -1,4 +1,4 @@
-name: Build mettascope2 (nim)
+name: Build mettascope2 (Nim)
 
 on:
   pull_request:
@@ -14,32 +14,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache nimble
-        id: cache-nimble
-        uses: actions/cache@v4
+      - name: Build mettascope2
+        uses: ./.github/actions/build-mettascope2
         with:
-          path: ~/.nimble
-          key: ${{ runner.os }}-nimble-${{ hashFiles('mettascope2/mettascope.nimble') }}
-          restore-keys: |
-            ${{ runner.os }}-nimble-
-
-      - uses: jiro4989/setup-nim-action@v2
-        with:
-          # repo-token is used for rate limiting.
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: mymindstorm/setup-emsdk@v14
-
-      - run: |
-          cd mettascope2
-          nimble install pixie@#head -y  # Explicitly install pixie#head first
-          nimble install fidget2@#head -y  # Reinstall fidget2 to ensure it uses the new pixie
-          nimble install -y  # Then install remaining dependencies
-
-      - name: Build mettascope2 (release)
-        run: cd mettascope2 && nim c -d:release --out:mettascope src/mettascope.nim
-
-      - name: Upload mettascope2 artifact
+      - name: Upload native binary
         uses: actions/upload-artifact@v4
         with:
           name: mettascope2
@@ -49,17 +29,7 @@ jobs:
             mettascope2/replays
           if-no-files-found: error
 
-      - name: Build mettascope2 (browser)
-        run: |
-          cd mettascope2
-
-          # The ERROR_ON_UNDEFINED_SYMBOLS=0 flag is needed because the Nim OpenGL bindings
-          # include desktop OpenGL functions like glGetTexImage that don't exist in WebGL.
-          # Since our code doesn't actually use these functions, it's safe to ignore them.
-
-          nim c -d:emscripten -d:release --passL:"-s ERROR_ON_UNDEFINED_SYMBOLS=0" src/mettascope.nim
-
-      - name: Upload mettascope2 browser artifact
+      - name: Upload browser build
         uses: actions/upload-artifact@v4
         with:
           name: mettascope2-dist
