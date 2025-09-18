@@ -18,6 +18,7 @@ export function useCopyTooltip(text: string) {
   const placement = "top";
   const durationMs = 700;
 
+  // Refer to https://floating-ui.com/docs/react documentation for more details.
   const floating = useFloating({
     open,
     onOpenChange: setOpen,

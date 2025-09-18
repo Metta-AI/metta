@@ -9,8 +9,6 @@ import threading
 import time
 from typing import IO
 
-# LLMed: Draft was written by GPT-5 Thinking, then cleaned up manually.
-
 logger = logging.getLogger(__name__)
 
 
