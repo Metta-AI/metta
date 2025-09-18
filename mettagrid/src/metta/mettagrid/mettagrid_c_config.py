@@ -1,3 +1,5 @@
+import math
+
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from metta.mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
@@ -285,17 +287,23 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 f"Either add these resources to resource_names or disable the action."
             )
 
+        consumed_resources = {
+            resource_name_to_id[k]: float(v)
+            for k, v in action_config["consumed_resources"].items()
+            if k in resource_name_to_id
+        }
+
+        required_source = action_config.get("required_resources")
+        if not required_source:
+            required_source = {k: math.ceil(v) for k, v in action_config["consumed_resources"].items()}
+
+        required_resources = {
+            resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items() if k in resource_name_to_id
+        }
+
         action_cpp_params = {
-            "consumed_resources": {
-                resource_name_to_id[k]: v
-                for k, v in action_config["consumed_resources"].items()
-                if k in resource_name_to_id
-            },
-            "required_resources": {
-                resource_name_to_id[k]: v
-                for k, v in (action_config.get("required_resources") or action_config["consumed_resources"]).items()
-                if k in resource_name_to_id
-            },
+            "consumed_resources": consumed_resources,
+            "required_resources": required_resources,
         }
 
         if action_name == "attack":

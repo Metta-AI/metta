@@ -137,7 +137,11 @@ def _find_parent_readmes(path: Path) -> List[Path]:
 
 
 def _should_ignore(
-    path: Path, gitignore_rules: List[str], root_dir: Path, extensions: Optional[Tuple[str, ...]] = None
+    path: Path,
+    gitignore_rules: List[str],
+    root_dir: Path,
+    extensions: Optional[Tuple[str, ...]] = None,
+    custom_ignore_dirs: Optional[Tuple[str, ...]] = None,
 ) -> bool:
     rel_path = os.path.relpath(str(path), root_dir)
     basename = path.name
@@ -191,7 +195,21 @@ def _should_ignore(
         ".hg",
     }
 
+    # Add custom ignore patterns from -i flag
+    if custom_ignore_dirs:
+        for ignore_dir in custom_ignore_dirs:
+            # Add to the ignored_dirs set for consistent pattern matching
+            # If it contains a slash, it's a path pattern, otherwise it's a directory name
+            if "/" in ignore_dir:
+                # For path patterns like "y/z" or "build/cache", check if the relative path matches
+                if rel_path == ignore_dir or rel_path.startswith(ignore_dir + os.sep):
+                    return True
+            else:
+                # For simple directory names, add to the set for pattern matching
+                ignored_dirs.add(ignore_dir)
+
     # Check if any part of the path contains ignored directories
+    # This applies to both built-in ignored dirs and user-specified directory names
     path_parts = Path(rel_path).parts
     for part in path_parts:
         if part in ignored_dirs:
@@ -414,6 +432,7 @@ def _collect_files(
     processed_files: Set[Path],
     next_index: int,
     extensions: Optional[Tuple[str, ...]] = None,
+    custom_ignore_dirs: Optional[Tuple[str, ...]] = None,
 ) -> List[Document]:
     """Recursively collect files into Document objects."""
     documents = []
@@ -430,7 +449,7 @@ def _collect_files(
             current_index += 1
 
     if path_obj.is_file():
-        if not _should_ignore(path_obj, gitignore_rules, root_dir, extensions):
+        if not _should_ignore(path_obj, gitignore_rules, root_dir, extensions, custom_ignore_dirs):
             process_file(path_obj)
 
     elif path_obj.is_dir():
@@ -442,7 +461,7 @@ def _collect_files(
             filtered_dirs = []
             for d in dirs:
                 dir_path = Path(os.path.join(root, d))
-                if not _should_ignore(dir_path, gitignore_rules, root_dir, extensions):
+                if not _should_ignore(dir_path, gitignore_rules, root_dir, extensions, custom_ignore_dirs):
                     filtered_dirs.append(d)
             dirs[:] = filtered_dirs
 
@@ -453,7 +472,9 @@ def _collect_files(
             files = [
                 f
                 for f in files
-                if not _should_ignore(Path(os.path.join(root, f)), gitignore_rules, root_dir, extensions)
+                if not _should_ignore(
+                    Path(os.path.join(root, f)), gitignore_rules, root_dir, extensions, custom_ignore_dirs
+                )
             ]
 
             for file_name in sorted(files):
@@ -527,6 +548,7 @@ def get_context(
     include_git_diff: bool = False,
     diff_base: str = "origin/main",
     readmes_only: bool = False,
+    ignore_dirs: Optional[Tuple[str, ...]] = None,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Load and format context from specified paths, with basic token counting.
@@ -537,6 +559,7 @@ def get_context(
         include_git_diff: Whether to include git diff as a virtual file
         diff_base: Base reference for git diff
         readmes_only: Whether to only include README.md files
+        ignore_dirs: Optional tuple of directories to ignore
 
     Returns:
         Tuple of (formatted context string, token info dict)
@@ -587,7 +610,9 @@ def get_context(
             gitignore_path = _find_gitignore(path)
             gitignore_rules = _read_gitignore(str(gitignore_path)) if gitignore_path else []
             gitignore_root = gitignore_path.parent if gitignore_path else None
-            new_docs = _collect_files(path, gitignore_rules, gitignore_root, processed_files, next_index, extensions)
+            new_docs = _collect_files(
+                path, gitignore_rules, gitignore_root, processed_files, next_index, extensions, ignore_dirs
+            )
 
             # Stage collected files
             for doc in new_docs:
