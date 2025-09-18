@@ -14,6 +14,7 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.wandb_context import WandbRun
+from metta.core.monitoring import cleanup_monitoring, setup_monitoring
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.config import Config
 from metta.rl.stats import (
@@ -125,6 +126,20 @@ class StatsReporter(TrainerComponent):
     def register(self, trainer) -> None:  # type: ignore[override]
         super().register(trainer)
         trainer.stats_reporter = self
+        memory_monitor = system_monitor = None
+        try:
+            memory_monitor, system_monitor = setup_monitoring(
+                policy=trainer.policy,
+                experience=getattr(getattr(trainer, "core_loop", None), "experience", None),
+                timer=trainer.stopwatch,
+            )
+        except Exception as exc:
+            logger.debug("Failed to initialize monitoring: %s", exc)
+
+        trainer.memory_monitor = memory_monitor
+        trainer.system_monitor = system_monitor
+        self._memory_monitor = memory_monitor
+        self._system_monitor = system_monitor
 
     def _initialize_stats_run(self) -> None:
         """Initialize stats run with the stats client."""
@@ -303,20 +318,20 @@ class StatsReporter(TrainerComponent):
         if trainer is None:
             return
 
-        # Update grad stats if available
-        if hasattr(trainer, "latest_grad_stats"):
-            self.update_grad_stats(trainer.latest_grad_stats)
+        latest_grad_stats = getattr(trainer, "latest_grad_stats", None)
+        if latest_grad_stats:
+            self.update_grad_stats(latest_grad_stats)
 
-        experience = trainer.core_loop.experience if getattr(trainer, "core_loop", None) else None
+        experience = getattr(getattr(trainer, "core_loop", None), "experience", None)
 
         self.report_epoch(
-            epoch=trainer._epoch,
-            agent_step=trainer._agent_step,
+            epoch=trainer.epoch,
+            agent_step=trainer.agent_step,
             losses_stats=getattr(trainer, "latest_losses_stats", {}),
             experience=experience,
-            policy=trainer._policy,
-            timer=trainer.timer,
-            trainer_cfg=trainer._cfg,
+            policy=trainer.policy,
+            timer=trainer.stopwatch,
+            trainer_cfg=trainer.cfg,
             optimizer=trainer.optimizer,
             memory_monitor=getattr(trainer, "memory_monitor", None),
             system_monitor=getattr(trainer, "system_monitor", None),
@@ -328,6 +343,7 @@ class StatsReporter(TrainerComponent):
         Args:
         """
         self.finalize(status="completed")
+        cleanup_monitoring(getattr(self, "_memory_monitor", None), getattr(self, "_system_monitor", None))
 
     def on_failure(self) -> None:
         """Handle training failure.
@@ -336,6 +352,7 @@ class StatsReporter(TrainerComponent):
             trainer: The trainer instance
         """
         self.finalize(status="failed")
+        cleanup_monitoring(getattr(self, "_memory_monitor", None), getattr(self, "_system_monitor", None))
 
     # ------------------------------------------------------------------
     # Internal helpers

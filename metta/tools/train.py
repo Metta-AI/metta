@@ -20,8 +20,10 @@ from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     DistributedHelper,
-    EvaluatorConfig,
     Evaluator,
+    EvaluatorConfig,
+    GradientStatsComponent,
+    GradientStatsConfig,
     PolicyCheckpointer,
     PolicyCheckpointerConfig,
     PolicyUploader,
@@ -54,6 +56,7 @@ class TrainTool(Tool):
     initial_policy_uri: Optional[str] = None
     policy_uploader: PolicyUploaderConfig = Field(default_factory=PolicyUploaderConfig)
     policy_checkpointer: PolicyCheckpointerConfig = Field(default_factory=PolicyCheckpointerConfig)
+    gradient_stats: GradientStatsConfig = Field(default_factory=GradientStatsConfig)
 
     stats_server_uri: Optional[str] = auto_stats_server_uri()
     wandb: WandbConfig = WandbConfig.Unconfigured()
@@ -201,6 +204,9 @@ class TrainTool(Tool):
                         wandb_run=wandb_run,
                     )
                     trainer.register(stats_component)
+
+                    if self.gradient_stats.epoch_interval:
+                        trainer.register(GradientStatsComponent(self.gradient_stats))
 
                     evaluator_component = Evaluator(
                         config=self.evaluator,
