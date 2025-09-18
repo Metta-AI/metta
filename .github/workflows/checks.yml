@@ -302,7 +302,7 @@ jobs:
           OVERALL_FAILED=0
           FAILED_PACKAGES=""
 
-          for package in agent common app_backend mettagrid codebot core; do
+          for package in agent common app_backend packages/mettagrid codebot core; do
             if [ -f "test-results/${package}.exit" ]; then
               EXIT_CODE=$(cat "test-results/${package}.exit")
               if [ "$EXIT_CODE" -ne 0 ]; then
@@ -318,7 +318,7 @@ jobs:
           echo -e "\n\033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
           echo -e "\n\033[1;37m🐌 TOP 10 SLOWEST TESTS\033[0m"
           # Combine all duration files and sort
-          for package in agent common app_backend mettagrid codebot core; do
+          for package in agent common app_backend packages/mettagrid codebot core; do
             if [ -f "test-results/${package}_durations.txt" ]; then
               # Add package name to each line
               sed "s/^/[${package}] /" "test-results/${package}_durations.txt"
@@ -337,7 +337,7 @@ jobs:
         if: needs.setup-checks.outputs.is_external != 'true'
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-          SUBPACKAGES: "agent common app_backend mettagrid codebot core"
+          SUBPACKAGES: "agent common app_backend packages/mettagrid codebot core"
         run: |
           # We want to set flags per file so the codecov action is not convenient
           # If we change to a matrix of runners we should delete the script
