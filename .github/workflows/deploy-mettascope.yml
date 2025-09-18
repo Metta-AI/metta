@@ -77,23 +77,8 @@ jobs:
           cd mettascope
           uv run tools/gen_atlas.py
 
-      - name: Setup Nim
-        uses: jiro4989/setup-nim-action@v2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-
-      - name: Install mettascope2 dependencies
-        run: |
-          cd mettascope2
-          nimble install -y
-
-      - name: Build mettascope2 (emscripten)
-        run: |
-          cd mettascope2
-          nim c -d:emscripten -d:release src/mettascope.nim
+      - name: Build mettascope2
+        uses: ./.github/actions/build-mettascope2
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
