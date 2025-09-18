@@ -73,7 +73,17 @@ class ProteinOptimizer:
         else:
             # Multiple suggestions case
             # GP-based path - got list of (suggestion, info) tuples
-            for suggestion, info in result:
+            logger.debug(
+                f"Protein.suggest returned result type: {type(result)}, length: {len(result) if hasattr(result, '__len__') else 'N/A'}"
+            )
+            if result:
+                logger.debug(f"First element type: {type(result[0])}, value: {result[0]}")
+
+            for item in result:
+                if not isinstance(item, tuple) or len(item) != 2:
+                    logger.error(f"Unexpected result format from Protein.suggest: {item}")
+                    raise ValueError(f"Expected (suggestion, info) tuple, got: {item}")
+                suggestion, info = item
                 suggestions.append(clean_numpy_types(suggestion))
                 logger.debug(f"Generated suggestion with info: {info}")
 

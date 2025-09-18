@@ -1,7 +1,7 @@
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
 
-def custom_config(
+def make_custom_protein_config(
     base_config: ProteinConfig, parameters: dict[str, ParameterConfig]
 ) -> ProteinConfig:
     """Create a custom sweep configuration by extending a base config with additional parameters.
@@ -58,6 +58,37 @@ def custom_config(
         settings=base_config.settings,
     )
 
+
+PPO_CORE = ProteinConfig(
+    metric="evaluator/eval_arena/score",  # Metric to optimize
+    goal="maximize",
+    method="bayes",  # Use Bayesian optimization
+    parameters={
+        # 1. Learning rate - log scale from 1e-5 to 1e-2
+        "trainer.optimizer.learning_rate": ParameterConfig(
+            min=1e-5,
+            max=1e-2,
+            distribution="log_normal",
+            mean=0.001153637,  # Geometric mean
+            scale="auto",
+        ),
+        # 3. Entropy coefficient - log scale from 0.0001 to 0.01
+        "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
+            min=0.0001,
+            max=0.03,
+            distribution="log_normal",
+            mean=0.01,  # Geometric mean
+            scale="auto",
+        ),
+    },
+    settings=ProteinSettings(
+        num_random_samples=0,
+        max_suggestion_cost=3600 * 6,
+        resample_frequency=10,
+        random_suggestions=15,
+        suggestions_per_pareto=128,
+    ),
+)
 
 # 8 Parameters
 PPO_BASIC = ProteinConfig(
@@ -259,45 +290,4 @@ PPO_FULL = ProteinConfig(
         # expansion_rate=0.15,  # Not available in current ProteinSettings
         # seed_with_search_center=True,  # Not available in current ProteinSettings
     ),
-)
-
-LP_CONFIG = custom_config(
-    base_config=PPO_BASIC,
-    parameters={
-        "lp_params.progress_smoothing": ParameterConfig(
-            distribution="logit_normal",
-            min=0.01,
-            max=0.5,
-            mean=0.1,
-            scale="auto",
-        ),
-        "lp_params.exploration_bonus": ParameterConfig(
-            distribution="logit_normal",
-            min=0.01,
-            max=0.5,
-            mean=0.09,
-            scale="auto",
-        ),
-        "lp_params.ema_timescale": ParameterConfig(
-            distribution="uniform",
-            min=0.0001,
-            max=0.1,
-            mean=0.001,
-            scale="auto",
-        ),
-        "lp_params.num_active_tasks": ParameterConfig(
-            distribution="log_normal",
-            min=500,
-            max=6000,
-            mean=1000,
-            scale="auto",
-        ),
-        "lp_params.rand_task_rate": ParameterConfig(
-            distribution="uniform",
-            min=0.05,
-            max=0.5,
-            mean=0.175,
-            scale="auto",
-        ),
-    },
 )
