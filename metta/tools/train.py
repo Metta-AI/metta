@@ -1,6 +1,7 @@
 import contextlib
 import os
 import platform
+from pathlib import Path
 from typing import Optional
 
 import torch
@@ -12,6 +13,7 @@ from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
+from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import guess_device
 from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TrainerConfig
@@ -23,6 +25,7 @@ from metta.rl.training import (
 )
 from metta.rl.training.stats_reporter import StatsConfig, StatsReporter
 from metta.rl.training.torch_profiler_component import TorchProfilerConfig
+from metta.rl.training.trainer_checkpointer import TrainerCheckpointer
 from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
 from metta.rl.training.wandb_logger import WandbLoggerComponent
 from metta.tools.utils.auto_config import (
@@ -121,12 +124,28 @@ class TrainTool(Tool):
         env = VectorizedTrainingEnvironment(self.training_env)
         policy = self.policy_architecture.make_policy(env.meta_data)
 
+        checkpoint_base_dir = (
+            Path(self.run_dir).parent if self.run_dir else Path(self.system.data_dir)
+        )
+        checkpoint_manager = CheckpointManager(
+            run=self.run or "default",
+            run_dir=str(checkpoint_base_dir),
+            remote_prefix=self.trainer.checkpoint.remote_prefix,
+        )
+
         trainer = Trainer(
             self.trainer,
             env,
             policy,
             torch.device(self.device),
         )
+
+        trainer_checkpointer = TrainerCheckpointer(
+            config=self.checkpointer,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+        )
+        trainer.register(trainer_checkpointer)
 
         if distributed_helper.is_master():
             logger.info(f"Training environment: {env}")
@@ -154,6 +173,7 @@ class TrainTool(Tool):
                         )
                         trainer.register(stats_component)
 
+                trainer.restore()
                 trainer.train()
         finally:
             env.close()

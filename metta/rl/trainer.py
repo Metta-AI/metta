@@ -97,6 +97,54 @@ class Trainer:
             accumulate_minibatches=experience.accumulate_minibatches,
         )
 
+    @property
+    def policy(self) -> Policy:
+        """Return the wrapped training policy."""
+        return self._policy
+
+    @property
+    def cfg(self) -> TrainerConfig:
+        """Return the immutable trainer configuration."""
+        return self._cfg
+
+    @property
+    def device(self) -> torch.device:
+        """Return the device training is executing on."""
+        return self._device
+
+    @property
+    def distributed_helper(self) -> DistributedHelper:
+        """Return the distributed helper managing multi-process coordination."""
+        return self._distributed_helper
+
+    @property
+    def epoch(self) -> int:
+        """Return the current training epoch."""
+        return self._epoch
+
+    @epoch.setter
+    def epoch(self, value: int) -> None:
+        self._epoch = value
+
+    @property
+    def agent_step(self) -> int:
+        """Return the total number of agent steps consumed so far."""
+        return self._agent_step
+
+    @agent_step.setter
+    def agent_step(self, value: int) -> None:
+        self._agent_step = value
+
+    @property
+    def optimizer_state_dict(self) -> dict[str, Any]:
+        """Return a shallow copy of the optimizer state for checkpointing."""
+        return self.optimizer.state_dict()
+
+    @property
+    def stopwatch(self) -> Stopwatch:
+        """Return the stopwatch tracking training timings."""
+        return self.timer
+
     def train(self) -> None:
         """Run the main training loop."""
 
