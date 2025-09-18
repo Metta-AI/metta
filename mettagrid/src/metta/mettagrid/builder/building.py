@@ -7,7 +7,7 @@ altar = ConverterConfig(
     type_id=8,
     input_resources={"battery_red": 3},
     output_resources={"heart": 1},
-    cooldown=10,
+    cooldown_duration=10,
 )
 
 
@@ -15,7 +15,7 @@ def make_mine(color: str, type_id: int) -> ConverterConfig:
     return ConverterConfig(
         type_id=type_id,
         output_resources={f"ore_{color}": 1},
-        cooldown=50,
+        cooldown_duration=50,
     )
 
 
@@ -29,7 +29,7 @@ def make_generator(color: str, type_id: int) -> ConverterConfig:
         type_id=type_id,
         input_resources={f"ore_{color}": 1},
         output_resources={f"battery_{color}": 1},
-        cooldown=25,
+        cooldown_duration=25,
     )
 
 
@@ -41,14 +41,14 @@ lasery = ConverterConfig(
     type_id=15,
     input_resources={"battery_red": 1, "ore_red": 2},
     output_resources={"laser": 1},
-    cooldown=10,
+    cooldown_duration=10,
 )
 
 armory = ConverterConfig(
     type_id=16,
     input_resources={"ore_red": 3},
     output_resources={"armor": 1},
-    cooldown=10,
+    cooldown_duration=10,
 )
 
 # Assembler building definitions

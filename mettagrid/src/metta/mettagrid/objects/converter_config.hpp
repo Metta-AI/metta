@@ -16,20 +16,20 @@ struct ConverterConfig : public GridObjectConfig {
                   const std::string& type_name,
                   const std::map<InventoryItem, InventoryQuantity>& input_resources,
                   const std::map<InventoryItem, InventoryQuantity>& output_resources,
-                  short max_output,
+                  short output_limit,
                   short max_conversions,
-                  unsigned short conversion_ticks,
-                  unsigned short cooldown,
+                  unsigned short conversion_duration,
+                  unsigned short cooldown_duration,
                   InventoryQuantity initial_resource_count = 0,
                   ObservationType color = 0,
                   bool recipe_details_obs = false)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
-        max_output(max_output),
+        output_limit(output_limit),
         max_conversions(max_conversions),
-        conversion_ticks(conversion_ticks),
-        cooldown(cooldown),
+        conversion_duration(conversion_duration),
+        cooldown_duration(cooldown_duration),
         initial_resource_count(initial_resource_count),
         color(color),
         recipe_details_obs(recipe_details_obs),
@@ -38,10 +38,10 @@ struct ConverterConfig : public GridObjectConfig {
 
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;
-  short max_output;
+  short output_limit;
   short max_conversions;
-  unsigned short conversion_ticks;
-  unsigned short cooldown;
+  unsigned short conversion_duration;
+  unsigned short cooldown_duration;
   InventoryQuantity initial_resource_count;
   ObservationType color;
   bool recipe_details_obs;
@@ -68,10 +68,10 @@ inline void bind_converter_config(py::module& m) {
            py::arg("type_name"),
            py::arg("input_resources"),
            py::arg("output_resources"),
-           py::arg("max_output"),
+           py::arg("output_limit"),
            py::arg("max_conversions"),
-           py::arg("conversion_ticks"),
-           py::arg("cooldown"),
+           py::arg("conversion_duration"),
+           py::arg("cooldown_duration"),
            py::arg("initial_resource_count") = 0,
            py::arg("color") = 0,
            py::arg("recipe_details_obs") = false)
@@ -79,10 +79,10 @@ inline void bind_converter_config(py::module& m) {
       .def_readwrite("type_name", &ConverterConfig::type_name)
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
       .def_readwrite("output_resources", &ConverterConfig::output_resources)
-      .def_readwrite("max_output", &ConverterConfig::max_output)
+      .def_readwrite("output_limit", &ConverterConfig::output_limit)
       .def_readwrite("max_conversions", &ConverterConfig::max_conversions)
-      .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
-      .def_readwrite("cooldown", &ConverterConfig::cooldown)
+      .def_readwrite("conversion_duration", &ConverterConfig::conversion_duration)
+      .def_readwrite("cooldown_duration", &ConverterConfig::cooldown_duration)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
       .def_readwrite("color", &ConverterConfig::color)
       .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs);

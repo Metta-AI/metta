@@ -38,7 +38,7 @@ private:
         total_output += amount;
       }
     }
-    if (this->max_output >= 0 && total_output >= this->max_output) {
+    if (this->output_limit >= 0 && total_output >= this->output_limit) {
       stats.incr("blocked.output_full");
       return;
     }
@@ -69,8 +69,9 @@ private:
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
     this->converting = true;
+    this->conversion_start_time = this->event_manager->current_timestep();
     stats.incr("conversions.started");
-    this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
+    this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_duration, this->id, 0);
   }
 
 public:
@@ -80,10 +81,10 @@ public:
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
   // -1 means no limit
-  short max_output;
+  short output_limit;
   short max_conversions;
-  unsigned short conversion_ticks;  // Time to produce output
-  unsigned short cooldown;          // Time to wait after producing before starting again
+  unsigned short conversion_duration;  // Time to produce output
+  unsigned short cooldown_duration;    // Time to wait after producing before starting again
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
   unsigned char color;
@@ -93,14 +94,16 @@ public:
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
   unsigned short conversions_completed;
+  unsigned int conversion_start_time;
+  unsigned int cooldown_start_time;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
-        max_output(cfg.max_output),
+        output_limit(cfg.output_limit),
         max_conversions(cfg.max_conversions),
-        conversion_ticks(cfg.conversion_ticks),
-        cooldown(cfg.cooldown),
+        conversion_duration(cfg.conversion_duration),
+        cooldown_duration(cfg.cooldown_duration),
         converting(false),
         cooling_down(false),
         color(cfg.color),
@@ -108,7 +111,9 @@ public:
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
-        conversions_completed(0) {
+        conversions_completed(0),
+        conversion_start_time(0),
+        cooldown_start_time(0) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
     // Initialize inventory with initial_resource_count for all output types
@@ -138,12 +143,13 @@ public:
       stats.add(stats.resource_name(item) + ".produced", amount);
     }
 
-    if (this->cooldown > 0) {
+    if (this->cooldown_duration > 0) {
       // Start cooldown phase
       this->cooling_down = true;
+      this->cooldown_start_time = this->event_manager->current_timestep();
       stats.incr("cooldown.started");
-      this->event_manager->schedule_event(EventType::CoolDown, this->cooldown, this->id, 0);
-    } else if (this->cooldown == 0) {
+      this->event_manager->schedule_event(EventType::CoolDown, this->cooldown_duration, this->id, 0);
+    } else if (this->cooldown_duration == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
     }
@@ -212,6 +218,40 @@ public:
     }
 
     return features;
+  }
+
+  // Calculate remaining time for conversion (0 if not converting)
+  unsigned short conversion_remaining() const {
+    if (!this->converting || !this->event_manager) {
+      return 0;
+    }
+    unsigned int current_time = this->event_manager->current_timestep();
+    // Prevent integer underflow when current_time < conversion_start_time
+    if (current_time < this->conversion_start_time) {
+      return this->conversion_duration;
+    }
+    unsigned int elapsed = current_time - this->conversion_start_time;
+    if (elapsed >= this->conversion_duration) {
+      return 0;
+    }
+    return this->conversion_duration - elapsed;
+  }
+
+  // Calculate remaining time for cooldown (0 if not cooling down)
+  unsigned short cooldown_remaining() const {
+    if (!this->cooling_down || !this->event_manager) {
+      return 0;
+    }
+    unsigned int current_time = this->event_manager->current_timestep();
+    // Prevent integer underflow when current_time < cooldown_start_time
+    if (current_time < this->cooldown_start_time) {
+      return this->cooldown_duration;
+    }
+    unsigned int elapsed = current_time - this->cooldown_start_time;
+    if (elapsed >= this->cooldown_duration) {
+      return 0;
+    }
+    return this->cooldown_duration - elapsed;
   }
 };
 

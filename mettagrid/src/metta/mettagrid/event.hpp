@@ -82,6 +82,10 @@ public:
       this->event_handlers[event.event_type]->handle_event(event.object_id, event.arg);
     }
   }
+
+  unsigned int current_timestep() const {
+    return this->_current_timestep;
+  }
 };
 
 #endif  // EVENT_HPP_
