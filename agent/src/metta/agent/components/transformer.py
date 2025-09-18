@@ -70,9 +70,9 @@ class Transformer(nn.Module):
     - We do not store KV caches per layer to keep implementation simple and robust to resets.
     """
 
-    def __init__(self, config: Optional[TransformerConfig] = None):
+    def __init__(self, config: TransformerConfig):
         super().__init__()
-        self.config = config or TransformerConfig()
+        self.config = config
         self.latent_size = self.config.latent_size
         self.hidden_size = self.config.hidden_size
         self.num_layers = self.config.num_layers

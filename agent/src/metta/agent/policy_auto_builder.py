@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.common.config.config import Config
+from metta.mettagrid.config import Config
 
 logger = logging.getLogger("metta_agent")
 
@@ -29,30 +29,17 @@ class PolicyAutoBuilder(nn.Module):
     def __init__(self, env, config: Config = None):
         super().__init__()
         self.config = config
-        self.wants_td = True
 
-        self.layers = OrderedDict()
-        for name, layer_config in self.config:
-            if not isinstance(layer_config, Config):
-                continue
-
-                # all layers have name attr
-                # make in and out keys not defaulted
-                # all layers take env as an arg
-            if name == "obs_shaper_config":
-                self.layers["obs_shaper"] = layer_config.instantiate(env)
-            else:
-                if "_config" in name:
-                    name = name.replace("_config", "")  # not critical but makes it easier to read
-                self.layers[name] = layer_config.instantiate()
-
-        assert "obs_shaper" in self.layers, "obs_shaper_config must be in the policy's config"
+        self.components = OrderedDict()
+        for component_config in self.config.components:
+            name = component_config.name
+            self.components[name] = component_config.make_component(env)
 
         # finish with a special layer for action probs becaues its forward needs old actions to be passed in
         # we could replace this by adding old_actions to the td
-        self.action_probs = self.config.action_probs_config.instantiate()
+        self.action_probs = self.config.action_probs_config.make_component()
 
-        self.network = TensorDictSequential(self.layers, inplace=True)
+        self.network = TensorDictSequential(self.components, inplace=True)
 
         # av fix this
         # # A dummy forward pass to initialize any lazy modules (e.g. nn.LazyLinear).
@@ -69,9 +56,7 @@ class PolicyAutoBuilder(nn.Module):
     def forward(self, td: TensorDict, action: torch.Tensor = None):
         self.network(td)
         self.action_probs(td, action)
-        td["values"] = td[
-            "values"
-        ].flatten()  # could update Experience to not need this line but  need to update ppo.py
+        td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td
 
     def initialize_to_environment(
@@ -81,7 +66,7 @@ class PolicyAutoBuilder(nn.Module):
     ):
         self.to(device)
         logs = []
-        for _, value in self.layers.items():
+        for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
                 logs.append(value.initialize_to_environment(env, device))
         if hasattr(self, "action_probs"):
@@ -93,7 +78,7 @@ class PolicyAutoBuilder(nn.Module):
                 log_on_master(log)
 
     def reset_memory(self):
-        for _, value in self.layers.items():
+        for _, value in self.components.items():
             if hasattr(value, "reset_memory"):
                 value.reset_memory()
 
@@ -109,7 +94,7 @@ class PolicyAutoBuilder(nn.Module):
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
 
-        for layer in self.layers.values():
+        for layer in self.components.values():
             if hasattr(layer, "get_agent_experience_spec"):
                 spec.update(layer.get_agent_experience_spec())
 

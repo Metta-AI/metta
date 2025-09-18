@@ -1,19 +1,18 @@
-from typing import Optional
-
 import torch
 import torch.nn as nn
 from einops import repeat
 from tensordict import TensorDict
 
-from metta.mettagrid.config import Config
+from metta.agent.components.component_config import ComponentConfig
 
 
-class ActionEmbeddingConfig(Config):
+class ActionEmbeddingConfig(ComponentConfig):
+    out_key: str
+    name: str = "action_embedding"
     num_embeddings: int = 100
     embedding_dim: int = 16
-    out_key: str = "action_embeddings"
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ActionEmbedding(config=self)
 
 
@@ -36,9 +35,9 @@ class ActionEmbedding(nn.Module):
     environment change and after init, providing the new set of action names and the target device.
     """
 
-    def __init__(self, config: Optional[ActionEmbeddingConfig] = None):
+    def __init__(self, config: ActionEmbeddingConfig):
         super().__init__()
-        self.config = config or ActionEmbeddingConfig()
+        self.config = config
         self._reserved_action_embeds = {}
         self.num_actions = 0
         self.out_key = self.config.out_key

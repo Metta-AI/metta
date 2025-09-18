@@ -63,6 +63,10 @@ class PPOConfig(Config):
     # Target KL: None allows unlimited updates, common for stable environments
     target_kl: float | None = None
 
+    # Steps in rollout to discard before starting to save experience (for LSTM_reset). This field needs to be moved to
+    # a rollout spec that we have not created yet. Alternatively, it could be an attribute of the policy
+    burn_in_steps: int = Field(default=0, ge=0)
+
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
@@ -95,6 +99,8 @@ class PPO(Loss):
     __slots__ = (
         "advantages",
         "anneal_beta",
+        "burn_in_steps",
+        "burn_in_steps_iter",
     )
 
     def __init__(
@@ -109,6 +115,8 @@ class PPO(Loss):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
+        self.burn_in_steps = self.loss_cfg.burn_in_steps
+        self.burn_in_steps_iter = 0
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
@@ -133,6 +141,10 @@ class PPO(Loss):
         with torch.no_grad():
             self.policy.forward(td)
 
+        if self.burn_in_steps_iter < self.burn_in_steps:
+            self.burn_in_steps_iter += 1
+            return
+
         # Store experience
         self.replay.store(data_td=td, env_id=env_id)
 
@@ -146,7 +158,7 @@ class PPO(Loss):
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         stop_update_epoch = False
         self.policy.reset_memory()
-
+        self.burn_in_steps_iter = 0
         # Check if we should early stop this update epoch (on subsequent minibatches)
         if self.loss_cfg.target_kl is not None and mb_idx > 0:
             average_approx_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0

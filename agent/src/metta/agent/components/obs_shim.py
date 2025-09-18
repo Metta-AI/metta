@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.mettagrid.config import Config
+from metta.agent.components.component_config import ComponentConfig
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
@@ -38,14 +38,14 @@ class ObsTokenPadStrip(nn.Module):
         device,
     ) -> str:
         # Build feature mappings
-        features = env.get_observation_features()
-        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
+        features = env.obs_features
+        self.feature_id_to_name = {props.id: name for name, props in features.items()}
         self.feature_normalizations = {
-            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
+            props.id: props.normalization for props in features.values() if hasattr(props, "normalization")
         }
 
         if not hasattr(self, "original_feature_mapping"):
-            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
+            self.original_feature_mapping = {name: props.id for name, props in features.items()}  # {name: id}
             return f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
         else:
             # Re-initialization - create remapping for agent portability
@@ -54,7 +54,7 @@ class ObsTokenPadStrip(nn.Module):
             unknown_features = []
 
             for name, props in features.items():
-                new_id = props["id"]
+                new_id = props.id
                 if name in self.original_feature_mapping:
                     # Remap known features to their original IDs
                     original_id = self.original_feature_mapping[name]
@@ -77,7 +77,7 @@ class ObsTokenPadStrip(nn.Module):
             else:
                 return "No feature remapping created"
 
-    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int, device: torch.device):
+    def _apply_feature_remapping(self, features: dict, unknown_id: int, device: torch.device):
         """Apply feature remapping to policy for agent portability across environments."""
         # Build complete remapping tensor
         remap_tensor = torch.arange(256, dtype=torch.uint8, device=device)
@@ -87,7 +87,7 @@ class ObsTokenPadStrip(nn.Module):
             remap_tensor[new_id] = original_id
 
         # Map unused feature IDs to UNKNOWN
-        current_feature_ids = {props["id"] for props in features.values()}
+        current_feature_ids = {props.id for props in features.values()}
         for feature_id in range(256):
             if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
                 remap_tensor[feature_id] = unknown_id
@@ -141,7 +141,7 @@ class ObsAttrValNorm(nn.Module):
         self.in_key = in_key
         self.out_key = out_key
         self._max_embeds = 256
-        self._feature_normalizations = self._set_feature_normalizations(env)
+        self._set_feature_normalizations(env)
 
     def initialize_to_environment(
         self,
@@ -151,10 +151,8 @@ class ObsAttrValNorm(nn.Module):
         self._set_feature_normalizations(env, device)
 
     def _set_feature_normalizations(self, env, device: Optional[torch.device] = None):
-        features = env.get_observation_features()
-        self._feature_normalizations = {
-            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
-        }
+        features = env.feature_normalizations
+        self._feature_normalizations = features
         self._update_norm_factors(device)
         return None
 
@@ -166,7 +164,7 @@ class ObsAttrValNorm(nn.Module):
         if device is None:
             device = "cpu"  # assume that the policy is sent to device after its built for the first time.
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32, device=device)
-        for i, val in enumerate(self._feature_normalizations):
+        for i, val in self._feature_normalizations.items():
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
                 norm_tensor[i] = val
             else:
@@ -186,19 +184,20 @@ class ObsAttrValNorm(nn.Module):
         return td
 
 
-class ObsShaperTokensConfig(Config):
-    in_key: str = "env_obs"
-    out_key: str = "obs_attr_val_norm"
+class ObsShimTokensConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "obs_shim_tokens"
 
-    def instantiate(self, env):
-        return ObsShaperTokens(env, in_key=self.in_key, out_key=self.out_key)
+    def make_component(self, env):
+        return ObsShimTokens(env, config=self)
 
 
-class ObsShaperTokens(nn.Module):
-    def __init__(self, env, in_key: str = "env_obs", out_key: str = "obs_attr_val_norm") -> None:
+class ObsShimTokens(nn.Module):
+    def __init__(self, env, config: ObsShimTokensConfig) -> None:
         super().__init__()
-        self.in_key = in_key
-        self.out_key = out_key
+        self.in_key = config.in_key
+        self.out_key = config.out_key
         self.token_pad_striper = ObsTokenPadStrip(env, in_key=self.in_key)
         self.attr_val_normer = ObsAttrValNorm(env, out_key=self.out_key)
 
@@ -223,7 +222,7 @@ class ObsShaperTokens(nn.Module):
 # =========================== Box-based observation shaping ===========================
 
 
-class ObsTokenToBoxShaper(nn.Module):
+class ObsTokenToBoxShim(nn.Module):
     """
     This class consumes token observations and outputs a box observation.
 
@@ -348,20 +347,21 @@ class ObservationNormalizer(nn.Module):
             self.obs_norm = self.obs_norm.to(device)
 
 
-class ObsShaperBoxConfig(Config):
-    in_key: str = "env_obs"
-    out_key: str = "obs_normalizer"
+class ObsShimBoxConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "obs_shim_box"
 
-    def instantiate(self, env):
-        return ObsShaperBox(env, in_key=self.in_key, out_key=self.out_key)
+    def make_component(self, env):
+        return ObsShimBox(env, config=self)
 
 
-class ObsShaperBox(nn.Module):
-    def __init__(self, env, in_key: str = "env_obs", out_key: str = "box_obs") -> None:
+class ObsShimBox(nn.Module):
+    def __init__(self, env, config: ObsShimBoxConfig) -> None:
         super().__init__()
-        self.in_key = in_key
-        self.out_key = out_key
-        self.token_to_box_shaper = ObsTokenToBoxShaper(env, in_key=self.in_key)
+        self.in_key = config.in_key
+        self.out_key = config.out_key
+        self.token_to_box_shim = ObsTokenToBoxShim(env, in_key=self.in_key)
         self.observation_normalizer = ObservationNormalizer(env, out_key=self.out_key)
 
     def initialize_to_environment(
@@ -372,6 +372,6 @@ class ObsShaperBox(nn.Module):
         self.observation_normalizer.initialize_to_environment(env, device)
 
     def forward(self, td: TensorDict):
-        td = self.token_to_box_shaper(td)
+        td = self.token_to_box_shim(td)
         td = self.observation_normalizer(td)
         return td
