@@ -21,7 +21,7 @@ const YamlScalar: FC<{
   const multiline = typeof value === "string" && value.includes("\n");
 
   let url = "";
-  const KNOWN_PACKAGES = ["metta.mettagrid.mapgen", "metta.mettagrid.room"];
+  const KNOWN_PACKAGES = ["mettagrid.mapgen", "mettagrid.room"];
 
   const repoRoot = use(RepoRootContext);
   if (
@@ -32,7 +32,7 @@ const YamlScalar: FC<{
     const parts = value.split(".");
     parts.pop();
     let filename = parts.join("/") + ".py";
-    if (value.startsWith("metta.mettagrid")) {
+    if (value.startsWith("mettagrid")) {
       filename = `mettagrid/src/${filename}`;
     }
     url = `cursor://file${repoRoot}/${filename}`;

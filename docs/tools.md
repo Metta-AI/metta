@@ -460,20 +460,20 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # Generate and display a single map
-./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
+  ./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
 
 # Save map to file
-./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
+./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
 
 # Generate 100 maps to S3
-./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
 
 # Override generation parameters
-./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/base.yaml "width=50 height=50 density=0.7"
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/base.yaml "width=50 height=50 density=0.7"
 
 # Different display modes
-./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=ascii # Terminal display
-./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=PIL  # Image popup
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=ascii # Terminal display
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=PIL  # Image popup
 ```
 
 ### map/gen_scene.py
@@ -484,13 +484,13 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # Generate from scene
-./tools/map/gen_scene.py scenes/wfc/blob.yaml 32 32
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/wfc/blob.yaml 32 32
 
 # With overrides
-./tools/map/gen_scene.py scenes/convchain/maze.yaml 64 64 "seed=42"
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/convchain/maze.yaml 64 64 "seed=42"
 
 # Different display mode
-./tools/map/gen_scene.py scenes/test/grid.yaml 16 16 --show-mode=ascii
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/test/grid.yaml 16 16 --show-mode=ascii
 ```
 
 **Key Features**:
@@ -507,10 +507,10 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # View a specific map
-./tools/map/view.py ./my_map.yaml
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py ./my_map.yaml
 
 # View random map from directory
-./tools/map/view.py s3://bucket/maps/
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py s3://bucket/maps/
 
 # ASCII display
 ./tools/map/view.py ./map.yaml --show-mode=ascii
@@ -765,7 +765,7 @@ GROUP BY policy_name, episode;
 
 ```bash
 # 1. Generate a new map
-./mettagrid/src/metta/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/template.yaml \
+./mettagrid/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/template.yaml \
   --output-uri=./my_map.yaml "seed=42"
 
 # 2. View and iterate

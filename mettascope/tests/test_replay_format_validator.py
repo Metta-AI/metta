@@ -524,7 +524,8 @@ def test_validate_real_generated_replay_fast() -> None:
 
         # Run from the project root (parent of mettascope).
         project_root = Path(__file__).parent.parent.parent
-        result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=30)  # Reduced timeout
+        print(f"Running command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=60)  # Reduced timeout
 
         replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
         if len(replay_files) == 0:

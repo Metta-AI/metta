@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cogames"
+version = "0.2.0"
+description = "Multi-agent cooperative games"
+readme = "README.md"
+requires-python = ">=3.11.7"
+dependencies = [
+  "mettagrid>=0.2",
+  "pufferlib>=3.0.0",
+  "pydantic>=2.11.5",
+  "pyyaml>=6.0.2",
+  "scipy>=1.15.3",
+]
+
+[project.scripts]
+demo = "cogames.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cogames"]
+
+[tool.setuptools.package-data]
+cogames = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["cogames"]

@@ -8,9 +8,9 @@ from pydantic import validate_call
 
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
-from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
+from mettagrid import MettaGridEnv
+from mettagrid.util.replay_writer import ReplayWriter
+from mettagrid.util.stats_writer import StatsWriter
 
 logger = logging.getLogger("vecenv")
 
