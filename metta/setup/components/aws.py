@@ -1,3 +1,4 @@
+from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
@@ -66,5 +67,8 @@ class AWSSetup(SetupModule):
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()
         if saved_settings.user_type.is_softmax:
-            return dict(replay_dir="s3://softmax-public/replays/")
+            return dict(
+                replay_dir="s3://softmax-public/replays/",
+                policy_remote_prefix=SOFTMAX_S3_POLICY_PREFIX,
+            )
         return dict(replay_dir="./train_dir/replays/")
