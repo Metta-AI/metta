@@ -5,9 +5,6 @@ import pytest
 
 from mettagrid.profiling.stopwatch import Checkpoint, Stopwatch, with_instance_timer, with_timer
 
-# Skip this entire test module
-pytestmark = pytest.mark.skip(reason="Test file disabled")
-
 
 @pytest.fixture
 def stopwatch():
