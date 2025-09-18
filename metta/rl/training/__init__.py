@@ -1,56 +1,71 @@
-"""Training components for Metta RL."""
+"""Lazy-loading facade for training components.
 
-from metta.rl.training import training_environment
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.core import CoreTrainingLoop, RolloutResult
-from metta.rl.training.distributed_helper import DistributedHelper
-from metta.rl.training.evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
-from metta.rl.training.gradient_stats import GradientStatsComponent, GradientStatsConfig
-from metta.rl.training.heartbeat import HeartbeatConfig, HeartbeatWriter
-from metta.rl.training.hyperparameter import HyperparameterComponent, HyperparameterConfig
-from metta.rl.training.policy_checkpointer import PolicyCheckpointer, PolicyCheckpointerConfig
-from metta.rl.training.policy_uploader import PolicyUploader, PolicyUploaderConfig
-from metta.rl.training.stats_reporter import NoOpStatsReporter, StatsConfig, StatsReporter, StatsState
-from metta.rl.training.torch_profiler_component import TorchProfilerComponent
-from metta.rl.training.trainer_checkpointer import TrainerCheckpointer, TrainerCheckpointerConfig
+This avoids import-time circular dependencies between loss modules and the
+training package by deferring heavy submodule imports until the symbols are
+actually needed. External callers can continue to use
+``from metta.rl.training import Evaluator`` and friends without change.
+"""
 
-__all__ = [
+from __future__ import annotations
+
+import importlib
+from typing import Any, Dict, Tuple
+
+# Symbol -> (module path, attribute name) mapping. Modules are imported on first
+# attribute access; when ``attr_name`` is ``None`` the module object is returned.
+_EXPORTS: Dict[str, Tuple[str, str | None]] = {
     # Core training
-    "CoreTrainingLoop",
-    "RolloutResult",
-    # Distributed
-    "DistributedHelper",
-    # Checkpointing
-    "PolicyCheckpointer",
-    "PolicyCheckpointerConfig",
-    "PolicyUploader",
-    "PolicyUploaderConfig",
-    "TrainerCheckpointer",
-    "TrainerCheckpointerConfig",
+    "CoreTrainingLoop": ("metta.rl.training.core", "CoreTrainingLoop"),
+    "RolloutResult": ("metta.rl.training.core", "RolloutResult"),
+    # Distributed helpers
+    "DistributedHelper": ("metta.rl.training.distributed_helper", "DistributedHelper"),
+    # Checkpointing components
+    "PolicyCheckpointer": ("metta.rl.training.policy_checkpointer", "PolicyCheckpointer"),
+    "PolicyCheckpointerConfig": ("metta.rl.training.policy_checkpointer", "PolicyCheckpointerConfig"),
+    "PolicyUploader": ("metta.rl.training.policy_uploader", "PolicyUploader"),
+    "PolicyUploaderConfig": ("metta.rl.training.policy_uploader", "PolicyUploaderConfig"),
+    "TrainerCheckpointer": ("metta.rl.training.trainer_checkpointer", "TrainerCheckpointer"),
+    "TrainerCheckpointerConfig": ("metta.rl.training.trainer_checkpointer", "TrainerCheckpointerConfig"),
     # Evaluation
-    "Evaluator",
-    "EvaluatorConfig",
-    "NoOpEvaluator",
-    # Stats
-    "StatsReporter",
-    "StatsConfig",
-    "StatsState",
-    "NoOpStatsReporter",
-    # Components
-    "TrainerComponent",
-    "TrainerComponent",
-    "Config",
+    "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
+    "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),
+    "NoOpEvaluator": ("metta.rl.training.evaluator", "NoOpEvaluator"),
+    # Stats reporting
+    "StatsReporter": ("metta.rl.training.stats_reporter", "StatsReporter"),
+    "StatsConfig": ("metta.rl.training.stats_reporter", "StatsConfig"),
+    "StatsState": ("metta.rl.training.stats_reporter", "StatsState"),
+    "NoOpStatsReporter": ("metta.rl.training.stats_reporter", "NoOpStatsReporter"),
+    # Trainer components
+    "TrainerComponent": ("metta.rl.training.component", "TrainerComponent"),
     # Torch profiler
-    "TorchProfilerComponent",
+    "TorchProfilerComponent": ("metta.rl.training.torch_profiler_component", "TorchProfilerComponent"),
     # Heartbeat
-    "HeartbeatWriter",
-    "HeartbeatConfig",
-    # Hyperparameter
-    "HyperparameterComponent",
-    "HyperparameterConfig",
+    "HeartbeatWriter": ("metta.rl.training.heartbeat", "HeartbeatWriter"),
+    "HeartbeatConfig": ("metta.rl.training.heartbeat", "HeartbeatConfig"),
+    # Hyperparameter scheduler
+    "HyperparameterComponent": ("metta.rl.training.hyperparameter", "HyperparameterComponent"),
+    "HyperparameterConfig": ("metta.rl.training.hyperparameter", "HyperparameterConfig"),
     # Gradient stats
-    "GradientStatsComponent",
-    "GradientStatsConfig",
-    # Training environment
-    "training_environment",
-]
+    "GradientStatsComponent": ("metta.rl.training.gradient_stats", "GradientStatsComponent"),
+    "GradientStatsConfig": ("metta.rl.training.gradient_stats", "GradientStatsConfig"),
+    # Training environment module
+    "training_environment": ("metta.rl.training.training_environment", None),
+}
+
+__all__ = list(_EXPORTS.keys())
+
+
+def __getattr__(name: str) -> Any:
+    """Dynamically import training submodules on attribute access."""
+    if name not in _EXPORTS:
+        raise AttributeError(f"module 'metta.rl.training' has no attribute '{name}'")
+
+    module_path, attr_name = _EXPORTS[name]
+    module = importlib.import_module(module_path)
+    attr = module if attr_name is None else getattr(module, attr_name)
+    globals()[name] = attr
+    return attr
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)
