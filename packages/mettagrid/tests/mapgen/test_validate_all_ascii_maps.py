@@ -11,7 +11,7 @@ from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.util.char_encoder import CHAR_TO_NAME
 
 
-def find_map_files(root_dir="configs") -> list[str]:
+def find_map_files(root_dir="packages/mettagrid/configs/maps") -> list[str]:
     """
     Find all .map files.
 
@@ -23,7 +23,7 @@ def find_map_files(root_dir="configs") -> list[str]:
     """
     root_path = Path(root_dir).resolve()
 
-    # Return empty list if directory doesn't exist (configs/ was deleted)
+    # Return empty list if directory doesn't exist
     if not root_path.exists():
         return []
 
@@ -58,22 +58,19 @@ def test_programmatic_map_generation():
     assert map_builder.border_width == 1
 
 
-# Keep the original test skipped for when map files are restored
-@pytest.mark.skip(reason="configs/ directory has been removed")
 def test_map_files_discovered(map_files):
     """Verify that map files are found in the repository."""
     assert len(map_files) > 0, "Should discover at least one .map file"
 
 
-# Original ASCII map validation tests - kept for future restoration when map files are available
-# These tests validated the format and content of .map files
+# ASCII map validation tests
 map_files_to_test = find_map_files()
 if map_files_to_test:
     pytest_parametrize = pytest.mark.parametrize(
         "map_file", map_files_to_test, ids=[str(path) for path in map_files_to_test]
     )
 else:
-    pytest_parametrize = pytest.mark.skip(reason="No map files found - configs/ directory removed")
+    pytest_parametrize = pytest.mark.skip(reason="No map files found in packages/mettagrid/configs/maps/")
 
 
 @pytest_parametrize
