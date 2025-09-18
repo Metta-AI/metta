@@ -143,10 +143,7 @@ shutdown() {
                             echo "cluster_stop")
   echo "$termination_reason" > "$TERMINATION_REASON_FILE"
 
-  # Only proceed if we have a process to kill
-  [ -z "${CMD_PID:-}" ] && exit 0
-
-  echo "[SHUTDOWN] Initiating shutdown of process tree (PID: ${CMD_PID})"
+  echo "[SHUTDOWN] Initiating cluster shutdown"
 
   # Coordinate multi-node shutdown
   if [[ "$IS_MASTER" == "true" ]]; then
