@@ -110,7 +110,7 @@ After training completes, the orchestrator schedules evaluation:
 **Actual dispatched command (via LocalDispatcher for evaluation):**
 ```bash
 uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.evaluate \
-    policy_uri=file://./train_dir/ppo_arena_basic_trial_0001/checkpoints \
+    policy_uri=file://./train_dir/ppo_arena_basic_trial_0001/checkpoints/ppo_arena_basic_trial_0001:v50.pt \
     push_metrics_to_wandb=True
 ```
 

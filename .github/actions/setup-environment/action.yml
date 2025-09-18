@@ -33,7 +33,6 @@ runs:
         cache-dependency-glob: |
           uv.lock
           **/pyproject.toml
-          .github/actions/setup-environment/dependencies-*.txt
 
     - name: Install Bazel
       if: inputs.install-mode != 'minimal'
@@ -67,16 +66,19 @@ runs:
             ;;
 
           "testing")
-            uv sync --no-dev --group testing
+            # Install main dependencies + testing group, excluding interactive and dev
+            uv sync --no-group interactive --no-group dev --group testing
             ;;
 
           "linting")
-            uv sync --no-dev --group lint
+            # Install only the lint group, excluding the main, interactive and dev deps
+            uv sync --only-group lint
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests
           "runtime")
-            uv sync --no-dev
+            # Install only main dependencies, excluding all groups
+            uv sync --no-group interactive --no-group dev
             ;;
 
         esac
@@ -87,7 +89,7 @@ runs:
           echo "${{ inputs.extra-dependencies }}" | while read -r dep; do
             if [ -n "$dep" ]; then
               echo "Installing $dep"
-              uv pip install -- "$dep"
+              UV_NO_SYNC=0 uv pip install "$dep"
             fi
           done
         else

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from experiments.recipes.arena import evaluate, replay, train
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
