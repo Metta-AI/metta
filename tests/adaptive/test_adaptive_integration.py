@@ -9,7 +9,6 @@ from metta.adaptive.adaptive_controller import AdaptiveController
 from metta.adaptive.dispatcher.local import LocalDispatcher
 from metta.adaptive.schedulers.train_and_eval import TrainAndEvalConfig, TrainAndEvalScheduler
 from metta.adaptive.stores.wandb import WandbStore
-from metta.tools.adaptive import AdaptiveTool, DispatcherType, SchedulerType
 
 
 class TestAdaptiveIntegration:
@@ -46,27 +45,6 @@ class TestAdaptiveIntegration:
         assert mock_dispatcher.dispatch.called
         assert mock_store.init_run.called
         assert scheduler.is_experiment_complete.call_count == 2
-
-    def test_adaptive_tool_component_creation(self):
-        """Test that AdaptiveTool properly creates and wires components."""
-        scheduler_config = TrainAndEvalConfig(max_trials=1, experiment_id="tool_test")
-
-        tool = AdaptiveTool(
-            scheduler_type=SchedulerType.TRAIN_AND_EVAL,
-            scheduler_config=scheduler_config,
-            dispatcher_type=DispatcherType.LOCAL,
-            config=AdaptiveConfig(max_parallel=1),
-            experiment_id="tool_test",
-        )
-
-        # Test scheduler creation
-        scheduler = tool._create_scheduler()
-        assert isinstance(scheduler, TrainAndEvalScheduler)
-        assert scheduler.config.max_trials == 1
-
-        # Test dispatcher creation
-        dispatcher = tool._create_dispatcher()
-        assert isinstance(dispatcher, LocalDispatcher)
 
     def test_hook_system_integration(self):
         """Test that the hook system works end-to-end."""
@@ -130,32 +108,6 @@ class TestAdaptiveIntegration:
         mock_api_instance.runs.assert_called()
         assert isinstance(runs, list)
 
-    def test_sweep_agnostic_design(self):
-        """Test that the adaptive system is truly sweep-agnostic."""
-        # The tool should work without any sweep-specific components
-        scheduler_config = TrainAndEvalConfig(max_trials=1, experiment_id="agnostic_test")
-
-        tool = AdaptiveTool(
-            scheduler_type=SchedulerType.TRAIN_AND_EVAL,
-            scheduler_config=scheduler_config,
-            dispatcher_type=DispatcherType.LOCAL,
-            config=AdaptiveConfig(),
-            experiment_id="agnostic_test",
-            on_eval_completed=None,  # No hooks
-            on_job_dispatch=None,
-        )
-
-        # Should create components without any sweep dependencies
-        scheduler = tool._create_scheduler()
-        dispatcher = tool._create_dispatcher()
-
-        assert scheduler is not None
-        assert dispatcher is not None
-
-        # No sweep-specific attributes should exist on the tool
-        assert not hasattr(tool, "protein_config")
-        assert not hasattr(tool, "enable_sweep_observation_hook")
-
 
 class TestAdaptiveSmoke:
     """Smoke tests for critical adaptive system workflows."""
@@ -206,7 +158,6 @@ class TestAdaptiveSmoke:
             LocalDispatcher,
         )
         from metta.adaptive.schedulers.train_and_eval import TrainAndEvalScheduler
-        from metta.tools.adaptive import AdaptiveTool
 
         # Basic instantiation should work
         config = AdaptiveConfig()
@@ -217,4 +168,3 @@ class TestAdaptiveSmoke:
         assert AdaptiveController is not None
         assert LocalDispatcher is not None
         assert TrainAndEvalScheduler is not None
-        assert AdaptiveTool is not None
