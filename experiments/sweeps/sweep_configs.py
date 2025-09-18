@@ -261,43 +261,44 @@ PPO_FULL = ProteinConfig(
     ),
 )
 
-LP_CONFIG = custom_config(
-    base_config=PPO_BASIC,
-    parameters={
-        "lp_params.progress_smoothing": ParameterConfig(
-            distribution="logit_normal",
-            min=0.05,
-            max=0.15,
-            mean=0.1,
-            scale="auto",
-        ),
-        "lp_params.exploration_bonus": ParameterConfig(
-            distribution="logit_normal",
-            min=0.03,
-            max=0.15,
-            mean=0.09,
-            scale="auto",
-        ),
-        "lp_params.ema_timescale": ParameterConfig(
-            distribution="uniform",
-            min=0.001,
-            max=0.01,
-            mean=0.001,
-            scale="auto",
-        ),
-        "lp_params.num_active_tasks": ParameterConfig(
-            distribution="log_normal",
-            min=1000,
-            max=5000,
-            mean=1000,
-            scale="auto",
-        ),
-        "lp_params.rand_task_rate": ParameterConfig(
-            distribution="uniform",
-            min=0.1,
-            max=0.25,
-            mean=0.175,
-            scale="auto",
-        ),
-    },
-)
+LP_CONFIG = custom_config(base_config=PPO_BASIC, parameters={
+    "lp_params.progress_smoothing": ParameterConfig(
+        distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
+        min=0.05,
+        max=0.15,
+        mean=0.1,
+        scale="auto",
+    ),
+
+    "lp_params.exploration_bonus": ParameterConfig(
+        distribution="uniform",  # Changed from logit_normal - more appropriate for 0.03-0.15 range
+        min=0.03,
+        max=0.15,
+        mean=0.09,
+        scale="auto",
+    ),
+
+    "lp_params.ema_timescale": ParameterConfig(
+        distribution="log_normal",  # Changed to log_normal for better exploration of small values
+        min=0.001,
+        max=0.01,
+        mean=0.00316,  # Geometric mean: sqrt(0.001 * 0.01) ≈ 0.00316
+        scale="auto",
+    ),
+
+    "lp_params.num_active_tasks": ParameterConfig(
+        distribution="int_uniform",  # Changed to int_uniform since this is a count of tasks
+        min=1000,
+        max=5000,
+        mean=3000,  # Arithmetic mean for uniform distribution
+        scale="auto",
+    ),
+
+    "lp_params.rand_task_rate": ParameterConfig(
+        distribution="uniform",
+        min=0.1,
+        max=0.25,
+        mean=0.175,
+        scale="auto",
+    ),
+})

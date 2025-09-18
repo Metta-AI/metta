@@ -5,10 +5,11 @@ from metta.tools.sweep import SweepTool
 from metta.tools.sweep import DispatcherType
 
 
-def ppo(
+def protein(
     recipe: str = "experiments.recipes.arena",
     train: str = "train",
     eval: str = "evaluate",
+    protein_config: ProteinConfig | None = None,
     max_trials: int = 300,
     max_parallel_jobs: int = 6,
     gpus: int = 1,
@@ -21,6 +22,7 @@ def ppo(
         recipe: Recipe module to use for training and evaluation
         train: Training entrypoint name
         eval: Evaluation entrypoint name
+        protein_cfg: Protein configuration
         max_trials: Maximum number of trials to run
         max_parallel_jobs: Maximum parallel jobs
         gpus: Number of GPUs per job
@@ -32,67 +34,8 @@ def ppo(
     """
 
     # Define the 6 PPO parameters to sweep over
-    protein_config = ProteinConfig(
-        metric="evaluator/eval_arena/score",  # Metric to optimize
-        goal="maximize",
-        method="bayes",  # Use Bayesian optimization
-        parameters={
-            # 1. Learning rate - log scale from 1e-5 to 1e-2
-            "trainer.optimizer.learning_rate": ParameterConfig(
-                min=1e-5,
-                max=1e-2,
-                distribution="log_normal",
-                mean=1e-3,  # Geometric mean
-                scale="auto",
-            ),
-            # 2. PPO clip coefficient - uniform from 0.05 to 0.3
-            "trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
-                min=0.05,
-                max=0.3,
-                distribution="uniform",
-                mean=0.175,
-                scale="auto",
-            ),
-            # 3. Entropy coefficient - log scale from 0.0001 to 0.01
-            "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
-                min=0.0001,
-                max=0.01,
-                distribution="log_normal",
-                mean=0.001,  # Geometric mean
-                scale="auto",
-            ),
-            # 4. GAE lambda - uniform from 0.8 to 0.99
-            "trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
-                min=0.8,
-                max=0.99,
-                distribution="uniform",
-                mean=0.895,
-                scale="auto",
-            ),
-            # 5. Value function coefficient - uniform from 0.1 to 1.0
-            "trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
-                min=0.1,
-                max=1.0,
-                distribution="uniform",
-                mean=0.55,
-                scale="auto",
-            ),
-            # 6. Adam epsilon - log scale from 1e-8 to 1e-4
-            "trainer.optimizer.eps": ParameterConfig(
-                min=1e-8,
-                max=1e-4,
-                distribution="log_normal",
-                mean=1e-6,  # Geometric mean
-                scale="auto",
-            ),
-        },
-        settings=ProteinSettings(
-            num_random_samples=20,  # Start with 20 random samples for better exploration in large sweeps
-            max_suggestion_cost=7200 * 1.5,  # 3 hours max per trial (for quick testing)
-        ),
-    )
-
     # Import DispatcherType for local testing
+    assert protein_config is not None, "protein_config must be provided"
 
     # Configure based on local_test flag
     if local_test:
@@ -100,6 +43,13 @@ def ppo(
         dispatcher_type = DispatcherType.LOCAL
         total_timesteps = 50000  # Quick 50k timesteps for testing
         monitoring_interval = 30  # Check more frequently for local testing
+
+        # We let the batch size be set in training for the quick run
+        if "batch_size" in protein_config.parameters:
+            protein_config.parameters["batch_size"] = None
+
+        if "minibatch_size" in protein_config.parameters:
+            protein_config.parameters["minibatch_size"] = None
     else:
         # Production configuration
         dispatcher_type = DispatcherType.SKYPILOT
