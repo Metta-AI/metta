@@ -74,15 +74,11 @@ class TestTrainerCheckpointIntegration:
             world_size=1,
         )
 
-    def _prepare_run(self, run_name: str) -> tuple[Path, Path, TrainerConfig, AgentConfig, SystemConfig]:
+    def test_trainer_checkpoint_save_and_resume(self) -> None:
+        run_name = "test_checkpoint_run"
         run_dir = self.temp_dir / run_name
         checkpoint_dir = run_dir / "checkpoints"
         trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config(checkpoint_dir)
-        return run_dir, checkpoint_dir, trainer_cfg, agent_cfg, system_cfg
-
-    def test_trainer_checkpoint_save_and_resume(self) -> None:
-        run_name = "test_checkpoint_run"
-        run_dir, checkpoint_dir, trainer_cfg, agent_cfg, system_cfg = self._prepare_run(run_name)
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
@@ -149,7 +145,9 @@ class TestTrainerCheckpointIntegration:
 
     def test_checkpoint_fields_are_preserved(self) -> None:
         run_name = "test_checkpoint_fields"
-        run_dir, _, trainer_cfg, agent_cfg, system_cfg = self._prepare_run(run_name)
+        run_dir = self.temp_dir / run_name
+        checkpoint_dir = run_dir / "checkpoints"
+        trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config(checkpoint_dir)
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
@@ -187,7 +185,9 @@ class TestTrainerCheckpointIntegration:
 
     def test_policy_loading_from_checkpoint(self) -> None:
         run_name = "test_policy_loading"
-        run_dir, _, trainer_cfg, agent_cfg, system_cfg = self._prepare_run(run_name)
+        run_dir = self.temp_dir / run_name
+        checkpoint_dir = run_dir / "checkpoints"
+        trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config(checkpoint_dir)
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
@@ -224,7 +224,9 @@ class TestTrainerCheckpointIntegration:
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
     def test_checkpoint_with_gpu_device(self) -> None:
         run_name = "test_gpu_checkpoint"
-        run_dir, _, trainer_cfg, agent_cfg, system_cfg = self._prepare_run(run_name)
+        run_dir = self.temp_dir / run_name
+        checkpoint_dir = run_dir / "checkpoints"
+        trainer_cfg, agent_cfg, system_cfg = self._create_minimal_config(checkpoint_dir)
 
         system_cfg.device = "cuda"
         device = torch.device(system_cfg.device)
