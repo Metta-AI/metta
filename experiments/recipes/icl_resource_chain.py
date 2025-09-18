@@ -20,6 +20,7 @@ from metta.tools.train import TrainTool
 from pydantic import Field
 import numpy as np
 import subprocess
+import time
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -467,36 +468,44 @@ def experiment():
         "small_medium",
         "all_room_sizes",
         "longer_chains",
-        "longer_chains_more_sinks",
         "terrain",
     ]
-    progress_smoothings = list(np.linspace(0.05, 0.15, 3))
-    ema_timescales = list(np.linspace(0.001, 0.01, 3))
-    exploration_bonuses = list(np.linspace(0.03, 0.15, 3))
-    num_active_tasks = list(np.linspace(1000, 5000, 3))
-    rand_task_rate = list(np.linspace(0.05, 0.4, 3))
+    progress_smoothings = list(np.linspace(0.05, 0.15, 2))
+    exploration_bonuses = list(np.linspace(0.03, 0.15, 2))
+    num_active_tasks = list(np.linspace(1000, 5000, 2))
+    rand_task_rates = list(np.linspace(0.1, 0.25, 2))
+    total_experiments = (
+        len(curriculum_styles)
+        * len(progress_smoothings)
+        * len(exploration_bonuses)
+        * len(num_active_tasks)
+        * len(rand_task_rates)
+    )
+    print(f"Total experiments to run: {total_experiments}")
 
     for curriculum_style in curriculum_styles:
         for progress_smoothing in progress_smoothings:
-            for ema_timescale in ema_timescales:
-                for exploration_bonus in exploration_bonuses:
-                    subprocess.run(
-                        [
-                            "./devops/skypilot/launch.py",
-                            "experiments.recipes.icl_resource_chain.train",
-                            f"run=icl_resource_chain_{curriculum_style}_{progress_smoothing}_{ema_timescale}_{exploration_bonus}.09-18",
-                            "style",
-                            curriculum_style,
-                            "lp_params",
-                            f"progress_smoothing={progress_smoothing}",
-                            f"ema_timescale={ema_timescale}",
-                            f"exploration_bonus={exploration_bonus}",
-                            f"num_active_tasks={num_active_tasks}",
-                            f"rand_task_rate={rand_task_rate}",
-                            "--gpus=4",
-                            "--heartbeat-timeout=3600",
-                        ]
-                    )
+            for exploration_bonus in exploration_bonuses:
+                for num_active_task in num_active_tasks:
+                    for rand_task_rate in rand_task_rates:
+                        subprocess.run(
+                            [
+                                "./devops/skypilot/launch.py",
+                                "experiments.recipes.icl_resource_chain.train",
+                                f"run=icl_resource_chain_{curriculum_style}_PS{progress_smoothing.round(2)}_EB{exploration_bonus.round(2)}_NAT{int(num_active_task)}_RTR{rand_task_rate.round(2)}.09-18",
+                                "style",
+                                curriculum_style,
+                                "lp_params",
+                                f"progress_smoothing={progress_smoothing.round(2)}",
+                                f"exploration_bonus={exploration_bonus.round(2)}",
+                                f"num_active_tasks={int(num_active_task)}",
+                                f"rand_task_rate={rand_task_rate.round(2)}",
+                                "--gpus=4",
+                                "--heartbeat-timeout=3600",
+                                "--skip-git-check",
+                            ]
+                        )
+                        time.sleep(1)
 
 
 if __name__ == "__main__":
