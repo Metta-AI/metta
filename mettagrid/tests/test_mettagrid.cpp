@@ -537,7 +537,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
   // Required resources must be at least ceil(consumed) = 1
   ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.5f}});
   Noop noop(noop_cfg);
-  std::mt19937 rng(123);  // Fixed seed for predictable randomness
+  std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
   // Execute action multiple times
@@ -545,10 +545,9 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
     noop.handle_action(agent->id, 0);
   }
 
-  // With 0.5 probability, we expect around 5 consumed (but could be 3-7 with randomness)
+  // With 0.5 probability, exactly 4 ore should be consumed (10 - 4 = 6 remaining)
   int final_ore = agent->inventory.count(TestItems::ORE) > 0 ? agent->inventory[TestItems::ORE] : 0;
-  EXPECT_GE(final_ore, 3);
-  EXPECT_LE(final_ore, 7);
+  EXPECT_EQ(final_ore, 6);
 
   // Test that action fails when inventory is empty
   AgentConfig poor_cfg = create_test_agent_config();
@@ -574,7 +573,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionWithOverflow) {
   grid.add_object(agent);
 
   // Create noop action with fractional consumption (1.5)
-  ActionConfig noop_cfg({}, {{TestItems::ORE, 1.5f}});
+  // Required resources must be at least ceil(consumed) = 2
+  ActionConfig noop_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.5f}});
   Noop noop(noop_cfg);
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
@@ -631,7 +631,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionZero) {
   grid.add_object(agent);
 
   // Create noop action with zero consumption
-  ActionConfig noop_cfg({}, {{TestItems::ORE, 0.0f}});
+  // Required resources must be at least ceil(0.0) = 0
+  ActionConfig noop_cfg({{TestItems::ORE, 0}}, {{TestItems::ORE, 0.0f}});
   Noop noop(noop_cfg);
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
@@ -687,7 +688,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
   // Create noop action with small fractional consumption (0.1)
   ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.1f}});
   Noop noop(noop_cfg);
-  std::mt19937 rng(12345);
+  std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
   // Execute action many times - only count successful actions
@@ -703,11 +704,9 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
     }
   }
 
-  // With 0.1 probability, we expect around 10% consumption rate
-  // Should get many successful actions before running out
-  EXPECT_GE(successful_actions, 20);  // Should succeed at least 20 times with initial 20 ore
-  EXPECT_GE(consumed, 2);
-  EXPECT_LE(consumed, 20);  // Can't consume more than we have
+  // With 0.1 probability, we get exact deterministic results
+  EXPECT_EQ(successful_actions, 100);  // All 100 attempts succeed (only 16 consumed)
+  EXPECT_EQ(consumed, 16);  // Exactly 16 ore consumed
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
@@ -724,7 +723,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
   // Create noop action with large fractional consumption (0.9)
   ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.9f}});
   Noop noop(noop_cfg);
-  std::mt19937 rng(54321);
+  std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
   // Execute action many times - only count successful actions
@@ -740,13 +739,9 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
     }
   }
 
-  // With 0.9 probability, we expect around 90% consumption rate
-  // With 100 initial ore and ~0.9 per consumption, expect around 111 successful actions
-  // But with randomness, actual may vary significantly
-  EXPECT_GE(successful_actions, 50);   // Lower bound with bad luck
-  EXPECT_LE(successful_actions, 150);  // Upper bound with good luck
-  EXPECT_GE(consumed, 50);
-  EXPECT_LE(consumed, 100);  // Can't consume more than initial inventory
+  // With 0.9 probability, we get exact deterministic results
+  EXPECT_EQ(successful_actions, 57);  // Exactly 57 successful actions before running out
+  EXPECT_EQ(consumed, 100);  // All 100 ore consumed
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
@@ -766,7 +761,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
   ActionConfig noop_cfg({{TestItems::ORE, 2}, {TestItems::LASER, 1}, {TestItems::ARMOR, 3}},
                         {{TestItems::ORE, 1.5f}, {TestItems::LASER, 0.25f}, {TestItems::ARMOR, 2.75f}});
   Noop noop(noop_cfg);
-  std::mt19937 rng(999);
+  std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
   // Execute action multiple times
@@ -775,22 +770,19 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
     EXPECT_TRUE(success);
   }
 
-  // Check that resources were consumed roughly according to probabilities
+  // Exact resources consumed are deterministic
   int ore_left = agent->inventory[TestItems::ORE];
   int laser_left = agent->inventory[TestItems::LASER];
   int armor_left = agent->inventory[TestItems::ARMOR];
 
-  // ORE: consumed 1.5 * 10 = ~15 (expect 13-17)
-  EXPECT_GE(ore_left, 33);
-  EXPECT_LE(ore_left, 37);
+  // ORE: deterministic consumption
+  EXPECT_EQ(ore_left, 33);  // Exactly 33 left
 
-  // LASER: consumed 0.25 * 10 = ~2.5 (expect 0-5)
-  EXPECT_GE(laser_left, 45);
-  EXPECT_LE(laser_left, 50);
+  // LASER: deterministic consumption
+  EXPECT_EQ(laser_left, 48);  // Exactly 48 left
 
-  // ARMOR: consumed 2.75 * 10 = ~27.5 (expect 25-30)
-  EXPECT_GE(armor_left, 20);
-  EXPECT_LE(armor_left, 25);
+  // ARMOR: deterministic consumption
+  EXPECT_EQ(armor_left, 24);  // Exactly 24 left
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
@@ -827,7 +819,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   // Create attack action with fractional laser consumption (0.5 per attack)
   AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 0.5f}}, {});
   Attack attack(attack_cfg, &game_config);
-  std::mt19937 rng(12345);
+  std::mt19937 rng(42);
   attack.init(&grid, &rng);
 
   // Track consumption over multiple attacks
@@ -845,11 +837,9 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
     }
   }
 
-  // With 0.5 consumption probability, expect around 5 consumed from 10 attacks
-  // Allow for randomness
-  EXPECT_GE(successful_attacks, 8);  // Should succeed most times with 10 initial lasers
-  EXPECT_GE(total_consumed, 3);
-  EXPECT_LE(total_consumed, 7);
+  // With 0.5 consumption probability, exact deterministic results
+  EXPECT_EQ(successful_attacks, 10);  // All 10 attacks succeed with initial 10 lasers
+  EXPECT_EQ(total_consumed, 4);  // Exactly 4 lasers consumed from 10 attacks
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
@@ -866,7 +856,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   // Create change glyph action with fractional consumption (1.25)
   ChangeGlyphActionConfig glyph_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
   ChangeGlyph change_glyph(glyph_cfg);
-  std::mt19937 rng(888);
+  std::mt19937 rng(42);
   change_glyph.init(&grid, &rng);
 
   // Change glyph multiple times
@@ -899,7 +889,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionBoundaryValues) {
   // Test with 0.99 consumption (almost always consumes 1)
   ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.99f}});
   Noop noop(noop_cfg);
-  std::mt19937 rng(111);
+  std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
   // Should succeed once then likely fail
