@@ -425,15 +425,49 @@ class TestTaskRecreation:
         curriculum2 = Curriculum(curriculum_config, seed=999)
         curriculum2.load_state(state)
 
-        # Verify that tasks can be retrieved and have proper env_cfg
+        # Verify that tasks can be retrieved and have proper data
         for task_id in original_tasks:
             if task_id in curriculum2._tasks:
                 task = curriculum2._tasks[task_id]
-                # After loading, the task should have recreated env_cfg
-                assert task._env_cfg is not None
 
                 # Verify task data is preserved
                 assert task._num_completions == original_tasks[task_id]["num_completions"]
                 assert task._total_score == original_tasks[task_id]["total_score"]
                 assert abs(task._mean_score - original_tasks[task_id]["mean_score"]) < 1e-6
                 assert task._num_scheduled == original_tasks[task_id]["num_scheduled"]
+
+        # Verify env_cfg is recreated when tasks are accessed
+        retrieved_task = curriculum2.get_task()
+        assert retrieved_task._env_cfg is not None, "env_cfg should be recreated when task is accessed"
+
+    def test_lazy_env_cfg_recreation_performance(self):
+        """Test that lazy env_cfg recreation improves loading performance."""
+        import time
+
+        # Create curriculum with many tasks
+        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
+        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+
+        curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=1000)
+
+        curriculum = Curriculum(curriculum_config, seed=42)
+
+        # Generate many tasks
+        for _ in range(100):
+            task = curriculum.get_task()
+            task.complete(0.5)
+
+        # Measure loading time
+        state = curriculum.get_state()
+
+        start_time = time.time()
+        curriculum2 = Curriculum(curriculum_config, seed=999)
+        curriculum2.load_state(state)
+        load_time = time.time() - start_time
+
+        # Loading should be fast (< 1 second for 1000 tasks)
+        assert load_time < 1.0, f"Loading took {load_time:.2f}s, expected < 1.0s"
+
+        # Verify tasks work correctly after loading
+        task = curriculum2.get_task()
+        assert task._env_cfg is not None, "env_cfg should be recreated when task is accessed"

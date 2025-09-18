@@ -169,7 +169,12 @@ def train(
 
     # Load curriculum state from checkpoint if available
     if trainer_state and "curriculum_state" in trainer_state:
-        curriculum.load_state(trainer_state["curriculum_state"])
+        try:
+            curriculum.load_state(trainer_state["curriculum_state"])
+            logger.info("Successfully restored curriculum state from checkpoint")
+        except Exception as e:
+            logger.error(f"Failed to restore curriculum state from checkpoint: {e}")
+            logger.warning("Continuing with fresh curriculum state - learning progress may be lost")
 
     if trainer_state:
         logger.info(f"Restored from checkpoint at {agent_step} steps")
@@ -530,7 +535,12 @@ def train(
 
                 # Save agent and trainer state (always upload to remote prefix if configured)
                 policy_uri = checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
-                curriculum_state = curriculum.get_state()
+                try:
+                    curriculum_state = curriculum.get_state()
+                except Exception as e:
+                    logger.error(f"Failed to serialize curriculum state: {e}")
+                    logger.warning("Saving checkpoint without curriculum state - restart may lose learning progress")
+                    curriculum_state = None
                 checkpoint_manager.save_trainer_state(
                     optimizer, epoch, agent_step, timer.save_state(), curriculum_state
                 )
@@ -673,7 +683,11 @@ def train(
     final_metadata["is_final"] = True
 
     checkpoint_manager.save_agent(agent_to_save, epoch, final_metadata)
-    curriculum_state = curriculum.get_state()
+    try:
+        curriculum_state = curriculum.get_state()
+    except Exception as e:
+        logger.error(f"Failed to serialize curriculum state for final checkpoint: {e}")
+        curriculum_state = None
     checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, curriculum_state=curriculum_state)
 
     cleanup_monitoring(memory_monitor, system_monitor)
