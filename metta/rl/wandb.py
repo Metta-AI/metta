@@ -3,16 +3,50 @@ RL-specific W&B utilities and metrics setup.
 """
 
 import logging
+import os
+import time
+import weakref
+from typing import Dict
 
-import torch
 import torch.nn as nn
+import wandb
 
-from metta.common.wandb.context import WandbRun
-from metta.common.wandb.utils import (
-    load_artifact_file,
-)
+from metta.common.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger(__name__)
+
+_ABORT_STATE: weakref.WeakKeyDictionary[WandbRun, Dict[str, float | bool]] = weakref.WeakKeyDictionary()
+_WANDB_API_TIMEOUT_SECS = int(os.getenv("METTA_WANDB_API_TIMEOUT", "60"))
+
+
+def _create_wandb_api() -> wandb.Api:
+    """Create a WandB API client with a configurable timeout override."""
+    return wandb.Api(timeout=_WANDB_API_TIMEOUT_SECS)
+
+
+def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> bool:
+    """Check if wandb run has an 'abort' tag, throttling API calls to min_interval_sec."""
+    if wandb_run is None:
+        return False
+
+    state = _ABORT_STATE.setdefault(wandb_run, {"last_check": 0.0, "cached_result": False})
+    now = time.time()
+
+    # Return cached result if within throttle interval
+    if now - state["last_check"] < min_interval_sec:
+        return bool(state["cached_result"])
+
+    # Time to check again
+    state["last_check"] = now
+    try:
+        run_obj = _create_wandb_api().run(wandb_run.path)
+        state["cached_result"] = "abort" in run_obj.tags
+    except Exception as e:
+        logger.debug(f"Abort tag check failed: {e}")
+        state["cached_result"] = False
+
+    return bool(state["cached_result"])
+
 
 POLICY_EVALUATOR_METRIC_PREFIX = "evaluator"
 POLICY_EVALUATOR_STEP_METRIC = "metric/evaluator_agent_step"
@@ -47,31 +81,3 @@ def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     num_params = sum(p.numel() for p in policy.parameters())
     if wandb_run.summary:
         wandb_run.summary["model/total_parameters"] = num_params
-
-
-def load_policy_from_wandb_uri(wandb_uri: str, device: str | torch.device = "cpu") -> torch.nn.Module:
-    """Load policy from wandb URI (handles both short and full formats).
-
-    Accepts:
-    - Short format: "wandb://run/my-run" (ENTITY from WANDB_ENTITY or METTA_WANDB_ENTITY)
-    - Full format: "wandb://entity/project/artifact:version"
-
-    Raises:
-        ValueError: If URI is not a wandb:// URI
-        FileNotFoundError: If no .pt files found in artifact
-    """
-    if not wandb_uri.startswith("wandb://"):
-        raise ValueError(f"Not a wandb URI: {wandb_uri}")
-
-    # Use the common utility to load the artifact file
-    logger.info(f"Loading policy from wandb URI: {wandb_uri}")
-    model_file = load_artifact_file(wandb_uri, filename="model.pt", fallback_pattern="*.pt")
-
-    try:
-        # Load the model
-        model = torch.load(model_file, map_location=device, weights_only=False)
-        return model
-    finally:
-        # Clean up the temporary file
-        if model_file.exists():
-            model_file.unlink()

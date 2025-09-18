@@ -35,13 +35,15 @@ def replay() -> ReplayTool:
     env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.replay(env)
-    # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
+    # cfg.policy_uri = "s3://your-bucket/checkpoints/daveey.combat.lpsm.8x4/daveey.combat.lpsm.8x4:v42.pt"
     return cfg
 
 
-def evaluate(policy_uri: str = "wandb://run/local.{{ USER }}.1") -> SimTool:
+def evaluate(
+    policy_uri: str = "s3://your-bucket/checkpoints/local.{{ USER }}.1/local.{{ USER }}.1:v10.pt",
+) -> SimTool:
     cfg = arena.evaluate(policy_uri=policy_uri)
 
     # If your run doesn't exist, try this:
-    # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
+    # cfg = arena.evaluate(policy_uri="s3://your-bucket/checkpoints/daveey.combat.lpsm.8x4/daveey.combat.lpsm.8x4:v42.pt")
     return cfg
