@@ -2,8 +2,8 @@ from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
 
 from experiments.recipes.in_context_learning.ordered_chain import (
-    OrderedChainTaskGenerator,
     ICLTaskGenerator,
+    OrderedChainTaskGenerator,
 )
 
 
