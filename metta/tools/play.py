@@ -3,7 +3,7 @@
 import logging
 
 import mettascope.server as server
-from metta.common.tool import Tool
+from metta.common.tool.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
@@ -13,10 +13,11 @@ from metta.tools.utils.auto_config import auto_wandb_config
 logger = logging.getLogger(__name__)
 
 
-class PlayTool(Tool):
+class PlayTool(Tool[SimulationConfig]):
     wandb: WandbConfig = auto_wandb_config()
-    sim: SimulationConfig
+    config: SimulationConfig
     policy_uri: str | None = None
+
     replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
@@ -43,11 +44,11 @@ class PlayTool(Tool):
 
 def create_simulation(cfg: PlayTool) -> Simulation:
     """Create a simulation for playing/replaying."""
-    logger.info(f"Creating simulation: {cfg.sim.name}")
+    logger.info(f"Creating simulation: {cfg.config.name}")
 
     # Create simulation using CheckpointManager integration
     sim = Simulation.create(
-        sim_config=cfg.sim,
+        sim_config=cfg.config,
         device=cfg.system.device,
         vectorization=cfg.system.vectorization,
         stats_dir=cfg.effective_stats_dir,

@@ -58,7 +58,7 @@ def basic_training_job():
     """Basic training job with minimal configuration."""
     return JobDefinition(
         run_id="sweep_test_trial_001",
-        cmd="experiments.recipes.arena.train",
+        cmd="train arena",
         type=JobTypes.LAUNCH_TRAINING,
     )
 
@@ -68,9 +68,9 @@ def basic_eval_job():
     """Basic evaluation job."""
     return JobDefinition(
         run_id="sweep_test_trial_001_eval",
-        cmd="experiments.recipes.arena.evaluate",
+        cmd="evaluate arena",
         type=JobTypes.LAUNCH_EVAL,
-        metadata={"policy_uri": "s3://policies/test/policy.pt"},
+        metadata={"policy_uri": "file://./checkpoints/policy.pt"},
     )
 
 
@@ -79,7 +79,7 @@ def complex_job():
     """Complex job with all parameters set."""
     return JobDefinition(
         run_id="sweep_complex_trial_042",
-        cmd="experiments.recipes.navigation.train_shaped",
+        cmd="train navigation",
         gpus=4,
         nodes=2,
         args=["positional_arg1", "positional_arg2"],
@@ -111,7 +111,8 @@ class TestCommandConstruction:
             get_launch_script_path(),
             "--no-spot",
             "--gpus=1",
-            "experiments.recipes.arena.train",
+            "train",
+            "arena",
             "run=sweep_test_trial_001",
         ]
 
@@ -128,8 +129,9 @@ class TestCommandConstruction:
             get_launch_script_path(),
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
-            "experiments.recipes.arena.evaluate",
-            "policy_uri=s3://policies/test/policy.pt",
+            "evaluate",
+            "arena",
+            "policy_uri=file://./checkpoints/policy.pt",
         ]
 
         mock_popen.assert_called_once_with(
@@ -149,7 +151,8 @@ class TestCommandConstruction:
             get_launch_script_path(),
             "--no-spot",
             "--gpus=8",
-            "experiments.recipes.arena.train",
+            "train",
+            "arena",
             "run=gpu_test",
         ]
 
@@ -171,7 +174,8 @@ class TestCommandConstruction:
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
             "--nodes=4",
-            "experiments.recipes.arena.train",
+            "train",
+            "arena",
             "run=node_test",
         ]
 
@@ -183,7 +187,7 @@ class TestCommandConstruction:
         """Test job with both GPU and node configuration."""
         job = JobDefinition(
             run_id="distributed_test",
-            cmd="experiments.recipes.arena.train",
+            cmd="train arena",
             gpus=4,
             nodes=2,
             type=JobTypes.LAUNCH_TRAINING,
@@ -197,7 +201,8 @@ class TestCommandConstruction:
             "--no-spot",
             "--gpus=4",
             "--nodes=2",
-            "experiments.recipes.arena.train",
+            "train",
+            "arena",
             "run=distributed_test",
         ]
 
@@ -215,7 +220,8 @@ class TestCommandConstruction:
             "--no-spot",
             "--gpus=4",
             "--nodes=2",
-            "experiments.recipes.navigation.train_shaped",
+            "train",
+            "navigation",
             "positional_arg1",
             "positional_arg2",
             "run=sweep_complex_trial_042",
@@ -243,7 +249,8 @@ class TestCommandConstruction:
         expected_cmd = [
             get_launch_script_path(),
             "--no-spot",
-            "experiments.recipes.arena.train",
+            "train",
+            "arena",
             "run=no_gpu_test",
         ]
 
@@ -264,7 +271,8 @@ class TestCommandConstruction:
             get_launch_script_path(),
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
-            "experiments.recipes.arena.train",
+            "train",
+            "arena",
             "run=single_node_test",
         ]
 
@@ -285,7 +293,7 @@ class TestFlagOrdering:
         """Verify --no-spot is always the first flag."""
         job = JobDefinition(
             run_id="flag_test",
-            cmd="experiments.recipes.arena.train",
+            cmd="train arena",
             gpus=2,
             nodes=3,
             type=JobTypes.LAUNCH_TRAINING,
@@ -306,7 +314,7 @@ class TestFlagOrdering:
         """Verify --gpus comes before --nodes when both present."""
         job = JobDefinition(
             run_id="ordering_test",
-            cmd="experiments.recipes.arena.train",
+            cmd="train arena",
             gpus=4,
             nodes=2,
             type=JobTypes.LAUNCH_TRAINING,
@@ -328,7 +336,7 @@ class TestFlagOrdering:
         """Verify all flags come before the job command."""
         job = JobDefinition(
             run_id="position_test",
-            cmd="experiments.recipes.arena.train",
+            cmd="train arena",
             gpus=2,
             nodes=2,
             type=JobTypes.LAUNCH_TRAINING,
@@ -569,8 +577,8 @@ class TestDispatcherComparison:
             # Both should have metadata but no run_id
             assert "--args" not in local_cmd
             assert "--args" not in sky_cmd
-            assert "policy_uri=s3://policies/test/policy.pt" in local_cmd
-            assert "policy_uri=s3://policies/test/policy.pt" in sky_cmd
+            assert "policy_uri=file://./checkpoints/policy.pt" in local_cmd
+            assert "policy_uri=file://./checkpoints/policy.pt" in sky_cmd
             assert not any("run=" in arg for arg in local_cmd)
             assert not any("run=" in arg for arg in sky_cmd)
 

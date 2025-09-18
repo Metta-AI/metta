@@ -9,7 +9,7 @@ import torch
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.tool import Tool
+from metta.common.tool.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.eval.eval_service import evaluate_policy
@@ -32,10 +32,11 @@ def _determine_run_name(policy_uri: str) -> str:
     return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
-class SimTool(Tool):
+class SimTool(Tool[Sequence[SimulationConfig]]):
     # required params:
-    simulations: Sequence[SimulationConfig]  # list of simulations to run
+    config: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
+
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = auto_wandb_config()
@@ -66,7 +67,7 @@ class SimTool(Tool):
         if self.stats_server_uri is not None:
             stats_client = StatsClient.create(self.stats_server_uri)
 
-        all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
+        all_results = {"simulations": [sim.name for sim in self.config], "policies": []}
         device = torch.device(self.system.device)
 
         wandb_run = None
@@ -99,7 +100,7 @@ class SimTool(Tool):
 
             eval_results = evaluate_policy(
                 checkpoint_uri=normalized_uri,
-                simulations=list(self.simulations),
+                simulations=list(self.config),
                 stats_dir=self.stats_dir,
                 replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
                 device=device,

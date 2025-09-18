@@ -1,24 +1,26 @@
 from abc import abstractmethod
+from typing import Generic, TypeVar
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from metta.rl.system_config import SystemConfig
 from mettagrid.config import Config
 
+TConfig = TypeVar("TConfig", bound=BaseModel)
 
-class Tool(Config):
-    """Base class for tools.
+
+class Tool(Config, Generic[TConfig]):
+    """Base tool class with typed config field.
 
     To make a tool, you need to:
-    1) Define a class that inherits from Tool.
-    2) Define a `invoke` method that returns an exit code, optionally.
-    3) Make a function that returns an instance of your tool class.
-    4) Run the tool with `./tools/run.py <path.to.tool.function>`.
+    1) Define a class that inherits from Tool[ConfigType] where ConfigType is your config type.
+    2) Define an `invoke` method that returns an exit code, optionally.
+    3) Use the recipe running system: tools are invoked via `./tools/run.py <verb> <recipe>`.
 
-    The function can optionally take arguments, which will be passed to the tool when passed in `--args`."""
+    The tool's config field is populated from recipe builder functions that return the matching type."""
 
     system: SystemConfig = Field(default_factory=SystemConfig)
+    config: TConfig  # The type annotation is the entire contract
 
-    # Returns exit code, optionally.
     @abstractmethod
     def invoke(self, args: dict[str, str]) -> int | None: ...

@@ -230,12 +230,12 @@ class TestComprehensiveEnvironmentIntegration:
         sim_config = SimulationConfig(name="test_resource", env=env_config)
 
         # Test ReplayTool configuration
-        replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
-        assert replay_tool.sim.name == "test_resource"
+        replay_tool = ReplayTool(config=sim_config, policy_uri=None, open_browser_on_start=False)
+        assert replay_tool.config.name == "test_resource"
 
         # Test PlayTool configuration
-        play_tool = PlayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
-        assert play_tool.sim.name == "test_resource"
+        play_tool = PlayTool(config=sim_config, policy_uri=None, open_browser_on_start=False)
+        assert play_tool.config.name == "test_resource"
 
     def test_agents_count_in_environments(self):
         """Test that each debug environment has exactly 2 agents."""

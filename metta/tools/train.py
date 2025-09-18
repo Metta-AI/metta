@@ -7,7 +7,7 @@ import torch
 import gitta as git
 from metta.agent.agent_config import AgentConfig
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.tool import Tool
+from metta.common.tool.tool import Tool
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -27,8 +27,8 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
-class TrainTool(Tool):
-    trainer: TrainerConfig = TrainerConfig()
+class TrainTool(Tool[TrainerConfig]):
+    config: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfig.Unconfigured()
     policy_architecture: Optional[AgentConfig] = None
     run: Optional[str] = None
@@ -63,8 +63,8 @@ class TrainTool(Tool):
             self.policy_uri = CheckpointManager.normalize_uri(f"{self.run_dir}/checkpoints")
 
         # Set up checkpoint and replay directories
-        if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+        if not self.config.checkpoint.checkpoint_dir:
+            self.config.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
         # Initialize policy_architecture if not provided
         if self.policy_architecture is None:
@@ -77,10 +77,10 @@ class TrainTool(Tool):
         if group_override:
             self.wandb.group = group_override
 
-        if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
+        if self.config.checkpoint.remote_prefix is None and self.run is not None:
             storage_decision = auto_policy_storage_decision(self.run)
             if storage_decision.remote_prefix:
-                self.trainer.checkpoint.remote_prefix = storage_decision.remote_prefix
+                self.config.checkpoint.remote_prefix = storage_decision.remote_prefix
                 if storage_decision.reason == "env_override":
                     logger.info_master(
                         "Using POLICY_REMOTE_PREFIX for policy storage: %s",
@@ -114,8 +114,8 @@ class TrainTool(Tool):
 
         torch_dist_cfg = setup_torch_distributed(self.system.device)
 
-        if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+        if not self.config.checkpoint.checkpoint_dir:
+            self.config.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
         logger.info_master(
             f"Training {self.run} on "
@@ -152,16 +152,16 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
 
     # Handle distributed training batch scaling
     if torch_dist_cfg.distributed:
-        if cfg.trainer.scale_batches_by_world_size:
-            cfg.trainer.forward_pass_minibatch_target_size = (
-                cfg.trainer.forward_pass_minibatch_target_size // torch_dist_cfg.world_size
+        if cfg.config.scale_batches_by_world_size:
+            cfg.config.forward_pass_minibatch_target_size = (
+                cfg.config.forward_pass_minibatch_target_size // torch_dist_cfg.world_size
             )
-            cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
+            cfg.config.batch_size = cfg.config.batch_size // torch_dist_cfg.world_size
 
     checkpoint_manager = CheckpointManager(
         run=cfg.run,
         run_dir=cfg.run_dir,
-        remote_prefix=cfg.trainer.checkpoint.remote_prefix,
+        remote_prefix=cfg.config.checkpoint.remote_prefix,
     )
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
@@ -183,7 +183,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         system_cfg=cfg.system,
         agent_cfg=cfg.policy_architecture,
         device=torch.device(cfg.system.device),
-        trainer_cfg=cfg.trainer,
+        trainer_cfg=cfg.config,
         wandb_run=wandb_run,
         checkpoint_manager=checkpoint_manager,
         stats_client=stats_client,
@@ -194,54 +194,55 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
 def _configure_vecenv_settings(cfg: TrainTool) -> None:
     """Calculate default number of workers based on hardware."""
     if cfg.system.vectorization == "serial":
-        cfg.trainer.rollout_workers = 1
-        cfg.trainer.async_factor = 1
+        cfg.config.rollout_workers = 1
+        cfg.config.async_factor = 1
         return
 
     num_gpus = torch.cuda.device_count() or 1  # fallback to 1 to avoid division by zero
     cpu_count = os.cpu_count() or 1  # fallback to 1 to avoid division by None
     ideal_workers = (cpu_count // 2) // num_gpus
-    cfg.trainer.rollout_workers = max(1, ideal_workers)
+    cfg.config.rollout_workers = max(1, ideal_workers)
 
 
 def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | None) -> None:
-    if cfg.trainer.evaluation is None:
+    if cfg.config.evaluation is None:
         return
 
-    if cfg.trainer.evaluation.replay_dir is None:
-        cfg.trainer.evaluation.replay_dir = auto_replay_dir()
-        logger.info_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
+    if cfg.config.evaluation.replay_dir is None:
+        cfg.config.evaluation.replay_dir = auto_replay_dir()
+        logger.info_master(f"Setting replay_dir to {cfg.config.evaluation.replay_dir}")
 
     if cfg.stats_server_uri is not None and stats_client is None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
 
     # Determine git hash for remote simulations
-    if cfg.trainer.evaluation.evaluate_remote:
+    if cfg.config.evaluation.evaluate_remote:
         if not stats_client:
-            cfg.trainer.evaluation.evaluate_remote = False
+            cfg.config.evaluation.evaluate_remote = False
             logger.info_master("Not connected to stats server, disabling remote evaluations")
-        elif not cfg.trainer.evaluation.evaluate_interval:
-            cfg.trainer.evaluation.evaluate_remote = False
+        elif not cfg.config.evaluation.evaluate_interval:
+            cfg.config.evaluation.evaluate_remote = False
             logger.info_master("Evaluate interval set to 0, disabling remote evaluations")
-        elif not cfg.trainer.evaluation.git_hash:
-            cfg.trainer.evaluation.git_hash = git.get_git_hash_for_remote_task(
+        elif not cfg.config.evaluation.git_hash:
+            cfg.config.evaluation.git_hash = git.get_git_hash_for_remote_task(
                 target_repo=REPO_SLUG,
-                skip_git_check=cfg.trainer.evaluation.skip_git_check,
+                skip_git_check=cfg.config.evaluation.skip_git_check,
                 skip_cmd="trainer.evaluation.skip_git_check=true",
             )
-            if cfg.trainer.evaluation.git_hash:
-                logger.info_master(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
+            if cfg.config.evaluation.git_hash:
+                logger.info_master(f"Git hash for remote evaluations: {cfg.config.evaluation.git_hash}")
             else:
                 logger.info_master("No git hash available for remote evaluations")
 
 
 def _minimize_config_for_debugging(cfg: TrainTool) -> TrainTool:
-    cfg.trainer.minibatch_size = min(cfg.trainer.minibatch_size, 1024)
-    cfg.trainer.batch_size = min(cfg.trainer.batch_size, 1024)
-    cfg.trainer.async_factor = 1
-    cfg.trainer.forward_pass_minibatch_target_size = min(cfg.trainer.forward_pass_minibatch_target_size, 4)
-    cfg.trainer.checkpoint.checkpoint_interval = min(cfg.trainer.checkpoint.checkpoint_interval, 10)
-    cfg.trainer.bptt_horizon = min(cfg.trainer.bptt_horizon, 8)
-    if cfg.trainer.evaluation:
-        cfg.trainer.evaluation.evaluate_interval = min(cfg.trainer.evaluation.evaluate_interval, 10)
+    cfg.config.minibatch_size = min(cfg.config.minibatch_size, 1024)
+    cfg.config.batch_size = min(cfg.config.batch_size, 1024)
+    cfg.config.async_factor = 1
+    cfg.config.forward_pass_minibatch_target_size = min(cfg.config.forward_pass_minibatch_target_size, 4)
+    cfg.config.checkpoint.checkpoint_interval = min(cfg.config.checkpoint.checkpoint_interval, 10)
+    cfg.config.checkpoint.wandb_checkpoint_interval = min(cfg.config.checkpoint.wandb_checkpoint_interval, 10)
+    cfg.config.bptt_horizon = min(cfg.config.bptt_horizon, 8)
+    if cfg.config.evaluation:
+        cfg.config.evaluation.evaluate_interval = min(cfg.config.evaluation.evaluate_interval, 10)
     return cfg
