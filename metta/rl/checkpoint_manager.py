@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.mettagrid.util.file import local_copy, write_file
-from metta.mettagrid.util.uri import ParsedURI
+from mettagrid.util.file import local_copy, write_file
+from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 

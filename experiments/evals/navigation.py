@@ -1,8 +1,9 @@
-from metta.mettagrid.builder.envs import make_navigation
-from metta.mettagrid.mapgen.mapgen import MapGen
-from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder.envs import make_navigation
+from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.mean_distance import MeanDistance
+
 from experiments.evals.cfg import NAVIGATION_EVALS
 
 

@@ -4,21 +4,23 @@ from typing import Optional
 
 import gitta
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
+import mettagrid.builder.envs as eb
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
-from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mapgen.mapgen import MapGen
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.mapgen.mapgen import MapGen
 
 from experiments.evals.navigation_sequence import make_navigation_sequence_eval_suite
 
