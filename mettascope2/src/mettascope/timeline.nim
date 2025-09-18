@@ -22,7 +22,9 @@ proc playControls*() =
   if play:
     stepFloat += playSpeed
     if stepFloat >= replay.maxSteps.float32:
-      stepFloat -= replay.maxSteps.float32
+      echo "Requesting Python form timeline"
+      requestPython = true
+      stepFloat = replay.maxSteps.float32 - 1
     step = stepFloat.int
     step = step.clamp(0, replay.maxSteps - 1)
 
