@@ -21,7 +21,7 @@ from devops.skypilot.utils.job_helpers import (
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
-from metta.common.wandb.wandb_runs import auto_run_name
+from metta.tools.utils.auto_config import auto_run_name
 
 logger = logging.getLogger("launch.py")
 

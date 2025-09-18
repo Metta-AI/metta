@@ -1,10 +1,12 @@
+import os
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from metta.common.util.collections import remove_none_values
+from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.util.constants import METTA_AWS_ACCOUNT_ID
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.setup.components.aws import AWSSetup
@@ -166,3 +168,15 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
 
     remote = _join_prefix(cleaned_base, run) if run else None
     return PolicyStorageDecision(base_prefix=cleaned_base, remote_prefix=remote, reason="softmax_connected")
+
+
+def auto_run_name(prefix: str | None = None) -> str:
+    return ".".join(
+        remove_falsey(
+            [
+                prefix,
+                os.getenv("USER", "unknown"),
+                datetime.now().strftime("%Y%m%d.%H%M%S"),
+            ]
+        )
+    )

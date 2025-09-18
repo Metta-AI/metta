@@ -5,7 +5,7 @@ from typing import Any, Optional, Type, TypeVar
 import httpx
 from pydantic import BaseModel
 
-from metta.app_backend.clients.base_client import NotAuthenticatedError
+from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
 from metta.app_backend.routes.score_routes import (
     PolicyScoresData,
@@ -22,7 +22,6 @@ from metta.app_backend.routes.stats_routes import (
     TrainingRunCreate,
     TrainingRunResponse,
 )
-from metta.common.auth.tokens import get_machine_token
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 

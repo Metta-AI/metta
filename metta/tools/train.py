@@ -12,7 +12,6 @@ from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
-from metta.common.wandb.wandb_runs import auto_run_name
 from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import train
@@ -20,6 +19,7 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.tools.utils.auto_config import (
     auto_policy_storage_decision,
     auto_replay_dir,
+    auto_run_name,
     auto_stats_server_uri,
     auto_wandb_config,
 )
