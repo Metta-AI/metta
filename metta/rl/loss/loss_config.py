@@ -1,12 +1,14 @@
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import torch
 from pydantic import Field
 
-from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.training.training_environment import TrainingEnvironment
+
+if TYPE_CHECKING:
+    from metta.agent.policy import Policy
 
 
 class LossSchedule(Config):
@@ -23,7 +25,7 @@ class LossConfig(Config):
 
     def init_losses(
         self,
-        policy: Policy,
+        policy: "Policy",
         trainer_cfg: Any,
         env: TrainingEnvironment,
         device: torch.device,
