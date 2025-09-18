@@ -35,11 +35,11 @@ class PPOConfig(Config):
     schedule: None = None  # TODO: Implement this
     # PPO hyperparameters
     # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
-    clip_coef: float = Field(default=0.1, gt=0, le=1.0)
+    clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
     # Entropy coefficient: Type 2 default chosen from sweep
-    ent_coef: float = Field(default=0.0021, ge=0)
+    ent_coef: float = Field(default=0.010000, ge=0)
     # GAE lambda: Type 2 default chosen from sweep, deviates from typical 0.95, bias/variance tradeoff
-    gae_lambda: float = Field(default=0.916, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
     # Gamma: Type 2 default chosen from sweep, deviates from typical 0.99, suggests shorter
     # effective horizon for multi-agent
     gamma: float = Field(default=0.977, ge=0, le=1.0)
@@ -50,7 +50,7 @@ class PPOConfig(Config):
     # Value function clipping: Matches policy clip for consistency
     vf_clip_coef: float = Field(default=0.1, ge=0)
     # Value coefficient: Type 2 default chosen from sweep, balances policy vs value loss
-    vf_coef: float = Field(default=0.44, ge=0)
+    vf_coef: float = Field(default=0.897619, ge=0)
     # L2 regularization: Disabled by default, common in RL
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
@@ -62,10 +62,6 @@ class PPOConfig(Config):
     clip_vloss: bool = True
     # Target KL: None allows unlimited updates, common for stable environments
     target_kl: float | None = None
-
-    # Steps in rollout to discard before starting to save experience (for LSTM_reset). This field needs to be moved to
-    # a rollout spec that we have not created yet. Alternatively, it could be an attribute of the policy
-    burn_in_steps: int = Field(default=0, ge=0)
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
@@ -99,8 +95,6 @@ class PPO(Loss):
     __slots__ = (
         "advantages",
         "anneal_beta",
-        "burn_in_steps",
-        "burn_in_steps_iter",
     )
 
     def __init__(
@@ -115,8 +109,6 @@ class PPO(Loss):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
-        self.burn_in_steps = self.loss_cfg.burn_in_steps
-        self.burn_in_steps_iter = 0
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
@@ -141,10 +133,6 @@ class PPO(Loss):
         with torch.no_grad():
             self.policy.forward(td)
 
-        if self.burn_in_steps_iter < self.burn_in_steps:
-            self.burn_in_steps_iter += 1
-            return
-
         # Store experience
         self.replay.store(data_td=td, env_id=env_id)
 
@@ -158,7 +146,7 @@ class PPO(Loss):
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         stop_update_epoch = False
         self.policy.reset_memory()
-        self.burn_in_steps_iter = 0
+
         # Check if we should early stop this update epoch (on subsequent minibatches)
         if self.loss_cfg.target_kl is not None and mb_idx > 0:
             average_approx_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
