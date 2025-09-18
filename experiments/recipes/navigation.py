@@ -1,10 +1,10 @@
-import os
-from datetime import datetime
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -19,31 +19,6 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
 from experiments.evals.navigation import make_navigation_eval_suite
-
-
-def _get_user_identifier() -> str:
-    """Get user identifier from USER environment variable."""
-    return os.getenv("USER", "unknown")
-
-
-def _default_run_name() -> str:
-    """Generate a robust run name following the pattern: navigation.{user}.{date}.{unique_id}
-
-    Format: navigation.{username}.MMDD-HHMMSS.{git_hash_short} or navigation.{username}.MMDD-HHMMSS
-    Example: navigation.alice.0820-143052.a1b2c3d or navigation.alice.0820-143052"""
-    user = _get_user_identifier()
-    now = datetime.now()
-    timestamp = now.strftime("%m%d-%H%M%S")
-
-    # Try to get git hash (7 chars like CI) for better tracking
-    try:
-        import gitta
-
-        git_hash = gitta.get_current_commit()[:7]
-        return f"navigation.{user}.{timestamp}.{git_hash}"
-    except Exception:
-        # Fallback: use timestamp
-        return f"navigation.{user}.{timestamp}"
 
 
 def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
@@ -62,7 +37,11 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
     return nav
 
 
-def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    nav_env: Optional[MettaGridConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+) -> CurriculumConfig:
     nav_env = nav_env or make_mettagrid()
 
     # make a set of training tasks for navigation
@@ -89,27 +68,36 @@ def make_curriculum(nav_env: Optional[MettaGridConfig] = None) -> CurriculumConf
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return CurriculumConfig(task_generator=nav_tasks)
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,  # Default: bidirectional learning progress
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=3,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    return nav_tasks.to_curriculum(
+        num_active_tasks=1000,  # Smaller pool for navigation tasks
+        algorithm_config=algorithm_config,
+    )
 
 
 def train(
-    run: Optional[str] = None, curriculum: Optional[CurriculumConfig] = None
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    # Generate structured run name if not provided
-    if run is None:
-        run = _default_run_name()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),
     )
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        run=run,
-    )
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:

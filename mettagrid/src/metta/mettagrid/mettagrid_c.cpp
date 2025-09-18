@@ -16,7 +16,6 @@
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
-#include "actions/place_box.hpp"
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
@@ -24,7 +23,6 @@
 #include "grid.hpp"
 #include "hash.hpp"
 #include "objects/agent.hpp"
-#include "objects/box.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/converter_config.hpp"
@@ -85,8 +83,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   for (const auto& [action_name, action_config] : game_config.actions) {
     if (action_name == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
-    } else if (action_name == "place_box") {
-      _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config));
     } else if (action_name == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name == "noop") {
@@ -168,14 +164,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         continue;
       }
 
-      const BoxConfig* box_config = dynamic_cast<const BoxConfig*>(object_cfg);
-      if (box_config) {
-        Box* box = new Box(r, c, *box_config, 255, 255);  // Default creator values
-        _grid->add_object(box);
-        _stats->incr("objects." + cell);
-        continue;
-      }
-
       const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
       if (converter_config) {
         // Create a new ConverterConfig with the recipe offsets from the observation encoder
@@ -203,14 +191,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         // Only initialize visitation grid if visitation counts are enabled
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
-        }
-        // add agent box
-        if (game_config.objects.contains("box")) {
-          const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(game_config.objects.at("box").get());
-          if (local_box_cfg) {
-            agent->box = new Box(0, 0, *local_box_cfg, agent->id, static_cast<unsigned char>(agent->agent_id));
-            _grid->ghost_add_object(agent->box);
-          }
         }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
@@ -928,15 +908,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
 
   bind_wall_config(m);
-
-  py::class_<BoxConfig, GridObjectConfig, std::shared_ptr<BoxConfig>>(m, "BoxConfig")
-      .def(py::init<TypeId, const std::string&, const std::map<InventoryItem, InventoryQuantity>&>(),
-           py::arg("type_id"),
-           py::arg("type_name") = "box",
-           py::arg("returned_resources"))
-      .def_readwrite("type_id", &BoxConfig::type_id)
-      .def_readwrite("type_name", &BoxConfig::type_name)
-      .def_readwrite("returned_resources", &BoxConfig::returned_resources);
 
   // ##MettaGridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means

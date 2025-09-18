@@ -52,7 +52,7 @@ class SimTool(Tool):
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
             raise ValueError("policy_uris is required")
 

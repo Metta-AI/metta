@@ -1,5 +1,5 @@
 import
-  std/[strformat],
+  std/[strformat, math],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays
 
@@ -433,6 +433,31 @@ proc drawWorldMain*() =
 
   if settings.showFogOfWar:
     drawFogOfWar()
+
+
+proc fitFullMap*(panel: Panel) =
+  ## Set zoom and pan so the full map fits in the panel.
+  if replay.isNil:
+    return
+  let rectW = panel.rect.w.float32
+  let rectH = panel.rect.h.float32
+  if rectW <= 0 or rectH <= 0:
+    return
+  let
+    mapMinX = -0.5f
+    mapMinY = -0.5f
+    mapMaxX = replay.mapSize[0].float32 - 0.5f
+    mapMaxY = replay.mapSize[1].float32 - 0.5f
+    mapW = max(0.001f, mapMaxX - mapMinX)
+    mapH = max(0.001f, mapMaxY - mapMinY)
+  let zoomScale = min(rectW / mapW, rectH / mapH)
+  panel.zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
+  let
+    cx = (mapMinX + mapMaxX) / 2.0f
+    cy = (mapMinY + mapMaxY) / 2.0f
+    z = panel.zoom * panel.zoom
+  panel.pos.x = rectW / 2.0f - cx * z
+  panel.pos.y = rectH / 2.0f - cy * z
 
 
 proc drawWorldMap*(panel: Panel) =

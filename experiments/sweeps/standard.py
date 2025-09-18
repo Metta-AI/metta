@@ -110,7 +110,7 @@ def quick_test(
 
     Example:
         uv run ./tools/run.py experiments.sweeps.standard.quick_test \
-            --args sweep_name=test_sweep
+         sweep_name=test_sweep
     """
 
     # Use the SAME full 6 PPO parameters as the main ppo() function

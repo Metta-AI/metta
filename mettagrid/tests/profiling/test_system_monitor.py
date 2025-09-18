@@ -62,7 +62,8 @@ class TestMonitoringControl:
         """Test starting when already running"""
         monitor.start()
 
-        with caplog.at_level(logging.WARNING):
+        # Capture logs from the specific logger
+        with caplog.at_level(logging.WARNING, logger=monitor.logger.name):
             monitor.start()
 
         assert "Monitor already running" in caplog.text
