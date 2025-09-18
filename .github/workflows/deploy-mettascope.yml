@@ -5,7 +5,6 @@ on:
       - main
     paths:
       - "mettascope/**"
-      - "mettascope2/**"
       - "observatory/**"
       - ".github/workflows/**"
   workflow_dispatch: {}
@@ -77,23 +76,21 @@ jobs:
           cd mettascope
           uv run tools/gen_atlas.py
 
-      - name: Setup Nim
-        uses: jiro4989/setup-nim-action@v2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-
-      - name: Install mettascope2 dependencies
-        run: |
-          cd mettascope2
-          nimble install -y
-
-      - name: Build mettascope2 (emscripten)
-        run: |
-          cd mettascope2
-          nim c -d:emscripten -d:release src/mettascope.nim
+      # Disabled: mettascope2
+      # - name: Setup Nims
+      #   uses: jiro4989/setup-nim-action@v2
+      #   with:
+      #     repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Setup Emscripten
+      #   uses: mymindstorm/setup-emsdk@v14
+      # - name: Install mettascope2 dependencies
+      #   run: |
+      #     cd mettascope2
+      #     nimble install -y
+      # - name: Build mettascope2 (emscripten)
+      #   run: |
+      #     cd mettascope2
+      #     nim c -d:emscripten -d:release src/mettascope.nim
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -101,10 +98,10 @@ jobs:
       - name: Create deployment directory
         run: |
           mkdir -p deploy/observatory
-          mkdir -p deploy/mettascope2
+          # mkdir -p deploy/mettascope2
           cp -r mettascope/* deploy/
           cp -r observatory/dist/* deploy/observatory/
-          cp -r mettascope2/dist/* deploy/mettascope2/
+          # cp -r mettascope2/dist/* deploy/mettascope2/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
