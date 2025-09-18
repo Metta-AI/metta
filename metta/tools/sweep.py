@@ -70,27 +70,6 @@ def create_on_eval_completed_hook(metric_path: str):
     return on_eval_completed
 
 
-def on_job_dispatch_hook(job, store):
-    """Record the suggestion that was used for this training job.
-
-    Only training jobs have suggestions in their metadata. Eval jobs
-    reuse the same run_id and don't have new suggestions.
-    """
-    from metta.adaptive.models import JobTypes
-
-    # Only process training jobs - eval jobs don't have suggestions
-    if job.type == JobTypes.LAUNCH_TRAINING:
-        # Get the suggestion from job metadata (set by the scheduler)
-        suggestion = job.metadata.get("adaptive/suggestion", {})
-
-        if suggestion:
-            # Store the suggestion in the run summary for the optimizer to read later
-            store.update_run_summary(job.run_id, {"sweep/suggestion": suggestion})
-            logger.info(f"[SweepTool] Recorded suggestion for {job.run_id}: {suggestion}")
-        else:
-            logger.warning(f"[SweepTool] Training job {job.run_id} dispatched without suggestion metadata")
-
-
 class DispatcherType(StrEnum):
     """Available dispatcher types for job execution."""
 
@@ -287,10 +266,9 @@ class SweepTool(Tool):
             # Create the on_eval_completed hook with the specific metric we're optimizing
             on_eval_completed = create_on_eval_completed_hook(self.protein_config.metric)
 
-            # Pass hooks to run method for sweep-specific observation tracking
+            # Pass on_eval_completed hook to run method for sweep-specific observation tracking
             controller.run(
                 on_eval_completed=on_eval_completed,
-                on_job_dispatch=on_job_dispatch_hook,
             )
 
         except KeyboardInterrupt:
