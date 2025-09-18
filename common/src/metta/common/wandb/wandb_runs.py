@@ -1,9 +1,12 @@
+import os
+from datetime import datetime
 from itertools import islice
 from typing import Iterable
 
 import wandb
 from wandb.apis.public.runs import Run
 
+from metta.common.util.collections import remove_falsey
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 
@@ -37,3 +40,15 @@ def find_training_runs(
     if run_names:
         filters["name"] = {"$in": run_names}
     return islice(wandb.Api().runs(f"{entity}/{project}", filters=filters, order=order_by), limit)
+
+
+def auto_run_name(prefix: str | None = None) -> str:
+    return ".".join(
+        remove_falsey(
+            [
+                prefix,
+                os.getenv("USER", "unknown"),
+                datetime.now().strftime("%Y%m%d.%H%M%S"),
+            ]
+        )
+    )
