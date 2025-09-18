@@ -187,7 +187,7 @@ shutdown() {
   fi
 
   echo "[SHUTDOWN] Process $CMD_PID shutdown complete"
-  exit 0
+  exit 0 # go to cleanup trap
 }
 trap shutdown INT TERM HUP
 
