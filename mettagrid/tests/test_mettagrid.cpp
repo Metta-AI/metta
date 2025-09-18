@@ -3,6 +3,7 @@
 #include <random>
 
 #include "mettagrid/actions/attack.hpp"
+#include "mettagrid/actions/change_glyph.hpp"
 #include "mettagrid/actions/get_output.hpp"
 #include "mettagrid/actions/noop.hpp"
 #include "mettagrid/actions/put_recipe_items.hpp"
@@ -613,11 +614,342 @@ TEST_F(MettaGridCppTest, FractionalConsumptionRequiresCeiledInventory) {
 TEST_F(MettaGridCppTest, FractionalConsumptionInvalidRequirements) {
   // Test that ActionHandler constructor throws when required < ceil(consumed)
   ActionConfig invalid_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 1.5f}});
-  
+
   // This should throw because required (1) < ceil(consumed) (2)
-  EXPECT_THROW({
-    Noop noop(invalid_cfg);
-  }, std::runtime_error);
+  EXPECT_THROW({ Noop noop(invalid_cfg); }, std::runtime_error);
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionZero) {
+  Grid grid(3, 3);
+
+  // Create agent with initial energy
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create noop action with zero consumption
+  ActionConfig noop_cfg({}, {{TestItems::ORE, 0.0f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(42);
+  noop.init(&grid, &rng);
+
+  // Execute action multiple times - should never consume
+  for (int i = 0; i < 10; i++) {
+    bool success = noop.handle_action(agent->id, 0);
+    EXPECT_TRUE(success);
+  }
+
+  // Verify no resources consumed
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 10);
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionInteger) {
+  Grid grid(3, 3);
+
+  // Create agent with initial energy
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create noop action with integer consumption (2.0)
+  ActionConfig noop_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 2.0f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(42);
+  noop.init(&grid, &rng);
+
+  // Execute action 3 times - should always consume exactly 2
+  for (int i = 0; i < 3; i++) {
+    bool success = noop.handle_action(agent->id, 0);
+    EXPECT_TRUE(success);
+  }
+
+  // Verify exactly 6 resources consumed (3 * 2)
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 4);
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
+  Grid grid(3, 3);
+
+  // Create agent with initial energy
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 20;  // Enough for test
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create noop action with small fractional consumption (0.1)
+  ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.1f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(12345);
+  noop.init(&grid, &rng);
+
+  // Execute action many times - only count successful actions
+  int consumed = 0;
+  int successful_actions = 0;
+  for (int i = 0; i < 100; i++) {
+    int before = agent->inventory[TestItems::ORE];
+    bool success = noop.handle_action(agent->id, 0);
+    if (success) {
+      successful_actions++;
+      int after = agent->inventory[TestItems::ORE];
+      consumed += (before - after);
+    }
+  }
+
+  // With 0.1 probability, we expect around 10% consumption rate
+  // Should get many successful actions before running out
+  EXPECT_GE(successful_actions, 20);  // Should succeed at least 20 times with initial 20 ore
+  EXPECT_GE(consumed, 2);
+  EXPECT_LE(consumed, 20);  // Can't consume more than we have
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
+  Grid grid(3, 3);
+
+  // Create agent with initial energy
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 100;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create noop action with large fractional consumption (0.9)
+  ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.9f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(54321);
+  noop.init(&grid, &rng);
+
+  // Execute action many times - only count successful actions
+  int consumed = 0;
+  int successful_actions = 0;
+  for (int i = 0; i < 200; i++) {
+    int before = agent->inventory[TestItems::ORE];
+    bool success = noop.handle_action(agent->id, 0);
+    if (success) {
+      successful_actions++;
+      int after = agent->inventory[TestItems::ORE];
+      consumed += (before - after);
+    }
+  }
+
+  // With 0.9 probability, we expect around 90% consumption rate
+  // With 100 initial ore and ~0.9 per consumption, expect around 111 successful actions
+  // But with randomness, actual may vary significantly
+  EXPECT_GE(successful_actions, 50);   // Lower bound with bad luck
+  EXPECT_LE(successful_actions, 150);  // Upper bound with good luck
+  EXPECT_GE(consumed, 50);
+  EXPECT_LE(consumed, 100);  // Can't consume more than initial inventory
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
+  Grid grid(3, 3);
+
+  // Create agent with multiple resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 50;
+  agent_cfg.initial_inventory[TestItems::LASER] = 50;
+  agent_cfg.initial_inventory[TestItems::ARMOR] = 50;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create noop action with different fractional consumptions
+  ActionConfig noop_cfg({{TestItems::ORE, 2}, {TestItems::LASER, 1}, {TestItems::ARMOR, 3}},
+                        {{TestItems::ORE, 1.5f}, {TestItems::LASER, 0.25f}, {TestItems::ARMOR, 2.75f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(999);
+  noop.init(&grid, &rng);
+
+  // Execute action multiple times
+  for (int i = 0; i < 10; i++) {
+    bool success = noop.handle_action(agent->id, 0);
+    EXPECT_TRUE(success);
+  }
+
+  // Check that resources were consumed roughly according to probabilities
+  int ore_left = agent->inventory[TestItems::ORE];
+  int laser_left = agent->inventory[TestItems::LASER];
+  int armor_left = agent->inventory[TestItems::ARMOR];
+
+  // ORE: consumed 1.5 * 10 = ~15 (expect 13-17)
+  EXPECT_GE(ore_left, 33);
+  EXPECT_LE(ore_left, 37);
+
+  // LASER: consumed 0.25 * 10 = ~2.5 (expect 0-5)
+  EXPECT_GE(laser_left, 45);
+  EXPECT_LE(laser_left, 50);
+
+  // ARMOR: consumed 2.75 * 10 = ~27.5 (expect 25-30)
+  EXPECT_GE(armor_left, 20);
+  EXPECT_LE(armor_left, 25);
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
+  // This test verifies that fractional consumption works with attack actions
+  // We'll do a simple test with a few attacks rather than a complex loop
+
+  Grid grid(10, 10);
+  GameConfig game_config;
+
+  // Create attacker with lasers
+  AgentConfig attacker_cfg = create_test_agent_config();
+  attacker_cfg.group_name = "red";
+  Agent* attacker = new Agent(2, 0, attacker_cfg);
+
+  // Create target
+  AgentConfig target_cfg = create_test_agent_config();
+  target_cfg.group_name = "blue";
+  target_cfg.group_id = 2;
+  Agent* target = new Agent(0, 0, target_cfg);
+
+  float attacker_reward = 0.0f;
+  float target_reward = 0.0f;
+  attacker->init(&attacker_reward);
+  target->init(&target_reward);
+
+  grid.add_object(attacker);
+  grid.add_object(target);
+
+  // Give attacker 10 lasers
+  attacker->update_inventory(TestItems::LASER, 10);
+  // Give target some hearts to rob
+  target->update_inventory(TestItems::HEART, 5);
+
+  // Create attack action with fractional laser consumption (0.5 per attack)
+  AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 0.5f}}, {});
+  Attack attack(attack_cfg, &game_config);
+  std::mt19937 rng(12345);
+  attack.init(&grid, &rng);
+
+  // Track consumption over multiple attacks
+  int total_consumed = 0;
+  int successful_attacks = 0;
+
+  // Do 10 attacks
+  for (int i = 0; i < 10; i++) {
+    int before = attacker->inventory[TestItems::LASER];
+    bool success = attack.handle_action(attacker->id, 5);  // Attack directly in front
+    if (success) {
+      successful_attacks++;
+      int after = attacker->inventory[TestItems::LASER];
+      total_consumed += (before - after);
+    }
+  }
+
+  // With 0.5 consumption probability, expect around 5 consumed from 10 attacks
+  // Allow for randomness
+  EXPECT_GE(successful_attacks, 8);  // Should succeed most times with 10 initial lasers
+  EXPECT_GE(total_consumed, 3);
+  EXPECT_LE(total_consumed, 7);
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
+  Grid grid(3, 3);
+
+  // Create agent with resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 30;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create change glyph action with fractional consumption (1.25)
+  ChangeGlyphActionConfig glyph_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.25f}}, 4);
+  ChangeGlyph change_glyph(glyph_cfg);
+  std::mt19937 rng(888);
+  change_glyph.init(&grid, &rng);
+
+  // Change glyph multiple times
+  int changes = 0;
+  ObservationType initial_glyph = agent->glyph;
+  while (agent->inventory[TestItems::ORE] >= 2) {
+    bool success = change_glyph.handle_action(agent->id, (initial_glyph + 1) % 4);
+    if (!success) break;
+    changes++;
+    if (changes > 30) break;  // Safety limit
+  }
+
+  // With 1.25 consumption and 30 initial ore, we expect around 24 changes
+  // (30 / 1.25 = 24)
+  EXPECT_GE(changes, 22);
+  EXPECT_LE(changes, 26);
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionBoundaryValues) {
+  Grid grid(3, 3);
+
+  // Create agent with exact boundary amount
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 1;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Test with 0.99 consumption (almost always consumes 1)
+  ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.99f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(111);
+  noop.init(&grid, &rng);
+
+  // Should succeed once then likely fail
+  bool first_success = noop.handle_action(agent->id, 0);
+  EXPECT_TRUE(first_success);
+
+  // Very high chance we consumed the resource (99%)
+  bool second_success = noop.handle_action(agent->id, 0);
+  // This will almost certainly fail (99% chance we're out of resources)
+  if (agent->inventory[TestItems::ORE] == 0) {
+    EXPECT_FALSE(second_success);
+  }
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
+  Grid grid1(3, 3);
+  Grid grid2(3, 3);
+
+  // Create two identical setups
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 100;
+
+  Agent* agent1 = new Agent(1, 1, agent_cfg);
+  float reward1 = 0.0f;
+  agent1->init(&reward1);
+  grid1.add_object(agent1);
+
+  Agent* agent2 = new Agent(1, 1, agent_cfg);
+  float reward2 = 0.0f;
+  agent2->init(&reward2);
+  grid2.add_object(agent2);
+
+  // Create identical actions with same seed
+  ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.33f}});
+  Noop noop1(noop_cfg);
+  Noop noop2(noop_cfg);
+
+  std::mt19937 rng1(42);
+  std::mt19937 rng2(42);
+  noop1.init(&grid1, &rng1);
+  noop2.init(&grid2, &rng2);
+
+  // Execute same sequence on both
+  for (int i = 0; i < 50; i++) {
+    noop1.handle_action(agent1->id, 0);
+    noop2.handle_action(agent2->id, 0);
+  }
+
+  // Should have identical results with same seed
+  EXPECT_EQ(agent1->inventory[TestItems::ORE], agent2->inventory[TestItems::ORE]);
 }
 
 // ==================== Event System Tests ====================
