@@ -336,7 +336,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(attacker->orientation, Orientation::North);
 
   // Create attack action handler
-  AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
+  AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, 3, false, {{TestItems::ARMOR, 3}});
   Attack attack(attack_cfg, &game_config);
   attack.init(&grid);
 
@@ -399,7 +399,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   agent->update_inventory(TestItems::HEART, 1);
 
   // Create put_items action handler
-  ActionConfig put_cfg({}, {});
+  ItemsActionConfig put_cfg({}, {}, 0, false, true);
   PutRecipeItems put(put_cfg);
   put.init(&grid);
 
@@ -450,7 +450,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   agent->update_inventory(TestItems::ORE, 1);
 
   // Create get_output action handler
-  ActionConfig get_cfg({}, {});
+  ItemsActionConfig get_cfg({}, {}, 0, false, true);
   GetOutput get(get_cfg);
   get.init(&grid);
 
@@ -473,7 +473,7 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   agent->init(&agent_reward);
   grid.add_object(agent);
 
-  ActionConfig noop_cfg({}, {});
+  ActionConfig noop_cfg({}, {}, 0, false);
   Noop noop(noop_cfg);
   noop.init(&grid);
 
