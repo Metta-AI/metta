@@ -16,6 +16,7 @@ from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
+from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
 
@@ -331,6 +332,27 @@ def cmd_status(
 
     console = Console()
     console.print(table)
+
+    policy_decision = auto_policy_storage_decision()
+    if policy_decision.using_remote and policy_decision.base_prefix:
+        if policy_decision.reason == "env_override":
+            success(
+                f"Policy storage: S3 uploads enabled via POLICY_REMOTE_PREFIX → {policy_decision.base_prefix}/<run>."
+            )
+        else:
+            success(f"Policy storage: Softmax S3 uploads active → {policy_decision.base_prefix}/<run>.")
+    elif policy_decision.reason == "not_connected" and policy_decision.base_prefix:
+        warning(
+            "Policy storage: local only. Run 'aws sso login --profile softmax' to enable uploads to "
+            f"{policy_decision.base_prefix}/<run>."
+        )
+    elif policy_decision.reason == "aws_not_enabled":
+        info("Policy storage: local only (AWS component disabled).")
+    elif policy_decision.reason == "no_base_prefix":
+        info(
+            "Policy storage: local only (remote policy prefix not configured). "
+            "Set POLICY_REMOTE_PREFIX or rerun 'metta configure aws'."
+        )
     could_force_install = [
         name
         for name, data in module_status.items()
@@ -567,11 +589,25 @@ def cmd_report_env_details():
         info(f"Git Commit: {commit}")
 
 
-@app.command(name="clip", help="Copy subsets of codebase for LLM contexts", context_settings={"allow_extra_args": True})
-def cmd_clip(ctx: typer.Context):
-    cmd = ["codeclip"]
-    if ctx.args:
-        cmd.extend(ctx.args)
+@app.command(
+    name="clip",
+    help="Copy codebase to clipboard. Pass through any codeclip flags",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,  # Disable typer's help handling
+)
+def cmd_clip(
+    ctx: typer.Context,
+):
+    """Copy subsets of codebase for LLM contexts."""
+    import sys
+
+    # Find all arguments after 'clip' command
+    clip_index = sys.argv.index("clip")
+    args_after_clip = sys.argv[clip_index + 1 :]
+
+    # Build command with codeclip and pass all arguments through
+    cmd = ["codeclip"] + args_after_clip
+
     try:
         subprocess.run(cmd, cwd=cli.repo_root, check=False)
     except FileNotFoundError:

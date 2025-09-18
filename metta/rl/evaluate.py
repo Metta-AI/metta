@@ -28,7 +28,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
     """Create a remote evaluation task using a policy URI.
 
     Args:
-        policy_uri: Policy URI (wandb://, file://, etc.)
+        policy_uri: Policy URI (s3://, file://, etc.)
         simulations: List of simulations to run
         stats_epoch_id: Stats epoch ID for tracking
         stats_client: Client for stats server communication
@@ -44,11 +44,6 @@ def evaluate_policy_remote_with_checkpoint_manager(
 
     # Normalize the policy URI
     normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-
-    # For wandb URIs, ensure they have a version
-    if normalized_uri.startswith("wandb://") and ":" not in normalized_uri:
-        logger.warning(f"Remote evaluation: {normalized_uri} does not specify a version")
-        return None
 
     # Process policy registration using the new format
     stats_server_policy_id = get_or_create_policy_ids(

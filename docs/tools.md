@@ -33,8 +33,8 @@ The main entry point is `./tools/run.py` which uses the recipe system for all ma
 
 ```bash
 ./tools/run.py experiments.recipes.arena.train run=my_experiment # Training
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/my_experiment # Evaluation
-./tools/run.py experiments.recipes.arena.play policy_uri=wandb://run/my_experiment # Interactive play
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
+./tools/run.py experiments.recipes.arena.play policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Interactive play
 ```
 
 ## Training Tools
@@ -204,16 +204,16 @@ programmatic processing
 
 ```bash
 # Evaluate a single policy
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://run/experiment_001
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
 # Evaluate with arena recipe
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/experiment_001
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
 # Evaluate with specific policy from file
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
-# Evaluate with wandb artifact
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://team/project/model:v0
+# Evaluate using a remote checkpoint stored on S3
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
 ```
 
 **Key Features**:
@@ -231,11 +231,11 @@ programmatic processing
   "simulation_suite": "navigation",
   "policies": [
     {
-      "policy_uri": "wandb://run/abc123",
+      "policy_uri": "s3://my-bucket/checkpoints/abc123/abc123:v5.pt",
       "checkpoints": [
         {
           "name": "checkpoint_1000",
-          "uri": "wandb://...",
+          "uri": "s3://my-bucket/checkpoints/abc123/abc123:v5.pt",
           "metrics": {
             "reward_avg": 15.3
           }
@@ -325,7 +325,7 @@ environments with support for multiple rendering backends.
 ./tools/renderer.py renderer_job.policy_type=random
 
 # Visualize trained policy
-./tools/renderer.py renderer_job.policy_type=trained policy_uri="wandb://run/experiment"
+./tools/renderer.py renderer_job.policy_type=trained policy_uri="s3://my-bucket/checkpoints/experiment/experiment:v20.pt"
 
 # Custom environment with multiple agents
 ./tools/renderer.py env=mettagrid/multiagent renderer_job.num_agents=4
@@ -345,13 +345,13 @@ environments with support for multiple rendering backends.
 
 ```bash
 # Generate replay for a policy
-./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/abc123
+./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
 
 # Generate replay with navigation environment
-./tools/run.py experiments.recipes.navigation.replay policy_uri=wandb://run/abc123
+./tools/run.py experiments.recipes.navigation.replay policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
 
 # Generate replay from local checkpoint
-./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_run/checkpoints
+./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 ```
 
 **Key Features**:
@@ -372,10 +372,10 @@ environments with support for multiple rendering backends.
 ./tools/run.py experiments.recipes.arena.play
 
 # Interactive play with specific policy
-./tools/run.py experiments.recipes.arena.play policy_uri=wandb://run/my_experiment
+./tools/run.py experiments.recipes.arena.play policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt
 
 # Interactive navigation environment
-./tools/run.py experiments.recipes.navigation.play policy_uri=file://./checkpoints
+./tools/run.py experiments.recipes.navigation.play policy_uri=file://./train_dir/nav_experiment/checkpoints/nav_experiment:v8.pt
 ```
 
 **Key Features**:
@@ -735,13 +735,13 @@ GROUP BY policy_name, episode;
 ./tools/run.py experiments.recipes.navigation.train run=nav_experiment_001
 
 # 2. Evaluate the trained policy
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=wandb://run/nav_experiment_001
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 
 # 3. Analyze results
 ./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
 
 # 4. Interactive play with trained policy
-./tools/run.py experiments.recipes.navigation.play policy_uri=wandb://run/nav_experiment_001
+./tools/run.py experiments.recipes.navigation.play policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 ```
 
 ### Hyperparameter Sweep Workflow
@@ -758,7 +758,7 @@ GROUP BY policy_name, episode;
 
 # 4. Interactive play with best policy
 ./tools/run.py experiments.recipes.arena.play \
-   policy_uri="wandb://sweep/hyperparam_search_001:best"
+   policy_uri="s3://my-bucket/checkpoints/sweeps/hyperparam_search_001/hyperparam_search_001:v42.pt"
 ```
 
 ### Map Development Workflow

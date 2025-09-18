@@ -5,7 +5,6 @@ import argparse
 import asyncio
 import uuid
 
-import wandb
 from bidict import bidict
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
@@ -18,8 +17,6 @@ from metta.common.util.collections import group_by
 from metta.common.util.constants import (
     DEV_OBSERVATORY_FRONTEND_URL,
     DEV_STATS_SERVER_URI,
-    METTA_WANDB_ENTITY,
-    METTA_WANDB_PROJECT,
     PROD_OBSERVATORY_FRONTEND_URL,
     PROD_STATS_SERVER_URI,
 )
@@ -37,41 +34,21 @@ class EvalRequest(BaseModel):
 
     git_hash: str | None = None
 
-    wandb_project: str = Field(default="")
-    wandb_entity: str = Field(default="")
-
     allow_duplicates: bool = Field(default=False)
     dry_run: bool = Field(default=False)
 
     @model_validator(mode="after")
     def validate(self) -> "EvalRequest":
-        if not self.wandb_entity:
-            if wandb.api.default_entity:
-                self.wandb_entity = wandb.api.default_entity
-
-        if not self.wandb_project:
-            if self.wandb_entity == METTA_WANDB_ENTITY:
-                self.wandb_project = METTA_WANDB_PROJECT
-
-        assert self.wandb_project, "wandb_project must be set"
-        assert self.wandb_entity, "wandb_entity must be set"
         return self
 
 
-def validate_and_normalize_policy_uri(policy_uri: str) -> tuple[str, dict] | None:
+def validate_and_normalize_policy_uri(policy_uri: str) -> str | None:
     """Validate that a policy URI is accessible and return normalized URI with metadata."""
     try:
-        # Normalize URI using CheckpointManager
         normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-
-        # Get metadata to verify the checkpoint exists
-        metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-
-        # Quick validation that we can load the policy
         agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
         del agent
-
-        return normalized_uri, metadata
+        return normalized_uri
     except Exception as e:
         warning(f"Skipping invalid or inaccessible policy {policy_uri}: {e}")
         return None
@@ -89,27 +66,18 @@ async def _create_remote_eval_tasks(
     info(f"Validating {len(request.policies)} policy URIs...")
 
     # Validate and normalize all policy URIs
-    valid_policies = []
+    policy_uris: list[str] = []
     for policy_uri in request.policies:
         result = validate_and_normalize_policy_uri(policy_uri)
         if result:
-            normalized_uri, metadata = result
-            valid_policies.append(
-                {
-                    "uri": normalized_uri,
-                    "run_name": metadata.get("run_name", "unknown"),
-                    "original_uri": policy_uri,
-                }
-            )
+            policy_uris.append(result)
 
-    if not valid_policies:
+    if not policy_uris:
         warning("No valid policies found")
         return
 
     # Register policies with stats server
-    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(
-        stats_client, [(p["uri"], None) for p in valid_policies]
-    )
+    policy_ids: bidict[str, uuid.UUID] = get_or_create_policy_ids(stats_client, [(uri, None) for uri in policy_uris])
 
     if not policy_ids:
         warning("Failed to register policies with stats server")
@@ -142,11 +110,10 @@ async def _create_remote_eval_tasks(
 
     # Create task requests
     task_requests = []
-    for policy in valid_policies:
-        run_name = policy["run_name"]
-        policy_id = policy_ids.get(run_name)
+    for policy_uri in policy_uris:
+        policy_id = policy_ids.get(policy_uri)
         if policy_id is None:
-            warning(f"Policy '{run_name}' not found in policy_ids mapping, skipping")
+            warning(f"Policy '{policy_uri}' not found in policy_ids mapping, skipping")
             continue
 
         for eval_name in request.evals:
@@ -166,7 +133,7 @@ async def _create_remote_eval_tasks(
         warning("No new tasks to create (all would be duplicates)")
         return
 
-    info(f"Creating {len(task_requests)} evaluation tasks for {len(valid_policies)} policies...")
+    info(f"Creating {len(task_requests)} evaluation tasks for {len(policy_uris)} policies...")
     if request.dry_run:
         info("Dry run, not creating tasks")
         return
@@ -205,9 +172,9 @@ def main():
         dest="policies",
         help="""Direct policy checkpoint URI. Can be specified multiple times for multiple policies.
         Supported formats:
-        - file://path/to/checkpoint.pt
-        - wandb://entity/project/artifact:version
-        - s3://bucket/path/to/checkpoint.pt""",
+        - file://path/to/run/checkpoints/run_name:v10.pt
+        - s3://bucket/path/run/checkpoints/run_name:v10.pt
+        - ./path/to/run/checkpoints (directory; latest checkpoint auto-detected)""",
         required=True,
     )
 
@@ -216,18 +183,6 @@ def main():
         type=str,
         default=PROD_STATS_SERVER_URI,
         help="URI for the stats server",
-    )
-
-    parser.add_argument(
-        "--wandb-project",
-        type=str,
-        help="Wandb project name",
-    )
-
-    parser.add_argument(
-        "--wandb-entity",
-        type=str,
-        help="Wandb entity name",
     )
 
     parser.add_argument(
@@ -256,8 +211,6 @@ def main():
         policies=args.policies,
         stats_server_uri=args.stats_server_uri,
         git_hash=args.git_hash,
-        wandb_project=args.wandb_project,
-        wandb_entity=args.wandb_entity,
         allow_duplicates=args.allow_duplicates,
         dry_run=args.dry_run,
     )

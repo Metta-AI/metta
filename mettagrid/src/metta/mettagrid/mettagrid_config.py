@@ -9,6 +9,9 @@ from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 # ===== Python Configuration Models =====
 
+# Left to right, top to bottom.
+Position = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]
+
 
 class StatsRewards(Config):
     """Agent stats-based reward configuration.
@@ -49,7 +52,7 @@ class ActionConfig(Config):
     enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: dict[str, int] = Field(default_factory=dict)
-    consumed_resources: dict[str, int] = Field(default_factory=dict)
+    consumed_resources: dict[str, float] = Field(default_factory=dict)
 
 
 class AttackActionConfig(ActionConfig):
@@ -120,6 +123,19 @@ class ConverterConfig(Config):
     color: int = Field(default=0, ge=0, le=255)
 
 
+class RecipeConfig(Config):
+    input_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, int] = Field(default_factory=dict)
+    cooldown: int = Field(ge=0, default=0)
+
+
+class AssemblerConfig(Config):
+    """Python assembler configuration."""
+
+    type_id: int = Field(default=0, ge=0, le=255)
+    recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
+
+
 class GameConfig(Config):
     """Python game configuration."""
 
@@ -151,7 +167,7 @@ class GameConfig(Config):
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    objects: dict[str, ConverterConfig | WallConfig] = Field(default_factory=dict)
+    objects: dict[str, ConverterConfig | WallConfig | AssemblerConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
