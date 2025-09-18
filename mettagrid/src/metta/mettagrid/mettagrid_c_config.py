@@ -8,10 +8,17 @@ from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import Recipe as CppRecipe
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import AgentConfig, AssemblerConfig, ConverterConfig, GameConfig, WallConfig
+from metta.mettagrid.mettagrid_config import (
+    AgentConfig,
+    AssemblerConfig,
+    ConverterConfig,
+    GameConfig,
+    Position,
+    WallConfig,
+)
 
-FIXED_POSITIONS = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
-# Position to bit mapping: NW=0, N=1, NE=2, W=3, E=4, SW=5, S=6, SE=7
+# Note that these are left to right, top to bottom.
+FIXED_POSITIONS: list[Position] = ["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 FIXED_POSITION_TO_BITMASK = {pos: 1 << i for i, pos in enumerate(FIXED_POSITIONS)}
 
 
@@ -24,8 +31,8 @@ def recursive_update(d, u):
     return d
 
 
-def expand_position_patterns(positions: list[str]) -> list[int]:
-    """Expand position patterns into corresponding byte patterns.
+def expand_position_patterns(positions: list[Position]) -> list[int]:
+    """Convert from a list of string positions to a list of matching bit patterns.
 
     Args:
         positions: List of position strings like ["N", "Any"]
@@ -33,7 +40,7 @@ def expand_position_patterns(positions: list[str]) -> list[int]:
         Other positions mean exactly one agent in that specific position
 
     Returns:
-        List of byte patterns that match the position requirements
+        List of bit patterns that match the position requirements
     """
 
     fix_positions_byte = 0
@@ -54,6 +61,8 @@ def expand_position_patterns(positions: list[str]) -> list[int]:
 
     result = []
     # Not the most elegant solution, but there are only 8 positions, so it's not too bad.
+    # We're just iterating over all possible bit patterns and seeing which ones
+    # (a) have the right fixed positions, and (b) have the right number of total agents (which would be fixed + "Any")
     for i in range(256):
         if i & fix_positions_byte != fix_positions_byte:
             continue
@@ -206,7 +215,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
             for position_pattern, recipe_config in object_config.recipes:
                 # Expand position patterns to byte patterns
-                byte_patterns = expand_position_patterns(position_pattern)
+                bit_patterns = expand_position_patterns(position_pattern)
 
                 # Create C++ recipe
                 cpp_recipe = CppRecipe(
@@ -224,8 +233,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 )
 
                 # Map this recipe to all matching byte patterns
-                for byte_pattern in byte_patterns:
-                    recipe_map[byte_pattern] = cpp_recipe
+                for bit_pattern in bit_patterns:
+                    recipe_map[bit_pattern] = cpp_recipe
 
             # Create a vector of 256 Recipe pointers (indexed by byte pattern)
             cpp_recipes = [None] * 256

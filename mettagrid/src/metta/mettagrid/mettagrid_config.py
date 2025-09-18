@@ -9,6 +9,9 @@ from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 # ===== Python Configuration Models =====
 
+# Left to right, top to bottom.
+Position = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]
+
 
 class StatsRewards(Config):
     """Agent stats-based reward configuration.
@@ -130,9 +133,7 @@ class AssemblerConfig(Config):
     """Python assembler configuration."""
 
     type_id: int = Field(default=0, ge=0, le=255)
-    recipes: list[tuple[list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]], RecipeConfig]] = Field(
-        default_factory=list
-    )
+    recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
 
 
 class GameConfig(Config):

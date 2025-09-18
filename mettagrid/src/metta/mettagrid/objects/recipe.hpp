@@ -4,11 +4,11 @@
 #include <map>
 #include <memory>
 
-#include "types.hpp"
-
 // Pybind for Recipe exposure
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
+#include "types.hpp"
 
 // Recipe class for Assembler
 class Recipe {
