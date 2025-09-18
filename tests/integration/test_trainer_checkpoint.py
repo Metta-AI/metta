@@ -50,8 +50,8 @@ class TestTrainerCheckpointIntegration:
             curriculum=env_curriculum(make_arena(num_agents=6)),
             checkpoint=CheckpointConfig(
                 checkpoint_interval=2,
-                wandb_checkpoint_interval=2,
                 checkpoint_dir=self.checkpoint_dir,
+                remote_prefix=None,
             ),
             evaluation=None,
         )
