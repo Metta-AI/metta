@@ -28,6 +28,8 @@ jobs:
           # repo-token is used for rate limiting.
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: mymindstorm/setup-emsdk@v14
+
       - run: |
           cd mettascope2
           nimble install pixie@#head -y  # Explicitly install pixie#head first
@@ -36,8 +38,6 @@ jobs:
 
       - name: Build mettascope2 (release)
         run: cd mettascope2 && nim c -d:release --out:mettascope src/mettascope.nim
-
-      - uses: mymindstorm/setup-emsdk@v14
 
       - name: Upload mettascope2 artifact
         uses: actions/upload-artifact@v4
@@ -50,7 +50,14 @@ jobs:
           if-no-files-found: error
 
       - name: Build mettascope2 (browser)
-        run: cd mettascope2 && nim c -d:emscripten -d:release src/mettascope.nim
+        run: |
+          cd mettascope2
+
+          # The ERROR_ON_UNDEFINED_SYMBOLS=0 flag is needed because the Nim OpenGL bindings
+          # include desktop OpenGL functions like glGetTexImage that don't exist in WebGL.
+          # Since our code doesn't actually use these functions, it's safe to ignore them.
+
+          nim c -d:emscripten -d:release --passL:"-s ERROR_ON_UNDEFINED_SYMBOLS=0" src/mettascope.nim
 
       - name: Upload mettascope2 browser artifact
         uses: actions/upload-artifact@v4
