@@ -7,7 +7,14 @@ name = "metta-devops"
 version = "0.1.0"
 description = "Devops support for metta projects"
 requires-python = ">=3.9"
-dependencies = ["skypilot>=0.10.3", "gitta", "metta-common", "wandb>=0.19.11"]
+dependencies = [
+  "skypilot>=0.10.3",
+  "gitta",
+  "metta-common",
+  "mettagrid",
+  "metta-app-backend",
+  "wandb>=0.19.11",
+]
 
 [tool.setuptools]
 packages = [
@@ -16,13 +23,25 @@ packages = [
   "devops.docker",
   "experiments",
   "metta.cogworks",
+  "metta.map",
+  "metta.rl",
+  "metta.sim",
+  "metta.sweep",
+  "metta.tools",
 ]
 
 [tool.setuptools.package-dir]
 devops = "."
 experiments = "../experiments"
 "metta.cogworks" = "../metta/cogworks"
+"metta.map" = "../metta/map"
+"metta.rl" = "../metta/rl"
+"metta.sim" = "../metta/sim"
+"metta.sweep" = "../metta/sweep"
+"metta.tools" = "../metta/tools"
 
 [tool.uv.sources]
 gitta = { path = "../gitta", editable = true }
 metta-common = { path = "../common", editable = true }
+mettagrid = { path = "../mettagrid", editable = true }
+metta-app-backend = { path = "../app_backend", editable = true }
