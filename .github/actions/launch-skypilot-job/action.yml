@@ -57,8 +57,9 @@ runs:
   steps:
     - name: Setup Environment
       uses: ./.github/actions/setup-environment
-      install-mode: minimal
-      extra-dependencies: skypilot>=0.10.3
+      with:
+        install-mode: minimal
+        extra-dependencies: skypilot>=0.10.3
 
     - name: Set up Weights & Biases credentials
       shell: bash
