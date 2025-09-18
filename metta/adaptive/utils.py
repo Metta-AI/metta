@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, Optional
 
 from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
+from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +193,7 @@ def create_eval_job(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
         type=JobTypes.LAUNCH_EVAL,
-        args={"policy_uri": f"wandb://metta/{run_id}"},
+        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}:latest"},
         overrides=overrides,
         metadata={},
     )
