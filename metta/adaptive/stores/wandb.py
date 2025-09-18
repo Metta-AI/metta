@@ -1,11 +1,11 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 import wandb
 
-from metta.adaptive.models import Observation, RunInfo
+from metta.adaptive.models import RunInfo
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
 
@@ -211,17 +211,7 @@ class WandbStore:
         runtime_hours = runtime / 3600.0 if runtime > 0 else 0
         cost = cost_per_hour * runtime_hours
 
-        # Extract observation if present - use calculated cost instead of stored value
-        observation = None
-        if "observation" in summary:
-            obs_data = summary["observation"]  # type: ignore
-            if isinstance(obs_data, dict) and "score" in obs_data:
-                # TEMPORARY PATCH: Use calculated cost instead of stored observation cost
-                observation = Observation(
-                    score=float(obs_data["score"]),  # type: ignore
-                    cost=cost,  # Use calculated cost instead of obs_data["cost"]
-                    suggestion=obs_data.get("suggestion", {}),  # type: ignore
-                )
+        # Note: observation field is no longer used - sweep data is stored in summary instead
 
         # Extract training progress metrics
         total_timesteps = None
@@ -248,17 +238,44 @@ class WandbStore:
             # If either is None, we haven't completed training
             has_completed_training = False
 
+        # Convert created_at to datetime if it's a string
+        created_at = None
+        if hasattr(run, "created_at"):
+            if isinstance(run.created_at, str):
+                try:
+                    # Parse ISO format datetime string
+                    from dateutil import parser
+                    created_at = parser.parse(run.created_at)
+                    # Ensure it has UTC timezone
+                    if created_at.tzinfo is None:
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                except Exception:
+                    created_at = None
+            elif isinstance(run.created_at, datetime):
+                created_at = run.created_at
+                # Ensure it has UTC timezone
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+            else:
+                created_at = None
+
+        # Calculate last_updated_at (always with UTC timezone)
+        if run.summary.get("_timestamp"):
+            last_updated_at = datetime.fromtimestamp(float(run.summary.get("_timestamp", 0)), tz=timezone.utc)
+        elif created_at:
+            last_updated_at = created_at
+        else:
+            last_updated_at = datetime.now(timezone.utc)
+
         # Create RunInfo with all fields set in constructor
         info = RunInfo(
             run_id=run.id,
             group=run.group if hasattr(run, "group") else None,
             tags=run.tags if hasattr(run, "tags") else None,
-            created_at=run.created_at if hasattr(run, "created_at") else None,
+            created_at=created_at,
             started_at=None,  # WandB doesn't have separate started_at
             completed_at=None,  # Could be derived from state change
-            last_updated_at=datetime.fromtimestamp(float(run.summary.get("_timestamp", 0)))
-            if run.summary.get("_timestamp")
-            else (run.created_at if hasattr(run, "created_at") else datetime.now()),
+            last_updated_at=last_updated_at,
             summary=summary,  # type: ignore
             has_started_training=has_started_training,
             has_completed_training=has_completed_training,
@@ -269,7 +286,6 @@ class WandbStore:
             runtime=runtime,
             total_timesteps=total_timesteps,
             current_steps=current_steps,
-            observation=observation,
         )
 
         return info

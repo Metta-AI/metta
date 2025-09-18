@@ -57,9 +57,9 @@ app = typer.Typer(
 
 def _get_status_color(status: "JobStatus") -> str:
     """Get color for run status."""
-    from metta.sweep.models import JobStatus
+    from metta.adaptive.models import JobStatus
 
-    if status == JobStatus.COMPLETED or status == JobStatus.EVAL_DONE_NOT_COMPLETED:
+    if status == JobStatus.COMPLETED:
         return "bright_blue"
     elif status == JobStatus.IN_TRAINING:
         return "bright_green"
