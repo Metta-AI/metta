@@ -203,7 +203,8 @@ def main():
         epilog="""
 Examples:
   %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
-  %(prog)s experiments.recipes.arena.play policy_uri=file://./checkpoints --verbose
+  %(prog)s experiments.recipes.arena.play \
+    policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
   %(prog)s experiments.recipes.arena.train optim='{"lr":1e-3,"beta1":0.9}'
 
 Rules:
