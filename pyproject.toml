@@ -182,3 +182,16 @@ softmax = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "codebot",
+  "cogames",
+  "gitta",
+  "metta_agent",
+  "metta_app_backend",
+  "metta_common",
+  "metta",
+  "mettagrid",
+  "softmax",
+]
