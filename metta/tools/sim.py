@@ -35,7 +35,7 @@ def _determine_run_name(policy_uri: str) -> str:
 class SimTool(Tool[Sequence[SimulationConfig]]):
     # required params:
     config: Sequence[SimulationConfig]  # list of simulations to run
-    policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
+    policy_uri: str | Sequence[str] | None = None  # policy uri(s) to evaluate
 
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
@@ -49,13 +49,12 @@ class SimTool(Tool[Sequence[SimulationConfig]]):
     push_metrics_to_wandb: bool = False
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        if self.policy_uris is None:
-            raise ValueError("policy_uris is required")
+        if self.policy_uri is None:
+            raise ValueError("policy_uri is required")
 
-        if isinstance(self.policy_uris, str):
-            self.policy_uris = [self.policy_uris]
+        policy_uris = self.policy_uri if isinstance(self.policy_uri, list) else [self.policy_uri]
 
-        for uri in self.policy_uris:
+        for uri in policy_uris:
             parsed_uri = ParsedURI.parse(uri)
             if parsed_uri.scheme == "wandb":
                 raise ValueError(
@@ -82,7 +81,7 @@ class SimTool(Tool[Sequence[SimulationConfig]]):
         if self.eval_task_id:
             eval_task_id = uuid.UUID(self.eval_task_id)
 
-        for policy_uri in self.policy_uris:
+        for policy_uri in policy_uris:
             # Normalize the URI using CheckpointManager
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 

@@ -158,7 +158,7 @@ def train() -> TrainTool:
     # Create trainer configuration, only overriding non-default values
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=cc.env_curriculum(env_cfg),
+        curriculum=cc.single_task_curriculum(env_cfg),
         total_timesteps=10_000_000_000,  # 10B instead of default 50B
         checkpoint=CheckpointConfig(
             checkpoint_interval=50,  # 50 instead of default 5

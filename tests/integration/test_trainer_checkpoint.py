@@ -17,7 +17,7 @@ import pytest
 import torch
 
 from metta.agent.agent_config import AgentConfig
-from metta.cogworks.curriculum import env_curriculum
+from metta.cogworks.curriculum import single_task_curriculum
 from metta.core.distributed import TorchDistributedConfig
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
@@ -47,7 +47,7 @@ class TestTrainerCheckpointIntegration:
             rollout_workers=1,
             async_factor=1,
             forward_pass_minibatch_target_size=32,
-            curriculum=env_curriculum(make_arena(num_agents=6)),
+            curriculum=single_task_curriculum(make_arena(num_agents=6)),
             checkpoint=CheckpointConfig(
                 checkpoint_interval=2,
                 checkpoint_dir=self.checkpoint_dir,

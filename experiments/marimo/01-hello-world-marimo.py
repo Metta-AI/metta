@@ -96,7 +96,7 @@ def _():
     )
 
     from metta.cogworks.curriculum import (
-        env_curriculum,
+        single_task_curriculum,
         SingleTaskGeneratorConfig,
         CurriculumConfig,
     )
@@ -381,7 +381,7 @@ def _():
         contextlib,
         datetime,
         display,
-        env_curriculum,
+        single_task_curriculum,
         generate_valid_random_actions,
         get_repo_root,
         io,
@@ -833,7 +833,7 @@ def _(
 
         # Create trainer configuration to reach peak performance before unlearning
         trainer_config = TrainerConfig(
-            curriculum=env_curriculum(mg_config),
+            curriculum=single_task_curriculum(mg_config),
             total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 ore)
             batch_size=32768,  # Reduced batch size for more stable learning
             minibatch_size=256,  # Smaller minibatches for better gradient estimates
@@ -1502,7 +1502,7 @@ def _(
 
     def train_agent2():
         # Create a simple curriculum with our hallway environment
-        curriculum = env_curriculum(mg_config2)
+        curriculum = single_task_curriculum(mg_config2)
 
         run_name2 = f"{username}.hello_world_train.mine_plus_generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 

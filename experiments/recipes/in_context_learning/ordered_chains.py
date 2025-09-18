@@ -272,16 +272,18 @@ class ConverterChainTaskGenerator(TaskGenerator):
         return int(most_efficient), int(least_efficient)
 
 
-def mettagrid() -> MettaGridConfig:
+def env_recipe() -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[6],
         num_sinks=[2],
     )
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
-    return task_generator.get_task(0)
+    env = task_generator.get_task(0)
+    env.label = "icl_resource_chain"
+    return env
 
 
-def curriculum(
+def curriculum_recipe(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
@@ -307,7 +309,7 @@ def curriculum(
     )
 
 
-def trainer(
+def train_recipe(
     curriculum_cfg: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainerConfig:
@@ -320,7 +322,9 @@ def trainer(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum_cfg
-        or curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
+        or curriculum_recipe(
+            enable_detailed_slice_logging=enable_detailed_slice_logging
+        ),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
@@ -331,7 +335,7 @@ def trainer(
     return trainer_cfg
 
 
-def simulations() -> Sequence[SimulationConfig]:
+def evaluate_recipe() -> Sequence[SimulationConfig]:
     """Default simulations for evaluation."""
     # Local import to avoid circular import at module load time
     from experiments.evals.icl_resource_chain import (
@@ -339,3 +343,18 @@ def simulations() -> Sequence[SimulationConfig]:
     )
 
     return make_icl_resource_chain_eval_suite()
+
+
+# Alias for consistency
+sim_recipe = evaluate_recipe
+
+
+def play_recipe() -> SimulationConfig:
+    """ICL resource chain environment for interactive play."""
+    env = env_recipe()
+    return SimulationConfig(env=env, name="icl_resource_chain")
+
+
+def replay_recipe() -> SimulationConfig:
+    """ICL resource chain environment for replay viewing."""
+    return play_recipe()
