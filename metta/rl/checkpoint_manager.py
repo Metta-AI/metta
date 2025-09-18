@@ -283,6 +283,8 @@ class CheckpointManager:
         }
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
+        if "curriculum_state" in state:
+            result["curriculum_state"] = state["curriculum_state"]
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
@@ -318,13 +320,20 @@ class CheckpointManager:
         return f"file://{checkpoint_path.resolve()}"
 
     def save_trainer_state(
-        self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
+        self,
+        optimizer,
+        epoch: int,
+        agent_step: int,
+        stopwatch_state: Optional[Dict[str, Any]] = None,
+        curriculum_state: Optional[Dict[str, Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
+        if curriculum_state:
+            state["curriculum_state"] = curriculum_state
         torch.save(state, trainer_file)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:

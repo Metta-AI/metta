@@ -167,6 +167,10 @@ def train(
     latest_saved_epoch = epoch  # Track the epoch of the latest saved checkpoint
     latest_remote_policy_uri = None  # Track the last uploaded remote checkpoint URI
 
+    # Load curriculum state from checkpoint if available
+    if trainer_state and "curriculum_state" in trainer_state:
+        curriculum.load_state(trainer_state["curriculum_state"])
+
     if trainer_state:
         logger.info(f"Restored from checkpoint at {agent_step} steps")
         # Restore stopwatch state if available
@@ -526,7 +530,10 @@ def train(
 
                 # Save agent and trainer state (always upload to remote prefix if configured)
                 policy_uri = checkpoint_manager.save_agent(agent_to_save, epoch, metadata)
-                checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, timer.save_state())
+                curriculum_state = curriculum.get_state()
+                checkpoint_manager.save_trainer_state(
+                    optimizer, epoch, agent_step, timer.save_state(), curriculum_state
+                )
                 latest_saved_epoch = epoch
                 latest_remote_policy_uri = policy_uri
                 logger.info(f"Saved checkpoint to {policy_uri}")
@@ -666,7 +673,8 @@ def train(
     final_metadata["is_final"] = True
 
     checkpoint_manager.save_agent(agent_to_save, epoch, final_metadata)
-    checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step)
+    curriculum_state = curriculum.get_state()
+    checkpoint_manager.save_trainer_state(optimizer, epoch, agent_step, curriculum_state=curriculum_state)
 
     cleanup_monitoring(memory_monitor, system_monitor)
 
