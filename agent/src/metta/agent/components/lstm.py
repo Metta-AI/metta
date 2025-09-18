@@ -1,21 +1,22 @@
-from typing import Dict, Optional
+from typing import Dict
 
 import torch
 import torch.nn as nn
 from einops import rearrange
 from tensordict import TensorDict
 
-from metta.mettagrid.config import Config
+from metta.agent.components.component_config import ComponentConfig
 
 
-class LSTMConfig(Config):
+class LSTMConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "lstm"
     latent_size: int = 128
     hidden_size: int = 128
     num_layers: int = 2
-    in_key: str = "encoded_obs"
-    out_key: str = "hidden"
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return LSTM(config=self)
 
 
@@ -40,9 +41,9 @@ class LSTM(nn.Module):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, config: Optional[LSTMConfig] = None):
+    def __init__(self, config: LSTMConfig):
         super().__init__()
-        self.config = config or LSTMConfig()
+        self.config = config
         self.latent_size = self.config.latent_size
         self.hidden_size = self.config.hidden_size
         self.num_layers = self.config.num_layers

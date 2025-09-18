@@ -9,8 +9,8 @@ from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.lib_td.action import ActionEmbedding, ActionEmbeddingConfig
-from metta.agent.lib_td.actor import (
+from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
+from metta.agent.components.actor import (
     ActionProbs,
     ActionProbsConfig,
     ActorKey,
@@ -18,28 +18,36 @@ from metta.agent.lib_td.actor import (
     ActorQuery,
     ActorQueryConfig,
 )
-from metta.agent.lib_td.cnn_encoder import CNNEncoder, CNNEncoderConfig
-from metta.agent.lib_td.lstm import LSTM, LSTMConfig
-from metta.agent.lib_td.obs_shaping import ObsShaperBox
+from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
+from metta.agent.components.lstm import LSTM, LSTMConfig
+from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
 
 
 class FastConfig(PolicyArchitecture):
-    """Demonstrating that we can use config objects (ie LSTMConfig) for classes as layers (self.lstm) or attributes (ie
-    actor_hidden_dim) for simple torch classes as layers (ie self.critic_1) and intermix."""
+    """
+    Fast uses a CNN encoder so is not flexible to changing observation features but it runs faster than the ViT encoder.
+
+    This particular class is also set up without using PolicyAutoBuilder to demonstrate an alternative way to build a
+    policy, affording more control over the process at the expense of more code. It demonstrates that we can use config
+    objects (ie LSTMConfig) for classes as layers (self.lstm) or attributes (ie actor_hidden_dim) for simple torch
+    classes as layers (ie self.critic_1), wrap them in a TensorDictModule, and intermix."""
 
     class_path: str = "metta.agent.policies.fast.FastPolicy"
-
-    cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig()
-    lstm_config: LSTMConfig = LSTMConfig()
+    obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
+    cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(in_key="obs_normalizer", out_key="encoded_obs")
+    lstm_config: LSTMConfig = LSTMConfig(
+        in_key="encoded_obs", out_key="core", latent_size=128, hidden_size=128, num_layers=2
+    )
     critic_hidden_dim: int = 1024
-    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig()
-    actor_query_config: ActorQueryConfig = ActorQueryConfig()
-    actor_key_config: ActorKeyConfig = ActorKeyConfig()
-    action_probs_config: ActionProbsConfig = ActionProbsConfig()
-    wants_td: bool = True
+    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="action_embedding")
+    actor_query_config: ActorQueryConfig = ActorQueryConfig(in_key="core", out_key="actor_query")
+    actor_key_config: ActorKeyConfig = ActorKeyConfig(
+        query_key="actor_query", embedding_key="action_embedding", out_key="logits"
+    )
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
 class FastPolicy(Policy):
@@ -47,10 +55,8 @@ class FastPolicy(Policy):
         super().__init__()
         self.config = config or FastConfig()
         self.env = env
-        self.wants_td = self.config.wants_td
         self.is_continuous = False
-        # self.action_space = env.single_action_space
-        self.action_space = env.action_space  # av used to be single action space
+        self.action_space = env.action_space
 
         self.active_action_names = []
         self.num_active_actions = 100  # Default
@@ -60,11 +66,9 @@ class FastPolicy(Policy):
         self.out_width = env.obs_width
         self.out_height = env.obs_height
 
-        self.obs_shaper = ObsShaperBox(env=env)
+        self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
 
-        self.num_layers = max(env.feature_normalizations.keys()) + 1
-        self.config.cnn_encoder_config.num_layers = self.num_layers
-        self.cnn_encoder = CNNEncoder(config=config.cnn_encoder_config)
+        self.cnn_encoder = CNNEncoder(config=config.cnn_encoder_config, env=env)
 
         self.lstm = LSTM(config=config.lstm_config)
 
@@ -73,7 +77,7 @@ class FastPolicy(Policy):
         module = pufferlib.pytorch.layer_init(
             nn.Linear(config.lstm_config.hidden_size, config.critic_hidden_dim), std=np.sqrt(2)
         )
-        self.critic_1 = TDM(module, in_keys=["hidden"], out_keys=["critic_1"])
+        self.critic_1 = TDM(module, in_keys=["core"], out_keys=["critic_1"])
         module = pufferlib.pytorch.layer_init(nn.Linear(config.critic_hidden_dim, 1), std=1.0)
         self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
 
@@ -86,7 +90,7 @@ class FastPolicy(Policy):
         self.action_probs = ActionProbs(config=config.action_probs_config)
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        self.obs_shaper(td)
+        self.obs_shim(td)
         self.cnn_encoder(td)
         self.lstm(td)
         self.critic_1(td)
@@ -104,7 +108,7 @@ class FastPolicy(Policy):
         env,
         device,
     ) -> List[str]:
-        log = self.obs_shaper.initialize_to_environment(env, device)
+        log = self.obs_shim.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
         return [log]

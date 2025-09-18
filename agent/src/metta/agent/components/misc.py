@@ -7,24 +7,25 @@ from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
 
+from metta.agent.components.component_config import ComponentConfig
 from metta.mettagrid.config import Config
 
 
-class MLPConfig(Config):
+class MLPConfig(ComponentConfig):
     """Variable depth MLP. You don't have to set input feats since it uses lazy linear.
     Don't set an output nonlinearity if it's used as an output head!"""
 
-    name: str
     in_key: str
     out_key: str
     out_features: int
+    name: str = "mlp"
     hidden_features: List[int]
     in_features: Optional[int] = None
     nonlinearity: Optional[str] = "ReLU"  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     output_nonlinearity: Optional[str] = None  # e.g., "ReLU", "Tanh"; Name of a torch.nn module
     layer_init_std: float = 1.0
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return MLP(config=self)
 
 
@@ -86,12 +87,12 @@ class MLP(nn.Module):
 
 
 ###------------- Deep Residual MLP -------------------------
-class ResMLP(Config):
-    name: str
+class DeepResMLPConfig(Config):
     in_key: str
     out_key: str
     depth: int
     in_features: int
+    name: str = "deep_res_mlp"
 
 
 class ResidualBlock(nn.Module):
@@ -140,7 +141,7 @@ class ResNetMLP(nn.Module):
     that maps to the hidden size you want.
     """
 
-    def __init__(self, config: MLPConfig):
+    def __init__(self, config: DeepResMLPConfig):
         super().__init__()
         self.config = config
         hidden_size = self.config.in_features

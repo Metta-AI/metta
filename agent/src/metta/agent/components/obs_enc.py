@@ -5,14 +5,15 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.mettagrid.config import Config
+from metta.agent.components.component_config import ComponentConfig
 
 
-class ObsLatentAttnConfig(Config):
+class ObsLatentAttnConfig(ComponentConfig):
+    in_key: str
+    out_key: str
     feat_dim: int
     out_dim: int
-    in_key: str = "obs_attr_embed_fourier"
-    out_key: str = "obs_latent_attn"
+    name: str = "obs_latent_attn"
     use_mask: bool = True
     num_query_tokens: int = 10
     num_heads: int = 4
@@ -23,7 +24,7 @@ class ObsLatentAttnConfig(Config):
     mlp_ratio: float = 4.0
     use_cls_token: bool = False
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ObsLatentAttn(config=self)
 
 
@@ -78,9 +79,9 @@ class ObsLatentAttn(nn.Module):
           or `[B_TT, num_query_tokens, out_dim]` if `_use_cls_token == False`.
     """
 
-    def __init__(self, config: Optional[ObsLatentAttnConfig] = None) -> None:
+    def __init__(self, config: ObsLatentAttnConfig) -> None:
         super().__init__()
-        self.config = config or ObsLatentAttnConfig()
+        self.config = config
         self._out_dim = self.config.out_dim
         self._use_mask = self.config.use_mask
         self._num_query_tokens = self.config.num_query_tokens
@@ -208,26 +209,27 @@ class ObsLatentAttn(nn.Module):
         return td
 
 
-class ObsSelfAttnConfig(Config):
+class ObsSelfAttnConfig(ComponentConfig):
     feat_dim: int
-    in_key: str = "obs_latent_attn"
-    out_key: str = "encoded_obs"
+    in_key: str
+    out_key: str
+    name: str = "obs_self_attn"
     out_dim: int = 128
     use_mask: bool = False
     num_layers: int = 4
     num_heads: int = 8
     use_cls_token: bool = True
 
-    def instantiate(self):
+    def make_component(self, env=None):
         return ObsSelfAttn(config=self)
 
 
 class ObsSelfAttn(nn.Module):
     """Self-attention layer for observation features with optional CLS token."""
 
-    def __init__(self, config: Optional[ObsSelfAttnConfig] = None) -> None:
+    def __init__(self, config: ObsSelfAttnConfig) -> None:
         super().__init__()
-        self.config = config or ObsSelfAttnConfig()
+        self.config = config
         self._feat_dim = self.config.feat_dim
         self._out_dim = self.config.out_dim
         self._use_mask = self.config.use_mask

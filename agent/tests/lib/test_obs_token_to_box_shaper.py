@@ -1,7 +1,7 @@
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.obs_token_to_box_shaper import ObsTokenToBoxShaper
+from metta.agent.lib.obs_shim import ObsTokenToBoxShim
 
 
 def test_obs_token_to_box_shaper_forward():
@@ -13,7 +13,7 @@ def test_obs_token_to_box_shaper_forward():
     batch_size = 2
 
     # Create the shaper
-    shaper = ObsTokenToBoxShaper(
+    shaper = ObsTokenToBoxShim(
         obs_shape=obs_shape,
         obs_width=obs_width,
         obs_height=obs_height,

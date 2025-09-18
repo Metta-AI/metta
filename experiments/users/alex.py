@@ -8,7 +8,7 @@ import metta.cogworks.curriculum as cc
 # import metta.mettagrid.config.envs as eb
 import metta.mettagrid.builder.envs as eb
 from experiments.recipes import arena
-from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.vit import ViTSmallConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
@@ -87,24 +87,9 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        # curriculum=curriculum or make_curriculum(),
-        # evaluation=EvaluationConfig(
-        #     simulations=[
-        #         SimulationConfig(
-        #             name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-        #         ),
-        #         SimulationConfig(
-        #             name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-        #         ),
-        #     ],
-        #     evaluate_remote=True,  # True instead of default False
-        #     evaluate_local=False,  # False instead of default True
-        #     skip_git_check=True,
-        # ),
     )
-    policy_config = FastConfig()
-    policy_config.lstm_config.hidden_size = 128
-    # policy_config = ViTLSTMConfig()
+    # policy_config = FastConfig()
+    policy_config = ViTSmallConfig()
     curriculum = curriculum or make_curriculum()
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     evaluator = EvaluatorConfig(simulations=make_evals())
