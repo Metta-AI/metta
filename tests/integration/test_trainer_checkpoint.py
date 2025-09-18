@@ -82,7 +82,7 @@ class TestTrainerCheckpointIntegration:
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=self.temp_dir)
+        checkpoint_manager = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
             run_dir=str(run_dir),
@@ -114,7 +114,7 @@ class TestTrainerCheckpointIntegration:
 
         trainer_cfg.total_timesteps = first_run_agent_step + 500
 
-        checkpoint_manager_2 = CheckpointManager(run=run_name, run_dir=self.temp_dir)
+        checkpoint_manager_2 = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
             run_dir=str(run_dir),
@@ -153,7 +153,7 @@ class TestTrainerCheckpointIntegration:
 
         trainer_cfg.checkpoint.checkpoint_interval = 1
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=self.temp_dir)
+        checkpoint_manager = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
             run_dir=str(run_dir),
@@ -191,7 +191,7 @@ class TestTrainerCheckpointIntegration:
         torch_dist_cfg = self._create_torch_dist_config()
         device = torch.device(system_cfg.device)
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=self.temp_dir)
+        checkpoint_manager = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
             run_dir=str(run_dir),
@@ -236,7 +236,7 @@ class TestTrainerCheckpointIntegration:
         trainer_cfg.minibatch_size = 32
         trainer_cfg.forward_pass_minibatch_target_size = 16
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=self.temp_dir)
+        checkpoint_manager = CheckpointManager(run=run_name, run_dir=run_dir)
 
         train(
             run_dir=str(run_dir),
