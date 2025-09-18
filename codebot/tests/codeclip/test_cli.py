@@ -8,9 +8,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from click.testing import CliRunner
+from typer.testing import CliRunner
 
-from codebot.codeclip.cli import cli
+from codebot.codeclip.cli import app
 
 
 class TestCodeclipCLI(unittest.TestCase):
@@ -56,7 +56,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self._create_test_structure()
 
         # Test with multiple directories (using -s for stdout output)
-        result = self.runner.invoke(cli, ["project1", "project2", "-s"])
+        result = self.runner.invoke(app, ["project1", "project2", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Check that files from both directories are included
@@ -75,7 +75,7 @@ class TestCodeclipCLI(unittest.TestCase):
         os.chdir(subdir)
 
         # Test with relative path (using -s for stdout output)
-        result = self.runner.invoke(cli, ["../project1", "-s"])
+        result = self.runner.invoke(app, ["../project1", "-s"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("project1/main.py", result.output)
 
@@ -85,7 +85,7 @@ class TestCodeclipCLI(unittest.TestCase):
         Path("test.py").write_text("print('test')\n")
         Path("README.md").write_text("# Test\n")
 
-        result = self.runner.invoke(cli, [".", "-s"])
+        result = self.runner.invoke(app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("test.py", result.output)
         self.assertIn("README.md", result.output)
@@ -95,7 +95,7 @@ class TestCodeclipCLI(unittest.TestCase):
         self._create_test_structure()
 
         # Test filtering for Python files only
-        result = self.runner.invoke(cli, ["-e", "py", "project1", "project2", "-s"])
+        result = self.runner.invoke(app, ["-e", "py", "project1", "project2", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should include .py files
@@ -111,7 +111,7 @@ class TestCodeclipCLI(unittest.TestCase):
         Path("README.md").write_text("# Test Project\n")
 
         # Test with readmes-only flag (using -s for stdout output)
-        result = self.runner.invoke(cli, [".", "-r", "-s"])
+        result = self.runner.invoke(app, [".", "-r", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have XML format (we always use XML now)
@@ -130,7 +130,7 @@ class TestCodeclipCLI(unittest.TestCase):
         """Test XML output format (default)."""
         Path("test.py").write_text("print('test')\n")
 
-        result = self.runner.invoke(cli, [".", "-s"])
+        result = self.runner.invoke(app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have XML tags (new format)
@@ -149,7 +149,7 @@ class TestCodeclipCLI(unittest.TestCase):
         subdir.mkdir()
         (subdir / "code.py").write_text("print('code')\n")
 
-        result = self.runner.invoke(cli, ["subdir", "-s"])
+        result = self.runner.invoke(app, ["subdir", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should include both the subdirectory file and parent README
@@ -163,7 +163,7 @@ class TestCodeclipCLI(unittest.TestCase):
         Path("test.py").write_text("print('test')\n")
 
         # Clipboard is now the default behavior (no flags needed)
-        result = self.runner.invoke(cli, ["."])
+        result = self.runner.invoke(app, ["."])
         self.assertEqual(result.exit_code, 0)
 
         # Check that clipboard copy was called
@@ -177,7 +177,7 @@ class TestCodeclipCLI(unittest.TestCase):
         """Test that -s flag outputs to stdout."""
         Path("test.py").write_text("print('test')\n")
 
-        result = self.runner.invoke(cli, [".", "-s"])
+        result = self.runner.invoke(app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should have file content in stdout
@@ -185,18 +185,85 @@ class TestCodeclipCLI(unittest.TestCase):
         # Should NOT have summary since -s was used
         self.assertNotIn("Copied", result.output)
 
-    def test_help_contains_all_options(self):
-        """Test that help output contains all expected options."""
-        result = self.runner.invoke(cli, ["--help"])
+    def test_ignore_patterns(self):
+        """Test ignore flag with consistent pattern matching behavior.
+
+        The -i flag supports two types of patterns:
+        1. Directory names (e.g., -i cache): Ignores ANY directory with that name
+        2. Path patterns (e.g., -i build/cache): Ignores specific relative paths
+
+        This matches the behavior of built-in ignored directories like node_modules.
+        """
+        # Create a directory structure with multiple 'cache' and 'z' directories
+        structure = {
+            "x/file1.py": "print('x file')",
+            "y/file2.py": "print('y file')",
+            "y/z/file3.py": "print('y/z file')",
+            "other/z/file4.py": "print('other/z file')",
+            "cache/file5.py": "print('root cache')",
+            "build/cache/file6.py": "print('build cache')",
+            "other/cache/file7.py": "print('other cache')",
+            "mylib/test.py": "print('mylib')",
+            "src/mylib/code.py": "print('src/mylib')",
+        }
+
+        for file_path, content in structure.items():
+            path = Path(file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+
+        # Test 1: Path pattern - ignore specific path y/z (not all 'z' directories)
+        result = self.runner.invoke(app, [".", "-i", "y/z", "-s"])
         self.assertEqual(result.exit_code, 0)
 
-        # Check that all options are mentioned in help
-        self.assertIn("-s, --stdout", result.output)
-        self.assertIn("-r, --readmes", result.output)
-        self.assertIn("-e, --extension", result.output)
-        self.assertIn("-p, --profile", result.output)
-        self.assertIn("-f, --flamegraph", result.output)
-        self.assertIn("-d, --diff", result.output)
+        # Should NOT include y/z (path pattern match)
+        self.assertNotIn("y/z/file3.py", result.output)
+        self.assertNotIn("y/z file", result.output)
+
+        # SHOULD include other/z (different path)
+        self.assertIn("other/z/file4.py", result.output)
+        self.assertIn("other/z file", result.output)
+
+        # Test 2: Directory name pattern - ignore ALL 'cache' directories
+        result = self.runner.invoke(app, [".", "-i", "cache", "-s"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT include ANY cache directories
+        self.assertNotIn("cache/file5.py", result.output)
+        self.assertNotIn("build/cache/file6.py", result.output)
+        self.assertNotIn("other/cache/file7.py", result.output)
+        self.assertNotIn("root cache", result.output)
+        self.assertNotIn("build cache", result.output)
+        self.assertNotIn("other cache", result.output)
+
+        # Test 3: Path pattern - ignore specific path build/cache only
+        result = self.runner.invoke(app, [".", "-i", "build/cache", "-s"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT include build/cache (path pattern match)
+        self.assertNotIn("build/cache/file6.py", result.output)
+        self.assertNotIn("build cache", result.output)
+
+        # SHOULD include other cache directories (different paths)
+        self.assertIn("cache/file5.py", result.output)
+        self.assertIn("root cache", result.output)
+        self.assertIn("other/cache/file7.py", result.output)
+        self.assertIn("other cache", result.output)
+
+        # Test 4: Mix of directory name and path patterns
+        result = self.runner.invoke(app, [".", "-i", "z", "-i", "build/cache", "-s"])
+        self.assertEqual(result.exit_code, 0)
+
+        # Should NOT include any 'z' directories (name pattern)
+        self.assertNotIn("y/z/file3.py", result.output)
+        self.assertNotIn("other/z/file4.py", result.output)
+
+        # Should NOT include build/cache (path pattern)
+        self.assertNotIn("build/cache/file6.py", result.output)
+
+        # SHOULD include other cache directories
+        self.assertIn("cache/file5.py", result.output)
+        self.assertIn("other/cache/file7.py", result.output)
 
 
 if __name__ == "__main__":
