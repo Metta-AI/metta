@@ -19,6 +19,18 @@ if TYPE_CHECKING:
     from metta.rl.training.training_environment import EnvironmentMetaData
 
 
+class PolicyArchitecture(Config):
+    """Configuration container for constructing policies."""
+
+    class_path: str
+    components: List[ComponentConfig] = []
+    action_probs_config: ComponentConfig
+
+    def make_policy(self, env_metadata: "EnvironmentMetaData"):
+        AgentClass = load_symbol(self.class_path)
+        return AgentClass(env_metadata, self)
+
+
 class Policy(ABC, nn.Module):
     """Abstract base class defining the policy interface."""
 
@@ -52,18 +64,6 @@ class Policy(ABC, nn.Module):
     @abstractmethod
     def reset_memory(self) -> None:
         raise NotImplementedError
-
-
-class PolicyArchitecture(Config):
-    """Configuration container for constructing policies."""
-
-    class_path: str
-    components: List[ComponentConfig] = []
-    action_probs_config: ComponentConfig
-
-    def make_policy(self, env_metadata: "EnvironmentMetaData"):
-        AgentClass = load_symbol(self.class_path)
-        return AgentClass(env_metadata, self)
 
 
 class ExternalPolicyWrapper(Policy):
