@@ -35,6 +35,7 @@ from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
 from metta.common.util.log_config import init_logging
+from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
 
@@ -167,12 +168,19 @@ class SimTaskExecutor(AbstractTaskExecutor):
         simulations_json = json.dumps(simulations)
         simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
 
+        policy_uri = task.attributes.get("policy_uri") or policy_name
+        normalized = CheckpointManager.normalize_uri(policy_uri)
+        if not normalized.startswith(("file://", "s3://", "mock://")):
+            raise RuntimeError(
+                f"Unsupported policy URI '{policy_uri}'. Expected an s3://, file://, or mock:// checkpoint path."
+            )
+
         cmd = [
             "uv",
             "run",
             "tools/run.py",
             "experiments.evals.run.eval",
-            f"policy_uri=wandb://run/{policy_name}",
+            f"policy_uri={normalized}",
             f"simulations_json_base64={simulations_base64}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",

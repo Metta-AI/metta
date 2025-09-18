@@ -15,11 +15,11 @@ import warnings
 from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
-from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
+from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.mettagrid.config import Config
 from metta.mettagrid.util.module import load_symbol
 from metta.rl.system_config import seed_everything
@@ -50,6 +50,25 @@ def init_mettagrid_system_environment() -> None:
 
 
 T = TypeVar("T", bound=Config)
+
+# --------------------------------------------------------------------------------------
+# Output handling
+# --------------------------------------------------------------------------------------
+
+
+def output_info(message: str) -> None:
+    if sys.stdout.isatty():
+        print(message)
+    else:
+        logger.info(message.strip())
+
+
+def output_error(message: str) -> None:
+    if sys.stdout.isatty():
+        print(message, file=sys.stderr)
+    else:
+        logger.error(message.strip())
+
 
 # --------------------------------------------------------------------------------------
 # Small helpers
@@ -184,7 +203,8 @@ def main():
         epilog="""
 Examples:
   %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
-  %(prog)s experiments.recipes.arena.play policy_uri=file://./checkpoints --verbose
+  %(prog)s experiments.recipes.arena.play \
+    policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
   %(prog)s experiments.recipes.arena.train optim='{"lr":1e-3,"beta1":0.9}'
 
 Rules:
@@ -212,14 +232,13 @@ constructor/function vs configuration overrides based on introspection.
     # Initialize logging and environment
     init_logging()
     init_mettagrid_system_environment()
-    console = Console()
 
     # Enforce: unknown long options (starting with '-') are considered runner flags and not tool args.
     # Require users to separate with `--` if they want to pass after runner options.
     dash_unknowns = [a for a in unknown_args if a.startswith("-")]
     if dash_unknowns:
-        console.print(
-            "[red]Error:[/red] Unknown runner option(s): "
+        output_error(
+            f"{red('Error:')} Unknown runner option(s): "
             + ", ".join(dash_unknowns)
             + "\nUse `--` to separate runner options from tool args, e.g.:\n"
             + f"  {os.path.basename(sys.argv[0])} {known_args.make_tool_cfg_path} -- trainer.total_timesteps=100000"
@@ -234,19 +253,19 @@ constructor/function vs configuration overrides based on introspection.
     try:
         cli_args = parse_cli_args(all_args)
     except ValueError as e:
-        console.print(f"[red]Error:[/red] {e}")
+        output_error(f"{red('Error:')} {e}")
         return 2  # Exit code 2 for usage errors
 
     # Build nested payload from dotted paths for Pydantic validation
     nested_cli = nestify(cli_args)
 
-    console.print(f"\n[bold cyan]Loading tool:[/bold cyan] {known_args.make_tool_cfg_path}")
+    output_info(f"\n{bold(cyan('Loading tool:'))} {known_args.make_tool_cfg_path}")
 
     # Load the tool configuration function/class
     try:
         make_tool_cfg = load_symbol(known_args.make_tool_cfg_path)
     except Exception as e:
-        console.print(f"[red]Error loading {known_args.make_tool_cfg_path}:[/red] {e}")
+        output_error(f"{red('Error loading')} {known_args.make_tool_cfg_path}: {e}")
         return 1
 
     # ----------------------------------------------------------------------------------
@@ -259,9 +278,9 @@ constructor/function vs configuration overrides based on introspection.
         if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
             if known_args.verbose and nested_cli:
                 cls_name = make_tool_cfg.__name__
-                console.print(f"\n[cyan]Creating {cls_name} from nested CLI payload:[/cyan]")
+                output_info(f"\n{cyan(f'Creating {cls_name} from nested CLI payload:')}")
                 for k in sorted(nested_cli.keys()):
-                    console.print(f"  {k} = {nested_cli[k]}")
+                    output_info(f"  {k} = {nested_cli[k]}")
             tool_cfg = make_tool_cfg.model_validate(nested_cli)
             remaining_args = {}  # all dotted/top-level consumed by model validation
         else:
@@ -272,7 +291,7 @@ constructor/function vs configuration overrides based on introspection.
 
             if known_args.verbose and (cli_args or nested_cli):
                 func_name = getattr(make_tool_cfg, "__name__", str(make_tool_cfg))
-                console.print(f"\n[cyan]Creating {func_name}:[/cyan]")
+                output_info(f"\n{cyan(f'Creating {func_name}:')}")
 
             for name, p in sig.parameters.items():
                 # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
@@ -315,7 +334,7 @@ constructor/function vs configuration overrides based on introspection.
                             consumed_keys.add(k)
 
                     if known_args.verbose:
-                        console.print(f"  {name}={val!r}")
+                        output_info(f"  {name}={val!r}")
                     continue
 
                 # Check for direct parameter match in flat CLI args
@@ -324,7 +343,7 @@ constructor/function vs configuration overrides based on introspection.
                     func_kwargs[name] = val
                     consumed_keys.add(name)
                     if known_args.verbose:
-                        console.print(f"  {name}={val!r}")
+                        output_info(f"  {name}={val!r}")
 
             # Construct via function
             tool_cfg = make_tool_cfg(**func_kwargs)
@@ -340,18 +359,18 @@ constructor/function vs configuration overrides based on introspection.
         hint = ""
         if ("missing" in msg and "positional argument" in msg) and (" self" in msg or " cls" in msg):
             hint = (
-                "\n[yellow]Hint:[/yellow] It looks like an unbound method was passed. "
+                f"\n{yellow('Hint:')} It looks like an unbound method was passed. "
                 "Pass the Tool subclass itself or a factory function that doesn't require 'self'/'cls'."
             )
-        console.print(f"[red]Error creating tool configuration:[/red] {e}{hint}")
+        output_error(f"{red('Error creating tool configuration:')} {e}{hint}")
         return 1
     except Exception as e:
-        console.print(f"[red]Error creating tool configuration:[/red] {e}")
+        output_error(f"{red('Error creating tool configuration:')} {e}")
         return 1
 
     if not isinstance(tool_cfg, Tool):
-        console.print(
-            f"[red]Error:[/red] {known_args.make_tool_cfg_path} must return a Tool instance, got {type(tool_cfg)}"
+        output_error(
+            f"{red('Error:')} {known_args.make_tool_cfg_path} must return a Tool instance, got {type(tool_cfg)}"
         )
         return 1
 
@@ -362,37 +381,37 @@ constructor/function vs configuration overrides based on introspection.
     override_args, unknown_args = classify_remaining_args(remaining_args, tool_fields)
 
     if unknown_args:
-        console.print(f"\n[red]Error: Unknown arguments:[/red] {', '.join(unknown_args)}")
+        output_info(f"\n{red('Error: Unknown arguments:')} {', '.join(unknown_args)}")
         # Only show function params list if the entrypoint is a function
         if not (inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool)):
-            console.print("\n[yellow]Available function parameters:[/yellow]")
+            output_info(f"\n{yellow('Available function parameters:')}")
             for param in get_function_params(make_tool_cfg):
-                console.print(f"  - {param}")
-        console.print("\n[yellow]Available tool fields for overrides:[/yellow]")
+                output_info(f"  - {param}")
+        output_info(f"\n{yellow('Available tool fields for overrides:')}")
         for field in sorted(tool_fields):
-            console.print(f"  - {field}")
+            output_info(f"  - {field}")
         return 2  # Exit code 2 for usage errors
 
     if override_args:
         if known_args.verbose:
-            console.print("\n[cyan]Applying overrides:[/cyan]")
+            output_info(f"\n{cyan('Applying overrides:')}")
             for key, value in override_args.items():
-                console.print(f"  {key}={value}")
+                output_info(f"  {key}={value}")
         for key, value in override_args.items():
             try:
                 tool_cfg = tool_cfg.override(key, value)
             except Exception as e:
-                console.print(f"[red]Error applying override {key}={value}:[/red] {e}")
+                output_error(f"{red('Error applying override')} {key}={value}: {e}")
                 return 1
 
     # ----------------------------------------------------------------------------------
     # Dry run check - exit here if --dry-run flag is set
     # ----------------------------------------------------------------------------------
     if known_args.dry_run:
-        console.print("\n[bold green]✅ Configuration validation successful[/bold green]")
+        output_info(f"\n{bold(green('✅ Configuration validation successful'))}")
         if known_args.verbose:
-            console.print(f"[dim]Tool type: {type(tool_cfg).__name__}[/dim]")
-            console.print(f"[dim]Module: {known_args.make_tool_cfg_path}[/dim]")
+            output_info(f"Tool type: {type(tool_cfg).__name__}")
+            output_info(f"Module: {known_args.make_tool_cfg_path}")
         return 0
 
     # ----------------------------------------------------------------------------------
@@ -401,11 +420,11 @@ constructor/function vs configuration overrides based on introspection.
     if hasattr(tool_cfg, "system"):
         seed_everything(tool_cfg.system)
 
-    console.print("\n[bold green]Running tool...[/bold green]\n")
+    output_info(f"\n{bold(green('Running tool...'))}\n")
 
     try:
         if known_args.dry_run:
-            console.print("[bold green]Dry run: exiting[/bold green]")
+            output_info(bold(green("Dry run: exiting")))
             result = 0
         else:
             result = tool_cfg.invoke(func_args_for_invoke)

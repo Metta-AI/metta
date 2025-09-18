@@ -1,8 +1,20 @@
 import os
+import re
 import subprocess
 import sys
 
 import pytest
+
+
+def find_with_whitespace(target: str, text: str) -> bool:
+    """
+    Find a target string in text, allowing for arbitrary whitespace between words.
+    """
+    # Split the search string into words and escape regex special characters
+    words = [re.escape(word) for word in target.split()]
+    # Join with \s+ to match any whitespace between words
+    pattern = r"\s+".join(words)
+    return bool(re.search(pattern, text))
 
 
 @pytest.fixture
@@ -26,7 +38,7 @@ def test_basic(with_extra_imports_root):
     result = subprocess.check_output(
         [sys.executable, "-m", "metta.common.tool.run_tool", "mypackage.tools.TestTool"], text=True
     )
-    assert "TestTool invoked" in result
+    assert find_with_whitespace("TestTool invoked", result)
 
 
 def test_unknown_tool(with_extra_imports_root):
@@ -34,7 +46,9 @@ def test_unknown_tool(with_extra_imports_root):
     result = run_tool("mypackage.tools.NoSuchTool")
     assert result.returncode > 0
     combined_output = result.stderr + result.stdout
-    assert "has no" in combined_output and "attribute" in combined_output and "NoSuchTool" in combined_output
+    assert find_with_whitespace("has no", combined_output)
+    assert "attribute" in combined_output
+    assert "NoSuchTool" in combined_output
 
 
 def test_unknown_module(with_extra_imports_root):
@@ -42,7 +56,8 @@ def test_unknown_module(with_extra_imports_root):
     result = run_tool("mypackage.no_such_tools.TestTool")
     assert result.returncode > 0
     combined_output = result.stderr + result.stdout
-    assert "No module named" in combined_output and "mypackage.no_such_tools" in combined_output
+    assert find_with_whitespace("No module named", combined_output)
+    assert "mypackage.no_such_tools" in combined_output
 
 
 def test_required_field_supported_for_tool_class(with_extra_imports_root):
@@ -53,8 +68,7 @@ def test_required_field_supported_for_tool_class(with_extra_imports_root):
     result = run_tool("mypackage.tools.RequiredFieldTool", "x=123")
     assert result.returncode == 0
     combined_output = result.stdout + result.stderr
-    # The tool prints its x value from invoke()
-    assert "\n123\n" in combined_output or " 123" in combined_output or "123" in combined_output
+    assert "123" in combined_output
 
 
 def test_dotted_overrides_are_nested_and_validated(with_extra_imports_root):
@@ -71,9 +85,9 @@ def test_dotted_overrides_are_nested_and_validated(with_extra_imports_root):
     assert result.returncode == 0
     out = result.stdout + result.stderr
     # Printed by SimpleTestTool.invoke
-    assert "Tool value: custom" in out
-    assert "Tool nested.field: updated" in out
-    assert "Tool nested.another_field: 999" in out
+    assert find_with_whitespace("Tool value: custom", out)
+    assert find_with_whitespace("Tool nested.field: updated", out)
+    assert find_with_whitespace("Tool nested.another_field: 999", out)
 
 
 def test_factory_function_params_and_invoke_args(with_extra_imports_root):
@@ -91,5 +105,5 @@ def test_factory_function_params_and_invoke_args(with_extra_imports_root):
     out = result.stdout + result.stderr
     # SimpleTestTool.invoke prints "Args: {...}" and its own fields
     # Runner passes only factory-function args (not overrides) to invoke(), as strings
-    assert "Args: {'run': 'my_test', 'count': '99'}" in out
-    assert "Tool value: override" in out  # override applied to the tool instance
+    assert find_with_whitespace("Args: {'run': 'my_test', 'count': '99'}", out)
+    assert find_with_whitespace("Tool value: override", out)
