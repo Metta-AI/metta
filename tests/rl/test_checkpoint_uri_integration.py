@@ -11,14 +11,14 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.mocks import MockAgent
 from metta.agent.utils import obs_to_td
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
 from metta.rl.system_config import SystemConfig
+from mettagrid import MettaGridEnv
 
 
 @pytest.fixture
@@ -145,7 +145,7 @@ class TestFileURIHandling:
 class TestS3URIHandling:
     """Test s3:// URI format handling."""
 
-    @patch("metta.mettagrid.util.file.local_copy")
+    @patch("mettagrid.util.file.local_copy")
     def test_s3_uri_loading(self, mock_local_copy, mock_policy):
         """Test S3 URI handling through CheckpointManager."""
         mock_local_path = "/tmp/downloaded_checkpoint.pt"
