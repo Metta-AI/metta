@@ -5,17 +5,14 @@ W&B utility functions for logging, alerts, and artifact management.
 import logging
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import wandb
-from wandb import Artifact
 from wandb.apis.public.runs import Run
 from wandb.errors import CommError
 
 from metta.common.util.retry import retry_on_exception
 from metta.common.wandb.context import WandbRun
-from metta.mettagrid.util.file import WandbURI
 
 logger = logging.getLogger(__name__)
 
@@ -126,38 +123,10 @@ def log_debug_info() -> None:
     log_to_wandb(debug_metrics)
 
 
-# ============================================================================
-# API access functions with retry
-# ============================================================================
-
-
 @wandb_retry
 def get_wandb_run(path: str) -> Run:
     """Get wandb run object with retry."""
     return wandb.Api(timeout=60).run(path)
-
-
-@wandb_retry
-def get_wandb_artifact(qname: str) -> Artifact:
-    """Get wandb artifact with retry."""
-    return wandb.Api(timeout=60).artifact(qname)
-
-
-@wandb_retry
-def download_artifact(artifact: Artifact, root: str) -> None:
-    """Download wandb artifact with retry."""
-    artifact.download(root=root)
-
-
-@wandb_retry
-def wait_for_artifact_upload(artifact: Artifact) -> None:
-    """Wait for artifact upload to complete with retry."""
-    artifact.wait()
-
-
-# ============================================================================
-# Run management utilities
-# ============================================================================
 
 
 def abort_requested(wandb_run: WandbRun | None) -> bool:
@@ -175,72 +144,3 @@ def abort_requested(wandb_run: WandbRun | None) -> bool:
         logger.debug(f"Abort tag check failed: {e}")
         # Don't abort on API errors - let training continue
         return False
-
-
-# ============================================================================
-# Artifact utilities
-# ============================================================================
-
-
-def get_wandb_artifact_metadata(wandb_uri: str) -> Optional[dict]:
-    """Extract metadata from a wandb artifact."""
-    if not wandb_uri.startswith("wandb://"):
-        return None
-
-    uri = WandbURI.parse(wandb_uri)
-
-    try:
-        artifact = get_wandb_artifact(uri.qname())
-        return artifact.metadata
-    except Exception as e:
-        logger.warning(f"Failed to get artifact metadata for {wandb_uri}: {e}")
-        return None
-
-
-def upload_file_as_artifact(
-    file_path: str,
-    artifact_name: str,
-    artifact_type: str = "model",
-    metadata: Optional[dict] = None,
-    wandb_run: Optional[WandbRun] = None,
-    additional_files: Optional[list[str]] = None,
-    primary_filename: str = "model.pt",
-) -> Optional[str]:
-    """Upload a file to wandb as an artifact."""
-    # Use provided run or get current run
-    run = wandb_run or wandb.run
-    if run is None:
-        logger.warning("No wandb run active, cannot upload artifact")
-        return None
-
-    # Prepare metadata
-    artifact_metadata = metadata.copy() if metadata else {}
-
-    # Create artifact (wandb supports dots in names)
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type, metadata=artifact_metadata)
-
-    # Add primary file
-    artifact.add_file(file_path, name=primary_filename)
-
-    # Add any additional files
-    if additional_files:
-        for additional_file_path in additional_files:
-            if Path(additional_file_path).exists():
-                artifact.add_file(additional_file_path)
-            else:
-                logger.warning(f"Additional file not found: {additional_file_path}")
-
-    # Log artifact to run
-    run.log_artifact(artifact)
-
-    # Wait for upload to complete with retries
-    try:
-        wait_for_artifact_upload(artifact)
-    except Exception as e:
-        logger.error(f"Failed to wait for artifact upload: {e}")
-        # Even if wait fails, the artifact might still upload in the background
-
-    wandb_uri = f"wandb://{run.project}/{artifact_name}:{artifact.version}"
-    logger.info(f"Uploaded file as wandb artifact: {artifact.qualified_name}")
-
-    return wandb_uri
