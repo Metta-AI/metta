@@ -519,6 +519,107 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 4.0f);
 }
 
+// ==================== Fractional Consumption Tests ====================
+
+TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
+  Grid grid(3, 3);
+
+  // Create agent with initial energy
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create noop action with fractional consumption (0.5)
+  // Required resources must be at least ceil(consumed) = 1
+  ActionConfig noop_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 0.5f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(123);  // Fixed seed for predictable randomness
+  noop.init(&grid, &rng);
+
+  // Execute action multiple times
+  for (int i = 0; i < 10; i++) {
+    noop.handle_action(agent->id, 0);
+  }
+
+  // With 0.5 probability, we expect around 5 consumed (but could be 3-7 with randomness)
+  int final_ore = agent->inventory.count(TestItems::ORE) > 0 ? agent->inventory[TestItems::ORE] : 0;
+  EXPECT_GE(final_ore, 3);
+  EXPECT_LE(final_ore, 7);
+
+  // Test that action fails when inventory is empty
+  AgentConfig poor_cfg = create_test_agent_config();
+  // Don't set initial_inventory so the agent starts with nothing
+  Agent* poor_agent = new Agent(2, 1, poor_cfg);
+  float poor_reward = 0.0f;
+  poor_agent->init(&poor_reward);
+  grid.add_object(poor_agent);
+
+  bool success = noop.handle_action(poor_agent->id, 0);
+  EXPECT_FALSE(success);  // Should fail due to insufficient resources
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionWithOverflow) {
+  Grid grid(3, 3);
+
+  // Create agent with initial energy
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 5;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create noop action with fractional consumption (1.5)
+  ActionConfig noop_cfg({}, {{TestItems::ORE, 1.5f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(42);
+  noop.init(&grid, &rng);
+
+  bool success = noop.handle_action(agent->id, 0);
+  EXPECT_TRUE(success);  // Should succeed as we have enough resources
+
+  // With 1.5, should consume either 1 or 2 units
+  int final_ore = agent->inventory.count(TestItems::ORE) > 0 ? agent->inventory[TestItems::ORE] : 0;
+  EXPECT_TRUE(final_ore == 3 || final_ore == 4);
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionRequiresCeiledInventory) {
+  Grid grid(3, 3);
+
+  // Create agent with only 1 resource
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 1;
+  Agent* agent = new Agent(1, 1, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  // Create noop action with fractional consumption (1.5) - requires ceil(1.5) = 2
+  ActionConfig noop_cfg({{TestItems::ORE, 2}}, {{TestItems::ORE, 1.5f}});
+  Noop noop(noop_cfg);
+  std::mt19937 rng(42);
+  noop.init(&grid, &rng);
+
+  bool success = noop.handle_action(agent->id, 0);
+  EXPECT_FALSE(success);  // Should fail as we only have 1 but need ceil(1.5) = 2
+
+  // Verify inventory unchanged
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 1);
+}
+
+TEST_F(MettaGridCppTest, FractionalConsumptionInvalidRequirements) {
+  // Test that ActionHandler constructor throws when required < ceil(consumed)
+  ActionConfig invalid_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 1.5f}});
+  
+  // This should throw because required (1) < ceil(consumed) (2)
+  EXPECT_THROW({
+    Noop noop(invalid_cfg);
+  }, std::runtime_error);
+}
+
 // ==================== Event System Tests ====================
 
 TEST_F(MettaGridCppTest, EventManager) {
