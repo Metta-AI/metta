@@ -91,7 +91,7 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
             env=make_icl_resource_chain_eval_env(5, 2, "small"),
         ),
         SimulationConfig(
-            name="in_context_learning/5c_2s_small",
+            name="in_context_learning/5c_2s_medium",
             env=make_icl_resource_chain_eval_env(5, 2, "medium"),
         ),
         SimulationConfig(
