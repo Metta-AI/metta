@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Tuple
+from typing import Any, Tuple
 
 import numpy as np
 import torch
@@ -7,16 +7,12 @@ from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
+from metta.agent.policy_base import Policy
 from metta.mettagrid.config import Config
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
+from metta.rl.training.training_environment import TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
-
-# from metta.rl.trainer_config import TrainerConfig
-
-if TYPE_CHECKING:
-    from metta.agent.policy_base import Policy
-    from metta.rl.training.training_environment import TrainingEnvironment
 
 
 class PrioritizedExperienceReplayConfig(Config):
@@ -77,9 +73,9 @@ class PPOConfig(Config):
 
     def create(
         self,
-        policy: "Policy",
+        policy: Policy,
         trainer_cfg: Any,
-        env: "TrainingEnvironment",
+        env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: Any,

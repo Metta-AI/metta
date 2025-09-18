@@ -1,12 +1,18 @@
 """Policy helpers and wrappers."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import torch
 from tensordict import TensorDict
 
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimTokens
 from metta.agent.policy_architecture import PolicyArchitecture as _PolicyArchitecture
 from metta.agent.policy_base import Policy as _Policy
-from metta.rl.training.training_environment import EnvironmentMetaData
+
+if TYPE_CHECKING:
+    from metta.rl.training.training_environment import EnvironmentMetaData
 
 PolicyArchitecture = _PolicyArchitecture
 Policy = _Policy
@@ -24,7 +30,7 @@ class ExternalPolicyWrapper(Policy):
     if necessary.
     """
 
-    def __init__(self, policy: torch.nn.Module, env_metadata: EnvironmentMetaData, box_obs: bool = True):
+    def __init__(self, policy: torch.nn.Module, env_metadata: "EnvironmentMetaData", box_obs: bool = True):
         self.policy = policy
         if box_obs:
             self.obs_shaper = ObsShimBox(env=env_metadata, in_key="env_obs", out_key="obs")

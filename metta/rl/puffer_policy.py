@@ -1,13 +1,12 @@
 import logging
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 import gymnasium as gym
 import numpy as np
 from omegaconf import DictConfig
 
-if TYPE_CHECKING:
-    from metta.agent.policy_base import Policy
+from metta.agent.policy_base import Policy
 
 logger = logging.getLogger("policy")
 

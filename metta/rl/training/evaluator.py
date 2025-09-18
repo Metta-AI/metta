@@ -51,7 +51,9 @@ class NoOpEvaluator(TrainerComponent):
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
+    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
+        return
+
         pass
 
 
@@ -343,13 +345,12 @@ class Evaluator(TrainerComponent):
         """
         return self._latest_scores
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
-        """Run evaluation at epoch end if due.
+    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
+        """Run evaluation at epoch end if due."""
+        trainer = self._trainer
+        if trainer is None:
+            return
 
-        Args:
-            trainer: The trainer instance
-            epoch: Current epoch number
-        """
         if not self.should_evaluate(epoch):
             return
 
