@@ -464,10 +464,10 @@ def evaluate(
 
 def experiment():
     curriculum_styles = [
-        # "small",
-        # "small_medium",
-        # "all_room_sizes",
-        # "longer_chains",
+        "small",
+        "small_medium",
+        "all_room_sizes",
+        "longer_chains",
         "terrain",
     ]
     progress_smoothings = list(np.linspace(0.05, 0.15, 2))
@@ -492,26 +492,18 @@ def experiment():
                             [
                                 "./devops/skypilot/launch.py",
                                 "experiments.recipes.icl_resource_chain.train",
-                                f"run=icl_resource_chain_{curriculum_style}_PS{progress_smoothing.round(2)}_EB{exploration_bonus.round(2)}_NAT{int(num_active_task)}_RTR{rand_task_rate.round(2)}.09-18",
-                                "curriculum_style=",
-                                curriculum_style,
-                                "lp_params",
-                                f"progress_smoothing={progress_smoothing.round(2)}",
-                                f"exploration_bonus={exploration_bonus.round(2)}",
-                                f"num_active_tasks={int(num_active_task)}",
-                                f"rand_task_rate={rand_task_rate.round(2)}",
+                                f"run=icl_resource_chain_{curriculum_style}_PS{progress_smoothing.round(2)}_EB{exploration_bonus.round(2)}_NAT{int(num_active_task)}_RTR{rand_task_rate.round(2)}.09-19",
+                                f"curriculum_style={curriculum_style}",
+                                f"lp_params.progress_smoothing={progress_smoothing.round(2)}",
+                                f"lp_params.exploration_bonus={exploration_bonus.round(2)}",
+                                f"lp_params.num_active_tasks={int(num_active_task)}",
+                                f"lp_params.rand_task_rate={rand_task_rate.round(2)}",
                                 "--gpus=4",
                                 "--heartbeat-timeout=3600",
                                 "--skip-git-check",
                             ]
                         )
                         time.sleep(1)
-
-#full command
-#./devops/skypilot/launch.py experiments.recipes.icl_resource_chain.train run=icl_resource_chain_terrain_PS0.05_EB0.03_NAT1000_RTR0.10.09-18 style=terrain lp_params progress_smoothing=0.05 exploration_bonus=0.03 num_active_tasks=1000 rand_task_rate=0.10 --gpus=4 --heartbeat-timeout=3600 --skip-git-check
-
-
-
 
 
 if __name__ == "__main__":
