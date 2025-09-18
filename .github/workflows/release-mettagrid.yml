@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
-      - run: pipx run build --sdist --outdir dist package/mettagrid
+      - run: pipx run build --sdist --outdir dist packages/mettagrid
       - uses: actions/upload-artifact@v4
         with:
           name: sdist
@@ -74,7 +74,7 @@ jobs:
             python {project}/.github/scripts/relax_python_version.py {package}
           CI: "true"
         with:
-          package-dir: package/mettagrid
+          package-dir: packages/mettagrid
           output-dir: wheelhouse
 
       - uses: actions/upload-artifact@v4
