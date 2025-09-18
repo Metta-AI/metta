@@ -1,7 +1,7 @@
 import torch
 from heavyball import ForeachMuon
 
-from metta.agent.policy_base import Policy
+from metta.agent.policy import Policy
 from metta.rl.trainer_config import OptimizerConfig
 
 

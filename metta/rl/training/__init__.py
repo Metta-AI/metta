@@ -26,6 +26,7 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "PolicyUploaderConfig": ("metta.rl.training.policy_uploader", "PolicyUploaderConfig"),
     "TrainerCheckpointer": ("metta.rl.training.trainer_checkpointer", "TrainerCheckpointer"),
     "TrainerCheckpointerConfig": ("metta.rl.training.trainer_checkpointer", "TrainerCheckpointerConfig"),
+    "TrainerContext": ("metta.rl.training.context", "TrainerContext"),
     # Evaluation
     "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
     "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),

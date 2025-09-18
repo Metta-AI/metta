@@ -7,7 +7,7 @@ from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
-from metta.agent.policy_base import Policy
+from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss

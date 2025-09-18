@@ -13,7 +13,7 @@ import torch
 from einops import rearrange
 
 from metta.agent.mocks import MockAgent
-from metta.agent.policy_base import Policy
+from metta.agent.policy import Policy
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig

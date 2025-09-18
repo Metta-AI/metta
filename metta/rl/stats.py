@@ -10,8 +10,8 @@ import numpy as np
 import torch
 import wandb
 
-from metta.agent.policy_architecture import PolicyArchitecture
-from metta.agent.policy_base import Policy
+from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy import Policy
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary

@@ -129,9 +129,7 @@ class StatsReporter(TrainerComponent):
     def register(self, context: TrainerContext) -> None:  # type: ignore[override]
         super().register(context)
         reporting_enabled = (
-            self._config.report_to_wandb
-            or self._config.report_to_stats_client
-            or self._config.report_to_console
+            self._config.report_to_wandb or self._config.report_to_stats_client or self._config.report_to_console
         )
         if reporting_enabled:
             experience = context.core_loop.experience

@@ -7,7 +7,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 if TYPE_CHECKING:
-    from metta.agent.policy_base import Policy
+    from metta.agent.policy import Policy
     from metta.rl.training.experience import Experience
     from metta.rl.training.training_environment import TrainingEnvironment
 

@@ -6,7 +6,7 @@ import gymnasium as gym
 import numpy as np
 from omegaconf import DictConfig
 
-from metta.agent.policy_base import Policy
+from metta.agent.policy import Policy
 
 logger = logging.getLogger("policy")
 
