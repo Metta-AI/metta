@@ -532,6 +532,14 @@ def train(
                 latest_remote_policy_uri = policy_uri
                 logger.info(f"Saved checkpoint to {policy_uri}")
 
+            # TEST
+            if trainer_cfg.evaluation:
+                evaluate_local = trainer_cfg.evaluation.evaluate_local
+                evaluate_remote = trainer_cfg.evaluation.evaluate_remote
+                evaluator = "local" if evaluate_local else "remote" if evaluate_remote else "skipping"
+                logger.info(f"evaluate mode: {evaluator}")
+            # TEST
+
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with CheckpointManager - use current policy directly
                 if stats_client and stats_tracker.stats_run_id:
@@ -555,9 +563,11 @@ def train(
                 evaluator = "local" if evaluate_local else "remote" if evaluate_remote else "skipping"
                 logger.info(f"Collected {len(sims)} simulations to evaluate: {evaluator}")
 
+                # TEST
                 evaluate_remote = False
                 evaluate_local = True
                 logger.warning("Forcing evaluation to local for test")
+                # TEST
 
                 if latest_remote_policy_uri:
                     policy_uri = latest_remote_policy_uri

@@ -113,7 +113,12 @@ class TrainTool(Tool):
 
         record_heartbeat()
 
-        evaluate_local = True  # self.trainer.evaluation and self.trainer.evaluation.evaluate_local
+        evaluate_local = self.trainer.evaluation and self.trainer.evaluation.evaluate_local
+
+        # TEST
+        evaluate_local = True
+        # TEST
+
         nccl_timeout = timedelta(minutes=1)
         if evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
@@ -183,6 +188,9 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
 
     assert cfg.run
     assert cfg.policy_architecture
+
+    # TEST
+    logger.warning(cfg)
 
     # Use the functional train interface directly
     train(
