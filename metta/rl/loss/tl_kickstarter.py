@@ -12,7 +12,7 @@ from metta.agent.metta_agent import PolicyAgent
 from metta.mettagrid.config import Config
 from metta.rl.loss.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.trainer_state import TrainerState
+from metta.rl.training.context import TrainerContext
 
 # Config class
 
@@ -79,7 +79,7 @@ class TLKickstarter(Loss):
         # get the teacher policy experience spec
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerContext) -> tuple[Tensor, TensorDict]:
         policy_td = shared_loss_data["policy_td"]
 
         # Teacher forward pass

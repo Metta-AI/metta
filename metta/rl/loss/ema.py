@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from metta.agent.metta_agent import PolicyAgent
 from metta.mettagrid.config import Config
 from metta.rl.loss.loss import Loss
-from metta.rl.trainer_state import TrainerState
+from metta.rl.training.context import TrainerContext
 
 # Config class
 
@@ -76,7 +76,7 @@ class EMA(Loss):
             ):
                 target_param.data = self.ema_decay * target_param.data + (1 - self.ema_decay) * online_param.data
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerContext) -> tuple[Tensor, TensorDict]:
         self.update_target_model()
         policy_td = shared_loss_data["policy_td"]
 
