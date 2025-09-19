@@ -68,8 +68,8 @@ format: install
 	@bash devops/tools/format_toml.sh
 	@echo "Formatting YAML files..."
 	@bash devops/tools/format_yml.sh
-	# @echo "Running mettagrid format..."
-	# cd packages/mettagrid && make format
+	@echo "Running mettagrid format..."
+	cd packages/mettagrid && make format-fix
 
 # Clean build artifacts
 clean:
