@@ -16,6 +16,7 @@ from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curricul
 from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.config import Config
 from metta.mettagrid.core import ObsFeature
+from metta.mettagrid.mettagrid_c import dtype_actions
 from metta.rl.vecenv import make_vecenv
 from metta.utils.batch import calculate_batch_sizes
 
@@ -227,4 +228,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         return o, r, d, t, info, training_env_id, mask, num_steps
 
     def send_actions(self, actions: np.ndarray) -> None:
+        if actions.dtype != dtype_actions:
+            actions = actions.astype(dtype_actions, copy=False)
         self._vecenv.send(actions)
