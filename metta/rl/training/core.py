@@ -4,6 +4,7 @@ import logging
 from typing import Any, Dict, List
 
 import torch
+from pydantic import ConfigDict
 
 from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
@@ -16,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 class RolloutResult(Config):
     """Results from a rollout phase."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     raw_infos: List[Dict[str, Any]]
     agent_steps: int
