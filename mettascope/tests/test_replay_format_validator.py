@@ -3,6 +3,8 @@
 Validates that replay files match the format specification in `mettascope/docs/replay_spec.md`.
 """
 
+from __future__ import annotations
+
 import json
 import subprocess
 import tempfile
