@@ -417,7 +417,11 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum,
-        evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
+        evaluation=EvaluationConfig(
+            simulations=make_icl_resource_chain_eval_suite(),
+            evaluate_remote=True,
+            evaluate_local=False,
+        ),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
     # which requires a large batch size
