@@ -14,6 +14,7 @@ from mettagrid.config import Config
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
+    from metta.rl.training.training_environment import TrainingEnvironmentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,11 @@ class DistributedHelper:
         if self._is_distributed:
             logger.info(f"Setting up distributed training for rank {self._rank}")
 
-    def scale_batch_config(self, trainer_cfg: TrainerConfig) -> None:
+    def scale_batch_config(
+        self,
+        trainer_cfg: TrainerConfig,
+        training_env_cfg: "TrainingEnvironmentConfig" | None = None,
+    ) -> None:
         """Scale batch sizes for distributed training if configured.
 
         When scale_batches_by_world_size is True, this divides batch sizes
@@ -94,6 +99,11 @@ class DistributedHelper:
             trainer_cfg.forward_pass_minibatch_target_size // self._world_size
         )
         trainer_cfg.batch_size = trainer_cfg.batch_size // self._world_size
+
+        if training_env_cfg is not None:
+            training_env_cfg.forward_pass_minibatch_target_size = (
+                training_env_cfg.forward_pass_minibatch_target_size // self._world_size
+            )
 
         logger.info(
             f"Scaled batch config for {self._world_size} processes: "
