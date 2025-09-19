@@ -21,6 +21,7 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+from mettagrid.profiling.stopwatch import with_instance_timer
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -108,6 +109,7 @@ class MettaGridCore:
 
             self._renderer_class = MiniscopeRenderer
 
+    @with_instance_timer("_create_c_env")
     def _create_c_env(self) -> MettaGridCpp:
         game_map = self._map_builder.build()
 
