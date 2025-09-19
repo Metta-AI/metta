@@ -1,4 +1,4 @@
-# mettagrid/src/mettagrid/test_support/__init__.py
+# packages/mettagrid/python/src/mettagrid/test_support/__init__.py
 
 from .observation_helper import ObservationHelper
 from .orientation import Orientation
