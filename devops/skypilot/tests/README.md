@@ -13,6 +13,9 @@ A unified script for launching and checking multi-node SkyPilot test jobs with v
 
 # Check with detailed logs
 ./cluster_test.py check -l
+
+# Kill all jobs
+./cluster_test.py kill
 ```
 
 ## Test Configurations (3×3 Matrix)

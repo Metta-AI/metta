@@ -472,7 +472,7 @@ class SkyPilotJobChecker:
                     )
                     self.job_summaries[job_id] = {}
 
-        print(f"{green('✓')} Parsed logs for {processed} jobs\n")
+        print(f"{green('✔')} Parsed logs for {processed} jobs\n")
 
     def print_quick_summary(self) -> dict[str, int]:
         """Print a quick status summary and return status counts."""
@@ -791,7 +791,7 @@ class BaseTestRunner:
         self.test_type = test_type
 
     def create_parser(self) -> argparse.ArgumentParser:
-        """Create the argument parser with launch/check subcommands."""
+        """Create the argument parser with launch/check/kill subcommands."""
         parser = argparse.ArgumentParser(
             description=self.description,
             formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -833,6 +833,20 @@ Examples:
         check_parser.add_argument("-f", "--input-file", default=self.default_output_file, help="Input JSON file")
         check_parser.add_argument("-l", "--logs", action="store_true", help="Show detailed logs")
         check_parser.add_argument("-n", "--tail-lines", type=int, default=200, help="Log lines to tail")
+
+        # Kill subcommand
+        kill_parser = subparsers.add_parser(
+            "kill",
+            help="Kill all test jobs",
+            description=f"Kill all {self.test_type.lower()} jobs from a test run",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+Examples:
+  %(prog)s                      # Kill all jobs from default file
+  %(prog)s -f custom.json       # Kill jobs from custom file
+        """,
+        )
+        kill_parser.add_argument("-f", "--input-file", default=self.default_output_file, help="Input JSON file")
 
         return parser
 
@@ -880,6 +894,92 @@ Examples:
         print(f"  • Use {cyan('check -n <lines>')} to change log lines to tail")
         print(f"  • Use {cyan('sky jobs logs <job_id>')} to view a single job's full log")
 
+    def kill_tests(self, args) -> None:
+        """Kill all jobs from a test run."""
+        # Load jobs data
+        input_path = Path(args.input_file)
+        if not input_path.exists():
+            print(red(f"Error: Input file '{input_path}' not found"))
+            print(f"Run '{self.prog_name} launch' first to create the job file")
+            sys.exit(1)
+
+        import json
+
+        with open(input_path, "r") as f:
+            jobs_data = json.load(f)
+
+        # Get launched jobs with valid job IDs
+        launched_jobs = jobs_data.get("launched_jobs", [])
+        job_ids = [job["job_id"] for job in launched_jobs if job.get("job_id")]
+
+        if not job_ids:
+            print(yellow("No jobs found to kill"))
+            return
+
+        # Show what will be killed
+        test_info = jobs_data.get("test_run_info", {})
+        print(bold(f"\n=== Kill {len(job_ids)} {self.test_type} Jobs ==="))
+        print(f"{cyan('Test run:')} {test_info.get('base_name', 'Unknown')}")
+        print(f"{cyan('Launch time:')} {test_info.get('launch_time', 'Unknown')}")
+        print(f"{cyan('Jobs to kill:')} {', '.join(job_ids)}")
+
+        # Kill each job with retry
+        print(f"\n{cyan('Killing jobs...')}")
+        successful_kills = []
+        failed_kills = []
+
+        for i, job_id in enumerate(job_ids):
+            print(f"  [{i + 1}/{len(job_ids)}] Killing job {yellow(job_id)}...", end="", flush=True)
+
+            success, error = self._kill_job_with_retry(job_id)
+
+            if success:
+                successful_kills.append(job_id)
+                print(f" {green('✓ Killed')}")
+            else:
+                failed_kills.append((job_id, error))
+                print(f" {red('✗ Failed')}")
+                print(f"       {red('Error:')} {error}")
+
+        # Summary
+        print(f"\n{bold('=== Kill Summary ===')}")
+        if successful_kills:
+            print(f"{green('Successfully killed:')} {len(successful_kills)} jobs")
+        if failed_kills:
+            print(f"{red('Failed to kill:')} {len(failed_kills)} jobs")
+            for job_id, error in failed_kills:
+                print(f"  • {job_id}: {error}")
+
+        # Exit with error if any kills failed
+        if failed_kills:
+            sys.exit(1)
+
+    def _kill_job_with_retry(self, job_id: str, max_attempts: int = 3) -> tuple[bool, str]:
+        """Kill a single job with retry logic. Returns (success, error_message)."""
+
+        def execute_kill():
+            cmd = ["sky", "jobs", "cancel", "-y", job_id]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode == 0:
+                return True
+
+            # Check if job is already terminated
+            if "already in terminal state" in result.stderr.lower() or "not found" in result.stderr.lower():
+                return True
+
+            raise Exception(result.stderr.strip() or f"Command failed with code {result.returncode}")
+
+        try:
+            retry_function(
+                execute_kill,
+                max_retries=max_attempts - 1,
+                initial_delay=1.0,
+            )
+            return True, ""
+        except Exception as e:
+            return False, str(e)
+
     def run(self) -> None:
         """Main entry point for the test runner."""
         parser = self.create_parser()
@@ -889,6 +989,8 @@ Examples:
             self.launch_tests(args)
         elif args.command == "check":
             self.check_tests(args)
+        elif args.command == "kill":
+            self.kill_tests(args)
 
     # Methods to be implemented by subclasses
     def get_launch_description(self) -> str:
