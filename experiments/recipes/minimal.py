@@ -1,8 +1,8 @@
 """Minimal recipe example - just define env_recipe() and the system creates defaults for all tools."""
 
-import metta.mettagrid.builder.envs as eb
-from metta.mettagrid.mettagrid_config import MettaGridConfig
+import mettagrid.builder.envs as eb
 from metta.eval.analysis_config import AnalysisConfig
+from mettagrid.mettagrid_config import MettaGridConfig
 
 
 def env_recipe(num_agents: int = 4) -> MettaGridConfig:
