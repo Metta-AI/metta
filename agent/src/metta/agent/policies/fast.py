@@ -154,12 +154,19 @@ class FastPolicy(Policy):
         self.lstm.reset_memory()
 
     def clip_weights(self) -> None:
+        clip_value = 0.01
         for module in self.modules():
             if isinstance(module, (nn.Linear, nn.Conv2d)):
-                torch.nn.utils.clip_grad_value_(module.parameters(), 0.0)
+                with torch.no_grad():
+                    module.weight.data.clamp_(-clip_value, clip_value)
+                    if module.bias is not None:
+                        module.bias.data.clamp_(-clip_value, clip_value)
 
     def l2_init_loss(self) -> torch.Tensor:
         return torch.tensor(0.0, dtype=torch.float32, device=self.device)
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
+        return []
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         if self.cum_action_max_params is None:

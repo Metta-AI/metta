@@ -246,6 +246,7 @@ class ObsTokenToBoxShim(nn.Module):
         self.out_width = env.obs_width
         self.out_height = env.obs_height
         self.num_layers = max(env.feature_normalizations.keys()) + 1
+        self.register_buffer("_feature_id_remap", torch.arange(256, dtype=torch.uint8))
 
     def forward(self, td: TensorDict):
         token_observations = td[self.in_key]
@@ -258,6 +259,7 @@ class ObsTokenToBoxShim(nn.Module):
         x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
         y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
         atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        atr_indices = self._feature_id_remap[atr_indices]
         atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 
         # In ObservationShaper we permute. Here, we create the observations pre-permuted.
@@ -306,6 +308,10 @@ class ObsTokenToBoxShim(nn.Module):
 
         td[self.out_key] = box_obs
         return td
+
+    def update_feature_remapping(self, remap_tensor: torch.Tensor) -> None:
+        remap_tensor = remap_tensor.to(dtype=torch.uint8, device=self._feature_id_remap.device)
+        self.register_buffer("_feature_id_remap", remap_tensor)
 
 
 class ObservationNormalizer(nn.Module):
@@ -376,3 +382,10 @@ class ObsShimBox(nn.Module):
         td["_obs_"] = td["box_obs"]
         td = self.observation_normalizer(td)
         return td
+
+    def update_feature_remapping(self, remap_tensor: torch.Tensor) -> None:
+        self.token_to_box_shim.update_feature_remapping(remap_tensor)
+
+    def update_normalization_factors(self, features: dict[str, dict]) -> None:
+        feature_norms = {props["id"]: props.get("normalization", 1.0) for props in features.values() if "id" in props}
+        self.observation_normalizer._initialize_to_environment(feature_norms)
