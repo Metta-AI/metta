@@ -72,7 +72,7 @@ class VanillaTransformerConfig(ComponentConfig):
     num_heads: int = 4
     ff_mult: int = 4
     num_layers: int = 2
-    max_cache_size: int = 32
+    max_cache_size: int = 8
 
     def make_component(self, env=None):
         return VanillaTransformer(config=self, env=env)
@@ -252,7 +252,7 @@ class VanillaTransformer(nn.Module):
         else:  # training
             # 1. Add positional encoding
             # The cache is from the step before this sequence started
-            start_pos = td["transformer_position"][:, 0]
+            start_pos = td["transformer_position"].view(B, TT)[:, 0]
             positions = start_pos.unsqueeze(1) + torch.arange(TT, device=x.device)
             pos_enc = self._get_positional_encoding(positions, self.embed_dim)
             pos_enc = pos_enc.unsqueeze(2).expand(-1, -1, S, -1)
@@ -261,8 +261,8 @@ class VanillaTransformer(nn.Module):
 
             # 2. Prepare causal mask
             q_len_tokens = TT * S
-            pk_layers = td["past_key"][:, 0]  # Use first env's cache to get length
-            cache_len_tokens = pk_layers.shape[2]
+            pk_layers_at_start = td["past_key"].view(B, TT, *td["past_key"].shape[1:])[:, 0]
+            cache_len_tokens = pk_layers_at_start.shape[3]
 
             causal_mask_timesteps = torch.triu(torch.ones(TT, TT, device=x.device, dtype=torch.bool), diagonal=1)
             causal_mask = causal_mask_timesteps.repeat_interleave(S, dim=0).repeat_interleave(S, dim=1)
@@ -275,12 +275,12 @@ class VanillaTransformer(nn.Module):
             )
 
             # 3. Process through transformer layers
-            pk_layers = td["past_key"]
-            pv_layers = td["past_value"]
+            pk_layers_at_start = td["past_key"].view(B, TT, *td["past_key"].shape[1:])[:, 0]
+            pv_layers_at_start = td["past_value"].view(B, TT, *td["past_value"].shape[1:])[:, 0]
 
             for i, block in enumerate(self.blocks):
-                pk = pk_layers[:, i]
-                pv = pv_layers[:, i]
+                pk = pk_layers_at_start[:, i]
+                pv = pv_layers_at_start[:, i]
                 x, _, _ = block(x, pk, pv, mask=full_mask)
 
             # 4. Get final output
@@ -296,7 +296,7 @@ class VanillaTransformer(nn.Module):
         head_dim = self.config.embed_dim // self.config.num_heads
         return Composite(
             {
-                "k_cache": UnboundedDiscrete(
+                "past_key": UnboundedDiscrete(
                     shape=torch.Size(
                         [
                             self.num_layers,
@@ -307,7 +307,7 @@ class VanillaTransformer(nn.Module):
                     ),
                     dtype=torch.float32,
                 ),
-                "v_cache": UnboundedDiscrete(
+                "past_value": UnboundedDiscrete(
                     shape=torch.Size(
                         [
                             self.num_layers,

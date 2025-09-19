@@ -83,6 +83,7 @@ class TrainerConfig(Config):
     minibatch_size: int = Field(default=2048, gt=0)
     # BPTT horizon: Type 2 default chosen arbitrarily
     # bptt_horizon: int = Field(default=64, gt=0)
+    # bptt_horizon: int = Field(default=8, gt=0)
     bptt_horizon: int = Field(default=32, gt=0)
     # Single epoch: Type 2 default chosen arbitrarily PPO typically uses 3-10, but 1 works with large batches
     update_epochs: int = Field(default=1, gt=0)
