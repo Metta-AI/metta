@@ -3,14 +3,13 @@
 This avoids import-time circular dependencies between loss modules and the
 training package by deferring heavy submodule imports until the symbols are
 actually needed. External callers can continue to use
-``from metta.rl.training import Evaluator`` and friends without change.
+``from metta.rl.training import Evaluator`` and similar statements without
+change.
 """
 
 import importlib
 from typing import Any, Dict, Tuple
 
-# Symbol -> (module path, attribute name) mapping. Modules are imported on first
-# attribute access; when ``attr_name`` is ``None`` the module object is returned.
 _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     # Core training
     "CoreTrainingLoop": ("metta.rl.training.core", "CoreTrainingLoop"),
@@ -25,6 +24,7 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "TrainerCheckpointer": ("metta.rl.training.trainer_checkpointer", "TrainerCheckpointer"),
     "TrainerCheckpointerConfig": ("metta.rl.training.trainer_checkpointer", "TrainerCheckpointerConfig"),
     "TrainerContext": ("metta.rl.training.context", "TrainerContext"),
+    "WandbAbortComponent": ("metta.rl.training.wandb_abort", "WandbAbortComponent"),
     # Evaluation
     "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
     "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),

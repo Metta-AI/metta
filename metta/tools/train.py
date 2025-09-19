@@ -13,7 +13,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
-from metta.common.wandb.wandb_context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import guess_device
 from metta.rl.trainer import Trainer
@@ -37,6 +37,7 @@ from metta.rl.training.stats_reporter import StatsConfig, StatsReporter
 from metta.rl.training.torch_profiler_component import TorchProfilerComponent
 from metta.rl.training.trainer_checkpointer import TrainerCheckpointer
 from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
+from metta.rl.training.wandb_abort import WandbAbortComponent
 from metta.rl.training.wandb_logger import WandbLoggerComponent
 from metta.tools.utils.auto_config import (
     auto_policy_storage_decision,
@@ -301,18 +302,21 @@ class TrainTool(Tool):
             )
 
             components.append(MonitoringComponent(enabled=reporting_enabled))
-
-            components.append(stats_component)
         else:
             components.append(policy_checkpointer)
 
-        components.append(
-            TrainerCheckpointer(
-                config=self.checkpointer,
-                checkpoint_manager=checkpoint_manager,
-                distributed_helper=distributed_helper,
-            )
+        trainer_checkpointer = TrainerCheckpointer(
+            config=self.checkpointer,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
         )
+        components.append(trainer_checkpointer)
+
+        components.append(WandbAbortComponent(wandb_run))
+
+        trainer.context.stats_reporter = stats_component
+        if stats_component is not None:
+            components.append(stats_component)
 
         if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
             components.append(
@@ -328,6 +332,9 @@ class TrainTool(Tool):
             if component is None:
                 continue
             trainer.register(component)
+
+        if wandb_run is not None and distributed_helper.is_master():
+            trainer.register(WandbLoggerComponent(wandb_run))
 
     def _minimize_config_for_debugging(self) -> None:
         self.trainer.minibatch_size = min(self.trainer.minibatch_size, 1024)

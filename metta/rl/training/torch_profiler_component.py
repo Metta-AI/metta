@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Optional
 
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.context import TrainerContext

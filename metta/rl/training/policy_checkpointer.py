@@ -4,11 +4,11 @@ import logging
 from typing import Optional
 
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.training_environment import EnvironmentMetaData
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 

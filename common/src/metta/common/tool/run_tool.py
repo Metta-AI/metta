@@ -11,6 +11,7 @@ import logging
 import os
 import signal
 import sys
+import traceback
 import warnings
 from typing import Any
 
@@ -20,9 +21,9 @@ from typing_extensions import TypeVar
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from metta.mettagrid.config import Config
-from metta.mettagrid.util.module import load_symbol
 from metta.rl.system_config import seed_everything
+from mettagrid.config import Config
+from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,15 @@ def output_error(message: str) -> None:
         print(message, file=sys.stderr)
     else:
         logger.error(message.strip())
+
+
+def output_exception(message: str) -> None:
+    """Emit an error message along with a traceback when available."""
+    if sys.stdout.isatty():
+        output_error(message)
+        traceback.print_exc()
+    else:
+        logger.exception(message.strip())
 
 
 # --------------------------------------------------------------------------------------
@@ -265,7 +275,7 @@ constructor/function vs configuration overrides based on introspection.
     try:
         make_tool_cfg = load_symbol(known_args.make_tool_cfg_path)
     except Exception as e:
-        output_error(f"{red('Error loading')} {known_args.make_tool_cfg_path}: {e}")
+        output_exception(f"{red('Error loading')} {known_args.make_tool_cfg_path}: {e}")
         return 1
 
     # ----------------------------------------------------------------------------------
@@ -362,10 +372,10 @@ constructor/function vs configuration overrides based on introspection.
                 f"\n{yellow('Hint:')} It looks like an unbound method was passed. "
                 "Pass the Tool subclass itself or a factory function that doesn't require 'self'/'cls'."
             )
-        output_error(f"{red('Error creating tool configuration:')} {e}{hint}")
+        output_exception(f"{red('Error creating tool configuration:')} {e}{hint}")
         return 1
     except Exception as e:
-        output_error(f"{red('Error creating tool configuration:')} {e}")
+        output_exception(f"{red('Error creating tool configuration:')} {e}")
         return 1
 
     if not isinstance(tool_cfg, Tool):
@@ -401,7 +411,7 @@ constructor/function vs configuration overrides based on introspection.
             try:
                 tool_cfg = tool_cfg.override(key, value)
             except Exception as e:
-                output_error(f"{red('Error applying override')} {key}={value}: {e}")
+                output_exception(f"{red('Error applying override')} {key}={value}: {e}")
                 return 1
 
     # ----------------------------------------------------------------------------------
@@ -431,7 +441,7 @@ constructor/function vs configuration overrides based on introspection.
     except KeyboardInterrupt:
         return 130  # Interrupted by Ctrl-C
     except Exception:
-        logger.exception("Tool invocation failed")
+        output_exception(red("Tool invocation failed"))
         return 1
 
     return result if result is not None else 0

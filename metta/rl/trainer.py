@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional
 import torch
 
 from metta.agent.policy import Policy
-from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.component import TrainerCallback, TrainerComponent
 from metta.rl.training.context import TrainerContext
@@ -16,6 +15,7 @@ from metta.rl.training.experience import Experience
 from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.rl.utils import log_training_progress
+from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]

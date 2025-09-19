@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Optional
 
 from metta.core.monitoring import cleanup_monitoring, setup_monitoring
-from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
-from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.rl.training.component import TrainerComponent
+from mettagrid.profiling.memory_monitor import MemoryMonitor
+from mettagrid.profiling.system_monitor import SystemMonitor
 
 
 class MonitoringComponent(TrainerComponent):

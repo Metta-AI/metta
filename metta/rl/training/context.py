@@ -10,12 +10,12 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
-from metta.mettagrid.profiling.stopwatch import Stopwatch
-from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
+from mettagrid.profiling.memory_monitor import MemoryMonitor
+from mettagrid.profiling.stopwatch import Stopwatch
+from mettagrid.profiling.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer

@@ -1,6 +1,6 @@
-import metta.mettagrid.config.envs as eb
+import mettagrid.builder.envs as eb
 from experiments import arena, navigation
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.tools.play import PlayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool

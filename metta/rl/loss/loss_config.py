@@ -4,9 +4,9 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
-from metta.mettagrid.config import Config
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.training.training_environment import TrainingEnvironment
+from mettagrid.config import Config
 
 
 class LossSchedule(Config):

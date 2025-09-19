@@ -2,9 +2,9 @@
 
 import logging
 
-from metta.mettagrid.config import Config
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.training.component import TrainerComponent
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 

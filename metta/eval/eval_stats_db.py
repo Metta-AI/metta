@@ -7,9 +7,9 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from metta.mettagrid.util.file import local_copy
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from mettagrid.util.file import local_copy
 
 # --------------------------------------------------------------------------- #
 #   Views                                                                     #

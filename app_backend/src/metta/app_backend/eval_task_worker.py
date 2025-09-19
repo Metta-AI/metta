@@ -186,7 +186,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
             f"stats_server_uri={self._backend_url}",
             "push_metrics_to_wandb=true",
         ]
-        logger.info(f"Running command: {' '.join(cmd)}")
+        # exclude simulation_json_base64 from logging, since it's too large and undescriptive
+        logged_cmd = [arg for arg in cmd if not arg.startswith("simulations_json_base64")]
+        logger.info(f"Running command: {' '.join(logged_cmd)}")
 
         result = self._run_cmd_from_versioned_checkout(cmd)
 

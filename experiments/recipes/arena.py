@@ -1,11 +1,13 @@
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
+import mettagrid.builder.envs as eb
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.curriculum import CurriculumAlgorithmConfig
-from metta.mettagrid.mettagrid_config import MettaGridConfig
+from mettagrid import MettaGridConfig
 from metta.rl.training.evaluator import EvaluatorConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig

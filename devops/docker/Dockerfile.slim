@@ -24,7 +24,7 @@ ENV UV_LINK_MODE=copy
 
 COPY .python-version pyproject.toml uv.lock ./
 RUN uv python install
-COPY mettagrid/pyproject.toml mettagrid/
+COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/

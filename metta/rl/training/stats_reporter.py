@@ -11,15 +11,15 @@ import torch
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid.config import Config
 from metta.rl.stats import (
     accumulate_rollout_stats,
     compute_timing_stats,
     process_training_stats,
 )
 from metta.rl.training.component import TrainerComponent
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
