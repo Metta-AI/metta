@@ -419,7 +419,9 @@ def cmd_lint(
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
 ):
-    files = []
+    py_files = []
+    cpp_files = []
+
     if staged:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
@@ -428,29 +430,50 @@ def cmd_lint(
             text=True,
             check=True,
         )
-        files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
-        if not files:
+        all_files = [f for f in result.stdout.strip().split("\n") if f]
+        py_files = [f for f in all_files if f.endswith(".py")]
+        cpp_files = [f for f in all_files if f.endswith((".cpp", ".hpp", ".h", ".cc", ".cxx"))]
+
+        if not py_files and not cpp_files:
             return
 
-    check_cmd = ["uv", "run", "--active", "ruff", "check"]
-    format_cmd = ["uv", "run", "--active", "ruff", "format"]
-    cmds = [format_cmd, check_cmd]
+    # Run Python linting with ruff
+    if not staged or py_files:
+        check_cmd = ["uv", "run", "--active", "ruff", "check"]
+        format_cmd = ["uv", "run", "--active", "ruff", "format"]
+        cmds = [format_cmd, check_cmd]
 
-    if fix:
-        check_cmd.append("--fix")
-    else:
-        format_cmd.append("--check")
+        if fix:
+            check_cmd.append("--fix")
+        else:
+            format_cmd.append("--check")
 
-    if files:
+        if staged and py_files:
+            for cmd in cmds:
+                cmd.extend(py_files)
+
         for cmd in cmds:
-            cmd.extend(files)
+            try:
+                info(f"Running: {' '.join(cmd)}")
+                subprocess.run(cmd, cwd=cli.repo_root, check=True)
+            except subprocess.CalledProcessError as e:
+                raise typer.Exit(e.returncode) from e
 
-    for cmd in cmds:
-        try:
-            info(f"Running: {' '.join(cmd)}")
-            subprocess.run(cmd, cwd=cli.repo_root, check=True)
-        except subprocess.CalledProcessError as e:
-            raise typer.Exit(e.returncode) from e
+    # Run C++ linting with cpplint.sh
+    if not staged or cpp_files:
+        cpplint_script = cli.repo_root / "packages/mettagrid/tests/cpplint.sh"
+        if cpplint_script.exists():
+            try:
+                if staged and cpp_files:
+                    # For staged mode, pass specific files to cpplint.sh
+                    info(f"Running cpplint.sh on {len(cpp_files)} staged C++ files...")
+                    subprocess.run([str(cpplint_script)] + cpp_files, cwd=cli.repo_root, check=True)
+                else:
+                    # For full mode, run cpplint.sh without arguments (finds all files)
+                    info("Running C++ linting with cpplint.sh...")
+                    subprocess.run([str(cpplint_script)], cwd=cli.repo_root, check=True)
+            except subprocess.CalledProcessError as e:
+                raise typer.Exit(e.returncode) from e
 
 
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
