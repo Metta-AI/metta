@@ -5,6 +5,7 @@
 #include "actions/attack.hpp"
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
+#include "actions/modify_target.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
 #include "config/mettagrid_config.hpp"
@@ -944,4 +945,202 @@ TEST_F(MettaGridCppTest, EventManager) {
   // Test that event manager can be initialized
   // (This is a basic test - more complex event testing would require more setup)
   EXPECT_NO_THROW(event_manager.process_events(1));
+}
+
+// ==================== ModifyTarget Tests ====================
+
+TEST_F(MettaGridCppTest, ModifyTargetBasic) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+
+  // Create actor at center
+  AgentConfig actor_cfg = create_test_agent_config();
+  actor_cfg.initial_inventory[TestItems::ORE] = 10;
+  Agent* actor = new Agent(2, 2, actor_cfg);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create target agent nearby
+  AgentConfig target_cfg = create_test_agent_config();
+  target_cfg.initial_inventory[TestItems::HEART] = 10;
+  Agent* target = new Agent(2, 3, target_cfg);
+  float target_reward = 0.0f;
+  target->init(&target_reward);
+  grid.add_object(target);
+
+  // Create modify action that adds hearts with 100% probability
+  ModifyTargetConfig modify_cfg({{TestItems::ORE, 1}},      // required_resources
+                                {{TestItems::ORE, 1.0f}},   // consumed_resources
+                                {{TestItems::HEART, 1.0f}}  // modifies - adds 1 heart
+  );
+  ModifyTarget modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Execute action targeting position (2, 3) - one column to the right
+  // Encode as: row_offset=0 (+7), col_offset=1 (+7) = 0x78
+  ActionArg arg = (7 << 4) | 8;  // row=0+7=7, col=1+7=8
+  bool success = modify.handle_action(actor->id, arg);
+  EXPECT_TRUE(success);
+
+  // Check that target gained 1 heart
+  EXPECT_EQ(target->inventory[TestItems::HEART], 11);
+  // Check that actor lost 1 ore
+  EXPECT_EQ(actor->inventory[TestItems::ORE], 9);
+}
+
+TEST_F(MettaGridCppTest, ModifyTargetProbabilistic) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+
+  // Create actor
+  AgentConfig actor_cfg = create_test_agent_config();
+  actor_cfg.initial_inventory[TestItems::ORE] = 100;
+  Agent* actor = new Agent(2, 2, actor_cfg);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create target
+  AgentConfig target_cfg = create_test_agent_config();
+  target_cfg.initial_inventory[TestItems::HEART] = 10;
+  Agent* target = new Agent(2, 3, target_cfg);
+  float target_reward = 0.0f;
+  target->init(&target_reward);
+  grid.add_object(target);
+
+  // Create action with fractional modifications (30% chance)
+  ModifyTargetConfig modify_cfg({{TestItems::ORE, 1}},      // required_resources must have ceil(0.5) = 1
+                                {{TestItems::ORE, 0.5f}},   // 50% chance to consume
+                                {{TestItems::HEART, 0.3f}}  // 30% chance to add 1 heart
+  );
+  ModifyTarget modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Execute multiple times to test probabilistic behavior
+  ActionArg arg = (7 << 4) | 8;  // Target at (2, 3)
+  int hearts_added = 0;
+  int ore_consumed = 0;
+
+  for (int i = 0; i < 100; i++) {
+    int ore_before = actor->inventory[TestItems::ORE];
+    int hearts_before = target->inventory[TestItems::HEART];
+
+    bool success = modify.handle_action(actor->id, arg);
+    EXPECT_TRUE(success);
+
+    ore_consumed += (ore_before - actor->inventory[TestItems::ORE]);
+    hearts_added += (target->inventory[TestItems::HEART] - hearts_before);
+  }
+
+  // With 30% probability for hearts and 50% for ore consumption
+  // Expect around 30 hearts added and 50 ore consumed
+  EXPECT_GE(hearts_added, 20);  // At least 20
+  EXPECT_LE(hearts_added, 40);  // At most 40
+  EXPECT_GE(ore_consumed, 40);  // At least 40
+  EXPECT_LE(ore_consumed, 60);  // At most 60
+}
+
+TEST_F(MettaGridCppTest, ModifyTargetNegative) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+
+  // Create actor
+  AgentConfig actor_cfg = create_test_agent_config();
+  Agent* actor = new Agent(2, 2, actor_cfg);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create target with resources
+  AgentConfig target_cfg = create_test_agent_config();
+  target_cfg.initial_inventory[TestItems::HEART] = 20;
+  Agent* target = new Agent(1, 2, target_cfg);
+  float target_reward = 0.0f;
+  target->init(&target_reward);
+  grid.add_object(target);
+
+  // Create action that removes hearts (negative modification)
+  ModifyTargetConfig modify_cfg({}, {}, {{TestItems::HEART, -1.0f}}  // Remove 1 heart
+  );
+  ModifyTarget modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Target is at (1, 2) from actor at (2, 2) - one row up
+  ActionArg arg = (6 << 4) | 7;  // row=-1+7=6, col=0+7=7
+  bool success = modify.handle_action(actor->id, arg);
+  EXPECT_TRUE(success);
+
+  // Check that target lost 1 heart
+  EXPECT_EQ(target->inventory[TestItems::HEART], 19);
+}
+
+TEST_F(MettaGridCppTest, ModifyTargetEmptyPosition) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+
+  // Create actor alone
+  AgentConfig actor_cfg = create_test_agent_config();
+  actor_cfg.initial_inventory[TestItems::ORE] = 10;
+  Agent* actor = new Agent(2, 2, actor_cfg);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create action requiring resources
+  ModifyTargetConfig modify_cfg({{TestItems::ORE, 1}}, {{TestItems::ORE, 1.0f}}, {{TestItems::HEART, 1.0f}});
+  ModifyTarget modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Try to modify empty position
+  ActionArg arg = (7 << 4) | 8;  // Position with no target
+  bool success = modify.handle_action(actor->id, arg);
+  EXPECT_FALSE(success);  // Should fail with no target
+
+  // Resources should not be consumed on failure
+  EXPECT_EQ(actor->inventory[TestItems::ORE], 10);
+}
+
+TEST_F(MettaGridCppTest, ModifyTargetConverter) {
+  Grid grid(5, 5);
+  std::mt19937 rng(42);
+  EventManager event_manager;
+
+  // Create actor
+  AgentConfig actor_cfg = create_test_agent_config();
+  Agent* actor = new Agent(2, 2, actor_cfg);
+  float actor_reward = 0.0f;
+  actor->init(&actor_reward);
+  grid.add_object(actor);
+
+  // Create converter nearby
+  ConverterConfig converter_cfg(TestItems::CONVERTER,  // type_id
+                                "converter",           // type_name
+                                {},                    // input_resources
+                                {},                    // output_resources
+                                -1,                    // max_output
+                                -1,                    // max_conversions
+                                0,                     // conversion_ticks
+                                0,                     // cooldown
+                                0,                     // initial_items
+                                0,                     // color
+                                false                  // recipe_details_obs
+  );
+  Converter* converter = new Converter(3, 2, converter_cfg);
+  grid.add_object(converter);
+  converter->set_event_manager(&event_manager);
+
+  // Create action that modifies converter resources
+  ModifyTargetConfig modify_cfg({}, {}, {{TestItems::ORE, 1.0f}}  // Add 1 ore to converter
+  );
+  ModifyTarget modify(modify_cfg);
+  modify.init(&grid, &rng);
+
+  // Target converter at (3, 2) from actor at (2, 2)
+  ActionArg arg = (8 << 4) | 7;  // row=1+7=8, col=0+7=7
+  bool success = modify.handle_action(actor->id, arg);
+  EXPECT_TRUE(success);
+
+  // Check that converter gained 1 ore
+  EXPECT_EQ(converter->inventory[TestItems::ORE], 1);
 }
