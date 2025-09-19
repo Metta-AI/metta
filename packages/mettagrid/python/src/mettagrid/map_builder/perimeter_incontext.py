@@ -131,7 +131,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
             # Check all four directions with bounds checking
             for di, dj in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 ni, nj = i + di, j + dj
-                if (0 <= ni < height and 0 <= nj < width):
+                if 0 <= ni < height and 0 <= nj < width:
                     flat_idx = ni * width + nj
                     if not visited[flat_idx] and grid[ni, nj] != "wall":
                         visited[flat_idx] = True
@@ -150,7 +150,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         for i in range(grid_h - shape_h + 1):
             for j in range(grid_w - shape_w + 1):
                 # Check if this position overlaps with avoid_mask
-                region = avoid_mask[i:i + shape_h, j:j + shape_w]
+                region = avoid_mask[i : i + shape_h, j : j + shape_w]
                 if not np.any(region):
                     valid_positions.append((i, j))
 
@@ -221,10 +221,10 @@ class PerimeterInContextMapBuilder(MapBuilder):
         perimeter_mask = np.zeros((height, width), dtype=bool)
 
         # Use array slicing for efficiency
-        perimeter_mask[0, :] = True     # Top row
-        perimeter_mask[-1, :] = True    # Bottom row
-        perimeter_mask[:, 0] = True     # Left column
-        perimeter_mask[:, -1] = True    # Right column
+        perimeter_mask[0, :] = True  # Top row
+        perimeter_mask[-1, :] = True  # Bottom row
+        perimeter_mask[:, 0] = True  # Left column
+        perimeter_mask[:, -1] = True  # Right column
 
         # Exclude corners if grid is large enough
         if height >= 2 and width >= 2:
