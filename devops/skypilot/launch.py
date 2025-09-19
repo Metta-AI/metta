@@ -125,7 +125,7 @@ Examples:
 
     # First, we need to separate launch flags from tool args
     # We'll parse known args only, allowing unknown ones to be passed as tool args
-    parser.add_argument("module_path", help="Module path to run (e.g., experiments.recipes.arena.train)")
+    parser.add_argument("module_path", help="Module path to run (e.g., experiments.recipes.arena.train). Any arguments following the module path will be passed to the tool.")
 
     # Launch-specific flags
     parser.add_argument("--run", type=str, default=None, help="Run ID for the job")
