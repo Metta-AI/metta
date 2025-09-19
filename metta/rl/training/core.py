@@ -175,12 +175,10 @@ class CoreTrainingLoop:
         epochs_trained = 0
 
         for _ in range(update_epochs):
-            context.update_epoch = epochs_trained
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 # Compute total loss from all losses
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-                context.mb_idx = mb_idx
                 stop_update_epoch_mb = False
 
                 for _loss_name, loss_obj in self.losses.items():
