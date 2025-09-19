@@ -131,7 +131,9 @@ class FastPolicy(Policy):
         self.actor_query(td)
         self.actor_key(td)
         self.action_probs(td, action)
-        td["values"] = td["values"].flatten()
+        value_tensor = td["values"]
+        td["value"] = value_tensor
+        td["values"] = value_tensor.flatten()
 
         if needs_unflatten and action is not None:
             td = td.reshape(batch_size, time_steps)
@@ -154,13 +156,7 @@ class FastPolicy(Policy):
         self.lstm.reset_memory()
 
     def clip_weights(self) -> None:
-        clip_value = 0.01
-        for module in self.modules():
-            if isinstance(module, (nn.Linear, nn.Conv2d)):
-                with torch.no_grad():
-                    module.weight.data.clamp_(-clip_value, clip_value)
-                    if module.bias is not None:
-                        module.bias.data.clamp_(-clip_value, clip_value)
+        return None
 
     def l2_init_loss(self) -> torch.Tensor:
         return torch.tensor(0.0, dtype=torch.float32, device=self.device)

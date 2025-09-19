@@ -388,4 +388,7 @@ class ObsShimBox(nn.Module):
 
     def update_normalization_factors(self, features: dict[str, dict]) -> None:
         feature_norms = {props["id"]: props.get("normalization", 1.0) for props in features.values() if "id" in props}
-        self.observation_normalizer._initialize_to_environment(feature_norms)
+        device = None
+        if hasattr(self.observation_normalizer, "obs_norm"):
+            device = self.observation_normalizer.obs_norm.device
+        self.observation_normalizer._initialize_to_environment(feature_norms, device)
