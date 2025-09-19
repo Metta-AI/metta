@@ -1,14 +1,141 @@
 """Torch profiler component for training."""
 
+import gzip
 import logging
+import os
+import shutil
+import tempfile
 from typing import Any, Optional
 
+import torch.profiler
+import wandb
+
 from metta.common.wandb.context import WandbRun
-from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.context import TrainerContext
+from metta.rl.utils import should_run
+from mettagrid.util.file import http_url, is_public_uri, write_file
 
 logger = logging.getLogger(__name__)
+
+
+class TorchProfiler:
+    """Context-managed wrapper around ``torch.profiler`` for periodic traces."""
+
+    def __init__(
+        self,
+        *,
+        master: bool,
+        profiler_config: Any,
+        wandb_run: WandbRun | None,
+        run_dir: str | None,
+    ) -> None:
+        self._master = master
+        self._profiler_config = profiler_config
+        self._run_dir = run_dir or ""
+        self._wandb_run = wandb_run
+        self._profiler: torch.profiler.profile | None = None
+        self._active = False
+        self._start_epoch: int | None = None
+        self._profile_filename_base: str | None = None
+        self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
+
+    def on_epoch_end(self, epoch: int) -> None:
+        force = (epoch == self._first_profile_epoch) if not self._active else False
+        if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
+            self._setup_profiler(epoch)
+
+    def _setup_profiler(self, epoch: int) -> None:
+        if self._active:
+            logger.warning("Profiler already active; ignoring setup request")
+            return
+        if self._profiler is not None:
+            logger.warning("Profiler instance exists while idle; resetting")
+            self._profiler = None
+
+        self._active = True
+        self._start_epoch = epoch
+        run_basename = os.path.basename(self._run_dir) if self._run_dir else "unknown_run"
+        self._profile_filename_base = f"trace_{run_basename}_epoch_{self._start_epoch}"
+        logger.info("Torch profiler armed for epoch %s", epoch)
+
+    def __enter__(self):
+        if not self._active:
+            return self
+
+        logger.info("Starting torch profiler for epoch %s", self._start_epoch)
+        self._profiler = torch.profiler.profile(
+            activities=[
+                torch.profiler.ProfilerActivity.CPU,
+                torch.profiler.ProfilerActivity.CUDA,
+            ],
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True,
+            with_modules=True,
+        )
+        self._profiler.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if not self._active or self._profiler is None:
+            self._active = False
+            return False
+
+        logger.info("Stopping torch profiler for epoch %s", self._start_epoch)
+        try:
+            self._profiler.stop()
+            self._save_profile(self._profiler)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("Failed to save torch profile")
+        finally:
+            self._profiler = None
+            self._active = False
+            self._profile_filename_base = None
+
+        return False
+
+    # Internal helpers -------------------------------------------------
+    def _save_profile(self, prof: torch.profiler.profile) -> None:
+        if self._profile_filename_base is None:
+            logger.error("Profiler filename unset; skipping save")
+            return
+
+        output_filename_json = f"{self._profile_filename_base}.json"
+        output_filename_gz = f"{output_filename_json}.gz"
+        temp_dir = tempfile.mkdtemp(prefix="torch_profile_")
+        temp_json_path = os.path.join(temp_dir, output_filename_json)
+        final_gz_path = os.path.join(temp_dir, output_filename_gz)
+        upload_path = os.path.join(self._profiler_config.profile_dir, output_filename_gz)
+
+        try:
+            self._export_profile(prof, temp_json_path)
+            self._compress_trace(temp_json_path, final_gz_path)
+            write_file(upload_path, final_gz_path, content_type="application/gzip")
+            upload_url = http_url(upload_path)
+
+            if is_public_uri(upload_url) and self._wandb_run:
+                link_summary = {
+                    "torch_traces/link": wandb.Html(
+                        f'<a href="{upload_url}">Torch Trace (Epoch {self._start_epoch})</a>'
+                    )
+                }
+                self._wandb_run.log(link_summary)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def _export_profile(self, prof: torch.profiler.profile, output_path: str) -> None:
+        logger.info("Exporting torch profile to %s", output_path)
+        prof.export_chrome_trace(output_path)
+
+    def _compress_trace(self, input_path: str, output_path: str) -> None:
+        logger.info("Compressing torch profile to %s", output_path)
+        with open(input_path, "rb") as f_in, gzip.open(output_path, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+        try:
+            os.remove(input_path)
+        except OSError:
+            logger.debug("Unable to delete temporary torch profile %s", input_path)
 
 
 class TorchProfilerComponent(TrainerComponent):

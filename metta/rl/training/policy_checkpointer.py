@@ -20,7 +20,7 @@ class PolicyCheckpointerConfig(Config):
     """How often to save policy checkpoints (in epochs)."""
 
 
-class PolicyCheckpointer(TrainerComponent):
+class PolicyCheckpointerComponent(TrainerComponent):
     """Manages policy checkpointing with distributed awareness and URI support."""
 
     def __init__(

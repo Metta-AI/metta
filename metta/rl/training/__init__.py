@@ -45,6 +45,7 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     # Hyperparameter scheduler
     "HyperparameterComponent": ("metta.rl.training.hyperparameter", "HyperparameterComponent"),
     "HyperparameterConfig": ("metta.rl.training.hyperparameter", "HyperparameterConfig"),
+    "HyperparameterSchedulerConfig": ("metta.rl.training.hyperparameter", "HyperparameterSchedulerConfig"),
     # Gradient stats
     "GradientStatsComponent": ("metta.rl.training.gradient_stats", "GradientStatsComponent"),
     "GradientStatsConfig": ("metta.rl.training.gradient_stats", "GradientStatsConfig"),

@@ -18,9 +18,9 @@ class MockAgent(Policy):
         torch.nn.Module.__init__(self)
 
         # Initialize required attributes that MettaAgent expects
-        self.components_with_memory = []
-        self.components = torch.nn.ModuleDict()  # Use ModuleDict for proper nn.Module handling
-        self.device = "cpu"
+        self.components_with_memory: list[torch.nn.Module] = []
+        self.components = torch.nn.ModuleDict()
+        self._device = torch.device("cpu")
         self.policy = None  # MockAgent doesn't have a separate policy
 
         # Initialize feature remapping attributes
@@ -30,7 +30,7 @@ class MockAgent(Policy):
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
         """Apply feature remapping to observation components."""
         # Build complete remapping tensor
-        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self._device)
 
         # Apply explicit remappings
         for old_id, new_id in self.feature_id_remap.items():
@@ -107,16 +107,16 @@ class MockAgent(Policy):
         - Training context (gradients enabled): Learn new features, remap known features
         - Simulation context (gradients disabled): Remap known features, map unknown to 255
         """
-        self.device = device
+        self._device = torch.device(device)
 
         # Auto-detect training context if not explicitly provided
         if is_training is None:
-            # Use the module's training state (set by .train()/.eval())
-            # Training context: self.training=True → learn new features
-            # Simulation context: self.training=False → map unknown to 255
             is_training = self.training
 
-        self.training = is_training
+        if is_training:
+            self.train()
+        else:
+            self.eval()
 
         # Store action configuration
         self.action_names = action_names
@@ -164,3 +164,11 @@ class MockAgent(Policy):
     def get_memory(self):
         """Mock implementation - returns empty memory dict."""
         return {}
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+    @property
+    def total_params(self) -> int:
+        return sum(param.numel() for param in self.parameters())
