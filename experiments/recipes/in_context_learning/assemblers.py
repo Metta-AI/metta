@@ -15,13 +15,12 @@ Options:
 """
 
 """
-curriculum 1: single agent, two altars in cooldown, different positions
-curriculum 2: single agent, converter and altar, different positions, same recipe
-curriculum 3: single agent, converter and altar, different positions, different recipes
-
-curriculum 4: multiagent, two altars in cooldown, different positions
-curriculum 5: multiagent, converter and altar, different positions, same recipe
-curriculum 6: multiagent, converter and altar, different positions, different recipes
+curriculum 1: single agent, two altars in cooldown, different positions — all the way from any, to adjacent, to a particular square.
+curriculum 2: single agent, converter and altar, different positions, different recipes
+curriculum 3: single agent, 2 converters and altar, different positions, different recipes - two convertors either both relevant or only 1. For instance altar either takes resources from both convertors to give heart, or from only one convertor to give heart.
+curriculum 4: multiagent, two altars in cooldown, different positions. Both agents need to configure the pattern on both altars.
+curriculum 5: multiagent, converter and altar, different positions, different recipes.
+curriculum 6: multiagent, 2 convertors and altar, agents need to learn in context which is the right convertor.
 """
 
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -41,7 +40,11 @@ from metta.sim.simulation_config import SimulationConfig
 
 CONVERTER_TYPES = {
     "generator_red": building.assembler_generator_red,
-    "altar": building.assembler_altar,
+    "generator_blue": building.assembler_generator_blue,
+    "generator_green": building.assembler_generator_green,
+    "mine_red": building.assembler_mine_red,
+    "mine_blue": building.assembler_mine_blue,
+    "mine_green": building.assembler_mine_green,
 }
 
 RESOURCE_TYPES = [
@@ -71,41 +74,44 @@ class AssemblerTaskGenerator(TaskGenerator):
         num_converters: list[int] = Field(default = [0])
         generator_positions: list[list[Position]] = Field(default = [Position(["Any"])])
         altar_positions: list[list[Position]] = Field(default = [Position(["Any"])])
+        altar_inputs: list[str] = Field(default = ["one", "both"])
         widths: list[int] = Field(default = [6])
         heights: list[int] = Field(default = [6])
 
     def __init__(self, config: "AssemblerTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
+        self.converter_types = CONVERTER_TYPES.copy()
+        self.resource_types = RESOURCE_TYPES.copy()
 
-    def make_env_cfg(self, num_agents, num_instances, num_altars, num_converters, width, height, generator_position: Position, altar_position: list[Position], max_steps: int) -> MettaGridConfig:
+    def make_env_cfg(self, num_agents, num_instances, num_altars, num_converters, altar_input: str, width, height, converter_positions: list[Position], altar_positions: list[Position], max_steps: int, rng: random.Random) -> MettaGridConfig:
         cfg = _BuildCfg()
-        cfg.map_builder_objects["generator_red"] = num_converters
+
+        # sample num_converters converters - TODO i want this with replacement
+        converter_names = rng.sample(list(self.converter_types.keys()), num_converters)
+        resources = rng.sample(self.resource_types, num_converters)
+        for converter_name in converter_names:
+            cfg.map_builder_objects[converter_name] = 1
         cfg.map_builder_objects["altar"] = num_altars
 
-        for _ in range(num_converters):
+        for i in range(num_converters):
             # create a generator red, that outputs a battery red, and inputs nothing
-            generator_red = building.assembler_generator_red
-            generator_red.recipes = []
+            converter = self.converter_types[converter_name[i]]
             # no input resources
-            recipe = ([generator_position], RecipeConfig(input_resources={}, output_resources={"battery_red": 1}, cooldown=10))
-            generator_red.recipes.append(recipe)
-            cfg.game_objects["generator_red"] = generator_red
-
+            recipe = (converter_positions, RecipeConfig(input_resources={}, output_resources={resources[i]: 1}, cooldown=10))
+            converter.recipes = [recipe]
+            cfg.game_objects[converter_name] = converter
 
         for _ in range(num_altars):
             altar = building.assembler_altar
-            altar.recipes = []
             if num_converters == 0:
-                # create a altar, that outputs a heart, and inputs nothing
-                for position in altar_position:
-                    recipe = ([position], RecipeConfig(input_resources={}, output_resources={"heart": 1}, cooldown=10))
-                    altar.recipes.append(recipe)
-            else:
-                # create a altar, that outputs a heart, and inputs one battery red
-                for position in altar_position:
-                    recipe = ([position], RecipeConfig(input_resources={"battery_red": 1}, output_resources={"heart": 1}, cooldown=10))
-                    altar.recipes.append(recipe)
+                input_resources = {}
+            elif altar_input == "both":
+                input_resources = {c: 1 for c in resources}
+            elif altar_input == "one":
+                input_resources = {rng.sample(resources, 1)[0]: 1}
+            recipe = (altar_positions, RecipeConfig(input_resources=input_resources, output_resources={"heart": 1}, cooldown=10))
+            altar.recipes = [recipe]
 
             cfg.game_objects["altar"] = altar
 
@@ -130,6 +136,7 @@ class AssemblerTaskGenerator(TaskGenerator):
         width = rng.choice(self.config.widths)
         height = rng.choice(self.config.heights)
         max_steps = self.config.max_steps
+        altar_input = rng.choice(self.config.altar_inputs)
 
         if num_agents == 1:
             num_instances = 4
@@ -140,7 +147,7 @@ class AssemblerTaskGenerator(TaskGenerator):
         else:
             raise ValueError(f"Invalid number of agents: {num_agents}")
 
-        return self.make_env_cfg(num_agents, num_instances, num_altars, num_converters, width, height, generator_position, altar_position, max_steps)
+        return self.make_env_cfg(num_agents, num_instances, num_altars, num_converters, altar_input, width, height, generator_position, altar_position, max_steps, rng)
 
 
 # def make_mettagrid() -> MettaGridConfig:
