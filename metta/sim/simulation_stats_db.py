@@ -261,37 +261,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         Used both by `from_shards_and_context` (i.e. Simulation merging envs) and `export` (i.e. export merging
         with former data).
         """
-        other_path = Path(other_path)
-        db_list = self.con.execute("PRAGMA database_list").fetchall()
-        existing_alias: str | None = None
-        existing_names = {row[1] for row in db_list}
-        resolved_other = other_path.resolve()
-        for _, name, file_path in db_list:
-            if not file_path:
-                continue
-            try:
-                if Path(file_path).resolve() == resolved_other:
-                    existing_alias = name
-                    break
-            except FileNotFoundError:
-                continue
-
-        attached_here = False
-        if existing_alias is not None:
-            alias = existing_alias
-        else:
-            base_alias = "other"
-            alias = base_alias
-            counter = 0
-            while alias in existing_names:
-                counter += 1
-                alias = f"{base_alias}_{counter}"
-
-            attached_here = True
-            alias_sql = duckdb.escape_identifier(alias)
-            self.con.execute(f"ATTACH '{other_path}' AS {alias_sql}")
-
-        alias_sql = duckdb.escape_identifier(alias)
+        self.con.execute(f"ATTACH '{other_path}' AS other")
 
         # helpers
         def _table_exists(table: str) -> bool:
@@ -304,7 +274,7 @@ class SimulationStatsDB(EpisodeStatsDB):
             try:
                 # Returns an empty result set if the table exists but has no
                 # columns (impossible here) – that's still "exists".
-                self.con.execute(f"PRAGMA table_info({alias_sql}.{table})").fetchall()
+                self.con.execute(f"PRAGMA table_info(other.{table})").fetchall()
                 return True
             except duckdb.CatalogException:
                 return False
@@ -314,7 +284,7 @@ class SimulationStatsDB(EpisodeStatsDB):
                 logger = logging.getLogger(__name__)
                 logger.debug("Skipping %s – not present in shard %s", table, other_path.name)
                 return
-            self.con.execute(f"INSERT OR IGNORE INTO {table} SELECT * FROM {alias_sql}.{table}")
+            self.con.execute(f"INSERT OR IGNORE INTO {table} SELECT * FROM other.{table}")
 
         try:
             self.con.begin()
@@ -328,5 +298,4 @@ class SimulationStatsDB(EpisodeStatsDB):
             logger.error(f"Error merging {other_path}: {e}")
             raise
         finally:
-            if attached_here:
-                self.con.execute(f"DETACH {alias_sql}")
+            self.con.execute("DETACH other")
