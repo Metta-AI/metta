@@ -111,7 +111,8 @@ class MettaGridCore:
 
     @with_instance_timer("_create_c_env")
     def _create_c_env(self) -> MettaGridCpp:
-        game_map = self._map_builder.build()
+        with self.timer("_create_c_env.game_map"):
+            game_map = self._map_builder.build()
 
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
@@ -130,7 +131,9 @@ class MettaGridCore:
             raise e
 
         # Create C++ environment
-        c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
+        with self.timer("_create_c_env.c_env"):
+            c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
+
         self._update_core_buffers()
 
         # Initialize renderer if needed

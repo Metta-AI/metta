@@ -550,6 +550,8 @@ def train(
                 ]
                 sims.extend(trainer_cfg.evaluation.simulations)
 
+                logger.info(f"Collected {len(sims)} simulations to evaluate")
+
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
                 if latest_remote_policy_uri:
                     policy_uri = latest_remote_policy_uri
@@ -580,6 +582,7 @@ def train(
 
                 if evaluate_local:
                     if policy_uri:
+                        logger.info(f"Evaluating policy locally with {policy_uri}")
                         evaluation_results = evaluate_policy(
                             checkpoint_uri=policy_uri,
                             simulations=sims,
