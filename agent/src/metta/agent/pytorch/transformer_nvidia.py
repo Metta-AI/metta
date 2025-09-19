@@ -24,6 +24,11 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
+from metta.agent.pytorch.base import (
+    bilinear_actor_forward,
+    init_bilinear_actor,
+    initialize_action_embeddings,
+)
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 Tensor = torch.Tensor
@@ -366,8 +371,8 @@ class TransformerNvidiaPolicy(nn.Module):
             self.flattened_size = test_output.numel() // test_output.shape[0]
 
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(self.flattened_size, 256)
-        self.encoded_obs = nn.Linear(256, hidden_size)
+        self.fc1 = nn.Linear(self.flattened_size, 512)
+        self.encoded_obs = nn.Linear(512, hidden_size)
 
         nn.init.orthogonal_(self.cnn1.weight, 1.0)
         nn.init.zeros_(self.cnn1.bias)
@@ -377,6 +382,24 @@ class TransformerNvidiaPolicy(nn.Module):
         nn.init.zeros_(self.fc1.bias)
         nn.init.orthogonal_(self.encoded_obs.weight, math.sqrt(2))
         nn.init.zeros_(self.encoded_obs.bias)
+
+        self.critic_hidden_dim = 1024
+        self.actor_hidden_dim = 512
+        self.action_embed_dim = 16
+
+        self.critic_1 = nn.Linear(hidden_size, self.critic_hidden_dim)
+        self.value_head = nn.Linear(self.critic_hidden_dim, 1)
+        nn.init.orthogonal_(self.critic_1.weight, math.sqrt(2))
+        nn.init.zeros_(self.critic_1.bias)
+        nn.init.orthogonal_(self.value_head.weight, 1.0)
+        nn.init.zeros_(self.value_head.bias)
+
+        self.actor_1 = nn.Linear(hidden_size, self.actor_hidden_dim)
+        nn.init.orthogonal_(self.actor_1.weight, 1.0)
+        nn.init.zeros_(self.actor_1.bias)
+        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
+        initialize_action_embeddings(self.action_embeddings)
+        self.actor_W, self.actor_bias = init_bilinear_actor(self.actor_hidden_dim, self.action_embed_dim)
 
         self.core = NvidiaTransformerCore(
             d_model=hidden_size,
@@ -390,24 +413,6 @@ class TransformerNvidiaPolicy(nn.Module):
             clamp_len=max_seq_len,
         )
         self._transformer = self.core
-
-        self.critic = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, 1),
-        )
-        self.actor = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, 100),
-        )
-        for head in [self.critic, self.actor]:
-            for layer in head:
-                if isinstance(layer, nn.Linear):
-                    nn.init.orthogonal_(layer.weight, 0.01 if layer is head[-1] else math.sqrt(2))
-                    nn.init.zeros_(layer.bias)
 
         max_values = [1.0] * self.num_layers
         if hasattr(env, "feature_normalizations"):
@@ -467,9 +472,22 @@ class TransformerNvidiaPolicy(nn.Module):
         return self.network_forward(box_obs)
 
     def decode_actions(self, hidden: Tensor, batch_size: int) -> Tuple[Tensor, Tensor]:
-        values = self.critic(hidden).squeeze(-1)
-        full_logits = self.actor(hidden)
-        logits = full_logits[:, : self.num_active_actions]
+        critic_features = torch.tanh(self.critic_1(hidden))
+        values = self.value_head(critic_features).squeeze(-1)
+
+        actor_features = F.relu(self.actor_1(hidden))
+        action_embeds = self.action_embeddings.weight[: self.num_active_actions]
+        action_embeds = action_embeds.unsqueeze(0).expand(batch_size, -1, -1)
+
+        logits = bilinear_actor_forward(
+            actor_features,
+            action_embeds,
+            self.actor_W,
+            self.actor_bias,
+            self.actor_hidden_dim,
+            self.action_embed_dim,
+        )
+
         return logits, values
 
     def transformer(
@@ -560,9 +578,29 @@ class TransformerNvidia(PyTorchAgentMixin, TransformerWrapper):
         else:
             hidden = hidden.unsqueeze(0)
 
-        terminations = state.get("terminations")
-        if terminations is None:
-            terminations = torch.zeros(seq_len, batch_size, device=hidden.device)
+        dones = td.get("dones", None)
+        truncateds = td.get("truncateds", None)
+        if dones is None and truncateds is not None:
+            dones = truncateds
+            truncateds = None
+
+        if dones is not None:
+            dones = dones.to(torch.bool)
+            if truncateds is not None:
+                dones = dones | truncateds.to(torch.bool)
+            if is_sequential:
+                terminations = dones.reshape(batch_size, seq_len).transpose(0, 1)
+            else:
+                terminations = dones.reshape(batch_size).unsqueeze(0)
+        else:
+            base = torch.zeros(batch_size, dtype=torch.bool)
+            if is_sequential:
+                terminations = base.unsqueeze(0).expand(seq_len, -1)
+            else:
+                terminations = base.unsqueeze(0)
+
+        terminations = terminations.to(hidden.device, dtype=hidden.dtype).contiguous()
+        state["terminations"] = terminations[-1:].detach()
 
         hidden, new_memory = self.policy.transformer(hidden, terminations, state.get("transformer_memory"))
         normalized_memory = self._normalize_memory(new_memory)

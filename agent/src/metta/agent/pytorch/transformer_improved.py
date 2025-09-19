@@ -1,5 +1,6 @@
 """Transformer-XL agent implementation for reinforcement learning."""
 
+import math
 from typing import Optional
 
 import torch
@@ -10,6 +11,11 @@ from torch import nn
 
 from metta.agent.modules.transformer_module import TransformerModule
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
+from metta.agent.pytorch.base import (
+    bilinear_actor_forward,
+    init_bilinear_actor,
+    initialize_action_embeddings,
+)
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 
@@ -43,9 +49,9 @@ class TransformerXLPolicy(nn.Module):
             self.flattened_size = test_output.numel() // test_output.shape[0]
 
         self.flatten = nn.Flatten()
-        self.fc1 = init_layer(nn.Linear(self.flattened_size, 256), std=1.0)
+        self.fc1 = init_layer(nn.Linear(self.flattened_size, 512), std=1.0)
         # Produce feature vector of size `input_size` (may differ from hidden_size)
-        self.encoded_obs = init_layer(nn.Linear(256, input_size), std=1.0)
+        self.encoded_obs = init_layer(nn.Linear(512, input_size), std=1.0)
 
         # Ensure the transformer always receives vectors of size `hidden_size`.
         # If input_size != hidden_size, add a projection; otherwise use identity.
@@ -53,6 +59,18 @@ class TransformerXLPolicy(nn.Module):
             self.to_hidden = init_layer(nn.Linear(input_size, hidden_size), std=1.0)
         else:
             self.to_hidden = nn.Identity()
+
+        self.critic_hidden_dim = 1024
+        self.actor_hidden_dim = 512
+        self.action_embed_dim = 16
+
+        self.critic_1 = init_layer(nn.Linear(hidden_size, self.critic_hidden_dim), std=math.sqrt(2))
+        self.value_head = init_layer(nn.Linear(self.critic_hidden_dim, 1), std=1.0)
+
+        self.actor_1 = init_layer(nn.Linear(hidden_size, self.actor_hidden_dim), std=1.0)
+        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
+        initialize_action_embeddings(self.action_embeddings)
+        self.actor_W, self.actor_bias = init_bilinear_actor(self.actor_hidden_dim, self.action_embed_dim)
 
         self._transformer = TransformerModule(
             d_model=hidden_size,
@@ -66,21 +84,6 @@ class TransformerXLPolicy(nn.Module):
             pre_lnorm=True,
         )
 
-        self.critic = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size), nn.LayerNorm(hidden_size), nn.ReLU(), nn.Linear(hidden_size, 1)
-        )
-
-        self.actor = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size),
-            nn.LayerNorm(hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, 100),
-        )
-
-        for head in [self.critic, self.actor]:
-            for layer in head:
-                if isinstance(layer, nn.Linear):
-                    init_layer(layer, std=1.0 if layer != head[-1] else 0.1)
         max_values = [1.0] * self.num_layers
         if hasattr(env, "feature_normalizations"):
             for fid, norm in env.feature_normalizations.items():
@@ -134,14 +137,36 @@ class TransformerXLPolicy(nn.Module):
 
     def decode_actions(self, hidden: torch.Tensor, batch_size: int = None) -> tuple:
         """Standard GTrXL action/value decoding."""
-        values = self.critic(hidden).squeeze(-1)
-        full_logits = self.actor(hidden)
-        logits = full_logits[:, : self.num_active_actions]
+        critic_features = torch.tanh(self.critic_1(hidden))
+        values = self.value_head(critic_features).squeeze(-1)
+
+        actor_features = F.relu(self.actor_1(hidden))
+        action_embeds = self.action_embeddings.weight[: self.num_active_actions]
+        action_embeds = action_embeds.unsqueeze(0).expand(hidden.shape[0], -1, -1)
+
+        logits = bilinear_actor_forward(
+            actor_features,
+            action_embeds,
+            self.actor_W,
+            self.actor_bias,
+            self.actor_hidden_dim,
+            self.action_embed_dim,
+        )
 
         return logits, values
 
     def transformer(self, hidden: torch.Tensor, terminations: torch.Tensor = None, memory: dict = None):
-        return self._transformer(hidden, memory)
+        output, new_memory = self._transformer(hidden, memory)
+        if terminations is not None and new_memory is not None:
+            hidden_states = new_memory.get("hidden_states") if isinstance(new_memory, dict) else None
+            if hidden_states:
+                done_mask = terminations[-1].to(torch.bool)
+                if done_mask.any():
+                    for layer_mem in hidden_states:
+                        if layer_mem is None or layer_mem.numel() == 0:
+                            continue
+                        layer_mem[:, done_mask, :] = 0
+        return output, new_memory
 
     def initialize_memory(self, batch_size: int) -> dict:
         return self._transformer.initialize_memory(batch_size)
@@ -199,7 +224,31 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
         else:
             hidden = hidden.unsqueeze(0)
 
-        hidden, memory = self.policy.transformer(hidden, None, state.get("transformer_memory"))
+        dones = td.get("dones", None)
+        truncateds = td.get("truncateds", None)
+        if dones is None and truncateds is not None:
+            dones = truncateds
+            truncateds = None
+
+        if dones is not None:
+            dones = dones.to(torch.bool)
+            if truncateds is not None:
+                dones = dones | truncateds.to(torch.bool)
+            if TT > 1:
+                terminations = dones.reshape(B, TT).transpose(0, 1)
+            else:
+                terminations = dones.reshape(B).unsqueeze(0)
+        else:
+            base = torch.zeros(B, dtype=torch.bool)
+            if TT > 1:
+                terminations = base.unsqueeze(0).expand(TT, -1)
+            else:
+                terminations = base.unsqueeze(0)
+
+        terminations = terminations.to(hidden.device, dtype=hidden.dtype).contiguous()
+        state["terminations"] = terminations[-1:].detach()
+
+        hidden, memory = self.policy.transformer(hidden, terminations, state.get("transformer_memory"))
         normalized_memory = self._normalize_memory(memory)
         if normalized_memory is not None:
             state["transformer_memory"] = self._detach_memory(normalized_memory)

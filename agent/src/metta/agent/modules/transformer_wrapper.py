@@ -51,13 +51,9 @@ class TransformerWrapper(nn.Module):
         self.is_continuous = getattr(policy, "is_continuous", False)
         self._pending_segment_records: List[SegmentMemoryRecord] = []
 
-        for name, param in self.named_parameters():
-            if "layer_norm" in name:
-                continue
-            if "bias" in name:
-                nn.init.constant_(param, 0)
-            elif "weight" in name and param.ndim >= 2:
-                nn.init.orthogonal_(param, 1.0)
+        # Do not touch policy parameters here; policies define their own
+        # initialization strategies and re-initializing them would override
+        # carefully chosen weight scales.
 
     def forward_eval(self, observations: torch.Tensor, state: Dict[str, Any]) -> Tuple[torch.Tensor, torch.Tensor]:
         """
