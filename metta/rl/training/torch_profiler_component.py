@@ -47,8 +47,7 @@ class TorchProfilerComponent(TrainerComponent):
                 run_dir=run_dir,
             )
 
-        trainer = context.trainer
-        original_train_epoch = trainer._train_epoch  # type: ignore[attr-defined]
+        original_train_epoch = context.get_train_epoch_callable()
 
         def wrapped_train_epoch():
             if self._torch_profiler is None:
@@ -56,7 +55,7 @@ class TorchProfilerComponent(TrainerComponent):
             with self._torch_profiler:
                 return original_train_epoch()
 
-        trainer._train_epoch = wrapped_train_epoch  # type: ignore[attr-defined]
+        context.set_train_epoch_callable(wrapped_train_epoch)
         self._original_train_epoch = original_train_epoch
 
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
@@ -65,4 +64,4 @@ class TorchProfilerComponent(TrainerComponent):
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if self._original_train_epoch is not None:
-            self.context.trainer._train_epoch = self._original_train_epoch  # type: ignore[attr-defined]
+            self.context.set_train_epoch_callable(self._original_train_epoch)

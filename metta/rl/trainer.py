@@ -106,6 +106,8 @@ class Trainer:
             run_dir=None,
             run_name=None,
         )
+        self._context.get_train_epoch_fn = lambda: self._train_epoch
+        self._context.set_train_epoch_fn = lambda fn: setattr(self, "_train_epoch", fn)
 
         if self._cfg.heartbeat is not None:
             self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))

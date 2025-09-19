@@ -48,6 +48,8 @@ class TrainerContext:
     checkpoint_manager: Any | None = None
     stats_client: Any | None = None
     stats_reporter: "StatsReporter" | None = None
+    get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
+    set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
     components: Dict[type, TrainerComponent] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     memory_monitor: MemoryMonitor | None = None
@@ -107,3 +109,13 @@ class TrainerContext:
     def save_trainer_state(self) -> None:
         if self.save_trainer_state_fn is not None:
             self.save_trainer_state_fn()
+
+    def get_train_epoch_callable(self) -> Callable[[], None]:
+        if self.get_train_epoch_fn is None:
+            raise RuntimeError("TrainerContext has no getter for train epoch callable")
+        return self.get_train_epoch_fn()
+
+    def set_train_epoch_callable(self, fn: Callable[[], None]) -> None:
+        if self.set_train_epoch_fn is None:
+            raise RuntimeError("TrainerContext has no setter for train epoch callable")
+        self.set_train_epoch_fn(fn)

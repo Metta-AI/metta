@@ -37,11 +37,7 @@ class WandbLoggerComponent(TrainerComponent):
 
         self._last_agent_step = context.agent_step
 
-        losses_stats = context.latest_losses_stats
-        if not losses_stats and hasattr(context.trainer, "latest_losses_stats"):
-            losses_stats = getattr(context.trainer, "latest_losses_stats", {})
-
-        for key, value in losses_stats.items():
+        for key, value in context.latest_losses_stats.items():
             metric_key = key if "/" in key else f"loss/{key}"
             payload[metric_key] = float(value)
 
