@@ -8,7 +8,7 @@ import metta.cogworks.curriculum as cc
 # import metta.mettagrid.config.envs as eb
 import metta.mettagrid.builder.envs as eb
 from experiments.recipes import arena
-from metta.agent.policies.vit import ViTSmallConfig
+from metta.agent.policies.cnn_trans import CNNTransConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
@@ -89,9 +89,14 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         losses=LossConfig(),
     )
     # policy_config = FastConfig()
-    policy_config = ViTSmallConfig()
+    # policy_config = ViTSmallConfig()
+    # policy_config = FastDynamicsConfig()
+    policy_config = CNNTransConfig()
     curriculum = curriculum or make_curriculum()
-    training_env = TrainingEnvironmentConfig(curriculum=curriculum)
+    training_env = TrainingEnvironmentConfig(
+        curriculum=curriculum,
+        forward_pass_minibatch_target_size=1024,
+    )
     evaluator = EvaluatorConfig(simulations=make_evals())
 
     return TrainTool(
