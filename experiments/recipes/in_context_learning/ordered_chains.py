@@ -418,8 +418,8 @@ def train(
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
     # which requires a large batch size
-    trainer_cfg.batch_size = 4128768
-    trainer_cfg.bptt_horizon = 512
+    trainer_cfg.batch_size = 2097152
+    trainer_cfg.bptt_horizon = 256
 
     return TrainTool(trainer=trainer_cfg)
 
@@ -479,7 +479,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_resource_chain_{curriculum_style}.256.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
@@ -491,7 +491,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}_pretrained.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_resource_chain_{curriculum_style}_pretrained.256.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 f"trainer.initial_policy.uri={pretrained_policy_uri}",
                 "--gpus=4",
