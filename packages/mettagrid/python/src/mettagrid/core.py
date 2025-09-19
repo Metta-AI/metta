@@ -291,6 +291,10 @@ class MettaGridCore:
 
         return features
 
+    def get_observation_features(self) -> Dict[str, ObsFeature]:
+        """Backward-compatible method alias for observation features."""
+        return self.observation_features
+
     @property
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
