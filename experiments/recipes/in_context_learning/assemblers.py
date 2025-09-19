@@ -61,6 +61,77 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
+curriculum_args = {
+    # 1) Single agent, only altars; positions vary (Any, W+E, N+S)
+    "single_agent_only_altars": {
+        "num_agents": [1],
+        "num_altars": [2],
+        "num_converters": [0],
+        "widths": [6, 10, 12],
+        "heights": [6, 10, 12],
+        "generator_positions": [["Any"]],
+        "altar_positions": [["Any"], ["W"], ["E"], ["N"], ["S"]],
+    },
+
+    # 2) Single agent, 1 converter + 1 altar; positions Any or single-side (N/S/E/W)
+    "single_agent_converter_and_altar": {
+        "num_agents": [1],
+        "num_altars": [1],
+        "num_converters": [1],
+        "widths": [6, 10, 12],
+        "heights": [6, 10, 12],
+        "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+        "altar_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+        "altar_inputs": ["one"],                          # one converter available
+    },
+
+    # 3) Single agent, 2 converters + 1 altar; only one converter required
+    #    Positions: either Any for both, or both constrained to N+S or E+W
+    "single_agent_two_converters_one_active": {
+        "num_agents": [1],
+        "num_altars": [1],
+        "num_converters": [2],
+        "widths": [6, 10, 12],
+        "heights": [6, 10, 12],
+        "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+        "altar_positions": [["Any"]],
+        "altar_inputs": ["one"],                          # only one converter’s output needed
+    },
+
+    # 4) Multi-agent (up to 2 agents), 2 altars; Any positions
+    "multi_agent_any": {
+        "num_agents": [1, 2],
+        "num_altars": [2],
+        "num_converters": [0],
+        "widths": [4, 6, 8, 10],
+        "heights": [4, 6, 8, 10],
+        "generator_positions": [["Any"]],          # no converters, ignored
+        "altar_positions": [["Any"]],
+        "altar_inputs": ["one"],
+    },
+
+    # 5) Multi-agent (2 agents), altars positioned N+S or W+E
+    "multi_agent_altars": {
+        "num_agents": [2],
+        "num_altars": [2],
+        "num_converters": [0],
+        "widths": [4, 6, 8, 10],
+        "heights": [4, 6, 8, 10],
+        "generator_positions": [["Any", "Any"]],          # no converters, ignored
+        "altar_positions": [["N", "S"], ["W", "E"]],
+        "altar_inputs": ["one"],
+    },
+    "multi_agent_both": {
+        "num_agents": [2],
+        "num_altars": [1],
+        "num_converters": [2],
+        "widths": [4, 6, 8, 10],
+        "heights": [4, 6, 8, 10],
+        "generator_positions": [["Any", "Any"], ["N", "S"], ["E", "W"]],
+        "altar_positions": [["Any"]],
+        "altar_inputs": ["both"],
+    },
+    }
 
 @dataclass
 class _BuildCfg:
@@ -199,17 +270,8 @@ class AssemblerTaskGenerator(TaskGenerator):
         )
 
 
-def make_mettagrid() -> MettaGridConfig:
-    task_generator_cfg = AssemblerTaskGenerator.Config(
-        num_agents=[2],
-        num_altars=[2],
-        num_converters=[1],
-        widths=[8],
-        heights=[8],
-        generator_positions=[["N", "S"]],
-        altar_positions=[["E", "W"]],
-        altar_inputs=["one", "both"],
-    )
+def make_mettagrid(curriculum_style: str = "single_agent_only_altars") -> MettaGridConfig:
+    task_generator_cfg = AssemblerTaskGenerator.Config( **curriculum_args[curriculum_style])
     task_generator = AssemblerTaskGenerator(task_generator_cfg)
     return task_generator.get_task(0)
 
@@ -238,110 +300,25 @@ def make_curriculum(
     return CurriculumConfig(task_generator=task_generator_cfg)
 
 
-def train() -> TrainTool:
-
-    #TODO george -- add more experiments
-curriculum_args = {
-    "hard_defaults": {
-        "num_agents": [1],
-        "num_altars": [2],
-        "num_converters": [0],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any"], ["NE", "NW"]],
-        "altar_positions": [["Any"], ["Any", "Any"]],
-        "altar_inputs": ["one", "both"],
-    },
-
-    # 1) Single agent, only altars; positions vary (Any, W+E, N+S)
-    "single_agent_only_altars": {
-        "num_agents": [1],
-        "num_altars": [2],
-        "num_converters": [0],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any"]],
-        "altar_positions": [["Any"], ["W", "E"], ["N", "S"]],
-        "altar_inputs": ["one"],
-    },
-
-    # 2) Single agent, 1 converter + 1 altar; positions Any or single-side (N/S/E/W)
-    "single_agent_converter_and_altar": {
-        "num_agents": [1],
-        "num_altars": [1],
-        "num_converters": [1],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
-        "altar_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
-        "altar_inputs": ["one"],                          # one converter available
-    },
-
-    # 3) Single agent, 2 converters + 1 altar; only one converter required
-    #    Positions: either Any for both, or both constrained to N+S or E+W
-    "single_agent_two_converters_one_active": {
-        "num_agents": [1],
-        "num_altars": [1],
-        "num_converters": [2],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any", "Any"], ["N", "S"], ["E", "W"]],
-        "altar_positions": [["Any"]],
-        "altar_inputs": ["one"],                          # only one converter’s output needed
-    },
-
-    # 4) Multi-agent (2 agents), 2 altars; Any positions
-    "multi_agent_any": {
-        "num_agents": [2],
-        "num_altars": [2],
-        "num_converters": [0],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any", "Any"]],          # no converters, ignored
-        "altar_positions": [["Any", "Any"]],
-        "altar_inputs": ["one"],
-    },
-
-    # 5) Multi-agent (2 agents), altars positioned N+S or W+E
-    "multi_agent_altars": {
-        "num_agents": [2],
-        "num_altars": [2],
-        "num_converters": [0],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any", "Any"]],          # no converters, ignored
-        "altar_positions": [["N", "S"], ["W", "E"]],
-        "altar_inputs": ["one"],
-    },
-    "multi_agent_both": {
-    "num_agents": [2],
-    "num_altars": [1],
-    "num_converters": [2],
-    "widths": [4, 6, 8, 10],
-    "heights": [4, 6, 8, 10],
-    "generator_positions": [["Any", "Any"], ["N", "S"], ["E", "W"]],
-    "altar_positions": [["Any"]],
-    "altar_inputs": ["both"],
-},
-}
-    curriculum = make_curriculum(**curriculum_args["hard_defaults"])
+def train(curriculum_style: str = "single_agent_only_altars") -> TrainTool:
+    curriculum = make_curriculum(**curriculum_args[curriculum_style])
     trainer_cfg = TrainerConfig(
         curriculum=curriculum,
     )
     return TrainTool(trainer=trainer_cfg)
 
-def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_mettagrid()
+def play(curriculum_style: str = "single_agent_only_altars") -> PlayTool:
+    eval_env = make_mettagrid(curriculum_style)
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            name="in_context_assemblers",
         ),
     )
 
 
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_mettagrid()
+def replay(curriculum_style: str = "single_agent_only_altars") -> ReplayTool:
+    eval_env = make_mettagrid(curriculum_style)
     # Default to the research policy if none specified
     default_policy_uri = (
         "s3://your-bucket/checkpoints/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19/"
@@ -350,7 +327,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            name="in_context_assemblers",
         ),
         policy_uri=default_policy_uri,
     )
