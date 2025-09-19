@@ -1,6 +1,5 @@
-// chest_config.hpp
-#ifndef OBJECTS_CHEST_CONFIG_HPP_
-#define OBJECTS_CHEST_CONFIG_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_CONFIG_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_CONFIG_HPP_
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -43,4 +42,4 @@ inline void bind_chest_config(py::module& m) {
       .def_readwrite("withdrawal_positions", &ChestConfig::withdrawal_positions);
 }
 
-#endif  // OBJECTS_CHEST_CONFIG_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_CONFIG_HPP_
