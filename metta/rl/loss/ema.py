@@ -1,5 +1,3 @@
-"""Exponential Moving Average loss implementation."""
-
 import copy
 from typing import Any
 

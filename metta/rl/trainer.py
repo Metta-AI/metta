@@ -1,5 +1,3 @@
-"""Main trainer facade for coordinating all training components."""
-
 import logging
 from typing import Any, Dict, Optional, Type
 

@@ -1,5 +1,3 @@
-"""Dynamics loss implementation."""
-
 from typing import Any
 
 import einops

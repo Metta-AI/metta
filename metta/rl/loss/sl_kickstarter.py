@@ -1,5 +1,3 @@
-"""Supervised Learning Kickstarter loss implementation."""
-
 from typing import Any
 
 import einops

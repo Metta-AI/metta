@@ -1,5 +1,3 @@
-"""Core training loop for rollout and training phases."""
-
 import logging
 from typing import Any, Dict, List
 
