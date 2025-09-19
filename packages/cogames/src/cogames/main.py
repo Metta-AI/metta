@@ -21,19 +21,38 @@ def default(ctx: typer.Context) -> None:
 
 
 @app.command()
-def games(game_name: Optional[str] = typer.Argument(None, help="Name of the game to describe")) -> None:
+def games(
+    game_name: Optional[str] = typer.Argument(None, help="Name of the game to describe"),
+    save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
+) -> None:
     """List all available games or describe a specific game."""
     if game_name is None:
         # List all games
         table = game.list_games(console)
         console.print(table)
     else:
-        # Describe specific game
+        # Get the game configuration
         try:
-            game.describe_game(game_name, console)
+            game_config = game.get_game(game_name)
         except ValueError as e:
             console.print(f"[red]Error: {e}[/red]")
             raise typer.Exit(1) from e
+
+        # Save configuration if requested
+        if save:
+            try:
+                game.save_game_config(game_config, save)
+                console.print(f"[green]Game configuration saved to: {save}[/green]")
+            except ValueError as e:
+                console.print(f"[red]Error saving configuration: {e}[/red]")
+                raise typer.Exit(1) from e
+        else:
+            # Otherwise describe the game
+            try:
+                game.describe_game(game_name, console)
+            except ValueError as e:
+                console.print(f"[red]Error: {e}[/red]")
+                raise typer.Exit(1) from e
 
 
 @app.command(name="play")
