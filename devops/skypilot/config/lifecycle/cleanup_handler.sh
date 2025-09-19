@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# cleanup_handler.sh - Modular cleanup functionality for sk_train_run
 
 set -euo pipefail
 
@@ -35,8 +36,6 @@ cleanup() {
   determine_final_exit_code
 
   sleep 1
-
-  print_job_debug_report
 
   # Override the process exit code from within the EXIT trap.
   # Note: calling `exit` inside an EXIT trap does not recurse the trap.
@@ -127,8 +126,6 @@ print_final_summary() {
 }
 
 determine_final_exit_code() {
-  echo "[DEBUG] TERMINATION_REASON='${TERMINATION_REASON}'"
-
   if [[ "${TERMINATION_REASON}" == "force_restart_test" ]]; then
     echo "[INFO] Will exit with code 1 to trigger SkyPilot restart"
     FINAL_EXIT_CODE=1
@@ -136,59 +133,12 @@ determine_final_exit_code() {
     echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0
   fi
-
-  echo "[DEBUG] FINAL_EXIT_CODE=${FINAL_EXIT_CODE}"
 }
 
-print_job_debug_report() {
-  local report=""
-
-  report+="[DEBUG] ========== JOB DEBUG REPORT ==========\n"
-  report+="[DEBUG] Timestamp: $(date '+%Y-%m-%d %H:%M:%S')\n"
-  report+="[DEBUG] Script PID: $$\n"
-
-  if [[ -z "${CMD_PID:-}" ]]; then
-    report+="[DEBUG] CMD_PID: not set — skipping debug report\n"
-    report+="[DEBUG] ========== END DEBUG REPORT ==========\n"
-    echo -ne "$report"
-    return
-  fi
-
-  report+="[DEBUG] CMD_PID: ${CMD_PID}\n"
-
-  # Check current job status
-  report+="[DEBUG] Current job table:\n"
-  report+="$(jobs -l 2>&1 || echo '  No jobs found')\n"
-
-  # Check all background jobs
-  report+="[DEBUG] Background job PIDs:\n"
-  report+="$(jobs -p 2>&1 || echo '  No background jobs')\n"
-
-  # Check process group (python -m mode has PGID = CMD_PID)
-  report+="[DEBUG] Process group members:\n"
-  report+="$(ps -eo pid,ppid,pgid,state,etime,cmd | grep "^\s*[0-9]\+\s\+[0-9]\+\s\+${CMD_PID}" 2>&1 || echo '  No processes found in group')\n"
-
-  # Check for any child processes of this script
-  report+="[DEBUG] Child processes of script (PID $$):\n"
-  report+="$(ps --ppid $$ -o pid,ppid,pgid,state,etime,cmd 2>&1 || echo '  No child processes found')\n"
-
-  # Check for zombie processes
-  report+="[DEBUG] Zombie processes:\n"
-  report+="$(ps aux | grep ' <defunct>' | grep -v grep || echo '  No zombie processes found')\n"
-
-  # Check for processes matching the module name
-  if [[ -n "${METTA_MODULE_PATH:-}" ]]; then
-    local module_name
-    module_name=$(basename "${METTA_MODULE_PATH}")
-    report+="[DEBUG] Processes matching module '$module_name':\n"
-    report+="$(ps aux | grep "$module_name" | grep -v grep || echo '  No matching processes found')\n"
-  fi
-
-  # Check monitor processes if they exist
-  report+="[DEBUG] Monitor processes:\n"
-  report+="$(ps aux | grep -E '(monitor_gpu|monitor_memory|cluster_stop_monitor)' | grep -v grep || echo '  No monitor processes found')\n"
-
-  report+="[DEBUG] ========== END DEBUG REPORT ==========\n"
-
-  echo -ne "$report"
-}
+# Export the cleanup function if sourced
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  export -f cleanup
+  export -f handle_master_cleanup
+  export -f print_final_summary
+  export -f determine_final_exit_code
+fi

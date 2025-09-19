@@ -143,53 +143,110 @@ shutdown() {
     || echo "cluster_stop")
   echo "$termination_reason" > "$TERMINATION_REASON_FILE"
 
-  echo "[SHUTDOWN] Initiating cluster shutdown"
+  # Kill the entire process tree
+  if [ -n "${CMD_PGID:-}" ] ; then
+    echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
-  # Coordinate multi-node shutdown
-  if [[ "$IS_MASTER" == "true" ]]; then
-    echo "$termination_reason" > "$CLUSTER_STOP_FILE"
-    echo "[SHUTDOWN] Master signaled all nodes to begin shutdown"
-    sleep 20 # Give workers time to detect signal
-  else
-    # Worker waits for cluster-wide shutdown signal (max 20s)
-    echo "[SHUTDOWN] Worker waiting for cluster-wide shutdown signal..."
-    local count=0
-    while [ ! -f "$CLUSTER_STOP_FILE" ] && [ $count -lt 20 ]; do
-      sleep 1
-      ((count++))
-      [ $((count % 5)) -eq 0 ] && echo "[SHUTDOWN] Still waiting... ${count}/20s"
-    done
-    echo "[SHUTDOWN] $([ -f "$CLUSTER_STOP_FILE" ] && echo "Detected" || echo "Timeout on") cluster signal"
+    # Only master coordinates multi-node shutdown
+    if [[ "$IS_MASTER" == "true" ]]; then
+      echo "$termination_reason" > "$CLUSTER_STOP_FILE"
+      echo "[SHUTDOWN] Master node signaled all nodes to begin shutdown"
+
+      # Give workers time to detect the signal and start their own shutdown
+      echo "[SHUTDOWN] Waiting for worker nodes to begin shutdown..."
+      sleep 20
+
+    else
+      # Worker waits for cluster-wide shutdown signal
+      echo "[SHUTDOWN] Worker node checking for cluster-wide shutdown signal..."
+      count=0
+      max_wait=20
+
+      while [ ! -f "$CLUSTER_STOP_FILE" ] && [ $count -lt $max_wait ]; do
+        sleep 1
+        ((count++))
+        if [ $((count % 5)) -eq 0 ]; then
+          echo "[SHUTDOWN] Worker waiting for cluster signal... ${count}/${max_wait}s"
+        fi
+      done
+
+      if [ -f "$CLUSTER_STOP_FILE" ]; then
+        echo "[SHUTDOWN] Worker node detected cluster-wide shutdown signal"
+      else
+        echo "[SHUTDOWN] Worker node timeout waiting for cluster signal, proceeding with shutdown"
+      fi
+    fi
+
+    # Send SIGKILL to the local process group
+    kill -KILL -"${CMD_PGID}" 2> /dev/null || true
   fi
 
-  # Helper function to wait for process death
-  wait_for_exit() {
-    local pid=$1 sig=$2 max_wait=$3
-    local count=0
-
-    while kill -0 "$pid" 2> /dev/null && [ $count -lt $max_wait ]; do
-      sleep 1
-      ((count++))
-      [ $((count % 5)) -eq 0 ] && echo "[SHUTDOWN] Waiting for $sig shutdown... ${count}/${max_wait}s"
-    done
-
-    # Return 0 if process died, 1 if still alive
-    ! kill -0 "$pid" 2> /dev/null
-  }
-
-  # Try graceful shutdown first
-  kill -TERM -"${CMD_PID}" 2> /dev/null || true
-
-  if ! wait_for_exit "$CMD_PID" "graceful" 30; then
-    echo "[SHUTDOWN] Process didn't terminate gracefully, using SIGKILL"
-    kill -KILL -"${CMD_PID}" 2> /dev/null || true
-    wait_for_exit "$CMD_PID" "forced" 10 || echo "[SHUTDOWN] WARNING: Process may still be running"
-  fi
-
-  echo "[SHUTDOWN] Process $CMD_PID shutdown complete"
-  exit 0 # go to cleanup trap
+  # shutdown now calls the cleanup_handler
+  exit 0
 }
+
 trap shutdown INT TERM HUP
+
+start_monitors() {
+  if [[ -n "${HEARTBEAT_TIMEOUT:-}" ]]; then
+    bash ./devops/skypilot/config/monitors/heartbeat_monitor.sh &
+    echo "[INFO] Started heartbeat monitor"
+  fi
+  if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]]; then
+    bash ./devops/skypilot/config/monitors/timeout_monitor.sh &
+    echo "[INFO] Started timeout monitor"
+  fi
+  if [[ -n "${CLUSTER_STOP_FILE:-}" ]]; then
+    bash ./devops/skypilot/config/monitors/cluster_stop_monitor.sh &
+    echo "[INFO] Started cluster-stop monitor"
+  fi
+  if [[ "$IS_MASTER" == "true" ]] && [[ "${TEST_JOB_RESTART:-false}" == "true" ]]; then
+    bash ./devops/skypilot/config/monitors/test_job_restart_monitor.sh &
+    echo "[INFO] Started test job restart monitor"
+  fi
+}
+
+run_cmd() {
+  echo "[INFO] Starting process (node rank: $RANK)"
+
+  export START_TIME=$(date +%s)
+
+  # Build the command as an array
+  local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
+
+  # Add args if METTA_ARGS is not empty
+  if [ -n "${METTA_ARGS:-}" ]; then
+    cmd+=(${METTA_ARGS}) # split on spaces
+  fi
+
+  echo "[INFO] Running command: ${cmd[*]}"
+
+  # Use process substitution so $! is the trainer (not tee)
+  setsid "${cmd[@]}" &
+  export CMD_PID=$!
+
+  sleep 1
+
+  export CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2> /dev/null | tr -d ' ')
+  echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
+
+  start_monitors
+
+  wait "$CMD_PID"
+  CMD_EXIT=$?
+
+  if [[ ! -f "$TERMINATION_REASON_FILE" ]] || [[ ! -s "$TERMINATION_REASON_FILE" ]]; then
+    if [[ "$IS_MASTER" == "true" ]]; then
+      echo "job_completed" > "$TERMINATION_REASON_FILE"
+      echo "job_completed" > "$CLUSTER_STOP_FILE"
+      echo "[INFO] Master wrote shutdown signal to cluster stop file"
+    fi
+  fi
+
+  local END_TIME=$(date +%s)
+  local DURATION=$((END_TIME - START_TIME))
+  echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
+}
 
 source ./devops/skypilot/config/lifecycle/cleanup_handler.sh
 trap cleanup EXIT
@@ -220,64 +277,5 @@ else
   fi
 fi
 
-echo "[INFO] Starting process (node rank: $RANK)"
-START_TIME=$(date +%s)
-
-# Enable job control
-set -m
-
-# Build and run command
-cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
-[ -n "${METTA_ARGS:-}" ] && cmd+=(${METTA_ARGS})
-
-echo "[INFO] Running command: ${cmd[*]}"
-"${cmd[@]}" &
-export CMD_PID=$! # Export only if monitors need to access it
-
-echo "[INFO] Started process with PID: $CMD_PID"
-
-# Start monitors
-if [[ -n "${HEARTBEAT_TIMEOUT:-}" ]]; then
-  bash ./devops/skypilot/config/monitors/heartbeat_monitor.sh &
-  echo "[INFO] Started heartbeat monitor"
-fi
-if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]]; then
-  bash ./devops/skypilot/config/monitors/timeout_monitor.sh &
-  echo "[INFO] Started timeout monitor"
-fi
-if [[ -n "${CLUSTER_STOP_FILE:-}" ]]; then
-  bash ./devops/skypilot/config/monitors/cluster_stop_monitor.sh &
-  echo "[INFO] Started cluster-stop monitor"
-fi
-if [[ "$IS_MASTER" == "true" ]] && [[ "${TEST_JOB_RESTART:-false}" == "true" ]]; then
-  bash ./devops/skypilot/config/monitors/test_job_restart_monitor.sh &
-  echo "[INFO] Started test job restart monitor"
-fi
-
-# Wait for process to exit
-while kill -0 "$CMD_PID" 2> /dev/null; do
-  sleep 1
-done
-
-# Get exit code from job status
-JOB_INFO=$(jobs -l %1 2>&1 || echo "")
-CMD_EXIT=1 # Default to failure
-
-if [[ "$JOB_INFO" =~ Exit\ ([0-9]+) ]]; then
-  CMD_EXIT=${BASH_REMATCH[1]}
-elif [[ "$JOB_INFO" =~ Done ]]; then
-  CMD_EXIT=0
-fi
-
-echo "[INFO] Process exited with code $CMD_EXIT"
-set +m
-
-# Handle completion
-if [[ ! -s "${TERMINATION_REASON_FILE:-}" ]] && [[ "$IS_MASTER" == "true" ]] && [[ $CMD_EXIT -eq 0 ]]; then
-  echo "job_completed" > "$TERMINATION_REASON_FILE"
-fi
-
-DURATION=$(($(date +%s) - START_TIME))
-echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
-
+run_cmd
 shutdown
