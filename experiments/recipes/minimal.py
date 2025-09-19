@@ -1,11 +1,11 @@
-"""Minimal recipe example - just define env_recipe() and the system creates defaults for all tools."""
+"""Minimal recipe example - just define mettagrid() and the system creates defaults for all tools."""
 
 import mettagrid.builder.envs as eb
 from metta.eval.analysis_config import AnalysisConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
-def env_recipe(num_agents: int = 4) -> MettaGridConfig:
+def mettagrid(num_agents: int = 4) -> MettaGridConfig:
     """The only required function - creates the base environment.
 
     From just this, the system can automatically create:
@@ -23,8 +23,8 @@ def env_recipe(num_agents: int = 4) -> MettaGridConfig:
     return env
 
 
-def analyze_recipe(eval_db_uri: str, policy_uri: str | None = None) -> AnalysisConfig:
-    """Analysis configuration - auto-created from env_recipe."""
+def analyze(eval_db_uri: str, policy_uri: str | None = None) -> AnalysisConfig:
+    """Analysis configuration - auto-created from mettagrid."""
 
     return AnalysisConfig(
         eval_db_uri=eval_db_uri,

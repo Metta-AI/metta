@@ -109,7 +109,7 @@ def train(
         ),
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(config=trainer_cfg)
 
 
 def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
@@ -151,17 +151,17 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
         ),
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(config=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="cvc_arena"))
+    return PlayTool(config=SimulationConfig(env=eval_env, name="cvc_arena"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="cvc_arena"))
+    return ReplayTool(config=SimulationConfig(env=eval_env, name="cvc_arena"))
 
 
 def evaluate(

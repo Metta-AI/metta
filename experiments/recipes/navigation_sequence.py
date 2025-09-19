@@ -170,5 +170,5 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     )
 
 
-def eval() -> SimTool:
-    return SimTool(simulations=make_navigation_sequence_eval_suite())
+def sim(policy_uri: str) -> SimTool:
+    return SimTool(config=make_navigation_sequence_eval_suite(), policy_uri=policy_uri)

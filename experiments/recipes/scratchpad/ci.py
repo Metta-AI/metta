@@ -7,7 +7,7 @@ from metta.sim.simulation_config import SimulationConfig
 
 def trainer() -> TrainerConfig:
     """CI-friendly training configuration."""
-    cfg = arena.train_recipe(curriculum_cfg=arena.curriculum_recipe())
+    cfg = arena.train(curriculum_cfg=arena.curriculum_config())
 
     # Apply CI-friendly settings
     cfg.total_timesteps = 16  # Minimal steps for smoke testing
@@ -25,7 +25,7 @@ def trainer() -> TrainerConfig:
 
 def simulation() -> SimulationConfig:
     """CI-friendly simulation configuration for replay/play."""
-    env = arena.env_recipe()
+    env = arena.env_config()
     env.game.max_steps = 100
     env.label = env.label or "mettagrid"
     return SimulationConfig(env=env, name="ci_test")
@@ -49,3 +49,19 @@ def play_simulation() -> SimulationConfig:
 def play_null() -> SimulationConfig:
     """Simulation config for play with null policy (for testing)."""
     return simulation()
+
+
+# Add recipe shims for standard CLI interface
+def train() -> TrainerConfig:
+    """Alias for trainer() to support standard CLI syntax."""
+    return trainer()
+
+
+def play() -> SimulationConfig:
+    """Alias for play_simulation() to support standard CLI syntax."""
+    return play_simulation()
+
+
+def replay() -> SimulationConfig:
+    """Alias for replay_simulation() to support standard CLI syntax."""
+    return replay_simulation()

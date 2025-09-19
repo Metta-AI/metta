@@ -105,6 +105,7 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
+<<<<<<< HEAD
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
@@ -121,19 +122,22 @@ def train(
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
     )
+=======
+    return TrainTool(config=trainer_cfg)
+>>>>>>> 2bf9e051a (more)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return PlayTool(config=SimulationConfig(env=eval_env, name="arena"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return ReplayTool(config=SimulationConfig(env=eval_env, name="arena"))
 
 
-def sweep_simulations_recipe() -> Sequence[SimulationConfig]:
+def sweep_simulations() -> Sequence[SimulationConfig]:
     """Evaluation simulations optimized for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -162,7 +166,6 @@ def sweep_simulations_recipe() -> Sequence[SimulationConfig]:
     ]
 
 
-# Compatibility alias for evaluate API
-def evaluate_recipe(policy_uri: str) -> SimTool:
-    """Evaluation recipe for compatibility with standard evaluate command."""
-    return SimTool(config=sweep_simulations_recipe(), policy_uri=policy_uri)
+def sim(policy_uri: str) -> SimTool:
+    """Evaluation recipe for standard sim command."""
+    return SimTool(config=sweep_simulations(), policy_uri=policy_uri)

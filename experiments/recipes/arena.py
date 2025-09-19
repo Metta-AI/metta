@@ -20,17 +20,17 @@ from metta.tools.train import TrainTool
 # it's possible the maps are now different
 
 
-def env_recipe(num_agents: int = 24) -> MettaGridConfig:
+def env_config(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
     return arena_env
 
 
-def curriculum_recipe(
+def curriculum_config(
     arena_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    arena_env = arena_env or env_recipe()
+    arena_env = arena_env or env_config()
 
     arena_tasks = cc.bucketed(arena_env)
 
@@ -66,8 +66,8 @@ def curriculum_recipe(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations_recipe(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
-    basic_env = env or env_recipe()
+def simulations_config(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+    basic_env = env or env_config()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
     combat_env = basic_env.model_copy()
@@ -79,11 +79,11 @@ def simulations_recipe(env: Optional[MettaGridConfig] = None) -> List[Simulation
     ]
 
 
-def train_recipe(
+def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    curriculum = curriculum or curriculum_recipe(
+    curriculum = curriculum or curriculum_config(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
@@ -93,8 +93,8 @@ def train_recipe(
     )
 
 
-def train_shaped_recipe(rewards: bool = True, converters: bool = True) -> TrainTool:
-    env_cfg = env_recipe()
+def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
+    env_cfg = env_config()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
 
@@ -123,31 +123,27 @@ def train_shaped_recipe(rewards: bool = True, converters: bool = True) -> TrainT
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
-        evaluator=EvaluatorConfig(simulations=simulations_recipe()),
+        evaluator=EvaluatorConfig(simulations=simulations_config()),
     )
 
-def play_recipe(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or env_recipe()
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
+    eval_env = env or env_config()
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
-def replay_recipe(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or env_recipe()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+    eval_env = env or env_config()
+    return ReplayTool(config=SimulationConfig(env=eval_env, name="arena"))
 
 
-def sim_recipe(
+def sim(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
-    simulations = simulations or simulations_recipe()
+    simulations = simulations or simulations_config()
     return SimTool(
         config=simulations,
         policy_uri=policy_uri,
     )
 
 
-# Alias for evaluate command
-def evaluate_recipe(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
-    return sim_recipe(policy_uri, simulations)
+# No need for alias - sim is the standard name

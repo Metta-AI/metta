@@ -14,7 +14,7 @@ import sys
 import tempfile
 import traceback
 import warnings
-from typing import Any
+from typing import Any, Optional, Type, Union, get_args, get_origin
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
@@ -28,6 +28,203 @@ from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
+
+# --------------------------------------------------------------------------------------
+# Tool type mappings for verb validation
+# --------------------------------------------------------------------------------------
+
+
+# Mapping from verb to expected Tool type (lazy loading to avoid circular imports)
+def get_tool_type_mapping() -> dict[str, Type[Tool]]:
+    """Get mapping from verb to expected Tool type. Lazy loading to avoid circular imports.
+
+    These map directly to metta/tools/*.py - no aliases.
+    """
+    from metta.tools.analyze import AnalysisTool
+    from metta.tools.play import PlayTool
+    from metta.tools.replay import ReplayTool
+    from metta.tools.sim import SimTool
+    from metta.tools.train import TrainTool
+
+    return {
+        "train": TrainTool,
+        "sim": SimTool,
+        "analyze": AnalysisTool,
+        "play": PlayTool,
+        "replay": ReplayTool,
+    }
+
+
+def get_tool_return_type(func: Any) -> Optional[Type[Tool]]:
+    """Extract the Tool return type from a function's type annotation.
+
+    Returns None if the function doesn't have a Tool return type annotation.
+    """
+    if not callable(func):
+        return None
+
+    try:
+        sig = inspect.signature(func)
+        return_annotation = sig.return_annotation
+
+        # Handle direct Tool subclass
+        if inspect.isclass(return_annotation) and issubclass(return_annotation, Tool):
+            return return_annotation
+
+        # Handle Optional[Tool] or Union[Tool, None]
+        origin = get_origin(return_annotation)
+        if origin is Union:
+            args = get_args(return_annotation)
+            for arg in args:
+                if arg is not type(None) and inspect.isclass(arg) and issubclass(arg, Tool):
+                    return arg
+
+        return None
+    except Exception:
+        return None
+
+
+def validate_tool_type(func_path: str, func: Any, expected_tool_type: Optional[Type[Tool]] = None) -> Type[Tool]:
+    """Validate that a function returns the expected Tool type.
+
+    Args:
+        func_path: The path to the function (for error messages)
+        func: The function to validate
+        expected_tool_type: The expected Tool type (if specified by verb)
+
+    Returns:
+        The actual Tool return type
+
+    Raises:
+        TypeError: If validation fails
+    """
+    actual_type = get_tool_return_type(func)
+
+    if actual_type is None:
+        raise TypeError(
+            f"{func_path} must have a return type annotation that is a Tool subclass. "
+            f"Got: {inspect.signature(func).return_annotation}"
+        )
+
+    if expected_tool_type and not issubclass(actual_type, expected_tool_type):
+        # Get the verb name for better error message
+        tool_mapping = get_tool_type_mapping()
+        verb = None
+        for v, t in tool_mapping.items():
+            if t == expected_tool_type:
+                verb = v
+                break
+
+        raise TypeError(
+            f"{func_path} returns {actual_type.__name__} but '{verb}' command expects {expected_tool_type.__name__}"
+        )
+
+    return actual_type
+
+
+def wrap_config_to_tool(obj: Any, expected_tool_type: Optional[Type[Tool]], cli_args: dict[str, Any]) -> Any:
+    """Wrap non-Tool return types into appropriate Tool instances.
+
+    Handles:
+    - TrainerConfig -> TrainTool
+    - SimulationConfig -> PlayTool/ReplayTool/SimTool (based on expected type)
+    - Sequence[SimulationConfig] -> SimTool
+    - AnalysisConfig -> AnalysisTool
+    - MettaGridConfig -> appropriate Tool (based on expected type)
+    """
+    from collections.abc import Sequence as SeqABC
+
+    # If already a Tool, return as-is
+    if isinstance(obj, Tool):
+        return obj
+
+    # Lazy imports to avoid circular dependencies
+    from metta.rl.trainer_config import TrainerConfig
+    from metta.sim.simulation_config import SimulationConfig
+    from mettagrid.config.mettagrid_config import MettaGridConfig
+
+    # Handle TrainerConfig -> TrainTool
+    if isinstance(obj, TrainerConfig):
+        from metta.tools.train import TrainTool
+
+        return TrainTool(config=obj)
+
+    # Handle SimulationConfig -> appropriate Tool
+    if isinstance(obj, SimulationConfig):
+        from metta.tools.play import PlayTool
+        from metta.tools.replay import ReplayTool
+        from metta.tools.sim import SimTool
+
+        if expected_tool_type is ReplayTool:
+            return ReplayTool(config=obj)
+        elif expected_tool_type is PlayTool:
+            return PlayTool(config=obj)
+        elif expected_tool_type is SimTool:
+            # SimTool needs policy_uri
+            policy_uri = cli_args.get("policy_uri")
+            if not policy_uri:
+                output_error(f"{red('Error:')} evaluate/sim requires policy_uri parameter")
+                sys.exit(1)
+            return SimTool(config=[obj], policy_uri=policy_uri)
+        # Default for simulation without expected type
+        return PlayTool(config=obj)
+
+    # Handle Sequence[SimulationConfig] -> SimTool
+    if isinstance(obj, SeqABC) and obj and all(isinstance(s, SimulationConfig) for s in obj):
+        from metta.tools.sim import SimTool
+
+        policy_uri = cli_args.get("policy_uri")
+        if not policy_uri:
+            output_error(f"{red('Error:')} evaluate/sim requires policy_uri parameter")
+            sys.exit(1)
+        return SimTool(config=list(obj), policy_uri=policy_uri)
+
+    # Handle AnalysisConfig -> AnalysisTool
+    try:
+        from metta.eval.analysis_config import AnalysisConfig
+
+        if isinstance(obj, AnalysisConfig):
+            from metta.tools.analyze import AnalysisTool
+
+            return AnalysisTool(config=obj)
+    except ImportError:
+        pass  # AnalysisConfig might not exist
+
+    # Handle MettaGridConfig -> appropriate Tool
+    if isinstance(obj, MettaGridConfig):
+        from metta.tools.play import PlayTool
+        from metta.tools.replay import ReplayTool
+        from metta.tools.sim import SimTool
+        from metta.tools.train import TrainTool
+
+        # Create a simulation config from the MettaGridConfig
+        sim_cfg = SimulationConfig(env=obj, name=obj.label or "mettagrid")
+
+        if expected_tool_type is TrainTool:
+            # Create curriculum and trainer config
+            from metta.cogworks.curriculum import single_task_curriculum
+            from metta.rl.trainer_config import TrainerConfig
+
+            curriculum_cfg = single_task_curriculum(obj)
+            trainer_cfg = TrainerConfig(curriculum=curriculum_cfg)
+            return TrainTool(config=trainer_cfg)
+        elif expected_tool_type is ReplayTool:
+            return ReplayTool(config=sim_cfg)
+        elif expected_tool_type is PlayTool:
+            return PlayTool(config=sim_cfg)
+        elif expected_tool_type is SimTool:
+            # SimTool needs policy_uri
+            policy_uri = cli_args.get("policy_uri")
+            if not policy_uri:
+                output_error(f"{red('Error:')} evaluate/sim requires policy_uri parameter")
+                sys.exit(1)
+            return SimTool(config=[sim_cfg], policy_uri=policy_uri)
+        # Default for MettaGridConfig without expected type
+        return PlayTool(config=sim_cfg)
+
+    # Return unchanged if no wrapper applies
+    return obj
+
 
 # --------------------------------------------------------------------------------------
 # Environment setup
@@ -154,14 +351,12 @@ def nestify(flat: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_tool_fields(tool_class: type[Tool]) -> set[str]:
-    """Get all field names from a Tool class and its parent classes."""
-    fields = set()
-    for base in tool_class.__mro__:
-        if base is Tool:
-            break
-        if issubclass(base, BaseModel) and hasattr(base, "model_fields"):
-            fields.update(base.model_fields.keys())
-    return fields
+    """Get all field names from a Tool class.
+
+    Pydantic v2 includes inherited fields in subclass.model_fields,
+    so we can simply read them directly.
+    """
+    return set(getattr(tool_class, "model_fields", {}).keys())
 
 
 def get_function_params(make_tool_cfg: Any) -> set[str]:
@@ -392,41 +587,68 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def preprocess_recipe_path(path: str) -> str:
-    """Convert short recipe syntax to full module path.
+def preprocess_recipe_path(path: str) -> tuple[str, Optional[Type[Tool]]]:
+    """Convert recipe syntax to full module path and expected tool type.
 
-    First tries the tool-specific recipe function (e.g., train_recipe).
-    If that doesn't exist, falls back to mettagrid_recipe (except for analyze).
+    Handles several formats:
+    1. Verb + recipe: "train arena" -> (experiments.recipes.arena.train, TrainTool)
+    2. Direct function path: "arena.train_shaped" -> (experiments.recipes.arena.train_shaped, None)
+    3. Subfolder: "train in_context_learning.ordered_chains" ->
+       (experiments.recipes.in_context_learning.ordered_chains.train, TrainTool)
+    4. Dotted path with function: "replay scratchpad.ci.replay_null" ->
+       (experiments.recipes.scratchpad.ci.replay_null, ReplayTool)
+    5. Single path needing prefix: "in_context_learning.ordered_chains.train" ->
+       (in_context_learning.ordered_chains.train, None)
+
+    Returns:
+        A tuple of (module_path, expected_tool_type)
+        - module_path: The full module path to the function
+        - expected_tool_type: The expected Tool type if a verb was specified, None for direct paths
 
     Examples:
-        train arena -> experiments.recipes.arena.train_recipe (or .mettagrid_recipe if train_recipe doesn't exist)
-        evaluate navigation -> experiments.recipes.navigation.evaluate_recipe (or .mettagrid_recipe)
-        play minimal -> experiments.recipes.minimal.play_recipe (or .mettagrid_recipe)
-        replay scratchpad.ci.replay_null -> experiments.recipes.scratchpad.ci.replay_null (dotted path preserved)
-        analyze scorecard -> experiments.recipes.scorecard.analyze_recipe (no fallback)
+        train arena -> (experiments.recipes.arena.train, TrainTool)
+        arena.train_shaped -> (experiments.recipes.arena.train_shaped, None)
+        train in_context_learning.ordered_chains ->
+            (experiments.recipes.in_context_learning.ordered_chains.train, TrainTool)
+        sim navigation -> (experiments.recipes.navigation.sim, SimTool)
+        play minimal -> (experiments.recipes.minimal.play, PlayTool)
+        replay scratchpad.ci.replay_null -> (experiments.recipes.scratchpad.ci.replay_null, ReplayTool)
     """
-    # Known tool names that map to recipe functions
+    # Known tool names - these map directly to metta/tools/*.py
+    # No aliases allowed - only actual tool names
     TOOL_MAPPINGS = {
-        "train": "train_recipe",
-        "evaluate": "evaluate_recipe",
-        "analyze": "analyze_recipe",
-        "play": "play_recipe",
-        "replay": "replay_recipe",
-        "sim": "sim_recipe",
+        "train": "train",
+        "sim": "sim",
+        "analyze": "analyze",
+        "play": "play",
+        "replay": "replay",
     }
 
     parts = path.split()
-    if len(parts) == 2 and parts[0] in TOOL_MAPPINGS:
-        tool_name, recipe_name = parts
-        # If recipe already looks like a module path (contains dots), assume it includes the callable
-        # e.g. "replay scratchpad.ci.replay_null" -> experiments.recipes.scratchpad.ci.replay_null
-        if "." in recipe_name:
-            return f"experiments.recipes.{recipe_name}"
-        # Otherwise append the tool-specific recipe function name
-        return f"experiments.recipes.{recipe_name}.{TOOL_MAPPINGS[tool_name]}"
 
-    # Not a short syntax (not exactly 2 parts or unknown tool), return as-is
-    return path
+    # Handle two-part syntax: "verb recipe_or_path"
+    if len(parts) == 2 and parts[0] in TOOL_MAPPINGS:
+        tool_name, recipe_path = parts
+        tool_type = get_tool_type_mapping().get(tool_name)
+
+        # Check if the recipe_path looks like it already has a function name at the end
+        # e.g., "scratchpad.ci.replay_null" where replay_null is the function
+        path_parts = recipe_path.split(".")
+        if len(path_parts) > 1:
+            last_part = path_parts[-1]
+            # If the last part matches the tool name followed by underscore (e.g., replay_null for replay tool),
+            # treat it as a specific function name to preserve
+            if last_part.startswith(f"{tool_name}_"):
+                # Looks like a function name for this tool, preserve it
+                return f"experiments.recipes.{recipe_path}", tool_type
+
+        # Otherwise, build the standard path with tool function
+        return f"experiments.recipes.{recipe_path}.{TOOL_MAPPINGS[tool_name]}", tool_type
+
+    # Handle single-path syntax (direct function path like "arena.train_shaped")
+    # No verb specified, so no expected tool type - will validate based on return annotation
+    # This path might need experiments.recipes prefix, which will be handled by the loader
+    return path, None
 
 
 def main():
@@ -441,10 +663,10 @@ Examples:
   %(prog)s train arena run=test_123 trainer.total_timesteps=100000
   %(prog)s evaluate navigation policy_uri=file://./checkpoints
   %(prog)s play arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
-  %(prog)s experiments.recipes.arena.train_recipe run=test_123  # Full path also works
+  %(prog)s experiments.recipes.arena.train run=test_123  # Full path also works
 
 Rules:
-  - Short syntax: "train arena" -> experiments.recipes.arena.train_recipe
+  - Short syntax: "train arena" -> experiments.recipes.arena.train
   - Dotted keys (a.b.c) are configuration paths and will be nested and validated.
   - Exact parameter names are function arguments for factory functions.
   - Values: true/false, null/none, JSON containers {...}/[...], or int/float/string.
@@ -503,8 +725,8 @@ constructor/function vs configuration overrides based on introspection.
 
     path_str = " ".join(path_parts)
 
-    # Preprocess the path to handle short syntax
-    make_tool_cfg_path = preprocess_recipe_path(path_str)
+    # Preprocess the path to handle short syntax and get expected tool type
+    make_tool_cfg_path, expected_tool_type = preprocess_recipe_path(path_str)
 
     # Initialize logging and environment
     init_logging()
@@ -539,31 +761,51 @@ constructor/function vs configuration overrides based on introspection.
     output_info(f"\n{bold(cyan('Loading tool:'))} {make_tool_cfg_path}")
 
     # Load the tool configuration function/class
-    # If the specific recipe function doesn't exist, try mettagrid_recipe as fallback
+    # Try multiple fallback strategies:
+    # 1. Try as-is
+    # 2. If single-path input and not found, try with experiments.recipes prefix
+    # 3. If it's a recipe function, try mettagrid_recipe as fallback
+    make_tool_cfg = None
+    original_error = None
+
     try:
         make_tool_cfg = load_symbol(make_tool_cfg_path)
     except (AttributeError, ImportError) as e:
-        # Check if this is a recipe function that might have a mettagrid_recipe fallback
-        if ".recipes." in make_tool_cfg_path and make_tool_cfg_path.endswith("_recipe"):
-            # Don't fall back for analyze_recipe (it needs specific config)
-            if not make_tool_cfg_path.endswith(".analyze_recipe"):
-                # Try loading mettagrid_recipe instead
-                fallback_path = make_tool_cfg_path.rsplit(".", 1)[0] + ".mettagrid_recipe"
+        original_error = e
+
+        # Strategy 1: If it doesn't start with experiments.recipes, try adding that prefix
+        if not make_tool_cfg_path.startswith("experiments.recipes."):
+            prefixed_path = f"experiments.recipes.{make_tool_cfg_path}"
+            try:
+                output_info(f"  {yellow('Trying with prefix:')} {prefixed_path}")
+                make_tool_cfg = load_symbol(prefixed_path)
+                make_tool_cfg_path = prefixed_path  # Update path for later use
+            except Exception as prefix_error:
+                if known_args.verbose:
+                    output_info(f"  {yellow('Prefix failed:')} {prefix_error}")
+                pass  # Continue to next fallback
+
+        # Strategy 2: Check if this is a recipe function that might have a mettagrid fallback
+        # Check if the path ends with a tool name (train, sim, play, replay, analyze)
+        tool_names = {"train", "sim", "play", "replay", "analyze"}
+        last_part = make_tool_cfg_path.split(".")[-1] if "." in make_tool_cfg_path else ""
+
+        if make_tool_cfg is None and ".recipes." in make_tool_cfg_path and last_part in tool_names:
+            # Don't fall back for analyze (it needs specific config)
+            if last_part != "analyze":
+                # Try loading mettagrid instead
+                fallback_path = make_tool_cfg_path.rsplit(".", 1)[0] + ".mettagrid"
                 try:
                     output_info(f"  {yellow('Trying fallback:')} {fallback_path}")
                     make_tool_cfg = load_symbol(fallback_path)
                     # Store which tool was originally requested so we can wrap appropriately
-                    tool_name = make_tool_cfg_path.split(".")[-1].replace("_recipe", "")
-                    make_tool_cfg._requested_tool = tool_name  # Tag for later wrapping
+                    make_tool_cfg._requested_tool = last_part  # Tag for later wrapping
                 except Exception:
-                    # Fallback also failed, report original error
-                    output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
-                    return 1
-            else:
-                output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
-                return 1
-        else:
-            output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
+                    pass  # Will report original error below
+
+        # If all strategies failed, report the original error
+        if make_tool_cfg is None:
+            output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {original_error}")
             return 1
     except Exception as e:
         output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
@@ -573,6 +815,21 @@ constructor/function vs configuration overrides based on introspection.
     if known_args.help:
         list_tool_arguments(make_tool_cfg, console)
         return 0
+
+    # ----------------------------------------------------------------------------------
+    # Validate Tool type if this is a function returning a Tool
+    # ----------------------------------------------------------------------------------
+    if callable(make_tool_cfg) and not inspect.isclass(make_tool_cfg):
+        # Skip validation for mettagrid fallback functions (they return MettaGridConfig, not Tool)
+        if not hasattr(make_tool_cfg, "_requested_tool"):
+            try:
+                # Validate that the function returns an appropriate Tool type
+                actual_tool_type = validate_tool_type(make_tool_cfg_path, make_tool_cfg, expected_tool_type)
+                if known_args.verbose:
+                    output_info(f"  {green('Function returns:')} {actual_tool_type.__name__}")
+            except TypeError as e:
+                output_error(f"{red('Error:')} {e}")
+                return 1
 
     # ----------------------------------------------------------------------------------
     # Construct the Tool
@@ -654,6 +911,10 @@ constructor/function vs configuration overrides based on introspection.
             # Construct via function
             tool_cfg = make_tool_cfg(**func_kwargs)
 
+            # Apply general wrapper for non-Tool return types if we have an expected type
+            if expected_tool_type or not isinstance(tool_cfg, Tool):
+                tool_cfg = wrap_config_to_tool(tool_cfg, expected_tool_type, cli_args)
+
             # Check if this was a mettagrid_recipe that needs wrapping
             if hasattr(make_tool_cfg, "_requested_tool"):
                 # This was a fallback from mettagrid_recipe, wrap it in the appropriate tool
@@ -687,7 +948,7 @@ constructor/function vs configuration overrides based on introspection.
 
                             tool_cfg = ReplayTool(config=sim_cfg)
 
-                    elif requested_tool in ["evaluate", "sim"]:
+                    elif requested_tool == "sim":
                         from metta.sim.simulation_config import SimulationConfig
                         from metta.tools.sim import SimTool
 

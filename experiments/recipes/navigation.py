@@ -99,7 +99,7 @@ def train(
         ),
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(config=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
@@ -122,11 +122,11 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     )
 
 
-def evaluate(
+def sim(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_navigation_eval_suite()
     return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri],
+        config=simulations,
+        policy_uri=policy_uri,
     )

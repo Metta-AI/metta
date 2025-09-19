@@ -11,6 +11,7 @@ from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGenerato
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.train import TrainTool
 from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_in_context_chains as make_icl_resource_chain
 from mettagrid.config import MettaGridConfig
@@ -271,7 +272,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         return int(most_efficient), int(least_efficient)
 
 
-def env_recipe() -> MettaGridConfig:
+def mettagrid() -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         chain_lengths=[6],
         num_sinks=[2],
@@ -282,7 +283,7 @@ def env_recipe() -> MettaGridConfig:
     return env
 
 
-def curriculum_recipe(
+def curriculum_config(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
@@ -310,10 +311,10 @@ def curriculum_recipe(
     )
 
 
-def train_recipe(
+def train(
     curriculum_cfg: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-) -> TrainerConfig:
+) -> TrainTool:
     """Complete training configuration for ICL resource chain."""
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
@@ -323,7 +324,7 @@ def train_recipe(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum_cfg
-        or curriculum_recipe(
+        or curriculum_config(
             enable_detailed_slice_logging=enable_detailed_slice_logging
         ),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
@@ -333,10 +334,10 @@ def train_recipe(
     trainer_cfg.batch_size = 2064384
     trainer_cfg.bptt_horizon = 256
 
-    return trainer_cfg
+    return TrainTool(config=trainer_cfg)
 
 
-def evaluate_recipe() -> Sequence[SimulationConfig]:
+def sim() -> Sequence[SimulationConfig]:
     """Default simulations for evaluation."""
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
@@ -346,16 +347,5 @@ def evaluate_recipe() -> Sequence[SimulationConfig]:
     return make_icl_resource_chain_eval_suite()
 
 
-# Alias for consistency
-sim_recipe = evaluate_recipe
-
-
-def play_recipe() -> SimulationConfig:
-    """ICL resource chain environment for interactive play."""
-    env = env_recipe()
-    return SimulationConfig(env=env, name="icl_resource_chain")
-
-
-def replay_recipe() -> SimulationConfig:
-    """ICL resource chain environment for replay viewing."""
-    return play_recipe()
+# With the general wrapper, we don't need explicit play/replay functions
+# The runner will automatically wrap mettagrid() for play/replay tools
