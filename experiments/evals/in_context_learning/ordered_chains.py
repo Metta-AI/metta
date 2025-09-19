@@ -1,7 +1,9 @@
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-from experiments.recipes.in_context_learning.ordered_chains import ConverterChainTaskGenerator
+from experiments.recipes.in_context_learning.ordered_chains import (
+    ConverterChainTaskGenerator,
+)
 
 
 def icl_resource_chain_eval_env(env: MettaGridConfig) -> MettaGridConfig:
