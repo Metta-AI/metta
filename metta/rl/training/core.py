@@ -201,12 +201,6 @@ class CoreTrainingLoop:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
                     self.optimizer.step()
 
-                    clip_target = self.policy
-                    if hasattr(self.policy, "module"):
-                        clip_target = self.policy.module  # DDP unwrap
-                    if hasattr(clip_target, "clip_weights"):
-                        clip_target.clip_weights()
-
                     if self.device.type == "cuda":
                         torch.cuda.synchronize()
 
