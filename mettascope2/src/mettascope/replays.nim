@@ -188,7 +188,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
       location.add(pair(newJInt(step), triple))
       if x > maxX: maxX = x
       if y > maxY: maxY = y
-    
+
     # Inventory per step.
     var inventory = newJArray()
     let itemNames = data["item_names"]
@@ -252,7 +252,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
         else:
           var b = if frozen.kind == JBool: frozen.getBool else: (if frozen.kind == JInt: frozen.getInt != 0 else: false)
           obj["is_frozen"] = newJBool(b)
-      
+
       # color: prefer agent color; ensure presence for loader.
       if "agent:color" in gridObject:
         obj["color"] = gridObject["agent:color"]
