@@ -61,6 +61,7 @@ class Policy(ABC, nn.Module):
     def reset_memory(self) -> None:
         raise NotImplementedError
 
+
 class ExternalPolicyWrapper(Policy):
     """
     For wrapping generic policies, aleiviating the need to conform to Metta's internal agent interface reqs.
