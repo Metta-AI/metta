@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, List
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -14,9 +14,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimTokens
 from metta.mettagrid.config import Config
 from metta.mettagrid.util.module import load_symbol
-
-if TYPE_CHECKING:
-    from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training.training_environment import EnvironmentMetaData
 
 
 class PolicyArchitecture(Config):

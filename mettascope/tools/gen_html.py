@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -127,7 +129,7 @@ class DomNode:
         self.children = []
         self.text = text
 
-    def append_child(self, child: "DomNode"):
+    def append_child(self, child: DomNode):
         """Add a child node."""
         self.children.append(child)
         return child
