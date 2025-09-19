@@ -2,44 +2,120 @@ from typing import Any, Tuple
 
 import numpy as np
 import torch
+from pydantic import Field
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
-from metta.agent.metta_agent import PolicyAgent
+from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.loss.base_loss import BaseLoss
-
-# from metta.rl.trainer_config import TrainerConfig
-from metta.rl.trainer_state import TrainerState
+from metta.rl.loss.loss import Loss
+from metta.rl.training.context import TrainerContext
+from metta.rl.training.training_environment import TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
+from mettagrid.config import Config
 
 
-class PPO(BaseLoss):
-    """This could be slightly faster by looking for repeated access to hashed vars."""
+class PrioritizedExperienceReplayConfig(Config):
+    # Alpha=0 means uniform sampling; tuned via sweep
+    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
+    # Beta baseline per Schaul et al. (2016)
+    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
+
+
+class VTraceConfig(Config):
+    # Defaults follow IMPALA (Espeholt et al., 2018)
+    rho_clip: float = Field(default=1.0, gt=0)
+    c_clip: float = Field(default=1.0, gt=0)
+
+
+class PPOConfig(Config):
+    schedule: None = None  # TODO: Implement this
+    # PPO hyperparameters
+    # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
+    clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
+    # Entropy term weight from sweep
+    ent_coef: float = Field(default=0.010000, ge=0)
+    # GAE lambda tuned via sweep (cf. standard 0.95)
+    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
+    # Gamma tuned for shorter effective horizon
+    gamma: float = Field(default=0.977, ge=0, le=1.0)
+
+    # Training parameters
+    # Gradient clipping default
+    max_grad_norm: float = Field(default=0.5, gt=0)
+    # Value clipping mirrors policy clip
+    vf_clip_coef: float = Field(default=0.1, ge=0)
+    # Value term weight from sweep
+    vf_coef: float = Field(default=0.897619, ge=0)
+    # L2 regularization defaults to disabled
+    l2_reg_loss_coef: float = Field(default=0, ge=0)
+    l2_init_loss_coef: float = Field(default=0, ge=0)
+
+    # Normalization and clipping
+    # Advantage normalization toggle
+    norm_adv: bool = True
+    # Value loss clipping toggle
+    clip_vloss: bool = True
+    # Target KL for early stopping (None disables)
+    target_kl: float | None = None
+
+    # Discarded rollout steps before saving experience (temporary placement)
+    burn_in_steps: int = Field(default=0, ge=0)
+
+    vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
+
+    prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
+        default_factory=PrioritizedExperienceReplayConfig
+    )
+
+    def create(
+        self,
+        policy: Policy,
+        trainer_cfg: Any,
+        env: TrainingEnvironment,
+        device: torch.device,
+        instance_name: str,
+        loss_config: Any,
+    ):
+        """Points to the PPO class for initialization."""
+        return PPO(
+            policy,
+            trainer_cfg,
+            env,
+            device,
+            instance_name=instance_name,
+            loss_config=loss_config,
+        )
+
+
+class PPO(Loss):
+    """PPO loss with prioritized replay and V-trace tweaks."""
 
     __slots__ = (
         "advantages",
         "anneal_beta",
+        "burn_in_steps",
+        "burn_in_steps_iter",
     )
 
     def __init__(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         trainer_cfg: Any,
-        vec_env: Any,
+        env: TrainingEnvironment,
         device: torch.device,
-        checkpoint_manager: CheckpointManager,
         instance_name: str,
         loss_config: Any,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, checkpoint_manager, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
+        self.burn_in_steps = self.loss_cfg.burn_in_steps
+        self.burn_in_steps_iter = 0
 
     def get_experience_spec(self) -> Composite:
-        act_space = self.vec_env.single_action_space
+        act_space = self.env.single_action_space
         nvec = act_space.nvec
         act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
@@ -56,31 +132,39 @@ class PPO(BaseLoss):
             values=scalar_f32,
         )
 
-    # BaseLoss calls this method
-    def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
+    def run_rollout(self, td: TensorDict, context: TrainerContext) -> None:
         with torch.no_grad():
-            self.policy(td)
+            self.policy.forward(td)
+
+        if self.burn_in_steps_iter < self.burn_in_steps:
+            self.burn_in_steps_iter += 1
+            return
 
         # Store experience
-        self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
+        env_slice = context.training_env_id
+        if env_slice is None:
+            raise RuntimeError("TrainerContext.training_env_id is required for PPO rollout")
+        self.replay.store(data_td=td, env_id=env_slice)
 
         return
 
-    # BaseLoss calls this method
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def run_train(
+        self, shared_loss_data: TensorDict, context: TrainerContext, mb_idx: int
+    ) -> tuple[Tensor, TensorDict, bool]:
         """This is the PPO algorithm training loop."""
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
-        self.policy.on_train_mb_start()
-
+        stop_update_epoch = False
+        self.policy.reset_memory()
+        self.burn_in_steps_iter = 0
         # Check if we should early stop this update epoch (on subsequent minibatches)
-        if self.loss_cfg.target_kl is not None and trainer_state.mb_idx > 0:
+        if self.loss_cfg.target_kl is not None and mb_idx > 0:
             average_approx_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
             if average_approx_kl > self.loss_cfg.target_kl:
-                trainer_state.stop_update_epoch = True
+                stop_update_epoch = True
 
         # On the first minibatch of the update epoch, compute advantages and sampling params
-        if trainer_state.mb_idx == 0:
-            self.advantages, self.anneal_beta = self._on_first_mb(trainer_state)
+        if mb_idx == 0:
+            self.advantages, self.anneal_beta = self._on_first_mb(context)
 
         # Then sample from the buffer (this happens at every minibatch)
         minibatch, indices, prio_weights = self._sample_minibatch(
@@ -94,7 +178,7 @@ class PPO(BaseLoss):
 
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-        policy_td = self.policy(policy_td, action=minibatch["actions"])
+        policy_td = self.policy.forward(policy_td, action=minibatch["actions"])
         shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
 
         # Finally, calculate the loss!
@@ -105,9 +189,9 @@ class PPO(BaseLoss):
             prio_weights=prio_weights,
         )
 
-        return loss, shared_loss_data
+        return loss, shared_loss_data, stop_update_epoch
 
-    def on_train_phase_end(self, trainer_state: TrainerState) -> None:
+    def on_train_phase_end(self, context: TrainerContext) -> None:
         with torch.no_grad():
             y_pred = self.replay.buffer["values"].flatten()
             y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
@@ -115,14 +199,14 @@ class PPO(BaseLoss):
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
 
-    def _on_first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
+    def _on_first_mb(self, context: TrainerContext) -> tuple[Tensor, float]:
         # reset importance sampling ratio
         if "ratio" in self.replay.buffer.keys():
             self.replay.buffer["ratio"].fill_(1.0)
 
         with torch.no_grad():
             anneal_beta = calculate_prioritized_sampling_params(
-                epoch=trainer_state.epoch,
+                epoch=context.epoch,
                 total_timesteps=self.trainer_cfg.total_timesteps,
                 batch_size=self.trainer_cfg.batch_size,
                 prio_alpha=self.loss_cfg.prioritized_experience_replay.prio_alpha,
@@ -158,7 +242,7 @@ class PPO(BaseLoss):
         old_act_log_prob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
         entropy = policy_td["entropy"]
-        newvalue = policy_td["value"]
+        newvalue = policy_td["values"]
 
         logratio = new_logprob - old_act_log_prob
         # Bound the log ratio to prevent extreme importance sampling ratios
@@ -282,50 +366,3 @@ class PPO(BaseLoss):
             minibatch["returns"] = advantages[idx] + minibatch["values"]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
         return minibatch.clone(), idx, prio_weights
-
-
-def compute_ppo_losses(
-    minibatch: TensorDict,
-    new_logprob: Tensor,
-    entropy: Tensor,
-    newvalue: Tensor,
-    importance_sampling_ratio: Tensor,
-    adv: Tensor,
-    trainer_cfg: Any,
-) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
-    """Standalone function to compute PPO losses for policy and value functions."""
-    # Policy loss
-    pg_loss1 = -adv * importance_sampling_ratio
-    pg_loss2 = -adv * torch.clamp(
-        importance_sampling_ratio,
-        1 - trainer_cfg.ppo.clip_coef,
-        1 + trainer_cfg.ppo.clip_coef,
-    )
-    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-    returns = minibatch["returns"]
-    old_values = minibatch["values"]
-
-    # Value loss
-    newvalue_reshaped = newvalue.view(returns.shape)
-    if trainer_cfg.ppo.clip_vloss:
-        v_loss_unclipped = (newvalue_reshaped - returns) ** 2
-        vf_clip_coef = trainer_cfg.ppo.vf_clip_coef
-        v_clipped = old_values.detach() + torch.clamp(
-            newvalue_reshaped - old_values.detach(),
-            -vf_clip_coef,
-            vf_clip_coef,
-        )
-        v_loss_clipped = (v_clipped - returns) ** 2
-        v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-    else:
-        v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
-
-    entropy_loss = entropy.mean()
-
-    # Compute metrics
-    with torch.no_grad():
-        logratio = new_logprob - minibatch["act_log_prob"]
-        approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-        clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.ppo.clip_coef).float().mean()
-
-    return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac

@@ -211,6 +211,16 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         continue;
       }
 
+      const ChestConfig* chest_config = dynamic_cast<const ChestConfig*>(object_cfg);
+      if (chest_config) {
+        Chest* chest = new Chest(r, c, *chest_config);
+        _grid->add_object(chest);
+        _stats->incr("objects." + cell);
+        chest->stats.set_environment(this);
+        chest->set_grid(_grid.get());
+        continue;
+      }
+
       throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
                                std::to_string(c) + ")");
     }
@@ -938,6 +948,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_agent_config(m);
   bind_converter_config(m);
   bind_assembler_config(m);
+  bind_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
