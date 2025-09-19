@@ -126,7 +126,7 @@ class AssemblerTaskGenerator(TaskGenerator):
             converter = self.converter_types[converter_names[i]]
             # no input resources
             recipe = (
-                converter_positions[i],
+                converter_positions,
                 RecipeConfig(
                     input_resources={}, output_resources={resources[i]: 1}, cooldown=10
                 ),
@@ -203,11 +203,11 @@ def make_mettagrid() -> MettaGridConfig:
     task_generator_cfg = AssemblerTaskGenerator.Config(
         num_agents=[2],
         num_altars=[2],
-        num_converters=[0],
+        num_converters=[1],
         widths=[8],
         heights=[8],
-        generator_positions=[["Any", "Any"]],
-        altar_positions=[["Any", "Any"]],
+        generator_positions=[["N", "S"]],
+        altar_positions=[["E", "W"]],
         altar_inputs=["one", "both"],
     )
     task_generator = AssemblerTaskGenerator(task_generator_cfg)
