@@ -25,7 +25,7 @@ class HyperparameterComponent(TrainerComponent):
         Args:
             config: Hyperparameter configuration
         """
-        super().__init__(config)
+        super().__init__(epoch_interval=config.interval)
 
     def on_epoch_end(self, epoch: int) -> None:
         """Update hyperparameters for the current training epoch."""

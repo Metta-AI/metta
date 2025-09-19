@@ -124,6 +124,7 @@ class StatsReporter(TrainerComponent):
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
+        context.stats_reporter = self
 
     def _initialize_stats_run(self) -> None:
         """Initialize stats run with the stats client."""
@@ -298,10 +299,15 @@ class StatsReporter(TrainerComponent):
         """
         ctx = self.context
 
+        losses_stats = ctx.latest_losses_stats
+        if not losses_stats and hasattr(ctx.trainer, "latest_losses_stats"):
+            # Backwards compatibility in case trainer attribute is still used elsewhere
+            losses_stats = getattr(ctx.trainer, "latest_losses_stats", {})
+
         self.report_epoch(
             epoch=ctx.epoch,
             agent_step=ctx.agent_step,
-            losses_stats=getattr(ctx.trainer, "latest_losses_stats", {}),
+            losses_stats=losses_stats,
             experience=ctx.experience,
             policy=ctx.policy,
             timer=ctx.stopwatch,

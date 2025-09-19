@@ -21,6 +21,7 @@ from metta.rl.training.training_environment import TrainingEnvironment
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer
     from metta.rl.training.component import TrainerComponent
+    from metta.rl.training.stats_reporter import StatsReporter
 
 T_Component = TypeVar("T_Component")
 
@@ -43,10 +44,12 @@ class TrainerContext:
     latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
     latest_policy_uri_value: Optional[str] = None
     latest_eval_scores: Optional[EvalRewardSummary] = None
+    latest_losses_stats: Dict[str, float] = field(default_factory=dict)
     save_policy_fn: Callable[[dict[str, Any], bool], Optional[str]] | None = None
     save_trainer_state_fn: Callable[[], None] | None = None
     checkpoint_manager: Any | None = None
     stats_client: Any | None = None
+    stats_reporter: "StatsReporter" | None = None
     components: Dict[type, TrainerComponent] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     memory_monitor: MemoryMonitor | None = None

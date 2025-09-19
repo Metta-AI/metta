@@ -7,7 +7,6 @@ from pydantic import Field
 
 from metta.mettagrid.config import Config
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.stats_reporter import StatsReporter
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +49,6 @@ class GradientStatsComponent(TrainerComponent):
 
         self.context.update_gradient_stats(grad_stats)
 
-        stats_reporter = context.get_component(StatsReporter)
+        stats_reporter = context.stats_reporter
         if stats_reporter and hasattr(stats_reporter, "update_grad_stats"):
             stats_reporter.update_grad_stats(grad_stats)

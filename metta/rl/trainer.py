@@ -165,6 +165,7 @@ class Trainer:
 
         # Store losses stats for callbacks
         self.latest_losses_stats = losses_stats
+        self._context.latest_losses_stats = losses_stats
 
         # Master-only operations
         if not self._distributed_helper.is_master():
@@ -219,16 +220,10 @@ class Trainer:
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    if (
-                        component._step_interval != 0
-                        and self._context.agent_step % component._step_interval == 0
-                    ):
+                    if component._step_interval != 0 and self._context.agent_step % component._step_interval == 0:
                         component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
-                    if (
-                        component._epoch_interval != 0
-                        and self._context.epoch % component._epoch_interval == 0
-                    ):
+                    if component._epoch_interval != 0 and self._context.epoch % component._epoch_interval == 0:
                         component.on_epoch_end(self._context.epoch)
                     elif component._epoch_interval == 0:
                         component.on_epoch_end(self._context.epoch)

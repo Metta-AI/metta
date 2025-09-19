@@ -356,12 +356,6 @@ class Evaluator(TrainerComponent):
             return
 
         policy_uri = self.context.latest_policy_uri()
-        if not policy_uri:
-            from metta.rl.training.policy_checkpointer import PolicyCheckpointer
-
-            policy_ckpt = self.context.get_component(PolicyCheckpointer)
-            if policy_ckpt is not None:
-                policy_uri = policy_ckpt.get_latest_policy_uri()
 
         if not policy_uri:
             logger.debug("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
@@ -372,9 +366,7 @@ class Evaluator(TrainerComponent):
             logger.debug("Evaluator: curriculum unavailable; skipping evaluation")
             return
 
-        from metta.rl.training.stats_reporter import StatsReporter
-
-        stats_reporter = self.context.get_component(StatsReporter)
+        stats_reporter = self.context.stats_reporter
         stats_epoch_id = None
         if stats_reporter and getattr(stats_reporter.state, "stats_run_id", None):
             stats_epoch_id = stats_reporter.create_epoch(
