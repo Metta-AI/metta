@@ -143,7 +143,8 @@ find "/UI/Main":
     const RibbonHeight = 64
     const HeaderHeight = 28
 
-    rootArea.rect = irect(0, RibbonHeight, window.size.x, window.size.y - RibbonHeight*3)
+    let size = (window.size.vec2 / window.contentScale).ivec2
+    rootArea.rect = irect(0, RibbonHeight, size.x, size.y - RibbonHeight*3)
     topArea.rect = irect(0, rootArea.rect.y, rootArea.rect.w, (rootArea.rect.h.float32 * 0.75).int32)
     bottomArea.rect = irect(0, rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, rootArea.rect.w, (rootArea.rect.h.float32 * 0.25).int)
     rootArea.updatePanelsSizes()
