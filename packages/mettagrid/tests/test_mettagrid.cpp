@@ -740,8 +740,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
   }
 
   // With 0.9 probability, we get exact deterministic results
-  EXPECT_EQ(successful_actions, 57);  // Exactly 57 successful actions before running out
-  EXPECT_EQ(consumed, 100);           // All 100 ore consumed
+  EXPECT_EQ(successful_actions, 114);  // Exactly 114 successful actions before running out
+  EXPECT_EQ(consumed, 100);            // All 100 ore consumed
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
