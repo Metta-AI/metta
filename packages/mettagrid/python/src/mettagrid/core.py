@@ -21,7 +21,6 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.profiling.stopwatch import with_instance_timer
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -109,10 +108,8 @@ class MettaGridCore:
 
             self._renderer_class = MiniscopeRenderer
 
-    @with_instance_timer("_create_c_env")
     def _create_c_env(self) -> MettaGridCpp:
-        with self.timer("_create_c_env.game_map"):
-            game_map = self._map_builder.build()
+        game_map = self._map_builder.build()
 
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
@@ -131,8 +128,7 @@ class MettaGridCore:
             raise e
 
         # Create C++ environment
-        with self.timer("_create_c_env.c_env"):
-            c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
+        c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
 
         self._update_core_buffers()
 
