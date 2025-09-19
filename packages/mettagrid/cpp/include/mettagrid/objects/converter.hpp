@@ -12,7 +12,7 @@
 #include "objects/converter_config.hpp"
 #include "objects/has_inventory.hpp"
 
-class Converter : public HasInventory {
+class Converter : public GridObject, public HasInventory {
 private:
   // This should be called any time the converter could start converting. E.g.,
   // when things are added to its input, and when it finishes converting.
