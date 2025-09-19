@@ -13,6 +13,7 @@ dependencies = [
   "bidict>=0.23.1",
   "boto3>=1.38.32",
   "codebot",
+  "cogames",
   "colorama>=0.4.6",
   "cpplint>=2.0.2",
   "ddtrace>=2.6.0",
