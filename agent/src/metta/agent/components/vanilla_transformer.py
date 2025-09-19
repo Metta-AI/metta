@@ -145,7 +145,6 @@ class VanillaTransformer(nn.Module):
         return pe
 
     def forward(self, td: TensorDict):
-        print("vanilla transformer forward")
         B = td.batch_size.numel()
         if td["bptt"][0] != 1:
             TT = td["bptt"][0]
