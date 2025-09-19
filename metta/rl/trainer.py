@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, Dict, Optional
 
 import torch
 
@@ -19,8 +19,6 @@ from metta.rl.training.heartbeat import HeartbeatWriter
 from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.rl.utils import log_training_progress
-
-T_Component = TypeVar("T_Component", bound=TrainerComponent)
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
