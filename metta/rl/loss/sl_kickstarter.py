@@ -12,7 +12,7 @@ from torchrl.data import Composite, UnboundedContinuous
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.loss.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.trainer_state import TrainerState
+from metta.rl.training.context import TrainerContext
 from mettagrid.config import Config
 
 # Config class
@@ -74,9 +74,10 @@ class SLKickstarter(Loss):
 
         self.teacher_policy: PolicyAgent = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
         if hasattr(self.teacher_policy, "initialize_to_environment"):
-            features = self.vec_env.driver_env.get_observation_features()
+            driver_env = self.env.driver_env
+            features = driver_env.observation_features
             self.teacher_policy.initialize_to_environment(
-                features, self.vec_env.driver_env.action_names, self.vec_env.driver_env.max_action_args, self.device
+                features, driver_env.action_names, driver_env.max_action_args, self.device
             )
 
         # Detach gradient
@@ -107,7 +108,7 @@ class SLKickstarter(Loss):
             teacher_value=scalar_f32,
         )
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerContext) -> tuple[Tensor, TensorDict]:
         policy_td = shared_loss_data["policy_td"]
 
         # Teacher forward pass

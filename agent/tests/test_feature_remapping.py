@@ -363,7 +363,8 @@ def test_end_to_end_initialize_to_environment_workflow():
                 self.action_names = ["move", "turn", "interact"]
                 self.max_action_args = [3, 2, 1]
 
-            def get_observation_features(self):
+            @property
+            def observation_features(self):
                 """Return features in the format expected by initialize_to_environment."""
                 return {
                     name: {"id": id_val, "type": "scalar", "normalization": 10.0}
@@ -386,7 +387,7 @@ def test_end_to_end_initialize_to_environment_workflow():
         policy.train()  # Start in training mode
 
         # Initialize the policy to the original environment
-        features = original_env.get_observation_features()
+        features = original_env.observation_features
         policy.initialize_to_environment(features, original_env.action_names, original_env.max_action_args, "cpu")
 
         # Get the original feature mapping
@@ -436,7 +437,7 @@ def test_end_to_end_initialize_to_environment_workflow():
 
         # Initialize to the new environment (in eval mode)
         loaded_policy.eval()  # Set to evaluation mode
-        new_features = new_env.get_observation_features()
+        new_features = new_env.observation_features
         loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu")
 
         # Step 3: Verify the remapping was applied correctly
@@ -473,7 +474,7 @@ def test_end_to_end_initialize_to_environment_workflow():
         )
 
         # Re-initialize in training mode
-        training_features = training_env.get_observation_features()
+        training_features = training_env.observation_features
         loaded_policy.initialize_to_environment(
             training_features, training_env.action_names, training_env.max_action_args, "cpu"
         )

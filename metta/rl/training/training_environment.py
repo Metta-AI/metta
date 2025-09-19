@@ -18,6 +18,7 @@ from metta.utils.batch import calculate_batch_sizes
 from mettagrid.builder.envs import make_arena
 from mettagrid.config import Config
 from mettagrid.core import ObsFeature
+from mettagrid.mettagrid_c import dtype_actions
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ class TrainingEnvironmentConfig(Config):
 
     async_factor: int = Field(default=2, ge=1)
     """Async factor for environment parallelization"""
+
+    auto_workers: bool = Field(default=False)
+    """Whether to auto-tune worker count based on available CPU/GPU resources"""
 
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     """Target size for forward pass minibatches"""
@@ -119,6 +123,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._batch_size = 0
         self._num_envs = 0
         self._target_batch_size = 0
+        self._num_workers = 0
         self._curriculum = None
         self._vecenv = None
 
@@ -135,7 +140,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         else:
             num_gpus = torch.cuda.device_count() or 1
             cpu_count = os.cpu_count() or 1
-            ideal_workers = (cpu_count // 2) // num_gpus
+            ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
             num_workers = max(1, ideal_workers)
 
         # Calculate batch sizes
@@ -145,6 +150,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             num_workers=num_workers,
             async_factor=async_factor,
         )
+
+        self._num_workers = num_workers
 
         self._vecenv = make_vecenv(
             self._curriculum,
@@ -177,7 +184,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             f"num_envs={self._num_envs},"
             f"batch_size={self._batch_size},"
             f"target_batch_size={self._target_batch_size},"
-            f"num_agents={self._num_agents})"
+            f"num_agents={self._num_agents},"
+            f"num_workers={self._num_workers})"
         )
 
     def close(self) -> None:
@@ -195,12 +203,30 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         )
 
     @property
+    def total_parallel_agents(self) -> int:
+        """Total agent slots tracked across all vectorized environments."""
+        vecenv_agents = getattr(self._vecenv, "num_agents", None)
+        if isinstance(vecenv_agents, int):
+            return vecenv_agents
+        return self._num_envs * self._num_agents
+
+    @property
     def single_action_space(self) -> Any:
         return self._vecenv.single_action_space
 
     @property
     def single_observation_space(self) -> Any:
         return self._vecenv.single_observation_space
+
+    @property
+    def vecenv(self) -> Any:
+        """Return the underlying PufferLib vectorized environment."""
+        return self._vecenv
+
+    @property
+    def driver_env(self) -> Any:
+        """Expose the driver environment for components that need direct access."""
+        return self._vecenv.driver_env
 
     def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
         o, r, d, t, info, env_id, mask = self._vecenv.recv()
@@ -219,4 +245,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         return o, r, d, t, info, training_env_id, mask, num_steps
 
     def send_actions(self, actions: np.ndarray) -> None:
+        if actions.dtype != dtype_actions:
+            actions = actions.astype(dtype_actions, copy=False)
         self._vecenv.send(actions)

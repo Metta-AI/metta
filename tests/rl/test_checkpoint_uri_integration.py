@@ -51,7 +51,7 @@ def create_env_and_agent():
     agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=agent_cfg)
 
     # Initialize agent to environment
-    features = env.get_observation_features()
+    features = env.observation_features
     agent.initialize_to_environment(features, env.action_names, env.max_action_args, device="cpu")
 
     return env, agent
@@ -304,7 +304,8 @@ class TestEndToEndWorkflows:
                 self.action_names = ["move", "turn", "interact"]
                 self.max_action_args = [3, 2, 1]
 
-            def get_observation_features(self):
+            @property
+            def observation_features(self):
                 return {
                     name: {"id": id_val, "type": "scalar", "normalization": 10.0}
                     for name, id_val in self.feature_mapping.items()
@@ -317,7 +318,7 @@ class TestEndToEndWorkflows:
             policy.train()
 
             # Initialize to original environment
-            features = original_env.get_observation_features()
+            features = original_env.observation_features
             policy.initialize_to_environment(features, original_env.action_names, original_env.max_action_args, "cpu")
 
             # Step 2: Save trained policy
@@ -331,7 +332,7 @@ class TestEndToEndWorkflows:
 
             # Initialize to new environment (eval mode)
             loaded_policy.eval()
-            new_features = new_env.get_observation_features()
+            new_features = new_env.observation_features
             loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu")
 
             # Step 4: Verify evaluation works

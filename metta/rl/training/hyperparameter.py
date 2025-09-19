@@ -1,14 +1,10 @@
 """Hyperparameter scheduling management."""
 
 import logging
-from typing import TYPE_CHECKING
 
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.training.component import TrainerComponent
 from mettagrid.config import Config
-
-if TYPE_CHECKING:
-    from metta.rl.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
@@ -29,19 +25,21 @@ class HyperparameterComponent(TrainerComponent):
         Args:
             config: Hyperparameter configuration
         """
-        super().__init__(config)
+        super().__init__(epoch_interval=config.interval)
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
-        """Update hyperparameters.
+    def on_epoch_end(self, epoch: int) -> None:
+        """Update hyperparameters for the current training epoch."""
+        context = self.context
+        trainer_cfg = context.config
 
-        Args:
-            trainer: The trainer instance
-        """
-        # Update learning rate and other hyperparameters
+        if not getattr(trainer_cfg.hyperparameter_scheduler, "enabled", False):
+            return
+
+        # Update learning rate and other hyperparameters across ranks
         step_hyperparameters(
-            trainer._cfg,
-            trainer.optimizer,
-            trainer.trainer_state.agent_step,
-            trainer._cfg.total_timesteps,
+            trainer_cfg,
+            context.optimizer,
+            context.agent_step,
+            trainer_cfg.total_timesteps,
             logger,
         )

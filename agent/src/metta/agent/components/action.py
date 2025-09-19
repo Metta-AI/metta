@@ -4,6 +4,7 @@ from einops import repeat
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.rl.training.training_environment import EnvironmentMetaData
 
 
 class ActionEmbeddingConfig(ComponentConfig):
@@ -46,6 +47,7 @@ class ActionEmbedding(nn.Module):
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
         self.net = nn.Embedding(num_embeddings=self.num_embeddings, embedding_dim=self.embedding_dim)
 
+        # Match Fast component policy: orthogonal init scaled to max abs value of 0.1
         weight_limit = 0.1
         nn.init.orthogonal_(self.net.weight)
         with torch.no_grad():
@@ -54,15 +56,20 @@ class ActionEmbedding(nn.Module):
 
     def initialize_to_environment(
         self,
-        env,
-        device,
+        env: EnvironmentMetaData,
+        device: torch.device,
     ) -> None:
-        # Generate full action names
-        action_names = env.action_names
-        action_max_params = env.max_action_args
+        if not hasattr(env, "action_names") or not hasattr(env, "max_action_args"):
+            raise AttributeError(
+                "Environment metadata must provide 'action_names' and 'max_action_args' to initialize action embeddings"
+            )
+
+        base_action_names = list(env.action_names)
+        action_max_params = list(env.max_action_args)
+
         action_names = [
             f"{name}_{i}"
-            for name, max_param in zip(action_names, action_max_params, strict=False)
+            for name, max_param in zip(base_action_names, action_max_params, strict=False)
             for i in range(max_param + 1)
         ]
 

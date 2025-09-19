@@ -1,7 +1,5 @@
 """Statistics reporting and aggregation."""
 
-from __future__ import annotations
-
 import logging
 from collections import defaultdict
 from numbers import Number
@@ -122,6 +120,10 @@ class StatsReporter(TrainerComponent):
         if self._stats_client and self._config.report_to_stats_client:
             self._initialize_stats_run()
 
+    def register(self, context) -> None:  # type: ignore[override]
+        super().register(context)
+        context.stats_reporter = self
+
     def _initialize_stats_run(self) -> None:
         """Initialize stats run with the stats client."""
         if not self._stats_client:
@@ -171,8 +173,6 @@ class StatsReporter(TrainerComponent):
         timer: Any,
         trainer_cfg: Any,
         optimizer: torch.optim.Optimizer,
-        memory_monitor: Optional[Any] = None,
-        system_monitor: Optional[Any] = None,
     ) -> None:
         """Report statistics for an epoch.
 
@@ -185,20 +185,24 @@ class StatsReporter(TrainerComponent):
             timer: Timer for profiling
             trainer_cfg: Trainer configuration
             optimizer: Optimizer
-            memory_monitor: Optional memory monitor
-            system_monitor: Optional system monitor
         """
-        if self._wandb_run and self._config.report_to_wandb:
-            payload = self._build_wandb_payload(
-                losses_stats=losses_stats,
-                experience=experience,
-                trainer_cfg=trainer_cfg,
-                agent_step=agent_step,
-                epoch=epoch,
-                timer=timer,
-            )
-            if payload:
-                self._wandb_run.log(payload, step=agent_step)
+        payload = self._build_wandb_payload(
+            losses_stats=losses_stats,
+            experience=experience,
+            trainer_cfg=trainer_cfg,
+            agent_step=agent_step,
+            epoch=epoch,
+            timer=timer,
+        )
+
+        if self._state.grad_stats:
+            payload.update(self._state.grad_stats)
+
+        if self._wandb_run and self._config.report_to_wandb and payload:
+            self._wandb_run.log(payload, step=agent_step)
+
+        if self._config.report_to_console and payload:
+            self._log_console_summary(epoch=epoch, agent_step=agent_step, payload=payload)
 
         # Clear stats after processing
         self.clear_rollout_stats()
@@ -211,6 +215,8 @@ class StatsReporter(TrainerComponent):
             scores: New evaluation scores
         """
         self._state.eval_scores = scores
+        if self._context is not None:
+            self.context.latest_eval_scores = scores
 
     def clear_rollout_stats(self) -> None:
         """Clear rollout statistics."""
@@ -295,27 +301,17 @@ class StatsReporter(TrainerComponent):
 
         Args:
         """
-        trainer = self._trainer
-        if trainer is None:
-            return
-
-        # Update grad stats if available
-        if hasattr(trainer, "latest_grad_stats"):
-            self.update_grad_stats(trainer.latest_grad_stats)
-
-        experience = trainer.core_loop.experience if getattr(trainer, "core_loop", None) else None
+        ctx = self.context
 
         self.report_epoch(
-            epoch=trainer._epoch,
-            agent_step=trainer._agent_step,
-            losses_stats=getattr(trainer, "latest_losses_stats", {}),
-            experience=experience,
-            policy=trainer._policy,
-            timer=trainer.timer,
-            trainer_cfg=trainer._cfg,
-            optimizer=trainer.optimizer,
-            memory_monitor=getattr(trainer, "memory_monitor", None),
-            system_monitor=getattr(trainer, "system_monitor", None),
+            epoch=ctx.epoch,
+            agent_step=ctx.agent_step,
+            losses_stats=ctx.latest_losses_stats,
+            experience=ctx.experience,
+            policy=ctx.policy,
+            timer=ctx.stopwatch,
+            trainer_cfg=ctx.config,
+            optimizer=ctx.optimizer,
         )
 
     def on_training_complete(self) -> None:
@@ -342,6 +338,32 @@ class StatsReporter(TrainerComponent):
         if not info:
             return
         self.process_rollout([info])
+
+    def _log_console_summary(self, *, epoch: int, agent_step: int, payload: Dict[str, float]) -> None:
+        def _fmt(value: float | None, precision: int = 3) -> str:
+            if value is None:
+                return "n/a"
+            return f"{value:.{precision}f}"
+
+        reward = payload.get("overview/reward")
+        steps_per_second = payload.get("overview/steps_per_second")
+        grad_norm = payload.get("grad/norm")
+
+        loss_items = [(key.split("/", 1)[1], payload[key]) for key in payload if key.startswith("loss/")]
+        loss_items.sort()
+        top_losses = ", ".join(f"{name}={value:.4f}" for name, value in loss_items[:3])
+
+        message = (
+            f"Epoch {epoch} | step={agent_step} | reward={_fmt(reward)} | steps/s={_fmt(steps_per_second, precision=1)}"
+        )
+
+        if grad_norm is not None:
+            message += f" | grad_norm={grad_norm:.4f}"
+
+        if top_losses:
+            message += f" | {top_losses}"
+
+        logger.info(message)
 
     def _build_wandb_payload(
         self,

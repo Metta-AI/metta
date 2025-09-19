@@ -1,17 +1,17 @@
 """Main trainer facade for coordinating all training components."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type
 
 import torch
 
 from metta.agent.policy import Policy
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.component import TrainerCallback, TrainerComponent
+from metta.rl.training.context import TrainerContext
 from metta.rl.training.core import CoreTrainingLoop
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
-from metta.rl.training.heartbeat import HeartbeatWriter
 from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.rl.utils import log_training_progress
@@ -51,28 +51,24 @@ class Trainer:
         self._cfg = cfg
         self._device = device
         self._distributed_helper = DistributedHelper(self._device)
-        self._components = []
-
-        self._epoch = 0
-        self._agent_step = 0
+        self._components: list[TrainerComponent] = []
+        self._component_map: Dict[Type[TrainerComponent], TrainerComponent] = {}
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
-        self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
-        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
+        self._policy.train()
+        self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
-
-        # Put the torch policy into training mode
+        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
         self._policy.train()
 
-        if self._cfg.heartbeat is not None:
-            self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))
-
         batch_info = self._env.batch_info
-        agents_per_env = self._env.meta_data.num_agents
-        parallel_agents = batch_info.num_envs * agents_per_env  # match vecenv's flattened agent indexing
+
+        parallel_agents = getattr(self._env, "total_parallel_agents", None)
+        if parallel_agents is None:
+            parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
 
         experience = Experience.from_losses(
             total_agents=parallel_agents,
@@ -96,11 +92,33 @@ class Trainer:
             accumulate_minibatches=experience.accumulate_minibatches,
         )
 
+        self._context = TrainerContext(
+            trainer=self,
+            policy=self._policy,
+            env=self._env,
+            experience=experience,
+            optimizer=self.optimizer,
+            config=self._cfg,
+            device=self._device,
+            stopwatch=self.timer,
+            distributed=self._distributed_helper,
+            run_dir=None,
+            run_name=None,
+        )
+        self._context.get_train_epoch_fn = lambda: self._train_epoch
+        self._context.set_train_epoch_fn = lambda fn: setattr(self, "_train_epoch", fn)
+
+    @property
+    def context(self) -> TrainerContext:
+        """Return the shared trainer context."""
+
+        return self._context
+
     def train(self) -> None:
         """Run the main training loop."""
 
         try:
-            while self._agent_step < self._cfg.total_timesteps:
+            while self._context.agent_step < self._cfg.total_timesteps:
                 self._train_epoch()
 
         except Exception:
@@ -115,34 +133,39 @@ class Trainer:
         if not self.core_loop:
             raise RuntimeError("Core loop not initialized")
 
-        steps_before = self._agent_step
+        steps_before = self._context.agent_step
+        self._context.training_env_id = None
 
         # Start new epoch
-        self.core_loop.on_epoch_start(self._epoch)
+        self.core_loop.on_epoch_start(self._context.epoch)
 
         # Rollout phase
         with self.timer("_rollout"):
-            rollout_result = self.core_loop.rollout_phase(self._env, self._epoch)
-            self._agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
+            rollout_result = self.core_loop.rollout_phase(self._env, self._context.epoch)
+            self._context.agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
+            self._context.training_env_id = rollout_result.training_env_id
             # Invoke step callbacks for each info
             for info in rollout_result.raw_infos:
                 self._invoke_callback(TrainerCallback.STEP, info)
 
         # Training phase
         with self.timer("_train"):
-            losses_stats = self.core_loop.training_phase(
-                epoch=self._epoch,
-                training_env_id=slice(0, self._cfg.batch_size),
+            if self._context.training_env_id is None:
+                raise RuntimeError("Training environment slice unavailable for training phase")
+            losses_stats, epochs_trained = self.core_loop.training_phase(
+                epoch=self._context.epoch,
+                training_env_id=self._context.training_env_id,
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
             )
-            self._epoch += self._cfg.update_epochs
+            self._context.epoch += epochs_trained
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
 
         # Store losses stats for callbacks
         self.latest_losses_stats = losses_stats
+        self._context.latest_losses_stats = losses_stats
 
         # Master-only operations
         if not self._distributed_helper.is_master():
@@ -153,8 +176,8 @@ class Trainer:
 
         # Log progress
         log_training_progress(
-            epoch=self._epoch,
-            agent_step=self._agent_step,
+            epoch=self._context.epoch,
+            agent_step=self._context.agent_step,
             prev_agent_step=steps_before,
             total_timesteps=self._cfg.total_timesteps,
             train_time=self.timer.get_last_elapsed("_train"),
@@ -183,7 +206,8 @@ class Trainer:
             return
 
         self._components.append(component)
-        component.register(self)
+        self._component_map[type(component)] = component
+        component.register(self._context)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
         """Invoke all registered callbacks of the specified type.
@@ -195,13 +219,13 @@ class Trainer:
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    if component._step_interval != 0 and self._agent_step % component._step_interval == 0:
+                    if component._step_interval != 0 and self._context.agent_step % component._step_interval == 0:
                         component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
-                    if component._epoch_interval != 0 and self._epoch % component._epoch_interval == 0:
-                        component.on_epoch_end(self._epoch)
+                    if component._epoch_interval != 0 and self._context.epoch % component._epoch_interval == 0:
+                        component.on_epoch_end(self._context.epoch)
                     elif component._epoch_interval == 0:
-                        component.on_epoch_end(self._epoch)
+                        component.on_epoch_end(self._context.epoch)
                 elif callback_type == TrainerCallback.TRAINING_COMPLETE:
                     component.on_training_complete()
                 elif callback_type == TrainerCallback.FAILURE:
@@ -222,6 +246,6 @@ class Trainer:
 
         for component in self._components:
             if isinstance(component, TrainerCheckpointer):
-                component.restore(self)
+                component.restore(self._context)
                 break
             # Wandb setup will be handled by callbacks if configured

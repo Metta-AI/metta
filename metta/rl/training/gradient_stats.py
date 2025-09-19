@@ -1,16 +1,12 @@
 """Gradient statistics computation callback."""
 
 import logging
-from typing import TYPE_CHECKING
 
 import torch
 from pydantic import Field
 
 from metta.rl.training.component import TrainerComponent
 from mettagrid.config import Config
-
-if TYPE_CHECKING:
-    from metta.rl.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
@@ -26,42 +22,33 @@ class GradientStatsComponent(TrainerComponent):
     """Computes gradient statistics for monitoring."""
 
     def __init__(self, config: GradientStatsConfig):
-        """Initialize gradient stats component.
+        """Initialize gradient stats component."""
+        enabled = config.epoch_interval > 0
+        super().__init__(epoch_interval=config.epoch_interval if enabled else 0)
+        self._config = config
+        self._master_only = True
+        self._enabled = enabled
 
-        Args:
-            config: Gradient stats configuration
-        """
-        super().__init__(config)
+    def on_epoch_end(self, epoch: int) -> None:
+        """Compute gradient statistics and stash on trainer."""
+        if not self._enabled:
+            return
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
-        """Compute gradient statistics.
+        context = self.context
+        policy = context.policy
+        gradients = [param.grad.view(-1) for param in policy.parameters() if param.grad is not None]
+        if not gradients:
+            return
 
-        Args:
-            trainer: The trainer instance
-        """
-        policy = trainer._policy
-
-        if not policy.parameters():
-            return {}
-
-        all_gradients = []
-        for param in policy.parameters():
-            if param.grad is not None:
-                all_gradients.append(param.grad.view(-1))
-
-        if len(all_gradients) == 0:
-            return {}
-
-        all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-
-        grad_mean = all_gradients_tensor.mean()
-        grad_variance = all_gradients_tensor.var()
-        grad_norm = all_gradients_tensor.norm(2)
-
+        grad_tensor = torch.cat(gradients).to(torch.float32)
         grad_stats = {
-            "grad/mean": grad_mean.item(),
-            "grad/variance": grad_variance.item(),
-            "grad/norm": grad_norm.item(),
+            "grad/mean": grad_tensor.mean().item(),
+            "grad/variance": grad_tensor.var().item(),
+            "grad/norm": grad_tensor.norm(2).item(),
         }
 
-        return grad_stats
+        self.context.update_gradient_stats(grad_stats)
+
+        stats_reporter = context.stats_reporter
+        if stats_reporter and hasattr(stats_reporter, "update_grad_stats"):
+            stats_reporter.update_grad_stats(grad_stats)

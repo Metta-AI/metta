@@ -52,7 +52,7 @@ class FastDynamicsConfig(PolicyArchitecture):
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
-    def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
+    def make_policy(self, env_metadata: EnvironmentMetaData) -> Policy:
         AgentClass = load_symbol(self.class_path)
         policy = AgentClass(env_metadata, self)
         module = nn.LazyLinear(1)

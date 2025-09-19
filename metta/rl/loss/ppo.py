@@ -10,8 +10,6 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
-
-# from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.config import Config

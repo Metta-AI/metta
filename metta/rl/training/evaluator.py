@@ -22,7 +22,6 @@ from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.config import Config
 
 if TYPE_CHECKING:
-    from metta.rl.trainer import Trainer
     from metta.rl.training.stats_reporter import StatsReporter
 
 logger = logging.getLogger(__name__)
@@ -44,10 +43,20 @@ class EvaluatorConfig(Config):
 class NoOpEvaluator(TrainerComponent):
     """No-op evaluator for when evaluation is disabled."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._latest_scores = EvalRewardSummary()
+
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
+    def register(self, context) -> None:  # type: ignore[override]
+        super().register(context)
+        self.context.latest_eval_scores = self._latest_scores
+
+    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
+        return
+
         pass
 
 
@@ -83,6 +92,10 @@ class Evaluator(TrainerComponent):
         self._stats_reporter = stats_reporter
         self._latest_scores = EvalRewardSummary()
         self._stats_reporter = stats_reporter
+
+    def register(self, context) -> None:  # type: ignore[override]
+        super().register(context)
+        self.context.latest_eval_scores = self._latest_scores
 
     @classmethod
     def from_config(
@@ -175,7 +188,10 @@ class Evaluator(TrainerComponent):
         Returns:
             True if evaluation should run
         """
-        return epoch % self._config.epoch_interval == 0
+        interval = self._config.epoch_interval
+        if interval <= 0:
+            return False
+        return epoch % interval == 0
 
     def evaluate(
         self,
@@ -214,6 +230,7 @@ class Evaluator(TrainerComponent):
                 )
                 # Remote evaluation doesn't return scores directly
                 # They would be reported through other channels
+                self.context.latest_eval_scores = self._latest_scores
                 return self._latest_scores
             except Exception as e:
                 logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
@@ -244,6 +261,7 @@ class Evaluator(TrainerComponent):
                     )
 
             self._latest_scores = evaluation_results.scores
+            self.context.latest_eval_scores = self._latest_scores
             return evaluation_results.scores
 
         return EvalRewardSummary()
@@ -332,34 +350,39 @@ class Evaluator(TrainerComponent):
         """
         return self._latest_scores
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
-        """Run evaluation at epoch end if due.
+    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
+        """Run evaluation at epoch end if due."""
+        if not self.should_evaluate(epoch):
+            return
 
-        Args:
-            trainer: The trainer instance
-            epoch: Current epoch number
-        """
-        # Get the latest policy checkpoint URI
-        policy_uri = trainer.get_latest_policy_uri()
+        policy_uri = self.context.latest_policy_uri()
 
-        # Get curriculum from training environment
-        from metta.rl.training.training_environment import TrainingEnvironment
+        if not policy_uri:
+            logger.debug("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
+            return
 
-        curriculum = None
-        if isinstance(trainer._env, TrainingEnvironment):
-            curriculum = trainer._env.curriculum
+        curriculum = getattr(self.context.env, "_curriculum", None)
+        if curriculum is None:
+            logger.debug("Evaluator: curriculum unavailable; skipping evaluation")
+            return
 
-        # Run evaluation
+        stats_reporter = self.context.stats_reporter
+        stats_epoch_id = None
+        if stats_reporter and getattr(stats_reporter.state, "stats_run_id", None):
+            stats_epoch_id = stats_reporter.create_epoch(
+                stats_reporter.state.stats_run_id,
+                stats_reporter.state.stats_epoch_start,
+                epoch,
+            )
+            stats_reporter.update_epoch_tracking(epoch + 1)
+
         scores = self.evaluate(
             policy_uri=policy_uri,
             curriculum=curriculum,
             epoch=epoch,
-            agent_step=trainer.trainer_state.agent_step,
-            stats_epoch_id=trainer.trainer_state.stats_epoch_id
-            if hasattr(trainer.trainer_state, "stats_epoch_id")
-            else None,
+            agent_step=self.context.agent_step,
+            stats_epoch_id=stats_epoch_id,
         )
 
-        # Update stats reporter if available
         if self._stats_reporter:
             self._stats_reporter.update_eval_scores(scores)

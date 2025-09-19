@@ -4,6 +4,7 @@ import logging
 from typing import Any, Dict, List
 
 import torch
+from pydantic import ConfigDict
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
@@ -17,8 +18,11 @@ logger = logging.getLogger(__name__)
 class RolloutResult(Config):
     """Results from a rollout phase."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     raw_infos: List[Dict[str, Any]]
     agent_steps: int
+    training_env_id: slice
 
 
 class CoreTrainingLoop:
@@ -79,20 +83,34 @@ class CoreTrainingLoop:
         buffer_step = buffer_step.select(*self.policy_spec.keys())
 
         total_steps = 0
+        last_env_id: slice | None = None
 
         while not self.experience.ready_for_training:
             # Get observation from environment
             o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
+            last_env_id = training_env_id
 
             # Prepare data for policy
             td = buffer_step[training_env_id].clone()
-            td["env_obs"] = o.to(td.device)
-            td["rewards"] = r.to(td.device)
-            td["dones"] = d.float().to(td.device)
-            td["truncateds"] = t.float().to(td.device)
-            td["training_env_ids"] = torch.arange(
-                training_env_id.start, training_env_id.stop, dtype=torch.long, device=td.device
-            ).unsqueeze(1)  # av remove unsqueeze
+            target_device = td.device
+            td["env_obs"] = o.to(device=target_device, non_blocking=True)
+            td["rewards"] = r.to(device=target_device, non_blocking=True)
+            td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
+            td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
+            env_indices = torch.arange(training_env_id.start, training_env_id.stop, dtype=torch.long, device=td.device)
+            td["training_env_ids"] = env_indices.unsqueeze(1)
+            td["training_env_id"] = torch.full(
+                td.batch_size,
+                training_env_id.start,
+                dtype=torch.long,
+                device=td.device,
+            )
+            td["training_env_id_start"] = torch.full(
+                td.batch_size,
+                training_env_id.start,
+                dtype=torch.long,
+                device=td.device,
+            )
             B = td.batch_size.numel()
             td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
 
@@ -112,7 +130,10 @@ class CoreTrainingLoop:
 
             total_steps += num_steps
 
-        return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps)
+        if last_env_id is None:
+            raise RuntimeError("Rollout completed without receiving any environment data")
+
+        return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
     def training_phase(
         self,
@@ -120,7 +141,7 @@ class CoreTrainingLoop:
         training_env_id: slice,
         update_epochs: int,
         max_grad_norm: float = 0.5,
-    ) -> Dict[str, float]:
+    ) -> tuple[Dict[str, float], int]:
         """Perform training phase on collected experience.
 
         Args:
@@ -176,12 +197,21 @@ class CoreTrainingLoop:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
                     self.optimizer.step()
 
+                    clip_target = self.policy
+                    if hasattr(self.policy, "module"):
+                        clip_target = self.policy.module  # DDP unwrap
+                    if hasattr(clip_target, "clip_weights"):
+                        clip_target.clip_weights()
+
                     if self.device.type == "cuda":
                         torch.cuda.synchronize()
 
                 # Notify losses of minibatch end
                 for loss_obj in self.losses.values():
                     loss_obj.on_mb_end(epoch, mb_idx)
+
+                if stop_update_epoch:
+                    break
 
             epochs_trained += 1
             if stop_update_epoch:
@@ -196,7 +226,7 @@ class CoreTrainingLoop:
         for _loss_name, loss_obj in self.losses.items():
             losses_stats.update(loss_obj.stats())
 
-        return losses_stats
+        return losses_stats, epochs_trained
 
     def on_epoch_start(self, epoch: int) -> None:
         """Called at the start of each epoch.

@@ -1,6 +1,4 @@
-"""
-RL-specific W&B utilities and metrics setup.
-"""
+"""RL-specific W&B utilities and metrics setup."""
 
 import logging
 
