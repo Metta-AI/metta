@@ -10,8 +10,8 @@ from typing import Callable, Literal, cast, get_args
 
 from metta.common.util.fs import get_repo_root
 from metta.gridworks.configs.lsp import LSPClient
-from metta.mettagrid.config import Config
-from metta.mettagrid.util.module import load_symbol
+from mettagrid.config import Config
+from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,8 @@ class ConfigMakerRegistry:
                 # Top-level function
                 function_defs.append(node)
 
+        logging.debug(f"Found {len(function_defs)} function definitions in {file_path}")
+
         # TODO - what if the code changes between `ast.parse` and `get_hover_bulk`?
         # Should we pre-open the file with LSP during loading?
         hover_results = self.lsp_client.get_hover_bulk(
@@ -122,6 +124,7 @@ class ConfigMakerRegistry:
             # an individual node; if this becomes too fragile, we'll need either a third-party library, or regexes).
             [(node.lineno - 1, node.col_offset + 4) for node in function_defs],
         )
+        logging.debug(f"Found {len(hover_results)} hover results in {file_path}")
 
         for node, hover_result in zip(function_defs, hover_results, strict=True):
             # Create full module path

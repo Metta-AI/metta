@@ -66,8 +66,8 @@ class StorableMap:
         (frontmatter, content) = content.split("---\n", 1)
 
         frontmatter = yaml.safe_load(frontmatter)
-        metadata = frontmatter.metadata
-        config = frontmatter.config
+        metadata = frontmatter["metadata"]
+        config = frontmatter["config"]
         lines = content.split("\n")
 
         # make sure we didn't add extra lines because of newlines in the content

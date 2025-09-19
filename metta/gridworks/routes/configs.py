@@ -4,8 +4,8 @@ from fastapi import APIRouter, HTTPException
 
 from metta.gridworks.common import ErrorResult
 from metta.gridworks.configs.registry import ConfigMakerKind, ConfigMakerRegistry
-from metta.mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
-from metta.mettagrid.mettagrid_config import MettaGridConfig
+from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
+from mettagrid.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
