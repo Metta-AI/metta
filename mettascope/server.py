@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import webbrowser
@@ -101,7 +103,7 @@ def paste_memory(sim: Simulation, agent_id: int, memory: tuple[list[float], list
     policy_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
 
 
-def make_app(cfg: "PlayTool"):
+def make_app(cfg: PlayTool):
     app = FastAPI()
 
     @app.get("/", response_class=HTMLResponse)
@@ -245,7 +247,7 @@ def make_app(cfg: "PlayTool"):
     return app
 
 
-def run(cfg: "PlayTool", open_url: str | None = None):
+def run(cfg: PlayTool, open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:

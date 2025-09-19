@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional
 
 from metta.app_backend.clients.base_client import get_machine_token
@@ -16,7 +18,7 @@ class CogwebClient:
         self._sweep_client = SweepClient(base_url, auth_token)
 
     @classmethod
-    def get_client(cls, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None) -> "CogwebClient":
+    def get_client(cls, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None) -> CogwebClient:
         """Factory method to get or create a cached CogwebClient instance."""
         # Resolve auth token if not provided
         if auth_token is None:

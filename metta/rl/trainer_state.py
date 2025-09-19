@@ -1,20 +1,15 @@
-from dataclasses import dataclass
+"""Compatibility shim for legacy imports.
 
-import torch
+``TrainerState`` has been merged into ``TrainerContext``. This module keeps the
+old import path working while the rest of the codebase migrates to the new
+context-based API.
+"""
 
+from __future__ import annotations
 
-@dataclass(slots=True)
-class TrainerState:
-    """Lightweight, fast, mutable container for training loop state. Also provides a way for losses to influence
-    trainer's control flow."""
+from metta.rl.training.context import TrainerContext
 
-    agent_step: int = 0
-    epoch: int = 0
-    update_epoch: int = 0
-    mb_idx: int = 0
-    optimizer: torch.optim.Optimizer | None = None
-    training_env_id: slice | None = None
+# Backwards compatibility alias
+TrainerState = TrainerContext
 
-    # Control flags and scratch metrics
-    stop_rollout: bool = False
-    stop_update_epoch: bool = False
+__all__ = ["TrainerState"]

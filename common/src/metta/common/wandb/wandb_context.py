@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import socket
@@ -27,12 +29,12 @@ class WandbConfig(Config):
     notes: str = ""
 
     @staticmethod
-    def Off() -> "WandbConfig":
+    def Off() -> WandbConfig:
         return WandbConfig(enabled=False, project="na", entity="na")
 
     # Has the same behavior as Off, but indicates that it should be replaced by wandb_auto_config
     @staticmethod
-    def Unconfigured() -> "WandbConfig":
+    def Unconfigured() -> WandbConfig:
         return WandbConfig(enabled=False, project="unconfigured", entity="unconfigured")
 
     @property

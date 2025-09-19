@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,7 +24,7 @@ class TrainingRunResponse(BaseModel):
     tags: List[str]
 
     @classmethod
-    def from_db(cls, training_run: TrainingRunRow) -> "TrainingRunResponse":
+    def from_db(cls, training_run: TrainingRunRow) -> TrainingRunResponse:
         return cls(
             id=str(training_run.id),
             name=training_run.name,

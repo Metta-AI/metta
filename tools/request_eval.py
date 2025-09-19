@@ -1,6 +1,8 @@
 #!/usr/bin/env -S uv run
 """Request evaluation script for direct checkpoint URIs."""
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import uuid
@@ -38,7 +40,7 @@ class EvalRequest(BaseModel):
     dry_run: bool = Field(default=False)
 
     @model_validator(mode="after")
-    def validate(self) -> "EvalRequest":
+    def validate(self) -> EvalRequest:
         return self
 
 

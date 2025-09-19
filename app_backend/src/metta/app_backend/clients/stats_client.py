@@ -204,7 +204,7 @@ class HttpStatsClient(StatsClient):
         )
 
     @staticmethod
-    def create(stats_server_uri: Optional[str]) -> "StatsClient":
+    def create(stats_server_uri: Optional[str]) -> StatsClient:
         if stats_server_uri is None:
             return NoopStatsClient()
 

@@ -10,7 +10,6 @@ import torch
 from metta.agent.policy import Policy
 from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.trainer_state import TrainerState
 from metta.rl.training.component import TrainerCallback, TrainerComponent
 from metta.rl.training.context import TrainerContext
 from metta.rl.training.core import CoreTrainingLoop
@@ -104,14 +103,6 @@ class Trainer:
             accumulate_minibatches=experience.accumulate_minibatches,
         )
 
-        self.trainer_state = TrainerState(
-            agent_step=self._agent_step,
-            epoch=self._epoch,
-            optimizer=self.optimizer,
-        )
-        self.trainer_state.stop_rollout = False
-        self.trainer_state.stop_update_epoch = False
-
         self._context = TrainerContext(
             trainer=self,
             policy=self._policy,
@@ -122,11 +113,12 @@ class Trainer:
             device=self._device,
             stopwatch=self.timer,
             distributed=self._distributed_helper,
-            trainer_state=self.trainer_state,
             run_dir=None,
             run_name=None,
             get_epoch=lambda: self._epoch,
+            set_epoch=lambda value: setattr(self, "_epoch", value),
             get_agent_step=lambda: self._agent_step,
+            set_agent_step=lambda value: setattr(self, "_agent_step", value),
             latest_policy_uri_fn=self.get_latest_policy_uri,
         )
 
@@ -221,9 +213,6 @@ class Trainer:
             raise RuntimeError("Core loop not initialized")
 
         steps_before = self._agent_step
-        self.trainer_state.agent_step = self._agent_step
-        self.trainer_state.epoch = self._epoch
-        self.trainer_state.optimizer = self.optimizer
 
         # Start new epoch
         self.core_loop.on_epoch_start(self._epoch)
@@ -232,7 +221,6 @@ class Trainer:
         with self.timer("_rollout"):
             rollout_result = self.core_loop.rollout_phase(self._env, self._epoch)
             self._agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
-            self.trainer_state.agent_step = self._agent_step
             # Invoke step callbacks for each info
             for info in rollout_result.raw_infos:
                 self._invoke_callback(TrainerCallback.STEP, info)
@@ -246,7 +234,6 @@ class Trainer:
                 max_grad_norm=0.5,
             )
             self._epoch += self._cfg.update_epochs
-            self.trainer_state.epoch = self._epoch
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()

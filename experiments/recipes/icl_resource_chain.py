@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
@@ -57,7 +59,7 @@ class _BuildCfg:
 
 
 class ConverterChainTaskGenerator(TaskGenerator):
-    class Config(TaskGeneratorConfig["ConverterChainTaskGenerator"]):
+    class Config(TaskGeneratorConfig[ConverterChainTaskGenerator]):
         """Configuration for ConverterChainTaskGenerator."""
 
         chain_lengths: list[int] = Field(
@@ -71,7 +73,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
         max_steps: int = Field(default=256, description="Episode length")
 
-    def __init__(self, config: "ConverterChainTaskGenerator.Config"):
+    def __init__(self, config: ConverterChainTaskGenerator.Config):
         super().__init__(config)
         self.config = config
         self.resource_types = RESOURCE_TYPES.copy()

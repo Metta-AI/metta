@@ -5,6 +5,8 @@ Provides intelligent task selection based on bidirectional learning progress ana
 using fast and slow exponential moving averages to detect learning opportunities.
 """
 
+from __future__ import annotations
+
 import random
 from typing import Any, Dict, List, Optional
 
@@ -44,7 +46,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     def algorithm_type(self) -> str:
         return "learning_progress"
 
-    def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
+    def create(self, num_tasks: int) -> LearningProgressAlgorithm:
         return LearningProgressAlgorithm(num_tasks, self)
 
 

@@ -11,7 +11,6 @@ import torch
 from metta.agent.policy import Policy
 from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.trainer_state import TrainerState
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
@@ -36,11 +35,12 @@ class TrainerContext:
     device: torch.device
     stopwatch: Stopwatch
     distributed: DistributedHelper
-    trainer_state: TrainerState
     run_dir: Optional[Path]
     run_name: Optional[str]
     get_epoch: Callable[[], int]
+    set_epoch: Callable[[int], None]
     get_agent_step: Callable[[], int]
+    set_agent_step: Callable[[int], None]
     latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
     save_policy_fn: Callable[[dict[str, Any], bool], Optional[str]] | None = None
     save_trainer_state_fn: Callable[[], None] | None = None
@@ -48,14 +48,27 @@ class TrainerContext:
     stats_client: Any | None = None
     components: Dict[type, TrainerComponent] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
+    update_epoch: int = 0
+    mb_idx: int = 0
+    training_env_id: slice | None = None
+    stop_rollout: bool = False
+    stop_update_epoch: bool = False
 
     @property
     def epoch(self) -> int:
         return self.get_epoch()
 
+    @epoch.setter
+    def epoch(self, value: int) -> None:
+        self.set_epoch(value)
+
     @property
     def agent_step(self) -> int:
         return self.get_agent_step()
+
+    @agent_step.setter
+    def agent_step(self, value: int) -> None:
+        self.set_agent_step(value)
 
     def set_run_info(self, *, run_dir: Optional[Path], run_name: Optional[str]) -> None:
         self.run_dir = run_dir

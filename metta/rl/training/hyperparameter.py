@@ -34,7 +34,7 @@ class HyperparameterComponent(TrainerComponent):
         step_hyperparameters(
             context.cfg,
             context.optimizer,
-            context.trainer_state.agent_step,
+            context.agent_step,
             context.cfg.total_timesteps,
             logger,
         )

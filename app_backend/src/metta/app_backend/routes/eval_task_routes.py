@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 from typing import Any, TypeVar
@@ -72,7 +74,7 @@ class TaskResponse(BaseModel):
         return self._attribute_property("workers_spawned") or 0
 
     @classmethod
-    def from_db(cls, task: EvalTaskRow | EvalTaskWithPolicyName) -> "TaskResponse":
+    def from_db(cls, task: EvalTaskRow | EvalTaskWithPolicyName) -> TaskResponse:
         # Handle both EvalTaskRow and EvalTaskWithPolicyName
         policy_name = None
         if isinstance(task, EvalTaskWithPolicyName):

@@ -67,7 +67,7 @@ class CurriculumAlgorithmConfig(Config, ABC):
         """Return the algorithm type string used in configs."""
         pass
 
-    def create(self, num_tasks: int) -> "CurriculumAlgorithm":
+    def create(self, num_tasks: int) -> CurriculumAlgorithm:
         """Create the curriculum algorithm with these hyperparameters.
 
         Args:
@@ -122,11 +122,11 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """Update task performance. Override in subclasses that track performance."""
         pass
 
-    def on_task_created(self, task: "CurriculumTask") -> None:
+    def on_task_created(self, task: CurriculumTask) -> None:
         """Notification that a new task has been created. Override if needed."""
         pass
 
-    def set_curriculum_reference(self, curriculum: "Curriculum") -> None:
+    def set_curriculum_reference(self, curriculum: Curriculum) -> None:
         """Set reference to curriculum for stats updates. Override if needed."""
         pass
 
@@ -177,7 +177,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         # Use the StatsLogger implementation
         return super().stats(prefix)
 
-    def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
+    def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
         """Get a task from the pool. Default implementation creates a simple task."""
 
         task_id = rng.randint(0, 1000000)
@@ -235,7 +235,7 @@ class CurriculumConfig(Config):
     )
 
     @classmethod
-    def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
+    def from_mg(cls, mg_config: MettaGridConfig) -> CurriculumConfig:
         """Create a CurriculumConfig from a MettaGridConfig."""
         return cls(
             task_generator=SingleTaskGeneratorConfig(env=mg_config),
@@ -256,7 +256,7 @@ class CurriculumConfig(Config):
                 f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
             )
 
-    def make(self) -> "Curriculum":
+    def make(self) -> Curriculum:
         """Create a Curriculum from this configuration."""
         return Curriculum(self)
 

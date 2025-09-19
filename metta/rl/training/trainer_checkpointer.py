@@ -10,6 +10,7 @@ from typing import Optional
 from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
+from metta.rl.training.context import TrainerContext
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ class TrainerCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Public API used by Trainer
     # ------------------------------------------------------------------
-    def restore(self, context) -> None:
+    def restore(self, context: TrainerContext) -> None:
         """Load trainer state if checkpoints exist and broadcast to all ranks."""
         state: Optional[_RestoredTrainerState] = None
 
@@ -88,17 +89,13 @@ class TrainerCheckpointer(TrainerComponent):
         if state is None:
             return
 
-        trainer = context.trainer
-        trainer.agent_step = state.agent_step
-        trainer.epoch = state.epoch
-        context.trainer_state.agent_step = state.agent_step
-        context.trainer_state.epoch = state.epoch
+        context.agent_step = state.agent_step
+        context.epoch = state.epoch
         self._latest_saved_epoch = state.epoch
 
         if state.optimizer_state:
             try:
                 context.optimizer.load_state_dict(state.optimizer_state)
-                context.trainer_state.optimizer = context.optimizer
             except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
 

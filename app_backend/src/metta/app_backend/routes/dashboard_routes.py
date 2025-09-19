@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -31,7 +33,7 @@ class SavedDashboardResponse(BaseModel):
     user_id: str
 
     @classmethod
-    def from_db(cls, dashboard: SavedDashboardRow) -> "SavedDashboardResponse":
+    def from_db(cls, dashboard: SavedDashboardRow) -> SavedDashboardResponse:
         return cls(
             id=str(dashboard.id),
             name=dashboard.name,
