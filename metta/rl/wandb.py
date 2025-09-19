@@ -1,50 +1,17 @@
-from __future__ import annotations
+"""
+RL-specific W&B utilities and metrics setup.
+"""
 
 import logging
-import os
-import time
-import weakref
-from typing import Dict
 
 import torch.nn as nn
 import wandb
 from torch.nn.parameter import UninitializedParameter
+import wandb
 
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 
 logger = logging.getLogger(__name__)
-
-_ABORT_STATE: weakref.WeakKeyDictionary[WandbRun, Dict[str, float | bool]] = weakref.WeakKeyDictionary()
-_WANDB_API_TIMEOUT_SECS = int(os.getenv("METTA_WANDB_API_TIMEOUT", "60"))
-
-
-def _create_wandb_api() -> wandb.Api:
-    """Create a WandB API client with a configurable timeout override."""
-    return wandb.Api(timeout=_WANDB_API_TIMEOUT_SECS)
-
-
-def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> bool:
-    """Check if wandb run has an 'abort' tag, throttling API calls to min_interval_sec."""
-    if wandb_run is None:
-        return False
-
-    state = _ABORT_STATE.setdefault(wandb_run, {"last_check": 0.0, "cached_result": False})
-    now = time.time()
-
-    # Return cached result if within throttle interval
-    if now - state["last_check"] < min_interval_sec:
-        return bool(state["cached_result"])
-
-    # Time to check again
-    state["last_check"] = now
-    try:
-        run_obj = _create_wandb_api().run(wandb_run.path)
-        state["cached_result"] = "abort" in run_obj.tags
-    except Exception as e:
-        logger.debug(f"Abort tag check failed: {e}")
-        state["cached_result"] = False
-
-    return bool(state["cached_result"])
 
 
 POLICY_EVALUATOR_METRIC_PREFIX = "evaluator"
@@ -64,6 +31,8 @@ def setup_wandb_metrics(wandb_run: WandbRun) -> None:
 
 
 def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
+    # Separate step metric for remote evaluation allows evaluation results to be logged without conflicts
+    """Set up metrics specific to policy evaluation."""
     wandb_run.define_metric(POLICY_EVALUATOR_STEP_METRIC)
     for metric in (f"{POLICY_EVALUATOR_METRIC_PREFIX}/*", f"overview/{POLICY_EVALUATOR_METRIC_PREFIX}/*"):
         wandb_run.define_metric(metric, step_metric=POLICY_EVALUATOR_STEP_METRIC)

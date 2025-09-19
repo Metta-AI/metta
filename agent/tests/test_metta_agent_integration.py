@@ -5,10 +5,14 @@ from tensordict import TensorDict
 
 import metta.mettagrid.builder.envs as eb
 from metta.agent.agent_config import PolicyArchitectureConfig
+import metta.mettagrid.builder.envs as eb
+from metta.agent.agent_config import AgentConfig
+import mettagrid.builder.envs as eb
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.utils import obs_to_td
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.system_config import SystemConfig
+from mettagrid import MettaGridEnv
 
 
 @pytest.fixture

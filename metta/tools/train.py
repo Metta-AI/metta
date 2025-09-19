@@ -14,6 +14,14 @@ from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.rl.system_config import guess_device
 from metta.rl.trainer import Trainer
+from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
+from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.trainer import train
+from metta.common.wandb.context import WandbConfig, WandbContext, WandbRun
+from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     DistributedHelper,

@@ -3,15 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = [
-  "codebot",
-  "cogweb",
-  "devops",
-  "experiments",
-  "metta",
-  "mettascope",
-  "softmax",
-]
+packages = ["codebot", "cogweb", "devops", "experiments", "metta", "mettascope", "softmax"]
 py-modules = []
 
 [project]
@@ -59,7 +51,6 @@ dependencies = [
   "rich>=13.9.4",
   "scipy>=1.15.3",
   "setuptools>=80.9.0",
-  "shimmy>=1.3.0,<2.0",
   "simple-term-menu>=1.6.4",
   "skypilot==0.10.3",
   "softmax",
@@ -106,11 +97,7 @@ interactive = [
   "traitlets>=5.14.3",
   "widgetsnbextension>=4.0.14",
 ]
-dev = [
-  { include-group = "testing" },
-  { include-group = "lint" },
-  "pyright>=1.1.401",
-]
+dev = [{ include-group = "testing" }, { include-group = "lint" }, "pyright>=1.1.401"]
 
 [project.scripts]
 metta = "metta.setup.metta_cli:main"
@@ -120,32 +107,32 @@ mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
-source = [
-  "metta",
-  "metta.mettagrid",
-  "metta.common",
-  "metta.agent",
-  "metta.app_backend",
-]
+source = ["cogames", "metta", "mettagrid", "metta.common", "metta.agent", "metta.app_backend"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
+filterwarnings = [
+  "ignore::DeprecationWarning:wandb.analytics.sentry",
+  "ignore:.*Gym has been unmaintained.*:UserWarning",
+  "ignore:.*Gym has been unmaintained.*",
+  "ignore::UserWarning:gym",
+]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
 ]
 console_output_style = "progress"
-addopts = "-n auto --import-mode=importlib"
+addopts = "-n auto --import-mode=importlib -W ignore:Gym\\ has\\ been\\ unmaintained:UserWarning"
+pythonpath = [".", "packages/mettagrid/python/src"]
 
 [tool.uv]
 cache-keys = [
   { file = "pyproject.toml" },
-  { file = "mettagrid/BUILD" },
-  { file = "mettagrid/MODULE.bazel" },
+  { file = "packages/mettagrid/BUILD" },
+  { file = "packages/mettagrid/MODULE.bazel" },
   { file = "metta/**/*.{cpp,hpp}" },
 ]
 default-groups = ["interactive", "dev"]
@@ -155,11 +142,11 @@ members = [
   "agent",
   "app_backend",
   "codebot",
-  "cogames",
   "common",
   "experiments",
   "gitta",
-  "mettagrid",
+  "packages/cogames",
+  "packages/mettagrid",
   "softmax",
 ]
 
@@ -175,3 +162,16 @@ softmax = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "codebot",
+  "cogames",
+  "gitta",
+  "metta_agent",
+  "metta_app_backend",
+  "metta_common",
+  "metta",
+  "mettagrid",
+  "softmax",
+]

@@ -196,7 +196,6 @@ builds its configuration, and runs it. The current available tasks are:
 
   `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
 
-
 ### Runner arguments
 
 Use the runner like this:
@@ -206,6 +205,7 @@ Use the runner like this:
 ```
 
 The runner automatically classifies arguments:
+
 - **Function arguments**: Arguments that match parameters of your task function
 - **Configuration overrides**: Arguments that match fields in the Tool configuration (supports nested paths with dots)
 
@@ -244,7 +244,7 @@ Minimal example:
 
 ```python
 # experiments/user/my_tasks.py
-from metta.mettagrid.config.envs import make_arena
+from mettagrid.config.envs import make_arena
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
@@ -389,13 +389,13 @@ pytest
 
 ### CLI cheat sheet
 
-| Task                        | Command                                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                              |
-| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                         |
-| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |
+| Task                        | Command                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
+| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
+| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
 | Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
-| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`        |
+| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
 | Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

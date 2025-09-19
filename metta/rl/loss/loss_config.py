@@ -7,6 +7,14 @@ from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
 from metta.rl.loss.ppo import PPOConfig
 from metta.rl.training.training_environment import TrainingEnvironment
+from metta.agent.metta_agent import PolicyAgent
+from metta.mettagrid.config import Config
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.loss.ppo_config import PPOConfig
+from metta.agent.metta_agent import PolicyAgent
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.loss.ppo_config import PPOConfig
+from mettagrid.config import Config
 
 
 class LossSchedule(Config):
