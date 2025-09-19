@@ -44,7 +44,7 @@ WORKDIR /workspace/metta
 
 # Install dependencies
 COPY .python-version pyproject.toml uv.lock ./
-COPY mettagrid/pyproject.toml mettagrid/
+COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/

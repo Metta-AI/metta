@@ -1,8 +1,9 @@
-from metta.mettagrid.builder.envs import make_navigation
-from metta.mettagrid.mapgen.mapgen import MapGen
-from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder.envs import make_navigation
+from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.mean_distance import MeanDistance
+
 from experiments.evals.cfg import NAVIGATION_EVALS
 
 
@@ -13,7 +14,7 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
 
 
 def replace_objects_with_altars(name: str) -> str:
-    ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
+    ascii_map = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
 
     with open(ascii_map, "r") as f:
         map_content = f.read()

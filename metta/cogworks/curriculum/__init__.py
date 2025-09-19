@@ -1,4 +1,4 @@
-from metta.mettagrid.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
 from .curriculum_env import CurriculumEnv

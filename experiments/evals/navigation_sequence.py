@@ -1,7 +1,8 @@
-from metta.mettagrid.builder.envs import make_navigation_sequence
-from metta.mettagrid.mapgen.mapgen import MapGen
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder.envs import make_navigation_sequence
+from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.mapgen.mapgen import MapGen
+
 from experiments.evals.cfg import NAVIGATION_EVALS
 
 
@@ -13,7 +14,7 @@ def make_nav_sequence_ascii_env(
     border_width: int = 1,
     instance_border_width: int = 3,
 ) -> MettaGridConfig:
-    ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
+    ascii_map = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
     env = make_navigation_sequence(num_agents=num_agents * num_instances)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGen.Config(
