@@ -211,6 +211,16 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
     def single_observation_space(self) -> Any:
         return self._vecenv.single_observation_space
 
+    @property
+    def vecenv(self) -> Any:
+        """Return the underlying PufferLib vectorized environment."""
+        return self._vecenv
+
+    @property
+    def driver_env(self) -> Any:
+        """Expose the driver environment for components that need direct access."""
+        return self._vecenv.driver_env
+
     def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
         o, r, d, t, info, env_id, mask = self._vecenv.recv()
 
