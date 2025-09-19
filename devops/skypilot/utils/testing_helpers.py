@@ -7,7 +7,6 @@ import json
 import re
 import subprocess
 import sys
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +19,7 @@ from devops.skypilot.utils.job_helpers import (
     get_request_id_from_launch_output,
     tail_job_log,
 )
+from metta.common.util.retry import retry_function
 from metta.common.util.text_styles import bold, cyan, green, magenta, red, yellow
 
 
@@ -90,6 +90,50 @@ class SkyPilotTestLauncher:
         print(f"{green('✅ Git state is clean')}")
         return True
 
+    def _execute_launch_command(self, cmd: list[str]) -> tuple[Optional[str], Optional[str], dict[str, Any]]:
+        """Execute the launch command and extract IDs. Returns (job_id, request_id, debug_info)."""
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        full_output = result.stdout + "\n" + result.stderr
+
+        # Extract request ID
+        request_id = get_request_id_from_launch_output(full_output)
+
+        if not request_id:
+            # Check for known error patterns
+            if "sky-jobs-controller" in full_output.lower() and "not up" in full_output.lower():
+                raise Exception("Jobs controller appears to be down")
+
+            # Include debug info in the exception
+            debug_info = {
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "return_code": result.returncode,
+            }
+            raise Exception(f"Failed to get request ID from launch output. Debug: {debug_info}")
+
+        print(f"  {green('✅ Launched successfully')} - Request ID: {yellow(request_id)}")
+
+        # Try to get job ID with retries using retry_function
+        def get_job_id_with_wait() -> str:
+            job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
+            if not job_id:
+                raise Exception("Job ID not available yet")
+            return job_id
+
+        try:
+            job_id = retry_function(
+                get_job_id_with_wait,
+                max_retries=2,
+                initial_delay=2.0,
+            )
+            print(f"  {green('✅ Job ID retrieved:')} {yellow(job_id)}")
+        except Exception:
+            # Job ID not available yet, but launch was successful
+            job_id = None
+            print(f"  {cyan('ℹ️  Job ID not available yet (may need more time)')}")
+
+        return job_id, request_id, {}
+
     def launch_job(
         self,
         module: str,
@@ -98,8 +142,7 @@ class SkyPilotTestLauncher:
         extra_args: list[str],
         test_config: dict[str, Any],
         enable_ci_tests: bool = False,
-        max_retries: int = 3,
-        retry_delay: float = 2.0,
+        max_attempts: int = 3,
     ) -> LaunchedJob:
         """Launch a single job and track its status with retry logic."""
         # Build the command
@@ -124,108 +167,38 @@ class SkyPilotTestLauncher:
             print(f"    {cyan(f'{key}:')} {value}")
         print("  }")
 
-        # Try launching with retries
-        for attempt in range(max_retries):
-            try:
-                # Launch the job
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                full_output = result.stdout + "\n" + result.stderr
+        try:
+            job_id, request_id, debug_info = retry_function(
+                lambda: self._execute_launch_command(cmd),
+                max_retries=max_attempts - 1,
+            )
 
-                # Extract request ID
-                request_id = get_request_id_from_launch_output(full_output)
+            job = LaunchedJob(
+                job_id=job_id,
+                request_id=request_id,
+                run_name=run_name,
+                test_config=test_config,
+                launch_time=datetime.now().isoformat(),
+                success=True,
+            )
+            self.launched_jobs.append(job)
+            return job
 
-                if request_id:
-                    print(f"  {green('✅ Launched successfully')} - Request ID: {yellow(request_id)}")
+        except Exception as e:
+            # All retries exhausted
+            print(f"  {red(f'❌ Failed to launch job after {max_attempts} attempts')}")
+            print(f"  {red('Final error:')} {str(e)}")
 
-                    # Try to get job ID with retries
-                    job_id = None
-                    for job_attempt in range(3):
-                        job_id = get_job_id_from_request_id(request_id, wait_seconds=2.0)
-                        if job_id:
-                            print(f"  {green('✅ Job ID retrieved:')} {yellow(job_id)}")
-                            break
-                        elif job_attempt < 2:
-                            print(f"  {cyan('⏳ Waiting for job ID...')} (attempt {job_attempt + 1}/3)")
-                            time.sleep(2.0)
-
-                    if not job_id:
-                        print(f"  {cyan('⚠️  Job ID not available yet (may need more time)')}")
-
-                    job = LaunchedJob(
-                        job_id=job_id,
-                        request_id=request_id,
-                        run_name=run_name,
-                        test_config=test_config,
-                        launch_time=datetime.now().isoformat(),
-                        success=True,
-                    )
-                    self.launched_jobs.append(job)
-                    return job
-                else:
-                    # No request ID found, but let's check if it might be a transient issue
-                    if attempt < max_retries - 1:
-                        print(
-                            f"  {yellow('⚠️  No request ID found in output, retrying...')} "
-                            f"(attempt {attempt + 1}/{max_retries})"
-                        )
-
-                        # Print some diagnostic info on failed attempts
-                        if result.returncode != 0:
-                            print(f"  {yellow('Return code:')} {result.returncode}")
-
-                        # Check for common error patterns
-                        if "sky-jobs-controller" in full_output.lower() and "not up" in full_output.lower():
-                            print(f"  {red('Error: Jobs controller appears to be down')}")
-                            # Don't retry if controller is down
-                            break
-
-                        # Wait before retry
-                        time.sleep(retry_delay)
-                        continue
-                    else:
-                        # Final attempt failed
-                        raise Exception("Failed to get request ID from launch output after all retries")
-
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    print(f"  {yellow('⚠️  Launch failed, retrying...')} (attempt {attempt + 1}/{max_retries})")
-                    print(f"  {yellow('Error:')} {str(e)}")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    # All retries exhausted
-                    print(f"  {red('❌ Failed to launch job after {max_retries} attempts')}")
-                    print(f"  {red('Final error:')} {str(e)}")
-
-                    # Save diagnostic information
-                    debug_info = {
-                        "last_stdout": result.stdout if "result" in locals() else "N/A",
-                        "last_stderr": result.stderr if "result" in locals() else "N/A",
-                        "return_code": result.returncode if "result" in locals() else "N/A",
-                    }
-
-                    job = LaunchedJob(
-                        job_id=None,
-                        request_id=None,
-                        run_name=run_name,
-                        test_config={**test_config, "debug_info": debug_info},
-                        launch_time=datetime.now().isoformat(),
-                        success=False,
-                    )
-                    self.failed_launches.append(job)
-                    return job
-
-        # Should not reach here, but just in case
-        job = LaunchedJob(
-            job_id=None,
-            request_id=None,
-            run_name=run_name,
-            test_config=test_config,
-            launch_time=datetime.now().isoformat(),
-            success=False,
-        )
-        self.failed_launches.append(job)
-        return job
+            job = LaunchedJob(
+                job_id=None,
+                request_id=None,
+                run_name=run_name,
+                test_config={**test_config, "error": str(e)},
+                launch_time=datetime.now().isoformat(),
+                success=False,
+            )
+            self.failed_launches.append(job)
+            return job
 
     def save_results(self, output_file: str = "skypilot_test_jobs.json") -> Path:
         """Save launch results to JSON file."""
@@ -499,7 +472,7 @@ class SkyPilotJobChecker:
                     )
                     self.job_summaries[job_id] = {}
 
-        print(f"{green('✔')} Parsed logs for {processed} jobs\n")
+        print(f"{green('✓')} Parsed logs for {processed} jobs\n")
 
     def print_quick_summary(self) -> dict[str, int]:
         """Print a quick status summary and return status counts."""
