@@ -65,7 +65,7 @@ class CurriculumAlgorithmConfig(Config, ABC):
         """Return the algorithm type string used in configs."""
         pass
 
-    def create(self, num_tasks: int) -> CurriculumAlgorithm:
+    def create(self, num_tasks: int) -> "CurriculumAlgorithm":
         """Create the curriculum algorithm with these hyperparameters.
 
         Args:
@@ -124,7 +124,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """Notification that a new task has been created. Override if needed."""
         pass
 
-    def set_curriculum_reference(self, curriculum: Curriculum) -> None:
+    def set_curriculum_reference(self, curriculum: "Curriculum") -> None:
         """Set reference to curriculum for stats updates. Override if needed."""
         pass
 
@@ -254,7 +254,7 @@ class CurriculumConfig(Config):
                 f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
             )
 
-    def make(self) -> Curriculum:
+    def make(self) -> "Curriculum":
         """Create a Curriculum from this configuration."""
         return Curriculum(self)
 

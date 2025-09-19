@@ -13,7 +13,7 @@ ParamsT = TypeVar("ParamsT", bound=Config)
 SceneT = TypeVar("SceneT", bound="Scene")
 
 
-def _ensure_scene_cls(v: Any) -> type[Scene]:
+def _ensure_scene_cls(v: Any) -> type["Scene"]:
     if isinstance(v, str):
         v = load_symbol(v)
     if not issubclass(v, Scene):
@@ -22,19 +22,19 @@ def _ensure_scene_cls(v: Any) -> type[Scene]:
 
 
 class SceneConfig(Config):
-    type: type[Scene]
+    type: type["Scene"]
     params: Config
-    children: list[ChildrenAction] | None = None
+    children: list["ChildrenAction"] | None = None
     seed: int | None = None
 
     # Turn strings into classes, ensure subclass of Scene
     @field_validator("type", mode="before")
     @classmethod
-    def _validate_type(cls, v: Any) -> type[Scene]:
+    def _validate_type(cls, v: Any) -> type["Scene"]:
         return _ensure_scene_cls(v)
 
     @field_serializer("type")
-    def _serialize_type(self, type: type[Scene], _info):
+    def _serialize_type(self, type: type["Scene"], _info):
         return f"{type.__module__}.{type.__name__}"
 
     # Validate/convert params using the already-validated 'type'
@@ -56,7 +56,7 @@ class SceneConfig(Config):
             # TODO - pass more? can we pass all flags?
         )
 
-    def create(self, area: Area, rng: np.random.Generator) -> Scene:
+    def create(self, area: Area, rng: np.random.Generator) -> "Scene":
         return self.type(area=area, params=self.params, seed=self.seed or rng, children_actions=self.children)
 
 

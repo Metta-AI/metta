@@ -173,7 +173,7 @@ class TaskGeneratorSet(TaskGenerator):
     class Config(TaskGeneratorConfig["TaskGeneratorSet"]):
         """Configuration for TaskGeneratorSet."""
 
-        task_generators: list[AnyTaskGeneratorConfig] = Field(
+        task_generators: list["AnyTaskGeneratorConfig"] = Field(
             default_factory=list, description="Task generator configurations to sample from"
         )
         weights: list[float] = Field(default_factory=list, description="Weights for sampling each task generator")
@@ -189,7 +189,9 @@ class TaskGeneratorSet(TaskGenerator):
                 raise ValueError("Number of weights must match number of task generator configs")
             return v
 
-        def add(self, task_generator: AnyTaskGeneratorConfig, weight: float = 1.0) -> "TaskGeneratorSet.Config":
+        def add(
+            self, task_generator: "AnyTaskGeneratorConfig", weight: float = 1.0
+        ) -> "TaskGeneratorSet.Config":
             """Add a task generator to the set with a weight."""
             self.task_generators.append(task_generator)
             self.weights.append(weight)
@@ -257,7 +259,9 @@ class BucketedTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["BucketedTaskGenerator"]):
         """Configuration for BucketedTaskGenerator."""
 
-        child_generator_config: AnyTaskGeneratorConfig = Field(description="Child task generator configuration")
+        child_generator_config: "AnyTaskGeneratorConfig" = Field(
+            description="Child task generator configuration"
+        )
         buckets: dict[str, Sequence[int | float | str | Span]] = Field(
             default_factory=dict, description="Buckets for sampling, keys are config paths"
         )
