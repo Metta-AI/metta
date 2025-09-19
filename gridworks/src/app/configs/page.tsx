@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { StyledLink } from "@/components/StyledLink";
 import { viewConfigRoute } from "@/lib/routes";
 
 import { listConfigMakers } from "../../lib/api";
@@ -18,12 +17,9 @@ export default async function EnvsPage() {
               {cfgs[kind as keyof typeof cfgs]?.map((cfg) => {
                 return (
                   <li key={cfg.path}>
-                    <Link
-                      href={viewConfigRoute(cfg.path)}
-                      className="text-blue-600 hover:text-blue-800 hover:underline"
-                    >
+                    <StyledLink href={viewConfigRoute(cfg.path)}>
                       {cfg.path}
-                    </Link>
+                    </StyledLink>
                   </li>
                 );
               })}

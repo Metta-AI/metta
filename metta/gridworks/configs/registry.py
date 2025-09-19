@@ -16,7 +16,14 @@ from mettagrid.util.module import load_symbol
 logger = logging.getLogger(__name__)
 
 ConfigMakerKind = Literal[
-    "MettaGridConfig", "SimulationConfig", "List[SimulationConfig]", "TrainTool", "PlayTool", "ReplayTool", "SimTool"
+    "MettaGridConfig",
+    "SimulationConfig",
+    "List[SimulationConfig]",
+    "TrainTool",
+    "PlayTool",
+    "ReplayTool",
+    "SimTool",
+    "CurriculumConfig",
 ]
 
 
@@ -38,11 +45,14 @@ def check_return_type(return_type: str) -> ConfigMakerKind | None:
     return None
 
 
+MakerFunction = Callable[[], Config | list[Config]]
+
+
 @dataclass
 class ConfigMaker:
-    """Represents a function that makes a Config object."""
+    """Represents a function that makes a Config object, and its metadata."""
 
-    maker: Callable[[], Config]
+    maker: MakerFunction
     return_type: ConfigMakerKind
     line: int
 
@@ -70,7 +80,7 @@ class ConfigMaker:
             if param.default is inspect.Parameter.empty:
                 raise ValueError(f"Symbol {path} must have no required arguments (all parameters must have defaults)")
 
-        return ConfigMaker(maker=cast(Callable[[], Config], maker), return_type=return_type, line=line)
+        return ConfigMaker(maker=cast(MakerFunction, maker), return_type=return_type, line=line)
 
 
 class ConfigMakerRegistry:

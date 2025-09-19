@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { StyledLink } from "@/components/StyledLink";
 import { getStoredMapDirs } from "@/lib/api";
 import { viewStoredMapsDirRoute } from "@/lib/routes";
 
@@ -11,12 +10,7 @@ export default async function MapDirsPage() {
     <div className="flex flex-col gap-2 p-8">
       {dirs.map((dir) => (
         <div key={dir} className="flex items-center gap-1">
-          <Link
-            className="text-blue-500 hover:underline"
-            href={viewStoredMapsDirRoute(dir)}
-          >
-            {dir}
-          </Link>
+          <StyledLink href={viewStoredMapsDirRoute(dir)}>{dir}</StyledLink>
           <IndexDirButton dir={dir} />
         </div>
       ))}
