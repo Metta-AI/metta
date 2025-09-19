@@ -99,8 +99,8 @@ class FastPolicy(Policy):
         self.actor_key = ActorKey(config=self.config.actor_key_config)
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
         self._components_with_metrics = [
-            self.cnn1 if hasattr(self, "cnn1") else None,
-            self.cnn2 if hasattr(self, "cnn2") else None,
+            getattr(self.cnn_encoder, "cnn1", None),
+            getattr(self.cnn_encoder, "cnn2", None),
         ]
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
@@ -170,13 +170,45 @@ class FastPolicy(Policy):
         self.lstm.reset_memory()
 
     def clip_weights(self) -> None:
-        return None
+        for module in self._iter_component_modules():
+            if hasattr(module, "clip_weights"):
+                module.clip_weights()
 
     def l2_init_loss(self) -> torch.Tensor:
-        return torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        for module in self._iter_component_modules():
+            if hasattr(module, "l2_init_loss"):
+                total_loss = total_loss + module.l2_init_loss()
+        return total_loss
 
     def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
-        return []
+        metrics: List[dict] = []
+        for module in self._components_with_metrics:
+            if module is not None and hasattr(module, "compute_weight_metrics"):
+                result = module.compute_weight_metrics(delta)
+                if result:
+                    metrics.append(result)
+        return metrics
+
+    def _iter_component_modules(self) -> List[nn.Module]:
+        modules: List[nn.Module] = [
+            self.cnn_encoder,
+            self.lstm,
+            self.actor_query,
+            self.actor_key,
+            self.action_probs,
+            self.action_embeddings,
+        ]
+
+        # Include TensorDictModule-wrapped modules if available
+        td_modules = [
+            getattr(self.actor_1, "module", None),
+            getattr(self.critic_1, "module", None),
+            getattr(self.value_head, "module", None),
+        ]
+        modules.extend(td_modules)
+
+        return [module for module in modules if module is not None]
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         if self.cum_action_max_params is None:

@@ -349,17 +349,12 @@ class StatsReporter(TrainerComponent):
         steps_per_second = payload.get("overview/steps_per_second")
         grad_norm = payload.get("grad/norm")
 
-        loss_items = [
-            (key.split("/", 1)[1], payload[key])
-            for key in payload
-            if key.startswith("loss/")
-        ]
+        loss_items = [(key.split("/", 1)[1], payload[key]) for key in payload if key.startswith("loss/")]
         loss_items.sort()
         top_losses = ", ".join(f"{name}={value:.4f}" for name, value in loss_items[:3])
 
         message = (
-            f"Epoch {epoch} | step={agent_step} | reward={_fmt(reward)} | "
-            f"steps/s={_fmt(steps_per_second, precision=1)}"
+            f"Epoch {epoch} | step={agent_step} | reward={_fmt(reward)} | steps/s={_fmt(steps_per_second, precision=1)}"
         )
 
         if grad_norm is not None:

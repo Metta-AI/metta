@@ -9,7 +9,12 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.obs_shim import ObsShimBox, ObsShimTokens
+from metta.agent.components.obs_shim import (
+    ObsShimBox,
+    ObsShimBoxConfig,
+    ObsShimTokens,
+    ObsShimTokensConfig,
+)
 from metta.rl.training.training_environment import EnvironmentMetaData
 from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
@@ -77,9 +82,11 @@ class ExternalPolicyWrapper(Policy):
     def __init__(self, policy: torch.nn.Module, env_metadata: EnvironmentMetaData, box_obs: bool = True):
         self.policy = policy
         if box_obs:
-            self.obs_shaper = ObsShimBox(env=env_metadata, in_key="env_obs", out_key="obs")
+            config = ObsShimBoxConfig(in_key="env_obs", out_key="obs")
+            self.obs_shaper = ObsShimBox(env=env_metadata, config=config)
         else:
-            self.obs_shaper = ObsShimTokens(env=env_metadata, in_key="env_obs", out_key="obs")
+            config = ObsShimTokensConfig(in_key="env_obs", out_key="obs")
+            self.obs_shaper = ObsShimTokens(env=env_metadata, config=config)
 
     def forward(self, td: TensorDict) -> TensorDict:
         self.obs_shaper(td)
