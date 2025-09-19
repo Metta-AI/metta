@@ -24,6 +24,7 @@ build:dbg --strip=never
 # Test configuration
 test --test_output=errors
 test --test_summary=detailed
+test --nocache_test_results
 
 # Coverage configuration
 coverage --combined_report=lcov
