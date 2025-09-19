@@ -265,9 +265,6 @@ class TrainTool(Tool):
         stats_component: TrainerComponent | None = None
 
         if distributed_helper.is_master():
-            if self.gradient_stats.epoch_interval:
-                components.append(GradientStatsComponent(self.gradient_stats))
-
             stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
             reporting_enabled = (
                 stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
@@ -278,6 +275,12 @@ class TrainTool(Tool):
                 stats_client=stats_client,
                 wandb_run=wandb_run,
             )
+
+            if stats_component is not None:
+                components.append(stats_component)
+
+            if self.gradient_stats.epoch_interval:
+                components.append(GradientStatsComponent(self.gradient_stats))
 
             components.append(
                 Evaluator(
@@ -313,10 +316,6 @@ class TrainTool(Tool):
         components.append(trainer_checkpointer)
 
         components.append(WandbAbortComponent(wandb_run))
-
-        trainer.context.stats_reporter = stats_component
-        if stats_component is not None:
-            components.append(stats_component)
 
         if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
             components.append(
