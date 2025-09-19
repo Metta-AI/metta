@@ -24,6 +24,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.trainer import train
 from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
 from mettagrid.builder.envs import make_arena
+from mettagrid.map_builder.random import RandomMapBuilder
 
 
 class TestTrainerCheckpointIntegration:
@@ -38,18 +39,26 @@ class TestTrainerCheckpointIntegration:
             shutil.rmtree(self.temp_dir)
 
     def _create_minimal_config(self) -> tuple[TrainerConfig, AgentConfig, SystemConfig]:
+        small_map_builder = RandomMapBuilder.Config(
+            agents=2,
+            width=8,
+            height=8,
+            border_object="wall",
+            border_width=1,
+        )
+
         trainer_cfg = TrainerConfig(
-            total_timesteps=1000,
-            batch_size=512,
-            minibatch_size=256,
-            bptt_horizon=8,
+            total_timesteps=64,
+            batch_size=16,
+            minibatch_size=8,
+            bptt_horizon=4,
             update_epochs=1,
             rollout_workers=1,
             async_factor=1,
             forward_pass_minibatch_target_size=32,
-            curriculum=env_curriculum(make_arena(num_agents=6)),
+            curriculum=env_curriculum(make_arena(num_agents=2, map_builder=small_map_builder)),
             checkpoint=CheckpointConfig(
-                checkpoint_interval=2,
+                checkpoint_interval=1,
                 checkpoint_dir=self.checkpoint_dir,
                 remote_prefix=None,
             ),
