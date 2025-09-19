@@ -5,12 +5,12 @@ from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
 
-# import metta.mettagrid.config.envs as eb
-import metta.mettagrid.builder.envs as eb
+# import mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from experiments.recipes import arena
 from metta.agent.policies.vit import ViTSmallConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import MettaGridConfig
+from mettagrid import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.evaluator import EvaluatorConfig

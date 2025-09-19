@@ -8,7 +8,7 @@ from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 
 class MLPConfig(ComponentConfig):

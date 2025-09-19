@@ -10,9 +10,9 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.mettagrid.config import Config
 from metta.rl.loss.loss import Loss
 from metta.rl.trainer_state import TrainerState
+from mettagrid.config import Config
 
 # Config class
 

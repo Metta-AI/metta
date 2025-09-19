@@ -17,8 +17,8 @@ from metta.agent.components.obs_tokenizers import (
     ObsAttrEmbedFourierConfig,
 )
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.mettagrid.util.module import load_symbol
 from metta.rl.training.training_environment import EnvironmentMetaData
+from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
 

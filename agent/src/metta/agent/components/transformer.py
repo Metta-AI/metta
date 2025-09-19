@@ -5,7 +5,7 @@ import torch.nn as nn
 from einops import rearrange
 from tensordict import TensorDict
 
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 
 class TransformerConfig(Config):
