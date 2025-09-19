@@ -4,9 +4,9 @@ import torch
 from pydantic import Field
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.dynamics import Dynamics
+from mettagrid.config import Config
 
 # from metta.rl.trainer_config import TrainerConfig
 

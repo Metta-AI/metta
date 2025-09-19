@@ -1,0 +1,527 @@
+import random
+import subprocess
+import time
+from typing import Any, Dict, Optional, Sequence
+
+import numpy as np
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumConfig,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
+from metta.rl.loss.loss_config import LossConfig
+from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from metta.tools.sim import SimTool
+from metta.tools.train import TrainTool
+from mettagrid.builder import empty_converters
+from mettagrid.builder.envs import make_icl_resource_chain
+from mettagrid.config.mettagrid_config import MettaGridConfig
+from pydantic import Field
+
+from .icl_resource_chain import ICLTaskGenerator, _BuildCfg
+
+
+class LPParams:
+    def __init__(
+        self,
+        ema_timescale: float = 0.001,
+        exploration_bonus: float = 0.1,
+        max_memory_tasks: int = 1000,
+        max_slice_axes: int = 3,
+        progress_smoothing: float = 0.1,
+        enable_detailed_slice_logging: bool = False,
+        num_active_tasks: int = 1000,
+        rand_task_rate: float = 0.25,
+    ):
+        self.ema_timescale = ema_timescale
+        self.exploration_bonus = exploration_bonus
+        self.max_memory_tasks = max_memory_tasks
+        self.max_slice_axes = max_slice_axes
+        self.progress_smoothing = progress_smoothing
+        self.enable_detailed_slice_logging = enable_detailed_slice_logging
+        self.num_active_tasks = num_active_tasks
+        self.rand_task_rate = rand_task_rate
+
+
+class ConverterChainTaskGenerator(TaskGenerator):
+    class Config(TaskGeneratorConfig["ConverterChainTaskGenerator"]):
+        """Configuration for ConverterChainTaskGenerator."""
+
+        chain_lengths: list[int] = Field(
+            default_factory=list, description="Chain lengths to sample from"
+        )
+        num_sinks: list[int] = Field(
+            default_factory=list, description="Number of sinks to sample from"
+        )
+        room_sizes: list[str] = Field(
+            default=["small"], description="Room size to sample from"
+        )
+        obstacle_types: list[str] = Field(
+            default=[], description="Obstacle types to sample from"
+        )
+        densities: list[str] = Field(default=[], description="Density to sample from")
+        # obstacle_complexity
+        max_steps: int = Field(default=512, description="Episode length")
+
+    def __init__(self, config: "ConverterChainTaskGenerator.Config"):
+        super().__init__(config)
+        self.config = config
+        self.resource_types = [
+            "ore_red",
+            "ore_blue",
+            "ore_green",
+            "battery_red",
+            "battery_blue",
+            "battery_green",
+            "laser",
+            "blueprint",
+            "armor",
+        ]
+        self.converter_types = {
+            "mine_red": empty_converters.mine_red,
+            "mine_blue": empty_converters.mine_blue,
+            "mine_green": empty_converters.mine_green,
+            "generator_red": empty_converters.generator_red,
+            "generator_blue": empty_converters.generator_blue,
+            "generator_green": empty_converters.generator_green,
+            "altar": empty_converters.altar,
+            "lab": empty_converters.lab,
+            "lasery": empty_converters.lasery,
+            "factory": empty_converters.factory,
+            "temple": empty_converters.temple,
+        }
+
+    def _choose_converter_name(
+        self, pool: Dict[str, Any], used: set[str], rng: random.Random
+    ) -> str:
+        choices = [name for name in pool.keys() if name not in used]
+        if not choices:
+            raise ValueError("No available converter names left to choose from.")
+        return str(rng.choice(choices))
+
+    def _add_converter(
+        self,
+        input_resource: str,
+        output_resource: str,
+        cfg: _BuildCfg,
+        rng: random.Random,
+    ):
+        converter_name = self._choose_converter_name(
+            self.converter_types, set(cfg.used_objects), rng
+        )
+        cfg.used_objects.append(converter_name)
+        cfg.converters.append(converter_name)
+
+        converter = self.converter_types[converter_name].copy()
+        converter.output_resources = {output_resource: 1}
+
+        if input_resource == "nothing":
+            converter.input_resources = {}
+        else:
+            converter.input_resources = {input_resource: 1}
+            cfg.all_input_resources.append(input_resource)
+
+        cfg.game_objects[converter_name] = converter
+        cfg.map_builder_objects[converter_name] = 1
+
+    def _add_sink(self, cfg: _BuildCfg, rng: random.Random):
+        sink_name = self._choose_converter_name(
+            self.converter_types, set(cfg.used_objects), rng
+        )
+        cfg.used_objects.append(sink_name)
+        sink = self.converter_types[sink_name].copy()
+
+        for input_resource in cfg.all_input_resources:
+            sink.input_resources[input_resource] = 1
+
+        cfg.game_objects[sink_name] = sink
+        cfg.map_builder_objects[sink_name] = 1
+
+    def _make_env_cfg(
+        self,
+        resources,
+        num_sinks,
+        width,
+        height,
+        obstacle_type,
+        density,
+        avg_hop,
+        rng,
+        max_steps=512,
+    ) -> MettaGridConfig:
+        cfg = _BuildCfg()
+        resource_chain = ["nothing"] + list(resources) + ["heart"]
+
+        chain_length = len(resource_chain)
+
+        for i in range(chain_length - 1):
+            input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
+            self._add_converter(input_resource, output_resource, cfg, rng=rng)
+
+        for _ in range(num_sinks):
+            self._add_sink(cfg, rng=rng)
+
+        cooldown = avg_hop * (chain_length - 1)
+
+        for obj in cfg.converters:
+            cfg.game_objects[obj].cooldown = int(cooldown)
+
+        return make_icl_resource_chain(
+            num_agents=24,
+            max_steps=max_steps,
+            game_objects=cfg.game_objects,
+            map_builder_objects=cfg.map_builder_objects,
+            width=width,
+            height=height,
+            obstacle_type=obstacle_type,
+            density=density,
+        )
+
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+        num_resources = rng.choice(self.config.chain_lengths)
+        num_sinks = rng.choice(self.config.num_sinks)
+        resources = rng.sample(self.resource_types, num_resources)
+        room_size = rng.choice(self.config.room_sizes)
+        obstacle_type = (
+            rng.choice(self.config.obstacle_types)
+            if len(self.config.obstacle_types) > 0
+            else None
+        )
+        density = (
+            rng.choice(self.config.densities)
+            if len(self.config.densities) > 0
+            else None
+        )
+
+        size_range = (
+            (7, 10)
+            if room_size == "medium"
+            else (10, 15)
+            if room_size == "large"
+            else (4, 7)
+        )
+
+        width, height = (
+            rng.randint(size_range[0], size_range[1]),
+            rng.randint(size_range[0], size_range[1]),
+        )
+
+        max_steps = self.config.max_steps
+        avg_hop = (width + height) / 2
+
+        best_case_optimal_reward, worst_case_optimal_reward = (
+            self._estimate_max_rewards(num_resources, num_sinks, max_steps, avg_hop)
+        )
+
+        icl_env = self._make_env_cfg(
+            resources,
+            num_sinks,
+            width=width,
+            height=height,
+            obstacle_type=obstacle_type,
+            density=density,
+            avg_hop=avg_hop,
+            rng=rng,
+            max_steps=max_steps,
+        )
+
+        icl_env.game.reward_estimates = {
+            "best_case_optimal_reward": best_case_optimal_reward,
+            "worst_case_optimal_reward": worst_case_optimal_reward,
+        }
+
+        icl_env.label = (
+            f"{num_resources}resources_{num_sinks}sinks_{room_size}"
+            + (f"_{obstacle_type}" if obstacle_type else "")
+            + (f"_{density}" if density else "")
+        )
+
+        return icl_env
+
+    def _estimate_max_rewards(
+        self,
+        num_resources: int,
+        num_sinks: int,
+        max_steps: int,
+        avg_hop: float,
+    ) -> tuple[float, float]:
+        """
+        Returns (best_case_optimal_reward, worst_case_optimal_reward).
+
+        Updates vs prior:
+          * Each converter interaction = 2 actions (put + get).
+          * Both scenarios include average hop distance between perimeter objects.
+          * Per-heart cycle time is the bottleneck of either converter cooldown or the
+            movement+interaction cost to traverse the whole chain again.
+
+        Definitions:
+          - num_resources: number of *intermediate* resources between "nothing" and "heart".
+          - n_converters = chain_length + 1 (edges: nothing->r1, ..., r_k->heart).
+          - cooldown = avg_hop * n_converters (as set in _make_env_cfg).
+        """
+        n_converters = num_resources + 1
+        total_objects = n_converters + num_sinks
+
+        effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
+
+        cooldown = avg_hop * n_converters
+        step_per_attempt = avg_hop + 2
+        correct_chain_traverse_cost = n_converters * step_per_attempt
+        per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
+
+        def hearts_after(first_heart_steps: float) -> float:
+            if first_heart_steps > effective_max_steps:
+                return 0
+            remaining = effective_max_steps - first_heart_steps
+            return 1 + (remaining // per_heart_cycle)
+
+        best_first_heart_steps = correct_chain_traverse_cost
+        most_efficient = hearts_after(best_first_heart_steps)
+
+        find_first_converter_cost = (n_converters + num_sinks) * step_per_attempt
+        find_all_sinks_cost = (n_converters + 2 * num_sinks) * step_per_attempt
+        find_right_pattern_cost = n_converters * (n_converters - 1) * step_per_attempt
+
+        worst_first_heart_steps = (
+            find_first_converter_cost + find_all_sinks_cost + find_right_pattern_cost
+        )
+        least_efficient = hearts_after(worst_first_heart_steps)
+
+        return int(most_efficient), int(least_efficient)
+
+
+def make_mettagrid() -> MettaGridConfig:
+    task_generator_cfg = ConverterChainTaskGenerator.Config(
+        chain_lengths=[3],
+        num_sinks=[1],
+        room_sizes=["large"],
+        obstacle_types=["cross"],
+        densities=["high"],
+    )
+    task_generator = OrderedChainTaskGenerator(task_generator_cfg)
+    return task_generator.get_task(0)
+
+
+class OrderedChainTaskGenerator(ICLTaskGenerator):
+    def __init__(self, config: "ICLTaskGenerator.Config"):
+        super().__init__(config)
+
+
+def make_curriculum(
+    chain_lengths=[2, 3, 4, 5],
+    num_sinks=[0, 1, 2],
+    room_sizes=["small"],
+    obstacle_types=[],
+    densities=[],
+    lp_params: LPParams = LPParams(),
+) -> CurriculumConfig:
+    task_generator_cfg = ConverterChainTaskGenerator.Config(
+        chain_lengths=chain_lengths,
+        num_sinks=num_sinks,
+        room_sizes=room_sizes,
+        obstacle_types=obstacle_types,
+        densities=densities,
+    )
+    algorithm_config = LearningProgressConfig(**lp_params)
+
+    return CurriculumConfig(
+        task_generator=task_generator_cfg,
+        algorithm_config=algorithm_config,
+    )
+
+
+def small_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small"],
+    )
+
+
+def small_medium_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium"],
+    )
+
+
+def all_room_sizes_curriculum():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium", "large"],
+    )
+
+
+def longer_chains():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium", "large"],
+    )
+
+
+def longer_chains_more_sinks():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5, 6, 7, 8, 9, 10],
+        num_sinks=[0, 1, 2, 3, 4],
+        room_sizes=["small", "medium", "large"],
+    )
+
+
+def terrain():
+    return make_curriculum(
+        chain_lengths=[2, 3, 4, 5, 6],
+        num_sinks=[0, 1, 2],
+        room_sizes=["small", "medium", "large"],
+        obstacle_types=["square", "cross", "L"],
+        densities=["balanced", "sparse", "high"],
+    )
+
+
+def train(
+    curriculum_style: str = "small", lp_params: LPParams = LPParams()
+) -> TrainTool:
+    from experiments.evals.icl_ordered_chains import (
+        make_icl_resource_chain_eval_suite,
+    )
+
+    curriculum_args = {
+        "small": {
+            "chain_lengths": [2, 3, 4, 5],
+            "num_sinks": [0, 1, 2],
+            "room_sizes": ["small"],
+            "lp_params": lp_params,
+        },
+        "small_medium": {
+            "chain_lengths": [2, 3, 4, 5],
+            "num_sinks": [0, 1],
+            "room_sizes": ["small", "medium"],
+            "lp_params": lp_params,
+        },
+        "all_room_sizes": {
+            "chain_lengths": [2, 3, 4, 5],
+            "num_sinks": [0, 1, 2],
+            "room_sizes": ["small", "medium", "large"],
+            "lp_params": lp_params,
+        },
+        "longer_chains": {
+            "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
+            "num_sinks": [0, 1, 2],
+            "room_sizes": ["small", "medium", "large"],
+            "lp_params": lp_params,
+        },
+        "longer_chains_more_sinks": {
+            "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
+            "num_sinks": [0, 1, 2, 3, 4],
+            "room_sizes": ["small", "medium", "large"],
+            "lp_params": lp_params,
+        },
+        "terrain": {
+            "chain_lengths": [2, 3, 4, 5],
+            "num_sinks": [0, 1],
+            "obstacle_types": ["square", "cross", "L"],
+            "densities": ["", "balanced", "sparse", "high"],
+            "lp_params": lp_params,
+        },
+    }
+
+    curriculum = make_curriculum(**curriculum_args[curriculum_style])
+
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+        curriculum=curriculum,
+        evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
+    )
+    trainer_cfg.batch_size = 4128768
+    trainer_cfg.bptt_horizon = 512
+
+    return TrainTool(trainer=trainer_cfg)
+
+
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
+    eval_env = env or make_mettagrid()
+    return PlayTool(
+        sim=SimulationConfig(
+            env=eval_env,
+            name="in_context_resource_chain",
+        ),
+    )
+
+
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+    eval_env = env or make_mettagrid()
+    return ReplayTool(
+        sim=SimulationConfig(
+            env=eval_env,
+            name="in_context_resource_chain",
+        ),
+        policy_uri="wandb://run/george.icl.reproduce.4gpus.09-12",
+    )
+
+
+def evaluate(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    from experiments.evals.icl_ordered_chains import (
+        make_icl_resource_chain_eval_suite,
+    )
+
+    simulations = simulations or make_icl_resource_chain_eval_suite()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
+
+
+def experiment():
+    curriculum_styles = [
+        "small",
+        "small_medium",
+        "all_room_sizes",
+        "longer_chains",
+        "terrain",
+    ]
+    progress_smoothings = list(np.linspace(0.05, 0.15, 2))
+    exploration_bonuses = list(np.linspace(0.03, 0.15, 2))
+    num_active_tasks = list(np.linspace(1000, 5000, 2))
+    rand_task_rates = list(np.linspace(0.1, 0.25, 2))
+    total_experiments = (
+        len(curriculum_styles)
+        * len(progress_smoothings)
+        * len(exploration_bonuses)
+        * len(num_active_tasks)
+        * len(rand_task_rates)
+    )
+    print(f"Total experiments to run: {total_experiments}")
+
+    for curriculum_style in curriculum_styles:
+        for progress_smoothing in progress_smoothings:
+            for exploration_bonus in exploration_bonuses:
+                for num_active_task in num_active_tasks:
+                    for rand_task_rate in rand_task_rates:
+                        subprocess.run(
+                            [
+                                "./devops/skypilot/launch.py",
+                                "experiments.recipes.icl_resource_chain.train",
+                                f"run=icl_resource_chain_{curriculum_style}_PS{progress_smoothing.round(2)}_EB{exploration_bonus.round(2)}_NAT{int(num_active_task)}_RTR{rand_task_rate.round(2)}.09-19",
+                                f"curriculum_style={curriculum_style}",
+                                f"lp_params.progress_smoothing={progress_smoothing.round(2)}",
+                                f"lp_params.exploration_bonus={exploration_bonus.round(2)}",
+                                f"lp_params.num_active_tasks={int(num_active_task)}",
+                                f"lp_params.rand_task_rate={rand_task_rate.round(2)}",
+                                "--gpus=4",
+                                "--heartbeat-timeout=3600",
+                                "--skip-git-check",
+                            ]
+                        )
+                        time.sleep(1)
+
+
+if __name__ == "__main__":
+    experiment()

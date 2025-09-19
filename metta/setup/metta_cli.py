@@ -9,6 +9,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+from softmax.dashboard.report import app as softmax_system_health_app
 
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
@@ -16,8 +17,8 @@ from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
+from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.live_run_monitor import app as run_monitor_app
-from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -29,7 +30,8 @@ PYTHON_TEST_FOLDERS = [
     "app_backend/tests",
     "codebot/tests",
     "common/tests",
-    "mettagrid/tests",
+    "packages/mettagrid/tests",
+    "packages/cogames/tests",
 ]
 
 
@@ -331,6 +333,27 @@ def cmd_status(
 
     console = Console()
     console.print(table)
+
+    policy_decision = auto_policy_storage_decision()
+    if policy_decision.using_remote and policy_decision.base_prefix:
+        if policy_decision.reason == "env_override":
+            success(
+                f"Policy storage: S3 uploads enabled via POLICY_REMOTE_PREFIX → {policy_decision.base_prefix}/<run>."
+            )
+        else:
+            success(f"Policy storage: Softmax S3 uploads active → {policy_decision.base_prefix}/<run>.")
+    elif policy_decision.reason == "not_connected" and policy_decision.base_prefix:
+        warning(
+            "Policy storage: local only. Run 'aws sso login --profile softmax' to enable uploads to "
+            f"{policy_decision.base_prefix}/<run>."
+        )
+    elif policy_decision.reason == "aws_not_enabled":
+        info("Policy storage: local only (AWS component disabled).")
+    elif policy_decision.reason == "no_base_prefix":
+        info(
+            "Policy storage: local only (remote policy prefix not configured). "
+            "Set POLICY_REMOTE_PREFIX or rerun 'metta configure aws'."
+        )
     could_force_install = [
         name
         for name, data in module_status.items()
@@ -373,11 +396,11 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
         info("  Removing root build directory...")
         shutil.rmtree(build_dir)
 
-    mettagrid_dir = cli.repo_root / "mettagrid"
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
     for build_name in ["build-debug", "build-release"]:
         build_path = mettagrid_dir / build_name
         if build_path.exists():
-            info(f"  Removing mettagrid/{build_name}...")
+            info(f"  Removing packages/mettagrid/{build_name}...")
             shutil.rmtree(build_path)
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
@@ -451,19 +474,39 @@ def cmd_ci():
         raise typer.Exit(e.returncode) from e
 
     info("\nBuilding and running C++ tests...")
-    mettagrid_dir = cli.repo_root / "mettagrid"
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
 
     try:
-        subprocess.run(["cmake", "--preset", "benchmark"], cwd=mettagrid_dir, check=True)
-        subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
-        build_dir = mettagrid_dir / "build-release"
-        subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
+        subprocess.run(["make", "test"], cwd=mettagrid_dir, check=True)
         success("C++ tests passed!")
+        # Note: Benchmarks are not run in CI as they're for performance testing, not correctness
+        # To run benchmarks manually, use: cd packages/mettagrid && make benchmark
     except subprocess.CalledProcessError as e:
         error("C++ tests failed!")
         raise typer.Exit(e.returncode) from e
 
     success("\nAll CI tests passed!")
+
+
+@app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
+def cmd_benchmark():
+    """Run performance benchmarks for the mettagrid package."""
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
+
+    info("Running mettagrid benchmarks...")
+    info("Note: This may fail if Python environment is not properly configured.")
+    info("If it fails, try running directly: cd packages/mettagrid && make benchmark")
+
+    try:
+        subprocess.run(["make", "benchmark"], cwd=mettagrid_dir, check=True)
+        success("Benchmarks completed!")
+    except subprocess.CalledProcessError as e:
+        error("Benchmark execution failed!")
+        info("\nTroubleshooting:")
+        info("1. Try building first: cd packages/mettagrid && make build-prod")
+        info("2. Run benchmark binary directly: ./build-release/test_mettagrid_env_benchmark")
+        info("3. Run Python benchmarks: uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only")
+        raise typer.Exit(e.returncode) from e
 
 
 @app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
@@ -480,6 +523,7 @@ def cmd_test(ctx: typer.Context):
     if ctx.args:
         cmd.extend(ctx.args)
     try:
+        info(f"Running: {' '.join(cmd)}")
         subprocess.run(cmd, cwd=cli.repo_root, check=True)
     except subprocess.CalledProcessError as e:
         raise typer.Exit(e.returncode) from e
@@ -567,11 +611,25 @@ def cmd_report_env_details():
         info(f"Git Commit: {commit}")
 
 
-@app.command(name="clip", help="Copy subsets of codebase for LLM contexts", context_settings={"allow_extra_args": True})
-def cmd_clip(ctx: typer.Context):
-    cmd = ["codeclip"]
-    if ctx.args:
-        cmd.extend(ctx.args)
+@app.command(
+    name="clip",
+    help="Copy codebase to clipboard. Pass through any codeclip flags",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,  # Disable typer's help handling
+)
+def cmd_clip(
+    ctx: typer.Context,
+):
+    """Copy subsets of codebase for LLM contexts."""
+    import sys
+
+    # Find all arguments after 'clip' command
+    clip_index = sys.argv.index("clip")
+    args_after_clip = sys.argv[clip_index + 1 :]
+
+    # Build command with codeclip and pass all arguments through
+    cmd = ["codeclip"] + args_after_clip
+
     try:
         subprocess.run(cmd, cwd=cli.repo_root, check=False)
     except FileNotFoundError:
