@@ -557,7 +557,7 @@ def train(
 
                 evaluate_remote = False
                 evaluate_local = True
-                logger.info("Forcing evaluation to local for test")
+                logger.warning("Forcing evaluation to local for test")
 
                 if latest_remote_policy_uri:
                     policy_uri = latest_remote_policy_uri

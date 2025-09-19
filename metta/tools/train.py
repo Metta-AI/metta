@@ -113,7 +113,7 @@ class TrainTool(Tool):
 
         record_heartbeat()
 
-        evaluate_local = self.trainer.evaluation and self.trainer.evaluation.evaluate_local
+        evaluate_local = True  # self.trainer.evaluation and self.trainer.evaluation.evaluate_local
         nccl_timeout = timedelta(minutes=1)
         if evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
