@@ -364,7 +364,7 @@ def make_curriculum(
 
 
 def train(
-    curriculum_style: str = "terrain ", lp_params: LPParams = LPParams()
+    curriculum_style: str = "terrain", lp_params: LPParams = LPParams()
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
