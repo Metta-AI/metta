@@ -1947,7 +1947,13 @@ CRITICAL:
       summaryResult.object.keyFigures.length > 0
     ) {
       // Always start with metadata-only figures from AI analysis
-      figuresWithImages = summaryResult.object.keyFigures.map((fig) => ({
+      figuresWithImages = summaryResult.object.keyFigures.map((fig: {
+        figureNumber: string;
+        caption: string;
+        significance: string;
+        explanation: string;
+        pageNumber: number;
+      }) => ({
         caption: fig.caption,
         pageNumber: fig.pageNumber || 1,
         context: fig.explanation || fig.significance, // Fallback for backward compatibility
