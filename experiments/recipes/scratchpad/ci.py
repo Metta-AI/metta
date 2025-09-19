@@ -7,7 +7,7 @@ from metta.sim.simulation_config import SimulationConfig
 
 def trainer() -> TrainerConfig:
     """CI-friendly training configuration."""
-    cfg = arena.trainer(curriculum=arena.curriculum(arena.mettagrid()))
+    cfg = arena.train_recipe(curriculum_cfg=arena.curriculum_recipe())
 
     # Apply CI-friendly settings
     cfg.total_timesteps = 16  # Minimal steps for smoke testing
@@ -25,7 +25,7 @@ def trainer() -> TrainerConfig:
 
 def simulation() -> SimulationConfig:
     """CI-friendly simulation configuration for replay/play."""
-    env = arena.mettagrid()
+    env = arena.env_recipe()
     env.game.max_steps = 100
     env.label = env.label or "mettagrid"
     return SimulationConfig(env=env, name="ci_test")

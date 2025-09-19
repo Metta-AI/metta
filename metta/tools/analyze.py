@@ -14,10 +14,13 @@ logger = logging.getLogger(__name__)
 class AnalysisTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
 
-    analysis: AnalysisConfig
-    policy_uri: str
+    config: AnalysisConfig
+    policy_uri: str | None = None
+
     data_dir: str = Field(default="./train_dir")
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        analyze(self.policy_uri, self.analysis)
+        # Use policy_uri from tool if provided, otherwise use from config
+        policy_uri = self.policy_uri or self.config.policy_uri
+        analyze(policy_uri, self.config)
         return 0
