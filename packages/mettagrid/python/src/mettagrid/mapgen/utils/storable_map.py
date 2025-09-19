@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
-from omegaconf import OmegaConf
+import yaml
 from typing_extensions import TypedDict
 
 from mettagrid.map_builder.map_builder import MapBuilderConfig
@@ -41,7 +41,7 @@ class StorableMap:
     scene_tree: dict | None = None
 
     def __str__(self) -> str:
-        frontmatter = OmegaConf.to_yaml(
+        frontmatter = yaml.safe_dump(
             {
                 "metadata": self.metadata,
                 "config": self.config.model_dump(),
@@ -65,9 +65,9 @@ class StorableMap:
         # TODO - validate content in a more principled way
         (frontmatter, content) = content.split("---\n", 1)
 
-        frontmatter = OmegaConf.create(frontmatter)
-        metadata = frontmatter.metadata
-        config = frontmatter.config
+        frontmatter = yaml.safe_load(frontmatter)
+        metadata = frontmatter["metadata"]
+        config = frontmatter["config"]
         lines = content.split("\n")
 
         # make sure we didn't add extra lines because of newlines in the content
@@ -105,7 +105,7 @@ class StorableMap:
 
     # Useful in API responses
     def to_dict(self) -> StorableMapDict:
-        config_dict = OmegaConf.to_container(self.config, resolve=False)
+        config_dict = self.config.model_dump()
         assert isinstance(config_dict, dict)
         return {
             "frontmatter": {

@@ -768,6 +768,7 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "wrapt" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/2b/f7/ff9fa3ea14e29d793418004de6c6bfc387ea22993da47e0ed0133346755e/ddtrace-3.14.2.tar.gz", hash = "sha256:debf82473c1ab4e6c13fa2f3cc9494077950d13df0cf4eb460eca64f5d72a0f7", size = 7255971, upload-time = "2025-09-18T18:42:40.15Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1f/ba/b3babe4433a52bd12347e258166d0abcd0000bf627a3624fbdb7fd167b3d/ddtrace-3.14.2-cp311-cp311-macosx_12_0_arm64.whl", hash = "sha256:a037e4c25502dc1a1a659cc830032a21af368d9db04d0431684a30a177fcc7d1", size = 5984456, upload-time = "2025-09-18T18:40:34.59Z" },
     { url = "https://files.pythonhosted.org/packages/d2/82/1405e43bf86493485e7b96a13c29afe0cf37fffe791babf4474b20b58155/ddtrace-3.14.2-cp311-cp311-macosx_12_0_x86_64.whl", hash = "sha256:c632a15bda025f495ffa01b2cf4f5be9667f8b2f52eda3941d17627e276c2a04", size = 6316778, upload-time = "2025-09-18T18:40:36.46Z" },
@@ -2148,6 +2149,7 @@ lint = [
 ]
 testing = [
     { name = "gcovr" },
+    { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
     { name = "pytest-cov" },
@@ -2250,6 +2252,7 @@ lint = [
 ]
 testing = [
     { name = "gcovr", specifier = ">=8.3" },
+    { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
     { name = "pytest-cov", specifier = ">=6.1.1" },

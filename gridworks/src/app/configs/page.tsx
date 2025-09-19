@@ -1,13 +1,15 @@
 import Link from "next/link";
 
-import { listMettagridCfgsMetadata } from "../../lib/api";
+import { viewConfigRoute } from "@/lib/routes";
+
+import { listConfigMakers } from "../../lib/api";
 
 export default async function EnvsPage() {
-  const cfgs = await listMettagridCfgsMetadata();
+  const cfgs = await listConfigMakers();
 
   return (
     <div className="p-4">
-      <h1 className="mb-4 text-2xl font-bold">MettaGrid Configs</h1>
+      <h1 className="mb-4 text-2xl font-bold">Config Makers</h1>
       {Object.keys(cfgs).map((kind) => {
         return (
           <div key={kind} className="mb-4">
@@ -17,7 +19,7 @@ export default async function EnvsPage() {
                 return (
                   <li key={cfg.path}>
                     <Link
-                      href={`/mettagrid-cfgs/view?path=${cfg.path}`}
+                      href={viewConfigRoute(cfg.path)}
                       className="text-blue-600 hover:text-blue-800 hover:underline"
                     >
                       {cfg.path}
@@ -32,3 +34,5 @@ export default async function EnvsPage() {
     </div>
   );
 }
+
+export const dynamic = "force-dynamic";

@@ -638,6 +638,12 @@ def cmd_clip(
         raise typer.Exit(1) from None
 
 
+@app.command(name="gridworks", help="Start the Gridworks web UI", context_settings={"allow_extra_args": True})
+def cmd_gridworks(ctx: typer.Context):
+    cmd = ["./gridworks/start.py", *ctx.args]
+    subprocess.run(cmd, cwd=cli.repo_root, check=False)
+
+
 app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
