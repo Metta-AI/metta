@@ -42,10 +42,16 @@ class PlayTool(Tool):
             sys.path.append("mettascope2/bindings/generated")
 
             import mettascope2
-            from metta.tools.play import create_simulation
             from mettagrid.util.grid_object_formatter import format_grid_object
 
-            sim = create_simulation(self)
+            sim = Simulation.create(
+                sim_config=self.sim,
+                device=self.system.device,
+                vectorization=self.system.vectorization,
+                stats_dir=self.effective_stats_dir,
+                replay_dir=self.effective_replay_dir,
+                policy_uri=self.policy_uri,
+            )
             sim.start_simulation()
             env = sim.get_env()
             initial_replay = sim.get_replay()
@@ -100,19 +106,3 @@ class PlayTool(Tool):
             else:
                 logger.info(f"Enter MettaGrid @ {DEV_METTASCOPE_FRONTEND_URL}?wsUrl={ws_url}")
                 server.run(self)
-
-
-def create_simulation(cfg: PlayTool) -> Simulation:
-    """Create a simulation for playing/replaying."""
-    logger.info(f"Creating simulation: {cfg.sim.name}")
-
-    # Create simulation using CheckpointManager integration
-    sim = Simulation.create(
-        sim_config=cfg.sim,
-        device=cfg.system.device,
-        vectorization=cfg.system.vectorization,
-        stats_dir=cfg.effective_stats_dir,
-        replay_dir=cfg.effective_replay_dir,
-        policy_uri=cfg.policy_uri,
-    )
-    return sim
