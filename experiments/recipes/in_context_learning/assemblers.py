@@ -177,13 +177,16 @@ class AssemblerTaskGenerator(TaskGenerator):
         # ensure the positions are the same length as the number of agents and altars
         if len(converter_positions) > num_agents:
             converter_positions = converter_positions[:num_agents]
-        if len(altar_positions) > num_altars:
-            altar_positions = altar_positions[:num_altars]
+        if len(altar_positions) > num_agents:
+            altar_positions = altar_positions[:num_agents]
 
         if len(converter_positions) < num_agents:
             converter_positions = converter_positions + [converter_positions[0]] * (num_agents - len(converter_positions))
-        if len(altar_positions) < num_altars:
-            altar_positions = altar_positions + [altar_positions[0]] * (num_altars - len(altar_positions))
+        if len(altar_positions) < num_agents:
+            altar_positions = altar_positions + [altar_positions[0]] * (num_agents - len(altar_positions))
+
+        print(f"converter_positions: {converter_positions}")
+        print(f"altar_positions: {altar_positions}")
 
         # sample num_converters converters - TODO i want this with replacement
         converter_names = rng.sample(list(self.converter_types.keys()), num_converters)
