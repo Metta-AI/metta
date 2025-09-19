@@ -44,7 +44,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     def algorithm_type(self) -> str:
         return "learning_progress"
 
-    def create(self, num_tasks: int) -> LearningProgressAlgorithm:
+    def create(self, num_tasks: int) -> "LearningProgressAlgorithm":
         return LearningProgressAlgorithm(num_tasks, self)
 
 

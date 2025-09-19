@@ -57,7 +57,7 @@ class _BuildCfg:
 
 
 class ConverterChainTaskGenerator(TaskGenerator):
-    class Config(TaskGeneratorConfig[ConverterChainTaskGenerator]):
+    class Config(TaskGeneratorConfig["ConverterChainTaskGenerator"]):
         """Configuration for ConverterChainTaskGenerator."""
 
         chain_lengths: list[int] = Field(
