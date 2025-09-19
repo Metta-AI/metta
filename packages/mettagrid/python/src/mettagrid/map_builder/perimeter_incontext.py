@@ -171,7 +171,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         # Pre-extract wall positions from obstacle shape
         wall_positions = np.where(obstacle_shape == "wall")
-        wall_coords = list(zip(wall_positions[0], wall_positions[1]))
+        wall_coords = list(zip(wall_positions[0], wall_positions[1], strict=True))
 
         for i, j in valid_positions:
             # Create temporary grid more efficiently
