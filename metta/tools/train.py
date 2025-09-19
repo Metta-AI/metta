@@ -24,6 +24,8 @@ from metta.rl.training import (
     EvaluatorConfig,
     GradientStatsComponent,
     GradientStatsConfig,
+    HyperparameterComponent,
+    HyperparameterConfig,
     HeartbeatWriter,
     MonitoringComponent,
     PolicyCheckpointer,
@@ -83,7 +85,7 @@ class TrainTool(Tool):
         self._prepare_run_directories()
 
         distributed_helper = DistributedHelper(torch.device(self.device))
-        distributed_helper.scale_batch_config(self.trainer)
+        distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
@@ -112,6 +114,13 @@ class TrainTool(Tool):
                 if heartbeat_cfg is not None:
                     components.append(HeartbeatWriter(epoch_interval=heartbeat_cfg.epoch_interval))
 
+                # Ensure learning-rate schedules stay in sync across ranks
+                hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
+                if hyper_cfg and getattr(hyper_cfg, "enabled", False):
+                    interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
+                    hyper_component = HyperparameterComponent(HyperparameterConfig(interval=max(1, int(interval))))
+                    components.append(hyper_component)
+
                 stats_component: TrainerComponent | None = None
 
                 if distributed_helper.is_master():
@@ -122,6 +131,9 @@ class TrainTool(Tool):
                         or stats_config.report_to_console
                     )
 
+                    if self.gradient_stats.epoch_interval:
+                        components.append(GradientStatsComponent(self.gradient_stats))
+
                     stats_component = StatsReporter.from_config(
                         stats_config,
                         stats_client=stats_client,
@@ -131,8 +143,7 @@ class TrainTool(Tool):
                     if stats_component is not None:
                         components.append(stats_component)
 
-                    if self.gradient_stats.epoch_interval:
-                        components.append(GradientStatsComponent(self.gradient_stats))
+                    components.append(policy_checkpointer)
 
                     components.append(
                         Evaluator(
@@ -144,8 +155,6 @@ class TrainTool(Tool):
                             stats_reporter=stats_component,
                         )
                     )
-
-                    components.append(policy_checkpointer)
 
                     components.append(
                         PolicyUploader(

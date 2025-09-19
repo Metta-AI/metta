@@ -92,10 +92,11 @@ class CoreTrainingLoop:
 
             # Prepare data for policy
             td = buffer_step[training_env_id].clone()
-            td["env_obs"] = o.to(td.device)
-            td["rewards"] = r.to(td.device)
-            td["dones"] = d.float().to(td.device)
-            td["truncateds"] = t.float().to(td.device)
+            target_device = td.device
+            td["env_obs"] = o.to(device=target_device, non_blocking=True)
+            td["rewards"] = r.to(device=target_device, non_blocking=True)
+            td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
+            td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
             env_indices = torch.arange(training_env_id.start, training_env_id.stop, dtype=torch.long, device=td.device)
             td["training_env_ids"] = env_indices.unsqueeze(1)
             td["training_env_id"] = torch.full(

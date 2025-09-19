@@ -41,6 +41,9 @@ class TrainingEnvironmentConfig(Config):
     async_factor: int = Field(default=2, ge=1)
     """Async factor for environment parallelization"""
 
+    auto_workers: bool = Field(default=False)
+    """Whether to auto-tune worker count based on available CPU/GPU resources"""
+
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     """Target size for forward pass minibatches"""
 
@@ -120,6 +123,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._batch_size = 0
         self._num_envs = 0
         self._target_batch_size = 0
+        self._num_workers = 0
         self._curriculum = None
         self._vecenv = None
 
@@ -133,10 +137,10 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         if cfg.vectorization == "serial":
             num_workers = 1
             async_factor = 1
-        else:
+        elif cfg.auto_workers:
             num_gpus = torch.cuda.device_count() or 1
             cpu_count = os.cpu_count() or 1
-            ideal_workers = (cpu_count // 2) // num_gpus
+            ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
             num_workers = max(1, ideal_workers)
 
         # Calculate batch sizes
@@ -146,6 +150,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             num_workers=num_workers,
             async_factor=async_factor,
         )
+
+        self._num_workers = num_workers
 
         self._vecenv = make_vecenv(
             self._curriculum,
@@ -178,7 +184,8 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             f"num_envs={self._num_envs},"
             f"batch_size={self._batch_size},"
             f"target_batch_size={self._target_batch_size},"
-            f"num_agents={self._num_agents})"
+            f"num_agents={self._num_agents},"
+            f"num_workers={self._num_workers})"
         )
 
     def close(self) -> None:

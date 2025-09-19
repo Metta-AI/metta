@@ -56,14 +56,12 @@ class Trainer:
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
-        self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
-        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
-        self._policy.to(self._device)
-
-        # Put the torch policy into training mode
         self._policy.train()
+        self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
+        self._policy.train()
+        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
 
         batch_info = self._env.batch_info
 

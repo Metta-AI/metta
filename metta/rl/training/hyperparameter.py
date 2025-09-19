@@ -30,11 +30,16 @@ class HyperparameterComponent(TrainerComponent):
     def on_epoch_end(self, epoch: int) -> None:
         """Update hyperparameters for the current training epoch."""
         context = self.context
-        # Update learning rate and other hyperparameters
+        trainer_cfg = context.config
+
+        if not getattr(trainer_cfg.hyperparameter_scheduler, "enabled", False):
+            return
+
+        # Update learning rate and other hyperparameters across ranks
         step_hyperparameters(
-            context.cfg,
+            trainer_cfg,
             context.optimizer,
             context.agent_step,
-            context.cfg.total_timesteps,
+            trainer_cfg.total_timesteps,
             logger,
         )
