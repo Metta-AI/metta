@@ -7,7 +7,7 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from experiments.recipes import arena
 from metta.agent.agent_config import AgentConfig
-from metta.agent.pytorch_td.vit_lstm import ViTLSTMConfig
+from metta.agent.pytorch_td.fast_td import FastConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
@@ -107,9 +107,9 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
             skip_git_check=True,
         ),
     )
-    # policy_config = FastConfig()
-    # policy_config.lstm_config.hidden_size = 128
-    policy_config = ViTLSTMConfig()
+    policy_config = FastConfig()
+    policy_config.lstm_config.hidden_size = 128
+    # policy_config = ViTLSTMConfig()
     my_agent_config = AgentConfig(policy_config=policy_config)
 
     return TrainTool(trainer=trainer_cfg, policy_architecture=my_agent_config)
