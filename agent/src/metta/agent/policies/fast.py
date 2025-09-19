@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 from typing import List, Optional
 
 import numpy as np
@@ -57,6 +58,7 @@ class FastPolicy(Policy):
         super().__init__()
         self.config = config or FastConfig()
         self.env = env
+        self.env_metadata = env
         self.is_continuous = False
         self.action_space = env.action_space
 
@@ -142,12 +144,24 @@ class FastPolicy(Policy):
 
     def initialize_to_environment(
         self,
-        env,
+        env_or_full_action_names,
         device,
     ) -> List[str]:
-        log = self.obs_shim.initialize_to_environment(env, device)
-        self.action_embeddings.initialize_to_environment(env, device)
-        self.action_probs.initialize_to_environment(env, device)
+        if isinstance(env_or_full_action_names, Sequence) and not isinstance(env_or_full_action_names, str):
+            full_action_names = list(env_or_full_action_names)
+            env_metadata = self.env_metadata
+        else:
+            env_metadata = env_or_full_action_names
+            full_action_names = [
+                f"{name}_{i}"
+                for name, max_param in zip(env_metadata.action_names, env_metadata.max_action_args, strict=False)
+                for i in range(max_param + 1)
+            ]
+            self.env_metadata = env_metadata
+
+        log = self.obs_shim.initialize_to_environment(env_metadata, device)
+        self.action_embeddings.initialize_to_environment(full_action_names, device)
+        self.action_probs.initialize_to_environment(env_metadata.max_action_args, device)
         self.action_index_tensor = self.action_probs.action_index_tensor
         self.cum_action_max_params = self.action_probs.cum_action_max_params
         return [log]

@@ -48,16 +48,16 @@ class TrainerComponent:
 
     def on_step(self, infos: Dict[str, Any]) -> None:
         """Called after each environment step."""
-        return None
+        pass
 
     def on_epoch_end(self, epoch: int) -> None:
         """Called at the end of an epoch."""
-        return None
+        pass
 
     def on_training_complete(self) -> None:
         """Called when training completes successfully."""
-        return None
+        pass
 
     def on_failure(self) -> None:
         """Called when training fails."""
-        return None
+        pass

@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from typing import Any
+
 import torch
 import torch.nn as nn
 from einops import repeat
@@ -46,21 +49,29 @@ class ActionEmbedding(nn.Module):
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
         self.net = nn.Embedding(num_embeddings=self.num_embeddings, embedding_dim=self.embedding_dim)
 
-        nn.init.uniform_(self.net.weight, -0.01, 0.01)
+        # Match Fast component policy: orthogonal init scaled to max abs value of 0.1
+        weight_limit = 0.1
+        nn.init.orthogonal_(self.net.weight)
+        with torch.no_grad():
+            max_abs_value = torch.max(torch.abs(self.net.weight))
+            self.net.weight.mul_(weight_limit / max_abs_value)
 
     def initialize_to_environment(
         self,
-        env,
+        env_or_action_names: Any,
         device,
     ) -> None:
-        # Generate full action names
-        action_names = env.action_names
-        action_max_params = env.max_action_args
-        action_names = [
-            f"{name}_{i}"
-            for name, max_param in zip(action_names, action_max_params, strict=False)
-            for i in range(max_param + 1)
-        ]
+        if isinstance(env_or_action_names, Sequence) and not isinstance(env_or_action_names, str):
+            action_names = list(env_or_action_names)
+        else:
+            env = env_or_action_names
+            base_action_names = env.action_names
+            action_max_params = env.max_action_args
+            action_names = [
+                f"{name}_{i}"
+                for name, max_param in zip(base_action_names, action_max_params, strict=False)
+                for i in range(max_param + 1)
+            ]
 
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:
