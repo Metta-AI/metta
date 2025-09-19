@@ -356,7 +356,7 @@ def make_curriculum(
         obstacle_types=obstacle_types,
         densities=densities,
     )
-    algorithm_config = LearningProgressConfig(**lp_params)
+    algorithm_config = LearningProgressConfig(**vars(lp_params))
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
