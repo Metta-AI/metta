@@ -1866,8 +1866,9 @@ export async function extractPdfWithOpenAI(pdfBuffer: Buffer): Promise<{
       `📋 PDF details for Anthropic: ${pdfBuffer.length} bytes, header: ${pdfHeader}`
     );
 
+    let summaryResult: any;
     try {
-      const summaryResult = await generateObject({
+      summaryResult = await generateObject({
         model: anthropic("claude-3-5-sonnet-20241022"),
         schema: SummarySchema,
         messages: [
