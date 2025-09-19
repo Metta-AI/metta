@@ -61,19 +61,6 @@ class Policy(ABC, nn.Module):
     def reset_memory(self) -> None:
         raise NotImplementedError
 
-    def on_new_training_run(self) -> None:
-        """Hook invoked at the start of an entirely new training run."""
-        self.reset_memory()
-
-    def on_rollout_start(self) -> None:
-        """Hook invoked before beginning a rollout epoch."""
-        self.reset_memory()
-
-    def on_train_mb_start(self) -> None:
-        """Hook invoked before each training minibatch."""
-        self.reset_memory()
-
-
 class ExternalPolicyWrapper(Policy):
     """
     For wrapping generic policies, aleiviating the need to conform to Metta's internal agent interface reqs.

@@ -73,12 +73,11 @@ class Loss:
 
     def on_new_training_run(self) -> None:
         """We're at the very beginning of the training loop."""
-        self.policy.on_new_training_run()
         return
 
     def on_rollout_start(self, epoch: int) -> None:
         """We're about to start a new rollout phase."""
-        self.policy.on_rollout_start()
+        self.policy.reset_memory()
         return
 
     def rollout(self, td: TensorDict, env_id: slice, epoch: int) -> None:
@@ -100,7 +99,6 @@ class Loss:
         Compute loss and write any shared minibatch data needed by other losses."""
         if not self._should_run_train(epoch):
             return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data, False
-        self.policy.on_train_mb_start()
         return self.run_train(shared_loss_data, env_id, epoch, mb_idx)
 
     def run_train(self, shared_loss_data: TensorDict, env_id: slice, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
