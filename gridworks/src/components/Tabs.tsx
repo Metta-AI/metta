@@ -13,6 +13,7 @@ type TabsProps = {
   defaultTab?: string;
   additionalTabBarContent?: ReactNode;
   className?: string;
+  topPadding?: boolean;
 };
 
 export const Tabs: FC<TabsProps> = ({
@@ -20,6 +21,7 @@ export const Tabs: FC<TabsProps> = ({
   defaultTab,
   additionalTabBarContent,
   className,
+  topPadding = false,
 }) => {
   const [activeTab, setActiveTab] = useState(
     defaultTab || (tabs.length > 0 ? tabs[0].id : "")
@@ -53,7 +55,9 @@ export const Tabs: FC<TabsProps> = ({
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">{activeTabContent}</div>
+      <div className={clsx("flex-1 overflow-hidden", topPadding && "pt-4")}>
+        {activeTabContent}
+      </div>
     </div>
   );
 };
