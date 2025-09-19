@@ -19,7 +19,6 @@ from metta.rl.training.training_environment import TrainingEnvironment
 
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer
-    from metta.rl.trainer_config import TrainerConfig
     from metta.rl.training.component import TrainerComponent
     from metta.rl.training.stats_reporter import StatsReporter
 
@@ -35,7 +34,7 @@ class TrainerContext:
     env: TrainingEnvironment
     experience: Experience
     optimizer: torch.optim.Optimizer
-    config: "TrainerConfig"
+    config: Any
     device: torch.device
     stopwatch: Stopwatch
     distributed: DistributedHelper
