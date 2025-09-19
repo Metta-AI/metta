@@ -207,11 +207,14 @@ def type_parse(value: Any, annotation: Any) -> Any:
 def preprocess_recipe_path(path: str) -> str:
     """Convert short recipe syntax to full module path.
 
+    First tries the tool-specific recipe function (e.g., train_recipe).
+    If that doesn't exist, falls back to mettagrid_recipe (except for analyze).
+
     Examples:
-        train arena -> experiments.recipes.arena.train_recipe
-        evaluate navigation -> experiments.recipes.navigation.evaluate_recipe
-        play arena_basic_easy_shaped -> experiments.recipes.arena_basic_easy_shaped.play_recipe
-        custom_tool arena -> experiments.recipes.arena.mettagrid_recipe (fallback)
+        train arena -> experiments.recipes.arena.train_recipe (or .mettagrid_recipe if train_recipe doesn't exist)
+        evaluate navigation -> experiments.recipes.navigation.evaluate_recipe (or .mettagrid_recipe)
+        play minimal -> experiments.recipes.minimal.play_recipe (or .mettagrid_recipe)
+        analyze scorecard -> experiments.recipes.scorecard.analyze_recipe (no fallback)
     """
     # Known tool names that map to recipe functions
     TOOL_MAPPINGS = {
@@ -224,17 +227,14 @@ def preprocess_recipe_path(path: str) -> str:
     }
 
     parts = path.split()
-    if len(parts) == 2:
+    if len(parts) == 2 and parts[0] in TOOL_MAPPINGS:
         tool_name, recipe_name = parts
-        if tool_name in TOOL_MAPPINGS:
-            # Known tool: use specific recipe function
-            return f"experiments.recipes.{recipe_name}.{TOOL_MAPPINGS[tool_name]}"
-        else:
-            # Unknown tool: fall back to mettagrid_recipe
-            # This allows custom tools to work with the short syntax
-            return f"experiments.recipes.{recipe_name}.mettagrid_recipe"
+        # For now, always use the specific recipe function name
+        # The actual fallback to mettagrid_recipe will happen at runtime
+        # when the module is loaded and the function is not found
+        return f"experiments.recipes.{recipe_name}.{TOOL_MAPPINGS[tool_name]}"
 
-    # Not a short syntax (not exactly 2 parts), return as-is
+    # Not a short syntax (not exactly 2 parts or unknown tool), return as-is
     return path
 
 
@@ -328,8 +328,32 @@ constructor/function vs configuration overrides based on introspection.
     output_info(f"\n{bold(cyan('Loading tool:'))} {make_tool_cfg_path}")
 
     # Load the tool configuration function/class
+    # If the specific recipe function doesn't exist, try mettagrid_recipe as fallback
     try:
         make_tool_cfg = load_symbol(make_tool_cfg_path)
+    except (AttributeError, ImportError) as e:
+        # Check if this is a recipe function that might have a mettagrid_recipe fallback
+        if ".recipes." in make_tool_cfg_path and make_tool_cfg_path.endswith("_recipe"):
+            # Don't fall back for analyze_recipe (it needs specific config)
+            if not make_tool_cfg_path.endswith(".analyze_recipe"):
+                # Try loading mettagrid_recipe instead
+                fallback_path = make_tool_cfg_path.rsplit(".", 1)[0] + ".mettagrid_recipe"
+                try:
+                    output_info(f"  {yellow('Trying fallback:')} {fallback_path}")
+                    make_tool_cfg = load_symbol(fallback_path)
+                    # Store which tool was originally requested so we can wrap appropriately
+                    tool_name = make_tool_cfg_path.split(".")[-1].replace("_recipe", "")
+                    make_tool_cfg._requested_tool = tool_name  # Tag for later wrapping
+                except Exception:
+                    # Fallback also failed, report original error
+                    output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
+                    return 1
+            else:
+                output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
+                return 1
+        else:
+            output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
+            return 1
     except Exception as e:
         output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
         return 1
@@ -413,6 +437,52 @@ constructor/function vs configuration overrides based on introspection.
 
             # Construct via function
             tool_cfg = make_tool_cfg(**func_kwargs)
+
+            # Check if this was a mettagrid_recipe that needs wrapping
+            if hasattr(make_tool_cfg, "_requested_tool"):
+                # This was a fallback from mettagrid_recipe, wrap it in the appropriate tool
+                from mettagrid.config.mettagrid_config import MettaGridConfig
+
+                if isinstance(tool_cfg, MettaGridConfig):
+                    requested_tool = make_tool_cfg._requested_tool
+
+                    # Import and wrap based on the requested tool
+                    if requested_tool == "train":
+                        from metta.cogworks.curriculum import single_task_curriculum
+                        from metta.rl.trainer_config import TrainerConfig
+                        from metta.tools.train import TrainTool
+
+                        # Create a curriculum from the MettaGridConfig
+                        curriculum_cfg = single_task_curriculum(tool_cfg)
+                        trainer_cfg = TrainerConfig(curriculum=curriculum_cfg)
+                        tool_cfg = TrainTool(config=trainer_cfg)
+
+                    elif requested_tool in ["play", "replay"]:
+                        from metta.sim.simulation_config import SimulationConfig
+
+                        sim_cfg = SimulationConfig(env=tool_cfg, name=tool_cfg.label or "mettagrid")
+
+                        if requested_tool == "play":
+                            from metta.tools.play import PlayTool
+
+                            tool_cfg = PlayTool(config=sim_cfg)
+                        else:  # replay
+                            from metta.tools.replay import ReplayTool
+
+                            tool_cfg = ReplayTool(config=sim_cfg)
+
+                    elif requested_tool in ["evaluate", "sim"]:
+                        from metta.sim.simulation_config import SimulationConfig
+                        from metta.tools.sim import SimTool
+
+                        # Create evaluation simulations from the MettaGridConfig
+                        sim_cfg = SimulationConfig(env=tool_cfg, name=tool_cfg.label or "mettagrid")
+                        tool_cfg = SimTool(config=[sim_cfg])
+
+                        # SimTool still needs policy_uri from CLI args
+                        if "policy_uri" not in cli_args:
+                            output_error(f"{red('Error:')} {requested_tool} requires policy_uri parameter")
+                            return 1
 
             # Remaining args = anything not consumed as function params
             remaining_args = {k: v for k, v in cli_args.items() if k not in consumed_keys}

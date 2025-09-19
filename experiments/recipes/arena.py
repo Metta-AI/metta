@@ -168,13 +168,3 @@ def evaluate_recipe(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     return sim_recipe(policy_uri, simulations)
-
-
-# Generic mettagrid recipe for fallback when using unknown tool names
-def mettagrid_recipe() -> MettaGridConfig:
-    """Fallback recipe that returns a basic MettaGrid configuration.
-
-    This is used when the short syntax is used with an unknown tool name,
-    e.g., 'custom_tool arena' will call this function.
-    """
-    return env_recipe()
