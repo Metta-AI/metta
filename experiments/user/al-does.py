@@ -8,6 +8,8 @@ import metta.cogworks.curriculum as cc
 # import metta.mettagrid.config.envs as eb
 import metta.mettagrid.builder.envs as eb
 from experiments.recipes import arena
+from metta.agent.policies.fast_dynamics import FastDynamicsConfig
+from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTSmallConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import MettaGridConfig
@@ -89,17 +91,14 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         losses=LossConfig(),
     )
     # policy_config = FastConfig()
-    policy_config = ViTSmallConfig()
+    # policy_config = ViTSmallConfig()
+    policy_config = FastDynamicsConfig()
     curriculum = curriculum or make_curriculum()
-    training_env = TrainingEnvironmentConfig(curriculum=curriculum)
-    evaluator = EvaluatorConfig(simulations=make_evals())
+    training_env=TrainingEnvironmentConfig(curriculum=curriculum)
+    evaluator=EvaluatorConfig(simulations=make_evals())
 
     return TrainTool(
-        trainer=trainer_cfg,
-        training_env=training_env,
-        evaluator=evaluator,
-        policy_architecture=policy_config,
-    )
+        trainer=trainer_cfg, training_env=training_env, evaluator=evaluator, policy_architecture=policy_config)
 
 
 def play() -> PlayTool:
@@ -123,3 +122,4 @@ def evaluate(run: str = "local.alex.1") -> SimTool:
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
     return cfg
+

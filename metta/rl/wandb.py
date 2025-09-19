@@ -76,9 +76,12 @@ def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
 
 def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     """Log model parameter count to wandb summary."""
-    num_params = sum(p.numel() for p in policy.parameters())
-    if wandb_run.summary:
-        wandb_run.summary["model/total_parameters"] = num_params
+    try:  # av fix this
+        num_params = sum(p.numel() for p in policy.parameters())
+        if wandb_run.summary:
+            wandb_run.summary["model/total_parameters"] = num_params
+    except Exception as e:
+        logger.warning(f"Failed to log model parameters: {e}")
 
 
 def get_wandb_checkpoint_metadata(wandb_uri: str) -> Optional[dict]:

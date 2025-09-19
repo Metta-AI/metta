@@ -101,6 +101,7 @@ class PPO(Loss):
         "anneal_beta",
         "burn_in_steps",
         "burn_in_steps_iter",
+        "last_action",
     )
 
     def __init__(
@@ -117,6 +118,7 @@ class PPO(Loss):
         self.anneal_beta = 0.0
         self.burn_in_steps = self.loss_cfg.burn_in_steps
         self.burn_in_steps_iter = 0
+        self.last_action = None
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
@@ -138,8 +140,19 @@ class PPO(Loss):
 
     # BaseLoss calls this method
     def run_rollout(self, td: TensorDict, env_id: slice) -> None:
+        env_ids = td["training_env_ids"]
+        if env_ids.dim() == 2:
+            env_ids = env_ids.squeeze(-1)
+        if self.last_action is None or len(self.last_action) < env_ids.max() + 1:
+            act_space = self.env.single_action_space
+            act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+            self.last_action = torch.zeros(env_ids.max() + 1, len(act_space.nvec), dtype=act_dtype, device=td.device)
+        td["last_actions"] = self.last_action[env_ids].detach()
+
         with torch.no_grad():
             self.policy.forward(td)
+
+        self.last_action[env_ids] = td["actions"].detach()
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
