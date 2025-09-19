@@ -250,13 +250,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
             "worst_case_optimal_reward": worst_case_optimal_reward,
         }
 
-        icl_env.label = (
-            f"{num_resources}resources_{num_sinks}sinks_{room_size}" + "_terrain"
-            if obstacle_type
-            else "" + f"_{density}"
-            if density
-            else ""
-        )
+        icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{room_size}"
+        icl_env.label += "_terrain" if obstacle_type else ""
+        icl_env.label += f"_{density}" if density else ""
 
         return icl_env
 
