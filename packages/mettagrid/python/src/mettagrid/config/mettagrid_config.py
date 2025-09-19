@@ -67,6 +67,12 @@ class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
+class ModifyTargetActionConfig(ActionConfig):
+    """Modify target action configuration."""
+
+    modifies: dict[str, float] = Field(default_factory=dict)
+
+
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -83,6 +89,7 @@ class ActionsConfig(Config):
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
+    modify_target: ModifyTargetActionConfig = Field(default_factory=lambda: ModifyTargetActionConfig(enabled=False))
 
 
 class GlobalObsConfig(Config):

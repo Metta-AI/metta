@@ -154,6 +154,15 @@ class ChangeGlyphActionConfig(ActionConfig):
     ) -> None: ...
     number_of_glyphs: int
 
+class ModifyTargetConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, float] = {},
+        modifies: dict[int, float] = {},
+    ) -> None: ...
+    modifies: dict[int, float]
+
 class GlobalObsConfig:
     def __init__(
         self,

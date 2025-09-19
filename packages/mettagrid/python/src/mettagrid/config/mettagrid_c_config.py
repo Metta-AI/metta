@@ -5,6 +5,7 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ConverterConfig,
     GameConfig,
+    ModifyTargetActionConfig,
     Position,
     WallConfig,
 )
@@ -14,6 +15,7 @@ from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
+from mettagrid.mettagrid_c import ModifyTargetConfig as CppModifyTargetConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
@@ -79,8 +81,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # If it's already a GameConfig instance, convert to dict
         game_config = mettagrid_config
     else:
-        # If it's a dict, instantiate a GameConfig from it
-        # mettagrid_config needs special handling for map_builder
+        # If it's a dict, create GameConfig from it
         game_config = GameConfig(**mettagrid_config)
 
     # Set up resource mappings
@@ -321,6 +322,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 "number_of_glyphs": action_config["number_of_glyphs"],
             }
             actions_cpp_params[action_name] = CppChangeGlyphActionConfig(**change_glyph_params)
+        elif action_name == "modify_target":
+            # Extract the specific parameters needed for ModifyTargetConfig
+            modify_target_params = {
+                "required_resources": action_cpp_params.get("required_resources", {}),
+                "consumed_resources": action_cpp_params.get("consumed_resources", {}),
+                "modifies": {
+                    resource_name_to_id[k]: float(v)
+                    for k, v in action_config.get("modifies", {}).items()
+                    if k in resource_name_to_id
+                },
+            }
+            actions_cpp_params[action_name] = CppModifyTargetConfig(**modify_target_params)
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
