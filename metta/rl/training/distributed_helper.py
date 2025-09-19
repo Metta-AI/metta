@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, List
 import torch
 import torch.distributed
 
-from metta.agent.policy import Policy
 from mettagrid.config import Config
 
 if TYPE_CHECKING:
@@ -101,7 +100,7 @@ class DistributedHelper:
             f"forward_pass_minibatch_target_size={trainer_cfg.forward_pass_minibatch_target_size}"
         )
 
-    def wrap_policy(self, policy: Policy, device: torch.device) -> Policy:
+    def wrap_policy(self, policy: torch.nn.Module, device: torch.device) -> torch.nn.Module:
         """Wrap policy for distributed training if needed.
 
         Args:

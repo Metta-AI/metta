@@ -1,16 +1,20 @@
 """Core training loop for rollout and training phases."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 import torch
 from pydantic import ConfigDict
 
-from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.config import Config
+
+if TYPE_CHECKING:
+    from metta.agent.policy import Policy
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +34,7 @@ class CoreTrainingLoop:
 
     def __init__(
         self,
-        policy: Policy,
+        policy: "Policy",
         experience: Experience,
         losses: Dict[str, Loss],
         optimizer: torch.optim.Optimizer,

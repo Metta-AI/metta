@@ -3,7 +3,7 @@
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Iterator, Optional
 from urllib.parse import urlparse
 
 import wandb
@@ -50,50 +50,47 @@ class PolicyUploader(TrainerComponent):
     # Callback entry-points
     # ------------------------------------------------------------------
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        if not self._distributed.should_checkpoint() or self._wandb_run is None:
+        if not self._should_upload():
             return
 
         if epoch % self._config.epoch_interval != 0:
             return
 
-        checkpoint_uri = self.context.latest_policy_uri()
-        if not checkpoint_uri:
-            logger.debug("PolicyUploader: no checkpoint available for epoch %s", epoch)
-            return
-
-        metadata = {
-            "epoch": epoch,
-            "agent_step": self.context.agent_step,
-        }
-        metadata.update(self._evaluation_metadata())
-
-        self._upload(checkpoint_uri, epoch, metadata)
+        self._upload_latest_policy(epoch, reason=f"epoch {epoch}")
 
     def on_training_complete(self) -> None:  # type: ignore[override]
-        if not self._distributed.should_checkpoint() or self._wandb_run is None:
+        if not self._should_upload():
             return
 
-        checkpoint_uri = self.context.latest_policy_uri()
-        if not checkpoint_uri:
-            logger.debug("PolicyUploader: no checkpoint available for final upload")
-            return
-
-        metadata = {
-            "epoch": self.context.epoch,
-            "agent_step": self.context.agent_step,
-            "final": True,
-        }
-        metadata.update(self._evaluation_metadata())
-
-        self._upload(checkpoint_uri, self.context.epoch, metadata, force=True)
+        self._upload_latest_policy(self.context.epoch, reason="final upload", final=True)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    def _should_upload(self) -> bool:
+        return self._distributed.should_checkpoint() and self._wandb_run is not None
+
+    def _upload_latest_policy(self, epoch: int, *, reason: str, final: bool = False) -> None:
+        checkpoint_uri = self.context.latest_policy_uri()
+        if not checkpoint_uri:
+            logger.debug("PolicyUploader: no checkpoint available for %s", reason)
+            return
+
+        metadata = self._build_metadata(epoch, final=final)
+        self._upload(checkpoint_uri, epoch, metadata)
+
+    def _build_metadata(self, epoch: int, *, final: bool = False) -> dict[str, Any]:
+        metadata: dict[str, Any] = {
+            "epoch": epoch,
+            "agent_step": self.context.agent_step,
+        }
+        if final:
+            metadata["final"] = True
+        metadata.update(self._evaluation_metadata())
+        return metadata
+
     def _evaluation_metadata(self) -> dict[str, Any]:
         scores = self.context.latest_eval_scores
-        if not scores:
-            return {}
         if not scores or not (scores.category_scores or scores.simulation_scores):
             return {}
         return {
@@ -105,9 +102,7 @@ class PolicyUploader(TrainerComponent):
         self,
         checkpoint_uri: str,
         epoch: int,
-        metadata: Optional[Dict[str, Any]] = None,
-        *,
-        force: bool = False,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> Optional[str]:
         artifact_name = f"policy-{epoch}"
 
@@ -115,6 +110,7 @@ class PolicyUploader(TrainerComponent):
             if local_path is None:
                 return None
 
+            assert self._wandb_run is not None
             artifact = wandb.Artifact(name=artifact_name, type="model")
             if metadata:
                 artifact.metadata.update(metadata)
@@ -124,7 +120,7 @@ class PolicyUploader(TrainerComponent):
             return getattr(logged_artifact, "id", None)
 
     @contextmanager
-    def _materialize_checkpoint(self, checkpoint_uri: str):
+    def _materialize_checkpoint(self, checkpoint_uri: str) -> Iterator[Optional[Path]]:
         """Yield a local file path for the given checkpoint URI."""
         normalized_uri = CheckpointManager.normalize_uri(checkpoint_uri)
         parsed = urlparse(normalized_uri)
