@@ -90,8 +90,8 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         losses=LossConfig(),
         curriculum=curriculum or make_curriculum(),
         checkpoint=CheckpointConfig(
-            checkpoint_interval=50,  # 50 instead of default 5
-            wandb_checkpoint_interval=50,
+            checkpoint_interval=10000,  # 50 instead of default 5
+            wandb_checkpoint_interval=10000,
         ),
         evaluation=EvaluationConfig(
             simulations=[
