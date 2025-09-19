@@ -1,13 +1,13 @@
-"""Public re-exports for the training package.
+"""Public re-exports for the training package without eager circular imports."""
 
-This module keeps the external import surface small and predictable while
-avoiding the lazy-import indirection that had accumulated over time.
-"""
+from __future__ import annotations
+
+import importlib
+from typing import Any
 
 from . import training_environment
 from .component import TrainerComponent
 from .context import TrainerContext
-from .core import CoreTrainingLoop, RolloutResult
 from .distributed_helper import DistributedHelper
 from .evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
 from .gradient_stats import GradientStatsComponent, GradientStatsConfig
@@ -51,3 +51,18 @@ __all__ = [
     "GradientStatsConfig",
     "training_environment",
 ]
+
+_LAZY_EXPORTS = {
+    "CoreTrainingLoop": ("metta.rl.training.core", "CoreTrainingLoop"),
+    "RolloutResult": ("metta.rl.training.core", "RolloutResult"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_EXPORTS:
+        module_path, attr_name = _LAZY_EXPORTS[name]
+        module = importlib.import_module(module_path)
+        attr = getattr(module, attr_name)
+        globals()[name] = attr
+        return attr
+    raise AttributeError(f"module 'metta.rl.training' has no attribute '{name}'")
