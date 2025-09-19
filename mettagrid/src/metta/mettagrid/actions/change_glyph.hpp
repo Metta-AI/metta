@@ -14,7 +14,7 @@ struct ChangeGlyphActionConfig : public ActionConfig {
   const ObservationType number_of_glyphs;
 
   ChangeGlyphActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
-                          const std::map<InventoryItem, InventoryQuantity>& consumed_resources,
+                          const std::map<InventoryItem, InventoryProbability>& consumed_resources,
                           const ObservationType number_of_glyphs)
       : ActionConfig(required_resources, consumed_resources), number_of_glyphs(number_of_glyphs) {}
 };
@@ -44,10 +44,10 @@ inline void bind_change_glyph_action_config(py::module& m) {
   py::class_<ChangeGlyphActionConfig, ActionConfig, std::shared_ptr<ChangeGlyphActionConfig>>(m,
                                                                                               "ChangeGlyphActionConfig")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryProbability>&,
                     const int>(),
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryProbability>(),
            py::arg("number_of_glyphs"))
       .def_readonly("number_of_glyphs", &ChangeGlyphActionConfig::number_of_glyphs);
 }

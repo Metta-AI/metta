@@ -1,11 +1,14 @@
-from typing import ClassVar, Literal, Optional
+from typing import Any, ClassVar, List, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
+from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
+from metta.mettagrid.builder.envs import make_arena
 from metta.mettagrid.config import Config
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.training.heartbeat import HeartbeatConfig
+from metta.sim.simulation_config import SimulationConfig
 
 
 class OptimizerConfig(Config):
@@ -22,9 +25,34 @@ class OptimizerConfig(Config):
     weight_decay: float = Field(default=0, ge=0)
 
 
+class InitialPolicyConfig(Config):
+    uri: str | None = None
+    type: Literal["top", "latest", "specific"] = "top"
+    range: int = Field(default=1, gt=0)
+    metric: str = "epoch"
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+
+class CheckpointConfig(Config):
+    checkpoint_interval: int = Field(default=30, ge=0)
+    checkpoint_dir: str | None = Field(default=None)
+    remote_prefix: str | None = Field(default=None)
+
+
+class EvaluationConfig(Config):
+    simulations: List[SimulationConfig] = Field(default_factory=list)
+    replay_dir: str | None = Field(default=None)
+
+    evaluate_interval: int = Field(default=50, ge=0)
+    evaluate_remote: bool = Field(default=True)
+    evaluate_local: bool = Field(default=True)
+    skip_git_check: bool = Field(default=False)
+    git_hash: str | None = Field(default=None)
+    num_training_tasks: int = Field(default=1)
+
+
 class TorchProfilerConfig(Config):
     interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
-    # Upload location: None disables uploads, supports s3:// or local paths
     profile_dir: str | None = Field(default=None)
 
     @property
@@ -39,19 +67,11 @@ class TorchProfilerConfig(Config):
 
 
 class TrainerConfig(Config):
-    # Core training parameters
-    # Total timesteps: Type 2 arbitrary default
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
-
-    # Losses
     losses: LossConfig = Field(default_factory=LossConfig)
-
-    # Optimizer and scheduler
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
 
-    # Contiguous env IDs not required: More flexible env management
     require_contiguous_env_ids: bool = False
-    # Verbose logging for debugging and monitoring
     verbose: bool = True
 
     # Batch configuration
@@ -66,18 +86,20 @@ class TrainerConfig(Config):
     bptt_horizon: int = Field(default=32, gt=0)
     # Single epoch: Type 2 default chosen arbitrarily PPO typically uses 3-10, but 1 works with large batches
     update_epochs: int = Field(default=1, gt=0)
-    # Fixed batch size across GPUs for consistent hyperparameters
     scale_batches_by_world_size: bool = False
 
-    # Performance configuration
-    # Torch compile disabled by default for stability
     compile: bool = False
-    # Reduce-overhead mode: Best for training loops when compile is enabled
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
 
-    # scheduler registry
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
+
+    curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
+    initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
+    checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
+    evaluation: Optional[EvaluationConfig] = Field(default=EvaluationConfig())
+
+    profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
@@ -91,5 +113,15 @@ class TrainerConfig(Config):
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
+
+        if self.evaluation and self.evaluation.evaluate_interval != 0:
+            if self.evaluation.evaluate_interval < self.checkpoint.checkpoint_interval:
+                raise ValueError(
+                    "evaluate_interval must be at least as large as checkpoint_interval "
+                    "to ensure policies are saved before evaluation"
+                )
+            if self.evaluation.evaluate_remote and not self.checkpoint.remote_prefix:
+                # Without a remote prefix we cannot evaluate remotely; fall back to local evaluations only.
+                self.evaluation.evaluate_remote = False
 
         return self

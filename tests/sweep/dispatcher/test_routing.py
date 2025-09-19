@@ -46,7 +46,7 @@ def eval_job():
         run_id="sweep_test_trial_001_eval",
         cmd="experiments.recipes.arena.evaluate",
         type=JobTypes.LAUNCH_EVAL,
-        metadata={"policy_uri": "file://./checkpoints/policy.pt"},
+        metadata={"policy_uri": "s3://policies/test/policy.pt"},
     )
 
 

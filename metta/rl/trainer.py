@@ -55,7 +55,6 @@ class Trainer:
 
         self._epoch = 0
         self._agent_step = 0
-
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
@@ -71,15 +70,19 @@ class Trainer:
         if self._cfg.heartbeat is not None:
             self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))
 
+        batch_info = self._env.batch_info
+        agents_per_env = self._env.meta_data.num_agents
+        parallel_agents = batch_info.num_envs * agents_per_env  # match vecenv's flattened agent indexing
+
         experience = Experience.from_losses(
-            self._env.meta_data.num_agents,
-            self._cfg.batch_size,
-            self._cfg.bptt_horizon,
-            self._cfg.minibatch_size,
-            self._cfg.minibatch_size,
-            self._policy.get_agent_experience_spec(),
-            losses,
-            self._device,
+            total_agents=parallel_agents,
+            batch_size=self._cfg.batch_size,
+            bptt_horizon=self._cfg.bptt_horizon,
+            minibatch_size=self._cfg.minibatch_size,
+            max_minibatch_size=self._cfg.minibatch_size,
+            policy_experience_spec=self._policy.get_agent_experience_spec(),
+            losses=losses,
+            device=self._device,
         )
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)

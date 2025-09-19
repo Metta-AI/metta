@@ -1,10 +1,14 @@
 """Statistics reporting and aggregation."""
 
+from __future__ import annotations
+
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from numbers import Number
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+import numpy as np
 import torch
 from pydantic import Field
 
@@ -14,12 +18,10 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.config import Config
 from metta.rl.stats import (
     accumulate_rollout_stats,
-    process_stats,
+    compute_timing_stats,
+    process_training_stats,
 )
 from metta.rl.training.component import TrainerComponent
-
-if TYPE_CHECKING:
-    from metta.rl.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
@@ -54,22 +56,22 @@ class NoOpStatsReporter(TrainerComponent):
         """Initialize no-op stats reporter."""
         # Create a minimal config for the no-op reporter
         config = StatsConfig(report_to_wandb=False, report_to_stats_client=False, interval=999999)
-        super().__init__(config)
+        super().__init__(epoch_interval=config.interval)
         self.wandb_run = None
         self.stats_run_id = None
         self.stats_epoch_id = None
         self.infos_buffer = []
 
-    def on_step(self, trainer: "Trainer", infos: List[Dict[str, Any]]) -> None:
+    def on_step(self, infos: List[Dict[str, Any]]) -> None:
         pass
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
+    def on_epoch_end(self, epoch: int) -> None:
         pass
 
-    def on_training_complete(self, trainer: "Trainer") -> None:
+    def on_training_complete(self) -> None:
         pass
 
-    def on_failure(self, trainer: "Trainer") -> None:
+    def on_failure(self) -> None:
         pass
 
 
@@ -110,7 +112,7 @@ class StatsReporter(TrainerComponent):
             stats_client: Optional stats client for reporting
             wandb_run: Optional wandb run for reporting
         """
-        super().__init__(config)
+        super().__init__(epoch_interval=config.interval)
         self._config = config
         self._stats_client = stats_client
         self._wandb_run = wandb_run
@@ -155,6 +157,8 @@ class StatsReporter(TrainerComponent):
         Args:
             raw_infos: Raw info dictionaries from rollout
         """
+        if not raw_infos:
+            return
         accumulate_rollout_stats(raw_infos, self._state.rollout_stats)
 
     def report_epoch(
@@ -185,24 +189,16 @@ class StatsReporter(TrainerComponent):
             system_monitor: Optional system monitor
         """
         if self._wandb_run and self._config.report_to_wandb:
-            process_stats(
-                policy_arch=None,  # This would need to be passed in
-                stats=self._state.rollout_stats,
+            payload = self._build_wandb_payload(
                 losses_stats=losses_stats,
-                evals=self._state.eval_scores,
-                grad_stats=self._state.grad_stats,
                 experience=experience,
-                policy=policy,
-                timer=timer,
                 trainer_cfg=trainer_cfg,
                 agent_step=agent_step,
                 epoch=epoch,
-                wandb_run=self._wandb_run,
-                memory_monitor=memory_monitor,
-                system_monitor=system_monitor,
-                optimizer=optimizer,
-                latest_saved_epoch=self._state.latest_saved_epoch,
+                timer=timer,
             )
+            if payload:
+                self._wandb_run.log(payload, step=agent_step)
 
         # Clear stats after processing
         self.clear_rollout_stats()
@@ -286,50 +282,130 @@ class StatsReporter(TrainerComponent):
             except Exception as e:
                 logger.warning(f"Failed to update training run status: {e}", exc_info=True)
 
-    def on_step(self, trainer: "Trainer", infos: Dict[str, Any]) -> None:
+    def on_step(self, infos: Dict[str, Any]) -> None:
         """Accumulate step infos.
 
         Args:
-            trainer: The trainer instance
             infos: Step information from environment
         """
         self.accumulate_infos(infos)
 
-    def on_epoch_end(self, trainer: "Trainer", epoch: int) -> None:
+    def on_epoch_end(self, epoch: int) -> None:
         """Report stats at epoch end.
 
         Args:
-            trainer: The trainer instance
         """
+        trainer = self._trainer
+        if trainer is None:
+            return
+
         # Update grad stats if available
         if hasattr(trainer, "latest_grad_stats"):
             self.update_grad_stats(trainer.latest_grad_stats)
 
+        experience = trainer.core_loop.experience if getattr(trainer, "core_loop", None) else None
+
         self.report_epoch(
-            epoch=trainer.trainer_state.epoch,
-            agent_step=trainer.trainer_state.agent_step,
+            epoch=trainer._epoch,
+            agent_step=trainer._agent_step,
             losses_stats=getattr(trainer, "latest_losses_stats", {}),
-            experience=trainer.core_loop.experience if trainer.core_loop else None,
+            experience=experience,
             policy=trainer._policy,
             timer=trainer.timer,
             trainer_cfg=trainer._cfg,
             optimizer=trainer.optimizer,
-            memory_monitor=trainer.memory_monitor,
-            system_monitor=trainer.system_monitor,
+            memory_monitor=getattr(trainer, "memory_monitor", None),
+            system_monitor=getattr(trainer, "system_monitor", None),
         )
 
-    def on_training_complete(self, trainer: "Trainer") -> None:
+    def on_training_complete(self) -> None:
         """Handle training completion.
 
         Args:
-            trainer: The trainer instance
         """
         self.finalize(status="completed")
 
-    def on_failure(self, trainer: "Trainer") -> None:
+    def on_failure(self) -> None:
         """Handle training failure.
 
         Args:
             trainer: The trainer instance
         """
         self.finalize(status="failed")
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def accumulate_infos(self, info: Dict[str, Any] | None) -> None:
+        """Accumulate rollout info dictionaries for later aggregation."""
+        if not info:
+            return
+        self.process_rollout([info])
+
+    def _build_wandb_payload(
+        self,
+        *,
+        losses_stats: Dict[str, float],
+        experience: Any,
+        trainer_cfg: Any,
+        agent_step: int,
+        epoch: int,
+        timer: Any,
+    ) -> Dict[str, float]:
+        """Convert collected stats into a flat wandb payload."""
+
+        if experience is None:
+            return {}
+
+        processed = process_training_stats(
+            raw_stats=self._state.rollout_stats,
+            losses_stats=losses_stats,
+            experience=experience,
+            trainer_config=trainer_cfg,
+        )
+
+        timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
+
+        payload: Dict[str, float] = {
+            "metric/agent_step": float(agent_step),
+            "metric/epoch": float(epoch),
+            "metric/total_time": float(timing_info["wall_time"]),
+            "metric/train_time": float(timing_info["train_time"]),
+            "overview/steps_per_second": float(timing_info["steps_per_second"]),
+            "overview/epoch_steps_per_second": float(timing_info["epoch_steps_per_second"]),
+        }
+
+        payload.update(self._prefix_and_filter(processed["overview"], prefix="overview/"))
+        payload.update(self._prefix_and_filter(processed["environment_stats"], prefix=""))
+
+        return payload
+
+    @staticmethod
+    def _prefix_and_filter(items: Dict[str, Any], *, prefix: str) -> Dict[str, float]:
+        """Return a dict of numeric wandb-friendly values with an optional prefix."""
+
+        flattened: Dict[str, float] = {}
+        for key, value in items.items():
+            scalar = StatsReporter._to_scalar(value)
+            if scalar is None:
+                continue
+            metric_key = f"{prefix}{key}" if prefix else key
+            flattened[metric_key] = scalar
+        return flattened
+
+    @staticmethod
+    def _to_scalar(value: Any) -> Optional[float]:
+        """Convert supported numeric types to float, skipping non-scalars."""
+
+        if isinstance(value, Number):
+            return float(value)
+        if isinstance(value, np.ndarray):
+            if value.size == 1:
+                return float(value.item())
+            return None
+        if torch.is_tensor(value):
+            if value.numel() == 1:
+                return float(value.detach().cpu().item())
+            return None
+        return None
