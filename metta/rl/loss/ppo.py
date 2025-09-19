@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Tuple
 
 import numpy as np
@@ -9,9 +7,9 @@ from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
+from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
-from metta.rl.training import Policy
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.config import Config
@@ -75,7 +73,7 @@ class PPOConfig(Config):
 
     def create(
         self,
-        policy: "Policy",
+        policy: Policy,
         trainer_cfg: Any,
         env: TrainingEnvironment,
         device: torch.device,

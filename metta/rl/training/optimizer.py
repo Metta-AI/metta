@@ -1,17 +1,11 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 import torch
 from heavyball import ForeachMuon
 
+from metta.agent.policy import Policy
 from metta.rl.trainer_config import OptimizerConfig
 
-if TYPE_CHECKING:
-    from torch import nn
 
-
-def create_optimizer(cfg: OptimizerConfig, policy: nn.Module) -> torch.optim.Optimizer:
+def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimizer:
     """Create optimizer and load state if available."""
     optimizer_type = cfg.type
 

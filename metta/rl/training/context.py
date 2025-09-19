@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Type, TypeVar
 
 import torch
 
+from metta.agent.policy import Policy
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
@@ -17,12 +18,9 @@ from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
-    from metta.agent.policy import Policy
     from metta.rl.trainer import Trainer
     from metta.rl.training.component import TrainerComponent
     from metta.rl.training.stats_reporter import StatsReporter
-else:  # pragma: no cover - runtime avoids circular import
-    Policy = Any  # type: ignore[assignment]
 
 T_Component = TypeVar("T_Component")
 

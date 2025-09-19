@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Any, List
 import torch
 import torch.distributed
 
+from metta.agent.policy import Policy
 from mettagrid.config import Config
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
-    from metta.rl.training.training_environment import TrainingEnvironmentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +73,7 @@ class DistributedHelper:
         if self._is_distributed:
             logger.info(f"Setting up distributed training for rank {self._rank}")
 
-    def scale_batch_config(
-        self,
-        trainer_cfg: TrainerConfig,
-        env_cfg: "TrainingEnvironmentConfig" | None = None,
-    ) -> None:
+    def scale_batch_config(self, trainer_cfg: TrainerConfig) -> None:
         """Scale batch sizes for distributed training if configured.
 
         When scale_batches_by_world_size is True, this divides batch sizes
@@ -86,7 +82,6 @@ class DistributedHelper:
 
         Args:
             trainer_cfg: Trainer configuration to modify in-place
-            env_cfg: Optional environment configuration to scale alongside trainer_cfg
         """
         if not self._is_distributed:
             return
@@ -95,29 +90,18 @@ class DistributedHelper:
             return
 
         # Scale batch sizes by world size
-        if hasattr(trainer_cfg, "forward_pass_minibatch_target_size"):
-            original = trainer_cfg.forward_pass_minibatch_target_size  # type: ignore[attr-defined]
-            trainer_cfg.forward_pass_minibatch_target_size = max(  # type: ignore[attr-defined]
-                1, original // self._world_size
-            )
-
-        if env_cfg is not None and hasattr(env_cfg, "forward_pass_minibatch_target_size"):
-            env_cfg.forward_pass_minibatch_target_size = max(
-                1, env_cfg.forward_pass_minibatch_target_size // self._world_size
-            )
-
-        trainer_cfg.batch_size = max(1, trainer_cfg.batch_size // self._world_size)
+        trainer_cfg.forward_pass_minibatch_target_size = (
+            trainer_cfg.forward_pass_minibatch_target_size // self._world_size
+        )
+        trainer_cfg.batch_size = trainer_cfg.batch_size // self._world_size
 
         logger.info(
             f"Scaled batch config for {self._world_size} processes: "
             f"batch_size={trainer_cfg.batch_size}, "
-            f"trainer_forward_pass_minibatch_target_size="
-            f"{getattr(trainer_cfg, 'forward_pass_minibatch_target_size', 'n/a')}, "
-            f"env_forward_pass_minibatch_target_size="
-            f"{getattr(env_cfg, 'forward_pass_minibatch_target_size', 'n/a') if env_cfg is not None else 'n/a'}"
+            f"forward_pass_minibatch_target_size={trainer_cfg.forward_pass_minibatch_target_size}"
         )
 
-    def wrap_policy(self, policy: torch.nn.Module, device: torch.device) -> torch.nn.Module:
+    def wrap_policy(self, policy: Policy, device: torch.device) -> Policy:
         """Wrap policy for distributed training if needed.
 
         Args:

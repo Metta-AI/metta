@@ -1,12 +1,10 @@
 """Policy checkpoint management component."""
 
-from __future__ import annotations
-
 import logging
 from typing import Optional
 
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import Policy, PolicyArchitecture
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.training_environment import EnvironmentMetaData
@@ -56,10 +54,10 @@ class PolicyCheckpointer(TrainerComponent):
         policy_architecture: PolicyArchitecture,
         *,
         policy_uri: Optional[str] = None,
-    ) -> "Policy":
+    ) -> Policy:
         """Load the latest policy checkpoint or create a new policy."""
 
-        policy: Optional["Policy"] = None
+        policy: Optional[Policy] = None
         candidate_uri: Optional[str] = policy_uri
 
         if candidate_uri is None:

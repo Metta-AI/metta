@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 from typing import Any, Dict
 
 import torch
 from pydantic import Field
 
+from metta.agent.policy import Policy
 from metta.rl.loss.ppo import PPOConfig
-from metta.rl.training import Policy
 from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.config import Config
 
