@@ -45,6 +45,7 @@ class AdaptiveController:
 
     def run(
         self,
+        on_training_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
         on_eval_completed: Optional[Callable[[RunInfo, Store, list[RunInfo]], None]] = None,
         on_job_dispatch: Optional[Callable[[JobDefinition, Store], None]] = None,
     ) -> None:
@@ -79,6 +80,25 @@ class AdaptiveController:
                         logger.info(line)
 
                 # 1.a Run post-eval completion hooks (guarded by summary flag) before any scheduling
+                if runs and on_training_completed is not None:
+                    for run in runs:
+                        try:
+                            summary_dict = run.summary or {}
+                            already_processed = bool(summary_dict.get("adaptive/post_train_processed", False))
+                            if run.has_completed_training and not already_processed:
+                                logger.info(f"[AdaptiveController] Running on_training_completed for {run.run_id}")
+                                on_training_completed(run, self.store, runs)
+                                processed_at = datetime.now(timezone.utc)
+                                self.store.update_run_summary(
+                                    run.run_id,
+                                    {
+                                        "adaptive/post_train_processed": True,
+                                        "adaptive/post_train_processed_at": processed_at
+                                    }
+                                )
+                        except Exception as e:
+                            logger.error(f"[AdaptiveController] Error running on_training_completed for {run.run_id}: {e}")
+
                 if runs and on_eval_completed is not None:
                     for run in runs:
                         try:

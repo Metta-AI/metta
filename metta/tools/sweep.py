@@ -15,6 +15,7 @@ from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from metta.sweep.schedulers.top_policy_no_eval import NoEvalSweepScheduler
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -237,7 +238,7 @@ class SweepTool(Tool):
         )
 
         # Create scheduler with Bayesian optimization
-        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
+        scheduler = NoEvalSweepScheduler(scheduler_config, store=store)
 
         # Create adaptive config
         adaptive_config = AdaptiveConfig(
