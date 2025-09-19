@@ -210,6 +210,8 @@ class StatsReporter(TrainerComponent):
             scores: New evaluation scores
         """
         self._state.eval_scores = scores
+        if self._context is not None:
+            self.context.latest_eval_scores = scores
 
     def clear_rollout_stats(self) -> None:
         """Clear rollout statistics."""

@@ -50,6 +50,10 @@ class NoOpEvaluator(TrainerComponent):
     def get_latest_scores(self) -> EvalRewardSummary:
         return self._latest_scores
 
+    def register(self, context) -> None:  # type: ignore[override]
+        super().register(context)
+        self.context.latest_eval_scores = self._latest_scores
+
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
         return
 
@@ -91,6 +95,7 @@ class Evaluator(TrainerComponent):
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
+        self.context.latest_eval_scores = self._latest_scores
 
     @classmethod
     def from_config(
@@ -225,6 +230,7 @@ class Evaluator(TrainerComponent):
                 )
                 # Remote evaluation doesn't return scores directly
                 # They would be reported through other channels
+                self.context.latest_eval_scores = self._latest_scores
                 return self._latest_scores
             except Exception as e:
                 logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
@@ -255,6 +261,7 @@ class Evaluator(TrainerComponent):
                     )
 
             self._latest_scores = evaluation_results.scores
+            self.context.latest_eval_scores = self._latest_scores
             return evaluation_results.scores
 
         return EvalRewardSummary()

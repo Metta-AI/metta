@@ -31,6 +31,7 @@ from metta.rl.training import (
     PolicyUploaderConfig,
     TrainerCheckpointerConfig,
 )
+from metta.rl.training.component import TrainerComponent
 from metta.rl.training.stats_reporter import StatsConfig, StatsReporter
 from metta.rl.training.torch_profiler_component import TorchProfilerComponent
 from metta.rl.training.trainer_checkpointer import TrainerCheckpointer
@@ -253,7 +254,54 @@ class TrainTool(Tool):
         trainer.context.checkpoint_manager = checkpoint_manager
         trainer.context.stats_client = stats_client
 
-        trainer.register(
+        components: list[TrainerComponent] = []
+
+        stats_component: TrainerComponent | None = None
+
+        if distributed_helper.is_master():
+            if self.gradient_stats.epoch_interval:
+                components.append(GradientStatsComponent(self.gradient_stats))
+
+            stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
+            reporting_enabled = (
+                stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
+            )
+
+            stats_component = StatsReporter.from_config(
+                stats_config,
+                stats_client=stats_client,
+                wandb_run=wandb_run,
+            )
+
+            components.append(
+                Evaluator(
+                    config=self.evaluator,
+                    device=torch.device(self.device),
+                    system_cfg=self.system,
+                    trainer_cfg=self.trainer,
+                    stats_client=stats_client,
+                    stats_reporter=stats_component,
+                )
+            )
+
+            components.append(policy_checkpointer)
+
+            components.append(
+                PolicyUploader(
+                    config=self.policy_uploader,
+                    checkpoint_manager=checkpoint_manager,
+                    distributed_helper=distributed_helper,
+                    wandb_run=wandb_run,
+                )
+            )
+
+            components.append(MonitoringComponent(enabled=reporting_enabled))
+
+            components.append(stats_component)
+        else:
+            components.append(policy_checkpointer)
+
+        components.append(
             TrainerCheckpointer(
                 config=self.checkpointer,
                 checkpoint_manager=checkpoint_manager,
@@ -261,50 +309,8 @@ class TrainTool(Tool):
             )
         )
 
-        trainer.register(policy_checkpointer)
-
-        if not distributed_helper.is_master():
-            return
-
-        trainer.register(
-            PolicyUploader(
-                config=self.policy_uploader,
-                checkpoint_manager=checkpoint_manager,
-                distributed_helper=distributed_helper,
-                wandb_run=wandb_run,
-            )
-        )
-
-        stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
-        reporting_enabled = (
-            stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
-        )
-
-        trainer.register(MonitoringComponent(enabled=reporting_enabled))
-
-        stats_component = StatsReporter.from_config(
-            stats_config,
-            stats_client=stats_client,
-            wandb_run=wandb_run,
-        )
-        trainer.register(stats_component)
-
-        if self.gradient_stats.epoch_interval:
-            trainer.register(GradientStatsComponent(self.gradient_stats))
-
-        trainer.register(
-            Evaluator(
-                config=self.evaluator,
-                device=torch.device(self.device),
-                system_cfg=self.system,
-                trainer_cfg=self.trainer,
-                stats_client=stats_client,
-                stats_reporter=stats_component,
-            )
-        )
-
-        if getattr(self.torch_profiler, "interval_epochs", 0):
-            trainer.register(
+        if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
+            components.append(
                 TorchProfilerComponent(
                     profiler_config=self.torch_profiler,
                     wandb_run=wandb_run,
@@ -312,6 +318,11 @@ class TrainTool(Tool):
                     is_master=True,
                 )
             )
+
+        for component in components:
+            if component is None:
+                continue
+            trainer.register(component)
 
     def _minimize_config_for_debugging(self) -> None:
         self.trainer.minibatch_size = min(self.trainer.minibatch_size, 1024)

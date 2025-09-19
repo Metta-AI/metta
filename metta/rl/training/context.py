@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Type, TypeVar
 import torch
 
 from metta.agent.policy import Policy
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
 from metta.mettagrid.profiling.stopwatch import Stopwatch
 from metta.mettagrid.profiling.system_monitor import SystemMonitor
@@ -40,6 +41,8 @@ class TrainerContext:
     run_dir: Optional[Path]
     run_name: Optional[str]
     latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
+    latest_policy_uri_value: Optional[str] = None
+    latest_eval_scores: Optional[EvalRewardSummary] = None
     save_policy_fn: Callable[[dict[str, Any], bool], Optional[str]] | None = None
     save_trainer_state_fn: Callable[[], None] | None = None
     checkpoint_manager: Any | None = None
@@ -89,6 +92,8 @@ class TrainerContext:
         self.gradient_stats = stats
 
     def latest_policy_uri(self) -> Optional[str]:
+        if self.latest_policy_uri_value:
+            return self.latest_policy_uri_value
         if self.latest_policy_uri_fn is None:
             return None
         return self.latest_policy_uri_fn()

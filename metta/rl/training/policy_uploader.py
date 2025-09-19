@@ -58,13 +58,7 @@ class PolicyUploader(TrainerComponent):
         if epoch % self._config.epoch_interval != 0:
             return
 
-        from metta.rl.training.policy_checkpointer import PolicyCheckpointer
-
-        checkpointer = self.context.get_component(PolicyCheckpointer)
-        if checkpointer is None:
-            return
-
-        checkpoint_uri = checkpointer.get_latest_policy_uri()
+        checkpoint_uri = self.context.latest_policy_uri()
         if not checkpoint_uri:
             logger.debug("PolicyUploader: no checkpoint available for epoch %s", epoch)
             return
@@ -81,13 +75,7 @@ class PolicyUploader(TrainerComponent):
         if not self._distributed.should_checkpoint() or self._wandb_run is None:
             return
 
-        from metta.rl.training.policy_checkpointer import PolicyCheckpointer
-
-        checkpointer = self.context.get_component(PolicyCheckpointer)
-        if checkpointer is None:
-            return
-
-        checkpoint_uri = checkpointer.get_latest_policy_uri()
+        checkpoint_uri = self.context.latest_policy_uri()
         if not checkpoint_uri:
             logger.debug("PolicyUploader: no checkpoint available for final upload")
             return
@@ -105,14 +93,8 @@ class PolicyUploader(TrainerComponent):
     # Internal helpers
     # ------------------------------------------------------------------
     def _evaluation_metadata(self) -> dict[str, Any]:
-        from metta.rl.training.evaluator import Evaluator
-
-        evaluator = self.context.get_component(Evaluator)
-        if evaluator is None:
-            return {}
-        try:
-            scores = evaluator.get_latest_scores()
-        except AttributeError:
+        scores = self.context.latest_eval_scores
+        if not scores:
             return {}
         if not scores or not (scores.category_scores or scores.simulation_scores):
             return {}

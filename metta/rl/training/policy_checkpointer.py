@@ -45,6 +45,7 @@ class PolicyCheckpointer(TrainerComponent):
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         context.latest_policy_uri_fn = self.get_latest_policy_uri
+        context.latest_policy_uri_value = self.get_latest_policy_uri()
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -126,21 +127,14 @@ class PolicyCheckpointer(TrainerComponent):
             "total_train_time": elapsed_breakdown.get("_rollout", 0) + elapsed_breakdown.get("_train", 0),
             "is_final": is_final,
         }
-        from metta.rl.training.evaluator import Evaluator
-
-        evaluator = self.context.get_component(Evaluator)
-        if evaluator is not None:
-            try:
-                eval_scores = evaluator.get_latest_scores()
-            except AttributeError:
-                eval_scores = None
-            if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
-                metadata.update(
-                    {
-                        "score": eval_scores.avg_simulation_score,
-                        "avg_reward": eval_scores.avg_category_score,
-                    }
-                )
+        eval_scores = self.context.latest_eval_scores
+        if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
+            metadata.update(
+                {
+                    "score": eval_scores.avg_simulation_score,
+                    "avg_reward": eval_scores.avg_category_score,
+                }
+            )
         return metadata
 
     def _save_policy(self, epoch: int, *, force: bool = False) -> None:
@@ -149,4 +143,5 @@ class PolicyCheckpointer(TrainerComponent):
 
         uri = self._checkpoint_manager.save_agent(policy, epoch, metadata)
         self._latest_policy_uri = uri
+        self.context.latest_policy_uri_value = uri
         logger.debug("Policy checkpoint saved to %s", uri)
