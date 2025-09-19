@@ -45,7 +45,7 @@ class Trainer:
         """Initialize trainer with all components.
 
         Args:
-            cfg: Trainer configuration
+            cfg: "Trainer" configuration
             env: TrainingEnvironment instance for experience generation
             policy: The policy/agent to train
         """
