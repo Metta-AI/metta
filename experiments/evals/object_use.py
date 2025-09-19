@@ -1,7 +1,6 @@
-from metta.mettagrid.builder import building, empty_converters
-from metta.mettagrid.mapgen.mapgen import MapGen
-from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
-from metta.mettagrid.mettagrid_config import (
+from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder import building, empty_converters
+from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
@@ -12,7 +11,8 @@ from metta.mettagrid.mettagrid_config import (
     MettaGridConfig,
     WallConfig,
 )
-from metta.sim.simulation_config import SimulationConfig
+from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 
 
 def make_object_use_env(

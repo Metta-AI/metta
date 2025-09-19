@@ -182,7 +182,7 @@ from metta.cogworks import api
 from metta.cogworks.rl import trainer
 from metta.cogworks.agent import MettaAgent
 from metta.common.util import config
-from metta.mettagrid import MettaGridPufferEnv
+from mettagrid import MettaGridPufferEnv
 from metta.backend_shared import sweep_names
 
 # ❌ INCORRECT (blocked by linting)
@@ -234,15 +234,15 @@ description = "High-performance grid environments"
 dependencies = ["softmax-common>=0.1.0"]
 
 [tool.setuptools]
-packages = ["metta.mettagrid"]
+packages = ["mettagrid"]
 package-dir = {"": "."}
 ```
 
 **Imports:**
 
 ```python
-from metta.mettagrid import MettaGridPufferEnv
-from metta.mettagrid.wrappers import AsyncWrapper
+from mettagrid import MettaGridPufferEnv
+from mettagrid.wrappers import AsyncWrapper
 ```
 
 ### Common Utilities

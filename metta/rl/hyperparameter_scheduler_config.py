@@ -1,4 +1,4 @@
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 
 class HyperparameterSchedulerConfig(Config):

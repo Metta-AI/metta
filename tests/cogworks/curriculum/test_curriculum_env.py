@@ -12,7 +12,7 @@ from metta.cogworks.curriculum import (
     SingleTaskGeneratorConfig,
 )
 from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
-from metta.mettagrid.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from .test_helpers import CurriculumTestHelper
 

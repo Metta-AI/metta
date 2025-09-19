@@ -52,7 +52,7 @@ jobs:
       - name: Build sdist
         run: |
           # Build sdist and place output in repo-level dist/
-          python -m build --sdist --outdir dist mettagrid
+          python -m build --sdist --outdir dist packages/mettagrid
           ls -l dist
 
       - name: Upload sdist artifact
@@ -88,7 +88,7 @@ jobs:
               curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
               chmod +x /usr/local/bin/bazelisk
               ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
-              $PY -m build --wheel --outdir /work/dist /work/mettagrid
+              $PY -m build --wheel --outdir /work/dist /work/packages/mettagrid
               ls -l /work/dist
               auditwheel repair -w /work/dist /work/dist/mettagrid-*.whl
               # Remove the original non-manylinux wheel to avoid accidental upload
@@ -136,7 +136,7 @@ jobs:
 
       - name: Build wheel
         run: |
-          python -m build --wheel --outdir dist mettagrid
+          python -m build --wheel --outdir dist packages/mettagrid
           ls -l dist
 
       - name: Upload wheels artifact
@@ -173,7 +173,7 @@ jobs:
 
       - name: Build wheel
         run: |
-          python -m build --wheel --outdir dist mettagrid
+          python -m build --wheel --outdir dist packages/mettagrid
           ls -l dist
 
       - name: Upload wheels artifact

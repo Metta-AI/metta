@@ -4,8 +4,8 @@ from typing import Optional
 
 from pydantic import Field
 
-from metta.mettagrid import MettaGridConfig
-from metta.mettagrid.config import Config
+from mettagrid import MettaGridConfig
+from mettagrid.config import Config
 
 
 class SimulationConfig(Config):

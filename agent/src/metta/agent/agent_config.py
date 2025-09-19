@@ -19,7 +19,7 @@ from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatent
 from metta.agent.pytorch.transformer import Transformer
 from metta.agent.pytorch.transformer_improved import TransformerImproved
 from metta.agent.pytorch.transformer_nvidia import TransformerNvidia
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 
 class AgentConfig(Config):

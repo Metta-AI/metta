@@ -9,14 +9,13 @@ from pathlib import Path
 
 import pytest
 
-import metta.mettagrid.builder.envs as eb
-from metta.mettagrid import dtype_observations
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+import mettagrid.builder.envs as eb
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
+from mettagrid import MettaGridEnv, dtype_observations
 
 
 class TestBasicPolicyEnvironment:
