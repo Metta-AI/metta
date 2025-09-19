@@ -2,7 +2,8 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.fast import FastConfig
+from metta.agent.agent_config import ARCHITECTURE_REGISTRY, AgentConfig
+from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -98,7 +99,9 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[FastConfig] = None,
+    policy_architecture: Optional[PolicyArchitecture] = None,
+    *,
+    policy_name: str = AgentConfig().name,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -111,11 +114,19 @@ def train(
         evaluation=EvaluationConfig(simulations=eval_simulations),
     )
 
+    if policy_architecture is None:
+        factory = ARCHITECTURE_REGISTRY.get(policy_name)
+        if factory is None:
+            raise ValueError(
+                f"Unknown policy '{policy_name}'. Available: {sorted(ARCHITECTURE_REGISTRY)}"
+            )
+        policy_architecture = factory()
+
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
-        policy_architecture=policy_architecture or FastConfig(),
+        policy_architecture=policy_architecture,
     )
 
 

@@ -13,23 +13,23 @@ from mettagrid.config import Config
 logger = logging.getLogger(__name__)
 
 
-class WandbAlerterConfig(Config):
+class WandbAborterConfig(Config):
     """Configuration for wandb abort polling."""
 
     epoch_interval: int = 5
     """How often to poll wandb for abort tags (in epochs)."""
 
 
-class WandbAlerter(TrainerComponent):
+class WandbAborter(TrainerComponent):
     """Polls wandb for abort tags and stops training when detected."""
 
     def __init__(
         self,
         *,
         wandb_run: WandbRun | None,
-        config: WandbAlerterConfig | None = None,
+        config: WandbAborterConfig | None = None,
     ) -> None:
-        cfg = config or WandbAlerterConfig()
+        cfg = config or WandbAborterConfig()
         super().__init__(epoch_interval=cfg.epoch_interval)
         self._wandb_run = wandb_run
         self._config = cfg

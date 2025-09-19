@@ -19,7 +19,7 @@ from mettagrid.profiling.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer
-    from metta.rl.training.reporter import Reporter
+    from metta.rl.training.stats_reporter import StatsReporter
 
 
 @dataclass
@@ -43,7 +43,7 @@ class TrainerContext:
     latest_losses_stats: Dict[str, float] = field(default_factory=dict)
     checkpoint_manager: Any | None = None
     stats_client: Any | None = None
-    stats_reporter: "Reporter" | None = None
+    stats_reporter: "StatsReporter" | None = None
     get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
     set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
     gradient_stats: Dict[str, float] = field(default_factory=dict)

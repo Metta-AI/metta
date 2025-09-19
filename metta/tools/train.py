@@ -24,7 +24,7 @@ from metta.rl.training import (
     EvaluatorConfig,
     GradientReporter,
     GradientReporterConfig,
-    Heartbeater,
+    Heartbeat,
     Scheduler,
     SchedulerConfig,
     Monitor,
@@ -33,10 +33,10 @@ from metta.rl.training import (
     Uploader,
     UploaderConfig,
     ContextCheckpointerConfig,
-    Reporter,
-    ReporterConfig,
-    WandbAlerter,
-    WandbAlerterConfig,
+    StatsReporter,
+    StatsReporterConfig,
+    WandbAborter,
+    WandbAborterConfig,
 )
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.torch_profiler import TorchProfiler
@@ -72,8 +72,8 @@ class TrainTool(Tool):
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
-    reporter: ReporterConfig = Field(default_factory=ReporterConfig)
-    wandb_alerter: WandbAlerterConfig = Field(default_factory=WandbAlerterConfig)
+    stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
+    wandb_aborter: WandbAborterConfig = Field(default_factory=WandbAborterConfig)
 
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
@@ -150,8 +150,8 @@ class TrainTool(Tool):
         return group_override
 
     def _prepare_run_directories(self) -> None:
-        if not self.checkpointer.checkpoint_dir:
-            self.checkpointer.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+        if not self.context_checkpointer.checkpoint_dir:
+            self.context_checkpointer.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
         if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
             storage_decision = auto_policy_storage_decision(self.run)
@@ -188,9 +188,9 @@ class TrainTool(Tool):
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
         env: VectorizedTrainingEnvironment,
-    ) -> tuple[PolicyCheckpointer, Policy]:
-        policy_checkpointer = PolicyCheckpointer(
-            config=self.policy_checkpointer,
+    ) -> tuple[Checkpointer, Policy]:
+        policy_checkpointer = Checkpointer(
+            config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
         )
@@ -217,8 +217,8 @@ class TrainTool(Tool):
             run_name=self.run,
         )
 
-        if not self.gradient_stats.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
-            self.gradient_stats.epoch_interval = self.trainer.grad_mean_variance_interval
+        if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
+            self.gradient_reporter.epoch_interval = self.trainer.grad_mean_variance_interval
 
         return trainer
 
@@ -229,32 +229,32 @@ class TrainTool(Tool):
         distributed_helper: DistributedHelper,
         checkpoint_manager: CheckpointManager,
         stats_client: Optional[StatsClient],
-        policy_checkpointer: PolicyCheckpointer,
+        policy_checkpointer: Checkpointer,
         wandb_run,
     ) -> None:
         components: list[TrainerComponent] = []
 
         heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
         if heartbeat_cfg is not None:
-            components.append(HeartbeatWriter(epoch_interval=heartbeat_cfg.epoch_interval))
+            components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
 
         # Ensure learning-rate schedules stay in sync across ranks
         hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
         if hyper_cfg and getattr(hyper_cfg, "enabled", False):
             interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
-            hyper_component = HyperparameterComponent(HyperparameterConfig(interval=max(1, int(interval))))
+            hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
             components.append(hyper_component)
 
         stats_component: TrainerComponent | None = None
 
         if distributed_helper.is_master():
-            stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
+            stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
             reporting_enabled = (
                 stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
             )
 
-            if self.gradient_stats.epoch_interval:
-                components.append(GradientStatsComponent(self.gradient_stats))
+            if self.gradient_reporter.epoch_interval:
+                components.append(GradientReporter(self.gradient_reporter))
 
             stats_component = StatsReporter.from_config(
                 stats_config,
@@ -279,30 +279,30 @@ class TrainTool(Tool):
             )
 
             components.append(
-                PolicyUploader(
-                    config=self.policy_uploader,
+                Uploader(
+                    config=self.uploader,
                     checkpoint_manager=checkpoint_manager,
                     distributed_helper=distributed_helper,
                     wandb_run=wandb_run,
                 )
             )
 
-            components.append(MonitoringComponent(enabled=reporting_enabled))
+            components.append(Monitor(enabled=reporting_enabled))
         else:
             components.append(policy_checkpointer)
 
-        trainer_checkpointer = TrainerCheckpointer(
-            config=self.checkpointer,
+        trainer_checkpointer = ContextCheckpointer(
+            config=self.context_checkpointer,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
         )
         components.append(trainer_checkpointer)
 
-        components.append(WandbAbortComponent(wandb_run))
+        components.append(WandbAborter(wandb_run=wandb_run, config=self.wandb_aborter))
 
         if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
             components.append(
-                TorchProfilerComponent(
+                TorchProfiler(
                     profiler_config=self.torch_profiler,
                     wandb_run=wandb_run,
                     run_dir=self.run_dir,
@@ -316,7 +316,7 @@ class TrainTool(Tool):
             trainer.register(component)
 
         if wandb_run is not None and distributed_helper.is_master():
-            trainer.register(WandbLoggerComponent(wandb_run))
+            trainer.register(WandbLogger(wandb_run))
 
     def _log_run_configuration(
         self,
@@ -354,7 +354,8 @@ class TrainTool(Tool):
         self.training_env.forward_pass_minibatch_target_size = min(
             self.training_env.forward_pass_minibatch_target_size, 4
         )
+        self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
-        self.policy_uploader.epoch_interval = min(self.policy_uploader.epoch_interval, 10)
+        self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
 
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)

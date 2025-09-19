@@ -243,10 +243,10 @@ class Trainer:
         This should be called after setup() to restore any saved state.
         """
         # Find and restore trainer checkpointer state
-        from metta.rl.training.trainer_checkpointer import TrainerCheckpointer
+        from metta.rl.training.context_checkpointer import ContextCheckpointer
 
         for component in self._components:
-            if isinstance(component, TrainerCheckpointer):
+            if isinstance(component, ContextCheckpointer):
                 component.restore(self._context)
                 break
             # Wandb setup will be handled by callbacks if configured

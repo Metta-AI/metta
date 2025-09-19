@@ -24,25 +24,25 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "ContextCheckpointer": ("metta.rl.training.context_checkpointer", "ContextCheckpointer"),
     "ContextCheckpointerConfig": ("metta.rl.training.context_checkpointer", "ContextCheckpointerConfig"),
     "TrainerContext": ("metta.rl.training.context", "TrainerContext"),
-    "WandbAlerter": ("metta.rl.training.wandb_alerter", "WandbAlerter"),
-    "WandbAlerterConfig": ("metta.rl.training.wandb_alerter", "WandbAlerterConfig"),
+    "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
+    "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
     # Evaluation
     "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
     "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),
     "NoOpEvaluator": ("metta.rl.training.evaluator", "NoOpEvaluator"),
     # Stats reporting
-    "Reporter": ("metta.rl.training.reporter", "Reporter"),
-    "ReporterConfig": ("metta.rl.training.reporter", "ReporterConfig"),
-    "ReporterState": ("metta.rl.training.reporter", "ReporterState"),
-    "NoOpReporter": ("metta.rl.training.reporter", "NoOpReporter"),
+    "StatsReporter": ("metta.rl.training.stats_reporter", "StatsReporter"),
+    "StatsReporterConfig": ("metta.rl.training.stats_reporter", "StatsReporterConfig"),
+    "StatsReporterState": ("metta.rl.training.stats_reporter", "StatsReporterState"),
+    "NoOpStatsReporter": ("metta.rl.training.stats_reporter", "NoOpStatsReporter"),
     # Trainer components
     "TrainerComponent": ("metta.rl.training.component", "TrainerComponent"),
     "Monitor": ("metta.rl.training.monitor", "Monitor"),
     # Torch profiler
     "TorchProfiler": ("metta.rl.training.torch_profiler", "TorchProfiler"),
     # Heartbeat
-    "Heartbeater": ("metta.rl.training.heartbeater", "Heartbeater"),
-    "HeartbeaterConfig": ("metta.rl.training.heartbeater", "HeartbeaterConfig"),
+    "Heartbeat": ("metta.rl.training.heartbeat", "Heartbeat"),
+    "HeartbeatConfig": ("metta.rl.training.heartbeat", "HeartbeatConfig"),
     # Hyperparameter scheduler
     "Scheduler": ("metta.rl.training.scheduler", "Scheduler"),
     "SchedulerConfig": ("metta.rl.training.scheduler", "SchedulerConfig"),
