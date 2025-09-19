@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Type, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import torch
 
@@ -19,10 +19,7 @@ from mettagrid.profiling.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer
-    from metta.rl.training.component import TrainerComponent
     from metta.rl.training.stats_reporter import StatsReporter
-
-T_Component = TypeVar("T_Component")
 
 
 @dataclass
@@ -44,24 +41,17 @@ class TrainerContext:
     latest_policy_uri_value: Optional[str] = None
     latest_eval_scores: Optional[EvalRewardSummary] = None
     latest_losses_stats: Dict[str, float] = field(default_factory=dict)
-    save_policy_fn: Callable[[dict[str, Any], bool], Optional[str]] | None = None
-    save_trainer_state_fn: Callable[[], None] | None = None
     checkpoint_manager: Any | None = None
     stats_client: Any | None = None
     stats_reporter: "StatsReporter" | None = None
     get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
     set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
-    components: Dict[type, TrainerComponent] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     memory_monitor: MemoryMonitor | None = None
     system_monitor: SystemMonitor | None = None
     _epoch: int = 0
     _agent_step: int = 0
-    update_epoch: int = 0
-    mb_idx: int = 0
     training_env_id: slice | None = None
-    stop_rollout: bool = False
-    stop_update_epoch: bool = False
 
     @property
     def epoch(self) -> int:
@@ -83,15 +73,6 @@ class TrainerContext:
         self.run_dir = run_dir
         self.run_name = run_name
 
-    def register_component(self, component: TrainerComponent) -> None:
-        self.components[type(component)] = component
-
-    def get_component(self, component_type: Type[T_Component]) -> Optional[T_Component]:
-        for registered in self.components.values():
-            if isinstance(registered, component_type):
-                return registered  # type: ignore[return-value]
-        return None
-
     def update_gradient_stats(self, stats: Dict[str, float]) -> None:
         self.gradient_stats = stats
 
@@ -101,15 +82,6 @@ class TrainerContext:
         if self.latest_policy_uri_fn is None:
             return None
         return self.latest_policy_uri_fn()
-
-    def save_policy(self, metadata: dict[str, Any], *, final: bool = False) -> Optional[str]:
-        if self.save_policy_fn is None:
-            return None
-        return self.save_policy_fn(metadata, final)
-
-    def save_trainer_state(self) -> None:
-        if self.save_trainer_state_fn is not None:
-            self.save_trainer_state_fn()
 
     def get_train_epoch_callable(self) -> Callable[[], None]:
         if self.get_train_epoch_fn is None:

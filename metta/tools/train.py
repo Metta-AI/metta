@@ -85,7 +85,7 @@ class TrainTool(Tool):
         self._prepare_run_directories()
 
         distributed_helper = DistributedHelper(torch.device(self.device))
-        distributed_helper.scale_batch_config(self.trainer, self.training_env)
+        distributed_helper.scale_batch_config(self.trainer)
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
@@ -108,93 +108,14 @@ class TrainTool(Tool):
                 trainer.context.checkpoint_manager = checkpoint_manager
                 trainer.context.stats_client = stats_client
 
-                components: list[TrainerComponent] = []
-
-                heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
-                if heartbeat_cfg is not None:
-                    components.append(HeartbeatWriter(epoch_interval=heartbeat_cfg.epoch_interval))
-
-                # Ensure learning-rate schedules stay in sync across ranks
-                hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
-                if hyper_cfg and getattr(hyper_cfg, "enabled", False):
-                    interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
-                    hyper_component = HyperparameterComponent(HyperparameterConfig(interval=max(1, int(interval))))
-                    components.append(hyper_component)
-
-                stats_component: TrainerComponent | None = None
-
-                if distributed_helper.is_master():
-                    stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
-                    reporting_enabled = (
-                        stats_config.report_to_wandb
-                        or stats_config.report_to_stats_client
-                        or stats_config.report_to_console
-                    )
-
-                    if self.gradient_stats.epoch_interval:
-                        components.append(GradientStatsComponent(self.gradient_stats))
-
-                    stats_component = StatsReporter.from_config(
-                        stats_config,
-                        stats_client=stats_client,
-                        wandb_run=wandb_run,
-                    )
-
-                    if stats_component is not None:
-                        components.append(stats_component)
-
-                    components.append(policy_checkpointer)
-
-                    components.append(
-                        Evaluator(
-                            config=self.evaluator,
-                            device=torch.device(self.device),
-                            system_cfg=self.system,
-                            trainer_cfg=self.trainer,
-                            stats_client=stats_client,
-                            stats_reporter=stats_component,
-                        )
-                    )
-
-                    components.append(
-                        PolicyUploader(
-                            config=self.policy_uploader,
-                            checkpoint_manager=checkpoint_manager,
-                            distributed_helper=distributed_helper,
-                            wandb_run=wandb_run,
-                        )
-                    )
-
-                    components.append(MonitoringComponent(enabled=reporting_enabled))
-                else:
-                    components.append(policy_checkpointer)
-
-                trainer_checkpointer = TrainerCheckpointer(
-                    config=self.checkpointer,
-                    checkpoint_manager=checkpoint_manager,
+                self._register_components(
+                    trainer=trainer,
                     distributed_helper=distributed_helper,
+                    checkpoint_manager=checkpoint_manager,
+                    stats_client=stats_client,
+                    policy_checkpointer=policy_checkpointer,
+                    wandb_run=wandb_run,
                 )
-                components.append(trainer_checkpointer)
-
-                components.append(WandbAbortComponent(wandb_run))
-
-                if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
-                    components.append(
-                        TorchProfilerComponent(
-                            profiler_config=self.torch_profiler,
-                            wandb_run=wandb_run,
-                            run_dir=self.run_dir,
-                            is_master=True,
-                        )
-                    )
-
-                for component in components:
-                    if component is None:
-                        continue
-                    trainer.register(component)
-
-                if wandb_run is not None and distributed_helper.is_master():
-                    trainer.register(WandbLoggerComponent(wandb_run))
 
                 trainer.restore()
                 trainer.train()
@@ -297,6 +218,102 @@ class TrainTool(Tool):
             self.gradient_stats.epoch_interval = self.trainer.grad_mean_variance_interval
 
         return trainer
+
+    def _register_components(
+        self,
+        *,
+        trainer: Trainer,
+        distributed_helper: DistributedHelper,
+        checkpoint_manager: CheckpointManager,
+        stats_client: Optional[StatsClient],
+        policy_checkpointer: PolicyCheckpointer,
+        wandb_run,
+    ) -> None:
+        components: list[TrainerComponent] = []
+
+        heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
+        if heartbeat_cfg is not None:
+            components.append(HeartbeatWriter(epoch_interval=heartbeat_cfg.epoch_interval))
+
+        # Ensure learning-rate schedules stay in sync across ranks
+        hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
+        if hyper_cfg and getattr(hyper_cfg, "enabled", False):
+            interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
+            hyper_component = HyperparameterComponent(HyperparameterConfig(interval=max(1, int(interval))))
+            components.append(hyper_component)
+
+        stats_component: TrainerComponent | None = None
+
+        if distributed_helper.is_master():
+            stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
+            reporting_enabled = (
+                stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
+            )
+
+            if self.gradient_stats.epoch_interval:
+                components.append(GradientStatsComponent(self.gradient_stats))
+
+            stats_component = StatsReporter.from_config(
+                stats_config,
+                stats_client=stats_client,
+                wandb_run=wandb_run,
+            )
+
+            if stats_component is not None:
+                components.append(stats_component)
+
+            components.append(policy_checkpointer)
+
+            components.append(
+                Evaluator(
+                    config=self.evaluator,
+                    device=torch.device(self.device),
+                    system_cfg=self.system,
+                    trainer_cfg=self.trainer,
+                    stats_client=stats_client,
+                    stats_reporter=stats_component,
+                )
+            )
+
+            components.append(
+                PolicyUploader(
+                    config=self.policy_uploader,
+                    checkpoint_manager=checkpoint_manager,
+                    distributed_helper=distributed_helper,
+                    wandb_run=wandb_run,
+                )
+            )
+
+            components.append(MonitoringComponent(enabled=reporting_enabled))
+        else:
+            components.append(policy_checkpointer)
+
+        trainer_checkpointer = TrainerCheckpointer(
+            config=self.checkpointer,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+        )
+        components.append(trainer_checkpointer)
+
+        components.append(WandbAbortComponent(wandb_run))
+
+        if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
+            components.append(
+                TorchProfilerComponent(
+                    profiler_config=self.torch_profiler,
+                    wandb_run=wandb_run,
+                    run_dir=self.run_dir,
+                    is_master=True,
+                )
+            )
+
+        for component in components:
+            if component is None:
+                continue
+            trainer.register(component)
+
+        if wandb_run is not None and distributed_helper.is_master():
+            trainer.register(WandbLoggerComponent(wandb_run))
 
     def _log_run_configuration(
         self,

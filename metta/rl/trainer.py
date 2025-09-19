@@ -52,7 +52,6 @@ class Trainer:
         self._device = device
         self._distributed_helper = DistributedHelper(self._device)
         self._components: list[TrainerComponent] = []
-        self._component_map: dict[type[TrainerComponent], TrainerComponent] = {}
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
@@ -207,7 +206,6 @@ class Trainer:
 
         self._components.append(component)
         self._component_map[type(component)] = component
-        self._context.register_component(component)
         component.register(self._context)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
