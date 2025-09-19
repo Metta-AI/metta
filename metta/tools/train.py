@@ -19,28 +19,28 @@ from metta.rl.system_config import guess_device
 from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
+    Checkpointer,
+    CheckpointerConfig,
+    ContextCheckpointerConfig,
     DistributedHelper,
     Evaluator,
     EvaluatorConfig,
     GradientReporter,
     GradientReporterConfig,
     Heartbeat,
+    Monitor,
     Scheduler,
     SchedulerConfig,
-    Monitor,
-    Checkpointer,
-    CheckpointerConfig,
-    Uploader,
-    UploaderConfig,
-    ContextCheckpointerConfig,
     StatsReporter,
     StatsReporterConfig,
+    Uploader,
+    UploaderConfig,
     WandbAborter,
     WandbAborterConfig,
 )
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.torch_profiler import TorchProfiler
 from metta.rl.training.context_checkpointer import ContextCheckpointer
+from metta.rl.training.torch_profiler import TorchProfiler
 from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
 from metta.rl.training.wandb_logger import WandbLogger
 from metta.tools.utils.auto_config import (

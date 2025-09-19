@@ -5,11 +5,8 @@ from unittest.mock import patch
 import pytest
 import torch
 from tensordict import TensorDict
-from torch import nn
-from metta.agent.mocks import MockAgent
-from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.policy import Policy
+from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
 
 

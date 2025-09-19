@@ -10,10 +10,10 @@ from torchrl.data import Composite, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.context import TrainerContext
-from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.checkpointer import Checkpointer, CheckpointerConfig
+from metta.rl.training.context import TrainerContext
 from metta.rl.training.context_checkpointer import ContextCheckpointer, ContextCheckpointerConfig
+from metta.rl.training.distributed_helper import DistributedHelper
 from mettagrid.profiling.stopwatch import Stopwatch
 
 
