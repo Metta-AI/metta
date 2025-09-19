@@ -78,10 +78,17 @@ class TrainTool(Tool):
         self._configure_run_metadata(args)
         self._prepare_run_directories()
 
-        distributed_helper = self._create_distributed_helper()
-        env = self._create_training_environment(distributed_helper)
+        distributed_helper = DistributedHelper(torch.device(self.device))
+        distributed_helper.scale_batch_config(self.trainer)
 
-        checkpoint_manager = self._create_checkpoint_manager()
+        self.training_env.seed += distributed_helper.get_rank()
+        env = VectorizedTrainingEnvironment(self.training_env)
+
+        checkpoint_manager = CheckpointManager(
+            run=self.run or "default",
+            run_dir=self.run_dir or str(Path(self.system.data_dir)),
+            remote_prefix=self.trainer.checkpoint.remote_prefix,
+        )
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy)
 
@@ -166,22 +173,6 @@ class TrainTool(Tool):
         os.makedirs(self.run_dir, exist_ok=True)
         init_logging(run_dir=self.run_dir)
         record_heartbeat()
-
-    def _create_distributed_helper(self) -> DistributedHelper:
-        helper = DistributedHelper(torch.device(self.device))
-        helper.scale_batch_config(self.trainer)
-        return helper
-
-    def _create_training_environment(self, distributed_helper: DistributedHelper) -> VectorizedTrainingEnvironment:
-        self.training_env.seed += distributed_helper.get_rank()
-        return VectorizedTrainingEnvironment(self.training_env)
-
-    def _create_checkpoint_manager(self) -> CheckpointManager:
-        return CheckpointManager(
-            run=self.run or "default",
-            run_dir=self.run_dir or str(Path(self.system.data_dir)),
-            remote_prefix=self.trainer.checkpoint.remote_prefix,
-        )
 
     def _load_or_create_policy(
         self,
