@@ -66,24 +66,15 @@ private:
       return false;
     }
 
-    // Transfer one unit from agent to chest
-    InventoryDelta agent_delta = agent.update_inventory(resource_type, static_cast<InventoryDelta>(-1));
-    if (agent_delta == -1) {
-      // Agent successfully gave up the resource
-      InventoryDelta chest_delta = update_inventory(resource_type, 1);
-      if (chest_delta == 1) {
-        stats.incr("chest.deposit_success");
-        stats.add(stats.resource_name(resource_type) + ".deposited", 1);
-        return true;
-      } else {
-        // Chest couldn't accept the resource, give it back to agent
-        agent.update_inventory(resource_type, 1);
-        stats.incr("chest.deposit_failed.chest_full");
-        return false;
-      }
+    InventoryDelta deposited = update_inventory(resource_type, 1);
+    if (deposited == 1) {
+      agent.update_inventory(resource_type, -1);
+      stats.incr("chest.deposit_success");
+      stats.add(stats.resource_name(resource_type) + ".deposited", 1);
+      return true;
     }
-
-    stats.incr("chest.deposit_failed.agent_error");
+    // Chest couldn't accept the resource, give it back to agent
+    stats.incr("chest.deposit_failed.chest_full");
     return false;
   }
 
@@ -96,24 +87,15 @@ private:
       return false;
     }
 
-    // Transfer one unit from chest to agent
-    InventoryDelta chest_delta = update_inventory(resource_type, static_cast<InventoryDelta>(-1));
-    if (chest_delta == -1) {
-      // Chest successfully gave up the resource
-      InventoryDelta agent_delta = agent.update_inventory(resource_type, 1);
-      if (agent_delta == 1) {
-        stats.incr("chest.withdraw_success");
-        stats.add(stats.resource_name(resource_type) + ".withdrawn", 1);
-        return true;
-      } else {
-        // Agent couldn't accept the resource, give it back to chest
-        agent.update_inventory(resource_type, 1);
-        stats.incr("chest.withdraw_failed.agent_full");
-        return false;
-      }
+    InventoryDelta withdrawn = agent.update_inventory(resource_type, 1);
+    if (withdrawn == 1) {
+      update_inventory(resource_type, -1);
+      stats.incr("chest.withdraw_success");
+      stats.add(stats.resource_name(resource_type) + ".withdrawn", 1);
+      return true;
     }
-
-    stats.incr("chest.withdraw_failed.chest_error");
+    // Agent couldn't accept the resource, give it back to chest
+    stats.incr("chest.withdraw_failed.agent_full");
     return false;
   }
 
