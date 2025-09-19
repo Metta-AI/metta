@@ -2,14 +2,15 @@
 
 import logging
 import os
-from typing import Any, List
+from typing import TYPE_CHECKING, Any, List
 
 import torch
 import torch.distributed
 
 from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
-from metta.rl.trainer_config import TrainerConfig
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
 

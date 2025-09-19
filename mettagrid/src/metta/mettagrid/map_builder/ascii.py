@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import numpy as np
 
 from metta.mettagrid.char_encoder import char_to_grid_object
@@ -11,7 +9,7 @@ class AsciiMapBuilder(MapBuilder):
     Builds a game map from an ASCII string.
     """
 
-    class Config(MapBuilderConfig[AsciiMapBuilder]):
+    class Config(MapBuilderConfig["AsciiMapBuilder"]):
         map_data: list[list[str]]
 
         @classmethod

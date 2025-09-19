@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import random
 from abc import ABC, abstractmethod
@@ -24,7 +22,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-TTaskGenerator = TypeVar("TTaskGenerator", bound=TaskGenerator)
+TTaskGenerator = TypeVar("TTaskGenerator", bound="TaskGenerator")
 
 
 class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
@@ -148,7 +146,7 @@ class TaskGenerator(ABC):
 class SingleTaskGenerator(TaskGenerator):
     """TaskGenerator that always returns the same MettaGridConfig."""
 
-    class Config(TaskGeneratorConfig[SingleTaskGenerator]):
+    class Config(TaskGeneratorConfig["SingleTaskGenerator"]):
         """Configuration for SingleTaskGenerator."""
 
         env: MettaGridConfig = Field(description="The environment configuration to always return")
@@ -172,7 +170,7 @@ class TaskGeneratorSet(TaskGenerator):
     from the list by weight and return child.get_task().
     """
 
-    class Config(TaskGeneratorConfig[TaskGeneratorSet]):
+    class Config(TaskGeneratorConfig["TaskGeneratorSet"]):
         """Configuration for TaskGeneratorSet."""
 
         task_generators: list[AnyTaskGeneratorConfig] = Field(
@@ -256,7 +254,7 @@ class BucketedTaskGenerator(TaskGenerator):
     3. Apply the sampled bucket values as overrides to the returned MettaGridConfig
     """
 
-    class Config(TaskGeneratorConfig[BucketedTaskGenerator]):
+    class Config(TaskGeneratorConfig["BucketedTaskGenerator"]):
         """Configuration for BucketedTaskGenerator."""
 
         child_generator_config: AnyTaskGeneratorConfig = Field(description="Child task generator configuration")
