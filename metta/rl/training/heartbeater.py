@@ -13,14 +13,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class HeartbeatConfig(Config):
+class HeartbeaterConfig(Config):
     """Configuration for heartbeat monitoring."""
 
     epoch_interval: int = 1
-    """How often to write heartbeat (in epochs)"""
+    """How often to write heartbeat (in epochs)."""
 
 
-class HeartbeatWriter(TrainerComponent):
+class Heartbeater(TrainerComponent):
     """Writes heartbeat signals for monitoring training progress."""
 
     def on_epoch_end(self, epoch: int) -> None:

@@ -106,7 +106,7 @@ def build_wandb_payload(
     return payload
 
 
-class StatsConfig(Config):
+class ReporterConfig(Config):
     """Configuration for stats reporting."""
 
     report_to_wandb: bool = True
@@ -119,7 +119,7 @@ class StatsConfig(Config):
     """How often to compute weight metrics (0 disables)."""
 
 
-class StatsState(Config):
+class ReporterState(Config):
     """State for statistics tracking."""
 
     rollout_stats: Dict = Field(default_factory=lambda: defaultdict(list))
@@ -131,13 +131,13 @@ class StatsState(Config):
     latest_saved_epoch: int = 0
 
 
-class NoOpStatsReporter(TrainerComponent):
+class NoOpReporter(TrainerComponent):
     """No-op stats reporter for when stats are disabled."""
 
     def __init__(self):
         """Initialize no-op stats reporter."""
         # Create a minimal config for the no-op reporter
-        config = StatsConfig(report_to_wandb=False, report_to_stats_client=False, interval=999999)
+        config = ReporterConfig(report_to_wandb=False, report_to_stats_client=False, interval=999999)
         super().__init__(epoch_interval=config.interval)
         self.wandb_run = None
         self.stats_run_id = None
@@ -157,17 +157,17 @@ class NoOpStatsReporter(TrainerComponent):
         pass
 
 
-class StatsReporter(TrainerComponent):
+class Reporter(TrainerComponent):
     """Aggregates and reports statistics to multiple backends."""
 
     @classmethod
     def from_config(
         cls,
-        config: Optional[StatsConfig],
+        config: Optional[ReporterConfig],
         stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
-    ) -> "StatsReporter":
-        """Create a StatsReporter from optional config, returning no-op if None.
+    ) -> "Reporter":
+        """Create a Reporter from optional config, returning no-op if None.
 
         Args:
             config: Optional stats configuration
@@ -175,15 +175,15 @@ class StatsReporter(TrainerComponent):
             wandb_run: Optional wandb run
 
         Returns:
-            StatsReporter instance (no-op if config is None)
+            Reporter instance (no-op if config is None)
         """
         if config is None:
-            return NoOpStatsReporter()
+            return NoOpReporter()
         return cls(config=config, stats_client=stats_client, wandb_run=wandb_run)
 
     def __init__(
         self,
-        config: StatsConfig,
+        config: ReporterConfig,
         stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
     ):
@@ -198,7 +198,7 @@ class StatsReporter(TrainerComponent):
         self._config = config
         self._stats_client = stats_client
         self._wandb_run = wandb_run
-        self._state = StatsState()
+        self._state = ReporterState()
 
         # Initialize stats run if client is available
         if self._stats_client and self._config.report_to_stats_client:
@@ -233,7 +233,7 @@ class StatsReporter(TrainerComponent):
             logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
     @property
-    def state(self) -> StatsState:
+    def state(self) -> ReporterState:
         """Get the state for external access."""
         return self._state
 

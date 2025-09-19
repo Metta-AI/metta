@@ -18,20 +18,20 @@ from mettagrid.util.file import local_copy
 logger = logging.getLogger(__name__)
 
 
-class PolicyUploaderConfig(Config):
+class UploaderConfig(Config):
     """Configuration for policy uploading."""
 
     epoch_interval: int = 1000
     """How often to upload policy to wandb (in epochs)."""
 
 
-class PolicyUploader(TrainerComponent):
+class Uploader(TrainerComponent):
     """Manages uploading policies to wandb and other destinations."""
 
     def __init__(
         self,
         *,
-        config: PolicyUploaderConfig,
+        config: UploaderConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
         wandb_run: Optional[WandbRun] = None,
@@ -76,7 +76,7 @@ class PolicyUploader(TrainerComponent):
 
         checkpoint_uri = self.context.latest_policy_uri()
         if not checkpoint_uri:
-            logger.debug("PolicyUploader: no checkpoint available for %s", reason)
+            logger.debug("Uploader: no checkpoint available for %s", reason)
             return
 
         metadata = {
@@ -125,7 +125,7 @@ class PolicyUploader(TrainerComponent):
         if parsed.scheme == "file":
             local_path = Path(parsed.path)
             if not local_path.exists():
-                logger.warning("PolicyUploader: checkpoint path %s does not exist", local_path)
+                logger.warning("Uploader: checkpoint path %s does not exist", local_path)
                 yield None
             else:
                 yield local_path
@@ -136,9 +136,9 @@ class PolicyUploader(TrainerComponent):
                 with local_copy(normalized_uri) as tmp_path:
                     yield Path(tmp_path)
             except Exception as exc:  # pragma: no cover - best effort for remote policies
-                logger.error("PolicyUploader: failed to download %s: %s", normalized_uri, exc)
+                logger.error("Uploader: failed to download %s: %s", normalized_uri, exc)
                 yield None
             return
 
-        logger.debug("PolicyUploader: unsupported checkpoint scheme %s", parsed.scheme)
+        logger.debug("Uploader: unsupported checkpoint scheme %s", parsed.scheme)
         yield None

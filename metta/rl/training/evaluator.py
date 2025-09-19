@@ -22,7 +22,7 @@ from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.config import Config
 
 if TYPE_CHECKING:
-    from metta.rl.training.stats_reporter import StatsReporter
+    from metta.rl.training.reporter import Reporter
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class Evaluator(TrainerComponent):
         system_cfg: Any,
         trainer_cfg: Any,
         stats_client: Optional[StatsClient] = None,
-        stats_reporter: Optional["StatsReporter"] = None,
+        stats_reporter: Optional["Reporter"] = None,
     ):
         """Initialize evaluator.
 
@@ -103,7 +103,7 @@ class Evaluator(TrainerComponent):
         system_cfg: Optional[Any] = None,
         trainer_cfg: Optional[Any] = None,
         stats_client: Optional[StatsClient] = None,
-        stats_reporter: Optional["StatsReporter"] = None,
+        stats_reporter: Optional["Reporter"] = None,
     ):
         """Create an Evaluator from optional config, returning no-op if None.
 

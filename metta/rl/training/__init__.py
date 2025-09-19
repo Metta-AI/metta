@@ -17,38 +17,39 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     # Distributed helpers
     "DistributedHelper": ("metta.rl.training.distributed_helper", "DistributedHelper"),
     # Checkpointing components
-    "PolicyCheckpointer": ("metta.rl.training.policy_checkpointer", "PolicyCheckpointer"),
-    "PolicyCheckpointerConfig": ("metta.rl.training.policy_checkpointer", "PolicyCheckpointerConfig"),
-    "PolicyUploader": ("metta.rl.training.policy_uploader", "PolicyUploader"),
-    "PolicyUploaderConfig": ("metta.rl.training.policy_uploader", "PolicyUploaderConfig"),
-    "TrainerCheckpointer": ("metta.rl.training.trainer_checkpointer", "TrainerCheckpointer"),
-    "TrainerCheckpointerConfig": ("metta.rl.training.trainer_checkpointer", "TrainerCheckpointerConfig"),
+    "Checkpointer": ("metta.rl.training.checkpointer", "Checkpointer"),
+    "CheckpointerConfig": ("metta.rl.training.checkpointer", "CheckpointerConfig"),
+    "Uploader": ("metta.rl.training.uploader", "Uploader"),
+    "UploaderConfig": ("metta.rl.training.uploader", "UploaderConfig"),
+    "ContextCheckpointer": ("metta.rl.training.context_checkpointer", "ContextCheckpointer"),
+    "ContextCheckpointerConfig": ("metta.rl.training.context_checkpointer", "ContextCheckpointerConfig"),
     "TrainerContext": ("metta.rl.training.context", "TrainerContext"),
-    "WandbAbortComponent": ("metta.rl.training.wandb_abort", "WandbAbortComponent"),
+    "WandbAlerter": ("metta.rl.training.wandb_alerter", "WandbAlerter"),
+    "WandbAlerterConfig": ("metta.rl.training.wandb_alerter", "WandbAlerterConfig"),
     # Evaluation
     "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
     "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),
     "NoOpEvaluator": ("metta.rl.training.evaluator", "NoOpEvaluator"),
     # Stats reporting
-    "StatsReporter": ("metta.rl.training.stats_reporter", "StatsReporter"),
-    "StatsConfig": ("metta.rl.training.stats_reporter", "StatsConfig"),
-    "StatsState": ("metta.rl.training.stats_reporter", "StatsState"),
-    "NoOpStatsReporter": ("metta.rl.training.stats_reporter", "NoOpStatsReporter"),
+    "Reporter": ("metta.rl.training.reporter", "Reporter"),
+    "ReporterConfig": ("metta.rl.training.reporter", "ReporterConfig"),
+    "ReporterState": ("metta.rl.training.reporter", "ReporterState"),
+    "NoOpReporter": ("metta.rl.training.reporter", "NoOpReporter"),
     # Trainer components
     "TrainerComponent": ("metta.rl.training.component", "TrainerComponent"),
-    "MonitoringComponent": ("metta.rl.training.monitoring_component", "MonitoringComponent"),
+    "Monitor": ("metta.rl.training.monitor", "Monitor"),
     # Torch profiler
-    "TorchProfilerComponent": ("metta.rl.training.torch_profiler_component", "TorchProfilerComponent"),
+    "TorchProfiler": ("metta.rl.training.torch_profiler", "TorchProfiler"),
     # Heartbeat
-    "HeartbeatWriter": ("metta.rl.training.heartbeat", "HeartbeatWriter"),
-    "HeartbeatConfig": ("metta.rl.training.heartbeat", "HeartbeatConfig"),
+    "Heartbeater": ("metta.rl.training.heartbeater", "Heartbeater"),
+    "HeartbeaterConfig": ("metta.rl.training.heartbeater", "HeartbeaterConfig"),
     # Hyperparameter scheduler
-    "HyperparameterComponent": ("metta.rl.training.hyperparameter", "HyperparameterComponent"),
-    "HyperparameterConfig": ("metta.rl.training.hyperparameter", "HyperparameterConfig"),
-    "HyperparameterSchedulerConfig": ("metta.rl.training.hyperparameter", "HyperparameterSchedulerConfig"),
+    "Scheduler": ("metta.rl.training.scheduler", "Scheduler"),
+    "SchedulerConfig": ("metta.rl.training.scheduler", "SchedulerConfig"),
+    "HyperparameterSchedulerConfig": ("metta.rl.training.scheduler", "HyperparameterSchedulerConfig"),
     # Gradient stats
-    "GradientStatsComponent": ("metta.rl.training.gradient_stats", "GradientStatsComponent"),
-    "GradientStatsConfig": ("metta.rl.training.gradient_stats", "GradientStatsConfig"),
+    "GradientReporter": ("metta.rl.training.gradient_reporter", "GradientReporter"),
+    "GradientReporterConfig": ("metta.rl.training.gradient_reporter", "GradientReporterConfig"),
     # Training environment module
     "training_environment": ("metta.rl.training.training_environment", None),
 }

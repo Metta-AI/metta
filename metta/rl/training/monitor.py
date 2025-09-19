@@ -43,7 +43,7 @@ def _cleanup_monitoring(memory_monitor: MemoryMonitor | None, system_monitor: Sy
         logger.debug("Stopped system monitor")
 
 
-class MonitoringComponent(TrainerComponent):
+class Monitor(TrainerComponent):
     """Manage memory and system monitors independently of stats reporting."""
 
     _master_only = True

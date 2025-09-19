@@ -22,25 +22,27 @@ from metta.rl.training import (
     DistributedHelper,
     Evaluator,
     EvaluatorConfig,
-    GradientStatsComponent,
-    GradientStatsConfig,
-    HeartbeatWriter,
-    HyperparameterComponent,
-    HyperparameterConfig,
-    MonitoringComponent,
-    PolicyCheckpointer,
-    PolicyCheckpointerConfig,
-    PolicyUploader,
-    PolicyUploaderConfig,
-    TrainerCheckpointerConfig,
+    GradientReporter,
+    GradientReporterConfig,
+    Heartbeater,
+    Scheduler,
+    SchedulerConfig,
+    Monitor,
+    Checkpointer,
+    CheckpointerConfig,
+    Uploader,
+    UploaderConfig,
+    ContextCheckpointerConfig,
+    Reporter,
+    ReporterConfig,
+    WandbAlerter,
+    WandbAlerterConfig,
 )
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.stats_reporter import StatsConfig, StatsReporter
-from metta.rl.training.torch_profiler_component import TorchProfilerComponent
-from metta.rl.training.trainer_checkpointer import TrainerCheckpointer
+from metta.rl.training.torch_profiler import TorchProfiler
+from metta.rl.training.context_checkpointer import ContextCheckpointer
 from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
-from metta.rl.training.wandb_abort import WandbAbortComponent
-from metta.rl.training.wandb_logger import WandbLoggerComponent
+from metta.rl.training.wandb_logger import WandbLogger
 from metta.tools.utils.auto_config import (
     auto_policy_storage_decision,
     auto_run_name,
@@ -60,17 +62,18 @@ class TrainTool(Tool):
     training_env: TrainingEnvironmentConfig
     policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
     initial_policy_uri: Optional[str] = None
-    policy_uploader: PolicyUploaderConfig = Field(default_factory=PolicyUploaderConfig)
-    policy_checkpointer: PolicyCheckpointerConfig = Field(default_factory=PolicyCheckpointerConfig)
-    gradient_stats: GradientStatsConfig = Field(default_factory=GradientStatsConfig)
+    uploader: UploaderConfig = Field(default_factory=UploaderConfig)
+    checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
+    gradient_reporter: GradientReporterConfig = Field(default_factory=GradientReporterConfig)
 
     stats_server_uri: Optional[str] = auto_stats_server_uri()
     wandb: WandbConfig = WandbConfig.Unconfigured()
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
-    checkpointer: TrainerCheckpointerConfig = Field(default_factory=TrainerCheckpointerConfig)
-    stats: StatsConfig = Field(default_factory=StatsConfig)
+    context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
+    reporter: ReporterConfig = Field(default_factory=ReporterConfig)
+    wandb_alerter: WandbAlerterConfig = Field(default_factory=WandbAlerterConfig)
 
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False

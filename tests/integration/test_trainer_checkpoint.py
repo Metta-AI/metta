@@ -12,8 +12,8 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.context import TrainerContext
 from metta.rl.training.distributed_helper import DistributedHelper
-from metta.rl.training.policy_checkpointer import PolicyCheckpointer, PolicyCheckpointerConfig
-from metta.rl.training.trainer_checkpointer import TrainerCheckpointer, TrainerCheckpointerConfig
+from metta.rl.training.checkpointer import Checkpointer, CheckpointerConfig
+from metta.rl.training.context_checkpointer import ContextCheckpointer, ContextCheckpointerConfig
 from mettagrid.profiling.stopwatch import Stopwatch
 
 
@@ -81,8 +81,8 @@ def test_trainer_checkpointer_restore(tmp_path):
     manager = CheckpointManager(run="trainer", run_dir=str(tmp_path))
     manager.save_trainer_state(optimizer, epoch=3, agent_step=128, stopwatch_state={"foo": 1})
 
-    component = TrainerCheckpointer(
-        config=TrainerCheckpointerConfig(epoch_interval=1),
+    component = ContextCheckpointer(
+        config=ContextCheckpointerConfig(epoch_interval=1),
         checkpoint_manager=manager,
         distributed_helper=context.distributed,
     )
@@ -99,8 +99,8 @@ def test_trainer_checkpointer_saves_state(tmp_path):
     context = build_context(tmp_path, policy, optimizer)
 
     manager = CheckpointManager(run="trainer", run_dir=str(tmp_path))
-    component = TrainerCheckpointer(
-        config=TrainerCheckpointerConfig(epoch_interval=1),
+    component = ContextCheckpointer(
+        config=ContextCheckpointerConfig(epoch_interval=1),
         checkpoint_manager=manager,
         distributed_helper=context.distributed,
     )
@@ -122,8 +122,8 @@ def test_policy_checkpointer_updates_latest_uri(tmp_path):
     context.latest_eval_scores = EvalRewardSummary()
 
     manager = CheckpointManager(run="policy", run_dir=str(tmp_path))
-    component = PolicyCheckpointer(
-        config=PolicyCheckpointerConfig(epoch_interval=1),
+    component = Checkpointer(
+        config=CheckpointerConfig(epoch_interval=1),
         checkpoint_manager=manager,
         distributed_helper=context.distributed,
     )

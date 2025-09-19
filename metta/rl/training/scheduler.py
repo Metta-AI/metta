@@ -19,7 +19,7 @@ class HyperparameterSchedulerConfig(Config):
     ppo_ent_coef_decay: float = 1.0
 
 
-class HyperparameterConfig(Config):
+class SchedulerConfig(Config):
     """Component-specific scheduling configuration."""
 
     interval: int = 1
@@ -76,14 +76,14 @@ def step_hyperparameters(trainer_cfg, optimizer, current_step: int, total_timest
     return updates
 
 
-class HyperparameterComponent(TrainerComponent):
+class Scheduler(TrainerComponent):
     """Manages hyperparameter scheduling."""
 
-    def __init__(self, config: HyperparameterConfig):
-        """Initialize hyperparameter component.
+    def __init__(self, config: SchedulerConfig):
+        """Initialize scheduler component.
 
         Args:
-            config: Hyperparameter configuration
+            config: Scheduler configuration.
         """
         super().__init__(epoch_interval=config.interval)
 

@@ -13,20 +13,20 @@ from mettagrid.config import Config
 logger = logging.getLogger(__name__)
 
 
-class PolicyCheckpointerConfig(Config):
+class CheckpointerConfig(Config):
     """Configuration for policy checkpointing."""
 
     epoch_interval: int = 100
     """How often to save policy checkpoints (in epochs)."""
 
 
-class PolicyCheckpointerComponent(TrainerComponent):
+class Checkpointer(TrainerComponent):
     """Manages policy checkpointing with distributed awareness and URI support."""
 
     def __init__(
         self,
         *,
-        config: PolicyCheckpointerConfig,
+        config: CheckpointerConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
     ) -> None:

@@ -19,7 +19,7 @@ from mettagrid.util.file import http_url, is_public_uri, write_file
 logger = logging.getLogger(__name__)
 
 
-class TorchProfiler:
+class TorchProfileSession:
     """Context-managed wrapper around ``torch.profiler`` for periodic traces."""
 
     def __init__(
@@ -138,7 +138,7 @@ class TorchProfiler:
             logger.debug("Unable to delete temporary torch profile %s", input_path)
 
 
-class TorchProfilerComponent(TrainerComponent):
+class TorchProfiler(TrainerComponent):
     """Manages torch profiling during training."""
 
     def __init__(
@@ -155,7 +155,7 @@ class TorchProfilerComponent(TrainerComponent):
         self._wandb_run = wandb_run
         self._run_dir = run_dir
         self._is_master = is_master
-        self._torch_profiler: Optional[TorchProfiler] = None
+        self._session: Optional[TorchProfileSession] = None
         self._original_train_epoch = None
         self._master_only = True
 
@@ -165,9 +165,9 @@ class TorchProfilerComponent(TrainerComponent):
         if not interval:
             return
 
-        if self._torch_profiler is None:
+        if self._session is None:
             run_dir = self._run_dir or getattr(context, "run_dir", None)
-            self._torch_profiler = TorchProfiler(
+            self._session = TorchProfileSession(
                 master=self._is_master,
                 profiler_config=self._config,
                 wandb_run=self._wandb_run,
@@ -177,17 +177,17 @@ class TorchProfilerComponent(TrainerComponent):
         original_train_epoch = context.get_train_epoch_callable()
 
         def wrapped_train_epoch():
-            if self._torch_profiler is None:
+            if self._session is None:
                 return original_train_epoch()
-            with self._torch_profiler:
+            with self._session:
                 return original_train_epoch()
 
         context.set_train_epoch_callable(wrapped_train_epoch)
         self._original_train_epoch = original_train_epoch
 
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        if self._torch_profiler:
-            self._torch_profiler.on_epoch_end(epoch)
+        if self._session:
+            self._session.on_epoch_end(epoch)
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if self._original_train_epoch is not None:
