@@ -162,12 +162,14 @@ class ConvolutionalTransformerPolicy(nn.Module):
         if terminations is not None and new_memory is not None:
             hidden_states = new_memory.get("hidden_states") if isinstance(new_memory, dict) else None
             if hidden_states:
-                done_mask = terminations[-1].to(torch.bool)
+                done_mask = terminations[-1] > 0
                 if done_mask.any():
-                    for layer_mem in hidden_states:
+                    keep_mask = (~done_mask).to(dtype=hidden.dtype)
+                    keep_mask = keep_mask.view(1, -1, 1)
+                    for idx, layer_mem in enumerate(hidden_states):
                         if layer_mem is None or layer_mem.numel() == 0:
                             continue
-                        layer_mem[:, done_mask, :] = 0
+                        hidden_states[idx] = layer_mem * keep_mask
         return output, new_memory
 
     def initialize_memory(self, batch_size: int) -> dict:

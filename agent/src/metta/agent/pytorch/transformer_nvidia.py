@@ -506,10 +506,12 @@ class TransformerNvidiaPolicy(nn.Module):
         output, new_memory = self.core(hidden, memory_list)
 
         if terminations is not None and new_memory:
-            done_mask = terminations[-1].bool()
+            done_mask = terminations[-1] > 0
             if done_mask.any():
-                for mem in new_memory:
-                    mem[:, done_mask, :] = 0
+                keep_mask = (~done_mask).to(dtype=hidden.dtype)
+                keep_mask = keep_mask.view(1, -1, 1)
+                for idx, mem in enumerate(new_memory):
+                    new_memory[idx] = mem * keep_mask
 
         return output, {"hidden_states": new_memory}
 
