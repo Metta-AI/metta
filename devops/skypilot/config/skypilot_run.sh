@@ -177,7 +177,8 @@ shutdown() {
       fi
     fi
 
-    # Send SIGKILL to the local process group
+    kill -TERM -"${CMD_PGID}" 2> /dev/null || true
+    sleep 20
     kill -KILL -"${CMD_PGID}" 2> /dev/null || true
   fi
 

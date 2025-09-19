@@ -37,6 +37,8 @@ cleanup() {
 
   sleep 1
 
+  echo "[INFO] cleanup() complete. Final exit code: ${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
+
   # Override the process exit code from within the EXIT trap.
   # Note: calling `exit` inside an EXIT trap does not recurse the trap.
   exit "${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
@@ -121,8 +123,6 @@ print_final_summary() {
   echo "[SUMMARY] Exit code: ${CMD_EXIT}"
   echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
   echo "[SUMMARY] ======================"
-
-  echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
 }
 
 determine_final_exit_code() {
