@@ -36,6 +36,7 @@ class CoreTrainingLoop:
         losses: Dict[str, Loss],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
+        context: TrainerContext,
         accumulate_minibatches: int = 1,
     ):
         """Initialize core training loop.
@@ -54,6 +55,7 @@ class CoreTrainingLoop:
         self.optimizer = optimizer
         self.device = device
         self.accumulate_minibatches = accumulate_minibatches
+        self.context = context
 
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
@@ -120,11 +122,6 @@ class CoreTrainingLoop:
             for loss in self.losses.values():
                 loss.rollout(td, context)
 
-            if "actions" not in td.keys():
-                with torch.no_grad():
-                    self.policy(td)
-                self.experience.store(data_td=td, env_id=training_env_id)
-
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
 
             # Ship actions to the environment
@@ -177,7 +174,9 @@ class CoreTrainingLoop:
         for _ in range(update_epochs):
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
-                # Compute total loss from all losses
+                if mb_idx % self.accumulate_minibatches == 0:
+                    self.optimizer.zero_grad()
+
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
 
@@ -192,8 +191,6 @@ class CoreTrainingLoop:
                     stop_update_epoch = True
                     break
 
-                # Backward pass
-                self.optimizer.zero_grad()
                 total_loss.backward()
 
                 # Optimizer step with gradient accumulation

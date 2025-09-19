@@ -83,15 +83,6 @@ class Trainer:
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
 
-        self.core_loop = CoreTrainingLoop(
-            policy=self._policy,
-            experience=experience,
-            losses=losses,
-            optimizer=self.optimizer,
-            device=self._device,
-            accumulate_minibatches=experience.accumulate_minibatches,
-        )
-
         self._context = TrainerContext(
             trainer=self,
             policy=self._policy,
@@ -107,6 +98,16 @@ class Trainer:
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch
         self._context.set_train_epoch_fn = lambda fn: setattr(self, "_train_epoch", fn)
+
+        self.core_loop = CoreTrainingLoop(
+            policy=self._policy,
+            experience=experience,
+            losses=losses,
+            optimizer=self.optimizer,
+            device=self._device,
+            context=self._context,
+            accumulate_minibatches=experience.accumulate_minibatches,
+        )
 
         for loss in losses.values():
             loss.attach_context(self._context)
@@ -137,7 +138,7 @@ class Trainer:
             raise RuntimeError("Core loop not initialized")
 
         steps_before = self._context.agent_step
-        self._context.training_env_id = None
+        self._context.reset_for_epoch()
 
         # Start new epoch
         self.core_loop.on_epoch_start(self._context)
@@ -145,7 +146,7 @@ class Trainer:
         # Rollout phase
         with self.timer("_rollout"):
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
-            self._context.agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
+            self._context.record_rollout(rollout_result.agent_steps, self._distributed_helper.get_world_size())
             self._context.training_env_id = rollout_result.training_env_id
             # Invoke step callbacks for each info
             for info in rollout_result.raw_infos:
@@ -160,7 +161,7 @@ class Trainer:
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
             )
-            self._context.epoch += epochs_trained
+            self._context.advance_epoch(epochs_trained)
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()

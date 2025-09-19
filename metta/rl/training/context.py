@@ -49,8 +49,6 @@ class TrainerContext:
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     memory_monitor: MemoryMonitor | None = None
     system_monitor: SystemMonitor | None = None
-    update_epoch: int = 0
-    mb_idx: int = 0
     _epoch: int = 0
     _agent_step: int = 0
     training_env_id: slice | None = None
@@ -84,6 +82,18 @@ class TrainerContext:
         if self.latest_policy_uri_fn is None:
             return None
         return self.latest_policy_uri_fn()
+
+    def reset_for_epoch(self) -> None:
+        """Prepare context state at the start of an epoch."""
+        self.training_env_id = None
+
+    def record_rollout(self, agent_steps: int, world_size: int) -> None:
+        """Update accounting after a rollout phase."""
+        self.agent_step += agent_steps * world_size
+
+    def advance_epoch(self, epochs: int) -> None:
+        """Bump the epoch counter."""
+        self.epoch += epochs
 
     def get_train_epoch_callable(self) -> Callable[[], None]:
         if self.get_train_epoch_fn is None:
