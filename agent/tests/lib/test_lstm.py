@@ -29,8 +29,6 @@ def lstm_environment():
                 "latent": latent,
                 "bptt": torch.full((batch_size * time_steps,), time_steps, dtype=torch.long),
                 "batch": torch.full((batch_size * time_steps,), batch_size, dtype=torch.long),
-                "dones": torch.zeros(batch_size * time_steps, dtype=torch.bool),
-                "truncateds": torch.zeros(batch_size * time_steps, dtype=torch.bool),
             },
             batch_size=[batch_size * time_steps],
         )
@@ -54,13 +52,11 @@ def test_lstm_forward_creates_output_and_state(lstm_environment):
 def test_lstm_state_persists_across_calls(lstm_environment):
     lstm, build_td, *_ = lstm_environment
 
-    td1 = build_td()
-    out1 = lstm(td1.clone())["core"]
+    td = build_td()
+    out1 = lstm(td.clone())["core"]
+    out2 = lstm(td.clone())["core"]
 
-    td2 = build_td()
-    out2 = lstm(td2.clone())["core"]
-
-    # With state continuation, outputs differ even with new random input tensors
+    # With state continuation, repeated pass produces different output
     assert not torch.allclose(out1, out2)
 
 
@@ -75,6 +71,7 @@ def test_lstm_reset_memory_clears_state(lstm_environment):
     assert not lstm.lstm_c
 
     # After reset, initial pass behaves like a fresh LSTM
-    out1 = lstm(build_td())["core"]
-    out2 = lstm(build_td())["core"]
+    td = build_td()
+    out1 = lstm(td.clone())["core"]
+    out2 = lstm(td.clone())["core"]
     assert not torch.allclose(out1, out2)
