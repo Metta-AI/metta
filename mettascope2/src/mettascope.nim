@@ -1,6 +1,6 @@
 import std/[random, os, times, strformat, strutils, parseopt],
   boxy, opengl, windy, windy/http, chroma, vmath, fidget2, fidget2/hybridrender,
-  mettascope/[replays, common, panels, utils, header, footer, timeline,
+  mettascope/[replays, common, panels, utils, footer, timeline,
   worldmap, minimap, agenttable, agenttraces, envconfig]
 
 var replay = ""
