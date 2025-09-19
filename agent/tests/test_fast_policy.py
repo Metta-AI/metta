@@ -72,4 +72,3 @@ def test_fast_policy_forward_produces_actions_and_values():
     assert output_td["actions"].shape == (1, 2)
     assert output_td["values"].shape == (1,)
     assert output_td["full_log_probs"].shape[0] == 1
-
