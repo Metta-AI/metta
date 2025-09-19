@@ -22,7 +22,7 @@ class WandbURI:
     version: str = "latest"
 
     @classmethod
-    def parse(cls, uri: str) -> "WandbURI":
+    def parse(cls, uri: str) -> WandbURI:
         if not uri.startswith("wandb://"):
             raise ValueError("W&B URI must start with wandb://")
 
@@ -109,7 +109,7 @@ class ParsedURI:
         return self.scheme in {"s3", "wandb", "gdrive", "http"}
 
     @classmethod
-    def parse(cls, value: str) -> "ParsedURI":
+    def parse(cls, value: str) -> ParsedURI:
         if not value:
             raise ValueError("URI cannot be empty")
 

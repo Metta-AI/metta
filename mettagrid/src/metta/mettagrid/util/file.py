@@ -340,7 +340,7 @@ class GDriveURI:
     name: Optional[str] = None  # required for folder uploads
 
     @classmethod
-    def parse(cls, uri: str) -> "GDriveURI":
+    def parse(cls, uri: str) -> GDriveURI:
         # gdrive://file/<ID>
         if uri.startswith("gdrive://file/"):
             fid = uri.split("gdrive://file/", 1)[1].strip("/")

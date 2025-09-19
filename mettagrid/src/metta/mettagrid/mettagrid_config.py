@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
@@ -198,17 +200,17 @@ class MettaGridConfig(Config):
     desync_episodes: bool = Field(default=True)
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "MettaGridConfig":
+    def validate_fields(self) -> MettaGridConfig:
         return self
 
-    def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
+    def with_ascii_map(self, map_data: list[list[str]]) -> MettaGridConfig:
         self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
         return self
 
     @staticmethod
     def EmptyRoom(
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
-    ) -> "MettaGridConfig":
+    ) -> MettaGridConfig:
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(

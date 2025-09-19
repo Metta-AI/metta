@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Literal
 
@@ -20,7 +22,7 @@ class Area:
     tags: list[str]
 
     @classmethod
-    def root_area_from_grid(cls, grid: MapGrid) -> "Area":
+    def root_area_from_grid(cls, grid: MapGrid) -> Area:
         return cls(x=0, y=0, width=grid.shape[1], height=grid.shape[0], grid=grid, tags=[])
 
     def as_dict(self) -> dict:
@@ -37,7 +39,7 @@ class Area:
         self.y += shift_y
         self.grid = grid[self.y : self.y + self.height, self.x : self.x + self.width]
 
-    def __getitem__(self, key) -> "Area":
+    def __getitem__(self, key) -> Area:
         # TODO - I think this method doesn't support negative indices.
         # (written by Claude)
 
