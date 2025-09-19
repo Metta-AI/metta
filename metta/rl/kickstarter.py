@@ -71,7 +71,7 @@ class Kickstarter:
 
             # Initialize policy to environment if needed
             if hasattr(policy, "initialize_to_environment"):
-                features = self.metta_grid_env.get_observation_features()
+                features = self.metta_grid_env.observation_features
                 policy.initialize_to_environment(
                     features,
                     self.metta_grid_env.action_names,

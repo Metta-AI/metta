@@ -122,7 +122,7 @@ class Simulation:
 
         # Initialize policy to environment
         self._policy.eval()  # Set to evaluation mode for simulation
-        features = metta_grid_env.get_observation_features()
+        features = metta_grid_env.observation_features
         self._policy.initialize_to_environment(
             features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
         )
@@ -130,7 +130,7 @@ class Simulation:
         if self._npc_policy is not None:
             # Initialize NPC policy to environment
             self._npc_policy.eval()  # Set to evaluation mode for simulation
-            features = metta_grid_env.get_observation_features()
+            features = metta_grid_env.observation_features
             self._npc_policy.initialize_to_environment(
                 features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
             )

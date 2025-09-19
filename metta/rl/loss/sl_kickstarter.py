@@ -75,7 +75,7 @@ class SLKickstarter(Loss):
         self.teacher_policy: PolicyAgent = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
         if hasattr(self.teacher_policy, "initialize_to_environment"):
             driver_env = self.env.driver_env
-            features = driver_env.get_observation_features()
+            features = driver_env.observation_features
             self.teacher_policy.initialize_to_environment(
                 features, driver_env.action_names, driver_env.max_action_args, self.device
             )

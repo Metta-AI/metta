@@ -35,7 +35,7 @@ def create_env_and_agent():
     )
 
     # Initialize agent to environment
-    features = env.get_observation_features()
+    features = env.observation_features
     agent.initialize_to_environment(features, env.action_names, env.max_action_args, device="cpu")
 
     return env, agent
@@ -220,7 +220,7 @@ def test_multi_agent_environment(create_env_and_agent):
     )
 
     # Initialize
-    features = multi_env.get_observation_features()
+    features = multi_env.observation_features
     agent.initialize_to_environment(features, multi_env.action_names, multi_env.max_action_args, device="cpu")
 
     # Reset and step
@@ -254,7 +254,7 @@ def test_different_agent_architectures():
         )
 
         # Initialize
-        features = env.get_observation_features()
+        features = env.observation_features
         agent.initialize_to_environment(features, env.action_names, env.max_action_args, device="cpu")
 
         # Test forward pass
@@ -285,7 +285,7 @@ def test_pytorch_vs_component_policies():
     pytorch_agent = MettaAgent(env=env, system_cfg=system_cfg, policy_architecture_cfg=pytorch_cfg)
 
     # Initialize both
-    features = env.get_observation_features()
+    features = env.observation_features
     for agent in [component_agent, pytorch_agent]:
         agent.initialize_to_environment(features, env.action_names, env.max_action_args, device="cpu")
 
