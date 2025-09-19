@@ -93,16 +93,22 @@ class PyTorchAgentMixin:
         - Experience buffer integration
         - Proper tensor reshaping during training
 
-        NOTE: The caller must reshape the TD BEFORE calling this if needed.
-        The fields will be set to match the flattened batch dimension.
+        The fields will be set to match the current TensorDict batch dimensions.
         """
         if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
             B = observations.shape[0]
             TT = observations.shape[1]
-            # Fields should match the flattened batch size
-            total_batch = B * TT
-            td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
-            td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
+
+            # Set fields to match the current TD batch dimensions
+            # If TD is already flattened, use total_batch size
+            # If TD is still [B, T], use [B, T] dimensions
+            if td.batch_dims == 1:  # TD is flattened to [B*T]
+                total_batch = B * TT
+                td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
+                td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
+            else:  # TD is still [B, T]
+                td.set("bptt", torch.full((B, TT), TT, device=observations.device, dtype=torch.long))
+                td.set("batch", torch.full((B, TT), B, device=observations.device, dtype=torch.long))
         else:  # Inference: [B, obs_tokens, 3]
             B = observations.shape[0]
             TT = 1
