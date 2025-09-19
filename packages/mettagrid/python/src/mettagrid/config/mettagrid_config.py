@@ -10,7 +10,8 @@ from mettagrid.map_builder.random import RandomMapBuilder
 # ===== Python Configuration Models =====
 
 # Left to right, top to bottom.
-Position = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]
+FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
+Position = FixedPosition | Literal["Any"]
 
 
 class StatsRewards(Config):
@@ -141,10 +142,10 @@ class ChestConfig(Config):
 
     type_id: int = Field(default=0, ge=0, le=255)
     resource_type: str = Field(description="Resource type that this chest can store")
-    deposit_positions: list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]] = Field(
+    deposit_positions: list[FixedPosition] = Field(
         default_factory=list, description="Positions where agents can deposit resources"
     )
-    withdrawal_positions: list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]] = Field(
+    withdrawal_positions: list[FixedPosition] = Field(
         default_factory=list, description="Positions where agents can withdraw resources"
     )
 
