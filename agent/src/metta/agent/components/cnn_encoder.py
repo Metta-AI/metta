@@ -56,24 +56,13 @@ class CNNEncoder(nn.Module):
         )
 
     def forward(self, td: TensorDict) -> TensorDict:
-        """Forward pass shows how we can use tensor dicts or just regular tensors interchangeably within a forward.
-        For instance, if you want one of the stack's outputs in a loss, you can simply add td["layer_name"] = x at the
-        correct line.
-        For this reason, avoid using nn.sequential so you can have access to intermediate outputs."""
+        """Forward pass through the CNN encoder stack."""
         x = td[self.config.in_key]
-        x = self.cnn1(x)
-        x = F.relu(x)
-        td["cnn1"] = x
-        x = self.cnn2(x)
-        x = F.relu(x)
-        td["cnn2"] = x
+        x = F.relu(self.cnn1(x))
+        x = F.relu(self.cnn2(x))
         x = self.flatten(x)
-        td["obs_flattener"] = x
-        x = self.fc1(x)
-        x = F.relu(x)
-        td["fc1"] = x
-        x = self.encoded_obs(x)
-        x = F.relu(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.encoded_obs(x))
         td[self.config.out_key] = x
 
         return td

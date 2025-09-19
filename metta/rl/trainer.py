@@ -56,7 +56,13 @@ class Trainer:
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
-        losses = self._prepare_policy_and_losses()
+        self._policy.to(self._device)
+        self._policy.initialize_to_environment(self._env.meta_data, self._device)
+        self._policy.train()
+        self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
+        self._policy.to(self._device)
+        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
+        self._policy.train()
 
         batch_info = self._env.batch_info
 
@@ -189,15 +195,6 @@ class Trainer:
     ) -> "Trainer":
         """Create a trainer from a configuration."""
         return Trainer(cfg, training_env, policy, device)
-
-    def _prepare_policy_and_losses(self) -> Dict[str, Any]:
-        """Move policy to device, enable training mode, and instantiate losses."""
-        self._policy.to(self._device)
-        self._policy.initialize_to_environment(self._env.meta_data, self._device)
-        self._policy.train()
-        self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
-        self._policy.train()
-        return self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
 
     def register(self, component: TrainerComponent) -> None:
         """Register a training component.

@@ -1,11 +1,10 @@
-from typing import Any
-
 import torch
 import torch.nn as nn
 from einops import repeat
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.rl.training.training_environment import EnvironmentMetaData
 
 
 class ActionEmbeddingConfig(ComponentConfig):
@@ -57,8 +56,8 @@ class ActionEmbedding(nn.Module):
 
     def initialize_to_environment(
         self,
-        env: Any,
-        device,
+        env: EnvironmentMetaData,
+        device: torch.device,
     ) -> None:
         if not hasattr(env, "action_names") or not hasattr(env, "max_action_args"):
             raise AttributeError(
