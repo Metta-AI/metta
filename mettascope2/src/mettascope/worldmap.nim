@@ -325,6 +325,22 @@ proc drawSelection*() =
       scale = 1/200
     )
 
+proc drawRewards*() =
+  # Draw the rewards on the bottom of the object.
+  for obj in replay.objects:
+    if obj.isAgent:
+      let totalReward = obj.totalReward.at
+      let advanceX = min(32/200, 1.0 / totalReward)
+      var rewardX = -0.5
+      for i in 0 ..< totalReward.int:
+        bxy.drawImage(
+          "resources/reward",
+          obj.location.at.xy.vec2 + vec2(rewardX, 0.5 - 16/200),
+          angle = 0,
+          scale = 1/200/8
+        )
+        rewardX += advanceX
+
 proc drawInfoText*() =
 
   var info = ""
@@ -427,6 +443,7 @@ proc drawWorldMain*() =
 
   drawSelection()
   drawInventory()
+  drawRewards()
 
   if settings.showFogOfWar:
     drawFogOfWar()
