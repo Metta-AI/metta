@@ -12,9 +12,6 @@ from metta.rl.loss.loss import Loss
 from metta.rl.training.context import TrainerContext
 from mettagrid.config import Config
 
-# Config class
-
-
 class DynamicsConfig(Config):
     returns_step_look_ahead: int = Field(default=1)
     returns_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
@@ -38,11 +35,6 @@ class DynamicsConfig(Config):
             instance_name=instance_name,
             loss_config=loss_config,
         )
-
-
-# Loss class
-
-
 class Dynamics(Loss):
     """The dynamics term in the Muesli loss."""
 
