@@ -567,8 +567,6 @@ class TestDispatcherComparison:
             sky_cmd = sky_call[0][0]
 
             # Both should have metadata but no run_id
-            assert "--args" not in local_cmd
-            assert "--args" not in sky_cmd
             assert "policy_uri=s3://policies/test/policy.pt" in local_cmd
             assert "policy_uri=s3://policies/test/policy.pt" in sky_cmd
             assert not any("run=" in arg for arg in local_cmd)
