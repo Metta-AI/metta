@@ -420,7 +420,7 @@ def cmd_lint(
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
 ):
     py_files = []
-    has_cpp_files = False
+    cpp_files = []
 
     if staged:
         result = subprocess.run(
@@ -432,9 +432,9 @@ def cmd_lint(
         )
         all_files = [f for f in result.stdout.strip().split("\n") if f]
         py_files = [f for f in all_files if f.endswith(".py")]
-        has_cpp_files = any(f.endswith((".cpp", ".hpp", ".h", ".cc", ".cxx")) for f in all_files)
+        cpp_files = [f for f in all_files if f.endswith((".cpp", ".hpp", ".h", ".cc", ".cxx"))]
 
-        if not py_files and not has_cpp_files:
+        if not py_files and not cpp_files:
             return
 
     # Run Python linting with ruff
@@ -459,15 +459,34 @@ def cmd_lint(
             except subprocess.CalledProcessError as e:
                 raise typer.Exit(e.returncode) from e
 
-    # Run C++ linting with cpplint.sh
-    if not staged or has_cpp_files:
-        cpplint_script = cli.repo_root / "packages/mettagrid/tests/cpplint.sh"
-        if cpplint_script.exists():
+    # Run C++ linting
+    if not staged or cpp_files:
+        if staged and cpp_files:
+            # For staged mode, run cpplint directly on staged C++ files with same filters as cpplint.sh
+            cpplint_cmd = [
+                "uv",
+                "run",
+                "--active",
+                "cpplint",
+                "--filter=-legal,-whitespace/line_length,-readability/casting,"
+                + "-whitespace/indent,-readability/inheritance,-runtime/int,"
+                + "-readability/todo,-build/include_what_you_use",
+            ] + cpp_files
+
             try:
-                info("Running C++ linting with cpplint.sh...")
-                subprocess.run([str(cpplint_script)], cwd=cli.repo_root, check=True)
+                info(f"Running cpplint on {len(cpp_files)} staged C++ files...")
+                subprocess.run(cpplint_cmd, cwd=cli.repo_root, check=True)
             except subprocess.CalledProcessError as e:
                 raise typer.Exit(e.returncode) from e
+        else:
+            # For full mode, use the existing cpplint.sh script
+            cpplint_script = cli.repo_root / "packages/mettagrid/tests/cpplint.sh"
+            if cpplint_script.exists():
+                try:
+                    info("Running C++ linting with cpplint.sh...")
+                    subprocess.run([str(cpplint_script)], cwd=cli.repo_root, check=True)
+                except subprocess.CalledProcessError as e:
+                    raise typer.Exit(e.returncode) from e
 
 
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
