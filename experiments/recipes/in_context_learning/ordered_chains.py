@@ -4,7 +4,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
-import numpy as np
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
