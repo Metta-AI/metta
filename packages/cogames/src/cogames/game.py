@@ -1,6 +1,8 @@
 """Game management and discovery for CoGames."""
 
+import importlib.util
 import json
+import sys
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -32,18 +34,79 @@ def get_all_games() -> Dict[str, MettaGridConfig]:
     return all_games
 
 
-def get_game(game_name: str) -> MettaGridConfig:
-    """Get a specific game configuration by name.
+def load_game_config_from_python(path: Path) -> MettaGridConfig:
+    """Load a game configuration from a Python file.
+
+    The Python file should define a function called 'get_config()' that returns a MettaGridConfig.
+    Alternatively, it can define a variable named 'config' that is a MettaGridConfig.
 
     Args:
-        game_name: Name of the game
+        path: Path to the Python file
+
+    Returns:
+        The loaded game configuration
+
+    Raises:
+        ValueError: If the Python file doesn't contain the required function or variable
+    """
+    # Load the Python module dynamically
+    spec = importlib.util.spec_from_file_location("game_config", path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Failed to load Python module from {path}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["game_config"] = module
+    spec.loader.exec_module(module)
+
+    # Try to get config from get_config() function or config variable
+    if hasattr(module, "get_config") and callable(module.get_config):
+        config = module.get_config()
+    elif hasattr(module, "config"):
+        config = module.config
+    else:
+        raise ValueError(
+            f"Python file {path} must define either a 'get_config()' function "
+            "or a 'config' variable that returns/contains a MettaGridConfig"
+        )
+
+    if not isinstance(config, MettaGridConfig):
+        raise ValueError(f"Python file {path} must return a MettaGridConfig instance")
+
+    # Clean up the temporary module
+    del sys.modules["game_config"]
+
+    return config
+
+
+def get_game(game_name: str) -> MettaGridConfig:
+    """Get a specific game configuration by name or file path.
+
+    Args:
+        game_name: Name of the game or path to config file (.yaml, .json, or .py)
 
     Returns:
         Game configuration
 
     Raises:
-        ValueError: If game not found
+        ValueError: If game not found or file cannot be loaded
     """
+    # Check if it's a file path
+    if any(game_name.endswith(ext) for ext in [".yaml", ".yml", ".json", ".py"]):
+        path = Path(game_name)
+        if not path.exists():
+            raise ValueError(f"File not found: {game_name}")
+        if not path.is_file():
+            raise ValueError(f"Not a file: {game_name}")
+
+        # Load config based on file extension
+        if path.suffix == ".py":
+            return load_game_config_from_python(path)
+        elif path.suffix in [".yaml", ".yml", ".json"]:
+            return load_game_config(path)
+        else:
+            raise ValueError(f"Unsupported file format: {path.suffix}")
+
+    # Otherwise, treat it as a game name
     all_games = get_all_games()
     if game_name not in all_games:
         # Try partial match
@@ -160,6 +223,16 @@ def describe_game(game_name: str, console: Console) -> None:
         console.print(f"  • Resource limits: {game_config.game.agent.resource_limits}")
 
 
+def _convert_tuples_to_lists(obj):
+    """Recursively convert tuples to lists in a nested data structure."""
+    if isinstance(obj, dict):
+        return {k: _convert_tuples_to_lists(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_convert_tuples_to_lists(item) for item in obj]
+    else:
+        return obj
+
+
 def save_game_config(config: MettaGridConfig, output_path: Path) -> None:
     """Save a game configuration to file.
 
@@ -172,9 +245,12 @@ def save_game_config(config: MettaGridConfig, output_path: Path) -> None:
     """
     config_dict = config.model_dump()
 
+    # Convert tuples to lists for better serialization compatibility
+    config_dict = _convert_tuples_to_lists(config_dict)
+
     if output_path.suffix in [".yaml", ".yml"]:
         with open(output_path, "w") as f:
-            yaml.dump(config_dict, f, default_flow_style=False)
+            yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
     elif output_path.suffix == ".json":
         with open(output_path, "w") as f:
             json.dump(config_dict, f, indent=2)
