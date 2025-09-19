@@ -33,9 +33,6 @@ class TLKickstarterConfig(Config):
         return TLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
 
 
-# Loss class
-
-
 class TLKickstarter(Loss):
     __slots__ = (
         "teacher_policy",

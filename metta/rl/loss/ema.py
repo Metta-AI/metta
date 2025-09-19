@@ -12,6 +12,7 @@ from metta.rl.loss.loss import Loss
 from metta.rl.training.context import TrainerContext
 from mettagrid.config import Config
 
+
 class EMAConfig(Config):
     decay: float = Field(default=0.995, ge=0, le=1.0)
     loss_coef: float = Field(default=1.0, ge=0, le=1.0)
@@ -34,6 +35,8 @@ class EMAConfig(Config):
             instance_name=instance_name,
             loss_config=loss_config,
         )
+
+
 class EMA(Loss):
     __slots__ = (
         "target_model",

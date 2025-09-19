@@ -3,7 +3,7 @@ import tempfile
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip
+from metta.agent.components.obs_tokenizers import ObsTokenPadStrip
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
 

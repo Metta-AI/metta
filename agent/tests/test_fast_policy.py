@@ -1,7 +1,8 @@
+from types import SimpleNamespace
+
 import gymnasium as gym
 import torch
 from tensordict import TensorDict
-from types import SimpleNamespace
 
 from metta.agent.policies.fast import FastConfig, FastPolicy
 from metta.rl.training.training_environment import EnvironmentMetaData

@@ -132,7 +132,6 @@ class PPO(Loss):
             values=scalar_f32,
         )
 
-    # Loss calls this method
     def run_rollout(self, td: TensorDict, context: TrainerContext) -> None:
         with torch.no_grad():
             self.policy.forward(td)
@@ -149,7 +148,6 @@ class PPO(Loss):
 
         return
 
-    # Loss calls this method
     def run_train(
         self, shared_loss_data: TensorDict, context: TrainerContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:

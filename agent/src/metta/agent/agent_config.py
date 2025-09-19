@@ -8,7 +8,6 @@ from metta.agent.policies.fast_td_transformer import FastTransformerConfig
 from metta.agent.policies.vit import ViTSmallConfig
 from mettagrid.config import Config
 
-
 PolicyFactory = Callable[[], Config]
 
 
