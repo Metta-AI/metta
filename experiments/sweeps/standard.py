@@ -5,13 +5,14 @@ from metta.tools.sweep import SweepTool
 from metta.tools.sweep import DispatcherType
 
 
-def protein(
+def protein_sweep(
     recipe: str = "experiments.recipes.arena",
     train: str = "train",
     eval: str = "evaluate",
     protein_config: ProteinConfig | None = None,
     max_trials: int = 300,
     max_parallel_jobs: int = 6,
+    max_timesteps: int = 1000000,
     gpus: int = 1,
     batch_size: int = 4,
     local_test: bool = False,
@@ -45,15 +46,14 @@ def protein(
         monitoring_interval = 30  # Check more frequently for local testing
 
         # We let the batch size be set in training for the quick run
-        if "batch_size" in protein_config.parameters:
-            protein_config.parameters["batch_size"] = None
-
-        if "minibatch_size" in protein_config.parameters:
-            protein_config.parameters["minibatch_size"] = None
+        # Use pop() to safely remove keys without raising KeyError if they don't exist
+        # The keys include the full path "trainer.batch_size" not just "batch_size"
+        protein_config.parameters.pop("trainer.batch_size", None)
+        protein_config.parameters.pop("trainer.minibatch_size", None)
     else:
         # Production configuration
         dispatcher_type = DispatcherType.SKYPILOT
-        total_timesteps = 2000000000  # 2B timesteps for production
+        total_timesteps = max_timesteps  # 2B timesteps for production
         monitoring_interval = 60
 
     # Create and return the sweep tool using adaptive infrastructure

@@ -241,7 +241,9 @@ class SweepTool(Tool):
 
         # Create adaptive config
         adaptive_config = AdaptiveConfig(
-            max_parallel=self.max_parallel_jobs, monitoring_interval=self.monitoring_interval, resume=resume
+            max_parallel=self.max_parallel_jobs,
+            monitoring_interval=self.monitoring_interval,
+            resume=resume
         )
 
         # Save configuration
