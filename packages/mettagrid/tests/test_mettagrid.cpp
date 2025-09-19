@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <random>
+// Test comment for staged linting
 
 #include "actions/attack.hpp"
 #include "actions/change_glyph.hpp"
