@@ -291,6 +291,28 @@ class MettaGridCore:
 
         return features
 
+    def get_observation_features(self) -> Dict[str, Dict[str, Any]]:
+        """Return observation feature metadata for backward compatibility."""
+        c_env = self.core_env
+        if c_env is None:
+            raise RuntimeError("Environment not initialized")
+
+        feature_spec = c_env.feature_spec()
+        features: Dict[str, Dict[str, Any]] = {}
+
+        for feature_name, feature_info in feature_spec.items():
+            normalized_feature: Dict[str, Any] = {}
+            for key, value in feature_info.items():
+                if key == "id":
+                    normalized_feature[key] = int(value)
+                elif key == "normalization":
+                    normalized_feature[key] = float(value)
+                else:
+                    normalized_feature[key] = value
+            features[str(feature_name)] = normalized_feature
+
+        return features
+
     @property
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
