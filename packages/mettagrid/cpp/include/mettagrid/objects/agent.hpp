@@ -7,12 +7,13 @@
 #include <string>
 #include <vector>
 
-#include "systems/stats_tracker.hpp"
+#include "core/types.hpp"
 #include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
-#include "core/types.hpp"
+#include "objects/has_inventory.hpp"
+#include "systems/stats_tracker.hpp"
 
-class Agent : public GridObject {
+class Agent : public GridObject, public HasInventory {
 public:
   ObservationType group;
   short frozen;
@@ -21,7 +22,6 @@ public:
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
-  std::map<InventoryItem, InventoryQuantity> inventory;
   std::map<InventoryItem, RewardType> resource_rewards;
   std::map<InventoryItem, RewardType> resource_reward_max;
   std::map<std::string, RewardType> stat_rewards;
@@ -49,7 +49,6 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::North),
-        inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
@@ -121,25 +120,7 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-    // Get the initial amount (0 if item doesn't exist)
-    InventoryQuantity initial_amount = 0;
-    auto inv_it = this->inventory.find(item);
-    if (inv_it != this->inventory.end()) {
-      initial_amount = inv_it->second;
-    }
-
-    // Calculate the new amount with clamping
-    InventoryQuantity new_amount = static_cast<InventoryQuantity>(std::clamp(
-        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item])));
-
-    InventoryDelta delta = new_amount - initial_amount;
-
-    // Update inventory
-    if (new_amount > 0) {
-      this->inventory[item] = new_amount;
-    } else {
-      this->inventory.erase(item);
-    }
+    const InventoryDelta delta = this->HasInventory::update_inventory(item, attempted_delta);
 
     // Update stats
     if (delta > 0) {
@@ -148,8 +129,14 @@ public:
       this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
     }
 
+    InventoryQuantity new_amount = 0;
+    auto inv_it = this->inventory.find(item);
+    if (inv_it != this->inventory.end()) {
+      new_amount = inv_it->second;
+    }
+
     // Update resource rewards incrementally
-    this->_update_resource_reward(item, initial_amount, new_amount);
+    this->_update_resource_reward(item, new_amount - delta, new_amount);
 
     return delta;
   }
