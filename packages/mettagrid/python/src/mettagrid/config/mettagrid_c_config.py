@@ -3,6 +3,7 @@ import math
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
+    ChestConfig,
     ConverterConfig,
     GameConfig,
     Position,
@@ -13,6 +14,7 @@ from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
+from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
@@ -246,6 +248,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config = CppAssemblerConfig(type_id=object_config.type_id, type_name=object_type)
             cpp_assembler_config.recipes = cpp_recipes
             objects_cpp_params[object_type] = cpp_assembler_config
+        elif isinstance(object_config, ChestConfig):
+            # Convert resource type name to ID
+            resource_type_id = resource_name_to_id.get(object_config.resource_type, 0)
+
+            cpp_chest_config = CppChestConfig(
+                type_id=object_config.type_id,
+                type_name=object_type,
+                resource_type=resource_type_id,
+                deposit_positions=set(object_config.deposit_positions),
+                withdrawal_positions=set(object_config.withdrawal_positions),
+            )
+            objects_cpp_params[object_type] = cpp_chest_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 

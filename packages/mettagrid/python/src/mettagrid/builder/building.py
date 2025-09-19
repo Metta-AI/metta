@@ -1,4 +1,6 @@
-from mettagrid.config.mettagrid_config import AssemblerConfig, ConverterConfig, RecipeConfig, WallConfig
+from typing import Literal
+
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ConverterConfig, RecipeConfig, WallConfig
 
 wall = WallConfig(type_id=1)
 block = WallConfig(type_id=14, swappable=True)
@@ -133,4 +135,42 @@ assembler_armory = AssemblerConfig(
             ),
         )
     ],
+)
+
+
+# Chest building definitions
+def make_chest(
+    resource_type: str,
+    type_id: int,
+    deposit_positions: list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]] | None = None,
+    withdrawal_positions: list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]] | None = None,
+) -> ChestConfig:
+    """Create a chest configuration for a specific resource type."""
+    if deposit_positions is None:
+        deposit_positions = ["N", "S", "E", "W"]  # Default to cardinal directions
+    if withdrawal_positions is None:
+        withdrawal_positions = ["N", "S", "E", "W"]  # Default to cardinal directions
+
+    return ChestConfig(
+        type_id=type_id,
+        resource_type=resource_type,
+        deposit_positions=deposit_positions,
+        withdrawal_positions=withdrawal_positions,
+    )
+
+
+# Example chest configurations
+chest_ore_red = make_chest("ore_red", 20)
+chest_ore_blue = make_chest("ore_blue", 21)
+chest_ore_green = make_chest("ore_green", 22)
+chest_battery_red = make_chest("battery_red", 23)
+chest_battery_blue = make_chest("battery_blue", 24)
+chest_battery_green = make_chest("battery_green", 25)
+
+# Special chest that only allows deposits from North and withdrawals from South
+chest_depot = ChestConfig(
+    type_id=26,
+    resource_type="ore_red",
+    deposit_positions=["N"],
+    withdrawal_positions=["S"],
 )
