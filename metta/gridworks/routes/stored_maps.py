@@ -5,6 +5,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter
 from typing_extensions import TypedDict
 
+import mettagrid.util.file as file_utils
 from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
 from mettagrid.mapgen.utils.storable_map_index import StorableMapIndex
 
@@ -62,6 +63,6 @@ def make_stored_maps_router() -> APIRouter:
 
     @router.get("/get-index")
     async def get_get_index(dir: str) -> dict:
-        return json.loads(mettagrid.util.file.read(f"{dir}/index.json").decode("utf-8"))
+        return json.loads(file_utils.read(f"{dir}/index.json").decode("utf-8"))
 
     return router
