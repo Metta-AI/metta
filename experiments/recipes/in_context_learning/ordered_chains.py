@@ -211,11 +211,11 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         # by default, use a small room
         size_range = (
-            (7, 10)
+            (10, 20)
             if room_size == "medium"
-            else (10, 15)
+            else (20, 30)
             if room_size == "large"
-            else (4, 7)
+            else (5, 10)
         )
 
         width, height = (
@@ -397,15 +397,9 @@ def train(
             "room_sizes": ["medium", "large"],
             "lp_params": lp_params,
         },
-        "longer_chains_more_sinks": {
-            "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
-            "num_sinks": [0, 1, 2, 3, 4],
-            "room_sizes": ["medium", "large"],
-            "lp_params": lp_params,
-        },
         "terrain": {
-            "chain_lengths": [2, 3, 4, 5],
-            "num_sinks": [0, 1],
+            "chain_lengths": [2, 3, 4, 5, 6, 7],
+            "num_sinks": [0, 1, 2],
             "obstacle_types": ["square", "cross", "L"],
             "densities": ["", "balanced", "sparse", "high"],
             "lp_params": lp_params,
@@ -446,8 +440,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
     # Default to the research policy if none specified
     default_policy_uri = (
-        "s3://your-bucket/checkpoints/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19/"
-        "georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50.pt"
+        "s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt"
     )
     return ReplayTool(
         sim=SimulationConfig(
