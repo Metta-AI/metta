@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Source shared utilities
+source "$(dirname "$0")/monitor_utils.sh"
+
+
 # Required environment variables
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${MAX_RUNTIME_HOURS:?Missing MAX_RUNTIME_HOURS}"
@@ -48,9 +52,8 @@ while true; do
     remaining_min=$((remaining / 60))
     echo "[INFO] Test Job Restart Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining until job restart test"
   else
-    echo "[INFO] Test Job Restart limit reached - terminating process group"
-    echo "force_restart_test" > "$TERMINATION_REASON_FILE"
-    kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
+    initiate_shutdown "force_restart_test" \
+      "[INFO] Test job restart limit reached - terminating process group"
     break
   fi
 done
