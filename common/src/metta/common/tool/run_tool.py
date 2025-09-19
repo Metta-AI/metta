@@ -432,10 +432,10 @@ constructor/function vs configuration overrides based on introspection.
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
+    console = Console()
 
     # If help is requested without a tool path, show general help
     if known_args.help and not known_args.make_tool_cfg_path:
-        console = Console()
         console.print("[bold]Tool Runner[/bold]\n")
         console.print("Usage: ./tools/run.py <tool_path> [arguments]\n")
         console.print("  tool_path: Path to the function or Tool class (e.g., experiments.recipes.arena.train)")
