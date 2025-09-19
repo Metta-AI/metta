@@ -247,7 +247,7 @@ jobs:
 
       - name: Run all package tests
         shell: bash
-        run: .github/scripts/run_package_tests.sh
+        run: .github/scripts/run_package_tests.sh --sequential
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
