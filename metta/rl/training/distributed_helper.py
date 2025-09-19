@@ -9,6 +9,7 @@ import torch.distributed
 
 from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
+
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 

@@ -46,12 +46,6 @@ class TrainerComponent:
             raise RuntimeError("TrainerComponent has not been registered with a TrainerContext")
         return self._context
 
-    @property
-    def trainer(self):
-        """Backwards-compatible access to the underlying trainer."""
-
-        return self.context.trainer
-
     def on_step(self, infos: Dict[str, Any]) -> None:
         """Called after each environment step."""
         return None
