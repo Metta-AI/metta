@@ -5,7 +5,7 @@ backend-path = ["."]
 
 [project]
 name = "mettagrid" # Do not change! Has to be 'mettagrid' for our PyPi package
-version = "0.2.0.3"
+version = "0.2.0.6"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = ">=3.11,<3.12"
