@@ -69,6 +69,7 @@ class FastPolicy(Policy):
 
         self.lstm = LSTM(config=self.config.lstm_config)
 
+        self._components_with_metrics: list[nn.Module] = []
         self.action_index_tensor: torch.Tensor | None = None
         self.cum_action_max_params: torch.Tensor | None = None
 
@@ -95,6 +96,10 @@ class FastPolicy(Policy):
         self.config.actor_key_config.embed_dim = self.config.action_embedding_config.embedding_dim
         self.actor_key = ActorKey(config=self.config.actor_key_config)
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
+        self._components_with_metrics = [
+            self.cnn1 if hasattr(self, "cnn1") else None,
+            self.cnn2 if hasattr(self, "cnn2") else None,
+        ]
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         needs_unflatten = td.batch_dims > 1
@@ -147,6 +152,14 @@ class FastPolicy(Policy):
 
     def reset_memory(self):
         self.lstm.reset_memory()
+
+    def clip_weights(self) -> None:
+        for module in self.modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                torch.nn.utils.clip_grad_value_(module.parameters(), 0.0)
+
+    def l2_init_loss(self) -> torch.Tensor:
+        return torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         if self.cum_action_max_params is None:

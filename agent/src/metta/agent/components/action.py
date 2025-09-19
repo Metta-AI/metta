@@ -46,11 +46,7 @@ class ActionEmbedding(nn.Module):
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
         self.net = nn.Embedding(num_embeddings=self.num_embeddings, embedding_dim=self.embedding_dim)
 
-        weight_limit = 0.1
-        nn.init.orthogonal_(self.net.weight)
-        with torch.no_grad():
-            max_abs_value = torch.max(torch.abs(self.net.weight))
-            self.net.weight.mul_(weight_limit / max_abs_value)
+        nn.init.uniform_(self.net.weight, -0.01, 0.01)
 
     def initialize_to_environment(
         self,
