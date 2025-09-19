@@ -232,7 +232,7 @@ cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
 echo "[INFO] Running command: ${cmd[*]}"
 "${cmd[@]}" &
-export CMD_PID=$!  # Export only if monitors need to access it
+export CMD_PID=$! # Export only if monitors need to access it
 
 echo "[INFO] Started process with PID: $CMD_PID"
 
@@ -255,13 +255,13 @@ if [[ "$IS_MASTER" == "true" ]] && [[ "${TEST_JOB_RESTART:-false}" == "true" ]];
 fi
 
 # Wait for process to exit
-while kill -0 "$CMD_PID" 2>/dev/null; do
+while kill -0 "$CMD_PID" 2> /dev/null; do
   sleep 1
 done
 
 # Get exit code from job status
 JOB_INFO=$(jobs -l %1 2>&1 || echo "")
-CMD_EXIT=1  # Default to failure
+CMD_EXIT=1 # Default to failure
 
 if [[ "$JOB_INFO" =~ Exit\ ([0-9]+) ]]; then
   CMD_EXIT=${BASH_REMATCH[1]}
