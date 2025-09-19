@@ -21,7 +21,11 @@ const YamlScalar: FC<{
   const multiline = typeof value === "string" && value.includes("\n");
 
   let url = "";
-  const KNOWN_PACKAGES = ["mettagrid.mapgen", "mettagrid.room"];
+  const KNOWN_PACKAGES = [
+    "mettagrid.mapgen",
+    "mettagrid.map_builder",
+    "mettagrid.config",
+  ];
 
   const repoRoot = use(RepoRootContext);
   if (
@@ -33,14 +37,14 @@ const YamlScalar: FC<{
     parts.pop();
     let filename = parts.join("/") + ".py";
     if (value.startsWith("mettagrid")) {
-      filename = `mettagrid/src/${filename}`;
+      filename = `packages/mettagrid/python/src/${filename}`;
     }
     url = `cursor://file${repoRoot}/${filename}`;
   }
 
   if (
     typeof value === "string" &&
-    value.startsWith("configs/env/mettagrid/maps/") &&
+    value.startsWith("packages/mettagrid/configs/maps/") &&
     value.endsWith(".map")
   ) {
     url = `cursor://file${repoRoot}/${value}`;
