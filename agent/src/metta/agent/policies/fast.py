@@ -40,16 +40,16 @@ class FastConfig(PolicyArchitecture):
     obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
     cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(in_key="obs_normalizer", out_key="encoded_obs")
     lstm_config: LSTMConfig = LSTMConfig(
-        in_key="encoded_obs", out_key="core", latent_size=128, hidden_size=128, num_layers=2
+        in_key="encoded_obs", out_key="_core_", latent_size=128, hidden_size=128, num_layers=2
     )
     critic_hidden_dim: int = 1024
     actor_hidden_dim: int = 512
-    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="action_embedding")
+    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="_action_embeds_")
     actor_query_config: ActorQueryConfig = ActorQueryConfig(in_key="actor_1", out_key="actor_query")
     actor_key_config: ActorKeyConfig = ActorKeyConfig(
-        query_key="actor_query", embedding_key="action_embedding", out_key="logits"
+        query_key="actor_query", embedding_key="_action_embeds_", out_key="_action_"
     )
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="_action_")
 
 
 class FastPolicy(Policy):
@@ -60,11 +60,6 @@ class FastPolicy(Policy):
         self.is_continuous = False
         self.action_space = env.action_space
 
-        self.active_action_names = []
-        self.num_active_actions = 100  # Default
-        self.action_index_tensor = None
-        self.cum_action_max_params = None
-
         self.out_width = env.obs_width
         self.out_height = env.obs_height
 
@@ -74,20 +69,23 @@ class FastPolicy(Policy):
 
         self.lstm = LSTM(config=self.config.lstm_config)
 
+        self.action_index_tensor: torch.Tensor | None = None
+        self.cum_action_max_params: torch.Tensor | None = None
+
         module = pufferlib.pytorch.layer_init(
             nn.Linear(self.config.lstm_config.hidden_size, self.config.actor_hidden_dim), std=1.0
         )
-        self.actor_1 = TDM(module, in_keys=["core"], out_keys=["actor_1"])
+        self.actor_1 = TDM(module, in_keys=["_core_"], out_keys=["actor_1"])
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
         module = pufferlib.pytorch.layer_init(
             nn.Linear(self.config.lstm_config.hidden_size, self.config.critic_hidden_dim), std=np.sqrt(2)
         )
-        self.critic_1 = TDM(module, in_keys=["core"], out_keys=["critic_1"])
+        self.critic_1 = TDM(module, in_keys=["_core_"], out_keys=["critic_1"])
         self.critic_activation = nn.Tanh()
         module = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
-        self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
+        self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["_value_"])
 
         # Actor branch
         self.action_embeddings = ActionEmbedding(config=self.config.action_embedding_config)
@@ -120,7 +118,6 @@ class FastPolicy(Policy):
         self.cnn_encoder(td)
         self.lstm(td)
         self.actor_1(td)
-        td["actor_1"] = torch.relu(td["actor_1"])
         self.critic_1(td)
         td["critic_1"] = self.critic_activation(td["critic_1"])
         self.value_head(td)
@@ -128,7 +125,7 @@ class FastPolicy(Policy):
         self.actor_query(td)
         self.actor_key(td)
         self.action_probs(td, action)
-        td["values"] = td["values"].flatten()
+        td["values"] = td["_value_"].flatten()
 
         if needs_unflatten and action is not None:
             td = td.reshape(batch_size, time_steps)
@@ -149,6 +146,21 @@ class FastPolicy(Policy):
 
     def reset_memory(self):
         self.lstm.reset_memory()
+
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
+        if self.cum_action_max_params is None:
+            raise RuntimeError("FastPolicy has not been initialized with action metadata yet")
+        if flattened_action.size(0) == 0:
+            raise ValueError("flattened_action must have non-zero batch dimension")
+        action_type_numbers = flattened_action[:, 0].long()
+        action_params = flattened_action[:, 1].long()
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        return action_type_numbers + cumulative_sum + action_params
+
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
+        if self.action_index_tensor is None:
+            raise RuntimeError("FastPolicy has not been initialized with action metadata yet")
+        return self.action_index_tensor[action_logit_index]
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
