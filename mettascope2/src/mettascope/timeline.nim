@@ -140,7 +140,7 @@ proc drawFrozenMarkers(panel: Panel) =
       if isFrozen and (not prevFrozen):
         let x = trackLeft + (float32(j) / float32(fullSteps)) * scrubberWidth
         # Draw icon above the scrubber and a small tick on the bar.
-        bxy.drawImage("agents/frozen", vec2(x, trackTop - 22), angle = 0, scale = 1/200)
+        bxy.drawImage("agents/frozen", vec2(x, trackTop - 22), angle = 0, scale = 1/10)
         bxy.drawRect(rect(x - 1, trackTop - 10, 2, 8), color(1, 1, 1, 1))
       prevFrozen = isFrozen
 

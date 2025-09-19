@@ -228,8 +228,10 @@ class PerimeterInContextMapBuilder(MapBuilder):
         object_symbols = np.array(object_symbols).astype(str)
         self._rng.shuffle(object_symbols)
         self._rng.shuffle(empty_perimeter_indices)
-        selected_perimeter_indices = empty_perimeter_indices[: len(object_symbols)]
-        flat_grid[selected_perimeter_indices] = object_symbols
+        num_placeable = min(len(object_symbols), len(empty_perimeter_indices))
+        if num_placeable > 0:
+            selected_perimeter_indices = empty_perimeter_indices[:num_placeable]
+            flat_grid[selected_perimeter_indices] = object_symbols[:num_placeable]
 
         grid = flat_grid.reshape(height, width)
 
