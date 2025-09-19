@@ -13,6 +13,7 @@ requires "windy >= 0.1.2"
 requires "puppy >= 2.1.2"
 requires "pixie#head"
 requires "fidget2#head"
+requires "genny >= 0.1.0"
 
 task bindings, "Generate bindings":
 
