@@ -115,7 +115,7 @@ def test_trainer_checkpointer_saves_state(tmp_path):
     assert state["agent_step"] == 256
 
 
-def test_policy_checkpointer_updates_latest_uri(tmp_path):
+def test_checkpointer_updates_latest_uri(tmp_path):
     policy = DummyPolicy()
     optimizer = torch.optim.SGD(policy.parameters(), lr=0.1)
     context = build_context(tmp_path, policy, optimizer)
