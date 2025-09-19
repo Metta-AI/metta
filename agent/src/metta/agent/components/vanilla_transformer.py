@@ -72,7 +72,7 @@ class VanillaTransformerConfig(ComponentConfig):
     num_heads: int = 4
     ff_mult: int = 4
     num_layers: int = 2
-    max_cache_size: int = 512
+    max_cache_size: int = 32
 
     def make_component(self, env=None):
         return VanillaTransformer(config=self, env=env)
@@ -84,7 +84,6 @@ class VanillaTransformer(nn.Module):
     def __init__(self, config: VanillaTransformerConfig, env):
         super().__init__()
         self.config = config
-        self._in_training = False
         self.max_cache_size = self.config.max_cache_size
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
@@ -150,14 +149,9 @@ class VanillaTransformer(nn.Module):
         B = td.batch_size.numel()
         if td["bptt"][0] != 1:
             TT = td["bptt"][0]
-            self._in_training = True
         else:
             TT = 1
         B = B // TT
-
-        if self._in_training and TT == 1:
-            # we're at a transition from training to rollout
-            self._in_training = False
 
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is None:

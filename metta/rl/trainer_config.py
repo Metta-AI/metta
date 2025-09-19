@@ -56,11 +56,14 @@ class TrainerConfig(Config):
 
     # Batch configuration
     # Batch size: Type 2 default chosen from sweep
-    batch_size: int = Field(default=524288, gt=0)
+    # batch_size: int = Field(default=524288, gt=0)
+    batch_size: int = Field(default=65536, gt=0)
     # Minibatch: Type 2 default chosen from sweep
-    minibatch_size: int = Field(default=16384, gt=0)
+    # minibatch_size: int = Field(default=16384, gt=0)
+    minibatch_size: int = Field(default=2048, gt=0)
     # BPTT horizon: Type 2 default chosen arbitrarily
-    bptt_horizon: int = Field(default=64, gt=0)
+    # bptt_horizon: int = Field(default=64, gt=0)
+    bptt_horizon: int = Field(default=32, gt=0)
     # Single epoch: Type 2 default chosen arbitrarily PPO typically uses 3-10, but 1 works with large batches
     update_epochs: int = Field(default=1, gt=0)
     # Fixed batch size across GPUs for consistent hyperparameters
