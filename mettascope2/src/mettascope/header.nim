@@ -25,15 +25,15 @@ proc drawHeader*(panel: Panel) =
     pos = vec2(0, 0),
   )
 
-  # Draw the title.
-  bxy.drawText(
-    "Mettascope Arena Basic",
-    translate(vec2(64+16, 16)),
-    typeface,
-    "Mettascope Arena Basic",
-    24,
-    color(1, 1, 1, 1)
-  )
+  # # Draw the title.
+  # bxy.drawText(
+  #   "Mettascope Arena Basic",
+  #   translate(vec2(64+16, 16)),
+  #   typeface,
+  #   "Mettascope Arena Basic",
+  #   24,
+  #   color(1, 1, 1, 1)
+  # )
 
   if drawIconButton(
     "ui/share",

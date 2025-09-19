@@ -9,8 +9,6 @@ var replay = ""
 var topArea: Area
 var bottomArea: Area
 
-var loaded = false
-
 proc parseArgs() =
   ## Parse command line arguments.
   var p = initOptParser(commandLineParams())
@@ -29,7 +27,7 @@ proc parseArgs() =
     of cmdArgument:
       discard
 
-parseArgs()
+
 
 find "/UI/Main":
 
@@ -51,14 +49,17 @@ find "/UI/Main":
     onClick:
       echo "Clicked: AgentTracesPanel: ", thisNode.name
 
-  onShow:
-    # Build the atlas.
-    for path in walkDirRec("data/"):
-      if path.endsWith(".png"):
-        echo path
-        bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
+  onLoad:
+    echo "onLoad"
 
-    echo "onShow"
+    # Build the atlas.
+    for path in walkDirRec(dataDir):
+      if path.endsWith(".png") and "fidget" notin path:
+        echo path
+        bxy.addImage(path.replace(dataDir & "/", "").replace(".png", ""), readImage(path))
+
+    utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
+
     if replay != "":
       if replay.startsWith("http"):
         echo "Loading replay from URL: ", replay
@@ -70,8 +71,8 @@ find "/UI/Main":
           common.replay = loadReplay(response.body, replay)
       else:
         common.replay = loadReplay(replay)
-    else:
-      common.replay = loadReplay("replays/pens.json.z")
+    elif common.replay == nil:
+      common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
 
     echo "Creating panels"
     rootArea = Area(layout: Horizontal, node: find("**/AreaHeader"))
@@ -123,17 +124,15 @@ find "/UI/Main":
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
+
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
     echo "Loaded!"
-    loaded = true
 
   onFrame:
-    if not loaded:
-      return
 
     playControls()
 
@@ -152,9 +151,24 @@ find "/UI/Main":
     if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
       fitFullMap(worldMapPanel)
 
-startFidget(
-  figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
-  windowTitle = "MetaScope V2",
-  entryFrame = "UI/Main",
-  windowStyle = DecoratedResizable
-)
+when isMainModule:
+
+  parseArgs()
+
+  initFidget(
+    figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
+    windowTitle = "MetaScope V2",
+    entryFrame = "UI/Main",
+    windowStyle = DecoratedResizable,
+    dataDir = "mettascope2/data"
+  )
+
+  when defined(emscripten):
+    # Emscripten can't block so it will call this callback instead.
+    window.run(mainLoop)
+  else:
+    # When running native code we can block in an infinite loop.
+    while not window.closeRequested:
+      mainLoop()
+    # Destroy the window.
+    window.close()
