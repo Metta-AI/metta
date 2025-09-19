@@ -214,6 +214,7 @@ def preprocess_recipe_path(path: str) -> str:
         train arena -> experiments.recipes.arena.train_recipe (or .mettagrid_recipe if train_recipe doesn't exist)
         evaluate navigation -> experiments.recipes.navigation.evaluate_recipe (or .mettagrid_recipe)
         play minimal -> experiments.recipes.minimal.play_recipe (or .mettagrid_recipe)
+        replay scratchpad.ci.replay_null -> experiments.recipes.scratchpad.ci.replay_null (dotted path preserved)
         analyze scorecard -> experiments.recipes.scorecard.analyze_recipe (no fallback)
     """
     # Known tool names that map to recipe functions
@@ -229,9 +230,11 @@ def preprocess_recipe_path(path: str) -> str:
     parts = path.split()
     if len(parts) == 2 and parts[0] in TOOL_MAPPINGS:
         tool_name, recipe_name = parts
-        # For now, always use the specific recipe function name
-        # The actual fallback to mettagrid_recipe will happen at runtime
-        # when the module is loaded and the function is not found
+        # If recipe already looks like a module path (contains dots), assume it includes the callable
+        # e.g. "replay scratchpad.ci.replay_null" -> experiments.recipes.scratchpad.ci.replay_null
+        if "." in recipe_name:
+            return f"experiments.recipes.{recipe_name}"
+        # Otherwise append the tool-specific recipe function name
         return f"experiments.recipes.{recipe_name}.{TOOL_MAPPINGS[tool_name]}"
 
     # Not a short syntax (not exactly 2 parts or unknown tool), return as-is

@@ -834,7 +834,7 @@ def _(
         # Create trainer configuration to reach peak performance before unlearning
         trainer_config = TrainerConfig(
             curriculum=single_task_curriculum(mg_config),
-            total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 ore)
+            total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 hours)
             batch_size=32768,  # Reduced batch size for more stable learning
             minibatch_size=256,  # Smaller minibatches for better gradient estimates
             rollout_workers=min(

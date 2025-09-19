@@ -115,14 +115,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # New style (recommended):
-  %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
+  # Recommended (positional args, no --args):
+  %(prog)s experiments.recipes.arena.train_recipe run=test_123 trainer.total_timesteps=100000
 
-  # Old style (deprecated):
+  # Short CLI (forwarded to tools/run.py):
+  %(prog)s train arena run=test_123 trainer.total_timesteps=100000
+
+  # Deprecated (--args/--overrides):
   %(prog)s experiments.recipes.arena.train --args run=test_123 --overrides trainer.total_timesteps=100000
 
   # Mix of launch flags and tool args:
-  %(prog)s experiments.recipes.arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+  %(prog)s train arena --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
         """,
     )
 

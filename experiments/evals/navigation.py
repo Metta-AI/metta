@@ -14,7 +14,7 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
 
 
 def replace_objects_with_altars(name: str) -> str:
-    ascii_map = f"mettagrid/configs/maps/navigation_sequence/{name}.map"
+    ascii_map = f"packages/mettagrid/configs/maps/navigation_sequence/{name}.map"
 
     with open(ascii_map, "r") as f:
         map_content = f.read()

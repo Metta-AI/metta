@@ -57,6 +57,18 @@ class TestPreprocessRecipePath:
         # Unknown tool names are not processed
         assert preprocess_recipe_path("custom arena_with_underscores") == "custom arena_with_underscores"
 
+    def test_dotted_recipe_names(self):
+        """Test that dotted recipe names are preserved without appending _recipe."""
+        # Dotted paths indicate the full callable is specified
+        assert (
+            preprocess_recipe_path("replay scratchpad.ci.replay_null")
+            == "experiments.recipes.scratchpad.ci.replay_null"
+        )
+        assert preprocess_recipe_path("play scratchpad.ci.play_null") == "experiments.recipes.scratchpad.ci.play_null"
+        assert (
+            preprocess_recipe_path("train module.submodule.function") == "experiments.recipes.module.submodule.function"
+        )
+
     def test_edge_cases(self):
         """Test edge cases and boundary conditions."""
         # Empty string
