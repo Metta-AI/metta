@@ -64,7 +64,6 @@ class NoEvalSweepScheduler:
         store: Store,
         state: SchedulerState | None = None,
     ):
-
         self.config = config
         self.store = store
         self.state = state or SchedulerState()
@@ -116,11 +115,10 @@ class NoEvalSweepScheduler:
                     self.state.runs_completed.add(run_id)
                     # Use the best score we've tracked for this run
                     best_score = self.state.top_score_per_run.get(run_id, 0)
-                    self.store.update_run_summary(run_id, {
-                        "sweep/score": best_score,
-                        "sweep/cost": run.cost
-                    })
-                    logger.info(f"[BatchedSyncedOptimizingScheduler] Run {run_id} completed training with score {best_score}")
+                    self.store.update_run_summary(run_id, {"sweep/score": best_score, "sweep/cost": run.cost})
+                    logger.info(
+                        f"[BatchedSyncedOptimizingScheduler] Run {run_id} completed training with score {best_score}"
+                    )
 
                 elif status in (JobStatus.FAILED, JobStatus.STALE):
                     # Remove from training due to failure

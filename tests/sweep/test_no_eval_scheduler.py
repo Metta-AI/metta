@@ -119,9 +119,7 @@ class TestNoEvalSweepScheduler:
 
         assert "run1" not in scheduler.state.runs_in_training
         assert "run1" in scheduler.state.runs_completed
-        mock_store.update_run_summary.assert_called_once_with(
-            "run1", {"sweep/score": 0.9, "sweep/cost": 100.0}
-        )
+        mock_store.update_run_summary.assert_called_once_with("run1", {"sweep/score": 0.9, "sweep/cost": 100.0})
 
     def test_update_state_failed_run(self, scheduler):
         """Test state update when run fails."""
@@ -183,11 +181,10 @@ class TestNoEvalSweepScheduler:
 
     def test_schedule_max_trials_reached(self, scheduler):
         """Test scheduler stops at max trials."""
-        runs = [RunInfo(run_id=f"run{i}",
-                       has_started_training=True,
-                       has_completed_training=True,
-                       has_started_eval=False)
-                for i in range(10)]
+        runs = [
+            RunInfo(run_id=f"run{i}", has_started_training=True, has_completed_training=True, has_started_eval=False)
+            for i in range(10)
+        ]
 
         jobs = scheduler.schedule(runs, available_training_slots=4)
 
@@ -218,9 +215,7 @@ class TestNoEvalSweepScheduler:
     def test_schedule_limited_by_capacity(self, scheduler):
         """Test scheduling limited by available slots."""
         scheduler.config.batch_size = 10  # Want 10 but only 2 slots
-        scheduler.optimizer.suggest = MagicMock(
-            return_value=[{"lr": 0.001}, {"lr": 0.01}]
-        )
+        scheduler.optimizer.suggest = MagicMock(return_value=[{"lr": 0.001}, {"lr": 0.01}])
 
         jobs = scheduler.schedule([], available_training_slots=2)
 
@@ -230,28 +225,30 @@ class TestNoEvalSweepScheduler:
     def test_is_experiment_complete(self, scheduler):
         """Test experiment completion detection."""
         # Not complete with fewer runs
-        runs = [RunInfo(run_id=f"run{i}",
-                       has_started_training=True,
-                       has_completed_training=True,
-                       has_started_eval=False)
-                for i in range(5)]
+        runs = [
+            RunInfo(run_id=f"run{i}", has_started_training=True, has_completed_training=True, has_started_eval=False)
+            for i in range(5)
+        ]
         assert not scheduler.is_experiment_complete(runs)
 
         # Complete with max trials reached
-        runs = [RunInfo(run_id=f"run{i}",
-                       has_started_training=True,
-                       has_completed_training=True,
-                       has_started_eval=False)
-                for i in range(10)]
+        runs = [
+            RunInfo(run_id=f"run{i}", has_started_training=True, has_completed_training=True, has_started_eval=False)
+            for i in range(10)
+        ]
         assert scheduler.is_experiment_complete(runs)
 
         # Also counts failed runs
-        runs = [RunInfo(run_id=f"run{i}",
-                       has_started_training=True,
-                       has_completed_training=(i < 8),
-                       has_started_eval=False,
-                       has_failed=(i >= 8))
-                for i in range(10)]
+        runs = [
+            RunInfo(
+                run_id=f"run{i}",
+                has_started_training=True,
+                has_completed_training=(i < 8),
+                has_started_eval=False,
+                has_failed=(i >= 8),
+            )
+            for i in range(10)
+        ]
         assert scheduler.is_experiment_complete(runs)
 
     def test_collect_observations(self, scheduler):
@@ -324,9 +321,7 @@ class TestNoEvalSweepScheduler:
     def test_full_scheduling_cycle(self, scheduler, mock_store):
         """Test a full scheduling cycle from start to completion."""
         # Initial state: no runs
-        scheduler.optimizer.suggest = MagicMock(
-            return_value=[{"lr": 0.001}, {"lr": 0.01}]
-        )
+        scheduler.optimizer.suggest = MagicMock(return_value=[{"lr": 0.001}, {"lr": 0.01}])
 
         # Schedule first batch
         jobs = scheduler.schedule([], available_training_slots=4)
@@ -368,9 +363,7 @@ class TestNoEvalSweepScheduler:
         ]
 
         # Update state and schedule next batch
-        scheduler.optimizer.suggest = MagicMock(
-            return_value=[{"lr": 0.005}]
-        )
+        scheduler.optimizer.suggest = MagicMock(return_value=[{"lr": 0.005}])
 
         jobs = scheduler.schedule(runs, available_training_slots=4)
 

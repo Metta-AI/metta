@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
-from experiments.sweeps.protein_configs import make_custom_protein_config
+from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_BASIC
 from experiments.sweeps.standard import protein_sweep
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
@@ -526,7 +526,7 @@ def sweep(
             batch_size: int = 4,
             local_test: bool = False,
     """
-    LP_CONFIG = make_custom_protein_config(base_config=PPO_BASIC, parameters={
+    lp_protein_config = make_custom_protein_config(base_config=PPO_BASIC, parameters={
         "lp_params.progress_smoothing": ParameterConfig(
             distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
             min=0.05,
@@ -568,11 +568,12 @@ def sweep(
         ),
     })
 
+    lp_protein_config.metric="experience/rewards"
     return protein_sweep(
         recipe="experiments.recipes.in_context_learning.ordered_chains",
         train="train",  # Use the sweep-specific wrapper
         eval="evaluate",
-        protein_config=LP_CONFIG,
+        protein_config=lp_protein_config,
         max_parallel_jobs=max_parallel_jobs,
         max_timesteps=max_timesteps,
         max_trials=max_trials,
