@@ -11,10 +11,10 @@ from metta.sim.simulation_config import SimulationConfig
 
 def trainer() -> TrainerConfig:
     """Training configuration for local experimentation."""
-    env = arena.mettagrid()
+    env = arena.env_recipe()
     env.game.max_steps = 100
-    cfg = arena.trainer(
-        curriculum_cfg=arena.curriculum(env),
+    cfg = arena.train_recipe(
+        curriculum_cfg=arena.curriculum_recipe(env),
     )
     assert cfg.evaluation is not None
     # When we're using this file, we training locally on code that's likely not to be checked in, let alone pushed.
@@ -26,14 +26,14 @@ def trainer() -> TrainerConfig:
 
 def simulation() -> SimulationConfig:
     """Simulation configuration for play/replay."""
-    env = arena.make_evals()[0].env
+    env = arena.evaluate_recipe()[0].env
     env.game.max_steps = 100
     return SimulationConfig(env=env, name="scratchpad")
 
 
 def simulations() -> Sequence[SimulationConfig]:
     """Evaluation simulations."""
-    return arena.make_evals()
+    return arena.evaluate_recipe()
 
 
 # Aliases for specific tools

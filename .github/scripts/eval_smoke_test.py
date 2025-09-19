@@ -42,7 +42,7 @@ class EvaluationSmokeTest(SmokeTest):
             "./tools/run.py",
             "evaluate",
             "navigation",
-            f"policy_uris=wandb://run/{self.policy}",
+            f"policy_uri=wandb://run/{self.policy}",
             "stats_db_uri=wandb://stats/navigation_db",
             "system.seed=31415",
             "system.torch_deterministic=True",
