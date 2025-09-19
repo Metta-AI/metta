@@ -56,7 +56,7 @@ def game_config_factory(global_obs_config):
             resource_names=resource_names,
             num_observation_tokens=50,
             global_obs=global_obs_config,
-            actions={},
+            actions=[],
             objects={"agent.test_group": agent_config},
             track_movement_metrics=False,
         )
