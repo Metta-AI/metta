@@ -119,7 +119,6 @@ class Trainer:
             set_epoch=lambda value: setattr(self, "_epoch", value),
             get_agent_step=lambda: self._agent_step,
             set_agent_step=lambda value: setattr(self, "_agent_step", value),
-            latest_policy_uri_fn=self.get_latest_policy_uri,
         )
 
     @property
@@ -129,33 +128,7 @@ class Trainer:
         return self._context
 
     @property
-    def policy(self) -> Policy:
-        """Return the wrapped training policy."""
-        return self._policy
-
-    @property
-    def env(self) -> TrainingEnvironment:
-        """Return the active training environment wrapper."""
-        return self._env
-
-    @property
-    def cfg(self) -> TrainerConfig:
-        """Return the immutable trainer configuration."""
-        return self._cfg
-
-    @property
-    def device(self) -> torch.device:
-        """Return the device training is executing on."""
-        return self._device
-
-    @property
-    def distributed_helper(self) -> DistributedHelper:
-        """Return the distributed helper managing multi-process coordination."""
-        return self._distributed_helper
-
-    @property
     def epoch(self) -> int:
-        """Return the current training epoch."""
         return self._epoch
 
     @epoch.setter
@@ -164,34 +137,11 @@ class Trainer:
 
     @property
     def agent_step(self) -> int:
-        """Return the total number of agent steps consumed so far."""
         return self._agent_step
 
     @agent_step.setter
     def agent_step(self, value: int) -> None:
         self._agent_step = value
-
-    @property
-    def optimizer_state_dict(self) -> dict[str, Any]:
-        """Return a shallow copy of the optimizer state for checkpointing."""
-        return self.optimizer.state_dict()
-
-    @property
-    def stopwatch(self) -> Stopwatch:
-        """Return the stopwatch tracking training timings."""
-        return self.timer
-
-    def get_latest_policy_uri(self) -> Optional[str]:
-        """Return the most recent policy checkpoint URI if available."""
-        from metta.rl.training.policy_checkpointer import PolicyCheckpointer
-
-        policy_checkpointer = self.get_component(PolicyCheckpointer)
-        if policy_checkpointer is not None:
-            return policy_checkpointer.get_latest_policy_uri()
-        return None
-
-    def get_component(self, component_type: Type[T_Component]) -> Optional[T_Component]:
-        return self._context.get_component(component_type)
 
     def train(self) -> None:
         """Run the main training loop."""

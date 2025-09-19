@@ -12,7 +12,7 @@ from torch import Tensor
 from metta.agent.metta_agent import PolicyAgent
 from metta.mettagrid.config import Config
 from metta.rl.loss.loss import Loss
-from metta.rl.trainer_state import TrainerState
+from metta.rl.training.context import TrainerContext
 
 # Config class
 
@@ -49,7 +49,7 @@ class Dynamics(Loss):
     """The dynamics term in the Muesli loss."""
 
     # Loss calls this method
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerContext) -> tuple[Tensor, TensorDict]:
         policy_td = shared_loss_data["policy_td"]
 
         returns_pred: Tensor = policy_td["returns_pred"].to(dtype=torch.float32)
