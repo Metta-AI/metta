@@ -65,11 +65,11 @@ protected:
       if (usable) {
         return usable->onUse(*actor, arg);
       }
+      return false;
     }
 
     // Move the agent
     return _grid->move_object(actor->id, target_location);
-    return true;
   }
 
 private:
