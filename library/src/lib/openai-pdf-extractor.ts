@@ -1947,24 +1947,26 @@ CRITICAL:
       summaryResult.object.keyFigures.length > 0
     ) {
       // Always start with metadata-only figures from AI analysis
-      figuresWithImages = summaryResult.object.keyFigures.map((fig: {
-        figureNumber: string;
-        caption: string;
-        significance: string;
-        explanation: string;
-        pageNumber: number;
-      }) => ({
-        caption: fig.caption,
-        pageNumber: fig.pageNumber || 1,
-        context: fig.explanation || fig.significance, // Fallback for backward compatibility
-        figureNumber: parseInt(fig.figureNumber.replace(/[^\d]/g, "")) || 0,
-        subpanel: fig.figureNumber.match(/[a-z]$/i)?.[0],
-        confidence: 0.8, // Higher confidence since these come from AI analysis
-        aiDetectedText: `${fig.significance} ${fig.explanation || ""}`.trim(),
-        // Preserve separate AI commentary fields
-        significance: fig.significance,
-        explanation: fig.explanation,
-      }));
+      figuresWithImages = summaryResult.object.keyFigures.map(
+        (fig: {
+          figureNumber: string;
+          caption: string;
+          significance: string;
+          explanation: string;
+          pageNumber: number;
+        }) => ({
+          caption: fig.caption,
+          pageNumber: fig.pageNumber || 1,
+          context: fig.explanation || fig.significance, // Fallback for backward compatibility
+          figureNumber: parseInt(fig.figureNumber.replace(/[^\d]/g, "")) || 0,
+          subpanel: fig.figureNumber.match(/[a-z]$/i)?.[0],
+          confidence: 0.8, // Higher confidence since these come from AI analysis
+          aiDetectedText: `${fig.significance} ${fig.explanation || ""}`.trim(),
+          // Preserve separate AI commentary fields
+          significance: fig.significance,
+          explanation: fig.explanation,
+        })
+      );
 
       console.log(
         `📊 Extracted ${figuresWithImages.length} figure insights from AI analysis`
