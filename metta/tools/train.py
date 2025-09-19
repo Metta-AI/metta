@@ -92,7 +92,6 @@ class TrainTool(Tool):
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy)
 
-        self._attach_core_components(trainer, distributed_helper, checkpoint_manager, policy_checkpointer)
         self._log_run_configuration(distributed_helper, env)
 
         stats_client = self._maybe_create_stats_client(distributed_helper)
@@ -100,10 +99,11 @@ class TrainTool(Tool):
 
         try:
             with wandb_manager as wandb_run:
-                self._register_optional_components(
+                self._register_components(
                     trainer,
                     distributed_helper,
                     checkpoint_manager,
+                    policy_checkpointer,
                     stats_client,
                     wandb_run,
                 )
@@ -213,22 +213,6 @@ class TrainTool(Tool):
 
         return trainer
 
-    def _attach_core_components(
-        self,
-        trainer: Trainer,
-        distributed_helper: DistributedHelper,
-        checkpoint_manager: CheckpointManager,
-        policy_checkpointer: PolicyCheckpointer,
-    ) -> None:
-        trainer.context.checkpoint_manager = checkpoint_manager
-        trainer_checkpointer = TrainerCheckpointer(
-            config=self.checkpointer,
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-        )
-        trainer.register(trainer_checkpointer)
-        trainer.register(policy_checkpointer)
-
     def _log_run_configuration(
         self,
         distributed_helper: DistributedHelper,
@@ -256,26 +240,39 @@ class TrainTool(Tool):
             return WandbContext(self.wandb, self)
         return contextlib.nullcontext(None)
 
-    def _register_optional_components(
+    def _register_components(
         self,
         trainer: Trainer,
         distributed_helper: DistributedHelper,
         checkpoint_manager: CheckpointManager,
+        policy_checkpointer: PolicyCheckpointer,
         stats_client: Optional[StatsClient],
         wandb_run: Any,
     ) -> None:
+        trainer.context.checkpoint_manager = checkpoint_manager
+        trainer.context.stats_client = stats_client
+
+        trainer.register(
+            TrainerCheckpointer(
+                config=self.checkpointer,
+                checkpoint_manager=checkpoint_manager,
+                distributed_helper=distributed_helper,
+            )
+        )
+
+        trainer.register(policy_checkpointer)
+
         if not distributed_helper.is_master():
             return
 
-        trainer.context.stats_client = stats_client
-
-        policy_uploader = PolicyUploader(
-            config=self.policy_uploader,
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-            wandb_run=wandb_run,
+        trainer.register(
+            PolicyUploader(
+                config=self.policy_uploader,
+                checkpoint_manager=checkpoint_manager,
+                distributed_helper=distributed_helper,
+                wandb_run=wandb_run,
+            )
         )
-        trainer.register(policy_uploader)
 
         stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
         stats_component = StatsReporter.from_config(
@@ -288,15 +285,16 @@ class TrainTool(Tool):
         if self.gradient_stats.epoch_interval:
             trainer.register(GradientStatsComponent(self.gradient_stats))
 
-        evaluator_component = Evaluator(
-            config=self.evaluator,
-            device=torch.device(self.device),
-            system_cfg=self.system,
-            trainer_cfg=self.trainer,
-            stats_client=stats_client,
-            stats_reporter=stats_component,
+        trainer.register(
+            Evaluator(
+                config=self.evaluator,
+                device=torch.device(self.device),
+                system_cfg=self.system,
+                trainer_cfg=self.trainer,
+                stats_client=stats_client,
+                stats_reporter=stats_component,
+            )
         )
-        trainer.register(evaluator_component)
 
         if getattr(self.torch_profiler, "interval_epochs", 0):
             trainer.register(
