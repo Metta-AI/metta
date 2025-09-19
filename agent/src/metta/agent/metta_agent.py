@@ -139,6 +139,22 @@ class MettaAgent(nn.Module):
         """Losses expect to find a replay buffer in the policy."""
         self.replay = experience
 
+    def consume_segment_memory_records(self):
+        target = self.policy
+        if hasattr(target, "consume_segment_memory_records"):
+            return target.consume_segment_memory_records()
+        if hasattr(target, "module") and hasattr(target.module, "consume_segment_memory_records"):
+            return target.module.consume_segment_memory_records()
+        return []
+
+    def prepare_memory_batch(self, snapshots, device: torch.device):
+        target = self.policy
+        if hasattr(target, "prepare_memory_batch"):
+            return target.prepare_memory_batch(snapshots, device)
+        if hasattr(target, "module") and hasattr(target.module, "prepare_memory_batch"):
+            return target.module.prepare_memory_batch(snapshots, device)
+        return None
+
     def initialize_to_environment(
         self,
         features: dict[str, dict],
