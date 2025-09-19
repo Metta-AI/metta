@@ -86,47 +86,41 @@ export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
   );
 }
 
-const mettagridCfgFileMetadataSchema = z.object({
+const configMakerMetadataSchema = z.object({
   absolute_path: z.string(),
   path: z.string(),
   kind: z.string(),
+  line: z.number(),
 });
 
-const mettagridCfgFileSchema = z.object({
-  metadata: mettagridCfgFileMetadataSchema,
-  cfg: z.unknown(),
+const configMakerSchema = z.object({
+  metadata: configMakerMetadataSchema,
+  config: z.unknown(),
 });
 
-export type MettagridCfgFile = z.infer<typeof mettagridCfgFileSchema>;
+export type ConfigMaker = z.infer<typeof configMakerSchema>;
 
-const mettagridCfgsMetadataSchema = z.object({
-  env: z.array(mettagridCfgFileMetadataSchema).optional(),
-  curriculum: z.array(mettagridCfgFileMetadataSchema).optional(),
-  map: z.array(mettagridCfgFileMetadataSchema).optional(),
-  unknown: z.array(mettagridCfgFileMetadataSchema).optional(),
-});
+const mettagridCfgsMetadataSchema = z.record(
+  z.string(),
+  z.array(configMakerMetadataSchema).optional()
+);
 
 type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
 
-export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata> {
+export async function listConfigMakers(): Promise<MettagridCfgsMetadata> {
+  return await fetchApi(`${API_URL}/configs`, mettagridCfgsMetadataSchema);
+}
+
+export async function getConfigMaker(path: string): Promise<ConfigMaker> {
   return await fetchApi(
-    `${API_URL}/mettagrid-cfgs`,
-    mettagridCfgsMetadataSchema
+    `${API_URL}/configs/get?path=${encodeURIComponent(path)}`,
+    configMakerSchema
   );
 }
 
-export async function getMettagridCfgFile(
-  path: string
-): Promise<MettagridCfgFile> {
+export async function getConfigMap(path: string): Promise<StorableMap> {
   return await fetchApi(
-    `${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`,
-    mettagridCfgFileSchema
-  );
-}
-
-export async function getMettagridCfgMap(path: string): Promise<StorableMap> {
-  return await fetchApi(
-    `${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`,
+    `${API_URL}/configs/get-map?path=${encodeURIComponent(path)}`,
     storableMapSchema
   );
 }
