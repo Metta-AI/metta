@@ -196,7 +196,7 @@ class ActionProbs(nn.Module):
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_params
+        return cumulative_sum + action_type_numbers + action_params
 
     def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
         """Convert discrete logit indices back to (action_type, action_param) pairs."""
