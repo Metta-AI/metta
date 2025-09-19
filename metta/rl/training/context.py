@@ -9,7 +9,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Type, TypeVar
 import torch
 
 from metta.agent.policy import Policy
+from metta.mettagrid.profiling.memory_monitor import MemoryMonitor
 from metta.mettagrid.profiling.stopwatch import Stopwatch
+from metta.mettagrid.profiling.system_monitor import SystemMonitor
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
@@ -44,6 +46,8 @@ class TrainerContext:
     stats_client: Any | None = None
     components: Dict[type, TrainerComponent] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
+    memory_monitor: MemoryMonitor | None = None
+    system_monitor: SystemMonitor | None = None
     _epoch: int = 0
     _agent_step: int = 0
     update_epoch: int = 0

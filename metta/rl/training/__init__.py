@@ -38,6 +38,7 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "NoOpStatsReporter": ("metta.rl.training.stats_reporter", "NoOpStatsReporter"),
     # Trainer components
     "TrainerComponent": ("metta.rl.training.component", "TrainerComponent"),
+    "MonitoringComponent": ("metta.rl.training.monitoring_component", "MonitoringComponent"),
     # Torch profiler
     "TorchProfilerComponent": ("metta.rl.training.torch_profiler_component", "TorchProfilerComponent"),
     # Heartbeat

@@ -14,7 +14,6 @@ from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.wandb_context import WandbRun
-from metta.core.monitoring import cleanup_monitoring, setup_monitoring
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.config import Config
 from metta.rl.stats import (
@@ -118,8 +117,6 @@ class StatsReporter(TrainerComponent):
         self._stats_client = stats_client
         self._wandb_run = wandb_run
         self._state = StatsState()
-        self._memory_monitor = None
-        self._system_monitor = None
 
         # Initialize stats run if client is available
         if self._stats_client and self._config.report_to_stats_client:
@@ -127,17 +124,6 @@ class StatsReporter(TrainerComponent):
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
-        reporting_enabled = (
-            self._config.report_to_wandb or self._config.report_to_stats_client or self._config.report_to_console
-        )
-        if reporting_enabled:
-            memory_monitor, system_monitor = setup_monitoring(
-                policy=self.context.policy,
-                experience=self.context.experience,
-                timer=self.context.stopwatch,
-            )
-            self._memory_monitor = memory_monitor
-            self._system_monitor = system_monitor
 
     def _initialize_stats_run(self) -> None:
         """Initialize stats run with the stats client."""
@@ -188,8 +174,6 @@ class StatsReporter(TrainerComponent):
         timer: Any,
         trainer_cfg: Any,
         optimizer: torch.optim.Optimizer,
-        memory_monitor: Optional[Any] = None,
-        system_monitor: Optional[Any] = None,
     ) -> None:
         """Report statistics for an epoch.
 
@@ -202,8 +186,6 @@ class StatsReporter(TrainerComponent):
             timer: Timer for profiling
             trainer_cfg: Trainer configuration
             optimizer: Optimizer
-            memory_monitor: Optional memory monitor
-            system_monitor: Optional system monitor
         """
         if self._wandb_run and self._config.report_to_wandb:
             payload = self._build_wandb_payload(
@@ -323,8 +305,6 @@ class StatsReporter(TrainerComponent):
             timer=ctx.stopwatch,
             trainer_cfg=ctx.config,
             optimizer=ctx.optimizer,
-            memory_monitor=self._memory_monitor,
-            system_monitor=self._system_monitor,
         )
 
     def on_training_complete(self) -> None:
@@ -333,7 +313,6 @@ class StatsReporter(TrainerComponent):
         Args:
         """
         self.finalize(status="completed")
-        cleanup_monitoring(self._memory_monitor, self._system_monitor)
 
     def on_failure(self) -> None:
         """Handle training failure.
@@ -342,7 +321,6 @@ class StatsReporter(TrainerComponent):
             trainer: The trainer instance
         """
         self.finalize(status="failed")
-        cleanup_monitoring(self._memory_monitor, self._system_monitor)
 
     # ------------------------------------------------------------------
     # Internal helpers

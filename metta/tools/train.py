@@ -24,6 +24,7 @@ from metta.rl.training import (
     EvaluatorConfig,
     GradientStatsComponent,
     GradientStatsConfig,
+    MonitoringComponent,
     PolicyCheckpointer,
     PolicyCheckpointerConfig,
     PolicyUploader,
@@ -275,6 +276,12 @@ class TrainTool(Tool):
         )
 
         stats_config = self.stats.model_copy(update={"report_to_wandb": bool(wandb_run)})
+        reporting_enabled = (
+            stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
+        )
+
+        trainer.register(MonitoringComponent(enabled=reporting_enabled))
+
         stats_component = StatsReporter.from_config(
             stats_config,
             stats_client=stats_client,
