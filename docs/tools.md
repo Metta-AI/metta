@@ -466,14 +466,14 @@ This tool creates game maps using different generation algorithms including:
 ./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
 
 # Generate 100 maps to S3
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
+./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
 
 # Override generation parameters
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/base.yaml "width=50 height=50 density=0.7"
+./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/base.yaml "width=50 height=50 density=0.7"
 
 # Different display modes
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=ascii # Terminal display
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=PIL  # Image popup
+./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=ascii # Terminal display
+./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=PIL  # Image popup
 ```
 
 ### map/gen_scene.py
@@ -484,13 +484,13 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # Generate from scene
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/wfc/blob.yaml 32 32
+./packages/mettagrid/src/mettagrid/mapgen/tools/gen_scene.py scenes/wfc/blob.yaml 32 32
 
 # With overrides
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/convchain/maze.yaml 64 64 "seed=42"
+./packages/mettagrid/src/mettagrid/mapgen/tools/gen_scene.py scenes/convchain/maze.yaml 64 64 "seed=42"
 
 # Different display mode
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/test/grid.yaml 16 16 --show-mode=ascii
+./packages/mettagrid/src/mettagrid/mapgen/tools/gen_scene.py scenes/test/grid.yaml 16 16 --show-mode=ascii
 ```
 
 **Key Features**:
@@ -507,10 +507,10 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # View a specific map
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py ./my_map.yaml
+./packages/mettagrid/src/mettagrid/mapgen/tools/view.py ./my_map.yaml
 
 # View random map from directory
-./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py s3://bucket/maps/
+./packages/mettagrid/src/mettagrid/mapgen/tools/view.py s3://bucket/maps/
 
 # ASCII display
 ./tools/map/view.py ./map.yaml --show-mode=ascii

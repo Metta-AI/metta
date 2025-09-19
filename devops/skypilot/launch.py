@@ -118,8 +118,11 @@ Examples:
   # Basic:
   %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
 
+  # Short CLI (forwarded to tools/run.py):
+  %(prog)s train arena run=test_123 trainer.total_timesteps=100000
+
   # Mix of launch flags and tool args:
-  %(prog)s experiments.recipes.arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+  %(prog)s train arena --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
         """,
     )
 

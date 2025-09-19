@@ -160,3 +160,9 @@ def sweep_simulations_recipe() -> Sequence[SimulationConfig]:
             max_time_s=240,
         ),
     ]
+
+
+# Compatibility alias for evaluate API
+def evaluate_recipe(policy_uri: str) -> SimTool:
+    """Evaluation recipe for compatibility with standard evaluate command."""
+    return SimTool(config=sweep_simulations_recipe(), policy_uri=policy_uri)
