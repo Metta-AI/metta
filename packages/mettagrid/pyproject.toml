@@ -50,9 +50,7 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 # Exclude the generic Bazel C++ test runner script (not a pytest test)
 addopts = "--ignore=tests/run_test.py"
-filterwarnings = [
-  "ignore:Gym has been unmaintained:UserWarning",
-]
+filterwarnings = ["ignore:Gym has been unmaintained:UserWarning"]
 
 [tool.uv]
 cache-keys = [

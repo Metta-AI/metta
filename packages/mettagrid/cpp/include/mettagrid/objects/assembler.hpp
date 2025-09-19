@@ -8,18 +8,19 @@
 
 #include "core/event.hpp"
 #include "core/grid.hpp"
+#include "core/grid_object.hpp"
 #include "core/types.hpp"
-#include "systems/stats_tracker.hpp"
 #include "objects/agent.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
+#include "systems/stats_tracker.hpp"
 
 // Forward declaration
 class Agent;
 
-class Assembler : public Usable {
+class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
