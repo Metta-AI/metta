@@ -3,11 +3,11 @@
 import logging
 from typing import Any, Dict, Optional
 
-from metta.common.wandb.wandb_context import WandbRun
-from metta.mettagrid.config import Config
+from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 

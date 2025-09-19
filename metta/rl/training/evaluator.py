@@ -12,7 +12,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.config import Config
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
@@ -20,6 +19,7 @@ from metta.rl.evaluate import (
 from metta.rl.training.component import TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
+from mettagrid.config import Config
 
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer

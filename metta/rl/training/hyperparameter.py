@@ -3,9 +3,9 @@
 import logging
 from typing import TYPE_CHECKING
 
-from metta.mettagrid.config import Config
 from metta.rl.hyperparameter_scheduler import step_hyperparameters
 from metta.rl.training.component import TrainerComponent
+from mettagrid.config import Config
 
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer

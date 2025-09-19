@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict
 
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.context import WandbRun
 from metta.rl.training.component import TrainerComponent
 from metta.rl.wandb import log_model_parameters, setup_wandb_metrics
 

@@ -13,6 +13,7 @@ from metta.rl.training.policy_uploader import PolicyUploader, PolicyUploaderConf
 from metta.rl.training.stats_reporter import NoOpStatsReporter, StatsConfig, StatsReporter, StatsState
 from metta.rl.training.torch_profiler_component import TorchProfilerComponent, TorchProfilerConfig
 from metta.rl.training.trainer_checkpointer import TrainerCheckpointer, TrainerCheckpointerConfig
+from metta.rl.training.wandb_abort import WandbAbortComponent
 
 __all__ = [
     # Core training
@@ -27,6 +28,7 @@ __all__ = [
     "PolicyUploaderConfig",
     "TrainerCheckpointer",
     "TrainerCheckpointerConfig",
+    "WandbAbortComponent",
     # Evaluation
     "Evaluator",
     "EvaluatorConfig",

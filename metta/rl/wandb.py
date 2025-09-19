@@ -5,9 +5,7 @@ RL-specific W&B utilities and metrics setup.
 import logging
 
 import torch.nn as nn
-import wandb
 from torch.nn.parameter import UninitializedParameter
-import wandb
 
 from metta.common.wandb.context import WandbRun
 

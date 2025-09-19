@@ -8,7 +8,7 @@ import torch
 import torch.distributed
 
 from metta.agent.policy import Policy
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -173,6 +173,10 @@ class DistributedHelper:
             True if should evaluate
         """
         return self._is_master
+
+    def is_distributed(self) -> bool:
+        """Return True when running under torch.distributed."""
+        return self._is_distributed
 
     def get_world_size(self) -> int:
         """Get the number of processes.

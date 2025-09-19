@@ -3,9 +3,9 @@
 import logging
 from typing import Any
 
-from metta.mettagrid.config import Config
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.training.component import TrainerComponent
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 

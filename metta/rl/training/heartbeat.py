@@ -4,8 +4,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from metta.common.util.heartbeat import record_heartbeat
-from metta.mettagrid.config import Config
 from metta.rl.training.component import TrainerComponent
+from mettagrid.config import Config
 
 if TYPE_CHECKING:
     pass
