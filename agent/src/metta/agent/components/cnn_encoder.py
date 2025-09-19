@@ -42,10 +42,31 @@ class CNNEncoder(nn.Module):
         self.flatten = nn.Flatten()
 
         # Match YAML: Linear layers use orthogonal with gain=1
-        self.fc1 = nn.LazyLinear(self.config.fc1_cfg["out_features"])  # not initializing here because it's lazy
+        height1 = self._conv_out_dim(env.obs_height, self.config.cnn1_cfg)
+        width1 = self._conv_out_dim(env.obs_width, self.config.cnn1_cfg)
+        height2 = self._conv_out_dim(height1, self.config.cnn2_cfg)
+        width2 = self._conv_out_dim(width1, self.config.cnn2_cfg)
+        flattened_dim = self.config.cnn2_cfg["out_channels"] * height2 * width2
+
+        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(flattened_dim, self.config.fc1_cfg["out_features"]), std=1.0)
         self.encoded_obs = pufferlib.pytorch.layer_init(
             nn.Linear(self.config.fc1_cfg["out_features"], self.config.encoded_obs_cfg["out_features"]), std=1.0
         )
+
+    @staticmethod
+    def _conv_out_dim(size: int, cfg: dict) -> int:
+        padding = cfg.get("padding", 0) or 0
+        stride = cfg.get("stride", 1)
+        kernel = cfg["kernel_size"]
+        numerator = size + 2 * padding - kernel
+        if numerator < 0 or numerator % stride != 0:
+            raise ValueError(f"Invalid conv params: size={size}, kernel={kernel}, stride={stride}, padding={padding}")
+        out = numerator // stride + 1
+        if out <= 0:
+            raise ValueError(
+                f"Convolution with kernel={kernel}, stride={stride}, padding={padding} produced non-positive dim"
+            )
+        return out
 
     def forward(self, td: TensorDict) -> TensorDict:
         """Forward pass shows how we can use tensor dicts or just regular tensors interchangeably within a forward.

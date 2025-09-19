@@ -92,7 +92,13 @@ class CoreTrainingLoop:
             td["truncateds"] = t.float().to(td.device)
             td["training_env_ids"] = torch.arange(
                 training_env_id.start, training_env_id.stop, dtype=torch.long, device=td.device
-            ).unsqueeze(1)  # av remove unsqueeze
+            ).unsqueeze(1)
+            td["training_env_id_start"] = torch.full(
+                td.batch_size,
+                training_env_id.start,
+                dtype=torch.long,
+                device=td.device,
+            )
             B = td.batch_size.numel()
             td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
 
