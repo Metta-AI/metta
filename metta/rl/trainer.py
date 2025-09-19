@@ -135,6 +135,7 @@ class Trainer:
             raise RuntimeError("Core loop not initialized")
 
         steps_before = self._context.agent_step
+        self._context.training_env_id = None
 
         # Start new epoch
         self.core_loop.on_epoch_start(self._context.epoch)
@@ -143,15 +144,18 @@ class Trainer:
         with self.timer("_rollout"):
             rollout_result = self.core_loop.rollout_phase(self._env, self._context.epoch)
             self._context.agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
+            self._context.training_env_id = rollout_result.training_env_id
             # Invoke step callbacks for each info
             for info in rollout_result.raw_infos:
                 self._invoke_callback(TrainerCallback.STEP, info)
 
         # Training phase
         with self.timer("_train"):
+            if self._context.training_env_id is None:
+                raise RuntimeError("Training environment slice unavailable for training phase")
             losses_stats, epochs_trained = self.core_loop.training_phase(
                 epoch=self._context.epoch,
-                training_env_id=slice(0, self._cfg.batch_size),
+                training_env_id=self._context.training_env_id,
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
             )

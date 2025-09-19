@@ -19,6 +19,7 @@ class RolloutResult(Config):
 
     raw_infos: List[Dict[str, Any]]
     agent_steps: int
+    training_env_id: slice
 
 
 class CoreTrainingLoop:
@@ -79,10 +80,12 @@ class CoreTrainingLoop:
         buffer_step = buffer_step.select(*self.policy_spec.keys())
 
         total_steps = 0
+        last_env_id: slice | None = None
 
         while not self.experience.ready_for_training:
             # Get observation from environment
             o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
+            last_env_id = training_env_id
 
             # Prepare data for policy
             td = buffer_step[training_env_id].clone()
@@ -123,7 +126,10 @@ class CoreTrainingLoop:
 
             total_steps += num_steps
 
-        return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps)
+        if last_env_id is None:
+            raise RuntimeError("Rollout completed without receiving any environment data")
+
+        return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
     def training_phase(
         self,

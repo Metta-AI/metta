@@ -120,6 +120,7 @@ class FastPolicy(Policy):
         self.cnn_encoder(td)
         self.lstm(td)
         self.actor_1(td)
+        td["actor_1"] = torch.relu(td["actor_1"])
         self.critic_1(td)
         td["critic_1"] = self.critic_activation(td["critic_1"])
         self.value_head(td)
@@ -142,6 +143,8 @@ class FastPolicy(Policy):
         log = self.obs_shim.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
+        self.action_index_tensor = self.action_probs.action_index_tensor
+        self.cum_action_max_params = self.action_probs.cum_action_max_params
         return [log]
 
     def reset_memory(self):
