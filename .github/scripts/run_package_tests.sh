@@ -215,7 +215,7 @@ for package in agent common app_backend packages/mettagrid packages/cogames code
     # Add package name to each line
     sed "s/^/[${package_name}] /" "test-results/${package_name}_durations.txt"
   fi
-done | sort -rn | head -10 | nl -w2 -s'. '
+done | sort -t' ' -k2 -rn | head -10 | nl -w2 -s'. '
 
 echo -e "\n${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
