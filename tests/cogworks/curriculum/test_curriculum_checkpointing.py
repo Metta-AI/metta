@@ -15,8 +15,8 @@ from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
 from metta.cogworks.curriculum.task_tracker import TaskTracker
-from metta.mettagrid.mettagrid_config import GameConfig, MettaGridConfig
 from metta.rl.checkpoint_manager import CheckpointManager
+from mettagrid.config import GameConfig, MettaGridConfig
 
 
 class TestCurriculumStateSerialization:
