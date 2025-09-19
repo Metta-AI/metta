@@ -4,7 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-from metta.common.wandb.wandb_context import WandbConfig
+from metta.common.wandb.context import WandbConfig
 from metta.sweep.models import JobStatus, JobTypes, SweepMetadata, SweepStatus
 from metta.sweep.protein_config import ProteinConfig
 from metta.sweep.protocols import Dispatcher, Optimizer, Scheduler, Store

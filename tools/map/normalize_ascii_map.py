@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 
-from metta.mettagrid.char_encoder import normalize_grid_char
+from mettagrid.util.char_encoder import normalize_grid_char
 
 
 def main():

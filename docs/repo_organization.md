@@ -182,7 +182,7 @@ from metta.cogworks import api
 from metta.cogworks.rl import trainer
 from metta.cogworks.agent import MettaAgent
 from metta.common.util import config
-from metta.mettagrid import MettaGridPufferEnv
+from mettagrid import MettaGridPufferEnv
 from metta.backend_shared import sweep_names
 
 # ❌ INCORRECT (blocked by linting)
@@ -226,7 +226,7 @@ pip install softmax-cogworks
 ### Environment Package
 
 ```toml
-# mettagrid/pyproject.toml
+# packages/mettagrid/pyproject.toml
 [project]
 name = "softmax-mettagrid"
 version = "0.1.0"
@@ -234,15 +234,15 @@ description = "High-performance grid environments"
 dependencies = ["softmax-common>=0.1.0"]
 
 [tool.setuptools]
-packages = ["metta.mettagrid"]
+packages = ["mettagrid"]
 package-dir = {"": "."}
 ```
 
 **Imports:**
 
 ```python
-from metta.mettagrid import MettaGridPufferEnv
-from metta.mettagrid.wrappers import AsyncWrapper
+from mettagrid import MettaGridPufferEnv
+from mettagrid.wrappers import AsyncWrapper
 ```
 
 ### Common Utilities
@@ -322,7 +322,7 @@ metta/docs/                            → docs/
 metta/devops/                          → devops/
 
 common/src/metta/common/               → common/metta/common/
-mettagrid/src/metta/mettagrid/         → mettagrid/metta/mettagrid/
+packages/mettagrid/python/src/mettagrid/ → packages/mettagrid/python/src/mettagrid/
 
 backend/src/metta/backend/sweep_names/ → backend-shared/metta/backend_shared/sweep_names.py
 backend/src/metta/backend/stat_buffer/ → backend-shared/metta/backend_shared/stat_buffer.py

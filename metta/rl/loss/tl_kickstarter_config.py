@@ -4,10 +4,10 @@ import torch
 from pydantic import Field
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.loss.tl_kickstarter import TLKickstarter
 from metta.rl.trainer_config import TrainerConfig
+from mettagrid.config import Config
 
 
 class TLKickstarterConfig(Config):

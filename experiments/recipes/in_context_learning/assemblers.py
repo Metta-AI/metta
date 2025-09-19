@@ -24,14 +24,14 @@ curriculum 6: multiagent, 2 convertors and altar, agents need to learn in contex
 """
 
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.mettagrid.mettagrid_config import Position
+from mettagrid.config.mettagrid_config import Position
 from pydantic import Field
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional
 import random
-from metta.mettagrid.builder import building
-from metta.mettagrid.builder.envs import make_icl_assembler
-from metta.mettagrid.mettagrid_config import MettaGridConfig, RecipeConfig
+from mettagrid.builder import building
+from mettagrid.builder.envs import make_icl_assembler
+from mettagrid.config.mettagrid_config import MettaGridConfig, RecipeConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -73,7 +73,7 @@ curriculum_args = {
         "altar_positions": [["Any"], ["W"], ["E"], ["N"], ["S"]],
     },
 
-    # 2) Single agent, 1 converter + 1 altar; positions Any or single-side (N/S/E/W)
+    # 2) Single agent, 1 converter + 1 altar; positions Any or single-side (N/S/E/W) TODO: cur
     "single_agent_converter_and_altar": {
         "num_agents": [1],
         "num_altars": [1],
@@ -86,7 +86,7 @@ curriculum_args = {
     },
 
     # 3) Single agent, 2 converters + 1 altar; only one converter required
-    #    Positions: either Any for both, or both constrained to N+S or E+W
+    #    Positions: either Any for both, or both constrained to N+S or E+W error: unknown object type generator_green
     "single_agent_two_converters_one_active": {
         "num_agents": [1],
         "num_altars": [1],
@@ -98,7 +98,7 @@ curriculum_args = {
         "altar_inputs": ["one"],                          # only one converter’s output needed
     },
 
-    # 4) Multi-agent (up to 2 agents), 2 altars; Any positions
+    # 4) Multi-agent (up to 2 agents), 2 altars; Any positions ISSUE: cooldown needs to be longer or we'll get degenerate strategies. is there another way to enforce alternate usage?
     "multi_agent_any": {
         "num_agents": [1, 2],
         "num_altars": [2],
@@ -130,6 +130,16 @@ curriculum_args = {
         "generator_positions": [["Any", "Any"], ["N", "S"], ["E", "W"]],
         "altar_positions": [["Any"]],
         "altar_inputs": ["both"],
+    },
+    "multi_agent_one_converter_one_altar": {
+        "num_agents": [2],
+        "num_altars": [1],
+        "num_converters": [1],
+        "widths": [4, 6, 8, 10],
+        "heights": [4, 6, 8, 10],
+        "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+        "altar_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+        "altar_inputs": ["one"],
     },
     }
 
@@ -206,7 +216,7 @@ class AssemblerTaskGenerator(TaskGenerator):
                 ),
             )
             converter.recipes = [recipe]
-            cfg.game_objects[converter_name] = converter
+            cfg.game_objects[converter_names[i]] = converter
 
         for _ in range(num_altars):
             altar = building.assembler_altar
