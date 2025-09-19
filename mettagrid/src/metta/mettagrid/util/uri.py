@@ -4,6 +4,8 @@ Provides canonical parsing for supported schemes (local files, file://, s3://,
 mock://, Google Drive, HTTP URLs, etc.).
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional

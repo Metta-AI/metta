@@ -5,6 +5,8 @@ Read and write files to local, S3, or Google Drive locations.
 Use EFS on AWS for shared filesystems.
 """
 
+from __future__ import annotations
+
 import io
 import logging
 import os
