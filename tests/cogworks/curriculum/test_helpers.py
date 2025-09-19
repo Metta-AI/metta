@@ -77,7 +77,7 @@ class CurriculumTestHelper:
     def create_curriculum_with_capacity(capacity: int, **kwargs):
         """Create a curriculum with specific capacity for testing."""
         from metta.cogworks.curriculum import SingleTaskGeneratorConfig
-        from metta.mettagrid.mettagrid_config import MettaGridConfig
+        from mettagrid.config.mettagrid_config import MettaGridConfig
 
         task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=capacity, **kwargs)
@@ -92,7 +92,7 @@ class CurriculumTestHelper:
             **kwargs: Additional configuration parameters
         """
         from metta.cogworks.curriculum import SingleTaskGeneratorConfig
-        from metta.mettagrid.mettagrid_config import MettaGridConfig
+        from mettagrid.config.mettagrid_config import MettaGridConfig
 
         base_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
 

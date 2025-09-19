@@ -6,7 +6,7 @@ import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig, Span
-from metta.mettagrid.builder.envs import make_arena, make_navigation
+from mettagrid.builder.envs import make_arena, make_navigation
 
 
 @pytest.fixture(scope="function")

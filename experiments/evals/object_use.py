@@ -1,7 +1,6 @@
-from metta.mettagrid.builder import building, empty_converters
-from metta.mettagrid.mapgen.mapgen import MapGen
-from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
-from metta.mettagrid.mettagrid_config import (
+from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder import building, empty_converters
+from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
@@ -12,7 +11,8 @@ from metta.mettagrid.mettagrid_config import (
     MettaGridConfig,
     WallConfig,
 )
-from metta.sim.simulation_config import SimulationConfig
+from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 
 
 def make_object_use_env(
@@ -94,7 +94,8 @@ def make_object_use_ascii_env(
                 border_width=6,
                 instance_border_width=3,
                 instance_map=MapGen.Config.with_ascii_uri(
-                    f"mettagrid/configs/maps/object_use/{ascii_map}.map", border_width=1
+                    f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map",
+                    border_width=1,
                 ),
             ),
         )

@@ -190,12 +190,11 @@ builds its configuration, and runs it. The current available tasks are:
 
 - **experiments.recipes.arena.replay**: Replay a single episode from a saved policy
 
-  `./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1`
+  `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
 
 - **experiments.recipes.arena.evaluate**: Evaluate a policy on the arena eval suite
 
-  `./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1`
-
+  `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
 
 ### Runner arguments
 
@@ -206,6 +205,7 @@ Use the runner like this:
 ```
 
 The runner automatically classifies arguments:
+
 - **Function arguments**: Arguments that match parameters of your task function
 - **Configuration overrides**: Arguments that match fields in the Tool configuration (supports nested paths with dots)
 
@@ -217,7 +217,7 @@ Examples:
   system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
 
 # Evaluate a specific policy URI
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 
 # Use --verbose to see how arguments are classified
 ./tools/run.py experiments.recipes.arena.train run=test --verbose
@@ -244,7 +244,7 @@ Minimal example:
 
 ```python
 # experiments/user/my_tasks.py
-from metta.mettagrid.config.envs import make_arena
+from mettagrid.config.envs import make_arena
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
@@ -312,13 +312,13 @@ For more information, see [./mettascope/README.md](./mettascope/README.md).
 Optional overrides:
 
 - `policy_uri=<path>`: Use a specific policy for NPC agents.
-  - Local checkpoints: `file://./train_dir/<run>/checkpoints`
-  - WandB artifacts: `wandb://run/<run_name>`
+  - Local checkpoints: `file://./train_dir/<run>/checkpoints/<run>:v{epoch}.pt`
+- S3 checkpoints: `s3://bucket/path/<run_name>/checkpoints/<run_name>:v5.pt`
 
 ### Replay a single episode
 
 ```
-./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 ### Evaluating a Model
@@ -335,13 +335,13 @@ If you want to run evaluation post-training to compare different policies, you c
 Evaluate a policy against the arena eval suite:
 
 ```
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 Evaluate on the navigation eval suite (provide the policy URI):
 
 ```
-./tools/run.py experiments.recipes.navigation.eval policy_uris=wandb://run/local.alice.1
+./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 ### Specifying your agent architecture
@@ -389,13 +389,13 @@ pytest
 
 ### CLI cheat sheet
 
-| Task                        | Command                                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                              |
-| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                         |
-| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |
-| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1`     |
-| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/local.alice.1`        |
-| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=wandb://run/local.alice.1` |
+| Task                        | Command                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
+| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
+| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
+| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
+| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
+| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

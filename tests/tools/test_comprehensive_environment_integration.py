@@ -5,11 +5,14 @@ from pathlib import Path
 
 import pytest
 
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from metta.common.util.fs import get_repo_root
-from metta.mettagrid.builder import building
-from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import (
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from mettagrid import MettaGridEnv
+from mettagrid.builder import building
+from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
@@ -17,10 +20,7 @@ from metta.mettagrid.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
+from mettagrid.map_builder.random import RandomMapBuilder
 
 
 class TestComprehensiveEnvironmentIntegration:

@@ -70,7 +70,7 @@ def basic_eval_job():
         run_id="sweep_test_trial_001_eval",
         cmd="experiments.recipes.arena.evaluate",
         type=JobTypes.LAUNCH_EVAL,
-        metadata={"policy_uri": "file://./checkpoints/policy.pt"},
+        metadata={"policy_uri": "s3://policies/test/policy.pt"},
     )
 
 
@@ -129,7 +129,7 @@ class TestCommandConstruction:
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
             "experiments.recipes.arena.evaluate",
-            "policy_uri=file://./checkpoints/policy.pt",
+            "policy_uri=s3://policies/test/policy.pt",
         ]
 
         mock_popen.assert_called_once_with(
@@ -567,10 +567,8 @@ class TestDispatcherComparison:
             sky_cmd = sky_call[0][0]
 
             # Both should have metadata but no run_id
-            assert "--args" not in local_cmd
-            assert "--args" not in sky_cmd
-            assert "policy_uri=file://./checkpoints/policy.pt" in local_cmd
-            assert "policy_uri=file://./checkpoints/policy.pt" in sky_cmd
+            assert "policy_uri=s3://policies/test/policy.pt" in local_cmd
+            assert "policy_uri=s3://policies/test/policy.pt" in sky_cmd
             assert not any("run=" in arg for arg in local_cmd)
             assert not any("run=" in arg for arg in sky_cmd)
 

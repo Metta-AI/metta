@@ -47,5 +47,5 @@ Press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal to shut everything down.
 ```bash
 pnpm dev                    # Next.js dev server only (if you want it without the backend)
 uv run -m metta.gridworks.server  # Start the backend server only
-pnpm run gen:encoding       # Regenerate encoding.json based on `metta.mettagrid.char_encoder` package.
+pnpm run gen:encoding       # Regenerate encoding.json based on `mettagrid.util.char_encoder` package.
 ```

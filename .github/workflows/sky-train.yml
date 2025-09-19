@@ -186,6 +186,8 @@ jobs:
           # Wait a bit for the job to be submitted
           sleep 5
 
+          # Note that the `sky` tool is installed above in id:skylaunch by "setup-environment"
+
           # Get the logs and extract the job ID
           echo "Getting logs for request: ${{ steps.extract_request_id.outputs.request_id_short }}"
           LOG_OUTPUT=$(sky api logs ${{ steps.extract_request_id.outputs.request_id_short }} 2>&1 | tail -20)

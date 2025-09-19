@@ -10,7 +10,8 @@ from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 from pydantic import Field
 
-from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +31,8 @@ def pick_random_file(path):
 
 
 def download_from_s3(s3_path: str, save_path: str):
-    if not s3_path.startswith("s3://"):
-        raise ValueError(f"Invalid S3 path: {s3_path}. Must start with s3://")
-
-    s3_parts = s3_path[5:].split("/", 1)
-    if len(s3_parts) < 2:
-        raise ValueError(f"Invalid S3 path: {s3_path}. Must be in format s3://bucket/path")
-
-    bucket = s3_parts[0]
-    key = s3_parts[1]
+    parsed = ParsedURI.parse(s3_path)
+    bucket, key = parsed.require_s3()
 
     try:
         # Create directory if it doesn't exist
@@ -46,7 +40,7 @@ def download_from_s3(s3_path: str, save_path: str):
         # Download the file directly to disk
         s3_client = boto3.client("s3")
         s3_client.download_file(Bucket=bucket, Key=key, Filename=save_path)
-        print(f"Successfully downloaded s3://{bucket}/{key} to {save_path}")
+        print(f"Successfully downloaded {parsed.canonical} to {save_path}")
 
     except NoCredentialsError as e:
         raise e
