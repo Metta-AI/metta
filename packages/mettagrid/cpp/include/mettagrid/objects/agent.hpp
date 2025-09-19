@@ -120,7 +120,30 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-    const InventoryDelta delta = this->HasInventory::update_inventory(item, attempted_delta);
+    InventoryDelta effective_delta = attempted_delta;
+
+    if (attempted_delta > 0) {
+      auto limit_it = this->resource_limits.find(item);
+      if (limit_it != this->resource_limits.end()) {
+        InventoryQuantity current_amount = 0;
+        auto inv_it = this->inventory.find(item);
+        if (inv_it != this->inventory.end()) {
+          current_amount = inv_it->second;
+        }
+
+        const InventoryQuantity limit = limit_it->second;
+        const InventoryDelta space_remaining = static_cast<InventoryDelta>(
+            static_cast<int>(limit) - static_cast<int>(current_amount));
+
+        if (space_remaining <= 0) {
+          effective_delta = 0;
+        } else if (attempted_delta > space_remaining) {
+          effective_delta = space_remaining;
+        }
+      }
+    }
+
+    const InventoryDelta delta = this->HasInventory::update_inventory(item, effective_delta);
 
     // Update stats
     if (delta > 0) {
