@@ -34,7 +34,7 @@ struct GameConfig {
   std::vector<std::string> resource_names;
   unsigned int num_observation_tokens;
   GlobalObsConfig global_obs;
-  std::map<std::string, std::shared_ptr<ActionConfig>> actions;
+  std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions;  // Ordered list of (name, config) pairs
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   float resource_loss_prob = 0.0;
 
@@ -73,7 +73,7 @@ inline void bind_game_config(py::module& m) {
                     const std::vector<std::string>&,
                     unsigned int,
                     const GlobalObsConfig&,
-                    const std::map<std::string, std::shared_ptr<ActionConfig>>&,
+                    const std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     float,
 

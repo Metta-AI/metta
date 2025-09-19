@@ -4,10 +4,10 @@
 #include <string>
 
 #include "actions/action_handler.hpp"
-#include "core/grid_object.hpp"
-#include "objects/agent.hpp"
 #include "actions/orientation.hpp"
+#include "core/grid_object.hpp"
 #include "core/types.hpp"
+#include "objects/agent.hpp"
 
 // Forward declaration
 struct GameConfig;
@@ -51,26 +51,25 @@ protected:
     // Update orientation to face the movement direction (even if movement fails)
     actor->orientation = move_direction;
 
-    // Check if target location is valid and empty
-    if (!_is_valid_square(target_location)) {
+    if (!_grid->is_valid_location(target_location)) {
+      return false;
+    }
+
+    // `Move` is actually `MoveOrUse`, so we need to check if the target location is empty and if the object is usable.
+    // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
+    // objects without using them.
+    if (!_grid->is_empty(target_location.r, target_location.c)) {
+      GridLocation object_location = {target_location.r, target_location.c, GridLayer::ObjectLayer};
+      GridObject* target = _grid->object_at(object_location);
+      Usable* usable = dynamic_cast<Usable*>(target);
+      if (usable) {
+        return usable->onUse(*actor, arg);
+      }
       return false;
     }
 
     // Move the agent
     return _grid->move_object(actor->id, target_location);
-  }
-
-  bool _is_valid_square(GridLocation target_location) {
-    if (!_grid->is_valid_location(target_location)) {
-      return false;
-    }
-    if (!_grid->is_empty_at_layer(target_location.r, target_location.c, GridLayer::ObjectLayer)) {
-      return false;
-    }
-    if (!_grid->is_empty(target_location.r, target_location.c)) {
-      return false;
-    }
-    return true;
   }
 
 private:
