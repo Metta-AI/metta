@@ -174,7 +174,7 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
     return cfg
 
 
-def make_icl_resource_chain(
+def make_in_context_chains(
     num_agents: int,
     max_steps,
     game_objects: dict,
