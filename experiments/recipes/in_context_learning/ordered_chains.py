@@ -409,6 +409,7 @@ def train(
             "obstacle_types": ["square", "cross", "L"],
             "densities": ["", "balanced", "sparse", "high"],
             "lp_params": lp_params,
+            "room_sizes": ["small", "medium", "large"],
         },
     }
 
