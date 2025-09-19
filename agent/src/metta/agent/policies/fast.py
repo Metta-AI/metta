@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import pufferlib.pytorch
@@ -22,6 +22,7 @@ from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.util.weights_analysis import analyze_weights
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,10 @@ class FastConfig(PolicyArchitecture):
         query_key="actor_query", embedding_key="action_embedding", out_key="logits"
     )
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    clip_range: float = 0.0
+    clip_scale: float = 1.0
+    l2_init_scale: float = 1.0
+    analyze_weights_interval: int = 300
 
 
 class FastPolicy(Policy):
@@ -97,6 +102,14 @@ class FastPolicy(Policy):
         self.config.actor_key_config.embed_dim = self.config.action_embedding_config.embedding_dim
         self.actor_key = ActorKey(config=self.config.actor_key_config)
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
+
+        # Regularisation/monitoring state (mirrors PyTorchAgentMixin behaviour)
+        self.clip_range = self.config.clip_range
+        self.clip_scale = self.config.clip_scale
+        self.l2_init_scale = self.config.l2_init_scale
+        self.analyze_weights_interval = self.config.analyze_weights_interval
+        self._initial_weights: Dict[str, torch.Tensor] = {}
+        self._store_initial_weights()
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         needs_unflatten = td.batch_dims > 1
@@ -156,6 +169,53 @@ class FastPolicy(Policy):
             dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
             truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
+
+    # ------------------------------------------------------------------
+    # Weight regularisation and monitoring helpers (parity with PyTorch mixin)
+    # ------------------------------------------------------------------
+    def clip_weights(self) -> None:
+        if self.clip_range <= 0:
+            return
+
+        clip_value = self.clip_range * self.clip_scale
+        for module in self.modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d)):
+                module.weight.data.clamp_(-clip_value, clip_value)
+                if module.bias is not None:
+                    module.bias.data.clamp_(-clip_value, clip_value)
+
+    def l2_init_loss(self) -> torch.Tensor:
+        total_loss = torch.tensor(0.0, dtype=torch.float32)
+        if not self._initial_weights:
+            return total_loss
+
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d)) and hasattr(module, "weight"):
+                key = name if name else "root"
+                if key in self._initial_weights:
+                    weight_diff = module.weight - self._initial_weights[key].to(module.weight.device)
+                    total_loss = total_loss.to(module.weight.device)
+                    total_loss += torch.sum(weight_diff**2) * self.l2_init_scale
+        return total_loss
+
+    def update_l2_init_weight_copy(self) -> None:
+        self._store_initial_weights()
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
+        metrics: List[dict] = []
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Linear) and module.weight.data.dim() == 2:
+                result = analyze_weights(module.weight.data, delta)
+                result["name"] = name if name else "root"
+                metrics.append(result)
+        return metrics
+
+    def _store_initial_weights(self) -> None:
+        self._initial_weights.clear()
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d)) and hasattr(module, "weight"):
+                key = name if name else "root"
+                self._initial_weights[key] = module.weight.data.clone()
 
     @property
     def total_params(self) -> int:
