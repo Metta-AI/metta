@@ -55,11 +55,15 @@ class CNNEncoder(nn.Module):
         x = td[self.config.in_key]
         x = self.cnn1(x)
         x = F.relu(x)
+        td["cnn1"] = x
         x = self.cnn2(x)
         x = F.relu(x)
+        td["cnn2"] = x
         x = self.flatten(x)
+        td["obs_flattener"] = x
         x = self.fc1(x)
         x = F.relu(x)
+        td["fc1"] = x
         x = self.encoded_obs(x)
         x = F.relu(x)
         td[self.config.out_key] = x

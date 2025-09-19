@@ -13,7 +13,6 @@ from metta.rl.training.context import TrainerContext
 from metta.rl.training.core import CoreTrainingLoop
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
-from metta.rl.training.heartbeat import HeartbeatWriter
 from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.rl.utils import log_training_progress
@@ -108,9 +107,6 @@ class Trainer:
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch
         self._context.set_train_epoch_fn = lambda fn: setattr(self, "_train_epoch", fn)
-
-        if self._cfg.heartbeat is not None:
-            self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))
 
     @property
     def context(self) -> TrainerContext:

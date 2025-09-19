@@ -24,6 +24,7 @@ from metta.rl.training import (
     EvaluatorConfig,
     GradientStatsComponent,
     GradientStatsConfig,
+    HeartbeatWriter,
     MonitoringComponent,
     PolicyCheckpointer,
     PolicyCheckpointerConfig,
@@ -255,6 +256,10 @@ class TrainTool(Tool):
         trainer.context.stats_client = stats_client
 
         components: list[TrainerComponent] = []
+
+        heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
+        if heartbeat_cfg is not None:
+            components.append(HeartbeatWriter(epoch_interval=heartbeat_cfg.epoch_interval))
 
         stats_component: TrainerComponent | None = None
 

@@ -373,5 +373,6 @@ class ObsShimBox(nn.Module):
 
     def forward(self, td: TensorDict):
         td = self.token_to_box_shim(td)
+        td["_obs_"] = td["box_obs"]
         td = self.observation_normalizer(td)
         return td
