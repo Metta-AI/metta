@@ -6,12 +6,13 @@ import importlib
 from typing import TYPE_CHECKING, Any
 
 from . import training_environment
-from ._typing import Policy, PolicyArchitecture
 from .component import TrainerComponent
 from .context import TrainerContext
 from .distributed_helper import DistributedHelper
 
 if TYPE_CHECKING:  # pragma: no cover - only active during static analysis
+    from metta.agent.policy import Policy as Policy
+    from metta.agent.policy import PolicyArchitecture as PolicyArchitecture
     from .evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
     from .gradient_stats import GradientStatsComponent, GradientStatsConfig
     from .heartbeat import HeartbeatConfig, HeartbeatWriter
@@ -23,6 +24,9 @@ if TYPE_CHECKING:  # pragma: no cover - only active during static analysis
     from .torch_profiler_component import TorchProfilerComponent
     from .trainer_checkpointer import TrainerCheckpointer, TrainerCheckpointerConfig
     from .wandb_abort import WandbAbortComponent
+else:  # pragma: no cover - runtime avoids circular import
+    Policy = Any  # type: ignore[assignment]
+    PolicyArchitecture = Any  # type: ignore[assignment]
 
 __all__ = [
     "CoreTrainingLoop",

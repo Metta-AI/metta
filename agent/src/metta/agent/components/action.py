@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from typing import Any
 
 import torch
@@ -58,20 +57,22 @@ class ActionEmbedding(nn.Module):
 
     def initialize_to_environment(
         self,
-        env_or_action_names: Any,
+        env: Any,
         device,
     ) -> None:
-        if isinstance(env_or_action_names, Sequence) and not isinstance(env_or_action_names, str):
-            action_names = list(env_or_action_names)
-        else:
-            env = env_or_action_names
-            base_action_names = env.action_names
-            action_max_params = env.max_action_args
-            action_names = [
-                f"{name}_{i}"
-                for name, max_param in zip(base_action_names, action_max_params, strict=False)
-                for i in range(max_param + 1)
-            ]
+        if not hasattr(env, "action_names") or not hasattr(env, "max_action_args"):
+            raise AttributeError(
+                "Environment metadata must provide 'action_names' and 'max_action_args' to initialize action embeddings"
+            )
+
+        base_action_names = list(env.action_names)
+        action_max_params = list(env.max_action_args)
+
+        action_names = [
+            f"{name}_{i}"
+            for name, max_param in zip(base_action_names, action_max_params, strict=False)
+            for i in range(max_param + 1)
+        ]
 
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:

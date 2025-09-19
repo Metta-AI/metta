@@ -239,7 +239,7 @@ class ObsTokenToBoxShim(nn.Module):
     new information.
     """
 
-    def __init__(self, env, in_key="env_obs", out_key="_obs_"):
+    def __init__(self, env, in_key="env_obs", out_key="box_obs"):
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
@@ -324,7 +324,7 @@ class ObservationNormalizer(nn.Module):
     magnitudes from dominating the learning process.
     """
 
-    def __init__(self, env, in_key="_obs_", out_key="obs_normalizer"):
+    def __init__(self, env, in_key="box_obs", out_key="obs_normalizer"):
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
@@ -367,8 +367,8 @@ class ObsShimBox(nn.Module):
         super().__init__()
         self.in_key = config.in_key
         self.out_key = config.out_key
-        self.token_to_box_shim = ObsTokenToBoxShim(env, in_key=self.in_key, out_key="_obs_")
-        self.observation_normalizer = ObservationNormalizer(env, in_key="_obs_", out_key=self.out_key)
+        self.token_to_box_shim = ObsTokenToBoxShim(env, in_key=self.in_key)
+        self.observation_normalizer = ObservationNormalizer(env, out_key=self.out_key)
 
     def initialize_to_environment(
         self,

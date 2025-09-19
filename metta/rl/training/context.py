@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Type, TypeVar
 import torch
 
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.training._typing import Policy
+from metta.rl.training import Policy
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment

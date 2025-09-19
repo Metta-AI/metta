@@ -44,8 +44,8 @@ class MockAgent(Policy):
                     remap_tensor[original_id] = unknown_id
 
         # Apply to observation components
-        for name, component in self.components.items():
-            if name.startswith("_obs_") and hasattr(component, "update_feature_remapping"):
+        for component in self.components.values():
+            if hasattr(component, "update_feature_remapping"):
                 component.update_feature_remapping(remap_tensor)
 
     def get_original_feature_mapping(self) -> dict[str, int] | None:

@@ -1,5 +1,4 @@
 import math
-from collections.abc import Sequence
 from typing import Any, Optional
 
 import torch
@@ -118,14 +117,15 @@ class ActionProbs(nn.Module):
 
     def initialize_to_environment(
         self,
-        env_or_action_max_params: Any,
+        env: Any,
         device,
     ) -> None:
-        # Compute action tensors for efficient indexing
-        if isinstance(env_or_action_max_params, Sequence) and not isinstance(env_or_action_max_params, str):
-            action_max_params = list(env_or_action_max_params)
-        else:
-            action_max_params = list(env_or_action_max_params.max_action_args)
+        if not hasattr(env, "max_action_args"):
+            raise AttributeError(
+                "Environment metadata must provide 'max_action_args' to initialize action probabilities"
+            )
+
+        action_max_params = list(env.max_action_args)
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )

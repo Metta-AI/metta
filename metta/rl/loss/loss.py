@@ -8,7 +8,7 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
-from metta.rl.training._typing import Policy
+from metta.rl.training import Policy
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 

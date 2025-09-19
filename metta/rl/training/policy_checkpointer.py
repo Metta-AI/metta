@@ -6,7 +6,7 @@ import logging
 from typing import Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training._typing import Policy, PolicyArchitecture
+from metta.rl.training import Policy, PolicyArchitecture
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.training_environment import EnvironmentMetaData
