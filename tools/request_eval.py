@@ -38,7 +38,7 @@ class EvalRequest(BaseModel):
     dry_run: bool = Field(default=False)
 
     @model_validator(mode="after")
-    def validate(self) -> EvalRequest:
+    def validate(self) -> "EvalRequest":
         return self
 
 

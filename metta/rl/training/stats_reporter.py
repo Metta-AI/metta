@@ -83,7 +83,7 @@ class StatsReporter(TrainerComponent):
         config: Optional[StatsConfig],
         stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
-    ) -> StatsReporter:
+    ) -> "StatsReporter":
         """Create a StatsReporter from optional config, returning no-op if None.
 
         Args:

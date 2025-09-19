@@ -33,7 +33,7 @@ class LeaderboardResponse(BaseModel):
     updated_at: str
 
     @classmethod
-    def from_db(cls, leaderboard: LeaderboardRow) -> LeaderboardResponse:
+    def from_db(cls, leaderboard: LeaderboardRow) -> "LeaderboardResponse":
         return cls(
             id=str(leaderboard.id),
             name=leaderboard.name,

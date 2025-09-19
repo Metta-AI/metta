@@ -56,7 +56,7 @@ class StorableMap:
         return self.grid.shape[0]
 
     @staticmethod
-    def from_uri(uri: str) -> StorableMap:
+    def from_uri(uri: str) -> "StorableMap":
         logger.info(f"Loading map from {uri}")
         content = file_utils.read(uri).decode()
 
@@ -74,7 +74,7 @@ class StorableMap:
         return StorableMap(lines_to_grid(lines), metadata=metadata, config=config)
 
     @staticmethod
-    def from_cfg(cfg: MapBuilderConfig) -> StorableMap:
+    def from_cfg(cfg: MapBuilderConfig) -> "StorableMap":
         # Generate and measure time taken
         start = time.time()
         map_builder = cfg.create()

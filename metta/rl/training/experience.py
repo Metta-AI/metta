@@ -176,7 +176,7 @@ class Experience:
         policy_experience_spec: Composite,
         losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
         device: torch.device | str,
-    ) -> Experience:
+    ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 
         # Merge all specs
