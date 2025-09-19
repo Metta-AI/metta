@@ -16,7 +16,7 @@ class CogwebClient:
         self._sweep_client = SweepClient(base_url, auth_token)
 
     @classmethod
-    def get_client(cls, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None) -> CogwebClient:
+    def get_client(cls, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None) -> "CogwebClient":
         """Factory method to get or create a cached CogwebClient instance."""
         # Resolve auth token if not provided
         if auth_token is None:

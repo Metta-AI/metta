@@ -43,7 +43,7 @@ class Trainer:
         """Initialize trainer with all components.
 
         Args:
-            cfg: Trainer configuration
+            cfg: "Trainer" configuration
             env: TrainingEnvironment instance for experience generation
             policy: The policy/agent to train
         """
@@ -190,7 +190,7 @@ class Trainer:
         training_env: TrainingEnvironment,
         policy: Policy,
         device: torch.device,
-    ) -> Trainer:
+    ) -> "Trainer":
         """Create a trainer from a configuration."""
         return Trainer(cfg, training_env, policy, device)
 

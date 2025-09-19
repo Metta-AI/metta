@@ -71,7 +71,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
         max_steps: int = Field(default=256, description="Episode length")
 
-    def __init__(self, config: ConverterChainTaskGenerator.Config):
+    def __init__(self, config: "ConverterChainTaskGenerator".Config):
         super().__init__(config)
         self.config = config
         self.resource_types = RESOURCE_TYPES.copy()

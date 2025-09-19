@@ -13,7 +13,7 @@ class RandomDcssSceneParams(Config):
     dcss: bool
 
     @model_validator(mode="after")
-    def validate_required_fields(self) -> RandomDcssSceneParams:
+    def validate_required_fields(self) -> "RandomDcssSceneParams":
         if not self.wfc and not self.dcss:
             raise ValueError("Either wfc or dcss must be true")
         return self

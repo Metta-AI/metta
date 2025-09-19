@@ -151,7 +151,7 @@ class SingleTaskGenerator(TaskGenerator):
 
         env: MettaGridConfig = Field(description="The environment configuration to always return")
 
-    def __init__(self, config: SingleTaskGenerator.Config):
+    def __init__(self, config: "SingleTaskGenerator".Config):
         super().__init__(config)
         self._config = config
 
@@ -195,7 +195,7 @@ class TaskGeneratorSet(TaskGenerator):
             self.weights.append(weight)
             return self
 
-    def __init__(self, config: TaskGeneratorSet.Config):
+    def __init__(self, config: "TaskGeneratorSet".Config):
         super().__init__(config)
         self._config = config
         self._sub_task_generators = [gen_config.create() for gen_config in self._config.task_generators]
@@ -273,7 +273,7 @@ class BucketedTaskGenerator(TaskGenerator):
             """Create a BucketedTaskGenerator.Config from an MettaGridConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=mg_config))
 
-    def __init__(self, config: BucketedTaskGenerator.Config):
+    def __init__(self, config: "BucketedTaskGenerator".Config):
         super().__init__(config)
         self._config = config
         assert config.buckets, "Buckets must be non-empty"

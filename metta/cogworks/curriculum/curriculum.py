@@ -233,7 +233,7 @@ class CurriculumConfig(Config):
     )
 
     @classmethod
-    def from_mg(cls, mg_config: MettaGridConfig) -> CurriculumConfig:
+    def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
         """Create a CurriculumConfig from a MettaGridConfig."""
         return cls(
             task_generator=SingleTaskGeneratorConfig(env=mg_config),
