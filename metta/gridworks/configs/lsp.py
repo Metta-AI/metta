@@ -109,7 +109,7 @@ class LSPClient:
         self.send(msg)
         return msg["id"]
 
-    def recv_ids(self, wanted_ids: list[int], timeout=10.0) -> dict[int, dict]:
+    def recv_ids(self, wanted_ids: list[int], timeout=30.0) -> dict[int, dict]:
         """Drain queue until we see all the wanted ids."""
         deadline = time.time() + timeout
         responses: dict[int, dict] = {}
