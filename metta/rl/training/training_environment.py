@@ -138,19 +138,10 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             num_workers = 1
             async_factor = 1
         else:
-            if cfg.auto_workers:
-                num_gpus = torch.cuda.device_count() or 1
-                cpu_count = os.cpu_count() or 1
-                ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
-                num_workers = max(1, ideal_workers)
-
-            if num_workers < async_factor:
-                logger.warning(
-                    "Increasing num_workers from %s to match async_factor=%s for PufferLib compatibility",
-                    num_workers,
-                    async_factor,
-                )
-                num_workers = async_factor
+            num_gpus = torch.cuda.device_count() or 1
+            cpu_count = os.cpu_count() or 1
+            ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
+            num_workers = max(1, ideal_workers)
 
         # Calculate batch sizes
         self._target_batch_size, self._batch_size, self._num_envs = calculate_batch_sizes(
