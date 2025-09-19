@@ -2,6 +2,7 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from metta.agent.policies.fast import FastConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -97,32 +98,24 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    policy_architecture: Optional[FastConfig] = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    eval_simulations = [
-        SimulationConfig(
-            name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-        ),
-        SimulationConfig(
-            name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-        ),
-    ]
-
+    eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum,
         evaluation=EvaluationConfig(simulations=eval_simulations),
     )
 
-    evaluator_cfg = EvaluatorConfig(simulations=eval_simulations)
-
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=evaluator_cfg,
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=policy_architecture or FastConfig(),
     )
 
 
