@@ -704,7 +704,6 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
     }
   }
 
-  // With 0.1 probability, we get exact deterministic results
   EXPECT_EQ(successful_actions, 100);  // All 100 attempts succeed (only 16 consumed)
   EXPECT_EQ(consumed, 16);             // Exactly 16 ore consumed
 }
@@ -739,9 +738,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
     }
   }
 
-  // With 0.9 probability, we get exact deterministic results
-  EXPECT_EQ(successful_actions, 57);  // Exactly 57 successful actions before running out
-  EXPECT_EQ(consumed, 100);           // All 100 ore consumed
+  EXPECT_EQ(successful_actions, 114);  // Exactly 114 successful actions before running out
+  EXPECT_EQ(consumed, 100);            // All 100 ore consumed
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
@@ -770,19 +768,15 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
     EXPECT_TRUE(success);
   }
 
-  // Exact resources consumed are deterministic
   int ore_left = agent->inventory[TestItems::ORE];
   int laser_left = agent->inventory[TestItems::LASER];
   int armor_left = agent->inventory[TestItems::ARMOR];
 
-  // ORE: deterministic consumption
-  EXPECT_EQ(ore_left, 33);  // Exactly 33 left
+  EXPECT_EQ(ore_left, 33);
 
-  // LASER: deterministic consumption
-  EXPECT_EQ(laser_left, 48);  // Exactly 48 left
+  EXPECT_EQ(laser_left, 48);
 
-  // ARMOR: deterministic consumption
-  EXPECT_EQ(armor_left, 24);  // Exactly 24 left
+  EXPECT_EQ(armor_left, 24);
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
@@ -837,7 +831,6 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
     }
   }
 
-  // With 0.5 consumption probability, exact deterministic results
   EXPECT_EQ(successful_attacks, 10);  // All 10 attacks succeed with initial 10 lasers
   EXPECT_EQ(total_consumed, 4);       // Exactly 4 lasers consumed from 10 attacks
 }

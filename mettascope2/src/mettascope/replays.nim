@@ -52,11 +52,17 @@ type
     actionNames*: seq[string]
     itemNames*: seq[string]
     groupNames*: seq[string]
+    typeImages*: seq[string]
+    actionImages*: seq[string]
+    actionAttackImages*: seq[string]
+    actionIconImages*: seq[string]
     itemImages*: seq[string]
     traceImages*: seq[string]
     objects*: seq[Entity]
     rewardSharingMatrix*: seq[seq[float]]
     agents*: seq[Entity]
+    attackActionId*: int
+    drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
 
 proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
@@ -86,6 +92,8 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
     # A single value is a valid sequence.
     return @[data.to(T)]
 
+let drawnAgentActionNames =
+  ["attack", "attack_nearest", "put_items", "get_items", "swap"]
 
 proc expandSequenceV2(sequence: JsonNode, numSteps: int): JsonNode =
   ## Expand an array of [step, value] pairs into an array of values per step.
@@ -320,6 +328,22 @@ proc loadReplay*(data: string, fileName: string): Replay =
     mapSize: (jsonObj["map_size"][0].getInt, jsonObj["map_size"][1].getInt)
   )
 
+  replay.typeImages = newSeq[string](replay.typeNames.len)
+  for i in 0 ..< replay.typeNames.len:
+    replay.typeImages[i] = "objects/" & replay.typeNames[i]
+
+  replay.actionImages = newSeq[string](replay.actionNames.len)
+  for i in 0 ..< replay.actionNames.len:
+    replay.actionImages[i] = "actions/" & replay.actionNames[i]
+
+  replay.actionAttackImages = newSeq[string](9)
+  for i in 0 ..< 9:
+    replay.actionAttackImages[i] = "actions/attack" & $(i + 1)
+
+  replay.actionIconImages = newSeq[string](replay.actionNames.len)
+  for i in 0 ..< replay.actionNames.len:
+    replay.actionIconImages[i] = "actions/icons/" & replay.actionNames[i]
+
   replay.traceImages = newSeq[string](replay.actionNames.len)
   for i in 0 ..< replay.actionNames.len:
     replay.traceImages[i] = "trace/" & replay.actionNames[i]
@@ -327,6 +351,13 @@ proc loadReplay*(data: string, fileName: string): Replay =
   replay.itemImages = newSeq[string](replay.itemNames.len)
   for i in 0 ..< replay.itemNames.len:
     replay.itemImages[i] = "resources/" & replay.itemNames[i]
+
+  for actionName in drawnAgentActionNames:
+    let idx = replay.actionNames.find(actionName)
+    if idx != -1:
+      replay.drawnAgentActionMask = replay.drawnAgentActionMask or (1'u64 shl idx)
+
+  replay.attackActionId = replay.actionNames.find("attack")
 
   if "file_name" in jsonObj:
     replay.fileName = jsonObj["file_name"].getStr
