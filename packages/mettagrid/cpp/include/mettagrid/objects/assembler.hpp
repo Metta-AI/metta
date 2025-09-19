@@ -126,9 +126,9 @@ private:
   }
 
   // Give output resources to the triggering agent
-  void give_output_to_agent(const Recipe& recipe, Agent* agent) {
+  void give_output_to_agent(const Recipe& recipe, Agent& agent) {
     for (const auto& [item, amount] : recipe.output_resources) {
-      InventoryDelta delta = agent->update_inventory(item, static_cast<InventoryDelta>(amount));
+      InventoryDelta delta = agent.update_inventory(item, static_cast<InventoryDelta>(amount));
       InventoryQuantity actually_produced = static_cast<InventoryQuantity>(delta);
       if (actually_produced > 0) {
         stats.add(stats.resource_name(item) + ".produced", actually_produced);
@@ -170,7 +170,7 @@ public:
   }
 
   // Implement pure virtual method from Usable
-  virtual bool onUse(Agent* actor, ActionArg /*arg*/) override {
+  virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid || !event_manager) {
       return false;
     }
