@@ -394,7 +394,7 @@ def train(
         "longer_chains": {
             "chain_lengths": [2, 3, 4, 5, 6, 7],
             "num_sinks": [0, 1, 2],
-            "room_sizes": ["medium", "large"],
+            "room_sizes": ["small", "medium", "large"],
             "lp_params": lp_params,
         },
         "terrain": {
