@@ -8,16 +8,31 @@ from metta.common.wandb.context import WandbRun
 from metta.common.wandb.utils import abort_requested
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.context import TrainerContext
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-class WandbAbortComponent(TrainerComponent):
+class WandbAborterConfig(Config):
+    """Configuration for wandb abort polling."""
+
+    epoch_interval: int = 5
+    """How often to poll wandb for abort tags (in epochs)."""
+
+
+class WandbAborter(TrainerComponent):
     """Polls wandb for abort tags and stops training when detected."""
 
-    def __init__(self, wandb_run: WandbRun | None, epoch_interval: int = 5) -> None:
-        super().__init__(epoch_interval=epoch_interval)
+    def __init__(
+        self,
+        *,
+        wandb_run: WandbRun | None,
+        config: WandbAborterConfig | None = None,
+    ) -> None:
+        cfg = config or WandbAborterConfig()
+        super().__init__(epoch_interval=cfg.epoch_interval)
         self._wandb_run = wandb_run
+        self._config = cfg
 
     def on_epoch_end(self, epoch: int) -> None:  # noqa: D401 - documented in base class
         context: TrainerContext = self.context

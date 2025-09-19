@@ -19,12 +19,94 @@ from metta.rl.stats import (
     process_training_stats,
 )
 from metta.rl.training.component import TrainerComponent
+from metta.rl.utils import should_run
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-class StatsConfig(Config):
+def _to_scalar(value: Any) -> Optional[float]:
+    """Convert supported numeric types to float, skipping non-scalars."""
+
+    if isinstance(value, Number):
+        return float(value)
+    if isinstance(value, np.ndarray):
+        if value.size == 1:
+            return float(value.item())
+        return None
+    if torch.is_tensor(value):
+        if value.numel() == 1:
+            return float(value.detach().cpu().item())
+        return None
+    return None
+
+
+def build_wandb_payload(
+    *,
+    processed_stats: Dict[str, Any],
+    timing_info: Dict[str, Any],
+    weight_stats: Dict[str, Any],
+    grad_stats: Dict[str, float],
+    system_stats: Dict[str, Any],
+    memory_stats: Dict[str, Any],
+    parameters: Dict[str, Any],
+    hyperparameters: Dict[str, Any],
+    evals: EvalRewardSummary,
+    agent_step: int,
+    epoch: int,
+) -> Dict[str, float]:
+    """Create a flattened stats dictionary ready for wandb logging."""
+
+    overview: Dict[str, Any] = {
+        "sps": timing_info.get("epoch_steps_per_second", 0.0),
+        "steps_per_second": timing_info.get("steps_per_second", 0.0),
+        "epoch_steps_per_second": timing_info.get("epoch_steps_per_second", 0.0),
+        **processed_stats.get("overview", {}),
+    }
+    for category, score in evals.category_scores.items():
+        overview[f"{category}_score"] = score
+    if "reward" in overview:
+        overview["reward_vs_total_time"] = overview["reward"]
+
+    payload: Dict[str, float] = {
+        "metric/agent_step": float(agent_step),
+        "metric/epoch": float(epoch),
+        "metric/total_time": float(timing_info.get("wall_time", 0.0)),
+        "metric/train_time": float(timing_info.get("train_time", 0.0)),
+    }
+
+    def _update(items: Dict[str, Any], *, prefix: str = "") -> None:
+        for key, value in items.items():
+            scalar = _to_scalar(value)
+            if scalar is None:
+                continue
+            metric_key = f"{prefix}{key}" if prefix else key
+            payload[metric_key] = scalar
+
+    _update(overview, prefix="overview/")
+    _update(processed_stats.get("losses_stats", {}), prefix="losses/")
+    _update(processed_stats.get("experience_stats", {}), prefix="experience/")
+    _update(processed_stats.get("environment_stats", {}))
+    _update(parameters, prefix="parameters/")
+    _update(hyperparameters, prefix="hyperparameters/")
+
+    eval_metrics = evals.to_wandb_metrics_format()
+    for key, value in eval_metrics.items():
+        scalar = _to_scalar(value)
+        if scalar is None:
+            continue
+        payload[f"eval_{key}"] = scalar
+
+    _update(system_stats)
+    _update({f"trainer_memory/{k}": v for k, v in memory_stats.items()})
+    _update(weight_stats)
+    _update(grad_stats)
+    _update(timing_info.get("timing_stats", {}))
+
+    return payload
+
+
+class StatsReporterConfig(Config):
     """Configuration for stats reporting."""
 
     report_to_wandb: bool = True
@@ -33,9 +115,11 @@ class StatsConfig(Config):
     grad_mean_variance_interval: int = 50
     interval: int = 1
     """How often to report stats (in epochs)"""
+    analyze_weights_interval: int = 0
+    """How often to compute weight metrics (0 disables)."""
 
 
-class StatsState(Config):
+class StatsReporterState(Config):
     """State for statistics tracking."""
 
     rollout_stats: Dict = Field(default_factory=lambda: defaultdict(list))
@@ -53,7 +137,7 @@ class NoOpStatsReporter(TrainerComponent):
     def __init__(self):
         """Initialize no-op stats reporter."""
         # Create a minimal config for the no-op reporter
-        config = StatsConfig(report_to_wandb=False, report_to_stats_client=False, interval=999999)
+        config = StatsReporterConfig(report_to_wandb=False, report_to_stats_client=False, interval=999999)
         super().__init__(epoch_interval=config.interval)
         self.wandb_run = None
         self.stats_run_id = None
@@ -79,7 +163,7 @@ class StatsReporter(TrainerComponent):
     @classmethod
     def from_config(
         cls,
-        config: Optional[StatsConfig],
+        config: Optional[StatsReporterConfig],
         stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
     ) -> "StatsReporter":
@@ -99,7 +183,7 @@ class StatsReporter(TrainerComponent):
 
     def __init__(
         self,
-        config: StatsConfig,
+        config: StatsReporterConfig,
         stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
     ):
@@ -114,7 +198,7 @@ class StatsReporter(TrainerComponent):
         self._config = config
         self._stats_client = stats_client
         self._wandb_run = wandb_run
-        self._state = StatsState()
+        self._state = StatsReporterState()
 
         # Initialize stats run if client is available
         if self._stats_client and self._config.report_to_stats_client:
@@ -149,7 +233,7 @@ class StatsReporter(TrainerComponent):
             logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
     @property
-    def state(self) -> StatsState:
+    def state(self) -> StatsReporterState:
         """Get the state for external access."""
         return self._state
 
@@ -172,7 +256,7 @@ class StatsReporter(TrainerComponent):
         policy: Any,
         timer: Any,
         trainer_cfg: Any,
-        optimizer: torch.optim.Optimizer,
+        optimizer: torch.optim.Optimizer | None,
     ) -> None:
         """Report statistics for an epoch.
 
@@ -190,13 +274,12 @@ class StatsReporter(TrainerComponent):
             losses_stats=losses_stats,
             experience=experience,
             trainer_cfg=trainer_cfg,
+            policy=policy,
             agent_step=agent_step,
             epoch=epoch,
             timer=timer,
+            optimizer=optimizer,
         )
-
-        if self._state.grad_stats:
-            payload.update(self._state.grad_stats)
 
         if self._wandb_run and self._config.report_to_wandb and payload:
             self._wandb_run.log(payload, step=agent_step)
@@ -371,9 +454,11 @@ class StatsReporter(TrainerComponent):
         losses_stats: Dict[str, float],
         experience: Any,
         trainer_cfg: Any,
+        policy: Any,
         agent_step: int,
         epoch: int,
         timer: Any,
+        optimizer: torch.optim.Optimizer | None,
     ) -> Dict[str, float]:
         """Convert collected stats into a flat wandb payload."""
 
@@ -389,45 +474,119 @@ class StatsReporter(TrainerComponent):
 
         timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
 
-        payload: Dict[str, float] = {
-            "metric/agent_step": float(agent_step),
-            "metric/epoch": float(epoch),
-            "metric/total_time": float(timing_info["wall_time"]),
-            "metric/train_time": float(timing_info["train_time"]),
-            "overview/steps_per_second": float(timing_info["steps_per_second"]),
-            "overview/epoch_steps_per_second": float(timing_info["epoch_steps_per_second"]),
+        weight_stats = self._collect_weight_stats(policy=policy, epoch=epoch)
+        system_stats = self._collect_system_stats()
+        memory_stats = self._collect_memory_stats()
+        parameters = self._collect_parameters(
+            experience=experience,
+            optimizer=optimizer,
+            timing_info=timing_info,
+        )
+        hyperparameters = self._collect_hyperparameters(trainer_cfg=trainer_cfg, parameters=parameters)
+
+        return build_wandb_payload(
+            processed_stats=processed,
+            timing_info=timing_info,
+            weight_stats=weight_stats,
+            grad_stats=self._state.grad_stats,
+            system_stats=system_stats,
+            memory_stats=memory_stats,
+            parameters=parameters,
+            hyperparameters=hyperparameters,
+            evals=self._state.eval_scores,
+            agent_step=agent_step,
+            epoch=epoch,
+        )
+
+    def _collect_weight_stats(self, *, policy: Any, epoch: int) -> Dict[str, float]:
+        interval = self._config.analyze_weights_interval
+        if not interval:
+            policy_config = getattr(policy, "config", None)
+            interval = getattr(policy_config, "analyze_weights_interval", 0) if policy_config else 0
+
+        if not interval or not should_run(epoch, interval):
+            return {}
+
+        if not hasattr(policy, "compute_weight_metrics"):
+            return {}
+
+        weight_stats: Dict[str, float] = {}
+        try:
+            for metrics in policy.compute_weight_metrics():
+                name = metrics.get("name", "unknown")
+                for key, value in metrics.items():
+                    if key == "name":
+                        continue
+                    scalar = _to_scalar(value)
+                    if scalar is None:
+                        continue
+                    weight_stats[f"weights/{key}/{name}"] = scalar
+        except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
+            logger.warning("Failed to compute weight metrics: %s", exc, exc_info=True)
+        return weight_stats
+
+    def _collect_system_stats(self) -> Dict[str, Any]:
+        system_monitor = getattr(self.context, "system_monitor", None)
+        if system_monitor is None:
+            return {}
+        try:
+            return system_monitor.stats()
+        except Exception as exc:  # pragma: no cover
+            logger.debug("System monitor stats failed: %s", exc, exc_info=True)
+            return {}
+
+    def _collect_memory_stats(self) -> Dict[str, Any]:
+        memory_monitor = getattr(self.context, "memory_monitor", None)
+        if memory_monitor is None:
+            return {}
+        try:
+            return memory_monitor.stats()
+        except Exception as exc:  # pragma: no cover
+            logger.debug("Memory monitor stats failed: %s", exc, exc_info=True)
+            return {}
+
+    def _collect_parameters(
+        self,
+        *,
+        experience: Any,
+        optimizer: torch.optim.Optimizer,
+        timing_info: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        learning_rate = getattr(self.context.config.optimizer, "learning_rate", 0)
+        if optimizer and optimizer.param_groups:
+            learning_rate = optimizer.param_groups[0].get("lr", learning_rate)
+
+        parameters: Dict[str, Any] = {
+            "learning_rate": learning_rate,
+            "epoch_steps": timing_info.get("epoch_steps", 0),
+            "num_minibatches": getattr(experience, "num_minibatches", 0),
+            "latest_saved_policy_epoch": self._state.latest_saved_epoch,
         }
+        return parameters
 
-        payload.update(self._prefix_and_filter(processed["overview"], prefix="overview/"))
-        payload.update(self._prefix_and_filter(processed["environment_stats"], prefix=""))
+    def _collect_hyperparameters(
+        self,
+        *,
+        trainer_cfg: Any,
+        parameters: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        hyperparameters: Dict[str, Any] = {}
+        if "learning_rate" in parameters:
+            hyperparameters["learning_rate"] = parameters["learning_rate"]
 
-        return payload
-
-    @staticmethod
-    def _prefix_and_filter(items: Dict[str, Any], *, prefix: str) -> Dict[str, float]:
-        """Return a dict of numeric wandb-friendly values with an optional prefix."""
-
-        flattened: Dict[str, float] = {}
-        for key, value in items.items():
-            scalar = StatsReporter._to_scalar(value)
-            if scalar is None:
-                continue
-            metric_key = f"{prefix}{key}" if prefix else key
-            flattened[metric_key] = scalar
-        return flattened
-
-    @staticmethod
-    def _to_scalar(value: Any) -> Optional[float]:
-        """Convert supported numeric types to float, skipping non-scalars."""
-
-        if isinstance(value, Number):
-            return float(value)
-        if isinstance(value, np.ndarray):
-            if value.size == 1:
-                return float(value.item())
-            return None
-        if torch.is_tensor(value):
-            if value.numel() == 1:
-                return float(value.detach().cpu().item())
-            return None
-        return None
+        losses = getattr(trainer_cfg, "losses", None)
+        loss_configs = getattr(losses, "loss_configs", {}) if losses else {}
+        ppo_cfg = loss_configs.get("ppo") if isinstance(loss_configs, dict) else None
+        if ppo_cfg is not None:
+            for attr in (
+                "clip_coef",
+                "vf_clip_coef",
+                "ent_coef",
+                "l2_reg_loss_coef",
+                "l2_init_loss_coef",
+            ):
+                value = getattr(ppo_cfg, attr, None)
+                if value is None:
+                    continue
+                hyperparameters[f"ppo_{attr}"] = value
+        return hyperparameters

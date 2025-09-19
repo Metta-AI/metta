@@ -11,18 +11,18 @@ from mettagrid.config import Config
 logger = logging.getLogger(__name__)
 
 
-class GradientStatsConfig(Config):
+class GradientReporterConfig(Config):
     """Configuration for gradient statistics computation."""
 
-    epoch_interval: int = Field(default=0, ge=0)  # 0 to disable
-    """How often to compute gradient statistics (in epochs)"""
+    epoch_interval: int = Field(default=0, ge=0)
+    """How often to compute gradient statistics (in epochs)."""
 
 
-class GradientStatsComponent(TrainerComponent):
+class GradientReporter(TrainerComponent):
     """Computes gradient statistics for monitoring."""
 
-    def __init__(self, config: GradientStatsConfig):
-        """Initialize gradient stats component."""
+    def __init__(self, config: GradientReporterConfig):
+        """Initialize gradient reporter component."""
         enabled = config.epoch_interval > 0
         super().__init__(epoch_interval=config.epoch_interval if enabled else 0)
         self._config = config

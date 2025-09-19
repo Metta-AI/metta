@@ -14,7 +14,7 @@ from mettagrid.config import Config
 logger = logging.getLogger(__name__)
 
 
-class TrainerCheckpointerConfig(Config):
+class ContextCheckpointerConfig(Config):
     """Configuration for trainer state checkpointing."""
 
     epoch_interval: int = 50
@@ -35,7 +35,7 @@ class _RestoredTrainerState:
     stopwatch_state: Optional[dict]
 
 
-class TrainerCheckpointer(TrainerComponent):
+class ContextCheckpointer(TrainerComponent):
     """Persist and restore optimizer/timing state alongside policy checkpoints."""
 
     trainer_attr = "trainer_checkpointer"
@@ -43,7 +43,7 @@ class TrainerCheckpointer(TrainerComponent):
     def __init__(
         self,
         *,
-        config: TrainerCheckpointerConfig,
+        config: ContextCheckpointerConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
     ) -> None:

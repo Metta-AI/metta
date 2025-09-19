@@ -1,5 +1,3 @@
-"""Exponential Moving Average loss implementation."""
-
 import copy
 from typing import Any
 
@@ -13,8 +11,6 @@ from metta.agent.metta_agent import PolicyAgent
 from metta.rl.loss.loss import Loss
 from metta.rl.training.context import TrainerContext
 from mettagrid.config import Config
-
-# Config class
 
 
 class EMAConfig(Config):
@@ -39,9 +35,6 @@ class EMAConfig(Config):
             instance_name=instance_name,
             loss_config=loss_config,
         )
-
-
-# Loss class
 
 
 class EMA(Loss):
@@ -76,7 +69,12 @@ class EMA(Loss):
             ):
                 target_param.data = self.ema_decay * target_param.data + (1 - self.ema_decay) * online_param.data
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerContext) -> tuple[Tensor, TensorDict]:
+    def run_train(
+        self,
+        shared_loss_data: TensorDict,
+        context: TrainerContext,
+        mb_idx: int,
+    ) -> tuple[Tensor, TensorDict, bool]:
         self.update_target_model()
         policy_td = shared_loss_data["policy_td"]
 
@@ -103,4 +101,4 @@ class EMA(Loss):
 
         loss = F.mse_loss(pred, target_pred) * self.ema_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))
-        return loss, shared_loss_data
+        return loss, shared_loss_data, False

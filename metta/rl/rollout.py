@@ -1,7 +1,7 @@
 """Rollout phase functions for Metta training."""
 
 import logging
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ PufferlibVecEnv = Any
 
 
 def get_observation(
-    vecenv: Union[PufferlibVecEnv, Any],  # Can be VecEnv or TrainingEnvironment
+    vecenv: PufferlibVecEnv,
     device: torch.device,
     timer: Stopwatch,
 ) -> tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
@@ -39,16 +39,11 @@ def get_observation(
 
 
 def send_observation(
-    vecenv: Union[PufferlibVecEnv, Any],  # Can be VecEnv or TrainingEnvironment
+    vecenv: PufferlibVecEnv,
     actions: Tensor,
     dtype_actions: np.dtype,
     timer: Stopwatch,
 ) -> None:
     """Send actions back to the vectorized environment."""
     with timer("_rollout.env"):
-        # Support both direct VecEnv and TrainingEnvironment
-        if hasattr(vecenv, "send"):
-            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-        else:
-            # Assume it's TrainingEnvironment with send_actions method
-            vecenv.send_actions(actions.cpu().numpy().astype(dtype_actions))
+        vecenv.send(actions.cpu().numpy().astype(dtype_actions))

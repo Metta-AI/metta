@@ -52,7 +52,7 @@ def test_obs_token_to_box_shaper_forward():
 
     shaper(td)
 
-    box_obs = td["_obs_"]
+    box_obs = td["box_obs"]
 
     # Verify output shape
     assert box_obs.shape == (batch_size, len(feature_normalizations), obs_width, obs_height)

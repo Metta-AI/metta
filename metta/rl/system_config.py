@@ -23,24 +23,24 @@ def guess_device() -> str:
     return f"cuda:{local_rank}"
 
 
-def guess_data_dir() -> str:
-    if os.environ.get("DATA_DIR"):
-        return os.environ["DATA_DIR"]  # type: ignore
-    return "./train_dir"
-
-
 def guess_vectorization() -> Literal["serial", "multiprocessing"]:
     if platform.system() == "Darwin":
         return "serial"
     return "multiprocessing"
 
 
+def guess_data_dir() -> str:
+    if os.environ.get("DATA_DIR"):
+        return os.environ["DATA_DIR"]  # type: ignore
+    return "./train_dir"
+
+
 class SystemConfig(Config):
+    vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)
     data_dir: str = Field(default_factory=guess_data_dir)
-    vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",

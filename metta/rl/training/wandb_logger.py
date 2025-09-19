@@ -7,7 +7,7 @@ from metta.rl.training.component import TrainerComponent
 from metta.rl.wandb import log_model_parameters, setup_wandb_metrics
 
 
-class WandbLoggerComponent(TrainerComponent):
+class WandbLogger(TrainerComponent):
     """Logs core training metrics to wandb at epoch boundaries."""
 
     def __init__(self, wandb_run: WandbRun, epoch_interval: int = 1):

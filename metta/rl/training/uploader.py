@@ -18,20 +18,20 @@ from mettagrid.util.file import local_copy
 logger = logging.getLogger(__name__)
 
 
-class PolicyUploaderConfig(Config):
+class UploaderConfig(Config):
     """Configuration for policy uploading."""
 
     epoch_interval: int = 1000
     """How often to upload policy to wandb (in epochs)."""
 
 
-class PolicyUploader(TrainerComponent):
+class Uploader(TrainerComponent):
     """Manages uploading policies to wandb and other destinations."""
 
     def __init__(
         self,
         *,
-        config: PolicyUploaderConfig,
+        config: UploaderConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
         wandb_run: Optional[WandbRun] = None,
@@ -50,53 +50,50 @@ class PolicyUploader(TrainerComponent):
     # Callback entry-points
     # ------------------------------------------------------------------
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        if not self._should_upload():
-            return
-
-        if epoch % self._config.epoch_interval != 0:
-            return
-
-        self._upload_latest_policy(epoch, reason=f"epoch {epoch}")
+        self._maybe_upload(epoch, require_interval=True, reason=f"epoch {epoch}")
 
     def on_training_complete(self) -> None:  # type: ignore[override]
-        if not self._should_upload():
-            return
-
-        self._upload_latest_policy(self.context.epoch, reason="final upload", final=True)
+        self._maybe_upload(self.context.epoch, final=True, reason="final upload")
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _should_upload(self) -> bool:
+    def _can_upload(self) -> bool:
         return self._distributed.should_checkpoint() and self._wandb_run is not None
 
-    def _upload_latest_policy(self, epoch: int, *, reason: str, final: bool = False) -> None:
-        checkpoint_uri = self.context.latest_policy_uri()
-        if not checkpoint_uri:
-            logger.debug("PolicyUploader: no checkpoint available for %s", reason)
+    def _maybe_upload(
+        self,
+        epoch: int,
+        *,
+        require_interval: bool = False,
+        final: bool = False,
+        reason: str,
+    ) -> None:
+        if not self._can_upload():
+            return
+        if require_interval and epoch % self._config.epoch_interval != 0:
             return
 
-        metadata = self._build_metadata(epoch, final=final)
-        self._upload(checkpoint_uri, epoch, metadata)
+        checkpoint_uri = self.context.latest_policy_uri()
+        if not checkpoint_uri:
+            logger.debug("Uploader: no checkpoint available for %s", reason)
+            return
 
-    def _build_metadata(self, epoch: int, *, final: bool = False) -> dict[str, Any]:
-        metadata: dict[str, Any] = {
+        metadata = {
             "epoch": epoch,
             "agent_step": self.context.agent_step,
         }
         if final:
             metadata["final"] = True
-        metadata.update(self._evaluation_metadata())
-        return metadata
 
-    def _evaluation_metadata(self) -> dict[str, Any]:
         scores = self.context.latest_eval_scores
-        if not scores or not (scores.category_scores or scores.simulation_scores):
-            return {}
-        return {
-            "score": scores.avg_simulation_score,
-            "avg_reward": scores.avg_category_score,
-        }
+        if scores and (scores.category_scores or scores.simulation_scores):
+            metadata.update(
+                score=scores.avg_simulation_score,
+                avg_reward=scores.avg_category_score,
+            )
+
+        self._upload(checkpoint_uri, epoch, metadata)
 
     def _upload(
         self,
@@ -128,7 +125,7 @@ class PolicyUploader(TrainerComponent):
         if parsed.scheme == "file":
             local_path = Path(parsed.path)
             if not local_path.exists():
-                logger.warning("PolicyUploader: checkpoint path %s does not exist", local_path)
+                logger.warning("Uploader: checkpoint path %s does not exist", local_path)
                 yield None
             else:
                 yield local_path
@@ -139,9 +136,9 @@ class PolicyUploader(TrainerComponent):
                 with local_copy(normalized_uri) as tmp_path:
                     yield Path(tmp_path)
             except Exception as exc:  # pragma: no cover - best effort for remote policies
-                logger.error("PolicyUploader: failed to download %s: %s", normalized_uri, exc)
+                logger.error("Uploader: failed to download %s: %s", normalized_uri, exc)
                 yield None
             return
 
-        logger.debug("PolicyUploader: unsupported checkpoint scheme %s", parsed.scheme)
+        logger.debug("Uploader: unsupported checkpoint scheme %s", parsed.scheme)
         yield None

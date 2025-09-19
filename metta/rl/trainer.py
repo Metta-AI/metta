@@ -1,5 +1,3 @@
-"""Main trainer facade for coordinating all training components."""
-
 import logging
 from typing import Any, Dict, Optional, Type
 
@@ -83,15 +81,6 @@ class Trainer:
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
 
-        self.core_loop = CoreTrainingLoop(
-            policy=self._policy,
-            experience=experience,
-            losses=losses,
-            optimizer=self.optimizer,
-            device=self._device,
-            accumulate_minibatches=experience.accumulate_minibatches,
-        )
-
         self._context = TrainerContext(
             trainer=self,
             policy=self._policy,
@@ -107,6 +96,19 @@ class Trainer:
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch
         self._context.set_train_epoch_fn = lambda fn: setattr(self, "_train_epoch", fn)
+
+        self.core_loop = CoreTrainingLoop(
+            policy=self._policy,
+            experience=experience,
+            losses=losses,
+            optimizer=self.optimizer,
+            device=self._device,
+            context=self._context,
+            accumulate_minibatches=experience.accumulate_minibatches,
+        )
+
+        for loss in losses.values():
+            loss.attach_context(self._context)
 
     @property
     def context(self) -> TrainerContext:
@@ -134,15 +136,15 @@ class Trainer:
             raise RuntimeError("Core loop not initialized")
 
         steps_before = self._context.agent_step
-        self._context.training_env_id = None
+        self._context.reset_for_epoch()
 
         # Start new epoch
-        self.core_loop.on_epoch_start(self._context.epoch)
+        self.core_loop.on_epoch_start(self._context)
 
         # Rollout phase
         with self.timer("_rollout"):
-            rollout_result = self.core_loop.rollout_phase(self._env, self._context.epoch)
-            self._context.agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
+            rollout_result = self.core_loop.rollout_phase(self._env, self._context)
+            self._context.record_rollout(rollout_result.agent_steps, self._distributed_helper.get_world_size())
             self._context.training_env_id = rollout_result.training_env_id
             # Invoke step callbacks for each info
             for info in rollout_result.raw_infos:
@@ -153,12 +155,11 @@ class Trainer:
             if self._context.training_env_id is None:
                 raise RuntimeError("Training environment slice unavailable for training phase")
             losses_stats, epochs_trained = self.core_loop.training_phase(
-                epoch=self._context.epoch,
-                training_env_id=self._context.training_env_id,
+                context=self._context,
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
             )
-            self._context.epoch += epochs_trained
+            self._context.advance_epoch(epochs_trained)
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
@@ -242,10 +243,10 @@ class Trainer:
         This should be called after setup() to restore any saved state.
         """
         # Find and restore trainer checkpointer state
-        from metta.rl.training.trainer_checkpointer import TrainerCheckpointer
+        from metta.rl.training.context_checkpointer import ContextCheckpointer
 
         for component in self._components:
-            if isinstance(component, TrainerCheckpointer):
+            if isinstance(component, ContextCheckpointer):
                 component.restore(self._context)
                 break
             # Wandb setup will be handled by callbacks if configured

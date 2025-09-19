@@ -83,6 +83,18 @@ class TrainerContext:
             return None
         return self.latest_policy_uri_fn()
 
+    def reset_for_epoch(self) -> None:
+        """Prepare context state at the start of an epoch."""
+        self.training_env_id = None
+
+    def record_rollout(self, agent_steps: int, world_size: int) -> None:
+        """Update accounting after a rollout phase."""
+        self.agent_step += agent_steps * world_size
+
+    def advance_epoch(self, epochs: int) -> None:
+        """Bump the epoch counter."""
+        self.epoch += epochs
+
     def get_train_epoch_callable(self) -> Callable[[], None]:
         if self.get_train_epoch_fn is None:
             raise RuntimeError("TrainerContext has no getter for train epoch callable")

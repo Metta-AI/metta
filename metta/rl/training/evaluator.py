@@ -55,8 +55,6 @@ class NoOpEvaluator(TrainerComponent):
         self.context.latest_eval_scores = self._latest_scores
 
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        return
-
         pass
 
 
