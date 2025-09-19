@@ -9,10 +9,10 @@ import torch
 from pydantic import ConfigDict
 
 from metta.rl.loss.loss import Loss
+from metta.rl.training import Policy
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.config import Config
-from metta.rl.training import Policy
 
 logger = logging.getLogger(__name__)
 

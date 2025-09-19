@@ -13,6 +13,7 @@ from .distributed_helper import DistributedHelper
 if TYPE_CHECKING:  # pragma: no cover - only active during static analysis
     from metta.agent.policy import Policy as Policy
     from metta.agent.policy import PolicyArchitecture as PolicyArchitecture
+
     from .evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
     from .gradient_stats import GradientStatsComponent, GradientStatsConfig
     from .heartbeat import HeartbeatConfig, HeartbeatWriter
