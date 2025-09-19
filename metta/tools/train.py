@@ -190,7 +190,12 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     assert cfg.policy_architecture
 
     # TEST
-    logger.warning(cfg)
+    import json
+    from dataclasses import asdict
+
+    logger.warning("cfg: TrainTool")
+    logger.warning(json.dumps(asdict(cfg), indent=2))
+    # TEST
 
     # Use the functional train interface directly
     train(
