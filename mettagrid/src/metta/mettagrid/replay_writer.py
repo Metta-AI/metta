@@ -22,7 +22,7 @@ class ReplayWriter:
         self.replay_dir = replay_dir
         self.episodes = {}
 
-    def start_episode(self, episode_id: str, env: MettaGridCore):
+    def start_episode(self, episode_id: str, env: "MettaGridCore"):
         self.episodes[episode_id] = EpisodeReplay(env)
 
     def log_step(self, episode_id: str, actions: np.ndarray, rewards: np.ndarray):
@@ -41,7 +41,7 @@ class ReplayWriter:
 
 
 class EpisodeReplay:
-    def __init__(self, env: MettaGridCore):
+    def __init__(self, env: "MettaGridCore"):
         self.env = env
         self.step = 0
         self.objects = []

@@ -79,7 +79,7 @@ class MapGen(MapBuilder):
         instance_border_width: int = Field(default=5, ge=0)
 
         @model_validator(mode="after")
-        def validate_required_fields(self) -> MapGen.Config:
+        def validate_required_fields(self) -> "MapGen.Config":
             """Validate that either (root, width, height) are all set, or instance_map is set."""
             has_basic_config = self.root is not None
             has_instance_map = self.instance_map is not None and self.width is None and self.height is None
@@ -91,13 +91,13 @@ class MapGen(MapBuilder):
             return self
 
         @classmethod
-        def with_ascii_uri(cls, ascii_map_uri: str, **kwargs) -> MapGen.Config:
+        def with_ascii_uri(cls, ascii_map_uri: str, **kwargs) -> "MapGen.Config":
             """Create a MapGenConfig with an ASCII map file as the instance_map."""
             kwargs["instance_map"] = AsciiMapBuilder.Config.from_uri(ascii_map_uri)
             return cls(**kwargs)
 
         @classmethod
-        def with_ascii_map(cls, ascii_map: str, **kwargs) -> MapGen.Config:
+        def with_ascii_map(cls, ascii_map: str, **kwargs) -> "MapGen.Config":
             """Create a MapGenConfig with an ASCII map as the instance_map."""
             lines = ascii_map.strip().splitlines()
             kwargs["instance_map"] = AsciiMapBuilder.Config(map_data=[list(line) for line in lines])

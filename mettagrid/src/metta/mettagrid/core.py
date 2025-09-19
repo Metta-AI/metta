@@ -189,7 +189,7 @@ class MettaGridCore:
         """Get the episode rewards."""
         return self.__c_env_instance.get_episode_rewards()
 
-    def get_episode_stats(self) -> EpisodeStats:
+    def get_episode_stats(self) -> "EpisodeStats":
         """Get the episode stats."""
         return self.__c_env_instance.get_episode_stats()
 

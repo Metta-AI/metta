@@ -151,7 +151,7 @@ class SingleTaskGenerator(TaskGenerator):
 
         env: MettaGridConfig = Field(description="The environment configuration to always return")
 
-    def __init__(self, config: "SingleTaskGenerator".Config):
+    def __init__(self, config: "SingleTaskGenerator.Config"):
         super().__init__(config)
         self._config = config
 
@@ -189,13 +189,13 @@ class TaskGeneratorSet(TaskGenerator):
                 raise ValueError("Number of weights must match number of task generator configs")
             return v
 
-        def add(self, task_generator: AnyTaskGeneratorConfig, weight: float = 1.0) -> TaskGeneratorSet.Config:
+        def add(self, task_generator: AnyTaskGeneratorConfig, weight: float = 1.0) -> "TaskGeneratorSet.Config":
             """Add a task generator to the set with a weight."""
             self.task_generators.append(task_generator)
             self.weights.append(weight)
             return self
 
-    def __init__(self, config: "TaskGeneratorSet".Config):
+    def __init__(self, config: "TaskGeneratorSet.Config"):
         super().__init__(config)
         self._config = config
         self._sub_task_generators = [gen_config.create() for gen_config in self._config.task_generators]
@@ -262,18 +262,18 @@ class BucketedTaskGenerator(TaskGenerator):
             default_factory=dict, description="Buckets for sampling, keys are config paths"
         )
 
-        def add_bucket(self, path: str, values: Sequence[int | float | str | Span]) -> BucketedTaskGenerator.Config:
+        def add_bucket(self, path: str, values: Sequence[int | float | str | Span]) -> "BucketedTaskGenerator.Config":
             """Add a bucket of values for a specific configuration path."""
             assert path not in self.buckets, f"Bucket {path} already exists"
             self.buckets[path] = values
             return self
 
         @classmethod
-        def from_mg(cls, mg_config: MettaGridConfig) -> BucketedTaskGenerator.Config:
+        def from_mg(cls, mg_config: MettaGridConfig) -> "BucketedTaskGenerator.Config":
             """Create a BucketedTaskGenerator.Config from an MettaGridConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=mg_config))
 
-    def __init__(self, config: "BucketedTaskGenerator".Config):
+    def __init__(self, config: "BucketedTaskGenerator.Config"):
         super().__init__(config)
         self._config = config
         assert config.buckets, "Buckets must be non-empty"

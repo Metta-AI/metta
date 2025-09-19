@@ -1,4 +1,4 @@
-from typing import Any, NoReturn, Self, Union, get_args, get_origin
+from typing import Any, NoReturn, Optional, Self, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 

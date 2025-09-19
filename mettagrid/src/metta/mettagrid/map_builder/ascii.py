@@ -13,7 +13,7 @@ class AsciiMapBuilder(MapBuilder):
         map_data: list[list[str]]
 
         @classmethod
-        def from_uri(cls, uri: str) -> AsciiMapBuilder.Config:
+        def from_uri(cls, uri: str) -> "AsciiMapBuilder.Config":
             with open(uri, "r", encoding="utf-8") as f:
                 ascii_map = f.read()
             lines = ascii_map.strip().splitlines()
