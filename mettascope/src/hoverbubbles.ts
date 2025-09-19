@@ -174,15 +174,68 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
     }
   }
 
+  // Populate the required area with missing input resources
+  const required = findIn(htmlBubble, '.required')
+  removeChildren(required)
+  const requiredArea = findIn(htmlBubble, '.required-area')
+
+  const inputResources = object.inputResources
+  const outputResources = object.outputResources
+
+  try {
+    // Calculate missing resources dynamically from current timestep inventory
+    const missingInputResources: [number, number][] = []
+    if (inputResources.length > 0) {
+      // Get current inventory from the sequence at current timestep
+      const currentInventory: { [resourceId: number]: number } = {}
+
+      // Convert inventory sequence to lookup table for current timestep
+      const inventoryAtStep = object.inventory.get(state.step)
+      if (Array.isArray(inventoryAtStep)) {
+        // Inventory is array of [resourceId, count] pairs
+        for (const [resourceId, count] of inventoryAtStep) {
+          currentInventory[resourceId] = count
+        }
+      }
+
+      // Calculate missing resources
+      for (const [resourceId, requiredAmount] of inputResources) {
+        const currentAmount = currentInventory[resourceId] || 0
+        const missingAmount = Math.max(0, requiredAmount - currentAmount)
+        if (missingAmount > 0) {
+          missingInputResources.push([resourceId, missingAmount])
+        }
+      }
+    }
+
+    // Add missing resources to the required section
+    for (const resourcePair of missingInputResources) {
+      const resourceId = resourcePair[0]
+      const missingAmount = resourcePair[1]
+      const resourceName = state.replay.itemNames[resourceId]
+      const item = itemTemplate.cloneNode(true) as HTMLElement
+      item.querySelector('.amount')!.textContent = missingAmount.toString()
+      item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
+      required.appendChild(item)
+    }
+
+    if (missingInputResources.length > 0) {
+      requiredArea.classList.remove('hidden')
+    } else {
+      requiredArea.classList.add('hidden')
+    }
+  } catch (error) {
+    console.error('Error calculating missing input resources:', error)
+    // Hide the required area on error to gracefully degrade
+    requiredArea.classList.add('hidden')
+  }
+
   // Populate the recipe area if the object config has input_ or output_ resources.
   const recipe = findIn(htmlBubble, '.recipe')
   removeChildren(recipe)
   const recipeArea = findIn(htmlBubble, '.recipe-area')
 
   let displayedResources = 0
-
-  const inputResources = object.inputResources
-  const outputResources = object.outputResources
 
   if (inputResources.length > 0 || outputResources.length > 0) {
     // Add the input resources.
@@ -196,6 +249,7 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
       recipe.appendChild(item)
       displayedResources++
     }
+
     // Add the arrow between the input and output.
     recipe.appendChild(recipeArrow.cloneNode(true))
     // Add the output resources.
