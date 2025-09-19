@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
-from experiments.sweeps.sweep_configs import LP_CONFIG
+from experiments.sweeps.protein_configs import make_custom_protein_config
 from experiments.sweeps.standard import protein_sweep
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
@@ -16,6 +16,7 @@ from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGenerato
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
@@ -509,7 +510,8 @@ def experiment():
                         )
                         time.sleep(1)
 
-def sweep(max_trials: int = 300,
+def sweep(
+    max_trials: int = 300,
     max_parallel_jobs: int = 6,
     max_timesteps: int = 1000000,
     gpus: int = 1,
@@ -524,6 +526,48 @@ def sweep(max_trials: int = 300,
             batch_size: int = 4,
             local_test: bool = False,
     """
+    LP_CONFIG = make_custom_protein_config(base_config=PPO_BASIC, parameters={
+        "lp_params.progress_smoothing": ParameterConfig(
+            distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
+            min=0.05,
+            max=0.15,
+            mean=0.1,
+            scale="auto",
+        ),
+
+        "lp_params.exploration_bonus": ParameterConfig(
+            distribution="uniform",  # Changed from logit_normal - more appropriate for 0.03-0.15 range
+            min=0.03,
+            max=0.15,
+            mean=0.09,
+            scale="auto",
+        ),
+
+        "lp_params.ema_timescale": ParameterConfig(
+            distribution="log_normal",  # Changed to log_normal for better exploration of small values
+            min=0.001,
+            max=0.01,
+            mean=0.00316,  # Geometric mean: sqrt(0.001 * 0.01) ≈ 0.00316
+            scale="auto",
+        ),
+
+        "lp_params.num_active_tasks": ParameterConfig(
+            distribution="int_uniform",  # Changed to int_uniform since this is a count of tasks
+            min=1000,
+            max=5000,
+            mean=3000,  # Arithmetic mean for uniform distribution
+            scale="auto",
+        ),
+
+        "lp_params.rand_task_rate": ParameterConfig(
+            distribution="uniform",
+            min=0.1,
+            max=0.25,
+            mean=0.175,
+            scale="auto",
+        ),
+    })
+
     return protein_sweep(
         recipe="experiments.recipes.in_context_learning.ordered_chains",
         train="train",  # Use the sweep-specific wrapper
@@ -531,6 +575,7 @@ def sweep(max_trials: int = 300,
         protein_config=LP_CONFIG,
         max_parallel_jobs=max_parallel_jobs,
         max_timesteps=max_timesteps,
+        max_trials=max_trials,
         gpus=gpus,
         batch_size=batch_size,
         local_test=local_test,
