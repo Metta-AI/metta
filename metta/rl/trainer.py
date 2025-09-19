@@ -1,7 +1,7 @@
 """Main trainer facade for coordinating all training components."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type
 
 import torch
 
@@ -52,6 +52,7 @@ class Trainer:
         self._device = device
         self._distributed_helper = DistributedHelper(self._device)
         self._components: list[TrainerComponent] = []
+        self._component_map: Dict[Type[TrainerComponent], TrainerComponent] = {}
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
