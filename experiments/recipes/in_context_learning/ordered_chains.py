@@ -18,7 +18,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import empty_converters
-from mettagrid.builder.envs import make_icl_resource_chain
+from mettagrid.builder.envs import make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from pydantic import Field
 
@@ -182,7 +182,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = int(cooldown)
 
-        return make_icl_resource_chain(
+        return make_in_context_chains(
             num_agents=24,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
@@ -356,7 +356,7 @@ def make_curriculum(
         obstacle_types=obstacle_types,
         densities=densities,
     )
-    algorithm_config = LearningProgressConfig(**lp_params)
+    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
@@ -368,7 +368,7 @@ def train(
     curriculum_style: str = "small", lp_params: LPParams = LPParams()
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.icl_resource_chain import (
+    from experiments.evals.in_context_learning.ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
 
@@ -457,7 +457,7 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     # Local import to   avoid circular import at module load time
-    from experiments.evals.icl_resource_chain import (
+    from experiments.evals.in_context_learning.ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
 
@@ -498,7 +498,7 @@ def experiment():
                         subprocess.run(
                             [
                                 "./devops/skypilot/launch.py",
-                                "experiments.recipes.icl_resource_chain.train",
+                                "experiments.recipes.in_context_learning.ordered_chains.train",
                                 f"run=icl_resource_chain_{curriculum_style}_PS{progress_smoothing.round(2)}_EB{exploration_bonus.round(2)}_NAT{int(num_active_task)}_RTR{rand_task_rate.round(2)}.09-19",
                                 f"curriculum_style={curriculum_style}",
                                 f"lp_params.progress_smoothing={progress_smoothing.round(2)}",
