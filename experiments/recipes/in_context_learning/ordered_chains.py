@@ -472,40 +472,34 @@ def experiment():
         "longer_chains",
         "terrain",
     ]
-    progress_smoothings = list(np.linspace(0.05, 0.15, 2))
-    exploration_bonuses = list(np.linspace(0.03, 0.15, 2))
-    num_active_tasks = list(np.linspace(1000, 5000, 2))
-    rand_task_rates = list(np.linspace(0.1, 0.25, 2))
-    total_experiments = (
-        len(curriculum_styles)
-        * len(progress_smoothings)
-        * len(exploration_bonuses)
-        * len(num_active_tasks)
-        * len(rand_task_rates)
-    )
-    print(f"Total experiments to run: {total_experiments}")
+
+    pretrained_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt"
 
     for curriculum_style in curriculum_styles:
-        for progress_smoothing in progress_smoothings:
-            for exploration_bonus in exploration_bonuses:
-                for num_active_task in num_active_tasks:
-                    for rand_task_rate in rand_task_rates:
-                        subprocess.run(
-                            [
-                                "./devops/skypilot/launch.py",
-                                "experiments.recipes.in_context_learning.ordered_chains.train",
-                                f"run=icl_resource_chain_{curriculum_style}_PS{progress_smoothing.round(2)}_EB{exploration_bonus.round(2)}_NAT{int(num_active_task)}_RTR{rand_task_rate.round(2)}.09-19",
-                                f"curriculum_style={curriculum_style}",
-                                f"lp_params.progress_smoothing={progress_smoothing.round(2)}",
-                                f"lp_params.exploration_bonus={exploration_bonus.round(2)}",
-                                f"lp_params.num_active_tasks={int(num_active_task)}",
-                                f"lp_params.rand_task_rate={rand_task_rate.round(2)}",
-                                "--gpus=4",
-                                "--heartbeat-timeout=3600",
-                                "--skip-git-check",
-                            ]
-                        )
-                        time.sleep(1)
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.in_context_learning.ordered_chains.train",
+                f"run=icl_resource_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
+        time.sleep(1)
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.in_context_learning.ordered_chains.train",
+                f"run=icl_resource_chain_{curriculum_style}_pretrained.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                f"trainer.initial_policy.uri={pretrained_policy_uri}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
 
 
 if __name__ == "__main__":
