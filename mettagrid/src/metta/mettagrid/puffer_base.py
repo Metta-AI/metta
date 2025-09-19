@@ -22,6 +22,8 @@ For users:
 This avoids double-wrapping while maintaining full PufferLib compatibility.
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np

@@ -54,28 +54,28 @@ class Orientation(Enum):
     def get_opposite(self) -> "Orientation":
         """Get the opposite orientation."""
         opposites = {
-            Orientation.NORTH: "Orientation".SOUTH,
-            Orientation.SOUTH: "Orientation".NORTH,
-            Orientation.WEST: "Orientation".EAST,
-            Orientation.EAST: "Orientation".WEST,
-            Orientation.NORTHWEST: "Orientation".SOUTHEAST,
-            Orientation.NORTHEAST: "Orientation".SOUTHWEST,
-            Orientation.SOUTHWEST: "Orientation".NORTHEAST,
-            Orientation.SOUTHEAST: "Orientation".NORTHWEST,
+            Orientation.NORTH: Orientation.SOUTH,
+            Orientation.SOUTH: Orientation.NORTH,
+            Orientation.WEST: Orientation.EAST,
+            Orientation.EAST: Orientation.WEST,
+            Orientation.NORTHWEST: Orientation.SOUTHEAST,
+            Orientation.NORTHEAST: Orientation.SOUTHWEST,
+            Orientation.SOUTHWEST: Orientation.NORTHEAST,
+            Orientation.SOUTHEAST: Orientation.NORTHWEST,
         }
         return opposites[self]
 
     def get_clockwise(self) -> "Orientation":
         """Get the orientation 90 degrees clockwise."""
         clockwise = {
-            Orientation.NORTH: "Orientation".EAST,
-            Orientation.EAST: "Orientation".SOUTH,
-            Orientation.SOUTH: "Orientation".WEST,
-            Orientation.WEST: "Orientation".NORTH,
-            Orientation.NORTHEAST: "Orientation".SOUTHEAST,
-            Orientation.SOUTHEAST: "Orientation".SOUTHWEST,
-            Orientation.SOUTHWEST: "Orientation".NORTHWEST,
-            Orientation.NORTHWEST: "Orientation".NORTHEAST,
+            Orientation.NORTH: Orientation.EAST,
+            Orientation.EAST: Orientation.SOUTH,
+            Orientation.SOUTH: Orientation.WEST,
+            Orientation.WEST: Orientation.NORTH,
+            Orientation.NORTHEAST: Orientation.SOUTHEAST,
+            Orientation.SOUTHEAST: Orientation.SOUTHWEST,
+            Orientation.SOUTHWEST: Orientation.NORTHWEST,
+            Orientation.NORTHWEST: Orientation.NORTHEAST,
         }
         return clockwise[self]
 

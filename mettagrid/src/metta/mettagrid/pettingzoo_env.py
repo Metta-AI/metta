@@ -4,6 +4,8 @@ MettaGridPettingZooEnv - PettingZoo adapter for MettaGrid.
 This class implements the PettingZoo ParallelEnv interface using the base MettaGridEnv.
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np

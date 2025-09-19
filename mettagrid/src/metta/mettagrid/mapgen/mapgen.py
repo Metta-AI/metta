@@ -259,7 +259,7 @@ class MapGen(MapBuilder):
             if self.instance_scene_factories:
                 # We need just one instance and it's already prebuilt.
                 assert len(self.instance_scene_factories) == 1, (
-                    'Internal logic error: "MapGen" wants 1 instance but prebuilt more'
+                    "Internal logic error: MapGen wants 1 instance but prebuilt more"
                 )
                 return self.instance_scene_factories[0]
             else:
@@ -283,7 +283,7 @@ class MapGen(MapBuilder):
         remaining_instances = self.instances - len(self.instance_scene_factories)
 
         if remaining_instances > 0:
-            assert self.root, 'Internal logic error: "MapGen" failed to prebuild enough instances'
+            assert self.root, "Internal logic error: MapGen failed to prebuild enough instances"
 
             children_actions.append(
                 ChildrenAction(

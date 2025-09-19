@@ -1,4 +1,6 @@
-from typing import Any, NoReturn, Optional, Self, Union, get_args, get_origin
+from __future__ import annotations
+
+from typing import Any, NoReturn, Self, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
@@ -12,7 +14,7 @@ class Config(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    def _auto_initialize_field(self, parent_obj: "Config", field_name: str) -> Optional["Config"]:
+    def _auto_initialize_field(self, parent_obj: "Config", field_name: str) -> "Config | None":
         """Auto-initialize a None Config field if possible."""
         field = type(parent_obj).model_fields.get(field_name)
         if not field:
@@ -45,7 +47,7 @@ class Config(BaseModel):
                 f"Override failed. Full config:\n {self.model_dump_json(indent=2)}\nOverride {key} failed: {error}"
             )
 
-        inner_cfg: Union["Config", dict[str, Any]] = self
+        inner_cfg: Config | dict[str, Any] = self
         traversed_path: list[str] = []
         for key_part in key_path[:-1]:
             if isinstance(inner_cfg, dict):

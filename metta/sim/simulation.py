@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import time
@@ -313,7 +315,7 @@ class Simulation:
             logger.error(f"Thumbnail generation failed for {self._name}: {e}")
             return None
 
-    def end_simulation(self) -> "SimulationResults":
+    def end_simulation(self) -> SimulationResults:
         self._vecenv.close()
         db = self._from_shards_and_context()
 
@@ -329,7 +331,7 @@ class Simulation:
         )
         return SimulationResults(db)
 
-    def simulate(self) -> "SimulationResults":
+    def simulate(self) -> SimulationResults:
         """Run the simulation; returns the merged `StatsDB`."""
         self.start_simulation()
 

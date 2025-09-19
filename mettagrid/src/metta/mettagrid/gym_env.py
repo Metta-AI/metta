@@ -5,6 +5,8 @@ This class implements the Gymnasium environment interface using the base MettaGr
 Supports both single-agent and multi-agent modes.
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np

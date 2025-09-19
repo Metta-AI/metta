@@ -3,6 +3,8 @@
 This class provides the base functionality for all framework-specific adapters,
 without any training-specific features or framework dependencies."""
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -189,7 +191,7 @@ class MettaGridCore:
         """Get the episode rewards."""
         return self.__c_env_instance.get_episode_rewards()
 
-    def get_episode_stats(self) -> "EpisodeStats":
+    def get_episode_stats(self) -> EpisodeStats:
         """Get the episode stats."""
         return self.__c_env_instance.get_episode_stats()
 

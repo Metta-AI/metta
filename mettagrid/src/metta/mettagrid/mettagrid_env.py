@@ -4,6 +4,8 @@ This class provides Metta's custom training environment, built on PufferLib
 for high-performance vectorized training. Includes stats writing, replay writing,
 and episode tracking functionality."""
 
+from __future__ import annotations
+
 import datetime
 import logging
 import time
@@ -222,9 +224,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         self.timer.stop("process_episode_stats")
 
-    def _write_episode_stats(
-        self, stats: "EpisodeStats", episode_rewards: np.ndarray, replay_url: Optional[str]
-    ) -> None:
+    def _write_episode_stats(self, stats: EpisodeStats, episode_rewards: np.ndarray, replay_url: Optional[str]) -> None:
         """Write episode statistics to stats writer."""
         if not self._stats_writer or not self._episode_id:
             return
