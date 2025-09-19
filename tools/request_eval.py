@@ -1,8 +1,6 @@
 #!/usr/bin/env -S uv run
 """Request evaluation script for direct checkpoint URIs."""
 
-from __future__ import annotations
-
 import argparse
 import asyncio
 import uuid

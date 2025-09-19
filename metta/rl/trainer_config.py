@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, ClassVar, List, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator

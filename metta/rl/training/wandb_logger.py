@@ -1,7 +1,5 @@
 """Trainer component for logging metrics to wandb."""
 
-from __future__ import annotations
-
 from typing import Dict
 
 from metta.common.wandb.wandb_context import WandbRun

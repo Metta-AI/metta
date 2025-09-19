@@ -26,8 +26,6 @@ Environment variables:
     ENABLE_GITHUB_STATUS         (optional) only run if true, default false
 """
 
-from __future__ import annotations
-
 import argparse
 import os
 import sys

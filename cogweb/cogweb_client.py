@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Optional
 
 from metta.app_backend.clients.base_client import get_machine_token

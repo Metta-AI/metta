@@ -5,8 +5,6 @@ Provides intelligent task selection based on bidirectional learning progress ana
 using fast and slow exponential moving averages to detect learning opportunities.
 """
 
-from __future__ import annotations
-
 import random
 from typing import Any, Dict, List, Optional
 

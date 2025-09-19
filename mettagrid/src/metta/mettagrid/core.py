@@ -3,8 +3,6 @@
 This class provides the base functionality for all framework-specific adapters,
 without any training-specific features or framework dependencies."""
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple

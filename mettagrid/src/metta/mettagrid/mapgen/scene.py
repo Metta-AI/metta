@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Generic, Optional, Type, TypeVar, get_args, get_origin
 
 import numpy as np
