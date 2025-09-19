@@ -1,5 +1,7 @@
 """Core curriculum implementations and utilities."""
 
+from __future__ import annotations
+
 import abc
 import random
 from abc import ABC
@@ -120,7 +122,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         """Update task performance. Override in subclasses that track performance."""
         pass
 
-    def on_task_created(self, task: CurriculumTask) -> None:
+    def on_task_created(self, task: "CurriculumTask") -> None:
         """Notification that a new task has been created. Override if needed."""
         pass
 
@@ -175,7 +177,7 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         # Use the StatsLogger implementation
         return super().stats(prefix)
 
-    def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
+    def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
         """Get a task from the pool. Default implementation creates a simple task."""
 
         task_id = rng.randint(0, 1000000)

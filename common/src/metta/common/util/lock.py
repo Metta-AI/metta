@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from datetime import timedelta
 from typing import Callable, TypeVar
