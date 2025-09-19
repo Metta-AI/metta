@@ -212,11 +212,11 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         # by default, use a small room
         size_range = (
-            (10, 20)
+            (8, 12)
             if room_size == "medium"
-            else (20, 30)
+            else (12, 16)
             if room_size == "large"
-            else (5, 10)
+            else (5, 8)
         )
 
         width, height = (
