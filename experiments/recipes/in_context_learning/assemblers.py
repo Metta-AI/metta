@@ -27,14 +27,16 @@ from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGenerato
 from metta.mettagrid.mettagrid_config import Position
 from pydantic import Field
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import random
 from metta.mettagrid.builder import building
 from metta.mettagrid.builder.envs import make_icl_assembler
 from metta.mettagrid.mettagrid_config import MettaGridConfig, RecipeConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
 from metta.sim.simulation_config import SimulationConfig
 
@@ -59,6 +61,7 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
+
 @dataclass
 class _BuildCfg:
     game_objects: Dict[str, Any] = field(default_factory=dict)
@@ -67,16 +70,15 @@ class _BuildCfg:
 
 class AssemblerTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["AssemblerTaskGenerator"]):
-
-        num_agents: list[int] = Field(default = [1])
+        num_agents: list[int] = Field(default=[1])
         max_steps: int = 512
-        num_altars: list[int] = Field(default = [2])
-        num_converters: list[int] = Field(default = [0])
-        generator_positions: list[list[Position]] = Field(default = [Position(["Any"])])
-        altar_positions: list[list[Position]] = Field(default = [Position(["Any"])])
-        altar_inputs: list[str] = Field(default = ["one", "both"])
-        widths: list[int] = Field(default = [6])
-        heights: list[int] = Field(default = [6])
+        num_altars: list[int] = Field(default=[2])
+        num_converters: list[int] = Field(default=[0])
+        generator_positions: list[list[Position]] = Field(default=[["Any"]])
+        altar_positions: list[list[Position]] = Field(default=[["Any"]])
+        altar_inputs: list[str] = Field(default=["one", "both"])
+        widths: list[int] = Field(default=[6])
+        heights: list[int] = Field(default=[6])
 
     def __init__(self, config: "AssemblerTaskGenerator.Config"):
         super().__init__(config)
@@ -84,8 +86,33 @@ class AssemblerTaskGenerator(TaskGenerator):
         self.converter_types = CONVERTER_TYPES.copy()
         self.resource_types = RESOURCE_TYPES.copy()
 
-    def make_env_cfg(self, num_agents, num_instances, num_altars, num_converters, altar_input: str, width, height, converter_positions: list[Position], altar_positions: list[Position], max_steps: int, rng: random.Random) -> MettaGridConfig:
+    def make_env_cfg(
+        self,
+        num_agents,
+        num_instances,
+        num_altars,
+        num_converters,
+        altar_input: str,
+        width,
+        height,
+        converter_positions: list[Position],
+        altar_positions: list[Position],
+        max_steps: int,
+        rng: random.Random,
+    ) -> MettaGridConfig:
         cfg = _BuildCfg()
+
+
+        # ensure the positions are the same length as the number of agents and altars
+        if len(converter_positions) > num_agents:
+            converter_positions = converter_positions[:num_agents]
+        if len(altar_positions) > num_altars:
+            altar_positions = altar_positions[:num_altars]
+
+        if len(converter_positions) < num_agents:
+            converter_positions = converter_positions + [converter_positions[0]] * (num_agents - len(converter_positions))
+        if len(altar_positions) < num_altars:
+            altar_positions = altar_positions + [altar_positions[0]] * (num_altars - len(altar_positions))
 
         # sample num_converters converters - TODO i want this with replacement
         converter_names = rng.sample(list(self.converter_types.keys()), num_converters)
@@ -96,9 +123,14 @@ class AssemblerTaskGenerator(TaskGenerator):
 
         for i in range(num_converters):
             # create a generator red, that outputs a battery red, and inputs nothing
-            converter = self.converter_types[converter_name[i]]
+            converter = self.converter_types[converter_names[i]]
             # no input resources
-            recipe = (converter_positions, RecipeConfig(input_resources={}, output_resources={resources[i]: 1}, cooldown=10))
+            recipe = (
+                converter_positions[i],
+                RecipeConfig(
+                    input_resources={}, output_resources={resources[i]: 1}, cooldown=10
+                ),
+            )
             converter.recipes = [recipe]
             cfg.game_objects[converter_name] = converter
 
@@ -110,11 +142,17 @@ class AssemblerTaskGenerator(TaskGenerator):
                 input_resources = {c: 1 for c in resources}
             elif altar_input == "one":
                 input_resources = {rng.sample(resources, 1)[0]: 1}
-            recipe = (altar_positions, RecipeConfig(input_resources=input_resources, output_resources={"heart": 1}, cooldown=10))
+            recipe = (
+                altar_positions,
+                RecipeConfig(
+                    input_resources=input_resources,
+                    output_resources={"heart": 1},
+                    cooldown=10,
+                ),
+            )
             altar.recipes = [recipe]
 
             cfg.game_objects["altar"] = altar
-
 
         return make_icl_assembler(
             num_agents=num_agents,
@@ -127,7 +165,6 @@ class AssemblerTaskGenerator(TaskGenerator):
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-
         altar_position = rng.choice(self.config.altar_positions)
         generator_position = rng.choice(self.config.generator_positions)
         num_agents = rng.choice(self.config.num_agents)
@@ -147,13 +184,80 @@ class AssemblerTaskGenerator(TaskGenerator):
         else:
             raise ValueError(f"Invalid number of agents: {num_agents}")
 
-        return self.make_env_cfg(num_agents, num_instances, num_altars, num_converters, altar_input, width, height, generator_position, altar_position, max_steps, rng)
+        return self.make_env_cfg(
+            num_agents,
+            num_instances,
+            num_altars,
+            num_converters,
+            altar_input,
+            width,
+            height,
+            generator_position,
+            altar_position,
+            max_steps,
+            rng,
+        )
 
 
-# def make_mettagrid() -> MettaGridConfig:
-#     return AssemblerTaskGenerator.Config().make_env_cfg(num_agents, num_instances, num_altars, num_converters, width, height, generator_position, altar_position, max_steps)
+def make_mettagrid() -> MettaGridConfig:
+    task_generator_cfg = AssemblerTaskGenerator.Config(
+        num_agents=[2],
+        num_altars=[2],
+        num_converters=[0],
+        widths=[8],
+        heights=[8],
+        generator_positions=[["Any", "Any"]],
+        altar_positions=[["Any", "Any"]],
+        altar_inputs=["one", "both"],
+    )
+    task_generator = AssemblerTaskGenerator(task_generator_cfg)
+    return task_generator.get_task(0)
 
 
+def make_curriculum(
+    num_agents: list[int] = [1, 2],
+    num_altars: list[int] = [2],
+    num_converters: list[int] = [0, 1, 2],
+    widths: list[int] = [4, 6, 8, 10],
+    heights: list[int] = [4, 6, 8, 10],
+    generator_positions: list[list[Position]] = [["Any"], ["Any", "Any"]],
+    altar_positions: list[list[Position]] = [["Any"], ["Any", "Any"]],
+    altar_inputs: list[str] = ["one", "both"],
+) -> CurriculumConfig:
+    task_generator_cfg = AssemblerTaskGenerator.Config(
+        num_agents=num_agents,
+        num_altars=num_altars,
+        num_converters=num_converters,
+        widths=widths,
+        heights=heights,
+        generator_positions=generator_positions,
+        altar_positions=altar_positions,
+        altar_inputs=altar_inputs,
+    )
+    task_generator = AssemblerTaskGenerator(task_generator_cfg)
+    return CurriculumConfig(task_generator=task_generator_cfg)
+
+
+def train() -> TrainTool:
+
+    #TODO george -- add more experiments
+    curriculum_args = {
+        "hard_defaults": {
+            "num_agents": [1],
+            "num_altars": [2],
+            "num_converters": [0],
+            "widths": [4, 6, 8, 10],
+            "heights": [4, 6, 8, 10],
+            "generator_positions": [["Any"], ["NE", "NW"]],
+            "altar_positions": [["Any"], ["Any", "Any"]],
+            "altar_inputs": ["one", "both"],
+        },
+    }
+    curriculum = make_curriculum(**curriculum_args["hard_defaults"])
+    trainer_cfg = TrainerConfig(
+        curriculum=curriculum,
+    )
+    return TrainTool(trainer=trainer_cfg)
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()

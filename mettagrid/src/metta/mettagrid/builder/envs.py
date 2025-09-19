@@ -237,7 +237,7 @@ def make_icl_assembler(
             num_agents=num_agents * num_instances,
             objects=game_objects,
             map_builder=MapGen.Config(
-                instances=num_agents,
+                instances=num_instances,
                 # TODO GEORGE: implement AssemblerMapBuilder, where all objects are surrounded by empty space
                 instance_map=AssemblerMapBuilder.Config(
                     agents=num_agents,
