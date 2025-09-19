@@ -6,8 +6,6 @@ actually needed. External callers can continue to use
 ``from metta.rl.training import Evaluator`` and friends without change.
 """
 
-from __future__ import annotations
-
 import importlib
 from typing import Any, Dict, Tuple
 

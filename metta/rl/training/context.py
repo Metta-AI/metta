@@ -1,7 +1,5 @@
 """Shared trainer context passed to training components."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Type, TypeVar

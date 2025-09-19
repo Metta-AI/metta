@@ -11,8 +11,6 @@ All adapters inherit from MettaGridCore and provide framework-specific interface
 For PufferLib integration, use PufferLib's MettaPuff wrapper directly.
 """
 
-from __future__ import annotations
-
 # Import environment classes
 from metta.mettagrid.core import MettaGridCore
 

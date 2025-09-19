@@ -1,7 +1,5 @@
 """Statistics reporting and aggregation."""
 
-from __future__ import annotations
-
 import logging
 from collections import defaultdict
 from numbers import Number

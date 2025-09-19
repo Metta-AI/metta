@@ -1,7 +1,5 @@
 """Main trainer facade for coordinating all training components."""
 
-from __future__ import annotations
-
 import logging
 from typing import Any, Dict, Optional
 
@@ -68,9 +66,6 @@ class Trainer:
         # Put the torch policy into training mode
         self._policy.train()
 
-        if self._cfg.heartbeat is not None:
-            self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))
-
         batch_info = self._env.batch_info
         parallel_agents = getattr(self._env, "total_parallel_agents", None)
         if parallel_agents is None:
@@ -111,6 +106,9 @@ class Trainer:
             run_dir=None,
             run_name=None,
         )
+
+        if self._cfg.heartbeat is not None:
+            self.register(HeartbeatWriter(epoch_interval=self._cfg.heartbeat.epoch_interval))
 
     @property
     def context(self) -> TrainerContext:

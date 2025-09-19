@@ -1,7 +1,5 @@
 """Policy upload management component for wandb and other destinations."""
 
-from __future__ import annotations
-
 import logging
 from contextlib import contextmanager
 from pathlib import Path

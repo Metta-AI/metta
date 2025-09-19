@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import datetime
 import uuid
 from pathlib import Path
