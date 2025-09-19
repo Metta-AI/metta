@@ -141,7 +141,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 ### Repository Structure
 
 - `metta/`: Core Python implementation for agents, maps, RL algorithms, simulation
-- `mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
+- `packages/mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
 - `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
 - `gridworks/`: Next.js web interface
@@ -445,7 +445,7 @@ See @.cursor/docs.md for testing examples and quick test commands.
   - `tests/sim/` - Simulation and evaluation
   - `tests/map/` - Map generation and scene loading
   - `tests/sweep/` - Hyperparameter sweep infrastructure
-  - `tests/mettagrid/` - Environment-specific tests
+  - `packages/mettagrid/tests` - Environment-specific tests
 
 ### Code Review Criteria
 
