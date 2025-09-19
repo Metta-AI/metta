@@ -108,6 +108,9 @@ class Trainer:
         self._context.get_train_epoch_fn = lambda: self._train_epoch
         self._context.set_train_epoch_fn = lambda fn: setattr(self, "_train_epoch", fn)
 
+        for loss in losses.values():
+            loss.attach_context(self._context)
+
     @property
     def context(self) -> TrainerContext:
         """Return the shared trainer context."""
@@ -137,11 +140,11 @@ class Trainer:
         self._context.training_env_id = None
 
         # Start new epoch
-        self.core_loop.on_epoch_start(self._context.epoch)
+        self.core_loop.on_epoch_start(self._context)
 
         # Rollout phase
         with self.timer("_rollout"):
-            rollout_result = self.core_loop.rollout_phase(self._env, self._context.epoch)
+            rollout_result = self.core_loop.rollout_phase(self._env, self._context)
             self._context.agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
             self._context.training_env_id = rollout_result.training_env_id
             # Invoke step callbacks for each info
@@ -153,8 +156,7 @@ class Trainer:
             if self._context.training_env_id is None:
                 raise RuntimeError("Training environment slice unavailable for training phase")
             losses_stats, epochs_trained = self.core_loop.training_phase(
-                epoch=self._context.epoch,
-                training_env_id=self._context.training_env_id,
+                context=self._context,
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
             )

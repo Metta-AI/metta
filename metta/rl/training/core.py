@@ -8,6 +8,7 @@ from pydantic import ConfigDict
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
+from metta.rl.training.context import TrainerContext
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.config import Config
@@ -60,13 +61,13 @@ class CoreTrainingLoop:
     def rollout_phase(
         self,
         env: TrainingEnvironment,
-        epoch: int,
+        context: TrainerContext,
     ) -> RolloutResult:
         """Perform rollout phase to collect experience.
 
         Args:
             env: Vectorized environment to collect from
-            trainer_state: Current trainer state
+            context: Shared trainer context providing rollout state
 
         Returns:
             RolloutResult with collected info
@@ -76,7 +77,7 @@ class CoreTrainingLoop:
 
         # Notify losses of rollout start
         for loss in self.losses.values():
-            loss.on_rollout_start(epoch)
+            loss.on_rollout_start(context)
 
         # Get buffer for storing experience
         buffer_step = self.experience.buffer[self.experience.ep_indices, self.experience.ep_lengths - 1]
@@ -114,15 +115,19 @@ class CoreTrainingLoop:
             B = td.batch_size.numel()
             td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
 
-            # Run rollout hooks for all losses
-            # Each loss can modify td and potentially run inference
+            # Allow losses to mutate td (policy inference, bookkeeping, etc.)
+            context.training_env_id = training_env_id
             for loss in self.losses.values():
-                loss.rollout(td, training_env_id, epoch)
+                loss.rollout(td, context)
 
-            # At least one loss should have performed inference
+            if "actions" not in td.keys():
+                with torch.no_grad():
+                    self.policy(td)
+                self.experience.store(data_td=td, env_id=training_env_id)
+
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
 
-            # Send actions to environment
+            # Ship actions to the environment
             env.send_actions(td["actions"].cpu().numpy())
 
             if info:
@@ -133,26 +138,26 @@ class CoreTrainingLoop:
         if last_env_id is None:
             raise RuntimeError("Rollout completed without receiving any environment data")
 
+        context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
     def training_phase(
         self,
-        epoch: int,
-        training_env_id: slice,
+        context: TrainerContext,
         update_epochs: int,
         max_grad_norm: float = 0.5,
     ) -> tuple[Dict[str, float], int]:
         """Perform training phase on collected experience.
 
         Args:
-            epoch: Current epoch
-            training_env_id: Training environment ID
+            context: Shared trainer context providing training state
             update_epochs: Number of epochs to train for
             max_grad_norm: Maximum gradient norm for clipping
 
         Returns:
             Dictionary of loss statistics
         """
+        training_env_id = context.training_env_id
         assert training_env_id is not None, "Training environment ID is required"
 
         # Initialize shared loss data
@@ -168,18 +173,26 @@ class CoreTrainingLoop:
             loss.zero_loss_tracker()
 
         epochs_trained = 0
-        stop_update_epoch = False
 
         for _ in range(update_epochs):
+            context.update_epoch = epochs_trained
+            stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 # Compute total loss from all losses
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+                context.mb_idx = mb_idx
+                stop_update_epoch_mb = False
 
                 for _loss_name, loss_obj in self.losses.items():
-                    loss_val, shared_loss_mb_data, stop_update_epoch = loss_obj.train(
-                        shared_loss_mb_data, training_env_id, epoch, mb_idx
+                    loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
+                        shared_loss_mb_data, context, mb_idx
                     )
                     total_loss = total_loss + loss_val
+                    stop_update_epoch_mb = stop_update_epoch_mb or loss_requests_stop
+
+                if stop_update_epoch_mb:
+                    stop_update_epoch = True
+                    break
 
                 # Backward pass
                 self.optimizer.zero_grad()
@@ -208,10 +221,7 @@ class CoreTrainingLoop:
 
                 # Notify losses of minibatch end
                 for loss_obj in self.losses.values():
-                    loss_obj.on_mb_end(epoch, mb_idx)
-
-                if stop_update_epoch:
-                    break
+                    loss_obj.on_mb_end(context, mb_idx)
 
             epochs_trained += 1
             if stop_update_epoch:
@@ -219,7 +229,7 @@ class CoreTrainingLoop:
 
         # Notify losses of training phase end
         for loss_obj in self.losses.values():
-            loss_obj.on_train_phase_end(epoch)
+            loss_obj.on_train_phase_end(context)
 
         # Collect statistics from all losses
         losses_stats = {}
@@ -228,11 +238,11 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, epoch: int) -> None:
+    def on_epoch_start(self, context: TrainerContext) -> None:
         """Called at the start of each epoch.
 
         Args:
-            epoch: Current epoch
+            context: Shared trainer context providing epoch state
         """
         for loss in self.losses.values():
-            loss.on_new_training_run()
+            loss.on_new_training_run(context)

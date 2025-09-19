@@ -49,6 +49,8 @@ class TrainerContext:
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     memory_monitor: MemoryMonitor | None = None
     system_monitor: SystemMonitor | None = None
+    update_epoch: int = 0
+    mb_idx: int = 0
     _epoch: int = 0
     _agent_step: int = 0
     training_env_id: slice | None = None

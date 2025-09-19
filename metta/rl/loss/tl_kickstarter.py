@@ -80,7 +80,12 @@ class TLKickstarter(Loss):
         # get the teacher policy experience spec
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerContext) -> tuple[Tensor, TensorDict]:
+    def run_train(
+        self,
+        shared_loss_data: TensorDict,
+        context: TrainerContext,
+        mb_idx: int,
+    ) -> tuple[Tensor, TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]
 
         # Teacher forward pass
@@ -110,4 +115,4 @@ class TLKickstarter(Loss):
         self.loss_tracker["tl_ks_action_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["tl_ks_value_loss"].append(float(ks_value_loss.item()))
 
-        return loss, shared_loss_data
+        return loss, shared_loss_data, False

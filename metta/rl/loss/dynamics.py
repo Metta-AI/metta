@@ -49,7 +49,12 @@ class Dynamics(Loss):
     """The dynamics term in the Muesli loss."""
 
     # Loss calls this method
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerContext) -> tuple[Tensor, TensorDict]:
+    def run_train(
+        self,
+        shared_loss_data: TensorDict,
+        context: TrainerContext,
+        mb_idx: int,
+    ) -> tuple[Tensor, TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]
 
         returns_pred: Tensor = policy_td["returns_pred"].to(dtype=torch.float32)
@@ -80,4 +85,4 @@ class Dynamics(Loss):
         self.loss_tracker["dynamics_returns_loss"].append(float(returns_loss.item()))
         self.loss_tracker["dynamics_reward_loss"].append(float(reward_loss.item()))
 
-        return returns_loss + reward_loss, shared_loss_data
+        return returns_loss + reward_loss, shared_loss_data, False

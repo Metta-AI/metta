@@ -108,7 +108,12 @@ class SLKickstarter(Loss):
             teacher_value=scalar_f32,
         )
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerContext) -> tuple[Tensor, TensorDict]:
+    def run_train(
+        self,
+        shared_loss_data: TensorDict,
+        context: TrainerContext,
+        mb_idx: int,
+    ) -> tuple[Tensor, TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]
 
         # Teacher forward pass
@@ -124,7 +129,7 @@ class SLKickstarter(Loss):
         student_value = student_td["values"].to(dtype=torch.float32)
 
         # Calculate annealing coefficient
-        update_epoch = trainer_state.update_epoch
+        update_epoch = getattr(context, "update_epoch", context.epoch)
         if update_epoch < self.ramp_down_start_epochs:
             anneal_coef = self.action_loss_coef  # Full strength
         else:
@@ -150,4 +155,4 @@ class SLKickstarter(Loss):
         self.loss_tracker["sl_ks_action_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["sl_ks_value_loss"].append(float(ks_value_loss.item()))
 
-        return loss, shared_loss_data
+        return loss, shared_loss_data, False

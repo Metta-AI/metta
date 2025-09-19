@@ -19,6 +19,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -120,20 +121,26 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
+        env_metadata = EnvironmentMetaData(
+            obs_width=metta_grid_env.obs_width,
+            obs_height=metta_grid_env.obs_height,
+            obs_features=metta_grid_env.observation_features,
+            action_names=metta_grid_env.action_names,
+            max_action_args=metta_grid_env.max_action_args,
+            num_agents=metta_grid_env.num_agents,
+            observation_space=metta_grid_env.observation_space,
+            action_space=metta_grid_env.action_space,
+            feature_normalizations=metta_grid_env.feature_normalizations,
+        )
+
         # Initialize policy to environment
         self._policy.eval()  # Set to evaluation mode for simulation
-        features = metta_grid_env.observation_features
-        self._policy.initialize_to_environment(
-            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
-        )
+        self._policy.initialize_to_environment(env_metadata, self._device)
 
         if self._npc_policy is not None:
             # Initialize NPC policy to environment
             self._npc_policy.eval()  # Set to evaluation mode for simulation
-            features = metta_grid_env.observation_features
-            self._npc_policy.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
-            )
+            self._npc_policy.initialize_to_environment(env_metadata, self._device)
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(

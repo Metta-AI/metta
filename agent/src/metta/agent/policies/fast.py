@@ -104,6 +104,8 @@ class FastPolicy(Policy):
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         needs_unflatten = td.batch_dims > 1
+        batch_size: int | None = None
+        time_steps: int = 1
         if needs_unflatten:
             batch_size, time_steps = td.batch_size
             td = td.reshape(td.batch_size.numel())
@@ -117,8 +119,33 @@ class FastPolicy(Policy):
             )
         else:
             batch_elems = td.batch_size.numel()
-            td.set("bptt", torch.ones((batch_elems,), device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((batch_elems,), batch_elems, device=td.device, dtype=torch.long))
+            if batch_elems == 0:
+                raise ValueError("TensorDict must contain at least one element for forward pass")
+
+            if "bptt" in td.keys() and td["bptt"].numel() > 0:
+                time_steps = int(td["bptt"][0].item())
+                if time_steps <= 0:
+                    time_steps = 1
+            else:
+                time_steps = 1
+
+            if "batch" in td.keys() and td["batch"].numel() > 0:
+                batch_size = int(td["batch"][0].item())
+            else:
+                if time_steps > 0 and batch_elems % time_steps == 0:
+                    batch_size = max(1, batch_elems // time_steps)
+                else:
+                    batch_size = batch_elems
+                td.set(
+                    "batch",
+                    torch.full((batch_elems,), batch_size, device=td.device, dtype=torch.long),
+                )
+
+            if "bptt" not in td.keys():
+                td.set(
+                    "bptt",
+                    torch.full((batch_elems,), time_steps, device=td.device, dtype=torch.long),
+                )
 
         self.obs_shim(td)
         self.cnn_encoder(td)
