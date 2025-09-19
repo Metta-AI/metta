@@ -37,10 +37,6 @@ class TrainerContext:
     distributed: DistributedHelper
     run_dir: Optional[Path]
     run_name: Optional[str]
-    get_epoch: Callable[[], int]
-    set_epoch: Callable[[int], None]
-    get_agent_step: Callable[[], int]
-    set_agent_step: Callable[[int], None]
     latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
     save_policy_fn: Callable[[dict[str, Any], bool], Optional[str]] | None = None
     save_trainer_state_fn: Callable[[], None] | None = None
@@ -48,6 +44,8 @@ class TrainerContext:
     stats_client: Any | None = None
     components: Dict[type, TrainerComponent] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
+    _epoch: int = 0
+    _agent_step: int = 0
     update_epoch: int = 0
     mb_idx: int = 0
     training_env_id: slice | None = None
@@ -56,19 +54,19 @@ class TrainerContext:
 
     @property
     def epoch(self) -> int:
-        return self.get_epoch()
+        return self._epoch
 
     @epoch.setter
     def epoch(self, value: int) -> None:
-        self.set_epoch(value)
+        self._epoch = value
 
     @property
     def agent_step(self) -> int:
-        return self.get_agent_step()
+        return self._agent_step
 
     @agent_step.setter
     def agent_step(self, value: int) -> None:
-        self.set_agent_step(value)
+        self._agent_step = value
 
     def set_run_info(self, *, run_dir: Optional[Path], run_name: Optional[str]) -> None:
         self.run_dir = run_dir

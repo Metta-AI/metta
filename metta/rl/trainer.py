@@ -56,9 +56,6 @@ class Trainer:
         self._distributed_helper = DistributedHelper(self._device)
         self._components: list[TrainerComponent] = []
         self._component_map: dict[type[TrainerComponent], TrainerComponent] = {}
-
-        self._epoch = 0
-        self._agent_step = 0
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
@@ -113,10 +110,6 @@ class Trainer:
             distributed=self._distributed_helper,
             run_dir=None,
             run_name=None,
-            get_epoch=lambda: self._epoch,
-            set_epoch=lambda value: setattr(self, "_epoch", value),
-            get_agent_step=lambda: self._agent_step,
-            set_agent_step=lambda value: setattr(self, "_agent_step", value),
         )
 
     @property
@@ -125,27 +118,11 @@ class Trainer:
 
         return self._context
 
-    @property
-    def epoch(self) -> int:
-        return self._epoch
-
-    @epoch.setter
-    def epoch(self, value: int) -> None:
-        self._epoch = value
-
-    @property
-    def agent_step(self) -> int:
-        return self._agent_step
-
-    @agent_step.setter
-    def agent_step(self, value: int) -> None:
-        self._agent_step = value
-
     def train(self) -> None:
         """Run the main training loop."""
 
         try:
-            while self._agent_step < self._cfg.total_timesteps:
+            while self._context.agent_step < self._cfg.total_timesteps:
                 self._train_epoch()
 
         except Exception:
@@ -160,15 +137,15 @@ class Trainer:
         if not self.core_loop:
             raise RuntimeError("Core loop not initialized")
 
-        steps_before = self._agent_step
+        steps_before = self._context.agent_step
 
         # Start new epoch
-        self.core_loop.on_epoch_start(self._epoch)
+        self.core_loop.on_epoch_start(self._context.epoch)
 
         # Rollout phase
         with self.timer("_rollout"):
-            rollout_result = self.core_loop.rollout_phase(self._env, self._epoch)
-            self._agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
+            rollout_result = self.core_loop.rollout_phase(self._env, self._context.epoch)
+            self._context.agent_step += rollout_result.agent_steps * self._distributed_helper.get_world_size()
             # Invoke step callbacks for each info
             for info in rollout_result.raw_infos:
                 self._invoke_callback(TrainerCallback.STEP, info)
@@ -176,12 +153,12 @@ class Trainer:
         # Training phase
         with self.timer("_train"):
             losses_stats = self.core_loop.training_phase(
-                epoch=self._epoch,
+                epoch=self._context.epoch,
                 training_env_id=slice(0, self._cfg.batch_size),
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
             )
-            self._epoch += self._cfg.update_epochs
+            self._context.epoch += self._cfg.update_epochs
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
@@ -198,8 +175,8 @@ class Trainer:
 
         # Log progress
         log_training_progress(
-            epoch=self._epoch,
-            agent_step=self._agent_step,
+            epoch=self._context.epoch,
+            agent_step=self._context.agent_step,
             prev_agent_step=steps_before,
             total_timesteps=self._cfg.total_timesteps,
             train_time=self.timer.get_last_elapsed("_train"),
@@ -242,13 +219,19 @@ class Trainer:
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    if component._step_interval != 0 and self._agent_step % component._step_interval == 0:
+                    if (
+                        component._step_interval != 0
+                        and self._context.agent_step % component._step_interval == 0
+                    ):
                         component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
-                    if component._epoch_interval != 0 and self._epoch % component._epoch_interval == 0:
-                        component.on_epoch_end(self._epoch)
+                    if (
+                        component._epoch_interval != 0
+                        and self._context.epoch % component._epoch_interval == 0
+                    ):
+                        component.on_epoch_end(self._context.epoch)
                     elif component._epoch_interval == 0:
-                        component.on_epoch_end(self._epoch)
+                        component.on_epoch_end(self._context.epoch)
                 elif callback_type == TrainerCallback.TRAINING_COMPLETE:
                     component.on_training_complete()
                 elif callback_type == TrainerCallback.FAILURE:
