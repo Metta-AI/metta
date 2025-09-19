@@ -550,13 +550,15 @@ def train(
                 ]
                 sims.extend(trainer_cfg.evaluation.simulations)
 
-                logger.info(f"Collected {len(sims)} simulations to evaluate")
-
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
                 evaluate_remote = trainer_cfg.evaluation.evaluate_remote
+                evaluator = "local" if evaluate_local else "remote" if evaluate_remote else "skipping"
+                logger.info(f"Collected {len(sims)} simulations to evaluate: {evaluator}")
 
-                logger.info(f"trainer_cfg.evaluation.evaluate_local {evaluate_local}")
-                logger.info(f"trainer_cfg.evaluation.evaluate_remote {evaluate_remote}")
+                evaluate_remote = False
+                evaluate_local = True
+                logger.info("Forcing evaluation to local for test")
+
                 if latest_remote_policy_uri:
                     policy_uri = latest_remote_policy_uri
                 else:
