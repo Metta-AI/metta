@@ -90,9 +90,14 @@ class CoreTrainingLoop:
             td["rewards"] = r.to(td.device)
             td["dones"] = d.float().to(td.device)
             td["truncateds"] = t.float().to(td.device)
-            td["training_env_ids"] = torch.arange(
-                training_env_id.start, training_env_id.stop, dtype=torch.long, device=td.device
-            ).unsqueeze(1)
+            env_indices = torch.arange(training_env_id.start, training_env_id.stop, dtype=torch.long, device=td.device)
+            td["training_env_ids"] = env_indices.unsqueeze(1)
+            td["training_env_id"] = torch.full(
+                td.batch_size,
+                training_env_id.start,
+                dtype=torch.long,
+                device=td.device,
+            )
             td["training_env_id_start"] = torch.full(
                 td.batch_size,
                 training_env_id.start,
@@ -126,7 +131,7 @@ class CoreTrainingLoop:
         training_env_id: slice,
         update_epochs: int,
         max_grad_norm: float = 0.5,
-    ) -> Dict[str, float]:
+    ) -> tuple[Dict[str, float], int]:
         """Perform training phase on collected experience.
 
         Args:
@@ -211,7 +216,7 @@ class CoreTrainingLoop:
         for _loss_name, loss_obj in self.losses.items():
             losses_stats.update(loss_obj.stats())
 
-        return losses_stats
+        return losses_stats, epochs_trained
 
     def on_epoch_start(self, epoch: int) -> None:
         """Called at the start of each epoch.

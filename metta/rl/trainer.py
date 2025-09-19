@@ -66,6 +66,7 @@ class Trainer:
         self._policy.train()
 
         batch_info = self._env.batch_info
+
         parallel_agents = getattr(self._env, "total_parallel_agents", None)
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
@@ -148,13 +149,13 @@ class Trainer:
 
         # Training phase
         with self.timer("_train"):
-            losses_stats = self.core_loop.training_phase(
+            losses_stats, epochs_trained = self.core_loop.training_phase(
                 epoch=self._context.epoch,
                 training_env_id=slice(0, self._cfg.batch_size),
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
             )
-            self._context.epoch += self._cfg.update_epochs
+            self._context.epoch += epochs_trained
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
