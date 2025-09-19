@@ -365,7 +365,7 @@ def make_curriculum(
 
 
 def train(
-    curriculum_style: str = "terrain", lp_params: LPParams = LPParams()
+    curriculum_style: str = "longer_chains_more_sinks", lp_params: LPParams = LPParams()
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
@@ -394,13 +394,13 @@ def train(
         "longer_chains": {
             "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
             "num_sinks": [0, 1, 2],
-            "room_sizes": ["small", "medium", "large"],
+            "room_sizes": ["medium", "large"],
             "lp_params": lp_params,
         },
         "longer_chains_more_sinks": {
             "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
             "num_sinks": [0, 1, 2, 3, 4],
-            "room_sizes": ["small", "medium", "large"],
+            "room_sizes": ["medium", "large"],
             "lp_params": lp_params,
         },
         "terrain": {
