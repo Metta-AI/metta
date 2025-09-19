@@ -553,13 +553,17 @@ def train(
                 logger.info(f"Collected {len(sims)} simulations to evaluate")
 
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
+                evaluate_remote = trainer_cfg.evaluation.evaluate_remote
+
+                logger.info(f"trainer_cfg.evaluation.evaluate_local {evaluate_local}")
+                logger.info(f"trainer_cfg.evaluation.evaluate_remote {evaluate_remote}")
                 if latest_remote_policy_uri:
                     policy_uri = latest_remote_policy_uri
                 else:
                     checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
                     policy_uri = checkpoint_uris[0] if checkpoint_uris else None
 
-                if trainer_cfg.evaluation.evaluate_remote:
+                if evaluate_remote:
                     try:
                         # Get the most recent checkpoint URI for remote evaluation
                         # Prefer wandb artifact if available, otherwise use local file
