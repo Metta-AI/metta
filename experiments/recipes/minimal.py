@@ -2,7 +2,7 @@
 
 import mettagrid.builder.envs as eb
 from metta.eval.analysis_config import AnalysisConfig
-from mettagrid.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 def env_recipe(num_agents: int = 4) -> MettaGridConfig:

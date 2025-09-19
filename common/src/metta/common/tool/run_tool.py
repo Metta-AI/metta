@@ -399,6 +399,7 @@ def preprocess_recipe_path(path: str) -> str:
         train arena -> experiments.recipes.arena.train_recipe
         evaluate navigation -> experiments.recipes.navigation.evaluate_recipe
         play arena_basic_easy_shaped -> experiments.recipes.arena_basic_easy_shaped.play_recipe
+        custom_tool arena -> experiments.recipes.arena.mettagrid_recipe (fallback)
     """
     # Known tool names that map to recipe functions
     TOOL_MAPPINGS = {
@@ -411,12 +412,17 @@ def preprocess_recipe_path(path: str) -> str:
     }
 
     parts = path.split()
-    if len(parts) == 2 and parts[0] in TOOL_MAPPINGS:
+    if len(parts) == 2:
         tool_name, recipe_name = parts
-        # Convert to full path: experiments.recipes.{recipe_name}.{tool_name}_recipe
-        return f"experiments.recipes.{recipe_name}.{TOOL_MAPPINGS[tool_name]}"
+        if tool_name in TOOL_MAPPINGS:
+            # Known tool: use specific recipe function
+            return f"experiments.recipes.{recipe_name}.{TOOL_MAPPINGS[tool_name]}"
+        else:
+            # Unknown tool: fall back to mettagrid_recipe
+            # This allows custom tools to work with the short syntax
+            return f"experiments.recipes.{recipe_name}.mettagrid_recipe"
 
-    # Not a short syntax, return as-is
+    # Not a short syntax (not exactly 2 parts), return as-is
     return path
 
 
