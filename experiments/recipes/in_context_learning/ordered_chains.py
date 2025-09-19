@@ -569,6 +569,13 @@ def sweep(
     })
 
     lp_protein_config.metric="experience/rewards"
+    lp_protein_config.parameters["trainer.batch_size"] = ParameterConfig(
+        distribution="int_uniform",
+        min=2**22,
+        max=2**26,
+        mean=2**24,
+        scale="auto",
+    )
     return protein_sweep(
         recipe="experiments.recipes.in_context_learning.ordered_chains",
         train="train",  # Use the sweep-specific wrapper

@@ -1,5 +1,6 @@
 """Standard sweep configurations using the adaptive module."""
 
+from experiments.sweeps.protein_configs import PPO_BASIC
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 from metta.tools.sweep import SweepTool
 from metta.tools.sweep import DispatcherType
@@ -9,7 +10,7 @@ def protein_sweep(
     recipe: str = "experiments.recipes.arena",
     train: str = "train",
     eval: str = "evaluate",
-    protein_config: ProteinConfig | None = None,
+    protein_config: ProteinConfig = PPO_BASIC,
     max_trials: int = 300,
     max_parallel_jobs: int = 6,
     max_timesteps: int = 1000000,
