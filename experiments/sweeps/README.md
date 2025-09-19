@@ -2,7 +2,9 @@
 
 ## Overview
 
-The new sweep orchestrator provides a stateless, distributed-friendly hyperparameter optimization system for Metta. It uses Protein (Bayesian optimization) to efficiently explore hyperparameter spaces and WandB for persistent state management.
+The new sweep orchestrator provides a stateless, distributed-friendly hyperparameter optimization system for Metta. It
+uses Protein (Bayesian optimization) to efficiently explore hyperparameter spaces and WandB for persistent state
+management.
 
 ## Quick Start
 
@@ -37,7 +39,8 @@ uv run ./tools/run.py experiments.sweeps.standard.ppo \
 
 ## Step-by-Step Sweep Workflow Example
 
-Let's walk through a complete PPO sweep using a custom recipe (`arena_basic_easy_shaped`) with specific entrypoints. This example shows exactly how commands are built and what gets executed.
+Let's walk through a complete PPO sweep using a custom recipe (`arena_basic_easy_shaped`) with specific entrypoints.
+This example shows exactly how commands are built and what gets executed.
 
 ### Step 1: Launch the Sweep
 
@@ -54,7 +57,9 @@ uv run ./tools/run.py experiments.sweeps.standard.ppo \
 ### Step 2: What Happens Behind the Scenes
 
 #### 2.1 Sweep Initialization
+
 The orchestrator starts and creates the sweep configuration:
+
 ```
 [SweepOrchestrator] Starting sweep: ppo_arena_basic
 [SweepOrchestrator] Recipe: experiments.recipes.arena_basic_easy_shaped.train
@@ -74,6 +79,7 @@ The Protein optimizer suggests hyperparameters, and the orchestrator builds the 
 ```
 
 **Actual dispatched command (via SkypilotDispatcher for training):**
+
 ```bash
 /Users/axel/Documents/Softmax/metta-repo/devops/skypilot/launch.py \
     --no-spot \
@@ -108,13 +114,15 @@ After training completes, the orchestrator schedules evaluation:
 ```
 
 **Actual dispatched command (via LocalDispatcher for evaluation):**
+
 ```bash
 uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.evaluate \
     policy_uri=file://./train_dir/ppo_arena_basic_trial_0001/checkpoints/ppo_arena_basic_trial_0001:v50.pt \
     push_metrics_to_wandb=True
 ```
 
-This command is executed locally (not sent to Skypilot). The evaluation command then submits the evaluation task to a remote evaluation server (separate from Skypilot).
+This command is executed locally (not sent to Skypilot). The evaluation command then submits the evaluation task to a
+remote evaluation server (separate from Skypilot).
 
 #### 2.5 Evaluation Results
 
@@ -135,6 +143,7 @@ The Protein optimizer uses Bayesian optimization to suggest better hyperparamete
 ```
 
 **Trial 2 Training Command:**
+
 ```bash
 /Users/axel/Documents/Softmax/metta-repo/devops/skypilot/launch.py \
     --no-spot \
@@ -184,7 +193,8 @@ After all trials complete:
 
 ### Key Points
 
-- **Hybrid dispatch**: Training commands go through Skypilot to cloud GPUs, evaluation commands execute locally but submit tasks to remote evaluation servers
+- **Hybrid dispatch**: Training commands go through Skypilot to cloud GPUs, evaluation commands execute locally but
+  submit tasks to remote evaluation servers
 - **Parameter paths**: Note the full paths like `trainer.losses.loss_configs.ppo.clip_coef`
 - **Bayesian optimization**: Each trial learns from previous results
 - **Automatic checkpointing**: Training saves checkpoints that evaluation loads
@@ -214,6 +224,7 @@ dispatcher_type=hybrid_remote_train
 After the recent merge, the PPO configuration structure has changed:
 
 ### Old Structure
+
 ```
 trainer.ppo.clip_coef
 trainer.ppo.ent_coef
@@ -222,6 +233,7 @@ trainer.ppo.vf_coef
 ```
 
 ### New Structure
+
 ```
 trainer.losses.loss_configs.ppo.clip_coef
 trainer.losses.loss_configs.ppo.ent_coef
@@ -237,7 +249,8 @@ The sweep system consists of four main components:
 
 1. **Orchestrator** (`metta/sweep/controller.py`): Stateless controller that coordinates the sweep
 2. **Scheduler** (`metta/sweep/scheduler/`): Decides which jobs to run next
-   - `BatchedSyncedOptimizingScheduler`: Uses Protein optimizer for Bayesian optimization with batched synchronous execution
+   - `BatchedSyncedOptimizingScheduler`: Uses Protein optimizer for Bayesian optimization with batched synchronous
+     execution
 3. **Store** (`metta/sweep/store/wandb.py`): Persistent state management via WandB
 4. **Dispatcher**: Executes jobs
    - `LocalDispatcher`: Local subprocess execution with output capture
@@ -255,6 +268,7 @@ The sweep tool now accepts these arguments:
 - `eval_entrypoint`: Evaluation function name (e.g., `evaluate`)
 
 Example with all arguments:
+
 ```bash
 uv run ./tools/run.py experiments.sweeps.standard.quick_test \
     sweep_name=my_custom_sweep \
@@ -336,6 +350,7 @@ def my_custom_sweep(
 ### Required Fields
 
 Each `ParameterConfig` requires:
+
 - `min`: Minimum value
 - `max`: Maximum value
 - `distribution`: Distribution type
@@ -347,6 +362,7 @@ Each `ParameterConfig` requires:
 ### Real-time Monitoring Latency
 
 The sweep monitor may show outdated progress compared to live training output. This is because:
+
 - **WandB API latency**: The monitor polls WandB's API which has network and caching delays
 - **Subprocess output**: Training logs stream directly in real-time
 
@@ -355,6 +371,7 @@ The subprocess output (e.g., "57.6% complete") is more current than the monitor 
 ### Via Logs
 
 The orchestrator provides detailed logging:
+
 ```
 [SweepOrchestrator] Starting sweep: my_sweep
 [BatchedSyncedScheduler] 🚀 Scheduling trial 1/10: trial_0001
@@ -367,6 +384,7 @@ The orchestrator provides detailed logging:
 ### Via WandB
 
 All sweep runs are grouped in WandB by sweep name. View them at:
+
 ```
 https://wandb.ai/YOUR_ENTITY/YOUR_PROJECT/groups/SWEEP_NAME
 ```
@@ -396,6 +414,7 @@ SweepTool(
 ### Optimization Methods
 
 The Protein optimizer supports three methods:
+
 - `"bayes"`: Bayesian optimization (default, most efficient)
 - `"random"`: Random search
 - `"genetic"`: Genetic algorithm for multi-objective optimization
@@ -411,6 +430,7 @@ uv run ./tools/run.py experiments.sweeps.standard.ppo \
 ```
 
 The orchestrator will:
+
 1. Fetch existing runs from WandB
 2. Continue from where it left off
 3. Schedule remaining trials
@@ -443,6 +463,7 @@ dispatcher_type=local capture_output=true
 ## API Reference
 
 See the docstrings in:
+
 - `metta/tools/sweep.py`: Main tool interface
 - `metta/sweep/controller.py`: Core controller logic
 - `metta/sweep/protein_config.py`: Parameter configuration
