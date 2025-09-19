@@ -84,6 +84,7 @@ testing = [
   "pytest-timeout>=2.4.0",
   "pytest-xdist>=3.8.0",
   "testcontainers>=4.10.0",
+  "pyright>=1.1.401",
 ]
 lint = ["cpplint>=2.0.2", "ruff>=0.11.13"]
 interactive = [
@@ -97,7 +98,7 @@ interactive = [
   "traitlets>=5.14.3",
   "widgetsnbextension>=4.0.14",
 ]
-dev = [{ include-group = "testing" }, { include-group = "lint" }, "pyright>=1.1.401"]
+dev = [{ include-group = "testing" }, { include-group = "lint" }]
 
 [project.scripts]
 metta = "metta.setup.metta_cli:main"

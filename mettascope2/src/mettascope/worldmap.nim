@@ -126,7 +126,7 @@ proc drawObjects*() =
       )
     else:
       bxy.drawImage(
-        "objects/" & typeName,
+        replay.typeImages[thing.typeId],
         pos.vec2,
         angle = 0,
         scale = 1/200
@@ -305,10 +305,9 @@ proc drawInventory*() =
     var x = -widthItems / 2
     var xAdvance = widthItems / numItems.float32
     for itemAmount in inventory:
-      let itemName = replay.itemNames[itemAmount.itemId]
       for i in 0 ..< itemAmount.count:
         bxy.drawImage(
-          "resources/" & itemName,
+          replay.itemImages[itemAmount.itemId],
           obj.location.at.xy.vec2 + vec2(x.float32, -0.5),
           angle = 0,
           scale = 1/200 / 4
@@ -340,6 +339,113 @@ proc drawRewards*() =
           scale = 1/200/8
         )
         rewardX += advanceX
+
+proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
+  case orientation
+  of 0:
+    return (x, y - 1)
+  of 1:
+    return (x, y + 1)
+  of 2:
+    return (x - 1, y)
+  of 3:
+    return (x + 1, y)
+  else:
+    return (x, y)
+
+proc drawThoughtBubbles*() =
+  # Draw the thought bubbles of the selected agent.
+  # The idea behind thought bubbles is to show what an agent is thinking.
+  # We don't have this directly from the policy yet, so the next best thing
+  # is to show a future "key action."
+  # It should be a good proxy for what the agent is thinking about.
+  if selection == nil or not selection.isAgent:
+    return
+
+  var keyAction = -1
+  var keyParam = -1
+  var keyStep = -1
+  var actionHasTarget = false
+  let actionStepEnd = min(step + 20, replay.maxSteps)
+  for actionStep in step ..< actionStepEnd:
+    # We need to find a key action in the future.
+    # A key action is a successful action that is not a no-op, rotate, or move.
+    # It must not be more than 20 steps in the future.
+    let actionId = selection.actionId.at(actionStep)
+    if actionId == -1:
+      continue
+    let actionParam = selection.actionParameter.at(actionStep)
+    if actionParam == -1:
+      continue
+    let actionSuccess = selection.actionSuccess.at(actionStep)
+    if not actionSuccess:
+      continue
+    let actionName = replay.actionNames[actionId]
+    if actionName == "noop" or
+    actionName == "rotate" or
+    actionName == "move" or
+    actionName == "move_cardinal" or
+    actionName == "move_8way":
+      continue
+    keyAction = actionId
+    keyParam = actionParam
+    keyStep = actionStep
+    actionHasTarget = not (actionName == "attack" or actionName == "attack_nearest")
+    break
+
+  if keyAction != -1 and keyParam != -1:
+    let loc = selection.location.at(step).xy.vec2
+    if actionHasTarget and keyStep != step:
+      # Draw an arrow on a circle around the target, pointing at it.
+      let targetLoc = selection.location.at(keyStep).xy
+      let (targetX, targetY) = applyOrientationOffset(targetLoc.x, targetLoc.y,
+          selection.orientation.at(keyStep))
+      let angle = arctan2(targetX.float32 - loc.x, targetY.float32 - loc.y)
+      let r = 1.0f / 3.0f
+      let tX = targetX.float32 - sin(angle) * r
+      let tY = targetY.float32 - cos(angle) * r
+      bxy.drawImage(
+        "actions/arrow",
+        vec2(tX, tY),
+        angle = angle + PI,
+        scale = 1/200
+      )
+    let pos = loc.vec2 + vec2(0.5, -0.5)
+    # We have a key action, so draw the thought bubble.
+    # Draw the key action icon with gained or lost resources.
+    bxy.drawImage(
+      if step == keyStep: "actions/thoughts_lightning" else: "actions/thoughts",
+      pos,
+      angle = 0,
+      scale = 1/200
+    )
+    # Draw the action icon.
+    bxy.drawImage(
+      if keyAction < replay.actionIconImages.len:
+        replay.actionIconImages[keyAction] else: "actions/icons/unknown",
+      pos,
+      angle = 0,
+      scale = 1/200/4
+    )
+
+    # Draw the resources lost on the left and gained on the right.
+    var gainX = pos.x + 32/200
+    var lossX = pos.x - 32/200
+    let gainMap = selection.gainMap.at(keyStep)
+    for item in gainMap:
+      var drawX = 0.0f
+      if item.count > 0:
+        drawX = gainX
+        gainX += 8/200
+      else:
+        drawX = lossX
+        lossX -= 8/200
+      bxy.drawImage(
+        replay.itemImages[item.itemId],
+        vec2(drawX, pos.y),
+        angle = 0,
+        scale = 1/200/8
+      )
 
 proc drawInfoText*() =
 
@@ -435,19 +541,18 @@ proc drawWorldMain*() =
   drawObjects()
   drawActions()
   drawAgentDecorations()
-
-  if settings.showGrid:
-    drawGrid()
-  if settings.showVisualRange:
-    drawVisualRanges()
-
   drawSelection()
   drawInventory()
   drawRewards()
 
+  if settings.showVisualRange:
+    drawVisualRanges()
   if settings.showFogOfWar:
     drawFogOfWar()
+  if settings.showGrid:
+    drawGrid()
 
+  drawThoughtBubbles()
 
 proc fitFullMap*(panel: Panel) =
   ## Set zoom and pan so the full map fits in the panel.

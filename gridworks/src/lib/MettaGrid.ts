@@ -1,4 +1,4 @@
-import encoding from "./encoding.json" with { type: "json" };
+import encoding from "./encoding.json" assert { type: "json" };
 
 const typedEncoding: Record<string, string[]> = encoding;
 
