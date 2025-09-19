@@ -53,7 +53,7 @@ class LPParams:
     def __init__(
         self,
         ema_timescale: float = 0.001,
-        exploration_bonus: float = 0.1,
+        exploration_bonus: float = 0.08,
         max_memory_tasks: int = 1000,
         max_slice_axes: int = 3,
         progress_smoothing: float = 0.1,
