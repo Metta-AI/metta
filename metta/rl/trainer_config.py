@@ -2,7 +2,7 @@ from typing import Any, ClassVar, List, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
+from metta.cogworks.curriculum import CurriculumConfig, single_task_curriculum
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -125,7 +125,7 @@ class TrainerConfig(Config):
     rollout_workers: int = Field(default=1, gt=0)
 
     # Default curriculum: Simple environment for initial experiments
-    curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
+    curriculum: CurriculumConfig = single_task_curriculum(make_arena(num_agents=24))
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)

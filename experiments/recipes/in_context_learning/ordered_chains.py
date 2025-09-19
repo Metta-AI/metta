@@ -3,17 +3,17 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import (
-    CurriculumConfig,
     CurriculumAlgorithmConfig,
+    CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.mettagrid.builder import empty_converters
-from metta.mettagrid.builder.envs import make_icl_resource_chain
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder import empty_converters
+from mettagrid.builder.envs import make_icl_resource_chain
+from mettagrid.mettagrid_config import MettaGridConfig
 from pydantic import Field
 
 CONVERTER_TYPES = {

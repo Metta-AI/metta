@@ -4,9 +4,9 @@ from typing import Sequence
 
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 def mg_to_simulation(mg: MettaGridConfig) -> SimulationConfig:

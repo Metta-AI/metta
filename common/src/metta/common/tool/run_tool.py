@@ -204,6 +204,34 @@ def type_parse(value: Any, annotation: Any) -> Any:
 # --------------------------------------------------------------------------------------
 
 
+def preprocess_recipe_path(path: str) -> str:
+    """Convert short recipe syntax to full module path.
+
+    Examples:
+        train arena -> experiments.recipes.arena.train_recipe
+        evaluate navigation -> experiments.recipes.navigation.evaluate_recipe
+        play arena_basic_easy_shaped -> experiments.recipes.arena_basic_easy_shaped.play_recipe
+    """
+    # Known tool names that map to recipe functions
+    TOOL_MAPPINGS = {
+        "train": "train_recipe",
+        "evaluate": "evaluate_recipe",
+        "analyze": "analyze_recipe",
+        "play": "play_recipe",
+        "replay": "replay_recipe",
+        "sim": "sim_recipe",
+    }
+
+    parts = path.split()
+    if len(parts) == 2 and parts[0] in TOOL_MAPPINGS:
+        tool_name, recipe_name = parts
+        # Convert to full path: experiments.recipes.{recipe_name}.{tool_name}_recipe
+        return f"experiments.recipes.{recipe_name}.{TOOL_MAPPINGS[tool_name]}"
+
+    # Not a short syntax, return as-is
+    return path
+
+
 def main():
     """Main entry point using argparse."""
     parser = argparse.ArgumentParser(
@@ -212,12 +240,13 @@ def main():
         allow_abbrev=True,
         epilog="""
 Examples:
-  %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
-  %(prog)s experiments.recipes.arena.play \
-    policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
-  %(prog)s experiments.recipes.arena.train optim='{"lr":1e-3,"beta1":0.9}'
+  %(prog)s train arena run=test_123 trainer.total_timesteps=100000
+  %(prog)s evaluate navigation policy_uri=file://./checkpoints
+  %(prog)s play arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+  %(prog)s experiments.recipes.arena.train_recipe run=test_123  # Full path also works
 
 Rules:
+  - Short syntax: "train arena" -> experiments.recipes.arena.train_recipe
   - Dotted keys (a.b.c) are configuration paths and will be nested and validated.
   - Exact parameter names are function arguments for factory functions.
   - Values: true/false, null/none, JSON containers {...}/[...], or int/float/string.
@@ -229,15 +258,36 @@ constructor/function vs configuration overrides based on introspection.
         """,
     )
 
-    parser.add_argument(
-        "make_tool_cfg_path", help="Path to the function or Tool class (e.g., experiments.recipes.arena.train)"
-    )
+    parser.add_argument("make_tool_cfg_path", help="Tool and recipe (e.g., 'train arena') or full path", nargs="+")
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
     parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
 
     # Parse known args; keep unknowns to validate separation between runner flags and tool args
     known_args, unknown_args = parser.parse_known_args()
+
+    # Handle the path as either a list (short syntax) or join it into a single string
+    # Separate tool/recipe from arguments (which contain '=')
+    path_parts = []
+    extra_args = []
+    for part in known_args.make_tool_cfg_path:
+        if "=" in part:
+            extra_args.append(part)
+        else:
+            # Once we hit an arg, rest are args too
+            if extra_args:
+                extra_args.append(part)
+            else:
+                path_parts.append(part)
+
+    # Prepend extra args to the args list
+    if extra_args:
+        known_args.args = extra_args + (known_args.args or [])
+
+    path_str = " ".join(path_parts)
+
+    # Preprocess the path to handle short syntax
+    make_tool_cfg_path = preprocess_recipe_path(path_str)
 
     # Initialize logging and environment
     init_logging()
@@ -251,7 +301,7 @@ constructor/function vs configuration overrides based on introspection.
             f"{red('Error:')} Unknown runner option(s): "
             + ", ".join(dash_unknowns)
             + "\nUse `--` to separate runner options from tool args, e.g.:\n"
-            + f"  {os.path.basename(sys.argv[0])} {known_args.make_tool_cfg_path} -- trainer.total_timesteps=100000"
+            + f"  {os.path.basename(sys.argv[0])} {path_str} -- trainer.total_timesteps=100000"
         )
         return 2
     all_args = (known_args.args or []) + unknown_args
@@ -269,13 +319,13 @@ constructor/function vs configuration overrides based on introspection.
     # Build nested payload from dotted paths for Pydantic validation
     nested_cli = nestify(cli_args)
 
-    output_info(f"\n{bold(cyan('Loading tool:'))} {known_args.make_tool_cfg_path}")
+    output_info(f"\n{bold(cyan('Loading tool:'))} {make_tool_cfg_path}")
 
     # Load the tool configuration function/class
     try:
-        make_tool_cfg = load_symbol(known_args.make_tool_cfg_path)
+        make_tool_cfg = load_symbol(make_tool_cfg_path)
     except Exception as e:
-        output_exception(f"{red('Error loading')} {known_args.make_tool_cfg_path}: {e}")
+        output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
         return 1
 
     # ----------------------------------------------------------------------------------
@@ -379,9 +429,7 @@ constructor/function vs configuration overrides based on introspection.
         return 1
 
     if not isinstance(tool_cfg, Tool):
-        output_error(
-            f"{red('Error:')} {known_args.make_tool_cfg_path} must return a Tool instance, got {type(tool_cfg)}"
-        )
+        output_error(f"{red('Error:')} {make_tool_cfg_path} must return a Tool instance, got {type(tool_cfg)}")
         return 1
 
     # ----------------------------------------------------------------------------------
@@ -421,7 +469,7 @@ constructor/function vs configuration overrides based on introspection.
         output_info(f"\n{bold(green('✅ Configuration validation successful'))}")
         if known_args.verbose:
             output_info(f"Tool type: {type(tool_cfg).__name__}")
-            output_info(f"Module: {known_args.make_tool_cfg_path}")
+            output_info(f"Module: {make_tool_cfg_path}")
         return 0
 
     # ----------------------------------------------------------------------------------
