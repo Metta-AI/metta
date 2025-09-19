@@ -58,7 +58,7 @@ class LPParams:
         max_slice_axes: int = 3,
         progress_smoothing: float = 0.1,
         enable_detailed_slice_logging: bool = False,
-        num_active_tasks: int = 1000,
+        num_active_tasks: int = 3000,
         rand_task_rate: float = 0.25,
     ):
         self.ema_timescale = ema_timescale
