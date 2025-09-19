@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import torch
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
+from metta.rl.training._typing import Policy
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
-
-if TYPE_CHECKING:
-    from metta.agent.policy import Policy
 
 
 class Loss:
@@ -48,7 +46,7 @@ class Loss:
 
     def __init__(
         self,
-        policy: "Policy",
+        policy: Policy,
         trainer_cfg: Any,
         env: TrainingEnvironment,
         device: torch.device,

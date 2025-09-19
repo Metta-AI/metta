@@ -3,23 +3,26 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import training_environment
+from ._typing import Policy, PolicyArchitecture
 from .component import TrainerComponent
 from .context import TrainerContext
 from .distributed_helper import DistributedHelper
-from .evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
-from .gradient_stats import GradientStatsComponent, GradientStatsConfig
-from .heartbeat import HeartbeatConfig, HeartbeatWriter
-from .hyperparameter import HyperparameterComponent, HyperparameterConfig
-from .monitoring_component import MonitoringComponent
-from .policy_checkpointer import PolicyCheckpointer, PolicyCheckpointerConfig
-from .policy_uploader import PolicyUploader, PolicyUploaderConfig
-from .stats_reporter import NoOpStatsReporter, StatsConfig, StatsReporter, StatsState
-from .torch_profiler_component import TorchProfilerComponent
-from .trainer_checkpointer import TrainerCheckpointer, TrainerCheckpointerConfig
-from .wandb_abort import WandbAbortComponent
+
+if TYPE_CHECKING:  # pragma: no cover - only active during static analysis
+    from .evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
+    from .gradient_stats import GradientStatsComponent, GradientStatsConfig
+    from .heartbeat import HeartbeatConfig, HeartbeatWriter
+    from .hyperparameter import HyperparameterComponent, HyperparameterConfig
+    from .monitoring_component import MonitoringComponent
+    from .policy_checkpointer import PolicyCheckpointer, PolicyCheckpointerConfig
+    from .policy_uploader import PolicyUploader, PolicyUploaderConfig
+    from .stats_reporter import NoOpStatsReporter, StatsConfig, StatsReporter, StatsState
+    from .torch_profiler_component import TorchProfilerComponent
+    from .trainer_checkpointer import TrainerCheckpointer, TrainerCheckpointerConfig
+    from .wandb_abort import WandbAbortComponent
 
 __all__ = [
     "CoreTrainingLoop",
@@ -41,6 +44,8 @@ __all__ = [
     "StatsState",
     "NoOpStatsReporter",
     "TrainerComponent",
+    "Policy",
+    "PolicyArchitecture",
     "MonitoringComponent",
     "TorchProfilerComponent",
     "HeartbeatWriter",
@@ -55,6 +60,64 @@ __all__ = [
 _LAZY_EXPORTS = {
     "CoreTrainingLoop": ("metta.rl.training.core", "CoreTrainingLoop"),
     "RolloutResult": ("metta.rl.training.core", "RolloutResult"),
+    "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
+    "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),
+    "NoOpEvaluator": ("metta.rl.training.evaluator", "NoOpEvaluator"),
+    "GradientStatsComponent": (
+        "metta.rl.training.gradient_stats",
+        "GradientStatsComponent",
+    ),
+    "GradientStatsConfig": (
+        "metta.rl.training.gradient_stats",
+        "GradientStatsConfig",
+    ),
+    "HeartbeatConfig": ("metta.rl.training.heartbeat", "HeartbeatConfig"),
+    "HeartbeatWriter": ("metta.rl.training.heartbeat", "HeartbeatWriter"),
+    "HyperparameterComponent": (
+        "metta.rl.training.hyperparameter",
+        "HyperparameterComponent",
+    ),
+    "HyperparameterConfig": (
+        "metta.rl.training.hyperparameter",
+        "HyperparameterConfig",
+    ),
+    "MonitoringComponent": (
+        "metta.rl.training.monitoring_component",
+        "MonitoringComponent",
+    ),
+    "PolicyCheckpointer": (
+        "metta.rl.training.policy_checkpointer",
+        "PolicyCheckpointer",
+    ),
+    "PolicyCheckpointerConfig": (
+        "metta.rl.training.policy_checkpointer",
+        "PolicyCheckpointerConfig",
+    ),
+    "PolicyUploader": ("metta.rl.training.policy_uploader", "PolicyUploader"),
+    "PolicyUploaderConfig": (
+        "metta.rl.training.policy_uploader",
+        "PolicyUploaderConfig",
+    ),
+    "StatsReporter": ("metta.rl.training.stats_reporter", "StatsReporter"),
+    "StatsConfig": ("metta.rl.training.stats_reporter", "StatsConfig"),
+    "StatsState": ("metta.rl.training.stats_reporter", "StatsState"),
+    "NoOpStatsReporter": ("metta.rl.training.stats_reporter", "NoOpStatsReporter"),
+    "TorchProfilerComponent": (
+        "metta.rl.training.torch_profiler_component",
+        "TorchProfilerComponent",
+    ),
+    "TrainerCheckpointer": (
+        "metta.rl.training.trainer_checkpointer",
+        "TrainerCheckpointer",
+    ),
+    "TrainerCheckpointerConfig": (
+        "metta.rl.training.trainer_checkpointer",
+        "TrainerCheckpointerConfig",
+    ),
+    "WandbAbortComponent": (
+        "metta.rl.training.wandb_abort",
+        "WandbAbortComponent",
+    ),
 }
 
 

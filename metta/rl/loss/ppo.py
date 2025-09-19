@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Tuple
+from typing import Any, Tuple
 
 import numpy as np
 import torch
@@ -11,12 +11,10 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
+from metta.rl.training._typing import Policy
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.config import Config
-
-if TYPE_CHECKING:
-    from metta.agent.policy import Policy
 
 
 class PrioritizedExperienceReplayConfig(Config):

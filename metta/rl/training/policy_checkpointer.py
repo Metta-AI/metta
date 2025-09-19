@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.training._typing import Policy, PolicyArchitecture
 from metta.rl.training.component import TrainerComponent
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.training_environment import EnvironmentMetaData
 from mettagrid.config import Config
-
-if TYPE_CHECKING:
-    from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
 

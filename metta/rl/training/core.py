@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import Any, Dict, List
 
 import torch
 from pydantic import ConfigDict
@@ -13,8 +13,7 @@ from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.config import Config
 
-if TYPE_CHECKING:
-    from metta.agent.policy import Policy
+from ._typing import Policy
 
 logger = logging.getLogger(__name__)
 
