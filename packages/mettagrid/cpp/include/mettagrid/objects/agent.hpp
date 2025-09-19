@@ -120,6 +120,23 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
+    // Apply resource limits if adding items
+    if (attempted_delta > 0) {
+      auto limit_it = this->resource_limits.find(item);
+      if (limit_it != this->resource_limits.end()) {
+        InventoryQuantity current_amount = 0;
+        auto inv_it = this->inventory.find(item);
+        if (inv_it != this->inventory.end()) {
+          current_amount = inv_it->second;
+        }
+        InventoryQuantity limit = limit_it->second;
+        InventoryQuantity max_can_add = limit - current_amount;
+        if (max_can_add < attempted_delta) {
+          attempted_delta = max_can_add;
+        }
+      }
+    }
+
     const InventoryDelta delta = this->HasInventory::update_inventory(item, attempted_delta);
 
     // Update stats
