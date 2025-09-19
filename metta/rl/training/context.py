@@ -14,8 +14,8 @@ from metta.rl.training.training_environment import TrainingEnvironment
 
 if TYPE_CHECKING:
     from metta.rl.trainer import Trainer
-    from metta.rl.training.component import TrainerComponent
     from metta.rl.trainer_config import TrainerConfig
+    from metta.rl.training.component import TrainerComponent
 
 T_Component = TypeVar("T_Component")
 

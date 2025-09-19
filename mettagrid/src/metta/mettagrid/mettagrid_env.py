@@ -222,7 +222,9 @@ class MettaGridEnv(MettaGridPufferBase):
 
         self.timer.stop("process_episode_stats")
 
-    def _write_episode_stats(self, stats: EpisodeStats, episode_rewards: np.ndarray, replay_url: Optional[str]) -> None:
+    def _write_episode_stats(
+        self, stats: "EpisodeStats", episode_rewards: np.ndarray, replay_url: Optional[str]
+    ) -> None:
         """Write episode statistics to stats writer."""
         if not self._stats_writer or not self._episode_id:
             return
