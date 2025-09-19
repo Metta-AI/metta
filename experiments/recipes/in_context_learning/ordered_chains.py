@@ -13,7 +13,7 @@ from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_icl_resource_chain
-from mettagrid.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 from pydantic import Field
 
 CONVERTER_TYPES = {
