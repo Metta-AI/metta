@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import Field
 
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.component_context import ComponentContext
 
 logger = logging.getLogger(__name__)
 
@@ -27,23 +27,23 @@ class TrainerComponent:
     _epoch_interval: int = Field(default=1, ge=1)
     _step_interval: int = Field(default=1, ge=1)
 
-    _context: Optional[TrainerContext] = None
+    _context: Optional[ComponentContext] = None
 
     def __init__(self, epoch_interval: int = 1, step_interval: int = 1) -> None:
         self._epoch_interval = epoch_interval
         self._step_interval = step_interval
 
-    def register(self, context: TrainerContext) -> None:
+    def register(self, context: ComponentContext) -> None:
         """Register this component with the trainer context."""
 
         self._context = context
 
     @property
-    def context(self) -> TrainerContext:
+    def context(self) -> ComponentContext:
         """Return the trainer context associated with this component."""
 
         if self._context is None:
-            raise RuntimeError("TrainerComponent has not been registered with a TrainerContext")
+            raise RuntimeError("TrainerComponent has not been registered with a ComponentContext")
         return self._context
 
     def on_step(self, infos: Dict[str, Any]) -> None:

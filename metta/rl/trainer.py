@@ -1,12 +1,12 @@
 import logging
-from typing import Any, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional, Type
 
 import torch
 
 from metta.agent.policy import Policy
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.component import TrainerCallback, TrainerComponent
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.context import ComponentContext, TrainerState
 from metta.rl.training.core import CoreTrainingLoop
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
@@ -68,7 +68,7 @@ class Trainer:
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
 
-        experience = Experience.from_losses(
+        self._experience = Experience.from_losses(
             total_agents=parallel_agents,
             batch_size=self._cfg.batch_size,
             bptt_horizon=self._cfg.bptt_horizon,
@@ -81,37 +81,37 @@ class Trainer:
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
 
-        self._context = TrainerContext(
-            trainer=self,
+        self._state = TrainerState()
+        self._context = ComponentContext(
+            state=self._state,
             policy=self._policy,
             env=self._env,
-            experience=experience,
+            experience=self._experience,
             optimizer=self.optimizer,
             config=self._cfg,
             device=self._device,
             stopwatch=self.timer,
             distributed=self._distributed_helper,
-            run_dir=None,
-            run_name=None,
         )
-        self._context.get_train_epoch_fn = lambda: self._train_epoch
-        self._context.set_train_epoch_fn = lambda fn: setattr(self, "_train_epoch", fn)
+        self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
+        self._context.set_train_epoch_fn = self._set_train_epoch_callable
+
+        self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
-            experience=experience,
+            experience=self._experience,
             losses=losses,
             optimizer=self.optimizer,
             device=self._device,
             context=self._context,
-            accumulate_minibatches=experience.accumulate_minibatches,
         )
 
         for loss in losses.values():
             loss.attach_context(self._context)
 
     @property
-    def context(self) -> TrainerContext:
+    def context(self) -> ComponentContext:
         """Return the shared trainer context."""
 
         return self._context
@@ -120,8 +120,8 @@ class Trainer:
         """Run the main training loop."""
 
         try:
-            while self._context.agent_step < self._cfg.total_timesteps:
-                self._train_epoch()
+            while self._state.agent_step < self._cfg.total_timesteps:
+                self._train_epoch_callable()
 
         except Exception:
             self._invoke_callback(TrainerCallback.FAILURE)
@@ -130,12 +130,12 @@ class Trainer:
         self._distributed_helper.synchronize()
         self._invoke_callback(TrainerCallback.TRAINING_COMPLETE)
 
-    def _train_epoch(self) -> None:
-        """Run a single training epoch."""
-        if not self.core_loop:
-            raise RuntimeError("Core loop not initialized")
+    def _set_train_epoch_callable(self, fn: Callable[[], None]) -> None:
+        self._train_epoch_callable = fn
 
-        steps_before = self._context.agent_step
+    def _run_epoch(self) -> None:
+        """Run a single training epoch."""
+        steps_before = self._state.agent_step
         self._context.reset_for_epoch()
 
         # Start new epoch
@@ -165,7 +165,6 @@ class Trainer:
         self._distributed_helper.synchronize()
 
         # Store losses stats for callbacks
-        self.latest_losses_stats = losses_stats
         self._context.latest_losses_stats = losses_stats
 
         # Master-only operations
@@ -177,8 +176,8 @@ class Trainer:
 
         # Log progress
         log_training_progress(
-            epoch=self._context.epoch,
-            agent_step=self._context.agent_step,
+            epoch=self._state.epoch,
+            agent_step=self._state.agent_step,
             prev_agent_step=steps_before,
             total_timesteps=self._cfg.total_timesteps,
             train_time=self.timer.get_last_elapsed("_train"),

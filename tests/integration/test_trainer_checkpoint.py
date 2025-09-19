@@ -11,7 +11,7 @@ from metta.agent.policy import Policy
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.checkpointer import Checkpointer, CheckpointerConfig
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.context import TrainerContext, TrainerState
 from metta.rl.training.context_checkpointer import ContextCheckpointer, ContextCheckpointerConfig
 from metta.rl.training.distributed_helper import DistributedHelper
 from mettagrid.profiling.stopwatch import Stopwatch
@@ -55,18 +55,17 @@ def build_context(tmp_path, policy: Policy, optimizer: torch.optim.Optimizer) ->
     stopwatch.start()
     distributed = DistributedHelper(torch.device("cpu"))
 
+    experience = SimpleNamespace(accumulate_minibatches=1)
     context = TrainerContext(
-        trainer=SimpleNamespace(),
+        state=TrainerState(run_dir=str(tmp_path), run_name="test"),
         policy=policy,
         env=SimpleNamespace(),
-        experience=SimpleNamespace(),
+        experience=experience,
         optimizer=optimizer,
         config=SimpleNamespace(),
         device=torch.device("cpu"),
         stopwatch=stopwatch,
         distributed=distributed,
-        run_dir=tmp_path,
-        run_name="test",
     )
     context.get_train_epoch_fn = lambda: (lambda: None)
     context.set_train_epoch_fn = lambda fn: None
