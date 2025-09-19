@@ -19,8 +19,8 @@ max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
 remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
 
 if [ "$remaining_at_start" -le 0 ]; then
-  initiate_shutdown "max_runtime_reached" \
-    "[INFO] Maximum runtime already exceeded at startup"
+  initiate_shutdown "max_runtime_reached"
+  echo "[INFO] Maximum runtime already exceeded at startup"
   exit 0
 fi
 
@@ -49,8 +49,8 @@ while true; do
     remaining_min=$((remaining / 60))
     echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
   else
-    initiate_shutdown "max_runtime_reached" \
-      "[INFO] Maximum runtime limit reached - terminating process group"
+    echo "[INFO] Maximum runtime limit reached - terminating process group"
+    initiate_shutdown "max_runtime_reached"
     break
   fi
 done

@@ -52,8 +52,8 @@ while true; do
     remaining_min=$((remaining / 60))
     echo "[INFO] Test Job Restart Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining until job restart test"
   else
-    initiate_shutdown "force_restart_test" \
-      "[INFO] Test job restart limit reached - terminating process group"
+    echo "[INFO] Test job restart limit reached - terminating process group"
+    initiate_shutdown "force_restart_test"
     break
   fi
 done

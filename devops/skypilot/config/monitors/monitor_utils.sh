@@ -2,12 +2,10 @@
 set -euo pipefail
 
 # Shared function for coordinated cluster shutdown
-# Usage: initiate_shutdown "reason" "message"
+# Usage: initiate_shutdown "reason"
 initiate_shutdown() {
   local reason="${1:?Missing shutdown reason}"
-  local message="${2:-Initiating shutdown: $reason}"
 
-  echo "[INFO] $message"
   echo "$reason" > "$TERMINATION_REASON_FILE"
 
   # Worker nodes wait to allow master to coordinate

@@ -51,8 +51,8 @@ while true; do
 
   # Check if timeout exceeded
   if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
-    initiate_shutdown "heartbeat_timeout" \
-      "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
+    echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
+    initiate_shutdown "heartbeat_timeout"
     break
   fi
 done

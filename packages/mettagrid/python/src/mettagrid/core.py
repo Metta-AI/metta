@@ -129,7 +129,6 @@ class MettaGridCore:
 
         # Create C++ environment
         c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
-
         self._update_core_buffers()
 
         # Initialize renderer if needed
