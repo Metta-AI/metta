@@ -110,6 +110,8 @@ def train(
                     name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
                 ),
             ],
+            evaluate_remote=True,
+            evaluate_local=False,
         ),
     )
 
