@@ -118,6 +118,7 @@ class FastPolicy(Policy):
         self.cnn_encoder(td)
         self.lstm(td)
         self.actor_1(td)
+        td["actor_1"] = torch.relu(td["actor_1"])
         self.critic_1(td)
         td["critic_1"] = self.critic_activation(td["critic_1"])
         self.value_head(td)
