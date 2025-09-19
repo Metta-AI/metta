@@ -250,7 +250,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         }
 
         icl_env.label = (
-            f"{num_resources}resources_{num_sinks}sinks_{room_size}" + f"_terrain"
+            f"{num_resources}resources_{num_sinks}sinks_{room_size}" + "_terrain"
             if obstacle_type
             else "" + f"_{density}"
             if density
