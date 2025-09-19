@@ -48,6 +48,17 @@ resource "aws_security_group" "redis" {
   }
 }
 
+resource "aws_elasticache_parameter_group" "redis" {
+  name        = "softmax-library-redis-params"
+  family      = "redis7"
+  description = "Parameter group for softmax-library Redis"
+
+  parameter {
+    name  = "maxmemory-policy"
+    value = "noeviction"
+  }
+}
+
 resource "aws_elasticache_replication_group" "main" {
   replication_group_id = "softmax-library-redis"
   description          = "Redis for softmax-library job queue"
@@ -59,6 +70,9 @@ resource "aws_elasticache_replication_group" "main" {
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
   auth_token                 = random_password.redis_password.result
+
+  parameter_group_name = aws_elasticache_parameter_group.redis.name
+  apply_immediately    = true
 
   security_group_ids = [aws_security_group.redis.id]
   subnet_group_name  = aws_elasticache_subnet_group.redis.name
