@@ -34,6 +34,7 @@ CONVERTER_TYPES = {
     "lasery": empty_converters.lasery,
     "factory": empty_converters.factory,
     "temple": empty_converters.temple,
+    "armory": empty_converters.armory,
 }
 
 RESOURCE_TYPES = [
@@ -391,7 +392,7 @@ def train(
             "lp_params": lp_params,
         },
         "longer_chains": {
-            "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
+            "chain_lengths": [2, 3, 4, 5, 6, 7],
             "num_sinks": [0, 1, 2],
             "room_sizes": ["medium", "large"],
             "lp_params": lp_params,
