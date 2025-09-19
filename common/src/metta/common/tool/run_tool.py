@@ -17,6 +17,7 @@ import warnings
 from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
+from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
