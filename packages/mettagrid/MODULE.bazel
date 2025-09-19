@@ -32,3 +32,11 @@ bazel_dep(name = "abseil-cpp", version = "20250814.0")
 # Linting and formatting with rules_lint
 bazel_dep(name = "aspect_bazel_lib", version = "2.21.1")
 bazel_dep(name = "aspect_rules_lint", version = "1.6.0")
+
+# make compile_commands.json with: bazel run @hedron_compile_commands//:refresh_all
+bazel_dep(name = "hedron_compile_commands", version = "")
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+)
