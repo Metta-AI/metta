@@ -103,9 +103,9 @@ class PPO(Loss):
 
     def __init__(
         self,
-        policy: "Policy",
+        policy: Policy,
         trainer_cfg: Any,
-        env: "TrainingEnvironment",
+        env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
         loss_config: Any,

@@ -26,7 +26,7 @@ class PolicyArchitecture(Config):
     components: List[ComponentConfig] = []
     action_probs_config: ComponentConfig
 
-    def make_policy(self, env_metadata: "EnvironmentMetaData"):
+    def make_policy(self, env_metadata: EnvironmentMetaData):
         AgentClass = load_symbol(self.class_path)
         return AgentClass(env_metadata, self)
 
@@ -78,7 +78,7 @@ class ExternalPolicyWrapper(Policy):
     if necessary.
     """
 
-    def __init__(self, policy: torch.nn.Module, env_metadata: "EnvironmentMetaData", box_obs: bool = True):
+    def __init__(self, policy: torch.nn.Module, env_metadata: EnvironmentMetaData, box_obs: bool = True):
         self.policy = policy
         if box_obs:
             self.obs_shaper = ObsShimBox(env=env_metadata, in_key="env_obs", out_key="obs")

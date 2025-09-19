@@ -97,7 +97,6 @@ class TrainTool(Tool):
                     trainer,
                     distributed_helper,
                     checkpoint_manager,
-                    policy_checkpointer,
                     stats_client,
                     wandb_run,
                 )
@@ -213,7 +212,10 @@ class TrainTool(Tool):
             policy,
             torch.device(self.device),
         )
-        trainer.run_dir = self.run_dir
+        trainer.context.set_run_info(
+            run_dir=Path(self.run_dir) if self.run_dir else None,
+            run_name=self.run,
+        )
 
         if not self.gradient_stats.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
             self.gradient_stats.epoch_interval = self.trainer.grad_mean_variance_interval
@@ -227,6 +229,7 @@ class TrainTool(Tool):
         checkpoint_manager: CheckpointManager,
         policy_checkpointer: PolicyCheckpointer,
     ) -> None:
+        trainer.context.checkpoint_manager = checkpoint_manager
         trainer_checkpointer = TrainerCheckpointer(
             config=self.checkpointer,
             checkpoint_manager=checkpoint_manager,
@@ -267,18 +270,18 @@ class TrainTool(Tool):
         trainer: Trainer,
         distributed_helper: DistributedHelper,
         checkpoint_manager: CheckpointManager,
-        policy_checkpointer: PolicyCheckpointer,
         stats_client: Optional[StatsClient],
         wandb_run: Any,
     ) -> None:
         if not distributed_helper.is_master():
             return
 
+        trainer.context.stats_client = stats_client
+
         policy_uploader = PolicyUploader(
             config=self.policy_uploader,
             checkpoint_manager=checkpoint_manager,
             distributed_helper=distributed_helper,
-            policy_checkpointer=policy_checkpointer,
             wandb_run=wandb_run,
         )
         trainer.register(policy_uploader)

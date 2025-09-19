@@ -37,7 +37,7 @@ def _init_env() -> SimpleNamespace:
     )
 
 
-def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[DictConfig] = None) -> "Policy":
+def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[DictConfig] = None) -> Policy:
     """Create or loads a PyTorch policy."""
     # TODO(richard): #dehydration - this is a hack to get the policy to work. We need to fix this.
     raise NotImplementedError("This is a hack to get the policy to work. We need to fix this.")

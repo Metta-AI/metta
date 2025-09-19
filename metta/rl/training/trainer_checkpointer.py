@@ -10,7 +10,6 @@ from typing import Optional
 from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context import TrainerContext
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
@@ -58,7 +57,7 @@ class TrainerCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
-    def register(self, context: TrainerContext) -> None:  # type: ignore[override]
+    def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         explicit_dir = self._config.checkpoint_dir
         if explicit_dir:
@@ -68,7 +67,7 @@ class TrainerCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Public API used by Trainer
     # ------------------------------------------------------------------
-    def restore(self, context: TrainerContext) -> None:
+    def restore(self, context) -> None:
         """Load trainer state if checkpoints exist and broadcast to all ranks."""
         state: Optional[_RestoredTrainerState] = None
 
@@ -89,18 +88,17 @@ class TrainerCheckpointer(TrainerComponent):
         if state is None:
             return
 
-        context.agent_step = state.agent_step
-        context.epoch = state.epoch
-        if hasattr(context, "trainer_state"):
-            context.trainer_state.agent_step = state.agent_step
-            context.trainer_state.epoch = state.epoch
+        trainer = context.trainer
+        trainer.agent_step = state.agent_step
+        trainer.epoch = state.epoch
+        context.trainer_state.agent_step = state.agent_step
+        context.trainer_state.epoch = state.epoch
         self._latest_saved_epoch = state.epoch
 
         if state.optimizer_state:
             try:
                 context.optimizer.load_state_dict(state.optimizer_state)
-                if hasattr(context, "trainer_state"):
-                    context.trainer_state.optimizer = context.optimizer
+                context.trainer_state.optimizer = context.optimizer
             except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
 
@@ -120,18 +118,19 @@ class TrainerCheckpointer(TrainerComponent):
         if epoch % self._config.epoch_interval != 0:
             return
 
-        self._save_state(self.context)
+        self._save_state(force=False)
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if not self._distributed.should_checkpoint():
             return
 
-        self._save_state(self.context, force=True)
+        self._save_state(force=True)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _save_state(self, context: TrainerContext, *, force: bool = False) -> None:
+    def _save_state(self, *, force: bool = False) -> None:
+        context = self.context
         current_epoch = context.epoch
         agent_step = context.agent_step
         stopwatch_state = None

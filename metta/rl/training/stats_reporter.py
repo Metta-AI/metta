@@ -23,7 +23,6 @@ from metta.rl.stats import (
     process_training_stats,
 )
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context import TrainerContext
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +85,7 @@ class StatsReporter(TrainerComponent):
         config: Optional[StatsConfig],
         stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
-    ) -> "StatsReporter":
+    ) -> StatsReporter:
         """Create a StatsReporter from optional config, returning no-op if None.
 
         Args:
@@ -126,17 +125,16 @@ class StatsReporter(TrainerComponent):
         if self._stats_client and self._config.report_to_stats_client:
             self._initialize_stats_run()
 
-    def register(self, context: TrainerContext) -> None:  # type: ignore[override]
+    def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         reporting_enabled = (
             self._config.report_to_wandb or self._config.report_to_stats_client or self._config.report_to_console
         )
         if reporting_enabled:
-            experience = context.core_loop.experience
             memory_monitor, system_monitor = setup_monitoring(
-                policy=context.policy,
-                experience=experience,
-                timer=context.stopwatch,
+                policy=self.context.policy,
+                experience=self.context.experience,
+                timer=self.context.stopwatch,
             )
             self._memory_monitor = memory_monitor
             self._system_monitor = system_monitor
@@ -314,18 +312,17 @@ class StatsReporter(TrainerComponent):
 
         Args:
         """
-        context = self.context
-        experience = context.core_loop.experience
+        ctx = self.context
 
         self.report_epoch(
-            epoch=context.epoch,
-            agent_step=context.agent_step,
-            losses_stats=getattr(context, "latest_losses_stats", {}),
-            experience=experience,
-            policy=context.policy,
-            timer=context.stopwatch,
-            trainer_cfg=context.cfg,
-            optimizer=context.optimizer,
+            epoch=ctx.epoch,
+            agent_step=ctx.agent_step,
+            losses_stats=getattr(ctx.trainer, "latest_losses_stats", {}),
+            experience=ctx.experience,
+            policy=ctx.policy,
+            timer=ctx.stopwatch,
+            trainer_cfg=ctx.config,
+            optimizer=ctx.optimizer,
             memory_monitor=self._memory_monitor,
             system_monitor=self._system_monitor,
         )

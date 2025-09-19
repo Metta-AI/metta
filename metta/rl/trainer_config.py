@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, ClassVar, List, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
@@ -60,7 +62,7 @@ class TorchProfilerConfig(Config):
         return self.interval_epochs > 0
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "TorchProfilerConfig":
+    def validate_fields(self) -> TorchProfilerConfig:
         if self.enabled:
             assert self.profile_dir, "profile_dir must be set"
         return self
@@ -100,7 +102,7 @@ class TrainerConfig(Config):
     )
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "TrainerConfig":
+    def validate_fields(self) -> TrainerConfig:
         if self.minibatch_size > self.batch_size:
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:

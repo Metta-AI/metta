@@ -9,7 +9,6 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.mettagrid.config import Config
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context import TrainerContext
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.training_environment import EnvironmentMetaData
 
@@ -43,9 +42,9 @@ class PolicyCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Registration helpers
     # ------------------------------------------------------------------
-    def register(self, context: TrainerContext) -> None:  # type: ignore[override]
+    def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
-        context.policy_checkpointer = self
+        context.latest_policy_uri_fn = self.get_latest_policy_uri
 
     # ------------------------------------------------------------------
     # Public helpers
@@ -101,33 +100,35 @@ class PolicyCheckpointer(TrainerComponent):
         if epoch % self._config.epoch_interval != 0:
             return
 
-        self._save_policy(self.context, epoch)
+        self._save_policy(epoch)
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if not self._distributed.should_checkpoint():
             return
 
-        self._save_policy(self.context, self.context.epoch, force=True)
+        self._save_policy(self.context.epoch, force=True)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _policy_to_save(self, context: TrainerContext) -> Policy:
-        policy: Policy = context.policy
+    def _policy_to_save(self) -> Policy:
+        policy: Policy = self.context.policy
         if hasattr(policy, "module"):
             return policy.module  # type: ignore[return-value]
         return policy
 
-    def _collect_metadata(self, context: TrainerContext, epoch: int, *, is_final: bool = False) -> dict:
-        elapsed_breakdown = context.stopwatch.get_all_elapsed()
+    def _collect_metadata(self, epoch: int, *, is_final: bool = False) -> dict:
+        elapsed_breakdown = self.context.stopwatch.get_all_elapsed()
         metadata = {
             "epoch": epoch,
-            "agent_step": context.agent_step,
-            "total_time": context.stopwatch.get_elapsed(),
+            "agent_step": self.context.agent_step,
+            "total_time": self.context.stopwatch.get_elapsed(),
             "total_train_time": elapsed_breakdown.get("_rollout", 0) + elapsed_breakdown.get("_train", 0),
             "is_final": is_final,
         }
-        evaluator = context.get_component_by_type("Evaluator")
+        from metta.rl.training.evaluator import Evaluator
+
+        evaluator = self.context.get_component(Evaluator)
         if evaluator is not None:
             try:
                 eval_scores = evaluator.get_latest_scores()
@@ -142,9 +143,9 @@ class PolicyCheckpointer(TrainerComponent):
                 )
         return metadata
 
-    def _save_policy(self, context: TrainerContext, epoch: int, *, force: bool = False) -> None:
-        policy = self._policy_to_save(context)
-        metadata = self._collect_metadata(context, epoch, is_final=force)
+    def _save_policy(self, epoch: int, *, force: bool = False) -> None:
+        policy = self._policy_to_save()
+        metadata = self._collect_metadata(epoch, is_final=force)
 
         uri = self._checkpoint_manager.save_agent(policy, epoch, metadata)
         self._latest_policy_uri = uri

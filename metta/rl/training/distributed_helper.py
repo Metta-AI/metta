@@ -2,16 +2,14 @@
 
 import logging
 import os
-from typing import TYPE_CHECKING, Any, List
+from typing import Any, List
 
 import torch
 import torch.distributed
 
 from metta.agent.policy import Policy
 from metta.mettagrid.config import Config
-
-if TYPE_CHECKING:
-    from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +69,7 @@ class DistributedHelper:
         if self._is_distributed:
             logger.info(f"Setting up distributed training for rank {self._rank}")
 
-    def scale_batch_config(self, trainer_cfg: "TrainerConfig") -> None:
+    def scale_batch_config(self, trainer_cfg: TrainerConfig) -> None:
         """Scale batch sizes for distributed training if configured.
 
         When scale_batches_by_world_size is True, this divides batch sizes

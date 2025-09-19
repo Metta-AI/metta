@@ -18,7 +18,6 @@ from metta.rl.evaluate import (
     upload_replay_html,
 )
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context import TrainerContext
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 
@@ -90,9 +89,8 @@ class Evaluator(TrainerComponent):
         self._latest_scores = EvalRewardSummary()
         self._stats_reporter = stats_reporter
 
-    def register(self, context: TrainerContext) -> None:  # type: ignore[override]
+    def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
-        context.evaluator = self
 
     @classmethod
     def from_config(
@@ -347,16 +345,14 @@ class Evaluator(TrainerComponent):
 
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
         """Run evaluation at epoch end if due."""
-        context = self.context
-
         if not self.should_evaluate(epoch):
             return
 
-        policy_uri = None
-        if hasattr(context, "get_latest_policy_uri"):
-            policy_uri = context.get_latest_policy_uri()
+        policy_uri = self.context.latest_policy_uri()
         if not policy_uri:
-            policy_ckpt = context.get_component_by_type("PolicyCheckpointer")
+            from metta.rl.training.policy_checkpointer import PolicyCheckpointer
+
+            policy_ckpt = self.context.get_component(PolicyCheckpointer)
             if policy_ckpt is not None:
                 policy_uri = policy_ckpt.get_latest_policy_uri()
 
@@ -364,12 +360,14 @@ class Evaluator(TrainerComponent):
             logger.debug("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
             return
 
-        curriculum = getattr(context.env, "_curriculum", None)
+        curriculum = getattr(self.context.env, "_curriculum", None)
         if curriculum is None:
             logger.debug("Evaluator: curriculum unavailable; skipping evaluation")
             return
 
-        stats_reporter = getattr(context, "stats_reporter", None)
+        from metta.rl.training.stats_reporter import StatsReporter
+
+        stats_reporter = self.context.get_component(StatsReporter)
         stats_epoch_id = None
         if stats_reporter and getattr(stats_reporter.state, "stats_run_id", None):
             stats_epoch_id = stats_reporter.create_epoch(
@@ -383,7 +381,7 @@ class Evaluator(TrainerComponent):
             policy_uri=policy_uri,
             curriculum=curriculum,
             epoch=epoch,
-            agent_step=context.agent_step,
+            agent_step=self.context.agent_step,
             stats_epoch_id=stats_epoch_id,
         )
 

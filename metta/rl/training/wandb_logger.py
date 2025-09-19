@@ -6,7 +6,6 @@ from typing import Dict
 
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context import TrainerContext
 from metta.rl.wandb import log_model_parameters, setup_wandb_metrics
 
 
@@ -18,10 +17,10 @@ class WandbLoggerComponent(TrainerComponent):
         self._wandb_run = wandb_run
         self._last_agent_step = 0
 
-    def register(self, context: TrainerContext) -> None:
+    def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         setup_wandb_metrics(self._wandb_run)
-        log_model_parameters(context.policy, self._wandb_run)
+        log_model_parameters(self.context.policy, self._wandb_run)
 
     def on_epoch_end(self, epoch: int) -> None:  # noqa: D401 - documented in base class
         context = self.context
@@ -40,7 +39,7 @@ class WandbLoggerComponent(TrainerComponent):
 
         self._last_agent_step = context.agent_step
 
-        for key, value in getattr(context, "latest_losses_stats", {}).items():
+        for key, value in getattr(context.trainer, "latest_losses_stats", {}).items():
             metric_key = key if "/" in key else f"loss/{key}"
             payload[metric_key] = float(value)
 

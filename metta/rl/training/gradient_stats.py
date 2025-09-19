@@ -48,6 +48,8 @@ class GradientStatsComponent(TrainerComponent):
             "grad/norm": grad_tensor.norm(2).item(),
         }
 
+        self.context.update_gradient_stats(grad_stats)
+
         stats_reporter = context.get_component(StatsReporter)
         if stats_reporter and hasattr(stats_reporter, "update_grad_stats"):
             stats_reporter.update_grad_stats(grad_stats)

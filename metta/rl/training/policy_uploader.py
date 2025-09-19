@@ -15,7 +15,6 @@ from metta.mettagrid.config import Config
 from metta.mettagrid.util.file import local_copy
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context import TrainerContext
 from metta.rl.training.distributed_helper import DistributedHelper
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,6 @@ class PolicyUploader(TrainerComponent):
         config: PolicyUploaderConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
-        policy_checkpointer,
         wandb_run: Optional[WandbRun] = None,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
@@ -45,7 +43,6 @@ class PolicyUploader(TrainerComponent):
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
-        self._policy_checkpointer = policy_checkpointer
         self._wandb_run = wandb_run
 
     def update_wandb_run(self, wandb_run: Optional[WandbRun]) -> None:
@@ -61,7 +58,13 @@ class PolicyUploader(TrainerComponent):
         if epoch % self._config.epoch_interval != 0:
             return
 
-        checkpoint_uri = self._policy_checkpointer.get_latest_policy_uri()
+        from metta.rl.training.policy_checkpointer import PolicyCheckpointer
+
+        checkpointer = self.context.get_component(PolicyCheckpointer)
+        if checkpointer is None:
+            return
+
+        checkpoint_uri = checkpointer.get_latest_policy_uri()
         if not checkpoint_uri:
             logger.debug("PolicyUploader: no checkpoint available for epoch %s", epoch)
             return
@@ -70,7 +73,7 @@ class PolicyUploader(TrainerComponent):
             "epoch": epoch,
             "agent_step": self.context.agent_step,
         }
-        metadata.update(self._evaluation_metadata(self.context))
+        metadata.update(self._evaluation_metadata())
 
         self._upload(checkpoint_uri, epoch, metadata)
 
@@ -78,7 +81,13 @@ class PolicyUploader(TrainerComponent):
         if not self._distributed.should_checkpoint() or self._wandb_run is None:
             return
 
-        checkpoint_uri = self._policy_checkpointer.get_latest_policy_uri()
+        from metta.rl.training.policy_checkpointer import PolicyCheckpointer
+
+        checkpointer = self.context.get_component(PolicyCheckpointer)
+        if checkpointer is None:
+            return
+
+        checkpoint_uri = checkpointer.get_latest_policy_uri()
         if not checkpoint_uri:
             logger.debug("PolicyUploader: no checkpoint available for final upload")
             return
@@ -88,15 +97,17 @@ class PolicyUploader(TrainerComponent):
             "agent_step": self.context.agent_step,
             "final": True,
         }
-        metadata.update(self._evaluation_metadata(self.context))
+        metadata.update(self._evaluation_metadata())
 
         self._upload(checkpoint_uri, self.context.epoch, metadata, force=True)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _evaluation_metadata(self, context: TrainerContext) -> dict[str, Any]:
-        evaluator = context.get_component_by_type("Evaluator")
+    def _evaluation_metadata(self) -> dict[str, Any]:
+        from metta.rl.training.evaluator import Evaluator
+
+        evaluator = self.context.get_component(Evaluator)
         if evaluator is None:
             return {}
         try:

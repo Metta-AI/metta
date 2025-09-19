@@ -1,5 +1,7 @@
 """Main trainer facade for coordinating all training components."""
 
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, Optional, Type, TypeVar
 
@@ -19,7 +21,7 @@ from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.rl.utils import log_training_progress
 
-T_Component = TypeVar("T_Component", bound="TrainerComponent")
+T_Component = TypeVar("T_Component", bound=TrainerComponent)
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -57,7 +59,6 @@ class Trainer:
         self._distributed_helper = DistributedHelper(self._device)
         self._components: list[TrainerComponent] = []
         self._component_map: dict[type[TrainerComponent], TrainerComponent] = {}
-        self._context = TrainerContext(self)
 
         self._epoch = 0
         self._agent_step = 0
@@ -110,6 +111,24 @@ class Trainer:
         )
         self.trainer_state.stop_rollout = False
         self.trainer_state.stop_update_epoch = False
+
+        self._context = TrainerContext(
+            trainer=self,
+            policy=self._policy,
+            env=self._env,
+            experience=experience,
+            optimizer=self.optimizer,
+            config=self._cfg,
+            device=self._device,
+            stopwatch=self.timer,
+            distributed=self._distributed_helper,
+            trainer_state=self.trainer_state,
+            run_dir=None,
+            run_name=None,
+            get_epoch=lambda: self._epoch,
+            get_agent_step=lambda: self._agent_step,
+            latest_policy_uri_fn=self.get_latest_policy_uri,
+        )
 
     @property
     def context(self) -> TrainerContext:
@@ -180,14 +199,7 @@ class Trainer:
         return None
 
     def get_component(self, component_type: Type[T_Component]) -> Optional[T_Component]:
-        component = self._component_map.get(component_type)
-        if component is not None:
-            return component  # type: ignore[return-value]
-
-        for registered in self._component_map.values():
-            if isinstance(registered, component_type):
-                return registered  # type: ignore[return-value]
-        return None
+        return self._context.get_component(component_type)
 
     def train(self) -> None:
         """Run the main training loop."""
@@ -267,7 +279,7 @@ class Trainer:
         training_env: TrainingEnvironment,
         policy: Policy,
         device: torch.device,
-    ) -> "Trainer":
+    ) -> Trainer:
         """Create a trainer from a configuration."""
         return Trainer(cfg, training_env, policy, device)
 
@@ -282,6 +294,7 @@ class Trainer:
 
         self._components.append(component)
         self._component_map[type(component)] = component
+        self._context.register_component(component)
         component.register(self._context)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
