@@ -40,16 +40,16 @@ class FastConfig(PolicyArchitecture):
     obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
     cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(in_key="obs_normalizer", out_key="encoded_obs")
     lstm_config: LSTMConfig = LSTMConfig(
-        in_key="encoded_obs", out_key="_core_", latent_size=128, hidden_size=128, num_layers=2
+        in_key="encoded_obs", out_key="core", latent_size=128, hidden_size=128, num_layers=2
     )
     critic_hidden_dim: int = 1024
     actor_hidden_dim: int = 512
-    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="_action_embeds_")
+    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="action_embedding")
     actor_query_config: ActorQueryConfig = ActorQueryConfig(in_key="actor_1", out_key="actor_query")
     actor_key_config: ActorKeyConfig = ActorKeyConfig(
-        query_key="actor_query", embedding_key="_action_embeds_", out_key="_action_"
+        query_key="actor_query", embedding_key="action_embedding", out_key="logits"
     )
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="_action_")
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
 class FastPolicy(Policy):
@@ -75,17 +75,17 @@ class FastPolicy(Policy):
         module = pufferlib.pytorch.layer_init(
             nn.Linear(self.config.lstm_config.hidden_size, self.config.actor_hidden_dim), std=1.0
         )
-        self.actor_1 = TDM(module, in_keys=["_core_"], out_keys=["actor_1"])
+        self.actor_1 = TDM(module, in_keys=["core"], out_keys=["actor_1"])
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
         module = pufferlib.pytorch.layer_init(
             nn.Linear(self.config.lstm_config.hidden_size, self.config.critic_hidden_dim), std=np.sqrt(2)
         )
-        self.critic_1 = TDM(module, in_keys=["_core_"], out_keys=["critic_1"])
+        self.critic_1 = TDM(module, in_keys=["core"], out_keys=["critic_1"])
         self.critic_activation = nn.Tanh()
         module = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
-        self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["_value_"])
+        self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
 
         # Actor branch
         self.action_embeddings = ActionEmbedding(config=self.config.action_embedding_config)
@@ -125,7 +125,7 @@ class FastPolicy(Policy):
         self.actor_query(td)
         self.actor_key(td)
         self.action_probs(td, action)
-        td["values"] = td["_value_"].flatten()
+        td["values"] = td["values"].flatten()
 
         if needs_unflatten and action is not None:
             td = td.reshape(batch_size, time_steps)

@@ -1,7 +1,7 @@
 import os
 import platform
 import random
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import numpy as np
 import torch
@@ -29,11 +29,18 @@ def guess_data_dir() -> str:
     return "./train_dir"
 
 
+def guess_vectorization() -> Literal["serial", "multiprocessing"]:
+    if platform.system() == "Darwin":
+        return "serial"
+    return "multiprocessing"
+
+
 class SystemConfig(Config):
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)
     data_dir: str = Field(default_factory=guess_data_dir)
+    vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
