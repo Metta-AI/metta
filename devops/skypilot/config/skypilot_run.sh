@@ -144,7 +144,7 @@ shutdown() {
   echo "$termination_reason" > "$TERMINATION_REASON_FILE"
 
   # Kill the entire process tree
-  if [ -n "${CMD_PGID:-}" ] ; then
+  if [ -n "${CMD_PGID:-}" ]; then
     echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
     # Only master coordinates multi-node shutdown
