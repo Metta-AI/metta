@@ -570,7 +570,7 @@ def sweep(
 
     lp_protein_config.metric="experience/rewards"
     lp_protein_config.parameters["trainer.batch_size"] = ParameterConfig(
-        distribution="int_uniform",
+        distribution="uniform_pow2",
         min=2**22,
         max=2**26,
         mean=2**24,

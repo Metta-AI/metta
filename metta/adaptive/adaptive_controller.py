@@ -125,19 +125,20 @@ class AdaptiveController:
                         except Exception as e:
                             logger.error(f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}")
 
-                # 2. Check if scheduler says experiment is complete
-                if self.scheduler.is_experiment_complete(runs):
-                    logger.info("[AdaptiveController] Scheduler reports experiment complete")
-                    break
-
-                # 3. Calculate available training slots (only count runs actually using training resources)
+                # 2. Calculate available training slots (only count runs actually using training resources)
                 active_training_count = sum(
                     1 for run in runs if run.status in (JobStatus.PENDING, JobStatus.IN_TRAINING)
                 )
                 available_training_slots = max(0, self.config.max_parallel - active_training_count)
 
-                # 4. Let scheduler decide (with resource awareness)
+                # 3. Let scheduler decide (with resource awareness)
+                # This also updates internal state for completed runs
                 new_jobs = self.scheduler.schedule(runs, available_training_slots)
+
+                # 4. Check if scheduler says experiment is complete (after state updates)
+                if self.scheduler.is_experiment_complete(runs):
+                    logger.info("[AdaptiveController] Scheduler reports experiment complete")
+                    break
 
                 if not new_jobs:
                     # No new jobs, wait before next check
