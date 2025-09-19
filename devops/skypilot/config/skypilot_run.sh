@@ -138,12 +138,12 @@ shutdown() {
   echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
 
   # Read and preserve the termination reason if it exists
-  local termination_reason="$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || true)"
+  local termination_reason="$(cat "$TERMINATION_REASON_FILE" 2> /dev/null || true)"
 
   # If no termination reason was set, check cluster stop file
   if [[ -z "$termination_reason" ]]; then
     if [[ -f "$CLUSTER_STOP_FILE" ]]; then
-      termination_reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || echo "cluster_stop")"
+      termination_reason="$(cat "$CLUSTER_STOP_FILE" 2> /dev/null || echo "cluster_stop")"
     else
       termination_reason="cluster_stop"
     fi

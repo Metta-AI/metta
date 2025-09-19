@@ -10,6 +10,8 @@ help:
 	@echo "  coverage        - Run tests (C++ coverage not available on macOS)"
 	@echo "  tidy            - Run clang-tidy (fails on errors only)"
 	@echo "  tidy-verbose    - Run clang-tidy with full output"
+	@echo "  format-check   - Verify code is clang-formatted"
+	@echo "  format-fix     - Auto-format code with clang-format"
 	@echo "  pytest          - Run Python tests"
 	@echo "  pytest-coverage - Run Python tests with coverage"
 	@echo "  clean           - Clean all build artifacts"
@@ -64,6 +66,17 @@ tidy:
 tidy-verbose:
 	@echo "🔍 Running clang-tidy with full output..."
 	@bazel test //lint:clang_tidy --test_output=all --nocache_test_results
+
+# Formatting
+format-check:
+	@echo "🔎 Checking code formatting..."
+	@clang-format --dry-run --Werror -style=file $(shell find src include tests -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp')
+	@echo "✅ All files are correctly formatted"
+
+format-fix:
+	@echo "🛠️  Reformatting code..."
+	@clang-format -i -style=file $(shell find src include tests -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp')
+	@echo "✅ Code reformatted"
 
 # Python
 install:

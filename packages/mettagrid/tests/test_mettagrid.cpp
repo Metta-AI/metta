@@ -7,14 +7,14 @@
 #include "actions/get_output.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "config/mettagrid_config.hpp"
 #include "core/event.hpp"
 #include "core/grid.hpp"
-#include "config/mettagrid_config.hpp"
+#include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
-#include "core/types.hpp"
 
 // Test-specific inventory item type constants
 namespace TestItems {
@@ -706,7 +706,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
 
   // With 0.1 probability, we get exact deterministic results
   EXPECT_EQ(successful_actions, 100);  // All 100 attempts succeed (only 16 consumed)
-  EXPECT_EQ(consumed, 16);  // Exactly 16 ore consumed
+  EXPECT_EQ(consumed, 16);             // Exactly 16 ore consumed
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
@@ -741,7 +741,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
 
   // With 0.9 probability, we get exact deterministic results
   EXPECT_EQ(successful_actions, 57);  // Exactly 57 successful actions before running out
-  EXPECT_EQ(consumed, 100);  // All 100 ore consumed
+  EXPECT_EQ(consumed, 100);           // All 100 ore consumed
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
@@ -839,7 +839,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
 
   // With 0.5 consumption probability, exact deterministic results
   EXPECT_EQ(successful_attacks, 10);  // All 10 attacks succeed with initial 10 lasers
-  EXPECT_EQ(total_consumed, 4);  // Exactly 4 lasers consumed from 10 attacks
+  EXPECT_EQ(total_consumed, 4);       // Exactly 4 lasers consumed from 10 attacks
 }
 
 TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {

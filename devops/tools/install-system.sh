@@ -66,7 +66,7 @@ get_package_name() {
     g++)
       case "$pkg_manager" in
         apt) echo "build-essential" ;;
-        yum|dnf) echo "gcc-c++ make" ;;
+        yum | dnf) echo "gcc-c++ make" ;;
         apk) echo "build-base" ;;
         pacman) echo "base-devel" ;;
         brew) echo "gcc" ;;
@@ -104,7 +104,6 @@ ensure_tool() {
     err "Installed $tool but it is not available"
   fi
 }
-
 
 # Common install directories in order of preference
 COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.cargo/bin /opt/homebrew/bin"
@@ -167,35 +166,35 @@ ensure_uv_setup() {
 }
 
 ensure_bazel_setup() {
- if ! check_cmd bazel; then
-   echo "Bazel is not installed. Installing bazelisk..."
+  if ! check_cmd bazel; then
+    echo "Bazel is not installed. Installing bazelisk..."
 
-   local install_dir=$(get_install_dir)
-   if [ -n "$install_dir" ]; then
-     local dest="$install_dir/bazel"
-     echo "Installing bazel to $dest (detected from PATH)"
-   else
-     local dest="$HOME/.local/bin/bazel"
-     echo "Installing bazel to default location: $dest"
-   fi
+    local install_dir=$(get_install_dir)
+    if [ -n "$install_dir" ]; then
+      local dest="$install_dir/bazel"
+      echo "Installing bazel to $dest (detected from PATH)"
+    else
+      local dest="$HOME/.local/bin/bazel"
+      echo "Installing bazel to default location: $dest"
+    fi
 
-   local url=$(get_bazelisk_url)
+    local url=$(get_bazelisk_url)
 
-   if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
-     dest="${dest}.exe"
-   fi
+    if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+      dest="${dest}.exe"
+    fi
 
-   mkdir -p "$(dirname "$dest")"
-   echo "Installing bazelisk to $dest"
-   curl -fsSL "$url" -o "$dest"
-   chmod +x "$dest"
+    mkdir -p "$(dirname "$dest")"
+    echo "Installing bazelisk to $dest"
+    curl -fsSL "$url" -o "$dest"
+    chmod +x "$dest"
 
-  #  ensure_paths
+    #  ensure_paths
 
-   if ! check_cmd bazel; then
-     err "Failed to install bazelisk. Please install it manually from https://github.com/bazelbuild/bazelisk"
-   fi
- fi
+    if ! check_cmd bazel; then
+      err "Failed to install bazelisk. Please install it manually from https://github.com/bazelbuild/bazelisk"
+    fi
+  fi
 }
 
 get_bazelisk_url() {
@@ -206,19 +205,19 @@ get_bazelisk_url() {
   local base="https://github.com/bazelbuild/bazelisk/releases/download/${version}/"
 
   if [[ "$system" == "linux" ]]; then
-      if [[ "$machine" == "aarch64" ]] || [[ "$machine" == "arm64" ]]; then
-          echo "${base}bazelisk-linux-arm64"
-      else
-          echo "${base}bazelisk-linux-amd64"
-      fi
+    if [[ "$machine" == "aarch64" ]] || [[ "$machine" == "arm64" ]]; then
+      echo "${base}bazelisk-linux-arm64"
+    else
+      echo "${base}bazelisk-linux-amd64"
+    fi
   elif [[ "$system" == "darwin" ]]; then
-      if [[ "$machine" == "arm64" ]]; then
-          echo "${base}bazelisk-darwin-arm64"
-      else
-          echo "${base}bazelisk-darwin-amd64"
-      fi
+    if [[ "$machine" == "arm64" ]]; then
+      echo "${base}bazelisk-darwin-arm64"
+    else
+      echo "${base}bazelisk-darwin-amd64"
+    fi
   elif [[ "$system" == "mingw"* ]] || [[ "$system" == "msys"* ]]; then
-      echo "${base}bazelisk-windows-amd64.exe"
+    echo "${base}bazelisk-windows-amd64.exe"
   fi
 }
 
