@@ -29,9 +29,8 @@ class ObsTokenPadStrip(nn.Module):
         self.in_key = in_key
         self.out_key = out_key
         # Initialize feature remapping as identity by default
-        self.register_buffer("feature_id_remap_table", torch.arange(256, dtype=torch.uint8))
+        self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
-        self._feature_remap_dict: dict[int, int] = {}
 
     def initialize_to_environment(
         self,
@@ -47,12 +46,11 @@ class ObsTokenPadStrip(nn.Module):
 
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {name: props.id for name, props in features.items()}  # {name: id}
-            self._feature_remap_dict = {}
             return f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
         else:
             # Re-initialization - create remapping for agent portability
             UNKNOWN_FEATURE_ID = 255
-            feature_id_remap: dict[int, int] = {}
+            self.feature_id_remap = {}
             unknown_features = []
 
             for name, props in features.items():
@@ -61,46 +59,40 @@ class ObsTokenPadStrip(nn.Module):
                     # Remap known features to their original IDs
                     original_id = self.original_feature_mapping[name]
                     if new_id != original_id:
-                        feature_id_remap[new_id] = original_id
+                        self.feature_id_remap[new_id] = original_id
                 elif not self.training:
                     # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
-                    feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
                     unknown_features.append(name)
                 else:
                     # In training mode, learn new features
                     self.original_feature_mapping[name] = new_id
 
-            if feature_id_remap:
+            if self.feature_id_remap:
                 # Apply the remapping
-                self._feature_remap_dict = feature_id_remap
-                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID, device, feature_id_remap)
-                return f"Created feature remapping: {len(feature_id_remap)} remapped, {len(unknown_features)} unknown"
+                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID, device)
+                return (
+                    f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
+                )
             else:
-                self._feature_remap_dict = {}
                 return "No feature remapping created"
 
-    def _apply_feature_remapping(
-        self,
-        features: dict,
-        unknown_id: int,
-        device: torch.device,
-        feature_id_remap: dict[int, int],
-    ) -> None:
+    def _apply_feature_remapping(self, features: dict, unknown_id: int, device: torch.device):
         """Apply feature remapping to policy for agent portability across environments."""
         # Build complete remapping tensor
         remap_tensor = torch.arange(256, dtype=torch.uint8, device=device)
 
         # Apply explicit remappings
-        for new_id, original_id in feature_id_remap.items():
+        for new_id, original_id in self.feature_id_remap.items():
             remap_tensor[new_id] = original_id
 
         # Map unused feature IDs to UNKNOWN
         current_feature_ids = {props.id for props in features.values()}
         for feature_id in range(256):
-            if feature_id not in feature_id_remap and feature_id not in current_feature_ids:
+            if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
                 remap_tensor[feature_id] = unknown_id
 
-        self.feature_id_remap_table.copy_(remap_tensor.to(self.feature_id_remap_table.device))
+        self.register_buffer("feature_id_remap", remap_tensor.to(self.feature_id_remap.device))
         identity = torch.arange(256, dtype=torch.uint8, device=remap_tensor.device)
         self._remapping_active = not torch.equal(remap_tensor, identity)
 
@@ -113,7 +105,7 @@ class ObsTokenPadStrip(nn.Module):
         if self._remapping_active:
             observations = observations.clone()
             feature_ids = observations[..., 1].long()
-            remapped_ids = self.feature_id_remap_table[feature_ids]
+            remapped_ids = self.feature_id_remap[feature_ids]
             observations[..., 1] = remapped_ids
 
         coords = observations[..., 0]
@@ -254,7 +246,6 @@ class ObsTokenToBoxShim(nn.Module):
         self.out_width = env.obs_width
         self.out_height = env.obs_height
         self.num_layers = max(env.feature_normalizations.keys()) + 1
-        self.register_buffer("_feature_id_remap", torch.arange(256, dtype=torch.uint8))
 
     def forward(self, td: TensorDict):
         token_observations = td[self.in_key]
@@ -267,7 +258,6 @@ class ObsTokenToBoxShim(nn.Module):
         x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
         y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
         atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        atr_indices = self._feature_id_remap[atr_indices]
         atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 
         # In ObservationShaper we permute. Here, we create the observations pre-permuted.
@@ -316,10 +306,6 @@ class ObsTokenToBoxShim(nn.Module):
 
         td[self.out_key] = box_obs
         return td
-
-    def update_feature_remapping(self, remap_tensor: torch.Tensor) -> None:
-        remap_tensor = remap_tensor.to(dtype=torch.uint8, device=self._feature_id_remap.device)
-        self.register_buffer("_feature_id_remap", remap_tensor)
 
 
 class ObservationNormalizer(nn.Module):
@@ -389,13 +375,3 @@ class ObsShimBox(nn.Module):
         td = self.token_to_box_shim(td)
         td = self.observation_normalizer(td)
         return td
-
-    def update_feature_remapping(self, remap_tensor: torch.Tensor) -> None:
-        self.token_to_box_shim.update_feature_remapping(remap_tensor)
-
-    def update_normalization_factors(self, features: dict[str, dict]) -> None:
-        feature_norms = {props["id"]: props.get("normalization", 1.0) for props in features.values() if "id" in props}
-        device = None
-        if hasattr(self.observation_normalizer, "obs_norm"):
-            device = self.observation_normalizer.obs_norm.device
-        self.observation_normalizer._initialize_to_environment(feature_norms, device)
