@@ -7,90 +7,11 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
+from metta.rl.pufferlib_checkpoint import PufferLibCheckpoint
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
-
-
-def _is_state_dict(loaded_obj: Any) -> bool:
-    """
-    Check if the loaded object is a state_dict (PufferLib format) rather than a full agent.
-    A state_dict is typically a dict with tensor values and parameter names as keys.
-    """
-    if not isinstance(loaded_obj, dict):
-        return False
-
-    if not loaded_obj:
-        return False
-
-    # State dicts typically have keys ending with .weight, .bias, etc.
-    # and values that are tensors
-    sample_items = list(loaded_obj.items())[:5]  # Check first 5 items
-    for key, value in sample_items:
-        if isinstance(key, str) and torch.is_tensor(value):
-            # This looks like a parameter name -> tensor mapping
-            continue
-        else:
-            return False
-    return True
-
-
-def _create_agent_from_state_dict(state_dict: Dict[str, torch.Tensor], device: str | torch.device = "cpu"):
-    """
-    Create a MettaAgent from a state_dict (PufferLib checkpoint format).
-    This requires creating the agent architecture and loading the weights.
-    """
-    from metta.agent.agent_config import AgentConfig
-    from metta.agent.metta_agent import MettaAgent
-    from metta.mettagrid.builder.envs import make_arena
-    from metta.mettagrid.mettagrid_env import MettaGridEnv
-    from metta.rl.system_config import SystemConfig
-
-    logger.info("Loading PufferLib checkpoint format (state_dict) - creating MettaAgent")
-
-    # Create a minimal environment for agent initialization
-
-    env_cfg = make_arena(num_agents=60)
-    temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
-
-    system_cfg = SystemConfig(device=str(device))
-    agent_cfg = AgentConfig(name="pytorch/fast")
-
-    # Create the agent
-    agent = MettaAgent(temp_env, system_cfg, agent_cfg)
-
-    temp_env.close()
-    # Try to load only compatible parameters
-    agent_state = agent.policy.state_dict()
-    compatible_state = {}
-
-    new_state_dict = {}
-
-    for state_dict_key, state_dict_value in state_dict.items():
-        if state_dict_key.startswith("fast_policy."):
-            new_key = state_dict_key[len("fast_policy.") :]
-            new_state_dict[new_key] = state_dict_value
-        else:
-            new_state_dict[state_dict_key] = state_dict_value
-
-    keys_matched = 0
-    for key, value in new_state_dict.items():
-        if key in agent_state:
-            agent_state[key] = value
-            keys_matched += 1
-        else:
-            logger.info(f"Skipping incompatible parameter: {key}")
-
-    logger.info(f"Loaded {keys_matched}/{len(new_state_dict)} compatible parameters")
-
-    if compatible_state:
-        agent.load_state_dict(compatible_state, strict=True)
-        logger.info(f"Loaded {len(compatible_state)}/{len(state_dict)} compatible parameters")
-    else:
-        logger.warning("No compatible parameters found - proceeding with random initialization")
-
-    return agent
 
 
 class PolicyMetadata(TypedDict, total=False):
@@ -264,6 +185,8 @@ class CheckpointManager:
         """Load a policy from a URI (file://, wandb://, s3://, or mock://).
         Supports both Metta format (full agent) and PufferLib format (state_dict)."""
 
+        pufferlib_checkpoint = PufferLibCheckpoint()
+
         def _load_and_handle_format(checkpoint_path_or_obj):
             """Helper to load checkpoint and handle both formats."""
             if isinstance(checkpoint_path_or_obj, (str, Path)):
@@ -271,16 +194,10 @@ class CheckpointManager:
             else:
                 loaded_obj = checkpoint_path_or_obj
 
-            # Check if this is a PufferLib checkpoint (state_dict format)
-            if _is_state_dict(loaded_obj):
-                logger.info(f"Detected PufferLib checkpoint format in {uri}")
-                return _create_agent_from_state_dict(loaded_obj, device)
-            else:
-                # Standard Metta format (full agent object)
-                return loaded_obj
+            return pufferlib_checkpoint.load_checkpoint(loaded_obj, device)
 
         if uri.startswith("file://"):
-            path = Path(_parse_uri_path(uri, "file"))
+            path = Path(uri[7:])  # Remove "file://" prefix
             if path.is_dir():
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
@@ -294,12 +211,8 @@ class CheckpointManager:
                 return _load_and_handle_format(local_path)
 
         if uri.startswith("wandb://"):
-            # For wandb, we need to handle the result after loading
-            loaded_obj = load_policy_from_wandb_uri(uri, device=device)
-            if _is_state_dict(loaded_obj):
-                logger.info(f"Detected PufferLib checkpoint format in wandb URI {uri}")
-                return _create_agent_from_state_dict(loaded_obj, device)
-            return loaded_obj
+            with local_copy(uri) as local_path:
+                return _load_and_handle_format(local_path)
 
         if uri.startswith("mock://"):
             return MockAgent()
