@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
-from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
 from mettagrid.config import Config
@@ -42,7 +41,17 @@ class PolicyAutoBuilder(nn.Module):
 
         self.network = TensorDictSequential(self.components, inplace=True)
 
-        self._total_params = self.count_params()
+        # av fix this
+        # # A dummy forward pass to initialize any lazy modules (e.g. nn.LazyLinear).
+        # with torch.no_grad():
+        #     dummy_batch_size = [2, 200]
+        #     dummy_td = TensorDict(
+        #         {
+        #             "env_obs": torch.zeros(*dummy_batch_size, 3, dtype=torch.uint8),
+        #         },
+        #         batch_size=dummy_batch_size,
+        #     )
+        #     self.network(dummy_td)
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
         self.network(td)
@@ -75,19 +84,9 @@ class PolicyAutoBuilder(nn.Module):
 
     @property
     def total_params(self):
-        if hasattr(self, "_total_params"):
-            return self._total_params
-
-        params = list(self.parameters())
-        skipped_lazy_params = sum(isinstance(param, UninitializedParameter) for param in params)
-        self._total_params = sum(param.numel() for param in params if not isinstance(param, UninitializedParameter))
-
-        if skipped_lazy_params:
-            log_on_master(
-                "Skipped %d uninitialized parameters when logging model size.",
-                skipped_lazy_params,
-            )
-
+        # self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        self._total_params = 42  # av fix this
+        # lazy linear params can't be counted. can't make a dummy fwd pass due to need for initalization to env call.
         return self._total_params
 
     def get_agent_experience_spec(self) -> Composite:

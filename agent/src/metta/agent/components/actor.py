@@ -1,5 +1,5 @@
 import math
-from typing import Any, Optional
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -21,6 +21,13 @@ class ActorQueryConfig(ComponentConfig):
 
 
 class ActorQuery(nn.Module):
+    """
+    Takes a state rep from the core, projects it to a hidden state via a linear layer and nonlinearity, then passes it
+    through what's supposed to represent a query matrix.
+
+    Uses a lazy linear for the input
+    """
+
     def __init__(self, config: ActorQueryConfig):
         super().__init__()
         self.config = config
@@ -29,7 +36,9 @@ class ActorQuery(nn.Module):
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
 
-        self.W = nn.Parameter(torch.empty(self.hidden_size, self.embed_dim, dtype=torch.float32))
+        # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
+        self.proj = nn.LazyLinear(self.hidden_size)
+        self.W = nn.Parameter(torch.Tensor(self.hidden_size, self.embed_dim).to(dtype=torch.float32))
         self._tanh = nn.Tanh()
         self._init_weights()
 
@@ -41,6 +50,9 @@ class ActorQuery(nn.Module):
     def forward(self, td: TensorDict):
         hidden = td[self.in_key]  # Shape: [B*TT, hidden]
 
+        # Project hidden state to query
+        hidden = self.proj(hidden)
+        hidden = F.relu(hidden)
         query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)
 
@@ -117,15 +129,11 @@ class ActionProbs(nn.Module):
 
     def initialize_to_environment(
         self,
-        env: Any,
+        env,
         device,
     ) -> None:
-        if not hasattr(env, "max_action_args"):
-            raise AttributeError(
-                "Environment metadata must provide 'max_action_args' to initialize action probabilities"
-            )
-
-        action_max_params = list(env.max_action_args)
+        # Compute action tensors for efficient indexing
+        action_max_params = env.max_action_args
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
@@ -200,7 +208,7 @@ class ActionProbs(nn.Module):
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_type_numbers + action_params
+        return cumulative_sum + action_params
 
     def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
         """Convert discrete logit indices back to (action_type, action_param) pairs."""

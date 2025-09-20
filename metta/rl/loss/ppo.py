@@ -178,8 +178,13 @@ class PPO(Loss):
 
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
+        B = policy_td.batch_size[0]
+        TT = policy_td.batch_size[1]
+        policy_td = policy_td.reshape(policy_td.batch_size.numel())  # flatten to BT
+        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
+
         policy_td = self.policy.forward(policy_td, action=minibatch["actions"])
-        shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
+        shared_loss_data["policy_td"] = policy_td.reshape(B, TT)  # write the policy output td for others to reuse
 
         # Finally, calculate the loss!
         loss = self._process_minibatch_update(
