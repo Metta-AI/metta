@@ -166,7 +166,7 @@ class TorchProfiler(TrainerComponent):
             return
 
         if self._session is None:
-            run_dir = self._run_dir or getattr(context, "run_dir", None)
+            run_dir = self._run_dir
             self._session = TorchProfileSession(
                 master=self._is_master,
                 profiler_config=self._config,

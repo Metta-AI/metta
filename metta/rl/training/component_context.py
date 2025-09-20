@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
-import torch
+from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
 from metta.eval.eval_request_config import EvalRewardSummary
@@ -51,8 +50,6 @@ class TrainerState:
     latest_losses_stats: Dict[str, float] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     training_env_window: Optional[TrainingEnvWindow] = None
-    run_dir: Optional[str] = None
-    run_name: Optional[str] = None
     optimizer_state: Optional[Dict[str, Any]] = None
     stopwatch_state: Optional[Dict[str, Any]] = None
 
@@ -67,13 +64,10 @@ class ComponentContext:
         policy: Policy,
         env: TrainingEnvironment,
         experience: Experience,
-        optimizer: torch.optim.Optimizer,
+        optimizer: Optimizer,
         config: Any,
-        device: torch.device,
         stopwatch: Stopwatch,
         distributed: DistributedHelper,
-        stats_client: Any | None = None,
-        checkpoint_manager: Any | None = None,
     ) -> None:
         self.state = state or TrainerState()
         self.policy = policy
@@ -81,11 +75,8 @@ class ComponentContext:
         self.experience = experience
         self.optimizer = optimizer
         self.config = config
-        self.device = device
         self.stopwatch = stopwatch
         self.distributed = distributed
-        self.stats_client = stats_client
-        self.checkpoint_manager = checkpoint_manager
 
         self.stats_reporter: "StatsReporter" | None = None
         self.memory_monitor: MemoryMonitor | None = None
@@ -132,31 +123,6 @@ class ComponentContext:
             self.state.training_env_window = None
         else:
             self.state.training_env_window = TrainingEnvWindow.from_slice(value)
-
-    # ------------------------------------------------------------------
-    # Run metadata
-    # ------------------------------------------------------------------
-    @property
-    def run_dir(self) -> Optional[Path]:
-        if self.state.run_dir is None:
-            return None
-        return Path(self.state.run_dir)
-
-    @run_dir.setter
-    def run_dir(self, value: Optional[Path]) -> None:
-        self.state.run_dir = None if value is None else str(value)
-
-    @property
-    def run_name(self) -> Optional[str]:
-        return self.state.run_name
-
-    @run_name.setter
-    def run_name(self, value: Optional[str]) -> None:
-        self.state.run_name = value
-
-    def set_run_info(self, *, run_dir: Optional[Path], run_name: Optional[str]) -> None:
-        self.run_dir = run_dir
-        self.run_name = run_name
 
     # ------------------------------------------------------------------
     # Latest policy helpers

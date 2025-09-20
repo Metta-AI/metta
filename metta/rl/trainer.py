@@ -89,7 +89,6 @@ class Trainer:
             experience=self._experience,
             optimizer=self.optimizer,
             config=self._cfg,
-            device=self._device,
             stopwatch=self.timer,
             distributed=self._distributed_helper,
         )

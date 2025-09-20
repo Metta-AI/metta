@@ -108,9 +108,6 @@ class TrainTool(Tool):
 
         try:
             with wandb_manager as wandb_run:
-                trainer.context.checkpoint_manager = checkpoint_manager
-                trainer.context.stats_client = stats_client
-
                 self._register_components(
                     trainer=trainer,
                     distributed_helper=distributed_helper,
@@ -211,10 +208,6 @@ class TrainTool(Tool):
             env,
             policy,
             torch.device(self.device),
-        )
-        trainer.context.set_run_info(
-            run_dir=Path(self.run_dir) if self.run_dir else None,
-            run_name=self.run,
         )
 
         if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
