@@ -320,7 +320,7 @@ export interface Repo {
 }
 
 export class ServerRepo implements Repo {
-  constructor(private baseUrl: string = 'http://localhost:8000') { }
+  constructor(private baseUrl: string = 'http://localhost:8000') {}
 
   private getHeaders(contentType?: string): Record<string, string> {
     const headers: Record<string, string> = {}
