@@ -10,7 +10,7 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.component_context import ComponentContext
 from metta.rl.training.training_environment import TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.config import Config
@@ -132,7 +132,7 @@ class PPO(Loss):
             values=scalar_f32,
         )
 
-    def run_rollout(self, td: TensorDict, context: TrainerContext) -> None:
+    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
             self.policy.forward(td)
 
@@ -143,13 +143,13 @@ class PPO(Loss):
         # Store experience
         env_slice = context.training_env_id
         if env_slice is None:
-            raise RuntimeError("TrainerContext.training_env_id is required for PPO rollout")
+            raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
 
     def run_train(
-        self, shared_loss_data: TensorDict, context: TrainerContext, mb_idx: int
+        self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
         """This is the PPO algorithm training loop."""
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
@@ -191,7 +191,7 @@ class PPO(Loss):
 
         return loss, shared_loss_data, stop_update_epoch
 
-    def on_train_phase_end(self, context: TrainerContext) -> None:
+    def on_train_phase_end(self, context: ComponentContext) -> None:
         with torch.no_grad():
             y_pred = self.replay.buffer["values"].flatten()
             y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
@@ -199,7 +199,7 @@ class PPO(Loss):
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
 
-    def _on_first_mb(self, context: TrainerContext) -> tuple[Tensor, float]:
+    def _on_first_mb(self, context: ComponentContext) -> tuple[Tensor, float]:
         # reset importance sampling ratio
         if "ratio" in self.replay.buffer.keys():
             self.replay.buffer["ratio"].fill_(1.0)

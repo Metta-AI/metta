@@ -42,7 +42,6 @@ def _to_scalar(value: Any) -> Optional[float]:
 
 
 def build_wandb_payload(
-    *,
     processed_stats: Dict[str, Any],
     timing_info: Dict[str, Any],
     weight_stats: Dict[str, Any],
@@ -52,6 +51,7 @@ def build_wandb_payload(
     parameters: Dict[str, Any],
     hyperparameters: Dict[str, Any],
     evals: EvalRewardSummary,
+    *,
     agent_step: int,
     epoch: int,
 ) -> Dict[str, float]:

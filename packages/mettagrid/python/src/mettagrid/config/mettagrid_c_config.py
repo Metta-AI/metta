@@ -338,7 +338,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
-    game_cpp_params["actions"] = actions_cpp_params
+    # Convert actions_cpp_params dict to an ordered list of (name, config) pairs
+    # Ensure "noop" is always at index 0 if present
+    action_pairs = []
+    if "noop" in actions_cpp_params:
+        action_pairs.append(("noop", actions_cpp_params["noop"]))
+
+    # Add remaining actions in their original order
+    for action_name, action_config in actions_cpp_params.items():
+        if action_name != "noop":
+            action_pairs.append((action_name, action_config))
+
+    game_cpp_params["actions"] = action_pairs
     game_cpp_params["objects"] = objects_cpp_params
 
     # Add resource_loss_prob

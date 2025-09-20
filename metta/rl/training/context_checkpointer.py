@@ -1,13 +1,12 @@
 """Trainer state checkpoint management component."""
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.component_context import ComponentContext
 from metta.rl.training.distributed_helper import DistributedHelper
 from mettagrid.config import Config
 
@@ -25,14 +24,6 @@ class ContextCheckpointerConfig(Config):
 
     checkpoint_dir: str | None = None
     """Optional explicit directory for checkpoint artifacts."""
-
-
-@dataclass(slots=True)
-class _RestoredTrainerState:
-    agent_step: int
-    epoch: int
-    optimizer_state: dict
-    stopwatch_state: Optional[dict]
 
 
 class ContextCheckpointer(TrainerComponent):
@@ -66,9 +57,9 @@ class ContextCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     # Public API used by Trainer
     # ------------------------------------------------------------------
-    def restore(self, context: TrainerContext) -> None:
+    def restore(self, context: ComponentContext) -> None:
         """Load trainer state if checkpoints exist and broadcast to all ranks."""
-        state: Optional[_RestoredTrainerState] = None
+        payload: Optional[Dict[str, Any]] = None
 
         if self._distributed.is_master():
             raw = self._checkpoint_manager.load_trainer_state()
@@ -76,30 +67,34 @@ class ContextCheckpointer(TrainerComponent):
                 logger.info(
                     "Restoring trainer state from epoch=%s agent_step=%s", raw.get("epoch"), raw.get("agent_step")
                 )
-                state = _RestoredTrainerState(
-                    agent_step=raw.get("agent_step", 0),
-                    epoch=raw.get("epoch", 0),
-                    optimizer_state=raw.get("optimizer_state", {}),
-                    stopwatch_state=raw.get("stopwatch_state"),
-                )
+                payload = {
+                    "agent_step": raw.get("agent_step", 0),
+                    "epoch": raw.get("epoch", 0),
+                    "optimizer_state": raw.get("optimizer_state", {}),
+                    "stopwatch_state": raw.get("stopwatch_state"),
+                }
 
-        state = self._distributed.broadcast_from_master(state)
-        if state is None:
+        payload = self._distributed.broadcast_from_master(payload)
+        if payload is None:
             return
 
-        context.agent_step = state.agent_step
-        context.epoch = state.epoch
-        self._latest_saved_epoch = state.epoch
+        context.agent_step = payload["agent_step"]
+        context.epoch = payload["epoch"]
+        self._latest_saved_epoch = payload["epoch"]
 
-        if state.optimizer_state:
+        optimizer_state = payload.get("optimizer_state")
+        context.state.optimizer_state = optimizer_state
+        if optimizer_state:
             try:
-                context.optimizer.load_state_dict(state.optimizer_state)
+                context.optimizer.load_state_dict(optimizer_state)
             except ValueError as exc:  # pragma: no cover - mismatch rare but we log it
                 logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
 
-        if state.stopwatch_state:
+        stopwatch_state = payload.get("stopwatch_state")
+        context.state.stopwatch_state = stopwatch_state
+        if stopwatch_state:
             try:
-                context.stopwatch.load_state(state.stopwatch_state, resume_running=True)
+                context.stopwatch.load_state(stopwatch_state, resume_running=True)
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Failed to restore stopwatch state: %s", exc)
 
@@ -128,16 +123,18 @@ class ContextCheckpointer(TrainerComponent):
         context = self.context
         current_epoch = context.epoch
         agent_step = context.agent_step
-        stopwatch_state = None
         try:
-            stopwatch_state = context.stopwatch.save_state()
+            context.state.stopwatch_state = context.stopwatch.save_state()
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.debug("Unable to capture stopwatch state: %s", exc)
+            context.state.stopwatch_state = None
+
+        context.state.optimizer_state = context.optimizer.state_dict()
 
         self._checkpoint_manager.save_trainer_state(
             context.optimizer,
             current_epoch,
             agent_step,
-            stopwatch_state=stopwatch_state,
+            stopwatch_state=context.state.stopwatch_state,
         )
         self._latest_saved_epoch = current_epoch

@@ -7,7 +7,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.component_context import ComponentContext
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 
@@ -53,20 +53,20 @@ class Loss:
         self.loss_cfg = loss_config
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
         self.loss_tracker = defaultdict(list)
-        self._context: TrainerContext | None = None
+        self._context: ComponentContext | None = None
 
         self._get_schedule()
 
-    def attach_context(self, context: TrainerContext) -> None:
+    def attach_context(self, context: ComponentContext) -> None:
         """Register the shared trainer context for this loss instance."""
         self._context = context
 
-    def _require_context(self, context: TrainerContext | None = None) -> TrainerContext:
+    def _require_context(self, context: ComponentContext | None = None) -> ComponentContext:
         if context is not None:
             self._context = context
             return context
         if self._context is None:
-            raise RuntimeError("Loss has not been attached to a TrainerContext")
+            raise RuntimeError("Loss has not been attached to a ComponentContext")
         return self._context
 
     def get_experience_spec(self) -> Composite:
@@ -75,32 +75,32 @@ class Loss:
 
     # --------- Control flow hooks; override in subclasses when custom behaviour is needed ---------
 
-    def on_new_training_run(self, context: TrainerContext | None = None) -> None:
+    def on_new_training_run(self, context: ComponentContext | None = None) -> None:
         """Called at the very beginning of a training epoch."""
         self._require_context(context)
 
-    def on_rollout_start(self, context: TrainerContext | None = None) -> None:
+    def on_rollout_start(self, context: ComponentContext | None = None) -> None:
         """Called before starting a rollout phase."""
         self._require_context(context)
         self.policy.reset_memory()
 
-    def rollout(self, td: TensorDict, context: TrainerContext | None = None) -> None:
+    def rollout(self, td: TensorDict, context: ComponentContext | None = None) -> None:
         """Rollout step executed while experience buffer requests more data."""
         ctx = self._require_context(context)
         if not self._should_run_rollout(ctx.epoch):
             return
         if ctx.training_env_id is None:
-            raise RuntimeError("TrainerContext.training_env_id must be set before calling Loss.rollout")
+            raise RuntimeError("ComponentContext.training_env_id must be set before calling Loss.rollout")
         self.run_rollout(td, ctx)
 
-    def run_rollout(self, td: TensorDict, context: TrainerContext) -> None:
+    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         """Override in subclasses to implement rollout logic."""
         return
 
     def train(
         self,
         shared_loss_data: TensorDict,
-        context: TrainerContext | None,
+        context: ComponentContext | None,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
         """Training step executed while scheduler allows it."""
@@ -113,22 +113,22 @@ class Loss:
     def run_train(
         self,
         shared_loss_data: TensorDict,
-        context: TrainerContext,
+        context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
         """Override in subclasses to implement training logic."""
         zero = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         return zero, shared_loss_data, False
 
-    def on_mb_end(self, context: TrainerContext | None, mb_idx: int) -> None:
+    def on_mb_end(self, context: ComponentContext | None, mb_idx: int) -> None:
         """Hook executed at the end of each minibatch."""
         self._require_context(context)
 
-    def on_train_phase_end(self, context: TrainerContext | None = None) -> None:
+    def on_train_phase_end(self, context: ComponentContext | None = None) -> None:
         """Hook executed after the training phase completes."""
         self._require_context(context)
 
-    def save_loss_states(self, context: TrainerContext | None = None) -> None:
+    def save_loss_states(self, context: ComponentContext | None = None) -> None:
         """Save loss states at the end of training (optional)."""
         self._require_context(context)
 

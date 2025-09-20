@@ -23,7 +23,9 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "UploaderConfig": ("metta.rl.training.uploader", "UploaderConfig"),
     "ContextCheckpointer": ("metta.rl.training.context_checkpointer", "ContextCheckpointer"),
     "ContextCheckpointerConfig": ("metta.rl.training.context_checkpointer", "ContextCheckpointerConfig"),
-    "TrainerContext": ("metta.rl.training.context", "TrainerContext"),
+    "ComponentContext": ("metta.rl.training.component_context", "ComponentContext"),
+    "TrainerState": ("metta.rl.training.component_context", "TrainerState"),
+    "TrainingEnvWindow": ("metta.rl.training.component_context", "TrainingEnvWindow"),
     "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
     "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
     # Evaluation
