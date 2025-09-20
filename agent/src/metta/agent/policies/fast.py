@@ -22,7 +22,6 @@ from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.util import flatten_sequence, restore_sequence
 
 logger = logging.getLogger(__name__)
 
@@ -100,11 +99,6 @@ class FastPolicy(Policy):
         self.action_probs = ActionProbs(config=config.action_probs_config)
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        td, batch_size, time_steps = flatten_sequence(td)
-        flat_action = action
-        if action is not None and action.dim() == 3:
-            flat_action = action.reshape(batch_size * time_steps, action.shape[-1])
-
         self.obs_shim(td)
         self.cnn_encoder(td)
         self.lstm(td)
@@ -116,10 +110,10 @@ class FastPolicy(Policy):
         self.action_embeddings(td)
         self.actor_query(td)
         self.actor_key(td)
-        self.action_probs(td, flat_action)
+        self.action_probs(td, action)
         td["values"] = td["values"].flatten()
 
-        return restore_sequence(td, batch_size, time_steps)
+        return td
 
     def initialize_to_environment(
         self,

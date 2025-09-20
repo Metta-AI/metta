@@ -77,22 +77,26 @@ class EMA(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         self.update_target_model()
         policy_td = shared_loss_data["policy_td"]
-        batch_shape = tuple(int(dim) for dim in policy_td.batch_size)
-        if not batch_shape:
-            raise RuntimeError("EMA requires a batch dimension")
-        batch_size = batch_shape[0]
-        time_steps = batch_shape[1] if len(batch_shape) > 1 else 1
 
-        pred = policy_td["EMA_pred_output_2"].to(dtype=torch.float32).reshape(batch_size, time_steps, -1)
+        # reshape to 1D for the head ie flatten the batch and time dimension
+        B, TT = policy_td.batch_size[0], policy_td.batch_size[1]
+        policy_td = policy_td.reshape(B * TT)
+        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
+        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
 
+        pred: Tensor = policy_td["EMA_pred_output_2"].to(dtype=torch.float32)
+
+        # target prediction: you need to clear all keys except env_obs and then clone
         target_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
+        target_td.set("bptt", torch.full((B * TT,), TT, device=target_td.device, dtype=torch.long))
+        target_td.set("batch", torch.full((B * TT,), B, device=target_td.device, dtype=torch.long))
 
         with torch.no_grad():
             self.target_model(target_td)
-            target_pred = target_td["EMA_pred_output_2"].to(dtype=torch.float32).reshape(batch_size, time_steps, -1)
+            target_pred: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
-        shared_loss_data["EMA"]["pred"] = pred
-        shared_loss_data["EMA"]["target_pred"] = target_pred
+        shared_loss_data["EMA"]["pred"] = pred.reshape(B, TT, -1)
+        shared_loss_data["EMA"]["target_pred"] = target_pred.reshape(B, TT, -1)
 
         loss = F.mse_loss(pred, target_pred) * self.ema_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))

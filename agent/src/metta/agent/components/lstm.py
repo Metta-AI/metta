@@ -74,13 +74,26 @@ class LSTM(nn.Module):
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict):
-        latent = td[self.in_key]  # → (2, num_layers, batch, hidden_size)
+        latent = td[self.in_key]
 
-        TT = 1
-        B = td.batch_size.numel()
-        if td["bptt"][0] != 1:
-            TT = td["bptt"][0]
-        B = B // TT
+        batch_shape = tuple(int(dim) for dim in td.batch_size)
+        if "bptt" in td.keys():
+            TT = int(td["bptt"][0].item())
+        elif len(batch_shape) > 1:
+            TT = batch_shape[1]
+        else:
+            TT = 1
+
+        if TT <= 0:
+            raise ValueError("bptt entries must be positive")
+
+        total_batch = latent.shape[0]
+        B, remainder = divmod(total_batch, TT)
+        if remainder != 0:
+            raise ValueError("latent batch size must be divisible by bptt")
+
+        if "batch" in td.keys():
+            B = int(td["batch"][0].item())
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
 
