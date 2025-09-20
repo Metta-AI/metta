@@ -9,6 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
+from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -20,6 +21,9 @@ from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from pydantic import Field
+
+logger = getRankAwareLogger(__name__)
+
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -420,6 +424,13 @@ def train(
     # which requires a large batch size
     trainer_cfg.batch_size = 4128768
     trainer_cfg.bptt_horizon = 512
+
+    # TEST
+    import json
+
+    logger.warning("ordered_chains.py trainer_cfg: TrainerConfig")
+    logger.warning(json.dumps(trainer_cfg.model_dump(), indent=2))
+    # TEST
 
     return TrainTool(trainer=trainer_cfg)
 
