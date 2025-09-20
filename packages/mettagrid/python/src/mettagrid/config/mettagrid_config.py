@@ -133,6 +133,7 @@ class RecipeConfig(Config):
 class AssemblerConfig(Config):
     """Python assembler configuration."""
 
+    name: str = Field(default="assembler")
     type_id: int = Field(default=0, ge=0, le=255)
     recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
 
