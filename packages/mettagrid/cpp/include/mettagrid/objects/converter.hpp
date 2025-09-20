@@ -109,7 +109,7 @@ public:
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
         conversions_completed(0) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -172,8 +172,8 @@ public:
     std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
-    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs
-    size_t capacity = 3 + this->inventory.size();
+    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs + tags
+    size_t capacity = 3 + this->inventory.size() + this->tag_ids.size();
     if (this->recipe_details_obs) {
       capacity += this->input_resources.size() + this->output_resources.size();
     }
@@ -209,6 +209,11 @@ public:
               {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
         }
       }
+    }
+
+    // Emit tag features
+    for (int tag_id : tag_ids) {
+      features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
     return features;

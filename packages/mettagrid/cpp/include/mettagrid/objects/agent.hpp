@@ -66,7 +66,7 @@ public:
         prev_action_name(""),
         steps_without_motion(0) {
     populate_initial_inventory(config.initial_inventory);
-    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
+    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
   }
 
   void init(RewardType* reward_ptr) {
@@ -192,7 +192,7 @@ public:
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
-    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);
+    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0) + this->tag_ids.size();
 
     std::vector<PartialObservationToken> features;
     features.reserve(num_tokens);
@@ -209,6 +209,11 @@ public:
       assert(amount > 0);
       auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
       features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
+    }
+
+    // Emit tag features
+    for (int tag_id : tag_ids) {
+      features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
     return features;

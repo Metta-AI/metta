@@ -155,7 +155,7 @@ public:
 
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : recipes(cfg.recipes), cooling_down(false), cooldown_remaining(0), event_manager(nullptr), grid(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
 
@@ -209,6 +209,12 @@ public:
     // features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->cooldown_remaining)});
     // uint8_t pattern = get_agent_pattern_byte();
     // features.push_back({ObservationFeature::Group, static_cast<ObservationType>(pattern)});
+
+    // Emit tag features
+    for (int tag_id : this->tag_ids) {
+      features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
+    }
+
     return features;
   }
 
