@@ -14,7 +14,6 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "CoreTrainingLoop": ("metta.rl.training.core", "CoreTrainingLoop"),
     "RolloutResult": ("metta.rl.training.core", "RolloutResult"),
     "DistributedHelper": ("metta.rl.training.distributed_helper", "DistributedHelper"),
-    "ProgressLogger": ("metta.rl.training.progress_logger", "ProgressLogger"),
     "Checkpointer": ("metta.rl.training.checkpointer", "Checkpointer"),
     "CheckpointerConfig": ("metta.rl.training.checkpointer", "CheckpointerConfig"),
     "Uploader": ("metta.rl.training.uploader", "Uploader"),
@@ -43,6 +42,7 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "HyperparameterSchedulerConfig": ("metta.rl.training.scheduler", "HyperparameterSchedulerConfig"),
     "GradientReporter": ("metta.rl.training.gradient_reporter", "GradientReporter"),
     "GradientReporterConfig": ("metta.rl.training.gradient_reporter", "GradientReporterConfig"),
+    "ProgressLogger": ("metta.rl.training.progress_logger", "ProgressLogger"),
     "training_environment": ("metta.rl.training.training_environment", None),
 }
 
