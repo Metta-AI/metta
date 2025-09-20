@@ -99,7 +99,7 @@ class TrainTool(Tool):
             remote_prefix=self.trainer.checkpoint.remote_prefix,
         )
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
-        trainer = self._initialize_trainer(env, policy)
+        trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, env)
 
@@ -202,12 +202,14 @@ class TrainTool(Tool):
         self,
         env: VectorizedTrainingEnvironment,
         policy: Policy,
+        distributed_helper: DistributedHelper,
     ) -> Trainer:
         trainer = Trainer(
             self.trainer,
             env,
             policy,
             torch.device(self.device),
+            distributed_helper=distributed_helper,
         )
 
         if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
