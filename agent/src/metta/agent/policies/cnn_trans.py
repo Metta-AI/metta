@@ -16,13 +16,22 @@ logger = logging.getLogger(__name__)
 class CNNTransConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
+    transformer_cfg: VanillaTransformerConfig = VanillaTransformerConfig(in_key="obs_cnn_encoder", out_key="core")
+
     components: List[ComponentConfig] = [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_shim_box"),
         CNNEncoderConfig(in_key="obs_shim_box", out_key="obs_cnn_encoder"),
-        VanillaTransformerConfig(in_key="obs_cnn_encoder", out_key="core"),
-        MLPConfig(in_key="core", out_key="values", name="critic", out_features=1, hidden_features=[1024]),
+        transformer_cfg,
+        MLPConfig(
+            in_key="core",
+            out_key="values",
+            name="critic",
+            in_features=transformer_cfg.embed_dim,
+            out_features=1,
+            hidden_features=[1024],
+        ),
         ActionEmbeddingConfig(out_key="action_embedding"),
-        ActorQueryConfig(in_key="core", out_key="actor_query"),
+        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=transformer_cfg.embed_dim),
         ActorKeyConfig(query_key="actor_query", embedding_key="action_embedding", out_key="logits"),
     ]
 

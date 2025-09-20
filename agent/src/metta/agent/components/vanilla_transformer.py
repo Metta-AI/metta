@@ -103,7 +103,7 @@ class VanillaTransformer(nn.Module):
             ]
         )
 
-        self.last_action_proj = nn.LazyLinear(self.embed_dim)
+        self.last_action_proj = nn.Linear(2, self.embed_dim)
         self.reward_proj = nn.Linear(1, self.embed_dim)
         self.dones_truncateds_proj = nn.Linear(1, self.embed_dim)
 

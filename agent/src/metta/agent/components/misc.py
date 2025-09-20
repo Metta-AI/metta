@@ -38,6 +38,11 @@ class MLP(nn.Module):
 
         layers = []
         current_in_features = self.config.in_features
+        if current_in_features is None:
+            raise ValueError(
+                "MLPConfig.in_features must be set so layers can be initialized before distributed wrapping."
+            )
+
         current_in_key = self.config.in_key
 
         all_dims = self.config.hidden_features + [self.config.out_features]
@@ -45,12 +50,9 @@ class MLP(nn.Module):
         for i, out_features in enumerate(all_dims):
             is_last_layer = i == len(all_dims) - 1
 
-            if i == 0 and current_in_features is None:
-                linear_layer = nn.LazyLinear(out_features)
-            else:
-                linear_layer = pufferlib.pytorch.layer_init(
-                    nn.Linear(current_in_features, out_features), std=self.config.layer_init_std
-                )
+            linear_layer = pufferlib.pytorch.layer_init(
+                nn.Linear(current_in_features, out_features), std=self.config.layer_init_std
+            )
 
             if is_last_layer:
                 layer_out_key = self.config.out_key

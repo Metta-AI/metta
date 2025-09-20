@@ -38,15 +38,37 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
 class FastDynamicsConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
+    lstm_cfg: LSTMResetConfig = LSTMResetConfig(
+        in_key="obs_self_attn",
+        out_key="core",
+        latent_size=128,
+        hidden_size=128,
+        num_layers=2,
+    )
+    action_embedding_cfg: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="action_embedding")
+    actor_query_cfg: ActorQueryConfig = ActorQueryConfig(
+        in_key="core",
+        out_key="actor_query",
+        hidden_size=lstm_cfg.hidden_size,
+        embed_dim=action_embedding_cfg.embedding_dim,
+    )
+
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
         ObsAttrEmbedFourierConfig(in_key="obs_shim_tokens", out_key="obs_attr_embed_fourier"),
         ObsLatentAttnConfig(in_key="obs_attr_embed_fourier", out_key="obs_latent_attn", feat_dim=37, out_dim=48),
         ObsSelfAttnConfig(in_key="obs_latent_attn", out_key="obs_self_attn", feat_dim=48, out_dim=128),
-        LSTMResetConfig(in_key="obs_self_attn", out_key="core", latent_size=128, hidden_size=128, num_layers=2),
-        MLPConfig(in_key="core", out_key="values", name="critic", out_features=1, hidden_features=[1024]),
-        ActionEmbeddingConfig(out_key="action_embedding"),
-        ActorQueryConfig(in_key="core", out_key="actor_query"),
+        lstm_cfg,
+        MLPConfig(
+            in_key="core",
+            out_key="values",
+            name="critic",
+            in_features=lstm_cfg.hidden_size,
+            out_features=1,
+            hidden_features=[1024],
+        ),
+        action_embedding_cfg,
+        actor_query_cfg,
         ActorKeyConfig(query_key="actor_query", embedding_key="action_embedding", out_key="logits"),
     ]
 
@@ -55,10 +77,12 @@ class FastDynamicsConfig(PolicyArchitecture):
     def make_policy(self, env_metadata: EnvironmentMetaData) -> Policy:
         AgentClass = load_symbol(self.class_path)
         policy = AgentClass(env_metadata, self)
-        module = nn.LazyLinear(1)
-        policy.layers["returns_pred"] = TDM(module, in_keys=["pred_input"], out_keys=["returns_pred"])
-        module = nn.LazyLinear(1)
-        policy.layers["reward_pred"] = TDM(module, in_keys=["pred_input"], out_keys=["reward_pred"])
+
+        pred_input_dim = self.lstm_cfg.hidden_size + self.actor_query_cfg.embed_dim
+        returns_module = nn.Linear(pred_input_dim, 1)
+        reward_module = nn.Linear(pred_input_dim, 1)
+        policy.layers["returns_pred"] = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
+        policy.layers["reward_pred"] = TDM(reward_module, in_keys=["pred_input"], out_keys=["reward_pred"])
 
         policy.forward = forward
 
