@@ -45,17 +45,18 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg = std::make_shared<ChangeGlyphActionConfig>(
       std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryProbability>(), 4);
 
-  std::map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
+  // GameConfig expects a vector of pairs for actions (ordered list)
+  std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions_cfg;
 
-  actions_cfg["noop"] = action_cfg;
-  actions_cfg["move"] = action_cfg;
-  actions_cfg["rotate"] = action_cfg;
-  actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = action_cfg;
-  actions_cfg["put_items"] = action_cfg;
-  actions_cfg["get_items"] = action_cfg;
-  actions_cfg["change_color"] = action_cfg;
-  actions_cfg["change_glyph"] = change_glyph_cfg;
+  actions_cfg.push_back({"noop", action_cfg});
+  actions_cfg.push_back({"move", action_cfg});
+  actions_cfg.push_back({"rotate", action_cfg});
+  actions_cfg.push_back({"attack", attack_cfg});
+  actions_cfg.push_back({"swap", action_cfg});
+  actions_cfg.push_back({"put_items", action_cfg});
+  actions_cfg.push_back({"get_items", action_cfg});
+  actions_cfg.push_back({"change_color", action_cfg});
+  actions_cfg.push_back({"change_glyph", change_glyph_cfg});
 
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
