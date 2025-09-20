@@ -9,6 +9,7 @@ from typing import List
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
@@ -65,6 +66,30 @@ class Policy(ABC, nn.Module):
     @abstractmethod
     def reset_memory(self):
         pass
+
+
+class DistributedPolicy(DistributedDataParallel):
+    """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
+
+    module: "Policy"
+
+    def __init__(self, policy: "Policy", device: torch.device):
+        kwargs = {
+            "module": policy,
+            "broadcast_buffers": False,
+            "find_unused_parameters": False,
+        }
+        if device.type == "cpu" or device.index is None:
+            super().__init__(**kwargs)
+        else:
+            kwargs.update({"device_ids": [device.index], "output_device": device.index})
+            super().__init__(**kwargs)
+
+    def __getattr__(self, name: str):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
 
 
 class ExternalPolicyWrapper(Policy):

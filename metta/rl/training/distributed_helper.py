@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, List
 import torch
 import torch.distributed
 
-from metta.agent.policy import Policy
+from metta.agent.policy import DistributedPolicy, Policy
 from mettagrid.config import Config
 
 if TYPE_CHECKING:
@@ -110,13 +110,7 @@ class DistributedHelper:
             Wrapped policy if distributed, original otherwise
         """
         if self._is_distributed:
-            # Wrap with DDP
-            policy = torch.nn.parallel.DistributedDataParallel(
-                policy,
-                device_ids=[device.index] if device.type == "cuda" else None,
-                broadcast_buffers=False,
-                find_unused_parameters=False,
-            )
+            policy = DistributedPolicy(policy, device)
             logger.info(f"Wrapped policy with DDP on rank {self._rank}")
         return policy
 
