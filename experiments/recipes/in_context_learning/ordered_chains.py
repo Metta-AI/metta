@@ -408,14 +408,22 @@ def train(
 
     curriculum = make_curriculum(**curriculum_args[curriculum_style])
 
+    # TEST
+    import json
+
+    evaluation_config = EvaluationConfig(
+        simulations=make_icl_resource_chain_eval_suite(),
+        evaluate_remote=True,
+        evaluate_local=False,
+    )
+
+    logger.warning("ordered_chains.py evaluation_config: EvaluationConfig")
+    logger.warning(json.dumps(evaluation_config.model_dump(), indent=2))
+
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum,
-        evaluation=EvaluationConfig(
-            simulations=make_icl_resource_chain_eval_suite(),
-            evaluate_remote=True,
-            evaluate_local=False,
-        ),
+        evaluation=evaluation_config,
         # initial_policy=InitialPolicyConfig(
         #     uri="s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt",
         # ),
@@ -425,17 +433,10 @@ def train(
     trainer_cfg.batch_size = 4128768
     trainer_cfg.bptt_horizon = 512
 
-    tool = TrainTool(trainer=trainer_cfg)
-
-    # TEST
-    import json
-
     logger.warning("ordered_chains.py trainer_cfg: TrainerConfig")
     logger.warning(json.dumps(trainer_cfg.model_dump(), indent=2))
-    logger.warning("cfg: TrainTool")
-    logger.warning(json.dumps(tool.model_dump(), indent=2))
 
-    return tool
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
