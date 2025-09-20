@@ -9,7 +9,6 @@ from metta.rl.loss.loss import Loss
 from metta.rl.training.component_context import ComponentContext
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
-from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
@@ -111,7 +110,6 @@ class CoreTrainingLoop:
                 dtype=torch.long,
                 device=td.device,
             )
-            ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
