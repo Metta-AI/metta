@@ -1,10 +1,24 @@
-"""Training loop helper functions."""
+"""Training utilities for Metta RL."""
 
 import logging
+
+import torch
+from tensordict import TensorDict
 
 from metta.utils.progress import log_rich_progress, should_use_rich_console
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_sequence_metadata(td: TensorDict, *, batch_size: int, time_steps: int) -> None:
+    """Attach required sequence metadata to ``td`` if missing."""
+
+    total = batch_size * time_steps
+    device = td.device
+    if "batch" not in td.keys():
+        td.set("batch", torch.full((total,), batch_size, dtype=torch.long, device=device))
+    if "bptt" not in td.keys():
+        td.set("bptt", torch.full((total,), time_steps, dtype=torch.long, device=device))
 
 
 def should_run(

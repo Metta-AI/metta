@@ -1,12 +1,14 @@
 from typing import List, Optional
 
 import pufferlib.pytorch
+import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
 
 from metta.agent.components.component_config import ComponentConfig
+from mettagrid.config import Config
 
 
 class MLPConfig(ComponentConfig):
@@ -82,3 +84,80 @@ class MLP(nn.Module):
 
     def forward(self, td: TensorDict) -> TensorDict:
         return self.network(td)
+
+
+###------------- Deep Residual MLP -------------------------
+class DeepResMLPConfig(Config):
+    in_key: str
+    out_key: str
+    depth: int
+    in_features: int
+    name: str = "deep_res_mlp"
+
+
+class ResidualBlock(nn.Module):
+    """
+    This class is instantiated by ResNetMLP.
+    """
+
+    def __init__(self, hidden_size: int):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            Swish(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            Swish(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            Swish(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            Swish(),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.block(x)
+
+
+class Swish(nn.Module):
+    """
+    This is a helper class for ResNetMLP.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.beta = nn.Parameter(torch.tensor(1.0, dtype=torch.float32))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x * torch.sigmoid(self.beta * x)
+
+
+class ResNetMLP(nn.Module):
+    """
+    Applies a residual dense connection to the incoming data: y = x + F(x)
+    Input and output shapes are the same. To scale, you need to create an initial and/or final linear layer separately
+    that maps to the hidden size you want.
+    """
+
+    def __init__(self, config: DeepResMLPConfig):
+        super().__init__()
+        self.config = config
+        hidden_size = self.config.in_features
+        self._depth = self.config.depth
+
+        if self._depth % 4 != 0:
+            raise ValueError("Depth must be a multiple of 4.")
+        self._num_blocks = self._depth // 4
+
+        self.residual_layers = nn.Sequential(*[ResidualBlock(hidden_size) for _ in range(self._num_blocks)])
+
+    def forward(self, td: TensorDict):
+        x = td[self.config.in_key]
+        x = self.residual_layers(x)
+        td[self.config.out_key] = x
+        return td
+
+
+# ------------- End Deep Residual MLP ----------------------------------

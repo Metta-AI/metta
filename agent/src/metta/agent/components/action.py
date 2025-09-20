@@ -47,7 +47,6 @@ class ActionEmbedding(nn.Module):
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
         self.net = nn.Embedding(num_embeddings=self.num_embeddings, embedding_dim=self.embedding_dim)
 
-        # Match Fast component policy: orthogonal init scaled to max abs value of 0.1
         weight_limit = 0.1
         nn.init.orthogonal_(self.net.weight)
         with torch.no_grad():
@@ -59,11 +58,6 @@ class ActionEmbedding(nn.Module):
         env: EnvironmentMetaData,
         device: torch.device,
     ) -> None:
-        if not hasattr(env, "action_names") or not hasattr(env, "max_action_args"):
-            raise AttributeError(
-                "Environment metadata must provide 'action_names' and 'max_action_args' to initialize action embeddings"
-            )
-
         base_action_names = list(env.action_names)
         action_max_params = list(env.max_action_args)
 

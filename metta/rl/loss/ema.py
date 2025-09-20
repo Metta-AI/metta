@@ -10,6 +10,7 @@ from torch.nn import functional as F
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.loss.loss import Loss
 from metta.rl.training.component_context import ComponentContext
+from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.config import Config
 
 
@@ -77,28 +78,23 @@ class EMA(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         self.update_target_model()
         policy_td = shared_loss_data["policy_td"]
-
-        # reshape to 1D for the head ie flatten the batch and time dimension
-        B, TT = policy_td.batch_size[0], policy_td.batch_size[1]
+        B, TT = policy_td.batch_size
         policy_td = policy_td.reshape(B * TT)
-        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
-        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
+        ensure_sequence_metadata(policy_td, batch_size=B, time_steps=TT)
 
-        pred: Tensor = policy_td["EMA_pred_output_2"].to(dtype=torch.float32)
+        pred_flat: Tensor = policy_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
-        # target prediction: you need to clear all keys except env_obs and then clone
         target_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
-        target_td.set("bptt", torch.full((B * TT,), TT, device=target_td.device, dtype=torch.long))
-        target_td.set("batch", torch.full((B * TT,), B, device=target_td.device, dtype=torch.long))
+        ensure_sequence_metadata(target_td, batch_size=B, time_steps=TT)
 
         with torch.no_grad():
             self.target_model(target_td)
-            target_pred: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
+            target_pred_flat: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
-        # Store only tensors in shared_loss_data for downstream consumers
-        shared_loss_data["EMA"]["pred"] = pred.reshape(B, TT, -1)
-        shared_loss_data["EMA"]["target_pred"] = target_pred.reshape(B, TT, -1)
+        shared_loss_data["EMA"]["pred"] = pred_flat.reshape(B, TT, -1)
+        shared_loss_data["EMA"]["target_pred"] = target_pred_flat.reshape(B, TT, -1)
 
-        loss = F.mse_loss(pred, target_pred) * self.ema_coef
+        loss = F.mse_loss(pred_flat, target_pred_flat) * self.ema_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))
+        shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
         return loss, shared_loss_data, False

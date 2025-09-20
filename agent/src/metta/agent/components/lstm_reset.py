@@ -70,6 +70,7 @@ class LSTMReset(nn.Module):
         self.out_key = self.config.out_key
         self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers)
         self.lstm_train_step = LstmTrainStep(self.net)
+        self._in_training = False
 
         for name, param in self.net.named_parameters():
             if "bias" in name:
@@ -93,11 +94,18 @@ class LSTMReset(nn.Module):
     def forward(self, td: TensorDict):
         latent = td[self.config.in_key]  # → (batch * TT, hidden_size)
 
-        TT = 1
         B = td.batch_size.numel()
         if td["bptt"][0] != 1:
             TT = td["bptt"][0]
+            self._in_training = True
+        else:
+            TT = 1
         B = B // TT
+
+        if self._in_training and TT == 1:
+            # we're at a transition from training to rollout, so we need to reset the memory
+            self._in_training = False
+            # self._reset_memory() # av we shouldn't need this
 
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is None:
@@ -180,5 +188,8 @@ class LSTMReset(nn.Module):
         self.lstm_h, self.lstm_c = memory[0], memory[1]
 
     def reset_memory(self):
+        pass
+
+    def _reset_memory(self):
         self.lstm_h.fill_(0)
         self.lstm_c.fill_(0)
