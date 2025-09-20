@@ -55,10 +55,11 @@ class CNNEncoder(nn.Module):
         x = F.relu(self.cnn2(x))
         x = self.flatten(x)
         if not self._fc1_initialized:
-            x = self.fc1(x)
+            flattened = x
+            _ = self.fc1(flattened)
             pufferlib.pytorch.layer_init(self.fc1, std=1.0)
             self._fc1_initialized = True
-            x = self.fc1(x)
+            x = self.fc1(flattened)
         else:
             x = self.fc1(x)
         x = F.relu(x)
