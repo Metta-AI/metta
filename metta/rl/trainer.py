@@ -453,9 +453,9 @@ def train(
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
 
+            # Only master needs to do bookkeeping
             if not torch_dist_cfg.is_master:
-                # Only master needs to do bookkeeping
-                continue
+                continue  # to next agent_step
 
             torch_profiler.on_epoch_end(epoch)
 
@@ -499,6 +499,7 @@ def train(
                 stats_time=timer.get_last_elapsed("_process_stats"),
                 run_name=run,
             )
+
             if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval):
                 # Extract the actual agent from distributed wrapper if needed
                 agent_to_save = policy.module if torch.distributed.is_initialized() else policy
@@ -531,6 +532,14 @@ def train(
                 latest_remote_policy_uri = policy_uri
                 logger.info(f"Saved checkpoint to {policy_uri}")
 
+            # TEST
+            if trainer_cfg.evaluation:
+                evaluate_local = trainer_cfg.evaluation.evaluate_local
+                evaluate_remote = trainer_cfg.evaluation.evaluate_remote
+                evaluator = "local" if evaluate_local else "remote" if evaluate_remote else "skipping"
+                logger.info(f"evaluate mode: {evaluator}")
+            # TEST
+
             if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
                 # Evaluation with CheckpointManager - use current policy directly
                 if stats_client and stats_tracker.stats_run_id:
@@ -550,12 +559,23 @@ def train(
                 sims.extend(trainer_cfg.evaluation.simulations)
 
                 evaluate_local = trainer_cfg.evaluation.evaluate_local
+                evaluate_remote = trainer_cfg.evaluation.evaluate_remote
+                evaluator = "local" if evaluate_local else "remote" if evaluate_remote else "skipping"
+                logger.info(f"Collected {len(sims)} simulations to evaluate: {evaluator}")
+
+                # TEST
+                evaluate_remote = False
+                evaluate_local = True
+                logger.warning("Forcing evaluation to local for test")
+                # TEST
+
                 if latest_remote_policy_uri:
                     policy_uri = latest_remote_policy_uri
                 else:
                     checkpoint_uris = checkpoint_manager.select_checkpoints("latest", count=1)
                     policy_uri = checkpoint_uris[0] if checkpoint_uris else None
-                if trainer_cfg.evaluation.evaluate_remote:
+
+                if evaluate_remote:
                     try:
                         # Get the most recent checkpoint URI for remote evaluation
                         # Prefer wandb artifact if available, otherwise use local file
@@ -575,8 +595,10 @@ def train(
                         logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
                         logger.error("Falling back to local evaluation")
                         evaluate_local = True
+
                 if evaluate_local:
                     if policy_uri:
+                        logger.info(f"Evaluating policy locally with {policy_uri}")
                         evaluation_results = evaluate_policy(
                             checkpoint_uri=policy_uri,
                             simulations=sims,
@@ -586,6 +608,7 @@ def train(
                             stats_epoch_id=stats_tracker.stats_epoch_id,
                             stats_client=stats_client,
                         )
+
                         logger.info("Simulation complete")
                         eval_scores = evaluation_results.scores
                         if wandb_run is not None and evaluation_results.replay_urls:

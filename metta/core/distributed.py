@@ -2,6 +2,7 @@
 
 import logging
 import os
+from datetime import timedelta
 
 import torch
 
@@ -19,7 +20,27 @@ class TorchDistributedConfig(Config):
     distributed: bool
 
 
-def setup_torch_distributed(device: str) -> TorchDistributedConfig:
+def _init_process_group(timeout: timedelta) -> bool:
+    world_size_str = os.environ.get("WORLD_SIZE") or os.environ.get("NUM_NODES") or "1"
+    world_size = int(world_size_str) if world_size_str.strip() else 1
+    if world_size <= 1:
+        return False
+    if torch.distributed.is_initialized():
+        logger.error("attempted _init_process_group() when already initialized!")
+        return False
+
+    rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
+    torch.distributed.init_process_group(
+        backend="nccl",
+        timeout=timeout,
+        init_method=os.environ.get("DIST_URL", "env://"),
+        world_size=world_size,
+        rank=rank,
+    )
+    return True
+
+
+def setup_torch_distributed(device: str, timeout: timedelta = timedelta(minutes=10)) -> TorchDistributedConfig:
     assert not torch.distributed.is_initialized()
 
     master = True
@@ -29,15 +50,15 @@ def setup_torch_distributed(device: str) -> TorchDistributedConfig:
     distributed = False
 
     if "LOCAL_RANK" in os.environ and device.startswith("cuda"):
-        torch.distributed.init_process_group(backend="nccl")
+        if _init_process_group(timeout):
+            logger.info(f"Initializing NCCL distributed training on {device}")
 
-        torch.cuda.set_device(device)
-        distributed = True
-        local_rank = torch.distributed.get_rank()
-        world_size = torch.distributed.get_world_size()
-        rank = torch.distributed.get_rank()
-        master = rank == 0
-        logger.info(f"Initialized NCCL distributed training on {device}")
+            torch.cuda.set_device(device)
+            distributed = True
+            local_rank = torch.distributed.get_rank()
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+            master = rank == 0
 
     return TorchDistributedConfig(
         device=device,

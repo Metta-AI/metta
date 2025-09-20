@@ -60,7 +60,7 @@ def upload_thumbnail_to_s3(thumbnail_data: bytes, episode_id: str) -> tuple[bool
 
         # Convert S3 URI to HTTP URL for database storage
         http_thumbnail_url = file_utils.http_url(s3_uri)
-        logger.info(f"Uploaded thumbnail for episode {episode_id} to {s3_uri}, HTTP URL: {http_thumbnail_url}")
+
         return True, http_thumbnail_url
 
     except Exception as e:
@@ -89,14 +89,14 @@ def maybe_generate_and_upload_thumbnail(replay_data: dict, episode_id: str) -> t
 
     try:
         # Generate thumbnail using core library
-        logger.info(f"Generating thumbnail for episode {episode_id}")
+        logger.debug(f"Generating thumbnail for episode {episode_id}")
         thumbnail_data = generate_thumbnail_from_replay(replay_data)
 
         # Upload using project file utilities
         success, thumbnail_url = upload_thumbnail_to_s3(thumbnail_data, episode_id)
 
         if success:
-            logger.info(f"Successfully generated and uploaded thumbnail for episode {episode_id}")
+            logger.debug(f"Successfully generated and uploaded thumbnail for episode {episode_id}")
         else:
             logger.error(f"Thumbnail generation succeeded but upload failed for episode {episode_id}")
 
