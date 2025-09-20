@@ -118,6 +118,4 @@ cluster_test_jobs.json
 # MetaScope
 mettascope2/dist/
 mettascope2/data/fidget/
-recipe_test_jobs.json
-cluster_test_jobs.json
-
+mettascope2/bindings/generated/

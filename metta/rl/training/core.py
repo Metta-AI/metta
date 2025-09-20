@@ -6,7 +6,7 @@ from pydantic import ConfigDict
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.component_context import ComponentContext
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.config import Config
@@ -34,8 +34,7 @@ class CoreTrainingLoop:
         losses: Dict[str, Loss],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
-        context: TrainerContext,
-        accumulate_minibatches: int = 1,
+        context: ComponentContext,
     ):
         """Initialize core training loop.
 
@@ -45,14 +44,13 @@ class CoreTrainingLoop:
             losses: Dictionary of loss instances to use
             optimizer: Optimizer for policy updates
             device: Device to run on
-            accumulate_minibatches: Number of minibatches to accumulate before optimizer step
         """
         self.policy = policy
         self.experience = experience
         self.losses = losses
         self.optimizer = optimizer
         self.device = device
-        self.accumulate_minibatches = accumulate_minibatches
+        self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
 
         # Get policy spec for experience buffer
@@ -61,7 +59,7 @@ class CoreTrainingLoop:
     def rollout_phase(
         self,
         env: TrainingEnvironment,
-        context: TrainerContext,
+        context: ComponentContext,
     ) -> RolloutResult:
         """Perform rollout phase to collect experience.
 
@@ -138,7 +136,7 @@ class CoreTrainingLoop:
 
     def training_phase(
         self,
-        context: TrainerContext,
+        context: ComponentContext,
         update_epochs: int,
         max_grad_norm: float = 0.5,
     ) -> tuple[Dict[str, float], int]:
@@ -225,7 +223,7 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, context: TrainerContext) -> None:
+    def on_epoch_start(self, context: ComponentContext) -> None:
         """Called at the start of each epoch.
 
         Args:

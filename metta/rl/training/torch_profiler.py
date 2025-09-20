@@ -12,7 +12,7 @@ import wandb
 
 from metta.common.wandb.context import WandbRun
 from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.component_context import ComponentContext
 from metta.rl.utils import should_run
 from mettagrid.util.file import http_url, is_public_uri, write_file
 
@@ -159,14 +159,14 @@ class TorchProfiler(TrainerComponent):
         self._original_train_epoch = None
         self._master_only = True
 
-    def register(self, context: TrainerContext) -> None:  # type: ignore[override]
+    def register(self, context: ComponentContext) -> None:  # type: ignore[override]
         super().register(context)
         interval = getattr(self._config, "interval_epochs", 0)
         if not interval:
             return
 
         if self._session is None:
-            run_dir = self._run_dir or getattr(context, "run_dir", None)
+            run_dir = self._run_dir
             self._session = TorchProfileSession(
                 master=self._is_master,
                 profiler_config=self._config,
