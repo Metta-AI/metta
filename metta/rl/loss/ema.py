@@ -2,19 +2,42 @@ import copy
 from typing import Any
 
 import torch
+from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.loss.base_loss import BaseLoss
-
-# from metta.rl.trainer_config import TrainerConfig
-from metta.rl.trainer_state import TrainerState
+from metta.rl.loss.loss import Loss
+from metta.rl.training.context import TrainerContext
+from mettagrid.config import Config
 
 
-class EMA(BaseLoss):
+class EMAConfig(Config):
+    decay: float = Field(default=0.995, ge=0, le=1.0)
+    loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+
+    def create(
+        self,
+        policy: PolicyAgent,
+        trainer_cfg: Any,
+        vec_env: Any,
+        device: torch.device,
+        instance_name: str,
+        loss_config: Any,
+    ):
+        """Create EMA loss instance."""
+        return EMA(
+            policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            instance_name=instance_name,
+            loss_config=loss_config,
+        )
+
+
+class EMA(Loss):
     __slots__ = (
         "target_model",
         "ema_decay",
@@ -27,11 +50,10 @@ class EMA(BaseLoss):
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
-        checkpoint_manager: CheckpointManager,
         instance_name: str,
         loss_config: Any,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, checkpoint_manager, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():
@@ -47,7 +69,12 @@ class EMA(BaseLoss):
             ):
                 target_param.data = self.ema_decay * target_param.data + (1 - self.ema_decay) * online_param.data
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def run_train(
+        self,
+        shared_loss_data: TensorDict,
+        context: TrainerContext,
+        mb_idx: int,
+    ) -> tuple[Tensor, TensorDict, bool]:
         self.update_target_model()
         policy_td = shared_loss_data["policy_td"]
 
@@ -57,7 +84,6 @@ class EMA(BaseLoss):
         policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
         policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
 
-        self.policy.policy.components["EMA_pred_output_2"](policy_td)
         pred: Tensor = policy_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
         # target prediction: you need to clear all keys except env_obs and then clone
@@ -66,7 +92,7 @@ class EMA(BaseLoss):
         target_td.set("batch", torch.full((B * TT,), B, device=target_td.device, dtype=torch.long))
 
         with torch.no_grad():
-            self.target_model.components["EMA_pred_output_2"](target_td)
+            self.target_model(target_td)
             target_pred: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
         # Store only tensors in shared_loss_data for downstream consumers
@@ -75,4 +101,4 @@ class EMA(BaseLoss):
 
         loss = F.mse_loss(pred, target_pred) * self.ema_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))
-        return loss, shared_loss_data
+        return loss, shared_loss_data, False

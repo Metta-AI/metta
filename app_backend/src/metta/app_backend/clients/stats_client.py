@@ -1,5 +1,6 @@
 import logging
 import uuid
+from abc import ABC, abstractmethod
 from typing import Any, Optional, Type, TypeVar
 
 import httpx
@@ -30,7 +31,39 @@ logger = logging.getLogger("stats_client")
 T = TypeVar("T", bound=BaseModel)
 
 
-class StatsClient:
+class StatsClient(ABC):
+    @abstractmethod
+    def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None):
+        pass
+
+    @abstractmethod
+    def __enter__(self):
+        pass
+
+    @abstractmethod
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+        pass
+
+    @abstractmethod
+    def close(self):
+        pass
+
+
+class NoopStatsClient(StatsClient):
+    def __init__(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+        pass
+
+    def close(self):
+        pass
+
+
+class HttpStatsClient(StatsClient):
     """Synchronous wrapper around AsyncStatsClient using httpx sync client."""
 
     def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None):
@@ -171,10 +204,13 @@ class StatsClient:
         )
 
     @staticmethod
-    def create(stats_server_uri: str) -> Optional["StatsClient"]:
+    def create(stats_server_uri: Optional[str]) -> "StatsClient":
+        if stats_server_uri is None:
+            return NoopStatsClient()
+
         machine_token = get_machine_token(stats_server_uri)
         if machine_token is None:
             raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
-        stats_client = StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
         stats_client._validate_authenticated()
         return stats_client
