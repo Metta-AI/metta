@@ -15,6 +15,7 @@
   // Python Configuration
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
       "source.fixAll.ruff": "explicit",
       "source.organizeImports.ruff": "explicit",
@@ -22,6 +23,8 @@
     "editor.rulers": [120],
     "editor.renderWhitespace": "trailing",
   },
+  // Ruff Extension Settings
+  "ruff.configurationPreference": "filesystemFirst",
   // YAML Configuration
   "[yaml]": {
     "editor.insertSpaces": true,

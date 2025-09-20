@@ -27,10 +27,10 @@ Use MettaScope through the recipe system:
 
 ```bash
 # Interactive play with trained policies
-uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_run/checkpoints
+uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/my_run_name
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/my_run_name/my_run_name:v10.pt
 ```
 
 ### Standalone Server
@@ -39,7 +39,8 @@ uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/my
 python -m http.server 2000
 ```
 
-Use Chrome with `chrome://flags/#enable-unsafe-webgpu` enabled. Open `http://localhost:2000` and drag/drop replay files or use `?replayUrl=...` parameter.
+Use Chrome with `chrome://flags/#enable-unsafe-webgpu` enabled. Open `http://localhost:2000` and drag/drop replay files
+or use `?replayUrl=...` parameter.
 
 Here are some replays to try out:
 
@@ -72,22 +73,22 @@ MettaScope is deeply integrated with the new recipe-based training system:
 uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
 
 # 2. Interactively test the trained policy in MettaScope
-uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_experiment/checkpoints
+uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # 3. Generate and view replays
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_experiment/checkpoints
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 ```
 
 ### Policy URI Formats
 
-- `file://./train_dir/run_name/checkpoints` - Local checkpoints  
-- `wandb://run/project_name/run_id` - Wandb artifacts
+- `file://./train_dir/run_name/checkpoints/run_name:v{epoch}.pt` - Local checkpoints
+- `s3://bucket/path/<run_id>/checkpoints/<run_id>:v10.pt` - S3 checkpoints
 
 ## Running Metta in VSCode/Cursor
 
 1. **Launch** VSCode or Cursor.
 2. **Open the project folder**: `File > Open Folder...` → select `metta/` directory.
-3. **Run Metta**: 
+3. **Run Metta**:
    - Click **"Run and Debug"** in the top right
    - Select **"Play Metta"** from the dropdown
    - Click the **green play arrow** to start MettaScope!

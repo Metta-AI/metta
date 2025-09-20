@@ -141,7 +141,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 ### Repository Structure
 
 - `metta/`: Core Python implementation for agents, maps, RL algorithms, simulation
-- `mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
+- `packages/mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
 - `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
 - `gridworks/`: Next.js web interface
@@ -199,13 +199,15 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 2. **Simulation/Evaluation**: Run evaluation suites on trained policies
 
-   ```bash
-   # Run evaluation
-   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
+```bash
+# Run evaluation
+uv run ./tools/run.py experiments.recipes.arena.evaluate \
+  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
-   # Using wandb artifact
-   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/my-training-run
-   ```
+# Using a remote S3 checkpoint
+uv run ./tools/run.py experiments.recipes.arena.evaluate \
+  policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
+```
 
 3. **Analysis**: Analyze evaluation results
 
@@ -215,14 +217,17 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 4. **Interactive Play**: Test policies interactively (browser-based)
 
-   ```bash
-   uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpoints/policy.pt
-   ```
+```bash
+uv run ./tools/run.py experiments.recipes.arena.play \
+  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
+```
 
 5. **View Replays**: Watch recorded gameplay
-   ```bash
-   uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
-   ```
+
+```bash
+uv run ./tools/run.py experiments.recipes.arena.replay \
+  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+```
 
 #### Visualization Tools
 
@@ -289,13 +294,16 @@ uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
 uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
 
 # Play/test a trained policy (interactive browser)
-uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpoints/policy.pt
+uv run ./tools/run.py experiments.recipes.arena.play \
+  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
+uv run ./tools/run.py experiments.recipes.arena.evaluate \
+  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
+uv run ./tools/run.py experiments.recipes.arena.replay \
+  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 #### Configuration System
@@ -414,7 +422,8 @@ recipe files:
 - Validate policy types with runtime checking
 - Use Union types for policies: `Union[MettaAgent, DistributedMettaAgent]`
 - Ensure proper type safety for policy handling throughout the system
-- Policy URIs follow format: `file://path/to/checkpoint` or `wandb://project/run/artifact`
+- Policy filenames embed the run: `file://path/to/run/checkpoints/<run_name>:v{epoch}.pt` or
+  `s3://bucket/path/run/checkpoints/<run_name>:v{epoch}.pt`
 
 #### Device Management
 
@@ -437,7 +446,7 @@ See @.cursor/docs.md for testing examples and quick test commands.
   - `tests/sim/` - Simulation and evaluation
   - `tests/map/` - Map generation and scene loading
   - `tests/sweep/` - Hyperparameter sweep infrastructure
-  - `tests/mettagrid/` - Environment-specific tests
+  - `packages/mettagrid/tests` - Environment-specific tests
 
 ### Code Review Criteria
 

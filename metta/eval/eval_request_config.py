@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 
 class EvalRewardSummary(Config):

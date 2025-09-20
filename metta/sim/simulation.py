@@ -18,15 +18,15 @@ from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
-from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
+from mettagrid import MettaGridEnv, dtype_actions
+from mettagrid.util.replay_writer import ReplayWriter
+from mettagrid.util.stats_writer import StatsWriter
 
 SYNTHETIC_EVAL_PREFIX = "eval/"
 
@@ -163,7 +163,7 @@ class Simulation:
         """Create a Simulation with sensible defaults."""
         # Create policy record from URI
         if policy_uri:
-            policy = CheckpointManager.load_from_uri(policy_uri)
+            policy = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
             policy = MockAgent()
 

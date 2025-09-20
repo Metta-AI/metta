@@ -5,9 +5,9 @@ import platform
 from urllib.parse import quote
 
 import mettascope.server as server
-from metta.common.config.tool import Tool
+from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
-from metta.common.wandb.wandb_context import WandbConfig
+from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -29,7 +29,7 @@ class ReplayTool(Tool):
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         # Create simulation using CheckpointManager integration
         sim = Simulation.create(
             sim_config=self.sim,

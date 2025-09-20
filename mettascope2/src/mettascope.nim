@@ -1,110 +1,68 @@
-import std/[random, os, times, strformat, strutils],
-  boxy, opengl, windy, windy/http, chroma, vmath,
-  mettascope/[replays, common, panels, utils, header, footer, timeline,
+import std/[random, os, times, strformat, strutils, parseopt],
+  boxy, opengl, windy, windy/http, chroma, vmath, fidget2, fidget2/hybridrender,
+  mettascope/[replays, common, panels, utils, footer, timeline,
   worldmap, minimap, agenttable, agenttraces, envconfig]
 
-window = newWindow("MettaScope in Nim", ivec2(1280, 800))
-makeContextCurrent(window)
+var replay = ""
 
-when not defined(emscripten):
-  loadExtensions()
+# TODO: Remove with dynamic panels.
+var topArea: Area
+var bottomArea: Area
 
-bxy = newBoxy(quadsPerBatch = 10921)
+proc parseArgs() =
+  ## Parse command line arguments.
+  var p = initOptParser(commandLineParams())
+  while true:
+    p.next()
+    case p.kind
+    of cmdEnd:
+      break
+    of cmdLongOption, cmdShortOption:
+      case p.key
+      of "replay", "r":
+        replay = p.val
+        echo "Replay: ", replay
+      else:
+        discard
+    of cmdArgument:
+      discard
 
-rootArea = Area(layout: Horizontal)
-worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
-minimapPanel = Panel(panelType: Minimap, name: "Minimap")
-agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table")
-agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces")
-mgConfigPanel = Panel(panelType: EnvConfig, name: "Env Config")
-globalTimelinePanel = Panel(panelType: GlobalTimeline)
-globalFooterPanel = Panel(panelType: GlobalFooter)
-globalHeaderPanel = Panel(panelType: GlobalHeader)
 
-rootArea.areas.add(Area(layout: Horizontal))
-let topArea = Area(layout: Horizontal)
-rootArea.areas.add(topArea)
-let bottomArea = Area(layout: Horizontal)
-rootArea.areas.add(bottomArea)
 
-topArea.panels.add(worldMapPanel)
-topArea.panels.add(minimapPanel)
-topArea.panels.add(agentTablePanel)
-bottomArea.panels.add(agentTracesPanel)
-bottomArea.panels.add(mgConfigPanel)
+find "/UI/Main":
 
-proc display() =
-  if window.buttonReleased[MouseLeft]:
-    mouseCaptured = false
-    mouseCapturedPanel = nil
+  find "**/PanelHeader":
+    onClick:
+      let title = thisNode.find("**/title")
+      rootArea.select(title.text)
+      echo "Selected panel: ", title.text
 
-  bxy.beginFrame(window.size)
-  const RibbonHeight = 64
-  rootArea.rect = IRect(x: 0, y: RibbonHeight, w: window.size.x, h: window.size.y - RibbonHeight*3)
-  topArea.rect = IRect(x: 0, y: rootArea.rect.y, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.75).int)
-  bottomArea.rect = IRect(x: 0, y: rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, w: rootArea.rect.w, h: (rootArea.rect.h.float32 * 0.25).int)
-  rootArea.updatePanelsSizes()
+  find "AreaHeader":
+    onClick:
+      echo "Clicked: AreaHeader: ", thisNode.name
 
-  globalHeaderPanel.rect = IRect(x: 0, y: 0, w: window.size.x, h: RibbonHeight)
-  globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
-  globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
+  find "WorldMapPanel":
+    onClick:
+      echo "Clicked: WorldMapPanel: ", thisNode.name
 
-  globalHeaderPanel.beginDraw()
-  drawHeader(globalHeaderPanel)
-  globalHeaderPanel.endDraw()
+  find "AgentTracesPanel":
+    onClick:
+      echo "Clicked: AgentTracesPanel: ", thisNode.name
 
-  globalFooterPanel.beginDraw()
-  drawFooter(globalFooterPanel)
-  globalFooterPanel.endDraw()
+  onLoad:
+    echo "onLoad"
 
-  globalTimelinePanel.beginDraw()
-  drawTimeline(globalTimelinePanel)
-  globalTimelinePanel.endDraw()
+    # Build the atlas.
+    for path in walkDirRec(dataDir):
+      if path.endsWith(".png") and "fidget" notin path:
+        echo path
+        bxy.addImage(path.replace(dataDir & "/", "").replace(".png", ""), readImage(path))
 
-  worldMapPanel.beginDraw()
-  drawWorldMap(worldMapPanel)
-  worldMapPanel.endDraw()
+    utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
-  minimapPanel.beginDraw()
-  drawMinimap(minimapPanel)
-  minimapPanel.endDraw()
-
-  agentTablePanel.beginDraw()
-  drawAgentTable(agentTablePanel)
-  agentTablePanel.endDraw()
-
-  agentTracesPanel.beginDraw()
-  drawAgentTraces(agentTracesPanel)
-  agentTracesPanel.endDraw()
-
-  mgConfigPanel.beginDraw()
-  drawEnvConfig(mgConfigPanel)
-  mgConfigPanel.endDraw()
-
-  rootArea.drawFrame()
-
-  bxy.endFrame()
-  window.swapBuffers()
-  inc frame
-
-# Build the atlas.
-for path in walkDirRec("data/"):
-  if path.endsWith(".png"):
-    echo path
-    bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
-
-when defined(emscripten):
-  common.replay = loadReplay("replays/pens.json.z")
-  proc main() {.cdecl.} =
-    display()
-    pollEvents()
-  window.run(main)
-
-else:
-  import cligen
-  proc cmd(replay: string = "") =
     if replay != "":
       if replay.startsWith("http"):
+        echo "Loading replay from URL: ", replay
         let req = startHttpRequest(replay)
         req.onError = proc(msg: string) =
           echo "onError: " & msg
@@ -113,11 +71,105 @@ else:
           common.replay = loadReplay(response.body, replay)
       else:
         common.replay = loadReplay(replay)
-    else:
-      common.replay = loadReplay("replays/pens.json.z")
+    elif common.replay == nil:
+      common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
 
+    echo "Creating panels"
+    rootArea = Area(layout: Horizontal, node: find("**/AreaHeader"))
+
+    worldMapPanel = Panel(panelType: WorldMap, name: "World Map", node: find("**/WorldMap"))
+    minimapPanel = Panel(panelType: Minimap, name: "Minimap", node: find("**/Minimap"))
+    agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table", node: find("**/AgentTable"))
+    agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces", node: find("**/AgentTraces"))
+    envConfigPanel = Panel(panelType: EnvConfig, name: "Env Config", node: find("**/EnvConfig"))
+
+    globalTimelinePanel = Panel(panelType: GlobalTimeline, node: find("GlobalTimeline"))
+    globalFooterPanel = Panel(panelType: GlobalFooter, node: find("GlobalFooter"))
+    globalHeaderPanel = Panel(panelType: GlobalHeader, node: find("GlobalHeader"))
+
+    topArea = Area(layout: Horizontal, node: rootArea.node.copy())
+    thisNode.addChild(topArea.node)
+    rootArea.add(topArea)
+    bottomArea = Area(layout: Horizontal, node: rootArea.node.copy())
+    # Update the names of the headers.
+    bottomArea.node.children[0].find("title").text = "Agent Traces"
+    bottomArea.node.children[1].find("title").text = "Env Config"
+    bottomArea.node.children[2].remove()
+
+
+    thisNode.addChild(bottomArea.node)
+    rootArea.add(bottomArea)
+
+    topArea.add(worldMapPanel)
+    topArea.add(minimapPanel)
+    topArea.add(agentTablePanel)
+    bottomArea.add(agentTracesPanel)
+    bottomArea.add(envConfigPanel)
+
+    worldMapPanel.node.onRenderCallback = proc(thisNode: Node) =
+      bxy.saveTransform()
+      bxy.translate(thisNode.position)
+      drawWorldMap(worldMapPanel)
+      bxy.restoreTransform()
+
+    minimapPanel.node.onRenderCallback = proc(thisNode: Node) =
+      bxy.saveTransform()
+      bxy.translate(thisNode.position)
+      drawMinimap(minimapPanel)
+      bxy.restoreTransform()
+
+    agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
+      bxy.saveTransform()
+      bxy.translate(thisNode.position)
+      drawAgentTraces(agentTracesPanel)
+      bxy.restoreTransform()
+
+
+    globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
+      bxy.saveTransform()
+      timeline.drawTimeline(globalTimelinePanel)
+      bxy.restoreTransform()
+
+    echo "Loaded!"
+
+  onFrame:
+
+    playControls()
+
+    if window.buttonReleased[MouseLeft]:
+      mouseCaptured = false
+      mouseCapturedPanel = nil
+
+    const RibbonHeight = 64
+    const HeaderHeight = 28
+
+    let size = (window.size.vec2 / window.contentScale).ivec2
+    rootArea.rect = irect(0, RibbonHeight, size.x, size.y - RibbonHeight*3)
+    topArea.rect = irect(0, rootArea.rect.y, rootArea.rect.w, (rootArea.rect.h.float32 * 0.75).int32)
+    bottomArea.rect = irect(0, rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, rootArea.rect.w, (rootArea.rect.h.float32 * 0.25).int)
+    rootArea.updatePanelsSizes()
+
+    if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
+      fitFullMap(worldMapPanel)
+
+when isMainModule:
+
+  parseArgs()
+
+  initFidget(
+    figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
+    windowTitle = "MetaScope V2",
+    entryFrame = "UI/Main",
+    windowStyle = DecoratedResizable,
+    dataDir = "mettascope2/data"
+  )
+
+  when defined(emscripten):
+    # Emscripten can't block so it will call this callback instead.
+    window.run(mainLoop)
+  else:
+    # When running native code we can block in an infinite loop.
     while not window.closeRequested:
-      display()
-      pollEvents()
-
-  dispatch(cmd)
+      mainLoop()
+    # Destroy the window.
+    window.close()

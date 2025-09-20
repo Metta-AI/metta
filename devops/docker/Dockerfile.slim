@@ -1,3 +1,4 @@
+################# Base builder image #################
 FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -11,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bazel for metta-mettagrid build
+# Install Bazel for mettagrid build
 RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
     && chmod +x /usr/local/bin/bazel
 
@@ -23,7 +24,7 @@ ENV UV_LINK_MODE=copy
 
 COPY .python-version pyproject.toml uv.lock ./
 RUN uv python install
-COPY mettagrid/pyproject.toml mettagrid/
+COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
@@ -33,8 +34,18 @@ RUN uv sync --no-install-workspace --frozen
 
 COPY . .
 
+# When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
+RUN git config --remove-section http."https://github.com/" || true
+
+# Make sure the remote is configured for anonymous access
+RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
+
+# Doesn't do anything but guarantees that the remote is configured for anonymous access
+RUN git fetch
+
 RUN uv sync --locked
 
+################# Runtime image #################
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -50,6 +61,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /workspace /workspace
 COPY --from=builder /bin/uv /bin/uv
+COPY --from=builder /usr/local/bin/bazel /usr/local/bin/bazel
 COPY --from=builder /bin/uvx /bin/uvx
 COPY --from=builder /root/.local/share/uv /root/.local/share/uv
 
