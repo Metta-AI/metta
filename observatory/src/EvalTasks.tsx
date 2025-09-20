@@ -1,8 +1,8 @@
+import { useState } from 'react'
 import { SearchInput } from './components/SearchInput'
 import { CreateTaskForm } from './components/CreateTaskForm'
 import { TaskTable } from './components/TaskTable'
 import { useEvalTasks } from './hooks/useEvalTasks'
-import { useSearch } from './hooks/useSearch'
 import { EvalTasksProps } from './types/evalTasks'
 
 export function EvalTasks({ repo }: EvalTasksProps) {
@@ -22,7 +22,20 @@ export function EvalTasks({ repo }: EvalTasksProps) {
     sortedHistoryTasks,
   } = useEvalTasks(repo)
 
-  const { searchText, searchLoading, handleSearchChange } = useSearch(loadTasks)
+  const [searchText, setSearchText] = useState('')
+  const [searchLoading, setSearchLoading] = useState(false)
+
+  const handleSearchChange = (value: string) => {
+    setSearchText(value)
+
+    // Don't block the input - search in background
+    const searchValue = value.trim() || undefined
+    setSearchLoading(true)
+
+    loadTasks(searchValue)
+      .catch((error) => console.error('Search failed:', error))
+      .finally(() => setSearchLoading(false))
+  }
 
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -39,7 +52,7 @@ export function EvalTasks({ repo }: EvalTasksProps) {
           border: '1px solid #e8e8e8',
         }}
       >
-        <SearchInput searchText={searchText} onSearchChange={handleSearchChange} disabled={searchLoading} />
+        <SearchInput searchText={searchText} onSearchChange={handleSearchChange} />
         {searchLoading && <div style={{ marginTop: '8px', fontSize: '14px', color: '#6c757d' }}>Searching...</div>}
       </div>
 
