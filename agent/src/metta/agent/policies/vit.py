@@ -19,35 +19,42 @@ logger = logging.getLogger(__name__)
 class ViTSmallConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    lstm_cfg: LSTMResetConfig = LSTMResetConfig(
-        in_key="obs_self_attn",
-        out_key="core",
-        latent_size=128,
-        hidden_size=128,
-        num_layers=2,
-    )
+    _hidden_size = 128
+    _embedding_dim = 16
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
         ObsAttrEmbedFourierConfig(in_key="obs_shim_tokens", out_key="obs_attr_embed_fourier"),
         ObsLatentAttnConfig(in_key="obs_attr_embed_fourier", out_key="obs_latent_attn", feat_dim=37, out_dim=48),
-        ObsSelfAttnConfig(in_key="obs_latent_attn", out_key="obs_self_attn", feat_dim=48, out_dim=128),
-        lstm_cfg,
+        ObsSelfAttnConfig(in_key="obs_latent_attn", out_key="obs_self_attn", feat_dim=48, out_dim=_hidden_size),
+        LSTMResetConfig(
+            in_key="obs_self_attn",
+            out_key="core",
+            latent_size=_hidden_size,
+            hidden_size=_hidden_size,
+            num_layers=2,
+        ),
         MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
-            in_features=lstm_cfg.hidden_size,
+            in_features=_hidden_size,
             out_features=1,
             hidden_features=[1024],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding"),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
         ActorQueryConfig(
             in_key="core",
             out_key="actor_query",
-            hidden_size=lstm_cfg.hidden_size,
+            hidden_size=_hidden_size,
+            embed_dim=_embedding_dim,
         ),
-        ActorKeyConfig(query_key="actor_query", embedding_key="action_embedding", out_key="logits"),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
+            out_key="logits",
+            embed_dim=_embedding_dim,
+        ),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

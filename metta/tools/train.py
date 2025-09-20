@@ -210,6 +210,7 @@ class TrainTool(Tool):
             policy,
             torch.device(self.device),
             distributed_helper=distributed_helper,
+            run_name=self.run,
         )
 
         if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):

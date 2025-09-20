@@ -16,23 +16,29 @@ logger = logging.getLogger(__name__)
 class CNNTransConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    transformer_cfg: VanillaTransformerConfig = VanillaTransformerConfig(in_key="obs_cnn_encoder", out_key="core")
+    _embed_dim = 128
+    _embedding_dim = 16
 
     components: List[ComponentConfig] = [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_shim_box"),
         CNNEncoderConfig(in_key="obs_shim_box", out_key="obs_cnn_encoder"),
-        transformer_cfg,
+        VanillaTransformerConfig(in_key="obs_cnn_encoder", out_key="core", embed_dim=_embed_dim),
         MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
-            in_features=transformer_cfg.embed_dim,
+            in_features=_embed_dim,
             out_features=1,
             hidden_features=[1024],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding"),
-        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=transformer_cfg.embed_dim),
-        ActorKeyConfig(query_key="actor_query", embedding_key="action_embedding", out_key="logits"),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_embed_dim, embed_dim=_embedding_dim),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
+            out_key="logits",
+            embed_dim=_embedding_dim,
+        ),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

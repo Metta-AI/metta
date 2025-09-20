@@ -37,6 +37,7 @@ class Trainer:
         policy: Policy,
         device: torch.device,
         distributed_helper: Optional[DistributedHelper] = None,
+        run_name: Optional[str] = None,
     ):
         """Initialize trainer with all components.
 
@@ -53,6 +54,7 @@ class Trainer:
         if distributed_helper is None:
             distributed_helper = DistributedHelper(self._device)
         self._distributed_helper = distributed_helper
+        self._run_name = run_name
         self._components: list[TrainerComponent] = []
         self._component_map: Dict[Type[TrainerComponent], TrainerComponent] = {}
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
@@ -186,6 +188,7 @@ class Trainer:
             train_time=self.timer.get_last_elapsed("_train"),
             rollout_time=self.timer.get_last_elapsed("_rollout"),
             stats_time=self.timer.get_last_elapsed("_process_stats"),
+            run_name=self._run_name,
         )
 
     @staticmethod
@@ -196,13 +199,21 @@ class Trainer:
         policy: Policy,
         device: torch.device,
         distributed_helper: Optional[DistributedHelper] = None,
+        run_name: Optional[str] = None,
     ) -> "Trainer":
         """Create a trainer from a configuration.
 
         Args:
             distributed_helper: Optional helper to reuse existing process group
         """
-        return Trainer(cfg, training_env, policy, device, distributed_helper=distributed_helper)
+        return Trainer(
+            cfg,
+            training_env,
+            policy,
+            device,
+            distributed_helper=distributed_helper,
+            run_name=run_name,
+        )
 
     def register(self, component: TrainerComponent) -> None:
         """Register a training component.

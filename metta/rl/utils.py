@@ -46,6 +46,8 @@ def log_training_progress(
     train_time: float,
     rollout_time: float,
     stats_time: float,
+    run_name: str | None = None,
+    metrics: dict[str, float] | None = None,
 ) -> None:
     """Log training progress with timing breakdown and performance metrics."""
     total_time = train_time + rollout_time + stats_time
@@ -57,6 +59,12 @@ def log_training_progress(
     else:
         steps_per_sec = train_pct = rollout_pct = stats_pct = 0
 
+    heart_value = None
+    heart_rate = None
+    if metrics:
+        heart_value = metrics.get("env_agent/heart.get") or metrics.get("overview/heart.get")
+        heart_rate = metrics.get("env_agent/heart.get.rate")
+
     # Use rich console if appropriate
     if should_use_rich_console():
         log_rich_progress(
@@ -67,6 +75,9 @@ def log_training_progress(
             train_pct=train_pct,
             rollout_pct=rollout_pct,
             stats_pct=stats_pct,
+            run_name=run_name,
+            heart_value=heart_value,
+            heart_rate=heart_rate,
         )
     else:
 
@@ -79,9 +90,18 @@ def log_training_progress(
                 return f"{n / 1_000:.2f} k{unit}"
             return f"{n:.0f} {unit}" if unit else f"{n:.0f}"
 
-        logger.info(
-            f"Epoch {epoch} / "
-            f"{human_readable_si(steps_per_sec, 'sps')} / "
-            f"{agent_step / total_timesteps:.2%} of {human_readable_si(total_timesteps, 'steps')} / "
-            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
-        )
+        parts = []
+        if run_name:
+            parts.append(f"run={run_name}")
+        parts.append(f"epoch={epoch}")
+        parts.append(f"progress={agent_step / total_timesteps:.2%}" if total_timesteps > 0 else "progress=n/a")
+        parts.append(f"steps={human_readable_si(agent_step)}")
+        parts.append(f"total={human_readable_si(total_timesteps)}")
+        parts.append(f"rate={human_readable_si(steps_per_sec, 'sps')}")
+        parts.append(f"time=train:{train_pct:.0f}% rollout:{rollout_pct:.0f}% stats:{stats_pct:.0f}%")
+        if heart_value is not None:
+            segment = f"heart.get={heart_value:.3f}"
+            if heart_rate is not None:
+                segment += f" ({heart_rate:.3f}/s)"
+            parts.append(segment)
+        logger.info(" | ".join(parts))
