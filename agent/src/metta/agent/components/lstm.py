@@ -76,14 +76,10 @@ class LSTM(nn.Module):
     def forward(self, td: TensorDict):
         latent = td[self.in_key]
 
-        batch_shape = tuple(int(dim) for dim in td.batch_size)
-        if "bptt" in td.keys():
-            TT = int(td["bptt"][0].item())
-        elif len(batch_shape) > 1:
-            TT = batch_shape[1]
-        else:
-            TT = 1
+        if "bptt" not in td.keys():
+            raise KeyError("TensorDict is missing required 'bptt' metadata")
 
+        TT = int(td["bptt"][0].item())
         if TT <= 0:
             raise ValueError("bptt entries must be positive")
 
