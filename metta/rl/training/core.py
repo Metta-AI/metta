@@ -110,6 +110,12 @@ class CoreTrainingLoop:
                 dtype=torch.long,
                 device=td.device,
             )
+            batch_elems = td.batch_size.numel()
+            device = td.device
+            if "batch" not in td.keys():
+                td.set("batch", torch.full((batch_elems,), batch_elems, dtype=torch.long, device=device))
+            if "bptt" not in td.keys():
+                td.set("bptt", torch.ones(batch_elems, dtype=torch.long, device=device))
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
