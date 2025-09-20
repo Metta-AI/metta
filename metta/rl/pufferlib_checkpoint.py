@@ -27,9 +27,6 @@ def _is_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
     return True
 
 
-def _is_metta_agent(loaded_obj: Any) -> bool:
-    """Check if object is a Metta agent."""
-    return hasattr(loaded_obj, "policy") and hasattr(loaded_obj, "forward")
 
 
 def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
@@ -96,11 +93,6 @@ class PufferLibCheckpoint:
     def load_checkpoint(self, checkpoint_data: Any, device: str | torch.device = "cpu") -> Any:
         """Load checkpoint data and return an agent, auto-detecting format."""
 
-        # If it's already a Metta agent, return it directly
-        if _is_metta_agent(checkpoint_data):
-            logger.info("Loading native Metta checkpoint format")
-            return checkpoint_data
-
         # If it's a PufferLib state_dict, create agent and load weights
         if _is_state_dict(checkpoint_data):
             logger.info("Loading PufferLib checkpoint format (state_dict)")
@@ -108,14 +100,10 @@ class PufferLibCheckpoint:
             processed_state_dict = _preprocess_state_dict(checkpoint_data)
             return _load_state_dict_into_agent(agent, processed_state_dict)
 
-        raise ValueError(
-            f"Unrecognized checkpoint format. Expected Metta agent or PufferLib state_dict, got {type(checkpoint_data)}"
-        )
+        # Otherwise assume it's a Metta agent and return it directly
+        logger.info("Loading native Metta checkpoint format")
+        return checkpoint_data
 
     def is_pufferlib_format(self, checkpoint_data: Any) -> bool:
         """Check if checkpoint data is in PufferLib format."""
         return _is_state_dict(checkpoint_data)
-
-    def is_metta_format(self, checkpoint_data: Any) -> bool:
-        """Check if checkpoint data is in native Metta format."""
-        return _is_metta_agent(checkpoint_data)
