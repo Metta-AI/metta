@@ -191,13 +191,12 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
 
     # TEST
     import json
-    from dataclasses import asdict
 
     logger.warning("cfg: TrainTool")
-    logger.warning(json.dumps(asdict(cfg), indent=2))
+    logger.warning(json.dumps(cfg.model_dump(), indent=2))
 
     logger.warning("cfg.trainer: TrainerConfig")
-    logger.warning(json.dumps(asdict(cfg.trainer), indent=2))
+    logger.warning(json.dumps(cfg.trainer.model_dump(), indent=2))
     # TEST
 
     # Use the functional train interface directly
