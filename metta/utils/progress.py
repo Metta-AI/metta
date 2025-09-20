@@ -21,11 +21,9 @@ def should_use_rich_console() -> bool:
     return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
 
-def create_progress_table(epoch: int, run_name: str | None = None) -> Table:
+def create_progress_table(epoch: int) -> Table:
     """Create a configured rich table for displaying training progress."""
     title = f"[bold cyan]Training Progress - Epoch {epoch}"
-    if run_name:
-        title += f"\n{run_name}"
     title += "[/bold cyan]"
 
     table = Table(
@@ -50,11 +48,10 @@ def log_rich_progress(
     train_pct: float,
     rollout_pct: float,
     stats_pct: float,
-    run_name: str | None = None,
 ) -> None:
     """Log training progress using rich console tables with steps and time breakdown."""
     console = Console()
-    table = create_progress_table(epoch, run_name)
+    table = create_progress_table(epoch)
 
     # Format total timesteps
     if total_timesteps >= 1e9:
