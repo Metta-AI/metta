@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
+from metta.rl.pufferlib_checkpoint import PufferLibCheckpoint
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -181,27 +182,39 @@ class CheckpointManager:
 
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device = "cpu"):
-        """Load a policy from a URI (file://, s3://, or mock://)."""
-        if uri.startswith(("http://", "https://", "ftp://", "gs://")):
-            raise ValueError(f"Invalid URI: {uri}")
-        parsed = ParsedURI.parse(uri)
+        """Load a policy from a URI (file://, wandb://, s3://, or mock://).
+        Supports both Metta format (full agent) and PufferLib format (state_dict)."""
 
-        if parsed.scheme == "file" and parsed.local_path is not None:
-            path = parsed.local_path
+        pufferlib_checkpoint = PufferLibCheckpoint()
+
+        def _load_and_handle_format(checkpoint_path_or_obj):
+            """Helper to load checkpoint and handle both formats."""
+            if isinstance(checkpoint_path_or_obj, (str, Path)):
+                loaded_obj = torch.load(checkpoint_path_or_obj, weights_only=False, map_location=device)
+            else:
+                loaded_obj = checkpoint_path_or_obj
+
+            return pufferlib_checkpoint.load_checkpoint(loaded_obj, device)
+
+        if uri.startswith("file://"):
+            path = Path(uri[7:])  # Remove "file://" prefix
             if path.is_dir():
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                return _load_checkpoint_file(str(checkpoint_file), device)
-            if not path.exists():
-                raise FileNotFoundError(f"Checkpoint file not found: {path}")
-            return _load_checkpoint_file(str(path), device)
+                return _load_and_handle_format(checkpoint_file)
+            # Load specific file
+            return _load_and_handle_format(path)
 
-        if parsed.scheme == "s3":
-            with local_copy(parsed.canonical) as local_path:
-                return _load_checkpoint_file(str(local_path), device)
+        if uri.startswith("s3://"):
+            with local_copy(uri) as local_path:
+                return _load_and_handle_format(local_path)
 
-        if parsed.scheme == "mock":
+        if uri.startswith("wandb://"):
+            with local_copy(uri) as local_path:
+                return _load_and_handle_format(local_path)
+
+        if uri.startswith("mock://"):
             return MockAgent()
 
         raise ValueError(f"Invalid URI: {uri}")
