@@ -58,10 +58,13 @@ class Example(PyTorchAgentMixin, LSTMWrapper):
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
 
-        lstm_state = self._prepare_lstm_state(state)
+        (lstm_h, lstm_c, env_id) = self._manage_lstm_state(td, B, TT, observations.device)
+
+        lstm_state = (lstm_h, lstm_c)
 
         hidden = hidden.view(B, TT, -1).transpose(0, 1)
         lstm_output, (new_h, new_c) = self.lstm(hidden, lstm_state)
+        self._store_lstm_state(new_h, new_c, env_id)
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         logits_list, value = self.policy.decode_actions(flat_hidden)
@@ -74,7 +77,7 @@ class Example(PyTorchAgentMixin, LSTMWrapper):
         actions_tensor = actions_tensor.to(dtype=torch.int32)
 
         if action is None:
-            td["actions"] = torch.zeros(actions_tensor.shape, dtype=torch.int32, device=observations.device)
+            td["actions"] = torch.stack(actions, dim=-1).to(dtype=torch.int32)
             td["act_log_prob"] = log_probs.mean(dim=-1)
             td["values"] = value.flatten()
             td["full_log_probs"] = full_log_probs
