@@ -24,8 +24,9 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<std::string, RewardType>& stat_rewards = {},
               const std::map<std::string, RewardType>& stat_reward_max = {},
               float group_reward_pct = 0,
-              const std::map<InventoryItem, InventoryQuantity>& initial_inventory = {})
-      : GridObjectConfig(type_id, type_name),
+              const std::map<InventoryItem, InventoryQuantity>& initial_inventory = {},
+              const std::vector<int>& tag_ids = {})
+      : GridObjectConfig(type_id, type_name, tag_ids),
         group_id(group_id),
         group_name(group_name),
         freeze_duration(freeze_duration),
@@ -67,7 +68,8 @@ inline void bind_agent_config(py::module& m) {
                     const std::map<std::string, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     float,
-                    const std::map<InventoryItem, InventoryQuantity>&>(),
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::vector<int>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -80,7 +82,8 @@ inline void bind_agent_config(py::module& m) {
            py::arg("stat_rewards") = std::map<std::string, RewardType>(),
            py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
            py::arg("group_reward_pct") = 0,
-           py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>())
+           py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("tag_ids") = std::vector<int>())
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)
@@ -93,7 +96,8 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
       .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
       .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct)
-      .def_readwrite("initial_inventory", &AgentConfig::initial_inventory);
+      .def_readwrite("initial_inventory", &AgentConfig::initial_inventory)
+      .def_readwrite("tag_ids", &AgentConfig::tag_ids);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_CONFIG_HPP_
