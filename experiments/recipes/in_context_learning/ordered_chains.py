@@ -425,14 +425,17 @@ def train(
     trainer_cfg.batch_size = 4128768
     trainer_cfg.bptt_horizon = 512
 
+    tool = TrainTool(trainer=trainer_cfg)
+
     # TEST
     import json
 
     logger.warning("ordered_chains.py trainer_cfg: TrainerConfig")
     logger.warning(json.dumps(trainer_cfg.model_dump(), indent=2))
-    # TEST
+    logger.warning("cfg: TrainTool")
+    logger.warning(json.dumps(tool.model_dump(), indent=2))
 
-    return TrainTool(trainer=trainer_cfg)
+    return tool
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
