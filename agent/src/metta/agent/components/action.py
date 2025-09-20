@@ -58,11 +58,6 @@ class ActionEmbedding(nn.Module):
         env: EnvironmentMetaData,
         device: torch.device,
     ) -> None:
-        if not hasattr(env, "action_names") or not hasattr(env, "max_action_args"):
-            raise AttributeError(
-                "Environment metadata must provide 'action_names' and 'max_action_args' to initialize action embeddings"
-            )
-
         base_action_names = list(env.action_names)
         action_max_params = list(env.max_action_args)
 

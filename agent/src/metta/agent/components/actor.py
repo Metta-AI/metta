@@ -120,11 +120,6 @@ class ActionProbs(nn.Module):
         env: Any,
         device,
     ) -> None:
-        if not hasattr(env, "max_action_args"):
-            raise AttributeError(
-                "Environment metadata must provide 'max_action_args' to initialize action probabilities"
-            )
-
         action_max_params = list(env.max_action_args)
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
