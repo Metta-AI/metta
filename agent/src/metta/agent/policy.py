@@ -1,4 +1,7 @@
-"""Policy base classes and helpers."""
+"""PolicyInterface: Abstract base class defining the required interface for all policies.
+
+This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
+implement the required methods that MettaAgent depends on."""
 
 from abc import ABC, abstractmethod
 from typing import List
@@ -9,62 +12,59 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.obs_shim import (
-    ObsShimBox,
-    ObsShimBoxConfig,
-    ObsShimTokens,
-    ObsShimTokensConfig,
-)
+from metta.agent.components.obs_shim import ObsShimBox, ObsShimTokens
 from metta.rl.training.training_environment import EnvironmentMetaData
 from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
 
 
 class PolicyArchitecture(Config):
-    """Configuration container for constructing policies."""
+    """Policy architecture configuration."""
 
     class_path: str
+
     components: List[ComponentConfig] = []
+
+    # a separate component that optionally accepts actions and process logits into log probs, entropy, etc.
     action_probs_config: ComponentConfig
 
-    def make_policy(self, env_metadata: EnvironmentMetaData):
+    def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
+        """Create an agent instance from configuration."""
+
         AgentClass = load_symbol(self.class_path)
         return AgentClass(env_metadata, self)
 
 
 class Policy(ABC, nn.Module):
-    """Abstract base class defining the policy interface."""
+    """Abstract base class defining the interface that all policies must implement.
+    implement this interface."""
 
     @abstractmethod
-    def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:
-        """Forward pass used by losses / rollout."""
-        raise NotImplementedError
+    def forward(self, td: TensorDict) -> TensorDict:
+        pass
 
+    @property
     def get_agent_experience_spec(self) -> Composite:
-        """Default experience spec; concrete policies may override."""
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
             truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
 
-    def initialize_to_environment(self, env_metadata, device: torch.device) -> None:  # noqa: D401
-        """Hook for env-specific initialization (optional)."""
-        return None
+    def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
+        return
 
     @property
     @abstractmethod
-    def device(self) -> torch.device:
-        raise NotImplementedError
+    def device(self) -> torch.device: ...
 
     @property
     @abstractmethod
-    def total_params(self) -> int:
-        raise NotImplementedError
+    def total_params(self) -> int: ...
 
     @abstractmethod
-    def reset_memory(self) -> None:
-        raise NotImplementedError
+    def reset_memory(self):
+        pass
 
 
 class ExternalPolicyWrapper(Policy):
@@ -79,20 +79,18 @@ class ExternalPolicyWrapper(Policy):
     if necessary.
     """
 
-    def __init__(self, policy: torch.nn.Module, env_metadata: EnvironmentMetaData, box_obs: bool = True):
+    def __init__(self, policy: nn.Module, env_metadata: EnvironmentMetaData, box_obs: bool = True):
         self.policy = policy
         if box_obs:
-            config = ObsShimBoxConfig(in_key="env_obs", out_key="obs")
-            self.obs_shaper = ObsShimBox(env=env_metadata, config=config)
+            self.obs_shaper = ObsShimBox(env=env_metadata, in_key="env_obs", out_key="obs")
         else:
-            config = ObsShimTokensConfig(in_key="env_obs", out_key="obs")
-            self.obs_shaper = ObsShimTokens(env=env_metadata, config=config)
+            self.obs_shaper = ObsShimTokens(env=env_metadata, in_key="env_obs", out_key="obs")
 
     def forward(self, td: TensorDict) -> TensorDict:
         self.obs_shaper(td)
         return self.policy(td["obs"])
 
-    def get_agent_experience_spec(self):
+    def get_agent_experience_spec(self) -> Composite:
         pass
 
     def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
