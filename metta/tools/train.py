@@ -29,6 +29,7 @@ from metta.rl.training import (
     GradientReporterConfig,
     Heartbeat,
     Monitor,
+    ProgressLogger,
     Scheduler,
     SchedulerConfig,
     StatsReporter,
@@ -284,6 +285,7 @@ class TrainTool(Tool):
             )
 
             components.append(Monitor(enabled=reporting_enabled))
+            components.append(ProgressLogger())
         else:
             components.append(policy_checkpointer)
 

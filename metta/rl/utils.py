@@ -90,18 +90,19 @@ def log_training_progress(
                 return f"{n / 1_000:.2f} k{unit}"
             return f"{n:.0f} {unit}" if unit else f"{n:.0f}"
 
-        parts = []
-        if run_name:
-            parts.append(f"run={run_name}")
-        parts.append(f"epoch={epoch}")
-        parts.append(f"progress={agent_step / total_timesteps:.2%}" if total_timesteps > 0 else "progress=n/a")
-        parts.append(f"steps={human_readable_si(agent_step)}")
-        parts.append(f"total={human_readable_si(total_timesteps)}")
-        parts.append(f"rate={human_readable_si(steps_per_sec, 'sps')}")
-        parts.append(f"time=train:{train_pct:.0f}% rollout:{rollout_pct:.0f}% stats:{stats_pct:.0f}%")
+        label = run_name if run_name else "training"
+        progress_str = (
+            f"{agent_step:,}/{total_timesteps:,} ({agent_step / total_timesteps:.1%})"
+            if total_timesteps > 0
+            else f"{agent_step:,}"
+        )
+        message = (
+            f"{label} _ epoch {epoch} _ {progress_str} _ {human_readable_si(steps_per_sec, 'sps')} _ "
+            f"train {train_pct:.0f}% _ rollout {rollout_pct:.0f}% _ stats {stats_pct:.0f}%"
+        )
         if heart_value is not None:
-            segment = f"heart.get={heart_value:.3f}"
+            segment = f"heart.get {heart_value:.3f}"
             if heart_rate is not None:
                 segment += f" ({heart_rate:.3f}/s)"
-            parts.append(segment)
-        logger.info(" | ".join(parts))
+            message = f"{message} _ {segment}"
+        logger.info(message)

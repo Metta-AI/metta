@@ -12,7 +12,6 @@ from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
 from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
-from metta.rl.utils import log_training_progress
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
@@ -97,6 +96,7 @@ class Trainer:
             config=self._cfg,
             stopwatch=self.timer,
             distributed=self._distributed_helper,
+            run_name=self._run_name,
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
@@ -140,7 +140,6 @@ class Trainer:
 
     def _run_epoch(self) -> None:
         """Run a single training epoch."""
-        steps_before = self._state.agent_step
         self._context.reset_for_epoch()
 
         # Start new epoch
@@ -179,17 +178,7 @@ class Trainer:
         # Invoke callbacks for epoch end
         self._invoke_callback(TrainerCallback.EPOCH_END)
 
-        # Log progress
-        log_training_progress(
-            epoch=self._state.epoch,
-            agent_step=self._state.agent_step,
-            prev_agent_step=steps_before,
-            total_timesteps=self._cfg.total_timesteps,
-            train_time=self.timer.get_last_elapsed("_train"),
-            rollout_time=self.timer.get_last_elapsed("_rollout"),
-            stats_time=self.timer.get_last_elapsed("_process_stats"),
-            run_name=self._run_name,
-        )
+        # Progress logging handled by ProgressLogger component
 
     @staticmethod
     def load_or_create(

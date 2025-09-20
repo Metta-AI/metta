@@ -4,6 +4,7 @@ import os
 import sys
 
 from rich.console import Console
+from rich.table import Table
 
 
 def should_use_rich_console() -> bool:
@@ -20,6 +21,31 @@ def should_use_rich_console() -> bool:
     return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
 
+def _format_total_steps(total_timesteps: int) -> str:
+    if total_timesteps <= 0:
+        return "?"
+    if total_timesteps >= 1_000_000_000:
+        return f"{total_timesteps:.0e}"
+    return f"{total_timesteps:,}"
+
+
+def _create_progress_table(epoch: int, run_name: str | None) -> Table:
+    if run_name:
+        title = f"[bold cyan]{run_name} · Training Progress - Epoch {epoch}[/bold cyan]"
+    else:
+        title = f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]"
+
+    table = Table(
+        title=title,
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("Metric", style="cyan", justify="left")
+    table.add_column("Progress", style="green", justify="right")
+    table.add_column("Rate", style="yellow", justify="left")
+    return table
+
+
 def log_rich_progress(
     epoch: int,
     agent_step: int,
@@ -28,28 +54,33 @@ def log_rich_progress(
     train_pct: float,
     rollout_pct: float,
     stats_pct: float,
-    run_name: str | None = None,
-    heart_value: float | None = None,
-    heart_rate: float | None = None,
+    run_name: str | None,
+    heart_value: float | None,
+    heart_rate: float | None,
 ) -> None:
-    """Log training progress using a compact rich-formatted line."""
+    """Render training progress in a rich table."""
+
     console = Console()
+    table = _create_progress_table(epoch, run_name)
 
-    progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0
-
-    segments = []
-    if run_name:
-        segments.append(f"[bold cyan]{run_name}[/bold cyan]")
-    segments.append(f"epoch {epoch}")
-    segments.append(
-        f"{agent_step:,}/{total_timesteps:,} ({progress_pct:.1f}%)" if total_timesteps else f"{agent_step:,}"
+    total_steps_str = _format_total_steps(total_timesteps)
+    progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0.0
+    table.add_row(
+        "Training Steps",
+        f"{agent_step:,} / {total_steps_str} ({progress_pct:.1f}%)",
+        f"[dim]{steps_per_sec:,.0f} steps/sec[/dim]",
     )
-    segments.append(f"[yellow]{steps_per_sec:,.0f} sps[/yellow]")
-    segments.append(f"train {train_pct:.0f}% • rollout {rollout_pct:.0f}% • stats {stats_pct:.0f}%")
-    if heart_value is not None:
-        heart_segment = f"heart.get {heart_value:.3f}"
-        if heart_rate is not None:
-            heart_segment += f" ({heart_rate:.3f}/s)"
-        segments.append(heart_segment)
 
-    console.print(" • ".join(segments))
+    table.add_row(
+        "Time Breakdown",
+        f"Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%",
+        "",
+    )
+
+    if heart_value is not None:
+        heart_display = f"heart.get {heart_value:.3f}"
+        if heart_rate is not None:
+            heart_display += f" ({heart_rate:.3f}/s)"
+        table.add_row("Signals", heart_display, "")
+
+    console.print(table)

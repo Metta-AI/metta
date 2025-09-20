@@ -11,12 +11,10 @@ import importlib
 from typing import Any, Dict, Tuple
 
 _EXPORTS: Dict[str, Tuple[str, str | None]] = {
-    # Core training
     "CoreTrainingLoop": ("metta.rl.training.core", "CoreTrainingLoop"),
     "RolloutResult": ("metta.rl.training.core", "RolloutResult"),
-    # Distributed helpers
     "DistributedHelper": ("metta.rl.training.distributed_helper", "DistributedHelper"),
-    # Checkpointing components
+    "ProgressLogger": ("metta.rl.training.progress_logger", "ProgressLogger"),
     "Checkpointer": ("metta.rl.training.checkpointer", "Checkpointer"),
     "CheckpointerConfig": ("metta.rl.training.checkpointer", "CheckpointerConfig"),
     "Uploader": ("metta.rl.training.uploader", "Uploader"),
@@ -28,31 +26,23 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "TrainingEnvWindow": ("metta.rl.training.component_context", "TrainingEnvWindow"),
     "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
     "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
-    # Evaluation
     "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
     "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),
     "NoOpEvaluator": ("metta.rl.training.evaluator", "NoOpEvaluator"),
-    # Stats reporting
     "StatsReporter": ("metta.rl.training.stats_reporter", "StatsReporter"),
     "StatsReporterConfig": ("metta.rl.training.stats_reporter", "StatsReporterConfig"),
     "StatsReporterState": ("metta.rl.training.stats_reporter", "StatsReporterState"),
     "NoOpStatsReporter": ("metta.rl.training.stats_reporter", "NoOpStatsReporter"),
-    # Trainer components
     "TrainerComponent": ("metta.rl.training.component", "TrainerComponent"),
     "Monitor": ("metta.rl.training.monitor", "Monitor"),
-    # Torch profiler
     "TorchProfiler": ("metta.rl.training.torch_profiler", "TorchProfiler"),
-    # Heartbeat
     "Heartbeat": ("metta.rl.training.heartbeat", "Heartbeat"),
     "HeartbeatConfig": ("metta.rl.training.heartbeat", "HeartbeatConfig"),
-    # Hyperparameter scheduler
     "Scheduler": ("metta.rl.training.scheduler", "Scheduler"),
     "SchedulerConfig": ("metta.rl.training.scheduler", "SchedulerConfig"),
     "HyperparameterSchedulerConfig": ("metta.rl.training.scheduler", "HyperparameterSchedulerConfig"),
-    # Gradient stats
     "GradientReporter": ("metta.rl.training.gradient_reporter", "GradientReporter"),
     "GradientReporterConfig": ("metta.rl.training.gradient_reporter", "GradientReporterConfig"),
-    # Training environment module
     "training_environment": ("metta.rl.training.training_environment", None),
 }
 
