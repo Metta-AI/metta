@@ -12,7 +12,6 @@ from metta.rl.advantage import compute_advantage, normalize_advantage_distribute
 from metta.rl.loss.loss import Loss
 from metta.rl.training.component_context import ComponentContext
 from metta.rl.training.training_environment import TrainingEnvironment
-from metta.rl.utils import flatten_td_for_policy, restore_td_from_policy
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.config import Config
 
@@ -179,10 +178,15 @@ class PPO(Loss):
 
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-        policy_td, flat_action, batch_info = flatten_td_for_policy(policy_td, minibatch["actions"])
+        B, TT = policy_td.batch_size
+        policy_td = policy_td.reshape(B * TT)
+        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
+        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
 
-        policy_td = self.policy.forward(policy_td, action=flat_action)
-        shared_loss_data["policy_td"] = restore_td_from_policy(policy_td, batch_info)
+        flat_actions = minibatch["actions"].reshape(B * TT, -1)
+
+        policy_td = self.policy.forward(policy_td, action=flat_actions)
+        shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
 
         # Finally, calculate the loss!
         loss = self._process_minibatch_update(
