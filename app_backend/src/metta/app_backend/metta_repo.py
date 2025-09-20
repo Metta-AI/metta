@@ -644,6 +644,18 @@ MIGRATIONS = [
             """,
         ],
     ),
+    SqlMigration(
+        version=26,
+        description="Add text search indexes for eval_tasks search functionality",
+        sql_statements=[
+            # Add indexes for ILIKE searches on text fields
+            """CREATE INDEX idx_eval_tasks_sim_suite_ilike ON eval_tasks(sim_suite text_pattern_ops)""",
+            """CREATE INDEX idx_eval_tasks_assignee_ilike ON eval_tasks(assignee text_pattern_ops)""",
+            """CREATE INDEX idx_eval_tasks_user_id_ilike ON eval_tasks(user_id text_pattern_ops)""",
+            # Add index for policy name search (through JOIN)
+            """CREATE INDEX idx_policies_name_ilike ON policies(name text_pattern_ops)""",
+        ],
+    ),
 ]
 
 logger = logging.getLogger(name="metta_repo")
@@ -1498,6 +1510,7 @@ class MettaRepo:
         git_hash: str | None = None,
         policy_ids: list[uuid.UUID] | None = None,
         sim_suites: list[str] | None = None,
+        search: str | None = None,
     ) -> list[EvalTaskWithPolicyName]:
         async with self.connect() as con:
             # Build the WHERE clause dynamically
@@ -1523,7 +1536,20 @@ class MettaRepo:
                 where_conditions.append(f"et.sim_suite IN ({placeholders})")
                 params.extend(sim_suites)
 
-            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            if search:
+                # Search across policy name, sim suite, assignee, and user_id
+                search_conditions = [
+                    "p.name ILIKE %s",
+                    "et.sim_suite ILIKE %s",
+                    "et.assignee ILIKE %s",
+                    "et.user_id ILIKE %s",
+                ]
+                search_pattern = f"%{search}%"
+                search_clause = " OR ".join(search_conditions)
+                where_conditions.append(f"({search_clause})")
+                params.extend([search_pattern] * 4)
+
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"  # TODO: fix this
             params.append(limit)
 
             async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:

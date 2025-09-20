@@ -299,7 +299,7 @@ export interface Repo {
 
   // Eval task methods
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
-  getEvalTasks(): Promise<EvalTask[]>
+  getEvalTasks(search?: string): Promise<EvalTask[]>
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
@@ -320,7 +320,7 @@ export interface Repo {
 }
 
 export class ServerRepo implements Repo {
-  constructor(private baseUrl: string = 'http://localhost:8000') {}
+  constructor(private baseUrl: string = 'http://localhost:8000') { }
 
   private getHeaders(contentType?: string): Record<string, string> {
     const headers: Record<string, string> = {}
@@ -475,8 +475,13 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBody<EvalTask>('/tasks', request)
   }
 
-  async getEvalTasks(): Promise<EvalTask[]> {
-    const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
+  async getEvalTasks(search?: string): Promise<EvalTask[]> {
+    const params = new URLSearchParams()
+    params.append('limit', '500')
+    if (search) {
+      params.append('search', search)
+    }
+    const response = await this.apiCall<EvalTasksResponse>(`/tasks/all?${params}`)
     return response.tasks
   }
 

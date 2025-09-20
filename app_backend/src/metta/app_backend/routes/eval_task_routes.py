@@ -192,6 +192,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         git_hash: str | None = Query(default=None),
         policy_ids: list[uuid.UUID] | None = Query(default=None),
         sim_suites: list[str] | None = Query(default=None),
+        search: str | None = Query(default=None),
     ) -> TasksResponse:
         tasks = await stats_repo.get_all_tasks(
             limit=limit,
@@ -199,6 +200,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             git_hash=git_hash,
             policy_ids=policy_ids,
             sim_suites=sim_suites,
+            search=search,
         )
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
