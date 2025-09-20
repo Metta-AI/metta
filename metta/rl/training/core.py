@@ -110,8 +110,6 @@ class CoreTrainingLoop:
                 dtype=torch.long,
                 device=td.device,
             )
-            B = td.batch_size.numel()
-            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
