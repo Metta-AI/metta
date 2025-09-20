@@ -1,12 +1,20 @@
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
+import logging
+import sys
 from pathlib import Path
 from typing import Optional
 
+# Always add current directory to Python path
+sys.path.insert(0, ".")
+
+import torch
 import typer
 from rich.console import Console
 
 from cogames import game, play, train, utils
+
+logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
 console = Console()
@@ -20,8 +28,8 @@ def default(ctx: typer.Context) -> None:
         print(ctx.get_help())
 
 
-@app.command()
-def games(
+@app.command("games")
+def games_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to describe"),
     save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
 ) -> None:
@@ -58,9 +66,12 @@ def games(
 @app.command(name="play")
 def play_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
-    interactive: bool = typer.Option(False, "--interactive", "-i", help="Run in interactive mode"),
+    policy_class_path: str = typer.Option(
+        "cogames.examples.random_policy.RandomPolicy", "--policy", help="Path to policy class"
+    ),
+    policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
+    interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(100, "--steps", "-s", help="Number of steps to run"),
-    render: bool = typer.Option(True, "--render/--no-render", help="Whether to render the game"),
 ) -> None:
     """Play a game."""
     # If no game specified, list games
@@ -76,37 +87,26 @@ def play_cmd(
     if error:
         console.print(f"[red]Error: {error}[/red]")
         raise typer.Exit(1)
+    assert resolved_game is not None
+    env_cfg = game.get_game(resolved_game)
 
-    try:
-        console.print(f"[cyan]Playing {resolved_game}[/cyan]")
-        console.print(f"Steps: {steps}, Render: {render}, Interactive: {interactive}")
+    console.print(f"[cyan]Playing {resolved_game}[/cyan]")
+    console.print(f"Max Steps: {steps}, Interactive: {interactive}")
 
-        play.play_game(
-            game_name=resolved_game,
-            scenario_name=resolved_game,  # For backward compatibility
-            policy="random",
-            steps=steps,
-            episodes=1,
-            interactive=interactive,
-            render=render,
-            console=console,
-        )
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
-    except ImportError as e:
-        console.print(f"[red]Error: Failed to import mettagrid: {e}[/red]")
-        console.print("Make sure mettagrid is properly installed.")
-        raise typer.Exit(1) from e
-    except Exception as e:
-        console.print(f"[red]Error running game: {e}[/red]")
-        raise typer.Exit(1) from e
+    play.play(
+        console,
+        env_cfg=env_cfg,
+        policy_class_path=policy_class_path,
+        policy_data_path=policy_data_path,
+        max_steps=steps,
+        seed=42,
+        verbose=interactive,  # Use interactive flag for verbose output
+    )
 
 
-@app.command()
+@app.command("make-game")
 def make_scenario(
     base_game: Optional[str] = typer.Argument(None, help="Base game to use as template"),
-    name: str = typer.Option("custom_game", "--name", "-n", help="Name for the new game"),
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents"),
     width: int = typer.Option(10, "--width", "-w", help="Map width"),
     height: int = typer.Option(10, "--height", "-h", help="Map height"),
@@ -132,8 +132,6 @@ def make_scenario(
         new_config = make_game(
             num_cogs=num_agents,
             num_assemblers=1,
-            num_base_extractors=1,
-            num_wilderness_extractors=1,
             num_chests=1,
         )
 
@@ -156,10 +154,22 @@ def make_scenario(
 @app.command(name="train")
 def train_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
-    algorithm: str = typer.Option("ppo", "--algorithm", "-a", help="Training algorithm (ppo, a2c, dqn)"),
+    policy_class_path: str = typer.Option(
+        "cogames.examples.simple_policy.SimplePolicy", "--policy", help="Path to policy class"
+    ),
+    initial_weights_path: Optional[str] = typer.Option(
+        None, "--initial-weights", help="Path to initial policy weights"
+    ),
+    checkpoints_path: str = typer.Option(
+        "./experiments",
+        "--checkpoints",
+        help="Path to save training data",
+    ),
     steps: int = typer.Option(10000, "--steps", "-s", help="Number of training steps"),
-    save_path: Optional[Path] = typer.Option(None, "--save", help="Path to save trained model"),  # noqa: B008
-    wandb_project: Optional[str] = typer.Option(None, "--wandb", help="W&B project name for logging"),  # noqa: B008
+    device: str = typer.Option("cuda", "--device", help="Device to train on"),
+    seed: int = typer.Option(42, "--seed", help="Seed for training"),
+    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training"),
+    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
 ) -> None:
     """Train a policy on a game."""
     # If no game specified, list games
@@ -175,20 +185,27 @@ def train_cmd(
     if error:
         console.print(f"[red]Error: {error}[/red]")
         raise typer.Exit(1)
+    assert resolved_game is not None
+    env_cfg = game.get_game(resolved_game)
 
     try:
-        train.train_policy(
-            game_name=resolved_game,
-            scenario_name=resolved_game,  # For backward compatibility
-            algorithm=algorithm,
-            steps=steps,
-            save_path=save_path,
-            wandb_project=wandb_project,
-            console=console,
+        train.train(
+            env_cfg=env_cfg,
+            policy_class_path=policy_class_path,
+            initial_weights_path=initial_weights_path,
+            device=torch.device(device),
+            num_steps=steps,
+            checkpoints_path=Path(checkpoints_path),
+            seed=seed,
+            batch_size=batch_size,
+            minibatch_size=minibatch_size,
         )
+
     except ValueError as e:
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1) from e
+
+    console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
 
 @app.command()
@@ -196,58 +213,9 @@ def evaluate(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
     policy: Optional[str] = typer.Argument(None, help="Path to policy checkpoint or 'random' for random policy"),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes"),
-    render: bool = typer.Option(False, "--render", "-r", help="Render evaluation episodes"),
-    save_video: Optional[Path] = typer.Option(None, "--video", help="Save evaluation video to path"),  # noqa: B008
 ) -> None:
     """Evaluate a policy on a game."""
-    # If no game specified, list games
-    if game_name is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
-        console.print("\n[dim]Usage: cogames evaluate <game> [policy][/dim]")
-        return
-
-    # Resolve game name
-    resolved_game, error = utils.resolve_game(game_name)
-    if error:
-        console.print(f"[red]Error: {error}[/red]")
-        raise typer.Exit(1)
-
-    # Default policy to random if not specified
-    if policy is None:
-        policy = "random"
-        console.print("[yellow]No policy specified, using random policy[/yellow]")
-
-    try:
-        console.print(f"[cyan]Evaluating policy on {resolved_game}[/cyan]")
-        console.print(f"Policy: {policy}")
-        console.print(f"Episodes: {episodes}")
-        console.print(f"Render: {render}")
-
-        if save_video:
-            console.print(f"Video will be saved to: {save_video}")
-
-        play.evaluate_policy(
-            game_name=resolved_game,
-            scenario_name=resolved_game,  # For backward compatibility
-            policy=policy,
-            episodes=episodes,
-            render=render,
-            save_video=save_video,
-            console=console,
-        )
-
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1) from e
-    except ImportError as e:
-        console.print(f"[red]Error: Failed to import mettagrid: {e}[/red]")
-        console.print("Make sure mettagrid is properly installed.")
-        raise typer.Exit(1) from e
-    except Exception as e:
-        console.print(f"[red]Error during evaluation: {e}[/red]")
-        raise typer.Exit(1) from e
+    console.print("[red]Coming soon...[/red]")
 
 
 if __name__ == "__main__":
