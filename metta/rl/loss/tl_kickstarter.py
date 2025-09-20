@@ -9,7 +9,7 @@ from torch import Tensor
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.loss.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.context import TrainerContext
+from metta.rl.training.component_context import ComponentContext
 from mettagrid.config import Config
 
 # Config class
@@ -78,7 +78,7 @@ class TLKickstarter(Loss):
     def run_train(
         self,
         shared_loss_data: TensorDict,
-        context: TrainerContext,
+        context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
         policy_td = shared_loss_data["policy_td"]

@@ -6,7 +6,7 @@ import torch
 from metta.agent.policy import Policy
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.component import TrainerCallback, TrainerComponent
-from metta.rl.training.context import ComponentContext, TrainerState
+from metta.rl.training.component_context import ComponentContext, TrainerState
 from metta.rl.training.core import CoreTrainingLoop
 from metta.rl.training.distributed_helper import DistributedHelper
 from metta.rl.training.experience import Experience
