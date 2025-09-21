@@ -18,7 +18,6 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.components.actor import (
-    ActionProbs,
     ActionProbsConfig,
     ActorKey,
     ActorKeyConfig,

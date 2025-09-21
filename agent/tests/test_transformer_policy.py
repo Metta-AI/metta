@@ -1,16 +1,15 @@
 from types import SimpleNamespace
 
 import gymnasium as gym
+import pytest
 import torch
 from tensordict import TensorDict
 
-import pytest
-
 from metta.agent.policies.transformer import (
-    TransformerPolicy,
-    TransformerPolicyConfig,
     TransformerImprovedConfig,
     TransformerNvidiaConfig,
+    TransformerPolicy,
+    TransformerPolicyConfig,
 )
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
@@ -65,3 +64,29 @@ def test_transformer_config_creates_policy(config_cls):
     assert output_td["actions"].shape == (1, 2)
     assert output_td["values"].shape == (1,)
     assert output_td["full_log_probs"].shape[0] == 1
+
+
+def test_padding_tokens_do_not_zero_valid_entries():
+    env_metadata = _build_env_metadata()
+    policy = TransformerPolicyConfig().make_policy(env_metadata)
+    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+    policy.eval()
+
+    observations = torch.full((1, 4, 3), 0xFF, dtype=torch.uint8)
+    observations[0, 0] = torch.tensor([0x00, 0, 10], dtype=torch.uint8)
+    observations[0, 1] = torch.tensor([0xFF, 0, 0], dtype=torch.uint8)
+
+    captured = {}
+
+    def _capture_input(_, inputs):
+        captured["grid"] = inputs[0].detach().clone()
+
+    handle = policy.cnn1.register_forward_pre_hook(_capture_input)
+    try:
+        policy._encode_observations(observations)
+    finally:
+        handle.remove()
+
+    assert "grid" in captured
+    # Confirm that the valid token's value survives padding tokens (channel 0, location (0, 0)).
+    assert captured["grid"][0, 0, 0, 0].item() == pytest.approx(10.0)
