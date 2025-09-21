@@ -121,6 +121,12 @@ def parse_value(value_str: str) -> Any:
     return value_str
 
 
+CLI_KEY_ALIASES: dict[str, str] = {
+    "policy": "policy_architecture",
+    "policy_config": "policy_architecture",
+}
+
+
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
     """Parse CLI arguments in key=value format, keeping dotted keys flat."""
     parsed: dict[str, Any] = {}
@@ -129,7 +135,8 @@ def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
         if "=" not in arg:
             raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
         key, value = arg.split("=", 1)
-        parsed[key] = parse_value(value)
+        canonical_key = CLI_KEY_ALIASES.get(key, key)
+        parsed[canonical_key] = parse_value(value)
     return parsed
 
 
