@@ -105,6 +105,7 @@ class ExternalPolicyWrapper(Policy):
     """
 
     def __init__(self, policy: nn.Module, env_metadata: EnvironmentMetaData, box_obs: bool = True):
+        super().__init__()
         self.policy = policy
         if box_obs:
             self.obs_shaper = ObsShimBox(env=env_metadata, in_key="env_obs", out_key="obs")
