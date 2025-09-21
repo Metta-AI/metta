@@ -144,6 +144,7 @@ class PPO(Loss):
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
+
         segment_records = self.policy.consume_segment_memory_records()
         self.replay.store(data_td=td, env_id=env_slice, segment_records=segment_records or None)
 
@@ -356,7 +357,12 @@ class PPO(Loss):
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
-    ) -> tuple[TensorDict, Tensor, Tensor, list[Optional[Dict[str, Optional[List[torch.Tensor]]]]]]:
+    ) -> tuple[
+        TensorDict,
+        Tensor,
+        Tensor,
+        List[Optional[Dict[str, Optional[List[torch.Tensor]]]]],
+    ]:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
         adv_magnitude = advantages.abs().sum(dim=1)

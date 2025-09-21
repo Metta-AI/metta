@@ -49,7 +49,9 @@ class Experience:
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
-        self.segment_memory: list[Optional[Dict[str, Optional[List[torch.Tensor]]]]] = [None] * self.segments
+
+        # Transformer memory snapshots per segment (optional)
+        self.segment_memory: List[Optional[Dict[str, Optional[List[Tensor]]]]] = [None] * self.segments
 
         # Minibatch configuration
         self.minibatch_size: int = min(minibatch_size, max_minibatch_size)

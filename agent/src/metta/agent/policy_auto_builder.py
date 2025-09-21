@@ -1,5 +1,6 @@
 import logging
 from collections import OrderedDict
+from typing import Any, Callable, List, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -8,6 +9,7 @@ from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.memory import SegmentMemoryRecord
 from mettagrid.config import Config
 
 logger = logging.getLogger("metta_agent")
@@ -78,6 +80,54 @@ class PolicyAutoBuilder(nn.Module):
         for _, value in self.components.items():
             if hasattr(value, "reset_memory"):
                 value.reset_memory()
+
+    def consume_segment_memory_records(self) -> List[SegmentMemoryRecord]:
+        records: List[SegmentMemoryRecord] = []
+
+        for component in self.components.values():
+            consume: Optional[Callable[[], Sequence[SegmentMemoryRecord]]] = getattr(
+                component, "consume_segment_memory_records", None
+            )
+            if consume is None:
+                continue
+
+            component_records = consume()
+            if component_records:
+                records.extend(component_records)
+
+        consume_action_probs: Optional[Callable[[], Sequence[SegmentMemoryRecord]]] = getattr(
+            self.action_probs, "consume_segment_memory_records", None
+        )
+        if consume_action_probs is not None:
+            action_records = consume_action_probs()
+            if action_records:
+                records.extend(action_records)
+
+        return records
+
+    def prepare_memory_batch(
+        self,
+        snapshots: Any,
+        device: torch.device,
+    ) -> Any:
+        for component in self.components.values():
+            prepare: Optional[Callable[[Any, torch.device], Any]] = getattr(component, "prepare_memory_batch", None)
+            if prepare is None:
+                continue
+
+            prepared = prepare(snapshots, device)
+            if prepared is not None:
+                return prepared
+
+        prepare_action_probs: Optional[Callable[[Any, torch.device], Any]] = getattr(
+            self.action_probs, "prepare_memory_batch", None
+        )
+        if prepare_action_probs is not None:
+            prepared = prepare_action_probs(snapshots, device)
+            if prepared is not None:
+                return prepared
+
+        return None
 
     @property
     def total_params(self):

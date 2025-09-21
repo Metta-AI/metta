@@ -2,12 +2,17 @@ import contextlib
 import os
 import platform
 from pathlib import Path
-from typing import Optional
+from typing import Any, ClassVar, Optional
 
 import torch
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.transformer import (
+    TransformerImprovedConfig,
+    TransformerNvidiaConfig,
+    TransformerPolicyConfig,
+)
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -55,6 +60,27 @@ logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
+    POLICY_PRESETS: ClassVar[dict[str, type[PolicyArchitecture]]] = {
+        "fast": FastConfig,
+        "transformer": TransformerPolicyConfig,
+        "transformer_improved": TransformerImprovedConfig,
+        "transformer_nvidia": TransformerNvidiaConfig,
+    }
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_policy_preset(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        value = data.get("policy_architecture")
+        if isinstance(value, str) and "." not in value:
+            preset_cls = cls.POLICY_PRESETS.get(value.lower())
+            if preset_cls is None:
+                valid = ", ".join(sorted(cls.POLICY_PRESETS))
+                raise ValueError(f"Unknown policy preset '{value}'. Valid options: {valid}")
+            data["policy_architecture"] = preset_cls()
+        return data
+
     run: Optional[str] = None
     run_dir: Optional[str] = None
     device: str = guess_device()
