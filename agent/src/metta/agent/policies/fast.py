@@ -121,6 +121,9 @@ class FastPolicy(Policy):
         env,
         device,
     ) -> List[str]:
+        device = torch.device(device)
+        self.to(device)
+
         log = self.obs_shim.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
