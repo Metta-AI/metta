@@ -250,7 +250,7 @@ class TransformerPolicy(Policy):
                 embed_dim=self.config.action_embedding_dim,
             )
         )
-        self.action_probs = ActionProbs(ActionProbsConfig(in_key="logits"))
+        self.action_probs = self.config.action_probs_config.make_component()
 
     def _build_transformer(self) -> None:
         module_cls = self.config.transformer_module_cls
@@ -282,6 +282,7 @@ class TransformerPolicy(Policy):
         if observations.dim() == 4:
             B, TT = observations.shape[:2]
             total_batch = B * TT
+            batch_shape: Optional[Tuple[int, int]] = (B, TT)
             if td.batch_dims > 1:
                 td = td.reshape(total_batch)
                 observations = td["env_obs"]
@@ -289,6 +290,7 @@ class TransformerPolicy(Policy):
             B = observations.shape[0]
             TT = 1
             total_batch = B
+            batch_shape = None
             if td.batch_dims > 1:
                 td = td.reshape(total_batch)
                 observations = td["env_obs"]
@@ -316,6 +318,9 @@ class TransformerPolicy(Policy):
         self.actor_key(td)
 
         td = self.action_probs(td, action)
+
+        if batch_shape is not None:
+            td = td.reshape(batch_shape)
         return td
 
     def _forward_transformer(self, td: TensorDict, latent: torch.Tensor, batch_size: int, tt: int) -> torch.Tensor:
@@ -476,7 +481,8 @@ class TransformerPolicy(Policy):
         if self.max_vec.device != device or self.max_vec.shape != max_vec.shape:
             self.max_vec = max_vec
         else:
-            self.max_vec.data.copy_(max_vec)
+            with torch.no_grad():
+                self.max_vec.copy_(max_vec)
 
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
