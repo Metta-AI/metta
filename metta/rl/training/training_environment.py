@@ -1,7 +1,6 @@
 """Training environment wrapper for vectorized environments."""
 
 import logging
-import math
 import os
 import platform
 from abc import ABC, abstractmethod
@@ -22,26 +21,6 @@ from mettagrid.core import ObsFeature
 from mettagrid.mettagrid_c import dtype_actions
 
 logger = logging.getLogger(__name__)
-
-
-def _sanitize_feature_normalizations(values: Any) -> dict[int, float]:
-    if not isinstance(values, dict):
-        return {}
-
-    sanitized: dict[int, float] = {}
-    for key, raw in values.items():
-        try:
-            val = float(raw)
-        except (TypeError, ValueError):
-            val = 1.0
-        if not math.isfinite(val) or val <= 0:
-            val = 1.0
-        try:
-            idx = int(key)
-        except (TypeError, ValueError):
-            continue
-        sanitized[idx] = val
-    return sanitized
 
 
 def guess_vectorization() -> Literal["serial", "multiprocessing"]:
@@ -193,10 +172,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
 
-        feature_normalizations = _sanitize_feature_normalizations(
-            getattr(self._vecenv.driver_env, "feature_normalizations", {})
-        )
-
         self._meta_data = EnvironmentMetaData(
             obs_width=self._vecenv.driver_env.obs_width,
             obs_height=self._vecenv.driver_env.obs_height,
@@ -206,7 +181,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             num_agents=self._num_agents,
             observation_space=self._vecenv.driver_env.observation_space,
             action_space=self._vecenv.driver_env.action_space,
-            feature_normalizations=feature_normalizations,
+            feature_normalizations=self._vecenv.driver_env.feature_normalizations,
         )
 
     def __repr__(self) -> str:
