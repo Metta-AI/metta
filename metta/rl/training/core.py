@@ -9,6 +9,7 @@ from metta.rl.loss.loss import Loss
 from metta.rl.training.component_context import ComponentContext
 from metta.rl.training.experience import Experience
 from metta.rl.training.training_environment import TrainingEnvironment
+from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
@@ -109,16 +110,8 @@ class CoreTrainingLoop:
             # incurring allocations on every step by reusing cached constant tensors.
             batch_elems = td.batch_size.numel()
             device = td.device
-            if "batch" not in td.keys():
-                td.set(
-                    "batch",
-                    self._get_constant_tensor("batch", (batch_elems,), batch_elems, device),
-                )
-            if "bptt" not in td.keys():
-                td.set(
-                    "bptt",
-                    self._get_constant_tensor("bptt", (batch_elems,), 1, device),
-                )
+            if "batch" not in td.keys() or "bptt" not in td.keys():
+                ensure_sequence_metadata(td, batch_size=batch_elems, time_steps=1)
             training_env_shape = tuple(int(dim) for dim in td.batch_size)
             if "training_env_id" not in td.keys():
                 td.set(

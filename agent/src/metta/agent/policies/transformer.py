@@ -127,6 +127,10 @@ class TransformerPolicy(Policy):
 
         self._memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
 
+        # Expose action-metadata placeholders for compatibility with legacy helpers
+        self.cum_action_max_params: Optional[torch.Tensor] = None
+        self.action_index_tensor: Optional[torch.Tensor] = None
+
         if self.latent_size != self.hidden_size:
             self.input_projection = pufferlib.pytorch.layer_init(nn.Linear(self.latent_size, self.hidden_size), std=1.0)
         else:
@@ -389,11 +393,26 @@ class TransformerPolicy(Policy):
         log = self.obs_shim.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
+        self.cum_action_max_params = self.action_probs.cum_action_max_params
+        self.action_index_tensor = self.action_probs.action_index_tensor
         self._memory.clear()
         return [log] if log is not None else []
 
     def reset_memory(self) -> None:
         self._memory.clear()
+
+    # ------------------------------------------------------------------
+    # Action helpers (legacy compatibility)
+    # ------------------------------------------------------------------
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
+        """Delegate action-to-logit conversion to ActionProbs component."""
+
+        return self.action_probs._convert_action_to_logit_index(flattened_action)
+
+    def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
+        """Delegate logit-to-action conversion to ActionProbs component."""
+
+        return self.action_probs._convert_logit_index_to_action(logit_indices)
 
     @property
     def device(self) -> torch.device:
