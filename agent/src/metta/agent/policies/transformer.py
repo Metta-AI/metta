@@ -71,6 +71,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
 
     # Implementation options
     manual_init: bool = False
+    strict_attr_indices: bool = False
 
 
 class TransformerImprovedConfig(TransformerPolicyConfig):
@@ -91,6 +92,7 @@ class TransformerNvidiaConfig(TransformerPolicyConfig):
     transformer_clamp_len: int = 256
     transformer_module_cls: Type[nn.Module] = NvidiaTransformerModule
     manual_init: bool = True
+    strict_attr_indices: bool = True
 
 
 class TransformerPolicy(Policy):
@@ -106,6 +108,8 @@ class TransformerPolicy(Policy):
 
         self.latent_size = self.config.latent_size
         self.hidden_size = self.config.hidden_size
+        self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
+        self.num_layers = max(env.feature_normalizations.keys()) + 1
 
         encoder_out = self.config.cnn_encoder_config.encoded_obs_cfg.get("out_features")
         if encoder_out != self.latent_size:
@@ -230,6 +234,9 @@ class TransformerPolicy(Policy):
         else:
             original_shape = None
 
+        if self.strict_attr_indices:
+            self._enforce_strict_attr_indices(td)
+
         self.obs_shim(td)
         self.cnn_encoder(td)
 
@@ -316,6 +323,26 @@ class TransformerPolicy(Policy):
             self._memory.pop(env_key, None)
 
         return core_flat
+
+    def _enforce_strict_attr_indices(self, td: TensorDict) -> None:
+        obs = td.get("env_obs", None)
+        if obs is None or obs.numel() == 0:
+            return
+        if obs.dim() == 4:
+            obs = obs.view(-1, obs.shape[-2], obs.shape[-1])
+        if obs.dim() != 3:
+            return
+
+        coords_byte = obs[..., 0].to(torch.uint8)
+        attr_indices = obs[..., 1].long()
+        valid_tokens = coords_byte != 0xFF
+        invalid_mask = valid_tokens & (attr_indices >= self.num_layers)
+        if invalid_mask.any():
+            invalid_indices = torch.unique(attr_indices[invalid_mask]).cpu().tolist()
+            raise ValueError(
+                "Found observation attribute indices "
+                f"{sorted(int(idx) for idx in invalid_indices)} >= num_layers ({self.num_layers})."
+            )
 
     def _compute_reset_mask(
         self, dones: torch.Tensor, truncateds: torch.Tensor, batch_size: int
