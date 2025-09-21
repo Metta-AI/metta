@@ -348,8 +348,20 @@ class TrainTool(Tool):
         self.trainer.bptt_horizon = min(self.trainer.bptt_horizon, 8)
 
         self.training_env.async_factor = 1
+
+        min_forward_pass_size = 48  # default fallback aligns with 2 * default num_agents (24)
+        try:
+            curriculum = Curriculum(self.training_env.curriculum)
+            env_cfg = curriculum.get_task().get_env_cfg()
+            num_agents = getattr(getattr(env_cfg, "game", None), "num_agents", None)
+            if num_agents is not None:
+                min_forward_pass_size = max(2, 2 * num_agents)
+        except Exception:
+            logger.debug("Falling back to default Mac debug forward-pass target size", exc_info=True)
+
         self.training_env.forward_pass_minibatch_target_size = min(
-            self.training_env.forward_pass_minibatch_target_size, 4
+            self.training_env.forward_pass_minibatch_target_size,
+            min_forward_pass_size,
         )
         self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)

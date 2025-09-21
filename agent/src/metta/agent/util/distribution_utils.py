@@ -28,19 +28,8 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
 
-    # Handle NaN/inf in input logits - replace with zeros for uniform distribution
-    safe_logits = torch.where(torch.isfinite(action_logits), action_logits, torch.zeros_like(action_logits))
-
-    full_log_probs = F.log_softmax(safe_logits, dim=-1)  # [batch_size, num_actions]
+    full_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
-
-    # Ensure probabilities are valid and sum to 1 (critical for MPS stability)
-    eps = 1e-8
-    action_probs = torch.clamp(action_probs, min=eps)
-    normalizer = torch.sum(action_probs, dim=-1, keepdim=True)
-    normalizer = torch.clamp(normalizer, min=eps)
-    action_probs = action_probs / normalizer
-    full_log_probs = torch.log(action_probs)
 
     # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
@@ -78,19 +67,8 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
 
-    # Handle NaN/inf in input logits - replace with zeros for uniform distribution
-    safe_logits = torch.where(torch.isfinite(action_logits), action_logits, torch.zeros_like(action_logits))
-
-    action_log_probs = F.log_softmax(safe_logits, dim=-1)  # [batch_size, num_actions]
+    action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
-
-    # Ensure probabilities are valid for entropy calculation (critical for MPS stability)
-    eps = 1e-8
-    action_probs = torch.clamp(action_probs, min=eps)
-    normalizer = torch.sum(action_probs, dim=-1, keepdim=True)
-    normalizer = torch.clamp(normalizer, min=eps)
-    action_probs = action_probs / normalizer
-    action_log_probs = torch.log(action_probs)
 
     # Extract log-probabilities for the provided actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
