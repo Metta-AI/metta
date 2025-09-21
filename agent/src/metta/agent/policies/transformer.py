@@ -65,6 +65,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     critic_hidden_dim: int = 1024
     actor_hidden_dim: int = 512
     action_embedding_dim: int = 16
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     # Implementation options
     manual_init: bool = False
