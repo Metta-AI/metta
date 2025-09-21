@@ -380,7 +380,6 @@ class TransformerPolicy(Policy):
         self.to(device)
 
         log = self.obs_shim.initialize_to_environment(env, device)
-        self.cnn_encoder.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
         self._memory.clear()
