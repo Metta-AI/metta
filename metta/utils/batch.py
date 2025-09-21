@@ -10,9 +10,11 @@ def calculate_batch_sizes(
     async_factor: int,
 ) -> Tuple[int, int, int]:
     """Calculate target batch size, actual batch size, and number of environments."""
-    min_batch = max(2, num_workers)  # pufferlib bug requires batch size >= 2
-    target_batch_size = max(forward_pass_minibatch_target_size // num_agents, min_batch)
-    batch_size = max((target_batch_size // num_workers) * num_workers, min_batch)
+    target_batch_size = forward_pass_minibatch_target_size // num_agents
+    if target_batch_size < max(2, num_workers):  # pufferlib bug requires batch size >= 2
+        target_batch_size = num_workers
+
+    batch_size = (target_batch_size // num_workers) * num_workers
     num_envs = batch_size * async_factor
 
     return target_batch_size, batch_size, num_envs

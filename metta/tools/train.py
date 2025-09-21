@@ -349,21 +349,10 @@ class TrainTool(Tool):
 
         self.training_env.async_factor = 1
         self.training_env.forward_pass_minibatch_target_size = min(
-            self.training_env.forward_pass_minibatch_target_size,
-            self._mac_forward_pass_floor(),
+            self.training_env.forward_pass_minibatch_target_size, 4
         )
         self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
 
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
-
-    def _mac_forward_pass_floor(self) -> int:
-        curriculum_cfg = getattr(self.training_env, "curriculum", None)
-        num_agents = getattr(
-            getattr(getattr(getattr(curriculum_cfg, "task_generator", None), "env", None), "game", None),
-            "num_agents",
-            None,
-        )
-        agents = num_agents if isinstance(num_agents, int) and num_agents > 0 else 24
-        return max(2, 2 * agents)
