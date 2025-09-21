@@ -74,7 +74,6 @@ class Evaluator(TrainerComponent):
             system_cfg: System configuration
             trainer_cfg: Trainer configuration
             stats_client: Optional stats client
-            stats_reporter: Optional stats reporter for wandb/metrics
         """
         super().__init__()
         self._master_only = True
@@ -106,7 +105,6 @@ class Evaluator(TrainerComponent):
             system_cfg: Optional system configuration
             trainer_cfg: Optional trainer configuration
             stats_client: Optional stats client
-            stats_reporter: Optional stats reporter
 
         Returns:
             Evaluator instance (no-op if config is None)

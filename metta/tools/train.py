@@ -271,7 +271,6 @@ class TrainTool(Tool):
                     system_cfg=self.system,
                     trainer_cfg=self.trainer,
                     stats_client=stats_client,
-                    stats_reporter=stats_component,
                 )
             )
 
