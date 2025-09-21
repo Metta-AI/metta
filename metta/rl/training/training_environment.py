@@ -163,6 +163,11 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             is_training=True,
         )
 
+        # NOTE: Downstream rollout code currently assumes that PufferLib returns
+        # contiguous agent id ranges so we can treat them as a slice; that matches
+        # the guarantees when zero_copy=True. If we ever support zero_copy=False,
+        # we need to revisit the slice logic in CoreTrainingLoop.rollout_phase.
+
         # Initialize environment with seed
         self._vecenv.async_reset(cfg.seed)
 
