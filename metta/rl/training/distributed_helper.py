@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import torch
 import torch.distributed
@@ -75,7 +75,7 @@ class DistributedHelper:
     def scale_batch_config(
         self,
         trainer_cfg: "TrainerConfig",
-        training_env_cfg: "TrainingEnvironmentConfig" | None = None,
+        training_env_cfg: Optional["TrainingEnvironmentConfig"] = None,
     ) -> None:
         """Scale batch sizes for distributed training if configured.
 
