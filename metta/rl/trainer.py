@@ -171,11 +171,9 @@ class Trainer:
         # Store losses stats for callbacks
         self._context.latest_losses_stats = losses_stats
 
-        # Master-only operations
-        if not self._distributed_helper.is_master():
-            return
-
-        # Invoke callbacks for epoch end
+        # Invoke callbacks for epoch end on every rank. Components that should
+        # only run on the master process must set `_master_only` so they aren't
+        # registered on other ranks.
         self._invoke_callback(TrainerCallback.EPOCH_END)
 
         # Progress logging handled by ProgressLogger component
