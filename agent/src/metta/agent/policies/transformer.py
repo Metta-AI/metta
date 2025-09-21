@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Tuple, Type
 
 import pufferlib.pytorch
 import torch
@@ -128,9 +128,7 @@ class TransformerPolicy(Policy):
         self._memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
 
         if self.latent_size != self.hidden_size:
-            self.input_projection = pufferlib.pytorch.layer_init(
-                nn.Linear(self.latent_size, self.hidden_size), std=1.0
-            )
+            self.input_projection = pufferlib.pytorch.layer_init(nn.Linear(self.latent_size, self.hidden_size), std=1.0)
         else:
             self.input_projection = nn.Identity()
 
@@ -152,9 +150,7 @@ class TransformerPolicy(Policy):
             self.critic_1 = pufferlib.pytorch.layer_init(
                 nn.Linear(self.hidden_size, self.config.critic_hidden_dim), std=math.sqrt(2)
             )
-            self.value_head = pufferlib.pytorch.layer_init(
-                nn.Linear(self.config.critic_hidden_dim, 1), std=1.0
-            )
+            self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
             self.actor_1 = pufferlib.pytorch.layer_init(
                 nn.Linear(self.hidden_size, self.config.actor_hidden_dim), std=1.0
             )
@@ -212,25 +208,7 @@ class TransformerPolicy(Policy):
     # ------------------------------------------------------------------
     @torch._dynamo.disable
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None):
-        if td.batch_dims > 1:
-            original_shape = td.batch_size
-            total_batch = original_shape.numel()
-            td = td.reshape(total_batch)
-
-            env_obs = td.get("env_obs", None)
-            device = env_obs.device if env_obs is not None else torch.device("cpu")
-            if "bptt" not in td.keys() and len(original_shape) >= 2:
-                td.set(
-                    "bptt",
-                    torch.full((total_batch,), int(original_shape[1]), device=device, dtype=torch.long),
-                )
-            if "batch" not in td.keys() and len(original_shape) >= 1:
-                td.set(
-                    "batch",
-                    torch.full((total_batch,), int(original_shape[0]), device=device, dtype=torch.long),
-                )
-        else:
-            original_shape = None
+        td, observations, batch_size, tt, original_shape = self._prepare_observations(td)
 
         if self.strict_attr_indices:
             self._enforce_strict_attr_indices(td)
@@ -242,7 +220,7 @@ class TransformerPolicy(Policy):
         latent = td[encoded_key]
         latent = self.input_projection(latent)
 
-        core = self._forward_transformer(td, latent, original_shape)
+        core = self._forward_transformer(td, latent, batch_size, tt)
         td["core"] = core
 
         self.actor_module(td)
@@ -262,29 +240,13 @@ class TransformerPolicy(Policy):
             td = td.reshape(original_shape)
         return td
 
-    def _forward_transformer(
-        self, td: TensorDict, latent: torch.Tensor, original_shape: Optional[torch.Size]
-    ) -> torch.Tensor:
-        if "bptt" in td.keys():
-            tt = int(td["bptt"].reshape(-1)[0].item())
-        elif original_shape is not None and len(original_shape) >= 2:
-            tt = int(original_shape[1])
-        else:
-            tt = 1
-
+    def _forward_transformer(self, td: TensorDict, latent: torch.Tensor, batch_size: int, tt: int) -> torch.Tensor:
         if tt <= 0:
             raise ValueError("bptt entries must be positive")
 
         total_batch = latent.shape[0]
-        if total_batch % tt != 0:
+        if total_batch != batch_size * tt:
             raise ValueError("encoded_obs batch dimension must be divisible by bptt")
-
-        if "batch" in td.keys():
-            batch_size = int(td["batch"].reshape(-1)[0].item())
-        elif original_shape is not None:
-            batch_size = int(original_shape[0])
-        else:
-            batch_size = total_batch // tt
 
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
@@ -317,6 +279,36 @@ class TransformerPolicy(Policy):
             self._memory.pop(env_key, None)
 
         return core_flat
+
+    def _prepare_observations(self, td: TensorDict) -> Tuple[TensorDict, torch.Tensor, int, int, Optional[torch.Size]]:
+        observations = td["env_obs"]
+
+        if observations.dim() == 4:
+            batch_size, tt = observations.shape[:2]
+            total_batch = batch_size * tt
+            if td.batch_dims > 1:
+                td = td.reshape(total_batch)
+                observations = td["env_obs"]
+            device = observations.device
+            if "bptt" not in td.keys():
+                td.set("bptt", torch.full((total_batch,), tt, device=device, dtype=torch.long))
+            if "batch" not in td.keys():
+                td.set("batch", torch.full((total_batch,), batch_size, device=device, dtype=torch.long))
+            original_shape: Optional[torch.Size] = torch.Size([batch_size, tt])
+        else:
+            batch_size = observations.shape[0]
+            tt = 1
+            if td.batch_dims > 1:
+                td = td.reshape(batch_size)
+                observations = td["env_obs"]
+            device = observations.device
+            if "bptt" not in td.keys():
+                td.set("bptt", torch.ones((batch_size,), device=device, dtype=torch.long))
+            if "batch" not in td.keys():
+                td.set("batch", torch.full((batch_size,), batch_size, device=device, dtype=torch.long))
+            original_shape = None
+
+        return td, observations, batch_size, tt, original_shape
 
     def _enforce_strict_attr_indices(self, td: TensorDict) -> None:
         obs = td.get("env_obs", None)
