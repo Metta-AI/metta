@@ -60,7 +60,8 @@ dependencies = [
   "tensordict>=0.8.3",
   "termcolor>=2.4.0",
   "tiktoken>=0.9.0",
-  "torch>=2.7.1",
+  "torch==2.10.0.dev20250920+cu130",
+  "torchvision==0.25.0.dev20250921+cu130",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
   "typer>=0.16.0",
@@ -131,6 +132,8 @@ addopts = "-n auto --import-mode=importlib -W ignore:Gym\\ has\\ been\\ unmainta
 pythonpath = [".", "packages/mettagrid/python/src"]
 
 [tool.uv]
+extra-index-url = ["https://download.pytorch.org/whl/nightly/cu130"]
+index-strategy = "unsafe-best-match"
 cache-keys = [
   { file = "pyproject.toml" },
   { file = "packages/mettagrid/BUILD" },
@@ -161,6 +164,7 @@ metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
 mettagrid = { workspace = true }
 softmax = { workspace = true }
+pufferlib = { git = "https://github.com/relh/PufferLib", branch = "cu130-sm120-wheel" }
 
 [tool.ruff]
 exclude = ["*.ipynb"]
