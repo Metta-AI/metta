@@ -42,7 +42,13 @@ class PolicyAutoBuilder(nn.Module):
 
         self.network = TensorDictSequential(self.components, inplace=True)
 
-        self._total_params = self.count_params()
+        # PyTorch's nn.Module no longer exposes count_params(); defer to manual
+        # aggregation to avoid AttributeError during policy construction.
+        self._total_params = sum(
+            param.numel()
+            for param in self.parameters()
+            if param.requires_grad and not isinstance(param, UninitializedParameter)
+        )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
         self.network(td)
