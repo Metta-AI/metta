@@ -380,7 +380,7 @@ class StatsReporter(TrainerComponent):
                 logger.warning(f"Failed to update training run status: {e}", exc_info=True)
         self._latest_payload = None
 
-    def on_step(self, infos: Dict[str, Any]) -> None:
+    def on_step(self, infos: Dict[str, Any] | List[Dict[str, Any]]) -> None:
         """Accumulate step infos.
 
         Args:
@@ -430,10 +430,17 @@ class StatsReporter(TrainerComponent):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def accumulate_infos(self, info: Dict[str, Any] | None) -> None:
+    def accumulate_infos(self, info: Dict[str, Any] | List[Dict[str, Any]] | None) -> None:
         """Accumulate rollout info dictionaries for later aggregation."""
         if not info:
             return
+        if isinstance(info, list):
+            filtered = [i for i in info if i]
+            if not filtered:
+                return
+            self.process_rollout(filtered)
+            return
+
         self.process_rollout([info])
 
     def _build_wandb_payload(

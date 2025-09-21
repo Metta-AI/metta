@@ -149,17 +149,10 @@ class Trainer:
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
             self._context.training_env_id = rollout_result.training_env_id
             world_size = self._distributed_helper.get_world_size()
-            processed_steps = 0
-            for delta, infos in rollout_result.events:
-                if delta:
-                    self._context.record_rollout(delta, world_size)
-                    processed_steps += delta
-                for info in infos:
-                    self._invoke_callback(TrainerCallback.STEP, info)
-
-            remaining_steps = rollout_result.agent_steps - processed_steps
-            if remaining_steps > 0:
-                self._context.record_rollout(remaining_steps, world_size)
+            if rollout_result.agent_steps:
+                self._context.record_rollout(rollout_result.agent_steps, world_size)
+            if rollout_result.raw_infos:
+                self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
 
         # Training phase
         with self.timer("_train"):

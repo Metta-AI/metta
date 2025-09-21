@@ -20,7 +20,6 @@ class RolloutResult(Config):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     raw_infos: List[Dict[str, Any]]
-    events: List[tuple[int, List[Dict[str, Any]]]]
     agent_steps: int
     training_env_id: slice
 
@@ -54,6 +53,9 @@ class CoreTrainingLoop:
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
 
+        # Cache environment indices to avoid reallocating per rollout batch
+        self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
+
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
 
@@ -72,7 +74,6 @@ class CoreTrainingLoop:
             RolloutResult with collected info
         """
         raw_infos: List[Dict[str, Any]] = []
-        events: List[tuple[int, List[Dict[str, Any]]]] = []
         self.experience.reset_for_rollout()
 
         # Notify losses of rollout start
@@ -98,26 +99,10 @@ class CoreTrainingLoop:
             td["rewards"] = r.to(device=target_device, non_blocking=True)
             td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
             td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
-            env_indices = torch.arange(training_env_id.start, training_env_id.stop, dtype=torch.long, device=td.device)
+            env_indices = self._env_index_cache[training_env_id]
+            if env_indices.device != td.device:
+                env_indices = env_indices.to(device=td.device)
             td["training_env_ids"] = env_indices.unsqueeze(1)
-            td["training_env_id"] = torch.full(
-                td.batch_size,
-                training_env_id.start,
-                dtype=torch.long,
-                device=td.device,
-            )
-            td["training_env_id_start"] = torch.full(
-                td.batch_size,
-                training_env_id.start,
-                dtype=torch.long,
-                device=td.device,
-            )
-            batch_elems = td.batch_size.numel()
-            device = td.device
-            if "batch" not in td.keys():
-                td.set("batch", torch.full((batch_elems,), batch_elems, dtype=torch.long, device=device))
-            if "bptt" not in td.keys():
-                td.set("bptt", torch.ones(batch_elems, dtype=torch.long, device=device))
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
@@ -133,15 +118,13 @@ class CoreTrainingLoop:
             if infos_list:
                 raw_infos.extend(infos_list)
 
-            events.append((num_steps, infos_list))
-
             total_steps += num_steps
 
         if last_env_id is None:
             raise RuntimeError("Rollout completed without receiving any environment data")
 
         context.training_env_id = last_env_id
-        return RolloutResult(raw_infos=raw_infos, events=events, agent_steps=total_steps, training_env_id=last_env_id)
+        return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
     def training_phase(
         self,
