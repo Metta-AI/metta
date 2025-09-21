@@ -57,6 +57,7 @@ from metta.tools.utils.auto_config import (
 )
 
 logger = getRankAwareLogger(__name__)
+
 class TrainTool(Tool):
     POLICY_PRESETS: ClassVar[dict[str, type[PolicyArchitecture]]] = {
         "fast": FastConfig,
