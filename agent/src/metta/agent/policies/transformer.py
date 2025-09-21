@@ -302,17 +302,16 @@ class TransformerPolicy(Policy):
             if updated_memory is not None:
                 dones = td.get("dones", None)
                 truncateds = td.get("truncateds", None)
-                if dones is not None and truncateds is not None:
-                    reset_mask = self._compute_reset_mask(dones, truncateds, batch_size)
-                    if reset_mask is not None and reset_mask.any():
-                        hidden_states = updated_memory.get("hidden_states")
-                        if hidden_states:
-                            for idx, layer_mem in enumerate(hidden_states):
-                                if layer_mem is None or layer_mem.numel() == 0:
-                                    continue
-                                masked_layer = layer_mem.clone()
-                                masked_layer[:, reset_mask] = 0
-                                hidden_states[idx] = masked_layer
+                reset_mask = self._compute_reset_mask(dones, truncateds, batch_size)
+                if reset_mask is not None and reset_mask.any():
+                    hidden_states = updated_memory.get("hidden_states")
+                    if hidden_states:
+                        for idx, layer_mem in enumerate(hidden_states):
+                            if layer_mem is None or layer_mem.numel() == 0:
+                                continue
+                            masked_layer = layer_mem.clone()
+                            masked_layer[:, reset_mask] = 0
+                            hidden_states[idx] = masked_layer
                 self._memory[env_key] = updated_memory
         elif tt > 1 and env_key is not None:
             self._memory.pop(env_key, None)
@@ -340,16 +339,32 @@ class TransformerPolicy(Policy):
             )
 
     def _compute_reset_mask(
-        self, dones: torch.Tensor, truncateds: torch.Tensor, batch_size: int
+        self,
+        dones: Optional[torch.Tensor],
+        truncateds: Optional[torch.Tensor],
+        batch_size: int,
     ) -> Optional[torch.Tensor]:
-        if dones.numel() == 0 or truncateds.numel() == 0:
+        if dones is None and truncateds is None:
             return None
+
+        if dones is None and truncateds is not None:
+            dones = torch.zeros_like(truncateds)
+        elif truncateds is None and dones is not None:
+            truncateds = torch.zeros_like(dones)
+
+        assert dones is not None
+        assert truncateds is not None
+
+        if dones.numel() == 0 and truncateds.numel() == 0:
+            return None
+
         try:
             dones = rearrange(dones, "(b t) -> t b", b=batch_size)
             truncateds = rearrange(truncateds, "(b t) -> t b", b=batch_size)
         except ValueError:
             dones = dones.view(1, batch_size)
             truncateds = truncateds.view(1, batch_size)
+
         reset = dones.bool() | truncateds.bool()
         return reset[-1]
 
