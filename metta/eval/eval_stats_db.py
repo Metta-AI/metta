@@ -157,7 +157,7 @@ class EvalStatsDB(SimulationStatsDB):
         s2 = 0.0 if pd.isna(s2_val) else float(s2_val)
 
         if agg == "SUM":
-            return s1 / potential
+            return s1
         if agg == "AVG":
             return s1 / potential
         if agg == "STD":
