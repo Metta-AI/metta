@@ -4,7 +4,14 @@ import gymnasium as gym
 import torch
 from tensordict import TensorDict
 
-from metta.agent.policies.transformer import TransformerPolicy, TransformerPolicyConfig
+import pytest
+
+from metta.agent.policies.transformer import (
+    TransformerPolicy,
+    TransformerPolicyConfig,
+    TransformerImprovedConfig,
+    TransformerNvidiaConfig,
+)
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
 
@@ -38,15 +45,14 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
     return TensorDict({"env_obs": obs}, batch_size=[batch_size])
 
 
-def test_transformer_config_creates_policy():
+@pytest.mark.parametrize(
+    "config_cls",
+    [TransformerPolicyConfig, TransformerImprovedConfig, TransformerNvidiaConfig],
+)
+def test_transformer_config_creates_policy(config_cls):
     env_metadata = _build_env_metadata()
-    policy = TransformerPolicyConfig().make_policy(env_metadata)
+    policy = config_cls().make_policy(env_metadata)
     assert isinstance(policy, TransformerPolicy)
-
-
-def test_transformer_policy_forward_produces_actions_and_values():
-    env_metadata = _build_env_metadata()
-    policy = TransformerPolicy(env_metadata)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 

@@ -22,6 +22,7 @@ from metta.agent.components.actor import (
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.components.transformer_module import TransformerModule
+from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,8 @@ class TransformerPolicyConfig(PolicyArchitecture):
     transformer_memory_len: int = 64
     transformer_dropout: float = 0.1
     transformer_attn_dropout: float = 0.1
+    transformer_clamp_len: int = -1
+    transformer_module_cls: type = TransformerModule
 
     # Actor / critic heads
     critic_hidden_dim: int = 1024
@@ -81,6 +84,7 @@ class TransformerNvidiaConfig(TransformerPolicyConfig):
     transformer_dropout: float = 0.0
     transformer_attn_dropout: float = 0.0
     transformer_memory_len: int = 128
+    transformer_module_cls: type = NvidiaTransformerModule
 
 
 class TransformerPolicy(Policy):
@@ -106,8 +110,12 @@ class TransformerPolicy(Policy):
 
         self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, env=env)
 
-        # Sequence model
-        self.transformer_module = TransformerModule(
+        module_cls = getattr(self.config, "transformer_module_cls", TransformerModule)
+        clamp_len = self.config.transformer_clamp_len
+        if clamp_len < 0 and module_cls is NvidiaTransformerModule:
+            clamp_len = self.config.transformer_max_seq_len
+
+        self.transformer_module = module_cls(
             d_model=self.config.transformer_hidden_size,
             n_heads=self.config.transformer_num_heads,
             n_layers=self.config.transformer_num_layers,
@@ -117,6 +125,8 @@ class TransformerPolicy(Policy):
             dropout=self.config.transformer_dropout,
             dropatt=self.config.transformer_attn_dropout,
             pre_lnorm=True,
+            clamp_len=clamp_len,
+            attn_type=0,
         )
 
         self.hidden_size = self.config.transformer_hidden_size
