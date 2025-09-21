@@ -13,8 +13,9 @@ import signal
 import sys
 import tempfile
 import traceback
+import types
 import warnings
-from typing import Any
+from typing import Any, Union, get_args, get_origin
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
@@ -200,10 +201,36 @@ def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str
     return overrides, unknown
 
 
+def _try_parse_config(annotation: Any, value: Any):
+    if isinstance(annotation, type) and issubclass(annotation, Config):
+        return annotation.resolve(value)
+
+    origin = get_origin(annotation)
+    if origin in (Union, types.UnionType):
+        errors: list[Exception] = []
+        for arg in get_args(annotation):
+            if arg is type(None) and value is None:
+                return None
+            try:
+                return _try_parse_config(arg, value)
+            except Exception as exc:
+                errors.append(exc)
+        if errors:
+            raise errors[-1]
+
+    raise TypeError
+
+
 def type_parse(value: Any, annotation: Any) -> Any:
     """Type-aware coercion using Pydantic when a function annotation is present."""
     if annotation is inspect._empty:
         return value
+
+    try:
+        return _try_parse_config(annotation, value)
+    except TypeError:
+        pass
+
     adapter = TypeAdapter(annotation)
     return adapter.validate_python(value)
 
