@@ -81,6 +81,8 @@ class ComponentContext:
         self.distributed = distributed
         self.run_name = run_name
 
+        self.timing_baseline = {"agent_step": 0, "wall_time": 0.0}
+
         self.stats_reporter: "StatsReporter" | None = None
         self.memory_monitor: MemoryMonitor | None = None
         self.system_monitor: SystemMonitor | None = None

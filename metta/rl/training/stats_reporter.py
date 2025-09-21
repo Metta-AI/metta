@@ -461,6 +461,7 @@ class StatsReporter(TrainerComponent):
         )
 
         timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
+        self._normalize_steps_per_second(timing_info, agent_step)
 
         weight_stats = self._collect_weight_stats(policy=policy, epoch=epoch)
         system_stats = self._collect_system_stats()
@@ -485,6 +486,33 @@ class StatsReporter(TrainerComponent):
             agent_step=agent_step,
             epoch=epoch,
         )
+
+    def _normalize_steps_per_second(self, timing_info: Dict[str, Any], agent_step: int) -> None:
+        """Adjust SPS to account for agent steps accumulated before a resume."""
+
+        context = self._context
+        if context is None:
+            return
+
+        baseline = getattr(context, "timing_baseline", None)
+        if not isinstance(baseline, dict):
+            return
+
+        baseline_steps = baseline.get("agent_step", 0)
+        baseline_wall = baseline.get("wall_time", 0.0)
+
+        effective_elapsed = timing_info.get("wall_time", 0.0) - baseline_wall
+        effective_steps = agent_step - baseline_steps
+
+        if effective_elapsed <= 0 or effective_steps <= 0:
+            return
+
+        sps = effective_steps / effective_elapsed
+        timing_info["steps_per_second"] = sps
+
+        timing_stats = timing_info.get("timing_stats")
+        if isinstance(timing_stats, dict):
+            timing_stats["timing_cumulative/sps"] = sps
 
     def _collect_weight_stats(self, *, policy: Any, epoch: int) -> Dict[str, float]:
         interval = self._config.analyze_weights_interval

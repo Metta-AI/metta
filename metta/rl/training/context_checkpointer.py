@@ -98,11 +98,18 @@ class ContextCheckpointer(TrainerComponent):
 
         stopwatch_state = payload.get("stopwatch_state")
         context.state.stopwatch_state = stopwatch_state
+        wall_time_baseline = 0.0
         if stopwatch_state:
             try:
                 context.stopwatch.load_state(stopwatch_state, resume_running=True)
+                wall_time_baseline = context.stopwatch.get_elapsed()
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Failed to restore stopwatch state: %s", exc)
+
+        context.timing_baseline = {
+            "agent_step": context.agent_step,
+            "wall_time": wall_time_baseline,
+        }
 
     # ------------------------------------------------------------------
     # Callback entry-points
