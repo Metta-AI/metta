@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import torch
 from pydantic import ConfigDict
@@ -55,6 +55,7 @@ class CoreTrainingLoop:
 
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
+        self._metadata_cache: Dict[Tuple[str, Tuple[int, ...], int, str], torch.Tensor] = {}
 
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
@@ -104,6 +105,42 @@ class CoreTrainingLoop:
                 env_indices = env_indices.to(device=td.device)
             td["training_env_ids"] = env_indices.unsqueeze(1)
 
+            # Ensure metadata fields required by downstream components are populated without
+            # incurring allocations on every step by reusing cached constant tensors.
+            batch_elems = td.batch_size.numel()
+            device = td.device
+            if "batch" not in td.keys():
+                td.set(
+                    "batch",
+                    self._get_constant_tensor("batch", (batch_elems,), batch_elems, device),
+                )
+            if "bptt" not in td.keys():
+                td.set(
+                    "bptt",
+                    self._get_constant_tensor("bptt", (batch_elems,), 1, device),
+                )
+            training_env_shape = tuple(int(dim) for dim in td.batch_size)
+            if "training_env_id" not in td.keys():
+                td.set(
+                    "training_env_id",
+                    self._get_constant_tensor(
+                        "training_env_id",
+                        training_env_shape or (batch_elems,),
+                        training_env_id.start,
+                        device,
+                    ),
+                )
+            if "training_env_id_start" not in td.keys():
+                td.set(
+                    "training_env_id_start",
+                    self._get_constant_tensor(
+                        "training_env_id_start",
+                        training_env_shape or (batch_elems,),
+                        training_env_id.start,
+                        device,
+                    ),
+                )
+
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
             for loss in self.losses.values():
@@ -125,6 +162,26 @@ class CoreTrainingLoop:
 
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
+
+    def _get_constant_tensor(
+        self,
+        name: str,
+        shape: Tuple[int, ...],
+        value: int,
+        device: torch.device,
+    ) -> torch.Tensor:
+        if not shape:
+            shape = (1,)
+        key = (name, shape, int(value), str(device))
+        cached = self._metadata_cache.get(key)
+        if cached is None or cached.device != device:
+            if value == 1:
+                tensor = torch.ones(shape, dtype=torch.long, device=device)
+            else:
+                tensor = torch.full(shape, value, dtype=torch.long, device=device)
+            self._metadata_cache[key] = tensor
+            return tensor
+        return cached
 
     def training_phase(
         self,
