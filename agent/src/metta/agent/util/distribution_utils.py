@@ -28,15 +28,20 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
 
-    # Replace NaN/inf values and clamp logits to prevent numerical issues
+    # Handle NaN/inf in input logits - replace with zeros for uniform distribution
     safe_logits = torch.where(torch.isfinite(action_logits), action_logits, torch.zeros_like(action_logits))
-    clamped_logits = torch.clamp(safe_logits, min=-20.0, max=20.0)
 
-    full_log_probs = F.log_softmax(clamped_logits, dim=-1)  # [batch_size, num_actions]
+    # Use log_softmax for numerical stability, then convert to probabilities
+    full_log_probs = F.log_softmax(safe_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
 
-    # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
-    actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
+    # Ensure probabilities are valid and sum to 1 (critical for MPS stability)
+    eps = 1e-8
+    action_probs = torch.clamp(action_probs, min=eps)
+    action_probs = action_probs / torch.sum(action_probs, dim=-1, keepdim=True)
+
+    # Sample
+    actions = torch.multinomial(action_probs, num_samples=1).view(-1)
 
     # Extract log-probabilities for sampled actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
@@ -71,12 +76,15 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
 
-    # Replace NaN/inf values and clamp logits to prevent numerical issues
+    # Handle NaN/inf in input logits - replace with zeros for uniform distribution
     safe_logits = torch.where(torch.isfinite(action_logits), action_logits, torch.zeros_like(action_logits))
-    clamped_logits = torch.clamp(safe_logits, min=-20.0, max=20.0)
 
-    action_log_probs = F.log_softmax(clamped_logits, dim=-1)  # [batch_size, num_actions]
+    action_log_probs = F.log_softmax(safe_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
+
+    # Ensure probabilities are valid for entropy calculation (critical for MPS stability)
+    eps = 1e-8
+    action_probs = torch.clamp(action_probs, min=eps)
 
     # Extract log-probabilities for the provided actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
