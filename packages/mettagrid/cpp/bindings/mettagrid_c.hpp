@@ -19,11 +19,12 @@
 #include <string>
 #include <vector>
 
-#include "core/grid_object.hpp"
 #include "config/mettagrid_config.hpp"
-#include "objects/assembler.hpp"
-#include "systems/packed_coordinate.hpp"
+#include "core/grid_object.hpp"
 #include "core/types.hpp"
+#include "objects/assembler.hpp"
+#include "objects/chest.hpp"
+#include "systems/packed_coordinate.hpp"
 
 // Forward declarations of existing C++ classes
 class Grid;
@@ -37,6 +38,7 @@ class GridObject;
 struct GridObjectConfig;
 struct ConverterConfig;
 struct AssemblerConfig;
+struct ChestConfig;
 struct WallConfig;
 struct BoxConfig;
 struct AgentConfig;

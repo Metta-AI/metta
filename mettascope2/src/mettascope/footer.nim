@@ -20,6 +20,9 @@ find "/UI/Main/GlobalFooter":
   find "**/StepForward":
     onClick:
       step += 1
+      if step > replay.maxSteps - 1:
+        echo "Requesting Python"
+        requestPython = true
       step = clamp(step, 0, replay.maxSteps - 1)
   find "**/RewindToEnd":
     onClick:

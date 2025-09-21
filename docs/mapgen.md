@@ -7,7 +7,7 @@ To produce maps in bulk and store them in S3, use the following commands:
 ### Creating maps
 
 ```bash
-./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py --output-uri=s3://BUCKET/DIR ./configs/env/mettagrid/map_builder/mapgen_auto.yaml
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py --output-uri=s3://BUCKET/DIR ./configs/env/mettagrid/map_builder/mapgen_auto.yaml
 ```
 
 `mapgen_auto` builder is an example. You can use any YAML config that can be parsed by OmegaConf.
@@ -20,7 +20,7 @@ If `--output-uri` is not specified, the map won't be saved, only shown on screen
 
 To create maps in bulk, use `--count=N` option.
 
-See `./packages/mettagrid/src/mettagrid/mapgen/tools/gen.py --help` for more options.
+See `./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py --help` for more options.
 
 ### Viewing maps
 
