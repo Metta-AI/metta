@@ -135,7 +135,7 @@ class HttpStatsClient(StatsClient):
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: dict[str, str] | None = None,
+        attributes: dict[str, Any] | None = None,
     ) -> EpochResponse:
         data = EpochCreate(
             start_training_epoch=start_training_epoch,

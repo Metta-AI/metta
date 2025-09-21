@@ -290,6 +290,23 @@ class StatsReporter(TrainerComponent):
 
             self._latest_payload = payload.copy() if payload else None
 
+            if payload and self._stats_client and self._config.report_to_stats_client:
+                run_id = self._state.stats_run_id
+                if run_id is not None:
+                    attributes: Dict[str, Any] = {
+                        "metrics": payload,
+                        "agent_step": agent_step,
+                    }
+                    epoch_id = self.create_epoch(
+                        run_id,
+                        self._state.stats_epoch_start,
+                        epoch,
+                        attributes=attributes,
+                    )
+                    if epoch_id is not None:
+                        self.update_epoch_tracking(epoch + 1)
+                        self._state.stats_epoch_id = epoch_id
+
             # Clear stats after processing
             self.clear_rollout_stats()
             self.clear_grad_stats()
@@ -334,7 +351,13 @@ class StatsReporter(TrainerComponent):
             except AttributeError:
                 logger.debug("Context missing latest_saved_policy_epoch attribute")
 
-    def create_epoch(self, run_id: UUID, start_epoch: int, end_epoch: int) -> Optional[UUID]:
+    def create_epoch(
+        self,
+        run_id: UUID,
+        start_epoch: int,
+        end_epoch: int,
+        attributes: Dict[str, Any] | None = None,
+    ) -> Optional[UUID]:
         """Create a new epoch in the stats client.
 
         Args:
@@ -350,7 +373,10 @@ class StatsReporter(TrainerComponent):
 
         try:
             result = self._stats_client.create_epoch(
-                run_id=run_id, start_training_epoch=start_epoch, end_training_epoch=end_epoch
+                run_id=run_id,
+                start_training_epoch=start_epoch,
+                end_training_epoch=end_epoch,
+                attributes=attributes or {},
             )
             self._state.stats_epoch_id = result.id
             return result.id
@@ -379,6 +405,7 @@ class StatsReporter(TrainerComponent):
             except Exception as e:
                 logger.warning(f"Failed to update training run status: {e}", exc_info=True)
         self._latest_payload = None
+        self._state.stats_epoch_id = None
 
     def on_step(self, infos: Dict[str, Any] | List[Dict[str, Any]]) -> None:
         """Accumulate step infos.
