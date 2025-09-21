@@ -210,7 +210,7 @@ def _configure_evaluation_settings(cfg: TrainTool, stats_client: StatsClient | N
 
     # During local debugging we often have a dirty worktree; skip the remote
     # git hash check so training can proceed without committing.
-    if cfg.trainer.evaluation.skip_git_check is False:
+    if cfg.debug and cfg.trainer.evaluation.skip_git_check is False:
         logger.info_master("Skipping git state verification for evaluation (debug mode)")
         cfg.trainer.evaluation.skip_git_check = True
 
