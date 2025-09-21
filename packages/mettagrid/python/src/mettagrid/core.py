@@ -6,6 +6,7 @@ without any training-specific features or framework dependencies."""
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -36,6 +37,13 @@ if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
 
 logger = logging.getLogger("MettaGridCore")
+
+
+@dataclass
+class ObsFeature:
+    id: int
+    normalization: float
+    name: str
 
 
 class MettaGridCore:
@@ -268,20 +276,18 @@ class MettaGridCore:
     def action_success(self) -> List[bool]:
         return self.__c_env_instance.action_success()
 
-    def get_observation_features(self) -> Dict[str, Dict]:
+    @property
+    def observation_features(self) -> Dict[str, ObsFeature]:
         """Build the features dictionary for initialize_to_environment."""
         # Get feature spec from C++ environment
         feature_spec = self.__c_env_instance.feature_spec()
 
         features = {}
         for feature_name, feature_info in feature_spec.items():
-            feature_dict: Dict[str, Any] = {"id": feature_info["id"]}
-
-            # Add normalization if present
-            if "normalization" in feature_info:
-                feature_dict["normalization"] = feature_info["normalization"]
-
-            features[feature_name] = feature_dict
+            feature = ObsFeature(
+                id=int(feature_info["id"]), normalization=feature_info["normalization"], name=feature_name
+            )
+            features[feature_name] = feature
 
         return features
 

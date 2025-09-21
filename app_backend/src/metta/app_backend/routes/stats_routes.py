@@ -29,7 +29,7 @@ class TrainingRunResponse(BaseModel):
 class EpochCreate(BaseModel):
     start_training_epoch: int
     end_training_epoch: int
-    attributes: dict[str, str] = Field(default_factory=dict)
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class EpochResponse(BaseModel):
