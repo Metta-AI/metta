@@ -227,11 +227,8 @@ class Loss:
     # ------------------------------------------------------------------
     def _clone_state_value(self, value: Any) -> Any:
         if isinstance(value, Tensor):
-            clone = value.detach().clone()
-            if clone.device.type != "cpu":
-                clone = clone.cpu()
-            return clone
-        if isinstance(value, dict) and not isinstance(value, type(self.loss_tracker)):
+            return value.detach().clone().cpu()
+        if isinstance(value, Mapping):
             return {k: self._clone_state_value(v) for k, v in value.items()}
         if isinstance(value, defaultdict):
             return {k: copy.deepcopy(v) for k, v in value.items()}
@@ -241,29 +238,25 @@ class Loss:
 
     def _restore_state_value(self, name: str, stored_value: Any) -> None:
         current = getattr(self, name, None)
+
         if isinstance(current, Tensor):
-            if isinstance(stored_value, Tensor):
-                restored = stored_value.to(device=current.device, dtype=current.dtype)
-            else:
-                restored = torch.as_tensor(stored_value, dtype=current.dtype, device=current.device)
-            setattr(self, name, restored)
+            tensor = stored_value if isinstance(stored_value, Tensor) else torch.as_tensor(stored_value)
+            setattr(self, name, tensor.to(device=current.device, dtype=current.dtype))
             return
 
         if isinstance(current, defaultdict):
-            rebuilt = defaultdict(list)
-            for key, value in stored_value.items():
+            rebuilt = defaultdict(current.default_factory)
+            for key, value in (stored_value or {}).items():
                 rebuilt[key] = copy.deepcopy(value)
             setattr(self, name, rebuilt)
             return
 
         if isinstance(current, dict):
-            setattr(self, name, {k: copy.deepcopy(v) for k, v in stored_value.items()})
+            setattr(self, name, {k: copy.deepcopy(v) for k, v in (stored_value or {}).items()})
             return
 
         if isinstance(stored_value, Tensor):
-            # Attribute might previously have been tensor-less; keep device consistent if possible.
-            device = current.device if isinstance(current, Tensor) else self.device
-            setattr(self, name, stored_value.to(device=device))
+            setattr(self, name, stored_value.to(device=self.device))
             return
 
         setattr(self, name, copy.deepcopy(stored_value))
