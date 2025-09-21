@@ -78,9 +78,15 @@ class ContextCheckpointer(TrainerComponent):
         if payload is None:
             return
 
+        restored_epoch = payload["epoch"]
         context.agent_step = payload["agent_step"]
-        context.epoch = payload["epoch"]
-        self._latest_saved_epoch = payload["epoch"]
+        context.epoch = restored_epoch
+        self._latest_saved_epoch = restored_epoch
+        context.latest_saved_policy_epoch = restored_epoch
+
+        stats_reporter = getattr(context, "stats_reporter", None)
+        if stats_reporter is not None and hasattr(stats_reporter, "update_latest_saved_epoch"):
+            stats_reporter.update_latest_saved_epoch(restored_epoch)
 
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
