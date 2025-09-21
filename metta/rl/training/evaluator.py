@@ -1,7 +1,7 @@
 """Policy evaluation management."""
 
 import logging
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 import torch
@@ -20,9 +20,6 @@ from metta.rl.training.component import TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.config import Config
-
-if TYPE_CHECKING:
-    from metta.rl.training.stats_reporter import StatsReporter
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +65,6 @@ class Evaluator(TrainerComponent):
         system_cfg: Any,
         trainer_cfg: Any,
         stats_client: Optional[StatsClient] = None,
-        stats_reporter: Optional["StatsReporter"] = None,
     ):
         """Initialize evaluator.
 
@@ -87,9 +83,7 @@ class Evaluator(TrainerComponent):
         self._system_cfg = system_cfg
         self._trainer_cfg = trainer_cfg
         self._stats_client = stats_client
-        self._stats_reporter = stats_reporter
         self._latest_scores = EvalRewardSummary()
-        self._stats_reporter = stats_reporter
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
@@ -103,7 +97,6 @@ class Evaluator(TrainerComponent):
         system_cfg: Optional[Any] = None,
         trainer_cfg: Optional[Any] = None,
         stats_client: Optional[StatsClient] = None,
-        stats_reporter: Optional["StatsReporter"] = None,
     ):
         """Create an Evaluator from optional config, returning no-op if None.
 
@@ -133,7 +126,6 @@ class Evaluator(TrainerComponent):
             system_cfg=system_cfg,
             trainer_cfg=trainer_cfg,
             stats_client=stats_client,
-            stats_reporter=stats_reporter,
         )
 
     @staticmethod
@@ -166,16 +158,6 @@ class Evaluator(TrainerComponent):
                     logger.info(f"Git hash for remote evaluations: {eval_cfg.git_hash}")
                 else:
                     logger.info("No git hash available for remote evaluations")
-
-    @property
-    def stats_reporter(self):
-        """Get the stats reporter."""
-        return self._stats_reporter
-
-    @stats_reporter.setter
-    def stats_reporter(self, value):
-        """Set the stats reporter."""
-        self._stats_reporter = value
 
     def should_evaluate(self, epoch: int) -> bool:
         """Check if evaluation should run at this epoch.
@@ -245,8 +227,9 @@ class Evaluator(TrainerComponent):
             )
 
             # Upload replays if available
-            if self._stats_reporter and evaluation_results.replay_urls:
-                wandb_run = getattr(self._stats_reporter, "wandb_run", None)
+            stats_reporter = getattr(self.context, "stats_reporter", None)
+            if stats_reporter and evaluation_results.replay_urls:
+                wandb_run = getattr(stats_reporter, "wandb_run", None)
                 if wandb_run:
                     upload_replay_html(
                         replay_urls=evaluation_results.replay_urls,
@@ -303,7 +286,8 @@ class Evaluator(TrainerComponent):
             stats_epoch_id: Optional stats epoch ID
         """
         logger.info(f"Evaluating policy remotely from {policy_uri}")
-        wandb_run = getattr(self._stats_reporter, "wandb_run", None) if self._stats_reporter else None
+        stats_reporter = getattr(self.context, "stats_reporter", None)
+        wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter else None
         evaluate_policy_remote_with_checkpoint_manager(
             policy_uri=policy_uri,
             simulations=simulations,
@@ -382,5 +366,6 @@ class Evaluator(TrainerComponent):
             stats_epoch_id=stats_epoch_id,
         )
 
-        if self._stats_reporter:
-            self._stats_reporter.update_eval_scores(scores)
+        stats_reporter = getattr(self.context, "stats_reporter", None)
+        if stats_reporter:
+            stats_reporter.update_eval_scores(scores)

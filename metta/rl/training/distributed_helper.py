@@ -102,10 +102,8 @@ class DistributedHelper:
             )
         elif hasattr(trainer_cfg, "forward_pass_minibatch_target_size"):
             # Backwards compatibility if configs are still wired differently.
-            setattr(
-                trainer_cfg,
-                "forward_pass_minibatch_target_size",
-                max(1, getattr(trainer_cfg, "forward_pass_minibatch_target_size") // self._world_size),
+            trainer_cfg.forward_pass_minibatch_target_size = max(
+                1, trainer_cfg.forward_pass_minibatch_target_size // self._world_size
             )
 
         logger.info(
