@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Dict, NoReturn, Self, Union, get_args, get_origin
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter, model_validator
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from mettagrid.util.module import load_symbol
 
@@ -17,25 +17,6 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     _aliases: ClassVar[Dict[str, str]] = {}
-
-    @model_validator(mode="before")
-    @classmethod
-    def _resolve_config_reference(cls, value):  # type: ignore[override]
-        if isinstance(value, cls):
-            return value
-
-        if isinstance(value, str):
-            return cls._coerce_resolved(load_symbol(cls._lookup_alias(value)), value)
-
-        if isinstance(value, type) and issubclass(value, cls):
-            return value()
-
-        if callable(value):
-            candidate = value()
-            if isinstance(candidate, cls):
-                return candidate
-
-        return value
 
     def _auto_initialize_field(self, parent_obj: "Config", field_name: str) -> "Config | None":
         """Auto-initialize a None Config field if possible."""
@@ -141,6 +122,26 @@ class Config(BaseModel):
             if mapping and reference in mapping:
                 return mapping[reference]
         return reference
+
+    @classmethod
+    def resolve(cls, value: Any) -> "Config":
+        if isinstance(value, cls):
+            return value
+
+        if isinstance(value, str):
+            reference = cls._lookup_alias(value)
+            target = load_symbol(reference)
+            return cls._coerce_resolved(target, value)
+
+        if isinstance(value, type) and issubclass(value, cls):
+            return value()
+
+        if callable(value):
+            candidate = value()
+            if isinstance(candidate, cls):
+                return candidate
+
+        raise TypeError(f"Unable to resolve value {value!r} into an instance of {cls.__name__}")
 
     @classmethod
     def _coerce_resolved(cls, resolved: Any, original: str) -> "Config":
