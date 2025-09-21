@@ -12,7 +12,7 @@ def calculate_batch_sizes(
     """Calculate target batch size, actual batch size, and number of environments."""
     min_batch = max(2, num_workers)  # pufferlib bug requires batch size >= 2
     target_batch_size = max(forward_pass_minibatch_target_size // num_agents, min_batch)
-    batch_size = max(((target_batch_size + num_workers - 1) // num_workers) * num_workers, min_batch)
+    batch_size = max((target_batch_size // num_workers) * num_workers, min_batch)
     num_envs = batch_size * async_factor
 
     return target_batch_size, batch_size, num_envs
