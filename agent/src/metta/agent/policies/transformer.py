@@ -180,9 +180,7 @@ class TransformerPolicy(Policy):
             nn.init.orthogonal_(self.encoded_obs.weight, math.sqrt(2))
             nn.init.zeros_(self.encoded_obs.bias)
         else:
-            self.fc1 = pufferlib.pytorch.layer_init(
-                nn.Linear(flattened_size, self.config.fc1_features), std=1.0
-            )
+            self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(flattened_size, self.config.fc1_features), std=1.0)
             self.encoded_obs = pufferlib.pytorch.layer_init(
                 nn.Linear(self.config.fc1_features, self.latent_size), std=1.0
             )
@@ -217,9 +215,7 @@ class TransformerPolicy(Policy):
             self.critic_1 = pufferlib.pytorch.layer_init(
                 nn.Linear(self.hidden_size, self.config.critic_hidden_dim), std=math.sqrt(2)
             )
-            self.value_head = pufferlib.pytorch.layer_init(
-                nn.Linear(self.config.critic_hidden_dim, 1), std=1.0
-            )
+            self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
             self.actor_1 = pufferlib.pytorch.layer_init(
                 nn.Linear(self.hidden_size, self.config.actor_hidden_dim), std=1.0
             )
@@ -389,6 +385,7 @@ class TransformerPolicy(Policy):
             )
 
         combined_index = attr_indices * self.dim_per_layer + x_coord * self.out_height + y_coord
+
         safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
         safe_values = torch.where(valid_mask, attr_values, torch.zeros_like(attr_values))
 
@@ -397,7 +394,8 @@ class TransformerPolicy(Policy):
             dtype=attr_values.dtype,
             device=observations.device,
         )
-        box_flat.scatter_(1, safe_index, safe_values)
+        # Use additive scatter so padding tokens (value 0) cannot overwrite real data.
+        box_flat.scatter_add_(1, safe_index, safe_values)
 
         box_obs = box_flat.view(observations.shape[0], self.num_layers, self.out_width, self.out_height)
         x = box_obs / self.max_vec
