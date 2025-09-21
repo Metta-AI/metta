@@ -34,6 +34,16 @@ def _decay_value(initial: float, decay_rate: float, progress: float, schedule_ty
     return initial * (decay_rate**progress)
 
 
+def _get_ppo_config(trainer_cfg):
+    """Return the active PPO loss config if available."""
+
+    losses_cfg = getattr(trainer_cfg, "losses", None)
+    loss_configs = getattr(losses_cfg, "loss_configs", None)
+    if isinstance(loss_configs, dict):
+        return loss_configs.get("ppo")
+    return None
+
+
 def step_hyperparameters(trainer_cfg, optimizer, current_step: int, total_timesteps: int, log) -> dict[str, float]:
     cfg = trainer_cfg.hyperparameter_scheduler
 
@@ -44,30 +54,53 @@ def step_hyperparameters(trainer_cfg, optimizer, current_step: int, total_timest
     updates: dict[str, float] = {}
 
     if cfg.learning_rate_decay < 1.0:
+        base_lr = getattr(cfg, "_base_learning_rate", None)
+        if base_lr is None:
+            base_lr = trainer_cfg.optimizer.learning_rate
+            cfg._base_learning_rate = base_lr
         new_lr = _decay_value(
-            trainer_cfg.optimizer.learning_rate,
+            base_lr,
             cfg.learning_rate_decay,
             progress,
             cfg.schedule_type,
         )
         optimizer.param_groups[0]["lr"] = new_lr
+        trainer_cfg.optimizer.learning_rate = new_lr
         updates["learning_rate"] = new_lr
 
-    if cfg.ppo_clip_decay < 1.0:
-        updates["ppo_clip_coef"] = _decay_value(
-            trainer_cfg.ppo.clip_coef,
+    ppo_cfg = _get_ppo_config(trainer_cfg)
+    if ppo_cfg is None and (cfg.ppo_clip_decay < 1.0 or cfg.ppo_ent_coef_decay < 1.0):
+        log.debug(
+            "Hyperparameter scheduler could not locate PPO config; skipping PPO decay updates",
+        )
+
+    if ppo_cfg is not None and cfg.ppo_clip_decay < 1.0 and hasattr(ppo_cfg, "clip_coef"):
+        base_clip = getattr(cfg, "_base_ppo_clip_coef", None)
+        if base_clip is None:
+            base_clip = ppo_cfg.clip_coef
+            cfg._base_ppo_clip_coef = base_clip
+        new_clip = _decay_value(
+            base_clip,
             cfg.ppo_clip_decay,
             progress,
             cfg.schedule_type,
         )
+        ppo_cfg.clip_coef = new_clip
+        updates["ppo_clip_coef"] = new_clip
 
-    if cfg.ppo_ent_coef_decay < 1.0:
-        updates["ppo_ent_coef"] = _decay_value(
-            trainer_cfg.ppo.ent_coef,
+    if ppo_cfg is not None and cfg.ppo_ent_coef_decay < 1.0 and hasattr(ppo_cfg, "ent_coef"):
+        base_ent = getattr(cfg, "_base_ppo_ent_coef", None)
+        if base_ent is None:
+            base_ent = ppo_cfg.ent_coef
+            cfg._base_ppo_ent_coef = base_ent
+        new_ent = _decay_value(
+            base_ent,
             cfg.ppo_ent_coef_decay,
             progress,
             cfg.schedule_type,
         )
+        ppo_cfg.ent_coef = new_ent
+        updates["ppo_ent_coef"] = new_ent
 
     if updates and current_step % 10000 == 0:
         params = ", ".join(f"{k}={v:.6f}" for k, v in updates.items())

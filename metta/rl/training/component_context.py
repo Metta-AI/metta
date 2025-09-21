@@ -52,6 +52,7 @@ class TrainerState:
     training_env_window: Optional[TrainingEnvWindow] = None
     optimizer_state: Optional[Dict[str, Any]] = None
     stopwatch_state: Optional[Dict[str, Any]] = None
+    latest_saved_policy_epoch: int = 0
 
 
 class ComponentContext:
@@ -145,6 +146,14 @@ class ComponentContext:
         uri = self.latest_policy_uri_fn()
         self.state.latest_policy_uri = uri
         return uri
+
+    @property
+    def latest_saved_policy_epoch(self) -> int:
+        return self.state.latest_saved_policy_epoch
+
+    @latest_saved_policy_epoch.setter
+    def latest_saved_policy_epoch(self, value: int) -> None:
+        self.state.latest_saved_policy_epoch = value
 
     # ------------------------------------------------------------------
     # Stats tracking

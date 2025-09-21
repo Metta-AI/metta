@@ -329,6 +329,11 @@ class StatsReporter(TrainerComponent):
             epoch: Latest saved epoch
         """
         self._state.latest_saved_epoch = epoch
+        if self._context is not None:
+            try:
+                self.context.latest_saved_policy_epoch = epoch
+            except AttributeError:
+                logger.debug("Context missing latest_saved_policy_epoch attribute")
 
     def create_epoch(self, run_id: UUID, start_epoch: int, end_epoch: int) -> Optional[UUID]:
         """Create a new epoch in the stats client.
@@ -544,8 +549,13 @@ class StatsReporter(TrainerComponent):
             "learning_rate": learning_rate,
             "epoch_steps": timing_info.get("epoch_steps", 0),
             "num_minibatches": getattr(experience, "num_minibatches", 0),
-            "latest_saved_policy_epoch": self._state.latest_saved_epoch,
+            "latest_saved_policy_epoch": getattr(
+                self.context.state,
+                "latest_saved_policy_epoch",
+                self._state.latest_saved_epoch,
+            ),
         }
+        self._state.latest_saved_epoch = parameters["latest_saved_policy_epoch"]
         return parameters
 
     def _collect_hyperparameters(
