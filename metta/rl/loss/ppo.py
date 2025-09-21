@@ -152,14 +152,13 @@ class PPO(Loss):
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
         """This is the PPO algorithm training loop."""
-        # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
+        config = self.loss_cfg
         stop_update_epoch = False
         self.policy.reset_memory()
         self.burn_in_steps_iter = 0
-        # Check if we should early stop this update epoch (on subsequent minibatches)
-        if self.loss_cfg.target_kl is not None and mb_idx > 0:
-            average_approx_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
-            if average_approx_kl > self.loss_cfg.target_kl:
+        if config.target_kl is not None and mb_idx > 0:
+            avg_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
+            if avg_kl > config.target_kl:
                 stop_update_epoch = True
 
         # On the first minibatch of the update epoch, compute advantages and sampling params
@@ -169,7 +168,7 @@ class PPO(Loss):
         # Then sample from the buffer (this happens at every minibatch)
         minibatch, indices, prio_weights = self._sample_minibatch(
             advantages=self.advantages,
-            prio_alpha=self.loss_cfg.prioritized_experience_replay.prio_alpha,
+            prio_alpha=config.prioritized_experience_replay.prio_alpha,
             prio_beta=self.anneal_beta,
         )
 
@@ -211,29 +210,27 @@ class PPO(Loss):
         if "ratio" in self.replay.buffer.keys():
             self.replay.buffer["ratio"].fill_(1.0)
 
+        cfg = self.loss_cfg
         with torch.no_grad():
             anneal_beta = calculate_prioritized_sampling_params(
                 epoch=context.epoch,
                 total_timesteps=self.trainer_cfg.total_timesteps,
                 batch_size=self.trainer_cfg.batch_size,
-                prio_alpha=self.loss_cfg.prioritized_experience_replay.prio_alpha,
-                prio_beta0=self.loss_cfg.prioritized_experience_replay.prio_beta0,
+                prio_alpha=cfg.prioritized_experience_replay.prio_alpha,
+                prio_beta0=cfg.prioritized_experience_replay.prio_beta0,
             )
 
-            # Compute initial advantages
-            advantages = torch.zeros(self.replay.buffer["values"].shape, device=self.device)
-            initial_importance_sampling_ratio = torch.ones_like(self.replay.buffer["values"])
-
+            advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
             advantages = compute_advantage(
                 self.replay.buffer["values"],
                 self.replay.buffer["rewards"],
                 self.replay.buffer["dones"],
-                initial_importance_sampling_ratio,
+                torch.ones_like(self.replay.buffer["values"]),
                 advantages,
-                self.loss_cfg.gamma,
-                self.loss_cfg.gae_lambda,
-                self.loss_cfg.vtrace.rho_clip,
-                self.loss_cfg.vtrace.c_clip,
+                cfg.gamma,
+                cfg.gae_lambda,
+                cfg.vtrace.rho_clip,
+                cfg.vtrace.c_clip,
                 self.device,
             )
 
@@ -246,15 +243,13 @@ class PPO(Loss):
         indices: Tensor,
         prio_weights: Tensor,
     ) -> Tensor:
-        old_act_log_prob = minibatch["act_log_prob"]
-        new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
+        cfg = self.loss_cfg
+        old_logprob = minibatch["act_log_prob"]
+        new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
         newvalue = policy_td["values"]
 
-        logratio = new_logprob - old_act_log_prob
-        # Bound the log ratio to prevent extreme importance sampling ratios
-        logratio = torch.clamp(logratio, -10, 10)  # exp(-10) ≈ 0.000045, exp(10) ≈ 22026
-        importance_sampling_ratio = logratio.exp()
+        importance_sampling_ratio = self._importance_ratio(new_logprob, old_logprob)
 
         # Re-compute advantages with new ratios (V-trace)
         adv = compute_advantage(
@@ -263,15 +258,15 @@ class PPO(Loss):
             minibatch["dones"],
             importance_sampling_ratio,
             minibatch["advantages"],
-            self.loss_cfg.gamma,
-            self.loss_cfg.gae_lambda,
-            self.loss_cfg.vtrace.rho_clip,
-            self.loss_cfg.vtrace.c_clip,
+            cfg.gamma,
+            cfg.gae_lambda,
+            cfg.vtrace.rho_clip,
+            cfg.vtrace.c_clip,
             self.device,
         )
 
         # Normalize advantages with distributed support, then apply prioritized weights
-        adv = normalize_advantage_distributed(adv, self.loss_cfg.norm_adv)
+        adv = normalize_advantage_distributed(adv, cfg.norm_adv)
         adv = prio_weights * adv
 
         # Compute losses
@@ -284,7 +279,7 @@ class PPO(Loss):
             adv,
         )
 
-        loss = pg_loss - self.loss_cfg.ent_coef * entropy_loss + v_loss * self.loss_cfg.vf_coef
+        loss = pg_loss - cfg.ent_coef * entropy_loss + v_loss * cfg.vf_coef
 
         # Update values and ratio in experience buffer
         update_td = TensorDict(
@@ -294,14 +289,13 @@ class PPO(Loss):
         self.replay.update(indices, update_td)
 
         # Update loss tracking
-        self.loss_tracker["policy_loss"].append(float(pg_loss.item()))
-        self.loss_tracker["value_loss"].append(float(v_loss.item()))
-        self.loss_tracker["entropy"].append(float(entropy_loss.item()))
-        self.loss_tracker["approx_kl"].append(float(approx_kl.item()))
-        self.loss_tracker["clipfrac"].append(float(clipfrac.item()))
-        # av why were these getting normalized by mb_idx???
-        self.loss_tracker["importance"].append(float(importance_sampling_ratio.mean().item()))
-        self.loss_tracker["current_logprobs"].append(float(new_logprob.mean().item()))
+        self._track("policy_loss", pg_loss)
+        self._track("value_loss", v_loss)
+        self._track("entropy", entropy_loss)
+        self._track("approx_kl", approx_kl)
+        self._track("clipfrac", clipfrac)
+        self._track("importance", importance_sampling_ratio.mean())
+        self._track("current_logprobs", new_logprob.mean())
 
         return loss
 
@@ -373,3 +367,10 @@ class PPO(Loss):
             minibatch["returns"] = advantages[idx] + minibatch["values"]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
         return minibatch.clone(), idx, prio_weights
+
+    def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
+        logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+        return logratio.exp()
+
+    def _track(self, key: str, value: Tensor) -> None:
+        self.loss_tracker[key].append(float(value.item()))

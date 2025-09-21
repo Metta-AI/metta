@@ -28,7 +28,7 @@ class LossConfig(Config):
         env: TrainingEnvironment,
         device: torch.device,
     ):
-        losses = {}
-        for loss_name, loss_config in self.loss_configs.items():
-            losses[loss_name] = loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
-        return losses
+        return {
+            loss_name: loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
+            for loss_name, loss_config in self.loss_configs.items()
+        }
