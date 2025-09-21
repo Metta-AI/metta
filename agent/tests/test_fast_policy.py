@@ -6,6 +6,7 @@ from tensordict import TensorDict
 
 from metta.agent.policies.fast import FastConfig, FastPolicy
 from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.utils import ensure_sequence_metadata
 
 
 def _build_env_metadata():
@@ -53,9 +54,9 @@ def test_fast_policy_initialize_sets_action_metadata():
 
     # Initialization returns a list containing the observation shim log (may be None)
     assert isinstance(logs, list)
-    assert policy.action_index_tensor is not None
-    assert policy.cum_action_max_params is not None
-    assert policy.action_index_tensor.shape[1] == 2  # (action_type, action_param)
+    assert policy.action_probs.action_index_tensor is not None
+    assert policy.action_probs.cum_action_max_params is not None
+    assert policy.action_probs.action_index_tensor.shape[1] == 2  # (action_type, action_param)
 
 
 def test_fast_policy_forward_produces_actions_and_values():
@@ -65,6 +66,7 @@ def test_fast_policy_forward_produces_actions_and_values():
     policy.eval()
 
     td = _build_token_observations(batch_size=1, num_tokens=4)
+    ensure_sequence_metadata(td, batch_size=1, time_steps=1)
     output_td = policy(td.clone())
 
     assert "actions" in output_td
