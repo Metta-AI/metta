@@ -143,7 +143,6 @@ class NoOpStatsReporter(TrainerComponent):
         self.wandb_run = None
         self.stats_run_id = None
         self.stats_epoch_id = None
-        self.infos_buffer = []
 
     def on_step(self, infos: List[Dict[str, Any]]) -> None:
         pass

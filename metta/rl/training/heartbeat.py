@@ -1,14 +1,10 @@
 """Heartbeat writer for training monitoring."""
 
 import logging
-from typing import TYPE_CHECKING
 
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.training.component import TrainerComponent
 from mettagrid.config import Config
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

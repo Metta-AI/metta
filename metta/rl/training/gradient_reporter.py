@@ -25,7 +25,6 @@ class GradientReporter(TrainerComponent):
         """Initialize gradient reporter component."""
         enabled = config.epoch_interval > 0
         super().__init__(epoch_interval=config.epoch_interval if enabled else 0)
-        self._config = config
         self._master_only = True
         self._enabled = enabled
 
