@@ -7,9 +7,9 @@ from typing import Dict, List, Tuple, Union
 
 import duckdb
 
-from metta.mettagrid.episode_stats_db import EpisodeStatsDB
-from metta.mettagrid.util.file import exists, local_copy, write_file
 from metta.rl.checkpoint_manager import CheckpointManager
+from mettagrid.util.episode_stats_db import EpisodeStatsDB
+from mettagrid.util.file import exists, local_copy, write_file
 
 # Tables & indexes
 
@@ -54,7 +54,7 @@ class SimulationStatsDB(EpisodeStatsDB):
     def from_uri(cls, path: str):
         """
         Creates a StatsDB instance from a URI and yields it as a context manager.
-        Supports local paths, s3://, and wandb:// URIs.
+        Supports local paths and s3:// URIs.
         The temporary file is automatically cleaned up when the context exits.
 
         Usage:
@@ -144,7 +144,7 @@ class SimulationStatsDB(EpisodeStatsDB):
           into the existing DB first and re-upload the result.
         • Otherwise simply upload **self**.
 
-        Supported URI schemes: local paths, `s3://`, `wandb://`.
+        Supported URI schemes: local paths and `s3://`.
         """
 
         if exists(dest):

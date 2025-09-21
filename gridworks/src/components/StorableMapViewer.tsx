@@ -1,16 +1,17 @@
 "use client";
-import Link from "next/link";
 import { useQueryState } from "nuqs";
 import { FC, useCallback, useMemo, useState } from "react";
 
 import { FilterItem, parseFilterParam } from "@/app/stored-maps/dir/params";
 import { SceneTree, StorableMap } from "@/lib/api";
 import { MettaGrid } from "@/lib/MettaGrid";
+import { viewStoredMapRoute } from "@/lib/routes";
 
+import { ConfigViewer } from "./ConfigViewer";
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
-import { JsonAsYaml } from "./JsonAsYaml";
 import { MapViewer } from "./MapViewer";
 import { SceneTreeViewer } from "./SceneTreeViewer";
+import { StyledLink } from "./StyledLink";
 import { Tabs } from "./Tabs";
 
 // YAML viewer with the ability to click lines to filter the map list
@@ -58,8 +59,8 @@ const FilterableFrontmatterViewer: FC<{
   };
 
   return (
-    <JsonAsYaml
-      json={frontmatter}
+    <ConfigViewer
+      value={frontmatter}
       isSelected={isFiltered}
       onSelectLine={handleSelectLine}
     />
@@ -120,13 +121,13 @@ export const StorableMapViewer: FC<{
                   frontmatter={map.frontmatter.config}
                 />
               ) : (
-                <JsonAsYaml json={map.frontmatter.config} />
+                <ConfigViewer value={map.frontmatter.config} />
               ),
             },
             {
               id: "metadata",
               label: "Metadata",
-              content: <JsonAsYaml json={map.frontmatter.metadata} />,
+              content: <ConfigViewer value={map.frontmatter.metadata} />,
             },
             {
               id: "scene_tree",
@@ -158,13 +159,9 @@ export const StorableMapViewer: FC<{
         {url &&
           typeof window !== "undefined" &&
           window.location.pathname !== "/stored-maps/view" && (
-            <Link
-              className="text-blue-500 hover:underline"
-              href={`/stored-maps/view?map=${url}`}
-              target="_blank"
-            >
+            <StyledLink href={viewStoredMapRoute(url)} target="_blank">
               Permalink
-            </Link>
+            </StyledLink>
           )}
       </div>
     </div>

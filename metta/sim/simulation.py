@@ -12,21 +12,22 @@ import numpy as np
 import torch
 from einops import rearrange
 
-from metta.agent.metta_agent import PolicyAgent
 from metta.agent.mocks import MockAgent
+from metta.agent.policy import Policy
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
-from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
+from mettagrid import MettaGridEnv, dtype_actions
+from mettagrid.util.replay_writer import ReplayWriter
+from mettagrid.util.stats_writer import StatsWriter
 
 SYNTHETIC_EVAL_PREFIX = "eval/"
 
@@ -46,7 +47,7 @@ class Simulation:
         self,
         name: str,
         cfg: SimulationConfig,
-        policy: PolicyAgent,
+        policy: Policy,
         policy_uri: str,
         device: torch.device,
         vectorization: str,
@@ -120,20 +121,26 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
+        env_metadata = EnvironmentMetaData(
+            obs_width=metta_grid_env.obs_width,
+            obs_height=metta_grid_env.obs_height,
+            obs_features=metta_grid_env.observation_features,
+            action_names=metta_grid_env.action_names,
+            max_action_args=metta_grid_env.max_action_args,
+            num_agents=metta_grid_env.num_agents,
+            observation_space=metta_grid_env.observation_space,
+            action_space=metta_grid_env.action_space,
+            feature_normalizations=metta_grid_env.feature_normalizations,
+        )
+
         # Initialize policy to environment
         self._policy.eval()  # Set to evaluation mode for simulation
-        features = metta_grid_env.get_observation_features()
-        self._policy.initialize_to_environment(
-            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
-        )
+        self._policy.initialize_to_environment(env_metadata, self._device)
 
         if self._npc_policy is not None:
             # Initialize NPC policy to environment
             self._npc_policy.eval()  # Set to evaluation mode for simulation
-            features = metta_grid_env.get_observation_features()
-            self._npc_policy.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
-            )
+            self._npc_policy.initialize_to_environment(env_metadata, self._device)
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -163,7 +170,7 @@ class Simulation:
         """Create a Simulation with sensible defaults."""
         # Create policy record from URI
         if policy_uri:
-            policy = CheckpointManager.load_from_uri(policy_uri)
+            policy = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
             policy = MockAgent()
 

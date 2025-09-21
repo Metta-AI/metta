@@ -41,10 +41,12 @@
     "clocale",
     "clusterissuer",
     "cmath",
+    "codebot",
     "codeclip",
     "codecvt",
     "coef",
     "coeff",
+    "cogames",
     "cogeval",
     "cogworks",
     "configs",
@@ -90,6 +92,7 @@
     "endgroup",
     "errc",
     "esac",
+    "etype",
     "evals",
     "excinfo",
     "exitstatus",
@@ -117,6 +120,7 @@
     "hasattr",
     "heavyball",
     "hookwrapper",
+    "hotfixes",
     "htmlcov",
     "httpx",
     "hyperparameters",
@@ -148,6 +152,7 @@
     "libnccl",
     "lognormal",
     "logratio",
+    "lookback",
     "lowent",
     "macbook",
     "makereport",
@@ -307,9 +312,5 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": [
-    "node_modules",
-    "venv",
-    ".git"
-  ]
+  "ignorePaths": ["node_modules", "venv", ".git"]
 }

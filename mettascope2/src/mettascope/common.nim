@@ -79,6 +79,9 @@ var
   playSpeed*: float32 = 0.1
   lastSimTime*: float64 = epochTime()
 
+  ## Signals when we want to give control back to Python (DLL mode only).
+  requestPython*: bool = false
+
   followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil

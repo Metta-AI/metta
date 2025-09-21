@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from pydantic import ConfigDict, Field
 
-from metta.mettagrid.config import Config
+from mettagrid.config import Config
 
 
 def guess_device() -> str:

@@ -14,14 +14,14 @@ import time
 import numpy as np
 import pytest
 
-from metta.mettagrid.mettagrid_c import (
+from mettagrid import MettaGridEnv
+from mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
 class TestBufferSharingRegression:

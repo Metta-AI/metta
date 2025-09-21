@@ -154,7 +154,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
 
 if __name__ == "__main__":
-    from metta.app_backend.config import host, port, stats_db_uri
+    from metta.app_backend.config import host, port, run_leaderboard_updater, stats_db_uri
 
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
@@ -162,7 +162,8 @@ if __name__ == "__main__":
 
     # Start the updater in an async context
     async def main():
-        await leaderboard_updater.start()
+        if run_leaderboard_updater:
+            await leaderboard_updater.start()
         # Run uvicorn in a way that doesn't block
         config = uvicorn.Config(app, host=host, port=port)
         server = uvicorn.Server(config)

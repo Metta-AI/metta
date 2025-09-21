@@ -61,7 +61,7 @@ class SystemSetup(SetupModule):
         return remove_falsey([getattr(p, self._installer.name) for p in self._config.packages.values()])
 
     @override
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up system dependencies...")
 
         if not self._installer:

@@ -9,7 +9,7 @@ from metta.common.util.fs import get_repo_root
 
 repo_root = get_repo_root()
 REPLAY_PATH = f"{repo_root}/mettascope/replays/replay.json.z"
-MAP_PATH = f"{repo_root}/mettagrid/tests/mapgen/scenes/fixtures/test.map"
+MAP_PATH = f"{repo_root}/packages/mettagrid/tests/mapgen/scenes/fixtures/test.map"
 
 
 def run_gen_thumb(file: str, output: Path):

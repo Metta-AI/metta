@@ -4,15 +4,11 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - "mettagrid/demos/**"
-      - "mettagrid/src/**"
-      - "mettagrid/pyproject.toml"
+      - "packages/mettagrid/**"
   pull_request:
     branches: [main, develop]
     paths:
-      - "mettagrid/demos/**"
-      - "mettagrid/src/**"
-      - "mettagrid/pyproject.toml"
+      - "packages/mettagrid/**"
   workflow_dispatch:
 
 jobs:
@@ -34,7 +30,7 @@ jobs:
       - name: Test ${{ matrix.demo }}
         run: |
           echo "Testing ${{ matrix.demo }}..."
-          timeout 45 uv run python mettagrid/demos/${{ matrix.demo }}.py
+          timeout 45 uv run python packages/mettagrid/demos/${{ matrix.demo }}.py
           exit_code=$?
           if [ $exit_code -eq 124 ]; then
             echo "TIMEOUT: ${{ matrix.demo }} ran for 45 seconds (expected completion ~5s)"

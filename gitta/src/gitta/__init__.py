@@ -693,7 +693,7 @@ def filter_repo(source_path: Path, paths: list[str], root_subdir: str | None = N
 
     Args:
         source_path: Path to source repository
-        paths: List of paths to keep (e.g., ["mettagrid/", "mettascope/"])
+        paths: List of paths to keep (e.g., ["packages/mettagrid/", "mettascope/"])
 
     Returns:
         Path to the filtered repository

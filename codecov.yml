@@ -61,7 +61,7 @@ flags:
 
   mettagrid:
     paths:
-      - mettagrid/
+      - packages/mettagrid/
     carryforward: true
 
   mettagrid_cpp:

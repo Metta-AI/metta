@@ -31,7 +31,7 @@
         buildInputs = with pkgs; [
           mettaPython
           uv
-          bazel
+          bazel_7
           stdenv.cc.cc.lib
           pnpm
           nodejs_22

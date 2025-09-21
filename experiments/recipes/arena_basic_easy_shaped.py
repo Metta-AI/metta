@@ -1,17 +1,40 @@
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Type
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import MettaGridConfig
+import mettagrid.builder.envs as eb
+from metta.agent.policies.agalite import AGaLiTeConfig
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policy import PolicyArchitecture
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from mettagrid import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.training.evaluator import EvaluatorConfig
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from metta.agent.agent_config import AgentConfig
+
+
+_POLICY_PRESETS: Dict[str, Type[PolicyArchitecture]] = {
+    "fast": FastConfig,
+    "agalite": AGaLiTeConfig,
+}
+
+
+def _policy_from_name(name: str) -> PolicyArchitecture:
+    try:
+        return _POLICY_PRESETS[name]()
+    except KeyError as exc:  # pragma: no cover - defensive branch
+        raise ValueError(
+            f"Unknown policy '{name}'. Available: {sorted(_POLICY_PRESETS)}"
+        ) from exc
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -40,10 +63,13 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    arena_env: Optional[MettaGridConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
-    # make a set of training tasks for the arena
     arena_tasks = cc.bucketed(arena_env)
 
     for item in ["ore_red", "battery_red", "laser", "armor"]:
@@ -60,7 +86,17 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return CurriculumConfig(task_generator=arena_tasks)
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,  # Enable bidirectional learning progress by default
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=5,  # More slices for arena complexity
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
@@ -77,28 +113,35 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 
 
 def train(
-    curriculum: Optional[CurriculumConfig] = None, agent: Optional[str] = None
+    curriculum: Optional[CurriculumConfig] = None,
+    *,
+    enable_detailed_slice_logging: bool = False,
+    policy_architecture: Optional[PolicyArchitecture] = None,
+    agent: Optional[str] = None,
 ) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
-        evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-                ),
-                SimulationConfig(
-                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-                ),
-            ],
-        ),
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    policy_architecture = None
-    if agent:
-        policy_architecture = AgentConfig(name=agent)
+    eval_simulations = make_evals()
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+        curriculum=curriculum,
+        evaluation=EvaluationConfig(simulations=eval_simulations),
+    )
 
-    return TrainTool(trainer=trainer_cfg, policy_architecture=policy_architecture)
+    if policy_architecture is None:
+        if agent is not None:
+            policy_architecture = _policy_from_name(agent)
+        else:
+            policy_architecture = FastConfig()
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=policy_architecture,
+    )
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:

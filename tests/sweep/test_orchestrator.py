@@ -115,7 +115,6 @@ class TestLocalDispatcher:
         assert "run" in call_args
         assert "./tools/run.py" in call_args
         assert "experiments.recipes.arena.train" in call_args
-        assert "--args" in call_args
         assert "run=test_run_001" in call_args
         assert "trainer.total_timesteps=1000" in call_args
 

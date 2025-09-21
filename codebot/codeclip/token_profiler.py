@@ -229,6 +229,7 @@ def profile_code_context(
     extensions: Optional[Tuple[str, ...]] = None,
     include_git_diff: bool = False,
     readmes_only: bool = False,
+    ignore_dirs: Optional[Tuple[str, ...]] = None,
 ) -> Tuple[str, Dict]:
     """
     Profile token distribution for the given paths.
@@ -238,6 +239,7 @@ def profile_code_context(
         extensions: Optional file extensions to filter by
         include_git_diff: Whether to include git diff as a virtual file
         readmes_only: Whether to only include README.md files
+        ignore_dirs: Optional tuple of directories to ignore
 
     Returns:
         Tuple of (formatted report, profile data)
@@ -249,6 +251,7 @@ def profile_code_context(
         include_git_diff=include_git_diff,
         diff_base="origin/main",
         readmes_only=readmes_only,
+        ignore_dirs=ignore_dirs,
     )
 
     # Use documents from token_info

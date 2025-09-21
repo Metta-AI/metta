@@ -25,9 +25,9 @@ class TestClientAdapter:
 
 def create_test_stats_client(test_client: TestClient, machine_token: str):
     """Create a StatsClient that works with TestClient."""
-    from metta.app_backend.clients.stats_client import StatsClient
+    from metta.app_backend.clients.stats_client import HttpStatsClient
 
-    stats_client = StatsClient(backend_url=str(test_client.base_url), machine_token=machine_token)
+    stats_client = HttpStatsClient(backend_url=str(test_client.base_url), machine_token=machine_token)
     stats_client._http_client = TestClientAdapter(test_client)  # type: ignore
 
     return stats_client

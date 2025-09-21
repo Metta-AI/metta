@@ -1,6 +1,6 @@
-import std/[random, os, times, strformat, strutils],
+import std/[random, os, times, strformat, strutils, parseopt],
   boxy, opengl, windy, windy/http, chroma, vmath, fidget2, fidget2/hybridrender,
-  mettascope/[replays, common, panels, utils, header, footer, timeline,
+  mettascope/[replays, common, panels, utils, footer, timeline,
   worldmap, minimap, agenttable, agenttraces, envconfig]
 
 var replay = ""
@@ -9,7 +9,25 @@ var replay = ""
 var topArea: Area
 var bottomArea: Area
 
-var loaded = false
+proc parseArgs() =
+  ## Parse command line arguments.
+  var p = initOptParser(commandLineParams())
+  while true:
+    p.next()
+    case p.kind
+    of cmdEnd:
+      break
+    of cmdLongOption, cmdShortOption:
+      case p.key
+      of "replay", "r":
+        replay = p.val
+        echo "Replay: ", replay
+      else:
+        discard
+    of cmdArgument:
+      discard
+
+
 
 find "/UI/Main":
 
@@ -31,16 +49,20 @@ find "/UI/Main":
     onClick:
       echo "Clicked: AgentTracesPanel: ", thisNode.name
 
-  onShow:
-    # Build the atlas.
-    for path in walkDirRec("data/"):
-      if path.endsWith(".png"):
-        echo path
-        bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
+  onLoad:
+    echo "onLoad"
 
-    echo "onShow"
+    # Build the atlas.
+    for path in walkDirRec(dataDir):
+      if path.endsWith(".png") and "fidget" notin path:
+        echo path
+        bxy.addImage(path.replace(dataDir & "/", "").replace(".png", ""), readImage(path))
+
+    utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
+
     if replay != "":
       if replay.startsWith("http"):
+        echo "Loading replay from URL: ", replay
         let req = startHttpRequest(replay)
         req.onError = proc(msg: string) =
           echo "onError: " & msg
@@ -49,8 +71,8 @@ find "/UI/Main":
           common.replay = loadReplay(response.body, replay)
       else:
         common.replay = loadReplay(replay)
-    else:
-      common.replay = loadReplay("replays/pens.json.z")
+    elif common.replay == nil:
+      common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
 
     echo "Creating panels"
     rootArea = Area(layout: Horizontal, node: find("**/AreaHeader"))
@@ -102,11 +124,15 @@ find "/UI/Main":
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
-    loaded = true
+
+    globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
+      bxy.saveTransform()
+      timeline.drawTimeline(globalTimelinePanel)
+      bxy.restoreTransform()
+
+    echo "Loaded!"
 
   onFrame:
-    if not loaded:
-      return
 
     playControls()
 
@@ -117,14 +143,33 @@ find "/UI/Main":
     const RibbonHeight = 64
     const HeaderHeight = 28
 
-    rootArea.rect = irect(0, RibbonHeight, window.size.x, window.size.y - RibbonHeight*3)
+    let size = (window.size.vec2 / window.contentScale).ivec2
+    rootArea.rect = irect(0, RibbonHeight, size.x, size.y - RibbonHeight*3)
     topArea.rect = irect(0, rootArea.rect.y, rootArea.rect.w, (rootArea.rect.h.float32 * 0.75).int32)
     bottomArea.rect = irect(0, rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, rootArea.rect.w, (rootArea.rect.h.float32 * 0.25).int)
     rootArea.updatePanelsSizes()
 
-startFidget(
-  figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
-  windowTitle = "MetaScope V2",
-  entryFrame = "UI/Main",
-  windowStyle = DecoratedResizable
-)
+    if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
+      fitFullMap(worldMapPanel)
+
+when isMainModule:
+
+  parseArgs()
+
+  initFidget(
+    figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
+    windowTitle = "MetaScope V2",
+    entryFrame = "UI/Main",
+    windowStyle = DecoratedResizable,
+    dataDir = "mettascope2/data"
+  )
+
+  when defined(emscripten):
+    # Emscripten can't block so it will call this callback instead.
+    window.run(mainLoop)
+  else:
+    # When running native code we can block in an infinite loop.
+    while not window.closeRequested:
+      mainLoop()
+    # Destroy the window.
+    window.close()

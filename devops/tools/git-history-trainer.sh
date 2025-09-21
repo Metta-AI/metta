@@ -146,13 +146,13 @@ if [ "$SETUP_MODE" = true ]; then
   cp -r "$(git rev-parse --show-toplevel)/devops" "$TMP_STORAGE/"
 
   # Create subdirectories as needed
-  mkdir -p "$TMP_STORAGE/mettagrid"
+  mkdir -p "$TMP_STORAGE/packages/mettagrid"
   mkdir -p "$TMP_STORAGE/metta/util" # Add directory for git utilities
 
   # Copy individual files
-  cp "$(git rev-parse --show-toplevel)/mettagrid/pyproject.toml" "$TMP_STORAGE/mettagrid/"
-  cp "$(git rev-parse --show-toplevel)/mettagrid/Makefile" "$TMP_STORAGE/mettagrid/"
-  cp "$(git rev-parse --show-toplevel)/mettagrid/setup.py" "$TMP_STORAGE/mettagrid/"
+  cp "$(git rev-parse --show-toplevel)/packages/mettagrid/pyproject.toml" "$TMP_STORAGE/packages/mettagrid/" 2> /dev/null || :
+  cp "$(git rev-parse --show-toplevel)/packages/mettagrid/Makefile" "$TMP_STORAGE/packages/mettagrid/" 2> /dev/null || :
+  cp "$(git rev-parse --show-toplevel)/packages/mettagrid/setup.py" "$TMP_STORAGE/packages/mettagrid/" 2> /dev/null || :
   cp "$(git rev-parse --show-toplevel)/Makefile" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/pyproject.toml" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/uv.lock" "$TMP_STORAGE/"
@@ -311,7 +311,7 @@ for COMMIT in $COMMITS; do
 
   # Create directory structure first
   mkdir -p "$REPO_ROOT/metta/util"
-  mkdir -p "$REPO_ROOT/mettagrid"
+  mkdir -p "$REPO_ROOT/packages/mettagrid"
   mkdir -p "$REPO_ROOT/devops"
 
   # Copy directories with -f to force overwrite
@@ -325,9 +325,9 @@ for COMMIT in $COMMITS; do
 
   # Copy individual files with -f to force overwrite
   echo "Copying individual files..."
-  cp -f "$TMP_STORAGE/mettagrid/pyproject.toml" "$REPO_ROOT/mettagrid/"
-  cp -f "$TMP_STORAGE/mettagrid/Makefile" "$REPO_ROOT/mettagrid/"
-  cp -f "$TMP_STORAGE/mettagrid/setup.py" "$REPO_ROOT/mettagrid/"
+  cp -f "$TMP_STORAGE/packages/mettagrid/pyproject.toml" "$REPO_ROOT/packages/mettagrid/" 2> /dev/null || :
+  cp -f "$TMP_STORAGE/packages/mettagrid/Makefile" "$REPO_ROOT/packages/mettagrid/" 2> /dev/null || :
+  cp -f "$TMP_STORAGE/packages/mettagrid/setup.py" "$REPO_ROOT/packages/mettagrid/" 2> /dev/null || :
   cp -f "$TMP_STORAGE/Makefile" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/pyproject.toml" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/uv.lock" "$REPO_ROOT/"

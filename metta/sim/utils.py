@@ -25,13 +25,13 @@ def get_or_create_policy_ids(
     """
     # Process policies - using URIs as primary identifier
     processed_policies = []
-    uri_to_name = {}
     for uri, description in policies:
         # Extract run_name from URI metadata
         metadata = CheckpointManager.get_policy_metadata(uri)
-        name = metadata["run_name"]
+        run_name = metadata["run_name"]
+        epoch = metadata.get("epoch", 0)
+        name = f"{run_name}:v{epoch}"
         processed_policies.append((uri, name, description))
-        uri_to_name[uri] = name
 
     # Get existing policy IDs from stats server (still uses names for now)
     policy_names = [name for (_, name, __) in processed_policies]

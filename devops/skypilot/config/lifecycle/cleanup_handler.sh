@@ -20,13 +20,16 @@ cleanup() {
   CMD_EXIT=${CMD_EXIT:-$?}
 
   # Read termination reason
-  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || echo "")
+  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2> /dev/null || echo "")
   echo "[INFO] Termination reason: $TERMINATION_REASON"
 
   # Master-only: Handle notifications and status updates
   if [[ "$IS_MASTER" == "true" ]]; then
-    handle_master_cleanup
     print_final_summary
+    # Force flush stdout to ensure summary is written
+    exec 1>&1
+
+    handle_master_cleanup
   fi
 
   # Set the final exit code for the script
@@ -110,11 +113,11 @@ handle_master_cleanup() {
   uv run devops/skypilot/config/observability/set_github_status.py "$GITHUB_STATUS_STATE" "$GITHUB_STATUS_DESCRIPTION"
 }
 
-
 print_final_summary() {
   echo "[SUMMARY] ===== Job Summary ====="
   echo "[SUMMARY] Metta Run ID: ${METTA_RUN_ID}"
   echo "[SUMMARY] Skypilot Task ID: ${SKYPILOT_TASK_ID}"
+  echo "[SUMMARY] Restart Count: ${RESTART_COUNT}"
   echo "[SUMMARY] Exit code: ${CMD_EXIT}"
   echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
   echo "[SUMMARY] ======================"

@@ -33,7 +33,10 @@ class TestNonInteractiveOutputVerification(BaseMettaSetupTest):
 
         # Should fail but not hang
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("No configuration found", result.stderr)
+        self.assertIn(
+            "Must specify a profile",
+            result.stderr + result.stdout,
+        )
 
     def test_output_contains_no_interactive_prompts(self):
         """Test that installation output contains no interactive prompts."""

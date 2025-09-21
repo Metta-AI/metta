@@ -46,13 +46,17 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
 
         to_install = [p for p in packages if not _package_in_output_list(p, installed)]
         to_pin = [p for p in packages if p.pin and not _package_in_output_list(p, pinned)]
-        to_tap = [p.tap for p in packages if p.tap and not _package_in_output_list(p, tapped)]
+        to_tap = list(set([p.tap for p in packages if p.tap and p.tap not in tapped]))
         return to_install, to_pin, to_tap
 
     def check_installed(self, packages: list[BrewPackageConfig]) -> bool:
         """Returns True when no changes are required."""
         to_install, to_pin, to_tap = self._get_changes_to_apply(packages)
-        return not any([to_install, to_pin, to_tap])
+        all_installed = not any([to_install, to_pin, to_tap])
+        for label, packages in [("To install", to_install), ("To pin", to_pin), ("To tap", to_tap)]:
+            if packages:
+                info(f"{label}: {', '.join([str(p) for p in packages])}")
+        return all_installed
 
     def install(self, packages: list[BrewPackageConfig]) -> None:
         to_install, to_pin, to_tap = self._get_changes_to_apply(packages)

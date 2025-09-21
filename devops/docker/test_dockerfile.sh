@@ -6,10 +6,9 @@ CONTAINER="${1}"
 timeout 600 docker run --rm --gpus all "$CONTAINER" "
 cd /workspace/metta && \
 ./tools/run.py experiments.recipes.arena.train \
-  --args run=test_minimal \
-  --overrides trainer.total_timesteps=10000 \
+  run=test_minimal \
+                trainer.total_timesteps=10000 \
                 trainer.checkpoint.checkpoint_interval=0 \
-                trainer.checkpoint.wandb_checkpoint_interval=0 \
                 trainer.evaluation.evaluate_interval=0 2>&1 | tee /tmp/train.log && \
 echo '=== Training completed, checking for success ===' && \
 if grep -q 'Training complete!' /tmp/train.log && grep -q 'ksps' /tmp/train.log; then \

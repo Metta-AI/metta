@@ -65,7 +65,7 @@ class AppsSetup(SetupModule):
         installer = self._get_brew_installer_if_available()
         return platform.system() == "Darwin" and installer is not None
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         installer = self._get_brew_installer_if_available()
         if not installer:
             return
