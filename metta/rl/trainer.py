@@ -114,6 +114,8 @@ class Trainer:
         for loss in losses.values():
             loss.attach_context(self._context)
 
+        self._prev_agent_step_for_step_callbacks: int = 0
+
     @property
     def context(self) -> ComponentContext:
         """Return the shared trainer context."""
@@ -150,8 +152,12 @@ class Trainer:
             self._context.training_env_id = rollout_result.training_env_id
             world_size = self._distributed_helper.get_world_size()
             if rollout_result.agent_steps:
+                previous_agent_step = self._context.agent_step
                 self._context.record_rollout(rollout_result.agent_steps, world_size)
+            else:
+                previous_agent_step = self._context.agent_step
             if rollout_result.raw_infos:
+                self._prev_agent_step_for_step_callbacks = previous_agent_step
                 self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
 
         # Training phase
@@ -224,8 +230,12 @@ class Trainer:
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    if component._step_interval != 0 and self._context.agent_step % component._step_interval == 0:
-                        component.on_step(infos)
+                    interval = component._step_interval
+                    if interval:
+                        current_step = self._context.agent_step
+                        previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
+                        if current_step // interval > previous_step // interval:
+                            component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
                     if component._epoch_interval != 0 and self._context.epoch % component._epoch_interval == 0:
                         component.on_epoch_end(self._context.epoch)

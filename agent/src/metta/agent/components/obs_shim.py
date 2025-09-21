@@ -113,11 +113,12 @@ class ObsTokenPadStrip(nn.Module):
 
         # find each row's flip‐point ie when it goes from dense to padding
         flip_pts = obs_mask.int().argmax(dim=1)  # shape [B]
+        has_padding = obs_mask.any(dim=1)
+        # Treat rows without padding as having full length M so we don't truncate dense sequences.
+        row_lengths = torch.where(has_padding, flip_pts, torch.full_like(flip_pts, M))
 
         # find the global max flip‐point as a 0‐d tensor
-        max_flip = flip_pts.max()
-        if max_flip == 0:
-            max_flip = max_flip + M  # hack to avoid 0. should instead grab
+        max_flip = row_lengths.max()
 
         # build a 1‐D "positions" row [0,1,2,…,L−1]
         positions = torch.arange(M, device=obs_mask.device)

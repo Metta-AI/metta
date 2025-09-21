@@ -41,7 +41,7 @@ class TrainingEnvironmentConfig(Config):
     async_factor: int = Field(default=2, ge=1)
     """Async factor for environment parallelization"""
 
-    auto_workers: bool = Field(default=False)
+    auto_workers: bool = Field(default=True)
     """Whether to auto-tune worker count based on available CPU/GPU resources"""
 
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
@@ -138,10 +138,11 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             num_workers = 1
             async_factor = 1
         else:
-            num_gpus = torch.cuda.device_count() or 1
-            cpu_count = os.cpu_count() or 1
-            ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
-            num_workers = max(1, ideal_workers)
+            if cfg.auto_workers:
+                num_gpus = torch.cuda.device_count() or 1
+                cpu_count = os.cpu_count() or 1
+                ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
+                num_workers = max(1, ideal_workers)
 
         # Calculate batch sizes
         self._target_batch_size, self._batch_size, self._num_envs = calculate_batch_sizes(
