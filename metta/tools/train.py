@@ -89,7 +89,7 @@ class TrainTool(Tool):
         self._prepare_run_directories()
 
         distributed_helper = DistributedHelper(torch.device(self.device))
-        distributed_helper.scale_batch_config(self.trainer, self.training_env)
+        distributed_helper.scale_batch_config(self.trainer)
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)

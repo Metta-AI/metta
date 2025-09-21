@@ -137,19 +137,11 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         if cfg.vectorization == "serial":
             num_workers = 1
             async_factor = 1
-        elif cfg.auto_workers:
+        else:
             num_gpus = torch.cuda.device_count() or 1
             cpu_count = os.cpu_count() or 1
-            ideal_workers = max(1, (cpu_count // 2) // max(num_gpus, 1))
-            if ideal_workers != cfg.num_workers:
-                logger.info(
-                    "Auto-selected %s environment workers (requested=%s, cpu=%s, gpu=%s)",
-                    ideal_workers,
-                    cfg.num_workers,
-                    cpu_count,
-                    num_gpus,
-                )
-            num_workers = ideal_workers
+            ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
+            num_workers = max(1, ideal_workers)
 
         # Calculate batch sizes
         self._target_batch_size, self._batch_size, self._num_envs = calculate_batch_sizes(
