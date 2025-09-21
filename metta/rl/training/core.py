@@ -20,6 +20,7 @@ class RolloutResult(Config):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     raw_infos: List[Dict[str, Any]]
+    events: List[tuple[int, List[Dict[str, Any]]]]
     agent_steps: int
     training_env_id: slice
 
@@ -70,7 +71,8 @@ class CoreTrainingLoop:
         Returns:
             RolloutResult with collected info
         """
-        raw_infos = []
+        raw_infos: List[Dict[str, Any]] = []
+        events: List[tuple[int, List[Dict[str, Any]]]] = []
         self.experience.reset_for_rollout()
 
         # Notify losses of rollout start
@@ -127,8 +129,11 @@ class CoreTrainingLoop:
             # Ship actions to the environment
             env.send_actions(td["actions"].cpu().numpy())
 
-            if info:
-                raw_infos.extend(info)
+            infos_list: List[Dict[str, Any]] = list(info) if info else []
+            if infos_list:
+                raw_infos.extend(infos_list)
+
+            events.append((num_steps, infos_list))
 
             total_steps += num_steps
 
@@ -136,7 +141,7 @@ class CoreTrainingLoop:
             raise RuntimeError("Rollout completed without receiving any environment data")
 
         context.training_env_id = last_env_id
-        return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
+        return RolloutResult(raw_infos=raw_infos, events=events, agent_steps=total_steps, training_env_id=last_env_id)
 
     def training_phase(
         self,
