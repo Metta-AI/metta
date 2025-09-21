@@ -71,7 +71,9 @@ class Scheduler(TrainerComponent):
         return None
 
     @classmethod
-    def _step_hyperparameters(cls, trainer_cfg, optimizer, current_step: int, total_timesteps: int, log) -> dict[str, float]:
+    def _step_hyperparameters(
+        cls, trainer_cfg, optimizer, current_step: int, total_timesteps: int, log
+    ) -> dict[str, float]:
         cfg = trainer_cfg.hyperparameter_scheduler
 
         if not getattr(cfg, "enabled", False):
