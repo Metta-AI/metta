@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional
 
 import torch
 
@@ -55,7 +55,6 @@ class Trainer:
         self._distributed_helper = distributed_helper
         self._run_name = run_name
         self._components: list[TrainerComponent] = []
-        self._component_map: Dict[Type[TrainerComponent], TrainerComponent] = {}
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
@@ -212,7 +211,6 @@ class Trainer:
             return
 
         self._components.append(component)
-        self._component_map[type(component)] = component
         component.register(self._context)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
