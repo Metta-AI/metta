@@ -35,10 +35,6 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     full_log_probs = F.log_softmax(clamped_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
 
-    # Ensure probabilities are valid for multinomial sampling
-    eps = 1e-8
-    action_probs = torch.clamp(action_probs, min=eps)
-
     # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
 
@@ -81,10 +77,6 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
 
     action_log_probs = F.log_softmax(clamped_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
-
-    # Ensure probabilities are valid for entropy calculation
-    eps = 1e-8
-    action_probs = torch.clamp(action_probs, min=eps)
 
     # Extract log-probabilities for the provided actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
