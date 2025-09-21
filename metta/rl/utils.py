@@ -29,4 +29,3 @@ def should_run(
         return True
 
     return epoch % interval == 0
-
