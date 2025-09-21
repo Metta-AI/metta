@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite
 
 from metta.agent.components.agalite_core_enhanced import EnhancedAGaLiTeCore
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.memory import SegmentMemoryRecord
 
 
 class AGaLiTeTransformerConfig(ComponentConfig):
@@ -65,6 +66,7 @@ class AGaLiTeTransformer(nn.Module):
 
         # Per-environment memory cache used during rollout.
         self._env_memory: Dict[int, Dict[str, Tuple[torch.Tensor, ...]]] = {}
+        self._pending_segment_records: List[SegmentMemoryRecord] = []
 
     # ------------------------------------------------------------------
     # Public nn.Module API
@@ -85,6 +87,9 @@ class AGaLiTeTransformer(nn.Module):
         latent = latent.view(time_steps, batch, self.hidden_size)
         terminations = self._compute_terminations(td, time_steps, batch, device)
 
+        segment_indices, segment_pos = self._extract_segment_metadata(td, batch, device)
+        snapshots = self._extract_memory_snapshots(td)
+
         if time_steps == 1:
             env_ids = td.get("training_env_ids")
             if env_ids is None:
@@ -92,11 +97,22 @@ class AGaLiTeTransformer(nn.Module):
             env_ids = env_ids.view(batch)
 
             memory = self._gather_memory(env_ids, device)
+            self._record_segment_memory(segment_indices, segment_pos, memory)
             outputs, new_memory = self._core(latent, terminations, memory)
             self._store_memory(env_ids, new_memory)
         else:
-            memory = self._core.initialize_memory(batch, device)
+            if snapshots is not None:
+                memory = self._prepare_memory_batch(snapshots, device)
+            else:
+                memory = self._core.initialize_memory(batch, device)
             outputs, _ = self._core(latent, terminations, memory)
+
+        if "segment_memory_snapshots" in td.keys():
+            del td["segment_memory_snapshots"]
+        if "_segment_indices" in td.keys():
+            del td["_segment_indices"]
+        if "_segment_pos" in td.keys():
+            del td["_segment_pos"]
 
         td[self.out_key] = outputs.reshape(total, self.hidden_size)
         return td
@@ -109,10 +125,23 @@ class AGaLiTeTransformer(nn.Module):
 
     def reset_memory(self):
         self._env_memory.clear()
+        self._pending_segment_records = []
 
     def get_agent_experience_spec(self) -> Composite:
         # No additional memory needs to be stored in replay; training runs with zero-initialised state.
         return Composite()
+
+    def consume_segment_memory_records(self) -> List[SegmentMemoryRecord]:
+        records = self._pending_segment_records
+        self._pending_segment_records = []
+        return records
+
+    def prepare_memory_batch(
+        self, snapshots: List[Optional[Dict[str, Optional[List[torch.Tensor]]]]], device: torch.device
+    ) -> Optional[Dict[str, Tuple[torch.Tensor, ...]]]:
+        if not snapshots or all(snapshot is None for snapshot in snapshots):
+            return None
+        return self._prepare_memory_batch(snapshots, device)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -171,3 +200,76 @@ class AGaLiTeTransformer(nn.Module):
             env_memory = {key: tuple(tensor.detach() for tensor in tensors) for key, tensors in initial_memory.items()}
             self._env_memory[env_id] = env_memory
         return self._env_memory[env_id]
+
+    def _extract_segment_metadata(
+        self, td: TensorDict, batch: int, device: torch.device
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        indices = td.get("_segment_indices")
+        positions = td.get("_segment_pos")
+        if indices is None or positions is None:
+            return (
+                torch.zeros(batch, dtype=torch.long, device=device),
+                torch.ones(batch, dtype=torch.long, device=device),
+            )
+        indices = indices.to(device=device, dtype=torch.long).view(-1)
+        positions = positions.to(device=device, dtype=torch.long).view(-1)
+        return indices, positions
+
+    def _extract_memory_snapshots(
+        self, td: TensorDict
+    ) -> Optional[List[Optional[Dict[str, Optional[List[torch.Tensor]]]]]]:
+        snapshots_data = td.get("segment_memory_snapshots")
+        if snapshots_data is None:
+            return None
+        if isinstance(snapshots_data, NonTensorData):
+            return snapshots_data._data  # type: ignore[attr-defined]
+        return snapshots_data
+
+    def _record_segment_memory(
+        self,
+        segment_indices: torch.Tensor,
+        segment_positions: torch.Tensor,
+        memory: Dict[str, Tuple[torch.Tensor, ...]],
+    ) -> None:
+        if segment_indices.numel() == 0:
+            return
+
+        for batch_pos, segment_idx in enumerate(segment_indices.tolist()):
+            if segment_positions[batch_pos].item() != 0:
+                continue
+            snapshot: Dict[str, List[torch.Tensor]] = {}
+            for layer_key, tensors in memory.items():
+                snapshot[layer_key] = [tensor[batch_pos : batch_pos + 1].detach().cpu() for tensor in tensors]
+            self._pending_segment_records.append(SegmentMemoryRecord(segment_index=segment_idx, memory=snapshot))
+
+    def _prepare_memory_batch(
+        self,
+        snapshots: List[Optional[Dict[str, Optional[List[torch.Tensor]]]]],
+        device: torch.device,
+    ) -> Dict[str, Tuple[torch.Tensor, ...]]:
+        if not snapshots:
+            return self._core.initialize_memory(0, device)
+
+        template = self._core.initialize_memory(1, device)
+        batched: Dict[str, List[List[torch.Tensor]]] = {key: [[] for _ in tensors] for key, tensors in template.items()}
+
+        for snapshot in snapshots:
+            for layer_key, template_tensors in template.items():
+                layer_slices = batched[layer_key]
+                if snapshot is None or snapshot.get(layer_key) is None:
+                    for idx, tmpl in enumerate(template_tensors):
+                        layer_slices[idx].append(torch.zeros_like(tmpl, device=device))
+                    continue
+
+                stored_tensors = snapshot[layer_key]
+                for idx, tmpl in enumerate(template_tensors):
+                    if stored_tensors is None or idx >= len(stored_tensors) or stored_tensors[idx] is None:
+                        layer_slices[idx].append(torch.zeros_like(tmpl, device=device))
+                        continue
+                    tensor = stored_tensors[idx].to(device=device)
+                    layer_slices[idx].append(tensor)
+
+        return {
+            layer_key: tuple(torch.cat(tensors, dim=0) for tensors in tensor_groups)
+            for layer_key, tensor_groups in batched.items()
+        }

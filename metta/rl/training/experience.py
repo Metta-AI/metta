@@ -1,10 +1,11 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import torch
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
+from metta.agent.memory import SegmentMemoryRecord
 from metta.common.util.collections import duplicates
 
 
@@ -48,6 +49,7 @@ class Experience:
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
+        self.segment_memory: list[Optional[Dict[str, Optional[List[torch.Tensor]]]]] = [None] * self.segments
 
         # Minibatch configuration
         self.minibatch_size: int = min(minibatch_size, max_minibatch_size)
@@ -87,7 +89,19 @@ class Experience:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
 
-    def store(self, data_td: TensorDict, env_id: slice) -> None:
+    def get_rollout_context(self, env_id: slice) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return segment indices and write positions for the given environment slice."""
+
+        segment_indices = self.ep_indices[env_id].clone()
+        segment_pos = self.ep_lengths[env_id].clone()
+        return segment_indices, segment_pos
+
+    def store(
+        self,
+        data_td: TensorDict,
+        env_id: slice,
+        segment_records: List[SegmentMemoryRecord] | None = None,
+    ) -> None:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
@@ -95,7 +109,17 @@ class Experience:
         episode_lengths = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
+        for meta_key in ("_segment_indices", "_segment_pos"):
+            if meta_key in data_td.keys():
+                del data_td[meta_key]
+
         self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
+
+        if segment_records:
+            for record in segment_records:
+                if record is None:
+                    continue
+                self.segment_memory[record.segment_index] = record.memory
 
         self.ep_lengths[env_id] += 1
 
@@ -109,6 +133,9 @@ class Experience:
         self.ep_lengths[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
+        new_slots = self.ep_indices[env_id]
+        for idx in new_slots.tolist():
+            self.segment_memory[idx] = None
 
     def reset_for_rollout(self) -> None:
         """Reset tracking variables for a new rollout."""
@@ -116,6 +143,7 @@ class Experience:
         self.free_idx = self.total_agents % self.segments
         self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
+        self.segment_memory = [None] * self.segments
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
@@ -158,6 +186,9 @@ class Experience:
                 stats["actions_std"] = actions.std().item()
 
         return stats
+
+    def get_segment_memory(self, indices: torch.Tensor) -> list[Optional[Dict[str, Optional[List[torch.Tensor]]]]]:
+        return [self.segment_memory[idx] for idx in indices.tolist()]
 
     def give_me_empty_md_td(self) -> TensorDict:
         return TensorDict(

@@ -105,6 +105,10 @@ class CoreTrainingLoop:
                 env_indices = env_indices.to(device=td.device)
             td["training_env_ids"] = env_indices.unsqueeze(1)
 
+            segment_indices, segment_pos = self.experience.get_rollout_context(training_env_id)
+            td.set("_segment_indices", segment_indices.to(device=td.device))
+            td.set("_segment_pos", segment_pos.to(device=td.device))
+
             # Ensure metadata fields required by downstream components are populated without
             # incurring allocations on every step by reusing cached constant tensors.
             batch_elems = td.batch_size.numel()

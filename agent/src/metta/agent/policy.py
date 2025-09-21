@@ -75,6 +75,23 @@ class Policy(ABC, nn.Module):
     def reset_memory(self):
         pass
 
+    def consume_segment_memory_records(self) -> list:
+        """Return any segment memory snapshots captured during rollout.
+
+        Policies that do not maintain explicit transformer memory can rely on the
+        default empty implementation.
+        """
+
+        return []
+
+    def prepare_memory_batch(self, snapshots, device: torch.device):
+        """Convert serialized memory snapshots back into runtime state.
+
+        Stateless policies can ignore the snapshots entirely by returning ``None``.
+        """
+
+        return None
+
 
 class DistributedPolicy(DistributedDataParallel):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""

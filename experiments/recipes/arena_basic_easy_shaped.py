@@ -31,7 +31,7 @@ _POLICY_PRESETS: Dict[str, Type[PolicyArchitecture]] = {
 def _policy_from_name(name: str) -> PolicyArchitecture:
     try:
         return _POLICY_PRESETS[name]()
-    except KeyError as exc:  # pragma: no cover - defensive branch
+    except KeyError as exc:  # pragma: no cover - defensive guard
         raise ValueError(
             f"Unknown policy '{name}'. Available: {sorted(_POLICY_PRESETS)}"
         ) from exc
