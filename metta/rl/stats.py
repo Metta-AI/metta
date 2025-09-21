@@ -126,9 +126,19 @@ def process_training_stats(
     experience_stats = experience.stats() if hasattr(experience, "stats") else {}
 
     # Calculate environment statistics
-    environment_stats = {
-        f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items() if "/" in k
-    }
+    environment_stats = {}
+    for key, value in mean_stats.items():
+        if "/" not in key:
+            continue
+
+        namespace, remainder = key.split("/", 1)
+
+        if namespace == "env" or namespace.startswith("env_"):
+            env_key = f"{namespace}/{remainder}"
+        else:
+            env_key = f"env_{namespace}/{remainder}"
+
+        environment_stats[env_key] = value
 
     # Filter movement metrics to only keep core values
     environment_stats = filter_movement_metrics(environment_stats)

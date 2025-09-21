@@ -111,13 +111,15 @@ class TestMetricsFormattingMain:
             "reward": [1.0, 2.0, 3.0],
             "episode_length": [10, 20, 30],
             "single_value": 42,
+            "env/total_steps": [100, 200],
+            "agent/movement.direction.up": [0.5, 0.7],
         }
 
         losses = MagicMock()
         losses.stats.return_value = {"policy_loss": 0.5}
 
         experience = MagicMock()
-        experience.stats.return_value = {"buffer_size": 1000}
+        experience.stats.return_value = {"buffer_size": 1000, "rewards": 2.5}
 
         trainer_config = MagicMock()
         trainer_config.ppo.l2_reg_loss_coef = 0
@@ -128,3 +130,6 @@ class TestMetricsFormattingMain:
         assert result["mean_stats"]["reward"] == 2.0
         assert result["mean_stats"]["episode_length"] == 20
         assert result["mean_stats"]["single_value"] == 42
+        assert result["environment_stats"]["env/total_steps"] == 150
+        assert result["environment_stats"]["env_agent/movement.direction.up"] == 0.6
+        assert result["overview"]["reward"] == 2.5
