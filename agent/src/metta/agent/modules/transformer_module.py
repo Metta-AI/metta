@@ -90,7 +90,9 @@ class RelMultiHeadAttn(nn.Module):
         attn_mask: Optional[torch.Tensor] = None,
         mems: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        @abstractmethod
+        def forward(self, *args, **kwargs):
+            pass
 
 
 class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
