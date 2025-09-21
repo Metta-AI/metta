@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import logging
 import math
-import warnings
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Dict, List, Optional, Type
 
 import pufferlib.pytorch
 import torch
-import torch.nn.functional as F
 from einops import rearrange
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
@@ -25,6 +23,8 @@ from metta.agent.components.actor import (
     ActorQuery,
     ActorQueryConfig,
 )
+from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
+from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.components.transformer_module import TransformerModule
 from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -37,14 +37,16 @@ class TransformerPolicyConfig(PolicyArchitecture):
 
     class_path: str = "metta.agent.policies.transformer.TransformerPolicy"
 
-    # CNN encoder parameters
-    cnn1_out_channels: int = 64
-    cnn1_kernel_size: int = 5
-    cnn1_stride: int = 3
-    cnn2_out_channels: int = 128
-    cnn2_kernel_size: int = 3
-    cnn2_stride: int = 1
-    fc1_features: int = 512
+    # Observation preprocessing
+    obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
+    cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(
+        in_key="obs_normalizer",
+        out_key="encoded_obs",
+        cnn1_cfg={"out_channels": 64, "kernel_size": 5, "stride": 3},
+        cnn2_cfg={"out_channels": 128, "kernel_size": 3, "stride": 1},
+        fc1_cfg={"out_features": 512},
+        encoded_obs_cfg={"out_features": 256},
+    )
 
     # Transformer interface dimensions
     latent_size: int = 256
@@ -69,7 +71,6 @@ class TransformerPolicyConfig(PolicyArchitecture):
 
     # Implementation options
     manual_init: bool = False
-    strict_attr_indices: bool = False
 
 
 class TransformerImprovedConfig(TransformerPolicyConfig):
@@ -90,7 +91,6 @@ class TransformerNvidiaConfig(TransformerPolicyConfig):
     transformer_clamp_len: int = 256
     transformer_module_cls: Type[nn.Module] = NvidiaTransformerModule
     manual_init: bool = True
-    strict_attr_indices: bool = True
 
 
 class TransformerPolicy(Policy):
@@ -104,98 +104,30 @@ class TransformerPolicy(Policy):
         self.is_continuous = False
         self.action_space = env.action_space
 
-        self.out_width = env.obs_width
-        self.out_height = env.obs_height
-        self.num_layers = max(env.feature_normalizations.keys()) + 1
-        self.dim_per_layer = self.out_width * self.out_height
-
         self.latent_size = self.config.latent_size
         self.hidden_size = self.config.hidden_size
 
-        self._build_encoder()
+        encoder_out = self.config.cnn_encoder_config.encoded_obs_cfg.get("out_features")
+        if encoder_out != self.latent_size:
+            logger.info(
+                "Adjusting CNN encoder output from %s to match transformer latent size %s.",
+                encoder_out,
+                self.latent_size,
+            )
+            self.config.cnn_encoder_config.encoded_obs_cfg["out_features"] = self.latent_size
+
+        self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
+        self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, env=env)
+
         self._build_heads()
         self._build_transformer()
 
         self._memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
-        self.register_buffer("max_vec", self._compute_feature_normalization(env), persistent=True)
-
-    # ---------------------------------------------------------------------
-    # Construction helpers
-    # ---------------------------------------------------------------------
-    def _build_encoder(self) -> None:
-        manual = self.config.manual_init
-
-        if manual:
-            self.cnn1 = nn.Conv2d(
-                self.num_layers,
-                self.config.cnn1_out_channels,
-                kernel_size=self.config.cnn1_kernel_size,
-                stride=self.config.cnn1_stride,
-            )
-            self.cnn2 = nn.Conv2d(
-                self.config.cnn1_out_channels,
-                self.config.cnn2_out_channels,
-                kernel_size=self.config.cnn2_kernel_size,
-                stride=self.config.cnn2_stride,
-            )
-            nn.init.orthogonal_(self.cnn1.weight, 1.0)
-            nn.init.zeros_(self.cnn1.bias)
-            nn.init.orthogonal_(self.cnn2.weight, 1.0)
-            nn.init.zeros_(self.cnn2.bias)
-        else:
-            self.cnn1 = pufferlib.pytorch.layer_init(
-                nn.Conv2d(
-                    self.num_layers,
-                    self.config.cnn1_out_channels,
-                    kernel_size=self.config.cnn1_kernel_size,
-                    stride=self.config.cnn1_stride,
-                ),
-                std=1.0,
-            )
-            self.cnn2 = pufferlib.pytorch.layer_init(
-                nn.Conv2d(
-                    self.config.cnn1_out_channels,
-                    self.config.cnn2_out_channels,
-                    kernel_size=self.config.cnn2_kernel_size,
-                    stride=self.config.cnn2_stride,
-                ),
-                std=1.0,
-            )
-
-        self.flatten = nn.Flatten()
-        flattened_size = self._compute_flattened_size(
-            (self.out_height, self.out_width),
-            self.config.cnn1_kernel_size,
-            self.config.cnn1_stride,
-            self.config.cnn2_kernel_size,
-            self.config.cnn2_stride,
-            self.config.cnn2_out_channels,
-        )
-
-        if manual:
-            self.fc1 = nn.Linear(flattened_size, self.config.fc1_features)
-            nn.init.orthogonal_(self.fc1.weight, math.sqrt(2))
-            nn.init.zeros_(self.fc1.bias)
-            self.encoded_obs = nn.Linear(self.config.fc1_features, self.latent_size)
-            nn.init.orthogonal_(self.encoded_obs.weight, math.sqrt(2))
-            nn.init.zeros_(self.encoded_obs.bias)
-        else:
-            self.fc1 = pufferlib.pytorch.layer_init(
-                nn.Linear(flattened_size, self.config.fc1_features), std=1.0
-            )
-            self.encoded_obs = pufferlib.pytorch.layer_init(
-                nn.Linear(self.config.fc1_features, self.latent_size), std=1.0
-            )
 
         if self.latent_size != self.hidden_size:
-            if manual:
-                self.input_projection = nn.Linear(self.latent_size, self.hidden_size)
-                nn.init.orthogonal_(self.input_projection.weight, 1.0)
-                nn.init.zeros_(self.input_projection.bias)
-            else:
-                self.input_projection = pufferlib.pytorch.layer_init(
-                    nn.Linear(self.latent_size, self.hidden_size), std=1.0
-                )
+            self.input_projection = pufferlib.pytorch.layer_init(
+                nn.Linear(self.latent_size, self.hidden_size), std=1.0
+            )
         else:
             self.input_projection = nn.Identity()
 
@@ -277,32 +209,35 @@ class TransformerPolicy(Policy):
     # ------------------------------------------------------------------
     @torch._dynamo.disable
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None):
-        observations = td["env_obs"]
+        original_shape: Optional[torch.Size]
+        if td.batch_dims > 1:
+            original_shape = td.batch_size
+            total_batch = original_shape.numel()
+            td = td.reshape(total_batch)
 
-        if observations.dim() == 4:
-            B, TT = observations.shape[:2]
-            total_batch = B * TT
-            batch_shape: Optional[Tuple[int, int]] = (B, TT)
-            if td.batch_dims > 1:
-                td = td.reshape(total_batch)
-                observations = td["env_obs"]
+            env_obs = td.get("env_obs", None)
+            device = env_obs.device if env_obs is not None else torch.device("cpu")
+            if "bptt" not in td.keys() and len(original_shape) >= 2:
+                td.set(
+                    "bptt",
+                    torch.full((total_batch,), int(original_shape[1]), device=device, dtype=torch.long),
+                )
+            if "batch" not in td.keys() and len(original_shape) >= 1:
+                td.set(
+                    "batch",
+                    torch.full((total_batch,), int(original_shape[0]), device=device, dtype=torch.long),
+                )
         else:
-            B = observations.shape[0]
-            TT = 1
-            total_batch = B
-            batch_shape = None
-            if td.batch_dims > 1:
-                td = td.reshape(total_batch)
-                observations = td["env_obs"]
+            original_shape = None
 
-        device = observations.device
-        td.set("bptt", torch.full((total_batch,), TT, device=device, dtype=torch.long))
-        td.set("batch", torch.full((total_batch,), B, device=device, dtype=torch.long))
+        self.obs_shim(td)
+        self.cnn_encoder(td)
 
-        latent = self._encode_observations(observations)
+        encoded_key = self.config.cnn_encoder_config.out_key
+        latent = td[encoded_key]
         latent = self.input_projection(latent)
 
-        core = self._forward_transformer(td, latent, B, TT)
+        core = self._forward_transformer(td, latent, original_shape)
         td["core"] = core
 
         self.actor_module(td)
@@ -318,12 +253,37 @@ class TransformerPolicy(Policy):
         self.actor_key(td)
 
         td = self.action_probs(td, action)
-
-        if batch_shape is not None:
-            td = td.reshape(batch_shape)
+        if original_shape is not None:
+            td = td.reshape(original_shape)
         return td
 
-    def _forward_transformer(self, td: TensorDict, latent: torch.Tensor, batch_size: int, tt: int) -> torch.Tensor:
+    def _forward_transformer(
+        self, td: TensorDict, latent: torch.Tensor, original_shape: Optional[torch.Size]
+    ) -> torch.Tensor:
+        tt: Optional[int] = None
+        batch_size: Optional[int] = None
+
+        if "bptt" in td.keys():
+            tt = int(td["bptt"].reshape(-1)[0].item())
+        elif original_shape is not None and len(original_shape) >= 2:
+            tt = int(original_shape[1])
+        else:
+            tt = 1
+
+        if tt <= 0:
+            raise ValueError("bptt entries must be positive")
+
+        total_batch = latent.shape[0]
+        if total_batch % tt != 0:
+            raise ValueError("encoded_obs batch dimension must be divisible by bptt")
+
+        if "batch" in td.keys():
+            batch_size = int(td["batch"].reshape(-1)[0].item())
+        elif original_shape is not None:
+            batch_size = int(total_batch // tt)
+        else:
+            batch_size = total_batch // tt
+
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
         memory = None
@@ -356,86 +316,6 @@ class TransformerPolicy(Policy):
             self._memory.pop(env_key, None)
 
         return core_flat
-
-    # ------------------------------------------------------------------
-    # Observation encoding helpers
-    # ------------------------------------------------------------------
-    def _encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
-        if observations.shape[-1] != 3:
-            raise ValueError(f"Expected 3-token channels, got {observations.shape}")
-
-        coords_byte = observations[..., 0].to(torch.uint8)
-        x_coord = ((coords_byte >> 4) & 0x0F).long()
-        y_coord = (coords_byte & 0x0F).long()
-        attr_indices = observations[..., 1].long()
-        attr_values = observations[..., 2].float()
-
-        valid_tokens = coords_byte != 0xFF
-        valid_attr = attr_indices < self.num_layers
-        valid_mask = valid_tokens & valid_attr
-
-        invalid_mask = valid_tokens & ~valid_attr
-        if invalid_mask.any():
-            invalid_indices = attr_indices[invalid_mask].unique()
-            if self.config.strict_attr_indices:
-                raise ValueError(
-                    f"Found observation attribute indices {sorted(map(int, invalid_indices.tolist()))} "
-                    f">= num_layers ({self.num_layers})."
-                )
-            warnings.warn(
-                f"Found observation attribute indices {sorted(map(int, invalid_indices.tolist()))} "
-                f">= num_layers ({self.num_layers}). These tokens will be ignored.",
-                stacklevel=2,
-            )
-
-        combined_index = attr_indices * self.dim_per_layer + x_coord * self.out_height + y_coord
-        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
-        safe_values = torch.where(valid_mask, attr_values, torch.zeros_like(attr_values))
-
-        box_flat = torch.zeros(
-            (observations.shape[0], self.num_layers * self.dim_per_layer),
-            dtype=attr_values.dtype,
-            device=observations.device,
-        )
-        box_flat.scatter_(1, safe_index, safe_values)
-
-        box_obs = box_flat.view(observations.shape[0], self.num_layers, self.out_width, self.out_height)
-        x = box_obs / self.max_vec
-
-        x = F.relu(self.cnn1(x))
-        x = F.relu(self.cnn2(x))
-        x = self.flatten(x)
-        x = F.relu(self.fc1(x))
-        encoded = F.relu(self.encoded_obs(x))
-        return encoded
-
-    # ------------------------------------------------------------------
-    # Utilities
-    # ------------------------------------------------------------------
-    def _compute_flattened_size(
-        self,
-        input_hw: Tuple[int, int],
-        conv1_kernel,
-        conv1_stride,
-        conv2_kernel,
-        conv2_stride,
-        conv2_channels,
-    ) -> int:
-        def conv_out(size, kernel, stride):
-            return math.floor((size - kernel) / stride + 1)
-
-        h1 = conv_out(input_hw[0], conv1_kernel, conv1_stride)
-        w1 = conv_out(input_hw[1], conv1_kernel, conv1_stride)
-        h2 = conv_out(h1, conv2_kernel, conv2_stride)
-        w2 = conv_out(w1, conv2_kernel, conv2_stride)
-        return conv2_channels * h2 * w2
-
-    def _compute_feature_normalization(self, env) -> torch.Tensor:
-        max_values = torch.ones(self.num_layers, dtype=torch.float32)
-        for feature_id, norm_value in env.feature_normalizations.items():
-            if feature_id < self.num_layers:
-                max_values[feature_id] = norm_value if norm_value > 0 else 1.0
-        return max_values.view(1, self.num_layers, 1, 1)
 
     def _compute_reset_mask(
         self, dones: torch.Tensor, truncateds: torch.Tensor, batch_size: int
@@ -477,17 +357,12 @@ class TransformerPolicy(Policy):
         device = torch.device(device)
         self.to(device)
 
-        max_vec = self._compute_feature_normalization(env).to(device=device)
-        if self.max_vec.device != device or self.max_vec.shape != max_vec.shape:
-            self.max_vec = max_vec
-        else:
-            with torch.no_grad():
-                self.max_vec.copy_(max_vec)
-
+        log = self.obs_shim.initialize_to_environment(env, device)
+        self.cnn_encoder.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
         self._memory.clear()
-        return []
+        return [log] if log is not None else []
 
     def reset_memory(self) -> None:
         self._memory.clear()
