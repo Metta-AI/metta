@@ -116,7 +116,7 @@ class MockAgent(Policy):
         feature_map = {}
         for name, feat in features.items():
             if hasattr(feat, "id"):
-                feature_id = getattr(feat, "id")
+                feature_id = feat.id
                 normalization = getattr(feat, "normalization", 1.0)
             elif isinstance(feat, Mapping):
                 feature_id = feat["id"]
