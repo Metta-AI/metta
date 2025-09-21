@@ -3321,8 +3321,8 @@ wheels = [
 
 [[package]]
 name = "pufferlib"
-version = "3.0.0+cu130"
-source = { git = "https://github.com/relh/PufferLib?rev=cu130-sm120-wheel#055dcf8bf16b08146ce6e9a44a66b71b6dc2af07" }
+version = "3.0.0"
+source = { git = "https://github.com/relh/PufferLib?rev=cu130-sm120-wheel#5527a9ede66b64c14c3c419591519393a13467e5" }
 dependencies = [
     { name = "gym" },
     { name = "gymnasium" },
