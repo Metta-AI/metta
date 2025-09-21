@@ -66,7 +66,7 @@ def log_rich_progress(
 
     total_steps_str = _format_total_steps(total_timesteps)
     progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0.0
-    sps_display = f"{steps_per_sec:,.0f} sps"
+    sps_display = f"{steps_per_sec:,.0f} SPS"
     heart_display = ""
     if heart_value is not None:
         heart_display = f"heart.get {heart_value:.3f}"
