@@ -2,6 +2,7 @@
 
 import logging
 from collections import defaultdict
+from contextlib import nullcontext
 from numbers import Number
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -271,25 +272,28 @@ class StatsReporter(TrainerComponent):
             trainer_cfg: Trainer configuration
             optimizer: Optimizer
         """
-        payload = self._build_wandb_payload(
-            losses_stats=losses_stats,
-            experience=experience,
-            trainer_cfg=trainer_cfg,
-            policy=policy,
-            agent_step=agent_step,
-            epoch=epoch,
-            timer=timer,
-            optimizer=optimizer,
-        )
+        timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
-        if self._wandb_run and self._config.report_to_wandb and payload:
-            self._wandb_run.log(payload, step=agent_step)
+        with timing_context:
+            payload = self._build_wandb_payload(
+                losses_stats=losses_stats,
+                experience=experience,
+                trainer_cfg=trainer_cfg,
+                policy=policy,
+                agent_step=agent_step,
+                epoch=epoch,
+                timer=timer,
+                optimizer=optimizer,
+            )
 
-        self._latest_payload = payload.copy() if payload else None
+            if self._wandb_run and self._config.report_to_wandb and payload:
+                self._wandb_run.log(payload, step=agent_step)
 
-        # Clear stats after processing
-        self.clear_rollout_stats()
-        self.clear_grad_stats()
+            self._latest_payload = payload.copy() if payload else None
+
+            # Clear stats after processing
+            self.clear_rollout_stats()
+            self.clear_grad_stats()
 
     def update_eval_scores(self, scores: EvalRewardSummary) -> None:
         """Update evaluation scores.

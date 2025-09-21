@@ -41,9 +41,9 @@ def _create_progress_table(epoch: int, run_name: str | None) -> Table:
         title = f"[bold cyan]Training Progress - Epoch {epoch}[/bold cyan]"
 
     table = Table(title=title, show_header=True, header_style="bold magenta")
-    table.add_column("Steps", style="cyan", justify="left")
+    table.add_column("Metrics", style="cyan", justify="left")
     table.add_column("Progress", style="green", justify="right")
-    table.add_column("Time", style="yellow", justify="left")
+    table.add_column("Values", style="yellow", justify="left")
     return table
 
 
@@ -66,6 +66,7 @@ def log_rich_progress(
 
     total_steps_str = _format_total_steps(total_timesteps)
     progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0.0
+    sps_display = f"{steps_per_sec:,.0f} sps"
     heart_display = ""
     if heart_value is not None:
         heart_display = f"heart.get {heart_value:.3f}"
@@ -73,15 +74,15 @@ def log_rich_progress(
             heart_display += f" ({heart_rate:.3f}/s)"
 
     table.add_row(
-        "Training Steps",
+        "Steps",
         f"{agent_step:,} / {total_steps_str} ({progress_pct:.1f}%)",
-        heart_display,
+        sps_display,
     )
 
     table.add_row(
-        "Time Breakdown",
+        "Time",
         f"Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%",
-        f"[dim]{steps_per_sec:,.0f} steps/sec[/dim]",
+        heart_display,
     )
 
     console.print(table)
