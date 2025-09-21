@@ -595,7 +595,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "mettagrid", editable = "packages/mettagrid" },
-    { name = "pufferlib", specifier = ">=3.0.0" },
+    { name = "pufferlib", git = "https://github.com/relh/PufferLib?rev=cu130-sm120-wheel" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "rich", specifier = ">=13.7.0" },
@@ -2198,7 +2198,7 @@ requires-dist = [
     { name = "pixie-python", specifier = ">=4.3.0" },
     { name = "plotly", specifier = ">=6.1.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
-    { name = "pufferlib", specifier = ">=3.0.0,<3.1.0" },
+    { name = "pufferlib", git = "https://github.com/relh/PufferLib?rev=cu130-sm120-wheel" },
     { name = "pyarrow", specifier = ">=21.0.0" },
     { name = "pybind11", specifier = ">=2.10.4" },
     { name = "pydantic", specifier = ">=2.11.5" },
@@ -2287,7 +2287,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pufferlib", specifier = ">=3.0.0,<3.1.0" }]
+requires-dist = [{ name = "pufferlib", git = "https://github.com/relh/PufferLib?rev=cu130-sm120-wheel" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2422,7 +2422,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26.4,<2" },
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pettingzoo", specifier = ">=1.24.1,<1.25" },
-    { name = "pufferlib", specifier = ">=3.0.0,<3.1.0" },
+    { name = "pufferlib", git = "https://github.com/relh/PufferLib?rev=cu130-sm120-wheel" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "scipy", specifier = ">=1.15.3" },
@@ -3321,8 +3321,8 @@ wheels = [
 
 [[package]]
 name = "pufferlib"
-version = "3.0.0"
-source = { registry = "https://pypi.org/simple" }
+version = "3.0.0+cu130"
+source = { git = "https://github.com/relh/PufferLib?rev=cu130-sm120-wheel#055dcf8bf16b08146ce6e9a44a66b71b6dc2af07" }
 dependencies = [
     { name = "gym" },
     { name = "gymnasium" },
@@ -3330,9 +3330,9 @@ dependencies = [
     { name = "imageio" },
     { name = "neptune" },
     { name = "numpy" },
+    { name = "nvidia-ml-py" },
     { name = "pettingzoo" },
     { name = "psutil" },
-    { name = "pynvml" },
     { name = "pyro-ppl" },
     { name = "rich" },
     { name = "rich-argparse" },
@@ -3341,7 +3341,6 @@ dependencies = [
     { name = "torch" },
     { name = "wandb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7c/e1/5292f9b69c6263707b40ba04a87e6b9bcc177281d31092f77afd90c412f1/pufferlib-3.0.0.tar.gz", hash = "sha256:7df3a3e3f5f894d78d2a1f5374097890aec01473183e748abefe4f3faa10eaa9", size = 60681266, upload-time = "2025-06-23T15:47:14.626Z" }
 
 [[package]]
 name = "pulp"
