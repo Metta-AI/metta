@@ -57,8 +57,6 @@ from metta.tools.utils.auto_config import (
 )
 
 logger = getRankAwareLogger(__name__)
-
-
 class TrainTool(Tool):
     POLICY_PRESETS: ClassVar[dict[str, type[PolicyArchitecture]]] = {
         "fast": FastConfig,
@@ -80,7 +78,6 @@ class TrainTool(Tool):
                 raise ValueError(f"Unknown policy preset '{value}'. Valid options: {valid}")
             data["policy_architecture"] = preset_cls()
         return data
-
     run: Optional[str] = None
     run_dir: Optional[str] = None
     device: str = guess_device()
