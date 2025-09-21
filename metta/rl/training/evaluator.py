@@ -349,17 +349,12 @@ class Evaluator(TrainerComponent):
         stats_reporter = self.context.stats_reporter
         stats_epoch_id = None
         if stats_reporter and getattr(stats_reporter.state, "stats_run_id", None):
-            if getattr(stats_reporter.state, "stats_epoch_id", None) is not None:
-                stats_epoch_id = stats_reporter.state.stats_epoch_id
-                stats_reporter.state.stats_epoch_id = None
-            else:
-                stats_epoch_id = stats_reporter.create_epoch(
-                    stats_reporter.state.stats_run_id,
-                    stats_reporter.state.stats_epoch_start,
-                    epoch,
-                    attributes={"source": "evaluation"},
-                )
-                stats_reporter.update_epoch_tracking(epoch + 1)
+            stats_epoch_id = stats_reporter.create_epoch(
+                stats_reporter.state.stats_run_id,
+                epoch,
+                epoch,
+                attributes={"source": "evaluation"},
+            )
 
         scores = self.evaluate(
             policy_uri=policy_uri,

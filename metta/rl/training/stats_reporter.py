@@ -127,8 +127,6 @@ class StatsReporterState(Config):
     grad_stats: Dict = Field(default_factory=dict)
     eval_scores: EvalRewardSummary = Field(default_factory=EvalRewardSummary)
     stats_run_id: Optional[UUID] = None
-    stats_epoch_id: Optional[UUID] = None
-    stats_epoch_start: int = 0
     latest_saved_epoch: int = 0
 
 
@@ -142,7 +140,6 @@ class NoOpStatsReporter(TrainerComponent):
         super().__init__(epoch_interval=config.interval)
         self.wandb_run = None
         self.stats_run_id = None
-        self.stats_epoch_id = None
 
     def on_step(self, infos: List[Dict[str, Any]]) -> None:
         pass
@@ -293,19 +290,8 @@ class StatsReporter(TrainerComponent):
             if payload and self._stats_client and self._config.report_to_stats_client:
                 run_id = self._state.stats_run_id
                 if run_id is not None:
-                    attributes: Dict[str, Any] = {
-                        "metrics": payload,
-                        "agent_step": agent_step,
-                    }
-                    epoch_id = self.create_epoch(
-                        run_id,
-                        self._state.stats_epoch_start,
-                        epoch,
-                        attributes=attributes,
-                    )
-                    if epoch_id is not None:
-                        self.update_epoch_tracking(epoch + 1)
-                        self._state.stats_epoch_id = epoch_id
+                    attributes: Dict[str, Any] = {"metrics": payload, "agent_step": agent_step}
+                    self.create_epoch(run_id, epoch, epoch, attributes=attributes)
 
             # Clear stats after processing
             self.clear_rollout_stats()
@@ -378,19 +364,10 @@ class StatsReporter(TrainerComponent):
                 end_training_epoch=end_epoch,
                 attributes=attributes or {},
             )
-            self._state.stats_epoch_id = result.id
             return result.id
         except Exception as e:
             logger.warning(f"Failed to create epoch: {e}", exc_info=True)
             return None
-
-    def update_epoch_tracking(self, epoch: int) -> None:
-        """Update epoch tracking for next epoch.
-
-        Args:
-            epoch: New epoch number
-        """
-        self._state.stats_epoch_start = epoch
 
     def finalize(self, status: str = "completed") -> None:
         """Finalize stats reporting.
@@ -405,7 +382,6 @@ class StatsReporter(TrainerComponent):
             except Exception as e:
                 logger.warning(f"Failed to update training run status: {e}", exc_info=True)
         self._latest_payload = None
-        self._state.stats_epoch_id = None
 
     def on_step(self, infos: Dict[str, Any] | List[Dict[str, Any]]) -> None:
         """Accumulate step infos.
