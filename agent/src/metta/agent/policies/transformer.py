@@ -1,9 +1,15 @@
-import logging
-from typing import Dict, List, Optional
+"""Transformer policies that mirror legacy PyTorch agents exactly."""
 
-import numpy as np
+from __future__ import annotations
+
+import logging
+import math
+import warnings
+from typing import Dict, List, Optional, Tuple, Type
+
 import pufferlib.pytorch
 import torch
+import torch.nn.functional as F
 from einops import rearrange
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
@@ -19,8 +25,6 @@ from metta.agent.components.actor import (
     ActorQuery,
     ActorQueryConfig,
 )
-from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
-from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.components.transformer_module import TransformerModule
 from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -29,24 +33,24 @@ logger = logging.getLogger(__name__)
 
 
 class TransformerPolicyConfig(PolicyArchitecture):
-    """Transformer-based policy using the refactored component stack."""
+    """Hyperparameters for the legacy convolutional Transformer policy."""
 
     class_path: str = "metta.agent.policies.transformer.TransformerPolicy"
 
-    # Observation preprocessing
-    obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
-    cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(
-        in_key="obs_normalizer",
-        out_key="encoded_obs",
-        cnn1_cfg={"out_channels": 64, "kernel_size": 5, "stride": 3},
-        cnn2_cfg={"out_channels": 128, "kernel_size": 3, "stride": 1},
-        fc1_cfg={"out_features": 512},
-        encoded_obs_cfg={"out_features": 256},
-    )
+    # CNN encoder parameters
+    cnn1_out_channels: int = 64
+    cnn1_kernel_size: int = 5
+    cnn1_stride: int = 3
+    cnn2_out_channels: int = 128
+    cnn2_kernel_size: int = 3
+    cnn2_stride: int = 1
+    fc1_features: int = 512
+
+    # Transformer interface dimensions
+    latent_size: int = 256
+    hidden_size: int = 256
 
     # Transformer hyperparameters
-    transformer_latent_size: int = 256
-    transformer_hidden_size: int = 256
     transformer_num_layers: int = 6
     transformer_num_heads: int = 8
     transformer_ff_size: int = 512
@@ -55,68 +59,206 @@ class TransformerPolicyConfig(PolicyArchitecture):
     transformer_dropout: float = 0.1
     transformer_attn_dropout: float = 0.1
     transformer_clamp_len: int = -1
-    transformer_module_cls: type = TransformerModule
+    transformer_module_cls: Type[nn.Module] = TransformerModule
 
-    # Actor / critic heads
+    # Actor / critic head dimensions
     critic_hidden_dim: int = 1024
     actor_hidden_dim: int = 512
-    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="action_embedding")
-    actor_query_config: ActorQueryConfig = ActorQueryConfig(in_key="actor_1", out_key="actor_query")
-    actor_key_config: ActorKeyConfig = ActorKeyConfig(
-        query_key="actor_query",
-        embedding_key="action_embedding",
-        out_key="logits",
-    )
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+    action_embedding_dim: int = 16
+
+    # Implementation options
+    manual_init: bool = False
+    strict_attr_indices: bool = False
 
 
 class TransformerImprovedConfig(TransformerPolicyConfig):
-    """Variant mirroring the richer Transformer-XL configuration."""
+    """Matches the legacy Transformer-XL agent implementation."""
 
+    class_path: str = "metta.agent.policies.transformer.TransformerImprovedPolicy"
     transformer_ff_size: int = 1024
-    transformer_memory_len: int = 96
 
 
 class TransformerNvidiaConfig(TransformerPolicyConfig):
-    """Variant inspired by NVIDIA's reference implementation settings."""
+    """Matches NVIDIA's reference Transformer-XL implementation."""
 
-    transformer_ff_size: int = 1536
-    transformer_dropout: float = 0.0
-    transformer_attn_dropout: float = 0.0
-    transformer_memory_len: int = 128
-    transformer_module_cls: type = NvidiaTransformerModule
+    class_path: str = "metta.agent.policies.transformer.TransformerNvidiaPolicy"
+    transformer_ff_size: int = 512
+    transformer_memory_len: int = 32
+    transformer_dropout: float = 0.1
+    transformer_attn_dropout: float = 0.1
+    transformer_clamp_len: int = 256
+    transformer_module_cls: Type[nn.Module] = NvidiaTransformerModule
+    manual_init: bool = True
+    strict_attr_indices: bool = True
 
 
 class TransformerPolicy(Policy):
-    def __init__(self, env, config: Optional[TransformerPolicyConfig] = None):
+    """CNN + Transformer policy as implemented in legacy PyTorch agents."""
+
+    def __init__(self, env, config: Optional[TransformerPolicyConfig] = None) -> None:
         super().__init__()
         self.config = config or TransformerPolicyConfig()
+
         self.env = env
         self.is_continuous = False
         self.action_space = env.action_space
 
-        # Observation preprocessing stack
-        self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
+        self.out_width = env.obs_width
+        self.out_height = env.obs_height
+        self.num_layers = max(env.feature_normalizations.keys()) + 1
+        self.dim_per_layer = self.out_width * self.out_height
 
-        # Ensure encoder output matches transformer latent expectations before instantiation
-        encoder_out = self.config.cnn_encoder_config.encoded_obs_cfg.get("out_features")
-        if encoder_out != self.config.transformer_latent_size:
-            logger.info(
-                "Adjusting CNN encoder output from %s to match transformer latent size %s.",
-                encoder_out,
-                self.config.transformer_latent_size,
+        self.latent_size = self.config.latent_size
+        self.hidden_size = self.config.hidden_size
+
+        self._build_encoder()
+        self._build_heads()
+        self._build_transformer()
+
+        self._memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
+        self.register_buffer("max_vec", self._compute_feature_normalization(env), persistent=True)
+
+    # ---------------------------------------------------------------------
+    # Construction helpers
+    # ---------------------------------------------------------------------
+    def _build_encoder(self) -> None:
+        manual = self.config.manual_init
+
+        if manual:
+            self.cnn1 = nn.Conv2d(
+                self.num_layers,
+                self.config.cnn1_out_channels,
+                kernel_size=self.config.cnn1_kernel_size,
+                stride=self.config.cnn1_stride,
             )
-            self.config.cnn_encoder_config.encoded_obs_cfg["out_features"] = self.config.transformer_latent_size
+            self.cnn2 = nn.Conv2d(
+                self.config.cnn1_out_channels,
+                self.config.cnn2_out_channels,
+                kernel_size=self.config.cnn2_kernel_size,
+                stride=self.config.cnn2_stride,
+            )
+            nn.init.orthogonal_(self.cnn1.weight, 1.0)
+            nn.init.zeros_(self.cnn1.bias)
+            nn.init.orthogonal_(self.cnn2.weight, 1.0)
+            nn.init.zeros_(self.cnn2.bias)
+        else:
+            self.cnn1 = pufferlib.pytorch.layer_init(
+                nn.Conv2d(
+                    self.num_layers,
+                    self.config.cnn1_out_channels,
+                    kernel_size=self.config.cnn1_kernel_size,
+                    stride=self.config.cnn1_stride,
+                ),
+                std=1.0,
+            )
+            self.cnn2 = pufferlib.pytorch.layer_init(
+                nn.Conv2d(
+                    self.config.cnn1_out_channels,
+                    self.config.cnn2_out_channels,
+                    kernel_size=self.config.cnn2_kernel_size,
+                    stride=self.config.cnn2_stride,
+                ),
+                std=1.0,
+            )
 
-        self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, env=env)
+        self.flatten = nn.Flatten()
+        flattened_size = self._compute_flattened_size(
+            (self.out_height, self.out_width),
+            self.config.cnn1_kernel_size,
+            self.config.cnn1_stride,
+            self.config.cnn2_kernel_size,
+            self.config.cnn2_stride,
+            self.config.cnn2_out_channels,
+        )
 
-        module_cls = getattr(self.config, "transformer_module_cls", TransformerModule)
+        if manual:
+            self.fc1 = nn.Linear(flattened_size, self.config.fc1_features)
+            nn.init.orthogonal_(self.fc1.weight, math.sqrt(2))
+            nn.init.zeros_(self.fc1.bias)
+            self.encoded_obs = nn.Linear(self.config.fc1_features, self.latent_size)
+            nn.init.orthogonal_(self.encoded_obs.weight, math.sqrt(2))
+            nn.init.zeros_(self.encoded_obs.bias)
+        else:
+            self.fc1 = pufferlib.pytorch.layer_init(
+                nn.Linear(flattened_size, self.config.fc1_features), std=1.0
+            )
+            self.encoded_obs = pufferlib.pytorch.layer_init(
+                nn.Linear(self.config.fc1_features, self.latent_size), std=1.0
+            )
+
+        if self.latent_size != self.hidden_size:
+            if manual:
+                self.input_projection = nn.Linear(self.latent_size, self.hidden_size)
+                nn.init.orthogonal_(self.input_projection.weight, 1.0)
+                nn.init.zeros_(self.input_projection.bias)
+            else:
+                self.input_projection = pufferlib.pytorch.layer_init(
+                    nn.Linear(self.latent_size, self.hidden_size), std=1.0
+                )
+        else:
+            self.input_projection = nn.Identity()
+
+    def _build_heads(self) -> None:
+        manual = self.config.manual_init
+
+        if manual:
+            self.critic_1 = nn.Linear(self.hidden_size, self.config.critic_hidden_dim)
+            nn.init.orthogonal_(self.critic_1.weight, math.sqrt(2))
+            nn.init.zeros_(self.critic_1.bias)
+            self.value_head = nn.Linear(self.config.critic_hidden_dim, 1)
+            nn.init.orthogonal_(self.value_head.weight, 1.0)
+            nn.init.zeros_(self.value_head.bias)
+
+            self.actor_1 = nn.Linear(self.hidden_size, self.config.actor_hidden_dim)
+            nn.init.orthogonal_(self.actor_1.weight, 1.0)
+            nn.init.zeros_(self.actor_1.bias)
+        else:
+            self.critic_1 = pufferlib.pytorch.layer_init(
+                nn.Linear(self.hidden_size, self.config.critic_hidden_dim), std=math.sqrt(2)
+            )
+            self.value_head = pufferlib.pytorch.layer_init(
+                nn.Linear(self.config.critic_hidden_dim, 1), std=1.0
+            )
+            self.actor_1 = pufferlib.pytorch.layer_init(
+                nn.Linear(self.hidden_size, self.config.actor_hidden_dim), std=1.0
+            )
+
+        self.critic_activation = nn.Tanh()
+
+        self.actor_module = TDM(self.actor_1, in_keys=["core"], out_keys=["actor_1"])
+        self.critic_module = TDM(self.critic_1, in_keys=["core"], out_keys=["critic_1"])
+        self.value_module = TDM(self.value_head, in_keys=["critic_1"], out_keys=["values"])
+
+        self.action_embeddings = ActionEmbedding(
+            ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=self.config.action_embedding_dim)
+        )
+        self.actor_query = ActorQuery(
+            ActorQueryConfig(
+                in_key="actor_1",
+                out_key="actor_query",
+                hidden_size=self.config.actor_hidden_dim,
+                embed_dim=self.config.action_embedding_dim,
+            )
+        )
+        self.actor_key = ActorKey(
+            ActorKeyConfig(
+                query_key="actor_query",
+                embedding_key="action_embedding",
+                out_key="logits",
+                hidden_size=self.config.actor_hidden_dim,
+                embed_dim=self.config.action_embedding_dim,
+            )
+        )
+        self.action_probs = ActionProbs(ActionProbsConfig(in_key="logits"))
+
+    def _build_transformer(self) -> None:
+        module_cls = self.config.transformer_module_cls
         clamp_len = self.config.transformer_clamp_len
         if clamp_len < 0 and module_cls is NvidiaTransformerModule:
             clamp_len = self.config.transformer_max_seq_len
 
         self.transformer_module = module_cls(
-            d_model=self.config.transformer_hidden_size,
+            d_model=self.hidden_size,
             n_heads=self.config.transformer_num_heads,
             n_layers=self.config.transformer_num_layers,
             d_ff=self.config.transformer_ff_size,
@@ -129,104 +271,71 @@ class TransformerPolicy(Policy):
             attn_type=0,
         )
 
-        self.hidden_size = self.config.transformer_hidden_size
-        self.latent_size = self.config.transformer_latent_size
-
-        if self.latent_size != self.hidden_size:
-            self.input_projection = pufferlib.pytorch.layer_init(
-                nn.Linear(self.latent_size, self.hidden_size), std=1.0
-            )
-        else:
-            self.input_projection = nn.Identity()
-
-        # Critic branch
-        module = pufferlib.pytorch.layer_init(
-            nn.Linear(self.hidden_size, self.config.critic_hidden_dim), std=np.sqrt(2)
-        )
-        self.critic_1 = TDM(module, in_keys=["core"], out_keys=["critic_1"])
-        self.critic_activation = nn.Tanh()
-        module = pufferlib.pytorch.layer_init(
-            nn.Linear(self.config.critic_hidden_dim, 1), std=1.0
-        )
-        self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
-
-        # Actor branch
-        module = pufferlib.pytorch.layer_init(
-            nn.Linear(self.hidden_size, self.config.actor_hidden_dim), std=1.0
-        )
-        self.actor_1 = TDM(module, in_keys=["core"], out_keys=["actor_1"])
-
-        self.action_embeddings = ActionEmbedding(config=self.config.action_embedding_config)
-        self.config.actor_query_config.embed_dim = self.config.action_embedding_config.embedding_dim
-        self.config.actor_query_config.hidden_size = self.config.actor_hidden_dim
-        self.actor_query = ActorQuery(config=self.config.actor_query_config)
-        self.config.actor_key_config.embed_dim = self.config.action_embedding_config.embedding_dim
-        self.actor_key = ActorKey(config=self.config.actor_key_config)
-        self.action_probs = ActionProbs(config=self.config.action_probs_config)
-
-        self._memory: Dict[int, Optional[Dict[str, List[torch.Tensor]]]] = {}
-
+    # ------------------------------------------------------------------
+    # Forward path
+    # ------------------------------------------------------------------
     @torch._dynamo.disable
-    def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        self.obs_shim(td)
-        self.cnn_encoder(td)
+    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None):
+        observations = td["env_obs"]
 
-        core = self._forward_transformer(td)
+        if observations.dim() == 4:
+            B, TT = observations.shape[:2]
+            total_batch = B * TT
+            if td.batch_dims > 1:
+                td = td.reshape(total_batch)
+                observations = td["env_obs"]
+        else:
+            B = observations.shape[0]
+            TT = 1
+            total_batch = B
+            if td.batch_dims > 1:
+                td = td.reshape(total_batch)
+                observations = td["env_obs"]
+
+        device = observations.device
+        td.set("bptt", torch.full((total_batch,), TT, device=device, dtype=torch.long))
+        td.set("batch", torch.full((total_batch,), B, device=device, dtype=torch.long))
+
+        latent = self._encode_observations(observations)
+        latent = self.input_projection(latent)
+
+        core = self._forward_transformer(td, latent, B, TT)
         td["core"] = core
 
-        self.actor_1(td)
+        self.actor_module(td)
         td["actor_1"] = torch.relu(td["actor_1"])
 
-        self.critic_1(td)
+        self.critic_module(td)
         td["critic_1"] = self.critic_activation(td["critic_1"])
-        self.value_head(td)
+        self.value_module(td)
+        td["values"] = td["values"].flatten()
 
         self.action_embeddings(td)
         self.actor_query(td)
         self.actor_key(td)
-        self.action_probs(td, action)
 
-        td["values"] = td["values"].flatten()
+        td = self.action_probs(td, action)
         return td
 
-    def _forward_transformer(self, td: TensorDict) -> torch.Tensor:
-        latent = td[self.config.cnn_encoder_config.out_key]
-
-        if "bptt" not in td.keys():
-            raise KeyError("TensorDict is missing required 'bptt' metadata")
-
-        TT = int(td["bptt"][0].item())
-        if TT <= 0:
-            raise ValueError("bptt entries must be positive")
-
-        total_batch = latent.shape[0]
-        if total_batch % TT != 0:
-            raise ValueError("encoded_obs batch dimension must be divisible by bptt")
-
-        if "batch" in td.keys():
-            B = int(td["batch"][0].item())
-        else:
-            B = total_batch // TT
-
-        latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
-        latent = self.input_projection(latent)
+    def _forward_transformer(self, td: TensorDict, latent: torch.Tensor, batch_size: int, tt: int) -> torch.Tensor:
+        latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
         memory = None
         env_key: Optional[int] = None
-        if TT == 1:
+        if tt == 1:
             env_key = self._get_env_start(td)
             memory = self._memory.get(env_key)
 
-        core_out, new_memory = self.transformer_module(latent, memory)
-        core_flat = rearrange(core_out, "t b h -> (b t) h")
+        core_out, new_memory = self.transformer_module(latent_seq, memory)
+        core_flat = core_out.transpose(0, 1).reshape(batch_size * tt, self.hidden_size)
 
-        if TT == 1 and env_key is not None:
+        if tt == 1 and env_key is not None:
             updated_memory = self._detach_memory(new_memory)
             if updated_memory is not None:
                 dones = td.get("dones", None)
                 truncateds = td.get("truncateds", None)
                 if dones is not None and truncateds is not None:
-                    reset_mask = self._compute_reset_mask(dones, truncateds, B)
+                    reset_mask = self._compute_reset_mask(dones, truncateds, batch_size)
                     if reset_mask is not None and reset_mask.any():
                         hidden_states = updated_memory.get("hidden_states")
                         if hidden_states:
@@ -237,11 +346,90 @@ class TransformerPolicy(Policy):
                                 masked_layer[:, reset_mask] = 0
                                 hidden_states[idx] = masked_layer
                 self._memory[env_key] = updated_memory
-        elif TT > 1 and env_key is not None:
-            # Do not carry sequence memory across training batches
+        elif tt > 1 and env_key is not None:
             self._memory.pop(env_key, None)
 
         return core_flat
+
+    # ------------------------------------------------------------------
+    # Observation encoding helpers
+    # ------------------------------------------------------------------
+    def _encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
+        if observations.shape[-1] != 3:
+            raise ValueError(f"Expected 3-token channels, got {observations.shape}")
+
+        coords_byte = observations[..., 0].to(torch.uint8)
+        x_coord = ((coords_byte >> 4) & 0x0F).long()
+        y_coord = (coords_byte & 0x0F).long()
+        attr_indices = observations[..., 1].long()
+        attr_values = observations[..., 2].float()
+
+        valid_tokens = coords_byte != 0xFF
+        valid_attr = attr_indices < self.num_layers
+        valid_mask = valid_tokens & valid_attr
+
+        invalid_mask = valid_tokens & ~valid_attr
+        if invalid_mask.any():
+            invalid_indices = attr_indices[invalid_mask].unique()
+            if self.config.strict_attr_indices:
+                raise ValueError(
+                    f"Found observation attribute indices {sorted(map(int, invalid_indices.tolist()))} "
+                    f">= num_layers ({self.num_layers})."
+                )
+            warnings.warn(
+                f"Found observation attribute indices {sorted(map(int, invalid_indices.tolist()))} "
+                f">= num_layers ({self.num_layers}). These tokens will be ignored.",
+                stacklevel=2,
+            )
+
+        combined_index = attr_indices * self.dim_per_layer + x_coord * self.out_height + y_coord
+        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
+        safe_values = torch.where(valid_mask, attr_values, torch.zeros_like(attr_values))
+
+        box_flat = torch.zeros(
+            (observations.shape[0], self.num_layers * self.dim_per_layer),
+            dtype=attr_values.dtype,
+            device=observations.device,
+        )
+        box_flat.scatter_(1, safe_index, safe_values)
+
+        box_obs = box_flat.view(observations.shape[0], self.num_layers, self.out_width, self.out_height)
+        x = box_obs / self.max_vec
+
+        x = F.relu(self.cnn1(x))
+        x = F.relu(self.cnn2(x))
+        x = self.flatten(x)
+        x = F.relu(self.fc1(x))
+        encoded = F.relu(self.encoded_obs(x))
+        return encoded
+
+    # ------------------------------------------------------------------
+    # Utilities
+    # ------------------------------------------------------------------
+    def _compute_flattened_size(
+        self,
+        input_hw: Tuple[int, int],
+        conv1_kernel,
+        conv1_stride,
+        conv2_kernel,
+        conv2_stride,
+        conv2_channels,
+    ) -> int:
+        def conv_out(size, kernel, stride):
+            return math.floor((size - kernel) / stride + 1)
+
+        h1 = conv_out(input_hw[0], conv1_kernel, conv1_stride)
+        w1 = conv_out(input_hw[1], conv1_kernel, conv1_stride)
+        h2 = conv_out(h1, conv2_kernel, conv2_stride)
+        w2 = conv_out(w1, conv2_kernel, conv2_stride)
+        return conv2_channels * h2 * w2
+
+    def _compute_feature_normalization(self, env) -> torch.Tensor:
+        max_values = torch.ones(self.num_layers, dtype=torch.float32)
+        for feature_id, norm_value in env.feature_normalizations.items():
+            if feature_id < self.num_layers:
+                max_values[feature_id] = norm_value if norm_value > 0 else 1.0
+        return max_values.view(1, self.num_layers, 1, 1)
 
     def _compute_reset_mask(
         self, dones: torch.Tensor, truncateds: torch.Tensor, batch_size: int
@@ -252,7 +440,6 @@ class TransformerPolicy(Policy):
             dones = rearrange(dones, "(b t) -> t b", b=batch_size)
             truncateds = rearrange(truncateds, "(b t) -> t b", b=batch_size)
         except ValueError:
-            # Already shape [B]; treat as single timestep
             dones = dones.view(1, batch_size)
             truncateds = truncateds.view(1, batch_size)
         reset = dones.bool() | truncateds.bool()
@@ -277,22 +464,30 @@ class TransformerPolicy(Policy):
             return int(training_env_id.reshape(-1)[0].item())
         return 0
 
-    def initialize_to_environment(
-        self,
-        env,
-        device,
-    ) -> List[str]:
+    # ------------------------------------------------------------------
+    # Policy interface
+    # ------------------------------------------------------------------
+    def initialize_to_environment(self, env, device):
         device = torch.device(device)
         self.to(device)
 
-        log = self.obs_shim.initialize_to_environment(env, device)
+        max_vec = self._compute_feature_normalization(env).to(device=device)
+        if self.max_vec.device != device or self.max_vec.shape != max_vec.shape:
+            self.max_vec = max_vec
+        else:
+            self.max_vec.data.copy_(max_vec)
+
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
         self._memory.clear()
-        return [log]
+        return []
 
-    def reset_memory(self):
+    def reset_memory(self) -> None:
         self._memory.clear()
+
+    @property
+    def device(self) -> torch.device:
+        return next(self.parameters()).device
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
@@ -301,6 +496,12 @@ class TransformerPolicy(Policy):
             truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
 
-    @property
-    def device(self) -> torch.device:
-        return next(self.parameters()).device
+
+class TransformerImprovedPolicy(TransformerPolicy):
+    def __init__(self, env, config: Optional[TransformerImprovedConfig] = None) -> None:
+        super().__init__(env, config or TransformerImprovedConfig())
+
+
+class TransformerNvidiaPolicy(TransformerPolicy):
+    def __init__(self, env, config: Optional[TransformerNvidiaConfig] = None) -> None:
+        super().__init__(env, config or TransformerNvidiaConfig())
