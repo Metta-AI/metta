@@ -165,10 +165,9 @@ class ObsAttrValNorm(nn.Module):
         if device is None:
             device = "cpu"  # assume that the policy is sent to device after its built for the first time.
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32, device=device)
-        eps = 1e-6
         for i, val in self._feature_normalizations.items():
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
-                norm_tensor[i] = max(val, eps)
+                norm_tensor[i] = val
             else:
                 raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
         self.register_buffer("_norm_factors", norm_tensor)
@@ -340,9 +339,8 @@ class ObservationNormalizer(nn.Module):
     def _initialize_to_environment(self, features: dict[str, dict], device: Optional[torch.device] = None):
         self.feature_normalizations = features
         obs_norm = torch.ones(max(self.feature_normalizations.keys()) + 1, dtype=torch.float32)
-        eps = 1e-6
         for i, val in self.feature_normalizations.items():
-            obs_norm[i] = max(val, eps)
+            obs_norm[i] = val
         obs_norm = obs_norm.view(1, len(self.feature_normalizations), 1, 1)
 
         self.register_buffer("obs_norm", obs_norm)
