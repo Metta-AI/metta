@@ -1,6 +1,6 @@
 # Transformer-XL Architecture Reference
 
-> **Note:** The current `pytorch/transformer_improved` agent now mirrors the original
+> **Note:** The current `TransformerImprovedPolicy` agent now mirrors the original
 > Transformer-XL implementation from [kimiyoung/transformer-xl](https://github.com/kimiyoung/transformer-xl)
 > and no longer applies the additional GRU-style gating that earlier revisions used.
 > Historical notes on GTrXL remain below for context when comparing design choices.
@@ -230,11 +230,11 @@ Standard in Transformer-XL variants for better sequence modeling.
 
 ---
 
-## Detailed Implementation Comparison: pytorch/transformer vs pytorch/transformer_improved
+## Detailed Implementation Comparison: TransformerPolicy vs TransformerImprovedPolicy
 
 ### Overview
 
-| Feature | pytorch/transformer | pytorch/transformer_improved |
+| Feature | TransformerPolicy | TransformerImprovedPolicy |
 |---------|-------------------|------------------------------|
 | **Base Architecture** | Standard Transformer with GTrXL gating | Full GTrXL with memory mechanism |
 | **Memory System** | ❌ No memory mechanism | ✅ Layer-wise memory with gradient stopping |
@@ -244,7 +244,7 @@ Standard in Transformer-XL variants for better sequence modeling.
 
 ---
 
-## pytorch/transformer (Original Implementation)
+## TransformerPolicy (Original Implementation)
 
 ### Architecture Details
 
@@ -321,7 +321,7 @@ def initialize_memory(self, batch_size: int) -> dict:
 
 ---
 
-## pytorch/transformer_improved (Transformer-XL Implementation)
+## TransformerImprovedPolicy (Transformer-XL Implementation)
 
 ### Architecture Details
 
@@ -455,7 +455,7 @@ class TransformerModule:
 ## Detailed Feature Comparison
 
 ### CNN Feature Extraction
-| Aspect | pytorch/transformer | pytorch/transformer_improved |
+| Aspect | TransformerPolicy | TransformerImprovedPolicy |
 |--------|-------------------|------------------------------|
 | Conv1 | 64 filters, 5x5 kernel | 64 filters, 5x5 kernel |
 | Conv2 | **64 filters**, 3x3 kernel | **128 filters**, 3x3 kernel |
@@ -464,7 +464,7 @@ class TransformerModule:
 | **Capacity** | Lower | **Higher** |
 
 ### Transformer Core
-| Aspect | pytorch/transformer | pytorch/transformer_improved |
+| Aspect | TransformerPolicy | TransformerImprovedPolicy |
 |--------|-------------------|------------------------------|
 | Hidden size | 128 | **256** |
 | Feed-forward | 512 | **1024** |
@@ -474,7 +474,7 @@ class TransformerModule:
 | **Memory capacity** | Single sequence | **Multi-sequence** |
 
 ### Action System Architecture
-| Aspect | pytorch/transformer | pytorch/transformer_improved |
+| Aspect | TransformerPolicy | TransformerImprovedPolicy |
 |--------|-------------------|------------------------------|
 | Actor type | **Bilinear** with embeddings | **Linear** layers |
 | Action embeddings | 16-dim learned embeddings | None (direct logits) |
@@ -484,7 +484,7 @@ class TransformerModule:
 | Parameters | More (embeddings + bilinear) | Fewer (linear only) |
 
 ### Memory and State Management
-| Aspect | pytorch/transformer | pytorch/transformer_improved |
+| Aspect | TransformerPolicy | TransformerImprovedPolicy |
 |--------|-------------------|------------------------------|
 | Memory initialization | `return {}` | **Layer-wise memory tensors** |
 | Memory updates | No-op | **Per-layer gradient-stopped** |
@@ -493,7 +493,7 @@ class TransformerModule:
 | Episode boundaries | No special handling | Memory can be reset |
 
 ### Computational Efficiency
-| Aspect | pytorch/transformer | pytorch/transformer_improved |
+| Aspect | TransformerPolicy | TransformerImprovedPolicy |
 |--------|-------------------|------------------------------|
 | Action decoding | Complex einsum operations | Simple matrix multiplies |
 | Memory overhead | Lower | Higher (memory storage) |
@@ -504,13 +504,13 @@ class TransformerModule:
 
 ## Performance and Use Case Recommendations
 
-### When to Use pytorch/transformer
+### When to Use TransformerPolicy
 - **Shorter sequences** (< 256 steps)
 - **Memory-constrained** environments  
 - **Legacy compatibility** needed
 - **Simpler tasks** not requiring long-term memory
 
-### When to Use pytorch/transformer_improved (Transformer-XL)
+### When to Use TransformerImprovedPolicy (Transformer-XL)
 - **Long-term dependencies** required
 - **Complex sequential tasks** (navigation, planning)
 - **Higher capacity** needed
@@ -527,18 +527,15 @@ class TransformerModule:
 
 ## Implementation Files
 
-### pytorch/transformer
-- **Main file**: `agent/src/metta/agent/pytorch/transformer.py`
-- **Policy class**: `ConvolutionalTransformerPolicy` 
-- **Agent class**: `Transformer`
-- **Memory**: None
-- **Lines of code**: ~212
+### TransformerPolicy Family (current)
+- **Main file**: `agent/src/metta/agent/policies/transformer.py`
+- **Policy classes**: `TransformerPolicy`, `TransformerImprovedPolicy`, `TransformerNvidiaPolicy`
+- **Components**: shared CNN encoder, action heads, and configurable transformer backends
+- **Memory handling**: configurable per policy (Improved/Nvidia variants enable Transformer-XL style memory)
 
-### pytorch/transformer_improved  
-- **Main file**: `agent/src/metta/agent/pytorch/transformer_improved.py`
-- **Policy class**: `TransformerXLPolicy`
-- **Agent class**: `TransformerImproved` 
-- **Memory**: Full GTrXL implementation
-- **Lines of code**: ~294 (includes memory logic)
+### Legacy PyTorch Agents (removed in September 2025)
+- `agent/src/metta/agent/pytorch/transformer.py`
+- `agent/src/metta/agent/pytorch/transformer_improved.py`
+- `agent/src/metta/agent/pytorch/transformer_nvidia.py`
 
-Both implementations share the same `TransformerModule` core, but `transformer_improved` uses the memory-enabled version with `memory_len` parameter.
+The new policy implementations consolidate these behaviors behind configuration switches while preserving Transformer-XL compatibility.

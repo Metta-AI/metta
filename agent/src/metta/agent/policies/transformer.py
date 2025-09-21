@@ -213,7 +213,6 @@ class TransformerPolicy(Policy):
     # ------------------------------------------------------------------
     @torch._dynamo.disable
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None):
-        original_shape: Optional[torch.Size]
         if td.batch_dims > 1:
             original_shape = td.batch_size
             total_batch = original_shape.numel()
@@ -267,9 +266,6 @@ class TransformerPolicy(Policy):
     def _forward_transformer(
         self, td: TensorDict, latent: torch.Tensor, original_shape: Optional[torch.Size]
     ) -> torch.Tensor:
-        tt: Optional[int] = None
-        batch_size: Optional[int] = None
-
         if "bptt" in td.keys():
             tt = int(td["bptt"].reshape(-1)[0].item())
         elif original_shape is not None and len(original_shape) >= 2:
@@ -287,7 +283,7 @@ class TransformerPolicy(Policy):
         if "batch" in td.keys():
             batch_size = int(td["batch"].reshape(-1)[0].item())
         elif original_shape is not None:
-            batch_size = int(total_batch // tt)
+            batch_size = int(original_shape[0])
         else:
             batch_size = total_batch // tt
 
