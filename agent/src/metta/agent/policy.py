@@ -4,10 +4,11 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import ClassVar, Dict, List
 
 import torch
 import torch.nn as nn
+from pydantic import model_validator
 from tensordict import TensorDict
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -33,6 +34,48 @@ class PolicyArchitecture(Config):
 
     # a separate component that optionally accepts actions and process logits into log probs, entropy, etc.
     action_probs_config: ComponentConfig
+
+    _alias_registry: ClassVar[Dict[str, str]] = {}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_reference(cls, value):  # type: ignore[override]
+        if isinstance(value, cls):
+            return value
+
+        if isinstance(value, str):
+            target = cls._alias_registry.get(value, value)
+            resolved = load_symbol(target)
+            return cls._coerce_resolved(resolved, value)
+
+        if isinstance(value, type) and issubclass(value, cls):
+            return value()
+
+        if callable(value):
+            candidate = value()
+            if isinstance(candidate, cls):
+                return candidate
+
+        return value
+
+    @classmethod
+    def _coerce_resolved(cls, resolved, original):
+        if isinstance(resolved, cls):
+            return resolved
+
+        if isinstance(resolved, type) and issubclass(resolved, cls):
+            return resolved()
+
+        if callable(resolved):
+            candidate = resolved()
+            if isinstance(candidate, cls):
+                return candidate
+
+        raise TypeError(f"Unable to resolve policy architecture reference {original!r} to a {cls.__name__}")
+
+    @classmethod
+    def register_alias(cls, alias: str, target: str) -> None:
+        cls._alias_registry[alias] = target
 
     def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""
@@ -143,3 +186,6 @@ class ExternalPolicyWrapper(Policy):
 
     def reset_memory(self):
         pass
+
+
+PolicyArchitecture.register_alias("fast", "metta.agent.policies.fast.FastConfig")
