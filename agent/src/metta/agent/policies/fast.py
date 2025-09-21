@@ -70,33 +70,33 @@ class FastPolicy(Policy):
 
         self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
 
-        self.cnn_encoder = CNNEncoder(config=config.cnn_encoder_config, env=env)
+        self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, env=env)
 
-        self.lstm = LSTM(config=config.lstm_config)
+        self.lstm = LSTM(config=self.config.lstm_config)
 
         module = pufferlib.pytorch.layer_init(
-            nn.Linear(config.lstm_config.hidden_size, config.actor_hidden_dim), std=1.0
+            nn.Linear(self.config.lstm_config.hidden_size, self.config.actor_hidden_dim), std=1.0
         )
         self.actor_1 = TDM(module, in_keys=["core"], out_keys=["actor_1"])
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
         module = pufferlib.pytorch.layer_init(
-            nn.Linear(config.lstm_config.hidden_size, config.critic_hidden_dim), std=np.sqrt(2)
+            nn.Linear(self.config.lstm_config.hidden_size, self.config.critic_hidden_dim), std=np.sqrt(2)
         )
         self.critic_1 = TDM(module, in_keys=["core"], out_keys=["critic_1"])
         self.critic_activation = nn.Tanh()
-        module = pufferlib.pytorch.layer_init(nn.Linear(config.critic_hidden_dim, 1), std=1.0)
+        module = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
         self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
 
         # Actor branch
-        self.action_embeddings = ActionEmbedding(config=config.action_embedding_config)
-        config.actor_query_config.embed_dim = config.action_embedding_config.embedding_dim
-        config.actor_query_config.hidden_size = config.actor_hidden_dim
-        self.actor_query = ActorQuery(config=config.actor_query_config)
-        config.actor_key_config.embed_dim = config.action_embedding_config.embedding_dim
-        self.actor_key = ActorKey(config=config.actor_key_config)
-        self.action_probs = ActionProbs(config=config.action_probs_config)
+        self.action_embeddings = ActionEmbedding(config=self.config.action_embedding_config)
+        self.config.actor_query_config.embed_dim = self.config.action_embedding_config.embedding_dim
+        self.config.actor_query_config.hidden_size = self.config.actor_hidden_dim
+        self.actor_query = ActorQuery(config=self.config.actor_query_config)
+        self.config.actor_key_config.embed_dim = self.config.action_embedding_config.embedding_dim
+        self.actor_key = ActorKey(config=self.config.actor_key_config)
+        self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         self.obs_shim(td)

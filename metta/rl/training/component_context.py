@@ -68,6 +68,7 @@ class ComponentContext:
         config: Any,
         stopwatch: Stopwatch,
         distributed: DistributedHelper,
+        run_name: Optional[str] = None,
     ) -> None:
         self.state = state or TrainerState()
         self.policy = policy
@@ -77,6 +78,7 @@ class ComponentContext:
         self.config = config
         self.stopwatch = stopwatch
         self.distributed = distributed
+        self.run_name = run_name
 
         self.stats_reporter: "StatsReporter" | None = None
         self.memory_monitor: MemoryMonitor | None = None

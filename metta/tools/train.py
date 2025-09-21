@@ -29,6 +29,7 @@ from metta.rl.training import (
     GradientReporterConfig,
     Heartbeat,
     Monitor,
+    ProgressLogger,
     Scheduler,
     SchedulerConfig,
     StatsReporter,
@@ -99,7 +100,7 @@ class TrainTool(Tool):
             remote_prefix=self.trainer.checkpoint.remote_prefix,
         )
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
-        trainer = self._initialize_trainer(env, policy)
+        trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, env)
 
@@ -202,12 +203,15 @@ class TrainTool(Tool):
         self,
         env: VectorizedTrainingEnvironment,
         policy: Policy,
+        distributed_helper: DistributedHelper,
     ) -> Trainer:
         trainer = Trainer(
             self.trainer,
             env,
             policy,
             torch.device(self.device),
+            distributed_helper=distributed_helper,
+            run_name=self.run,
         )
 
         if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
@@ -281,6 +285,7 @@ class TrainTool(Tool):
             )
 
             components.append(Monitor(enabled=reporting_enabled))
+            components.append(ProgressLogger())
         else:
             components.append(policy_checkpointer)
 

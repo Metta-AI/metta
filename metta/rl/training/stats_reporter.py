@@ -2,6 +2,7 @@
 
 import logging
 from collections import defaultdict
+from contextlib import nullcontext
 from numbers import Number
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -199,6 +200,7 @@ class StatsReporter(TrainerComponent):
         self._stats_client = stats_client
         self._wandb_run = wandb_run
         self._state = StatsReporterState()
+        self._latest_payload: Dict[str, float] | None = None
 
         # Initialize stats run if client is available
         if self._stats_client and self._config.report_to_stats_client:
@@ -270,26 +272,28 @@ class StatsReporter(TrainerComponent):
             trainer_cfg: Trainer configuration
             optimizer: Optimizer
         """
-        payload = self._build_wandb_payload(
-            losses_stats=losses_stats,
-            experience=experience,
-            trainer_cfg=trainer_cfg,
-            policy=policy,
-            agent_step=agent_step,
-            epoch=epoch,
-            timer=timer,
-            optimizer=optimizer,
-        )
+        timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
-        if self._wandb_run and self._config.report_to_wandb and payload:
-            self._wandb_run.log(payload, step=agent_step)
+        with timing_context:
+            payload = self._build_wandb_payload(
+                losses_stats=losses_stats,
+                experience=experience,
+                trainer_cfg=trainer_cfg,
+                policy=policy,
+                agent_step=agent_step,
+                epoch=epoch,
+                timer=timer,
+                optimizer=optimizer,
+            )
 
-        if self._config.report_to_console and payload:
-            self._log_console_summary(epoch=epoch, agent_step=agent_step, payload=payload)
+            if self._wandb_run and self._config.report_to_wandb and payload:
+                self._wandb_run.log(payload, step=agent_step)
 
-        # Clear stats after processing
-        self.clear_rollout_stats()
-        self.clear_grad_stats()
+            self._latest_payload = payload.copy() if payload else None
+
+            # Clear stats after processing
+            self.clear_rollout_stats()
+            self.clear_grad_stats()
 
     def update_eval_scores(self, scores: EvalRewardSummary) -> None:
         """Update evaluation scores.
@@ -370,6 +374,7 @@ class StatsReporter(TrainerComponent):
                 logger.info(f"Training run status updated to '{status}'")
             except Exception as e:
                 logger.warning(f"Failed to update training run status: {e}", exc_info=True)
+        self._latest_payload = None
 
     def on_step(self, infos: Dict[str, Any]) -> None:
         """Accumulate step infos.
@@ -378,6 +383,11 @@ class StatsReporter(TrainerComponent):
             infos: Step information from environment
         """
         self.accumulate_infos(infos)
+
+    def get_latest_payload(self) -> Optional[Dict[str, float]]:
+        if self._latest_payload is None:
+            return None
+        return self._latest_payload.copy()
 
     def on_epoch_end(self, epoch: int) -> None:
         """Report stats at epoch end.
@@ -421,32 +431,6 @@ class StatsReporter(TrainerComponent):
         if not info:
             return
         self.process_rollout([info])
-
-    def _log_console_summary(self, *, epoch: int, agent_step: int, payload: Dict[str, float]) -> None:
-        def _fmt(value: float | None, precision: int = 3) -> str:
-            if value is None:
-                return "n/a"
-            return f"{value:.{precision}f}"
-
-        reward = payload.get("overview/reward")
-        steps_per_second = payload.get("overview/steps_per_second")
-        grad_norm = payload.get("grad/norm")
-
-        loss_items = [(key.split("/", 1)[1], payload[key]) for key in payload if key.startswith("loss/")]
-        loss_items.sort()
-        top_losses = ", ".join(f"{name}={value:.4f}" for name, value in loss_items[:3])
-
-        message = (
-            f"Epoch {epoch} | step={agent_step} | reward={_fmt(reward)} | steps/s={_fmt(steps_per_second, precision=1)}"
-        )
-
-        if grad_norm is not None:
-            message += f" | grad_norm={grad_norm:.4f}"
-
-        if top_losses:
-            message += f" | {top_losses}"
-
-        logger.info(message)
 
     def _build_wandb_payload(
         self,

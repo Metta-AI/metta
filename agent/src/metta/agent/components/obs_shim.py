@@ -50,7 +50,7 @@ class ObsTokenPadStrip(nn.Module):
         else:
             # Re-initialization - create remapping for agent portability
             UNKNOWN_FEATURE_ID = 255
-            self.feature_id_remap = {}
+            feature_remap: dict[int, int] = {}
             unknown_features = []
 
             for name, props in features.items():
@@ -59,37 +59,37 @@ class ObsTokenPadStrip(nn.Module):
                     # Remap known features to their original IDs
                     original_id = self.original_feature_mapping[name]
                     if new_id != original_id:
-                        self.feature_id_remap[new_id] = original_id
+                        feature_remap[new_id] = original_id
                 elif not self.training:
                     # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
-                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                    feature_remap[new_id] = UNKNOWN_FEATURE_ID
                     unknown_features.append(name)
                 else:
                     # In training mode, learn new features
                     self.original_feature_mapping[name] = new_id
 
-            if self.feature_id_remap:
+            if feature_remap:
                 # Apply the remapping
-                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID, device)
-                return (
-                    f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
-                )
+                self._apply_feature_remapping(feature_remap, features, UNKNOWN_FEATURE_ID, device)
+                return f"Created feature remapping: {len(feature_remap)} remapped, {len(unknown_features)} unknown"
             else:
                 return "No feature remapping created"
 
-    def _apply_feature_remapping(self, features: dict, unknown_id: int, device: torch.device):
+    def _apply_feature_remapping(
+        self, mapping: dict[int, int], features: dict, unknown_id: int, device: torch.device
+    ) -> None:
         """Apply feature remapping to policy for agent portability across environments."""
         # Build complete remapping tensor
         remap_tensor = torch.arange(256, dtype=torch.uint8, device=device)
 
         # Apply explicit remappings
-        for new_id, original_id in self.feature_id_remap.items():
+        for new_id, original_id in mapping.items():
             remap_tensor[new_id] = original_id
 
         # Map unused feature IDs to UNKNOWN
         current_feature_ids = {props.id for props in features.values()}
         for feature_id in range(256):
-            if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
+            if feature_id not in mapping and feature_id not in current_feature_ids:
                 remap_tensor[feature_id] = unknown_id
 
         self.register_buffer("feature_id_remap", remap_tensor.to(self.feature_id_remap.device))
