@@ -56,7 +56,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     transformer_num_heads: int = 8
     transformer_ff_size: int = 512
     transformer_max_seq_len: int = 256
-    transformer_memory_len: int = 64
+    transformer_memory_len: int = 0
     transformer_dropout: float = 0.1
     transformer_attn_dropout: float = 0.1
     transformer_clamp_len: int = -1
@@ -78,6 +78,7 @@ class TransformerImprovedConfig(TransformerPolicyConfig):
 
     class_path: str = "metta.agent.policies.transformer.TransformerImprovedPolicy"
     transformer_ff_size: int = 1024
+    transformer_memory_len: int = 64
 
 
 class TransformerNvidiaConfig(TransformerPolicyConfig):
@@ -210,6 +211,50 @@ class TransformerPolicy(Policy):
     # ------------------------------------------------------------------
     # Forward path
     # ------------------------------------------------------------------
+    @property
+    def cnn1(self) -> nn.Module:
+        """Expose first CNN layer for legacy hooks/tests."""
+
+        return self.cnn_encoder.cnn1
+
+    def _encode_observations(self, observations: torch.Tensor) -> TensorDict:
+        """Run raw observations through preprocessing and CNN encoder."""
+
+        if observations.dim() != 3:
+            raise ValueError("Expected observations with shape (batch, tokens, features).")
+
+        batch_size = observations.shape[0]
+        device = observations.device
+        td = TensorDict({"env_obs": observations}, batch_size=[batch_size])
+
+        coords_byte = observations[..., 0].to(torch.long)
+        attr_indices = observations[..., 1].to(torch.long)
+        attr_values = observations[..., 2].to(torch.float32)
+
+        valid_tokens = coords_byte != 0xFF
+        valid_attr = attr_indices < self.num_layers
+        valid_mask = valid_tokens & valid_attr
+
+        x_indices = (coords_byte >> 4) & 0x0F
+        y_indices = coords_byte & 0x0F
+        flat_spatial_index = x_indices * self.env.obs_height + y_indices
+        dim_per_layer = self.env.obs_width * self.env.obs_height
+        combined_index = attr_indices * dim_per_layer + flat_spatial_index
+
+        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
+        safe_values = torch.where(valid_mask, attr_values, torch.zeros_like(attr_values))
+
+        grid_flat = torch.zeros((batch_size, self.num_layers * dim_per_layer), dtype=torch.float32, device=device)
+        grid_flat.scatter_add_(1, safe_index, safe_values)
+        box_obs = grid_flat.view(batch_size, self.num_layers, self.env.obs_width, self.env.obs_height)
+
+        norm = self.obs_shim.observation_normalizer.obs_norm.to(device=device, dtype=box_obs.dtype)
+        normalized = box_obs / norm
+
+        td[self.obs_shim.out_key] = normalized
+        self.cnn_encoder(td)
+        return td
+
     @torch._dynamo.disable
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None):
         td, observations, batch_size, tt, original_shape = self._prepare_observations(td)
@@ -254,16 +299,17 @@ class TransformerPolicy(Policy):
 
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
+        use_memory = self.config.transformer_memory_len > 0
         memory = None
         env_key: Optional[int] = None
-        if tt == 1:
+        if use_memory and tt == 1:
             env_key = self._get_env_start(td)
             memory = self._memory.get(env_key)
 
         core_out, new_memory = self.transformer_module(latent_seq, memory)
         core_flat = core_out.transpose(0, 1).reshape(batch_size * tt, self.hidden_size)
 
-        if tt == 1 and env_key is not None:
+        if use_memory and tt == 1 and env_key is not None:
             updated_memory = self._detach_memory(new_memory)
             if updated_memory is not None:
                 dones = td.get("dones", None)
@@ -279,7 +325,7 @@ class TransformerPolicy(Policy):
                             masked_layer[:, reset_mask] = 0
                             hidden_states[idx] = masked_layer
                 self._memory[env_key] = updated_memory
-        elif tt > 1 and env_key is not None:
+        elif use_memory and tt > 1 and env_key is not None:
             self._memory.pop(env_key, None)
 
         return core_flat
