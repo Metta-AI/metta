@@ -12,6 +12,7 @@ from mettagrid.config import Config
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
+    from metta.rl.training.training_environment import TrainingEnvironmentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,11 @@ class DistributedHelper:
         if self._is_distributed:
             logger.info(f"Setting up distributed training for rank {self._rank}")
 
-    def scale_batch_config(self, trainer_cfg: "TrainerConfig") -> None:
+    def scale_batch_config(
+        self,
+        trainer_cfg: "TrainerConfig",
+        training_env_cfg: "TrainingEnvironmentConfig" | None = None,
+    ) -> None:
         """Scale batch sizes for distributed training if configured.
 
         When scale_batches_by_world_size is True, this divides batch sizes
@@ -80,6 +85,8 @@ class DistributedHelper:
 
         Args:
             trainer_cfg: Trainer configuration to modify in-place
+            training_env_cfg: Optional training environment configuration for
+                scaling rollout batch sizes now defined there
         """
         if not self._is_distributed:
             return
@@ -88,15 +95,25 @@ class DistributedHelper:
             return
 
         # Scale batch sizes by world size
-        trainer_cfg.forward_pass_minibatch_target_size = (
-            trainer_cfg.forward_pass_minibatch_target_size // self._world_size
-        )
-        trainer_cfg.batch_size = trainer_cfg.batch_size // self._world_size
+        forward_pass_target: int | None = None
+        if hasattr(trainer_cfg, "forward_pass_minibatch_target_size"):
+            trainer_cfg.forward_pass_minibatch_target_size = max(
+                1, trainer_cfg.forward_pass_minibatch_target_size // self._world_size
+            )
+            forward_pass_target = trainer_cfg.forward_pass_minibatch_target_size
+        elif training_env_cfg is not None:
+            training_env_cfg.forward_pass_minibatch_target_size = max(
+                1, training_env_cfg.forward_pass_minibatch_target_size // self._world_size
+            )
+            forward_pass_target = training_env_cfg.forward_pass_minibatch_target_size
+
+        trainer_cfg.batch_size = max(1, trainer_cfg.batch_size // self._world_size)
 
         logger.info(
-            f"Scaled batch config for {self._world_size} processes: "
-            f"batch_size={trainer_cfg.batch_size}, "
-            f"forward_pass_minibatch_target_size={trainer_cfg.forward_pass_minibatch_target_size}"
+            "Scaled batch config for %s processes: batch_size=%s, forward_pass_minibatch_target_size=%s",
+            self._world_size,
+            trainer_cfg.batch_size,
+            forward_pass_target,
         )
 
     def wrap_policy(self, policy: Policy, device: torch.device) -> Policy:

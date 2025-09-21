@@ -44,8 +44,9 @@ class Policy(ABC, nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         pass
 
-    @property
     def get_agent_experience_spec(self) -> Composite:
+        """Return the policy's required experience spec."""
+
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
@@ -115,9 +116,6 @@ class ExternalPolicyWrapper(Policy):
     def forward(self, td: TensorDict) -> TensorDict:
         self.obs_shaper(td)
         return self.policy(td["obs"])
-
-    def get_agent_experience_spec(self) -> Composite:
-        pass
 
     def initialize_to_environment(self, env_metadata: EnvironmentMetaData, device: torch.device):
         pass
