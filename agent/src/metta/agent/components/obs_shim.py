@@ -1,3 +1,4 @@
+import math
 import warnings
 from typing import Optional
 
@@ -168,7 +169,11 @@ class ObsAttrValNorm(nn.Module):
         eps = 1e-6
         for i, val in self._feature_normalizations.items():
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
-                norm_tensor[i] = max(val, eps)
+                if not isinstance(val, (int, float)) or not math.isfinite(val) or val <= 0:
+                    safe_val = 1.0
+                else:
+                    safe_val = float(val)
+                norm_tensor[i] = max(safe_val, eps)
             else:
                 raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
         self.register_buffer("_norm_factors", norm_tensor)
@@ -342,7 +347,11 @@ class ObservationNormalizer(nn.Module):
         obs_norm = torch.ones(max(self.feature_normalizations.keys()) + 1, dtype=torch.float32)
         eps = 1e-6
         for i, val in self.feature_normalizations.items():
-            obs_norm[i] = max(val, eps)
+            if not isinstance(val, (int, float)) or not math.isfinite(val) or val <= 0:
+                safe_val = 1.0
+            else:
+                safe_val = float(val)
+            obs_norm[i] = max(safe_val, eps)
         obs_norm = obs_norm.view(1, len(self.feature_normalizations), 1, 1)
 
         self.register_buffer("obs_norm", obs_norm)
