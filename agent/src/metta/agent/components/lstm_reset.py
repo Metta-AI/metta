@@ -119,7 +119,7 @@ class LSTMReset(nn.Module):
             reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
         else:
             # we're in eval
-            reset_mask = torch.ones(1, B, 1, device=latent.device)
+            reset_mask = torch.zeros(1, B, 1, dtype=torch.bool, device=latent.device)
 
         if TT == 1:
             self.max_num_envs = training_env_ids.max() + 1
