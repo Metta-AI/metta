@@ -143,3 +143,6 @@ class ExternalPolicyWrapper(Policy):
 
     def reset_memory(self):
         pass
+
+
+PolicyArchitecture.register_alias("fast", "metta.agent.policies.fast.FastConfig")
