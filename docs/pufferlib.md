@@ -19,10 +19,10 @@ Within the metta repository install the cu130 torch wheels first and then run:
 ```
 uv pip install --pre torch torchvision \
     --index-url https://download.pytorch.org/whl/nightly/cu130
-CUDA_HOME=/usr/local/cuda-13.0 FORCE_CUDA=1 uv sync
-python scripts/install_cuda13_libs.py
+export CUDA_HOME=/usr/local/cuda-13.0
+export LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:$LD_LIBRARY_PATH
+FORCE_CUDA=1 uv sync
 ```
 
-The helper script copies cuDNN and CUDA runtime libraries from the uv cache into
-the virtualenv so `import torch` finds `libcudnn.so.9` without additional
-environment variables.
+Ensure the CUDA 13.0 toolkit and cuDNN are installed under
+`/usr/local/cuda-13.0` so the shared libraries are available to PyTorch.
