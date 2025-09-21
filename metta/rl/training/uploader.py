@@ -122,7 +122,7 @@ class Uploader(TrainerComponent):
         normalized_uri = CheckpointManager.normalize_uri(checkpoint_uri)
         parsed = urlparse(normalized_uri)
 
-        if parsed.scheme == "file":
+        if parsed.scheme in ("", "file"):
             local_path = Path(parsed.path)
             if not local_path.exists():
                 logger.warning("Uploader: checkpoint path %s does not exist", local_path)
@@ -131,14 +131,9 @@ class Uploader(TrainerComponent):
                 yield local_path
             return
 
-        if parsed.scheme == "s3":
-            try:
-                with local_copy(normalized_uri) as tmp_path:
-                    yield Path(tmp_path)
-            except Exception as exc:  # pragma: no cover - best effort for remote policies
-                logger.error("Uploader: failed to download %s: %s", normalized_uri, exc)
-                yield None
-            return
-
-        logger.debug("Uploader: unsupported checkpoint scheme %s", parsed.scheme)
-        yield None
+        try:
+            with local_copy(normalized_uri) as tmp_path:
+                yield Path(tmp_path)
+        except Exception as exc:  # pragma: no cover - best effort for remote policies
+            logger.error("Uploader: failed to materialize %s: %s", normalized_uri, exc)
+            yield None

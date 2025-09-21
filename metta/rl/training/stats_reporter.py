@@ -127,7 +127,6 @@ class StatsReporterState(Config):
     grad_stats: Dict = Field(default_factory=dict)
     eval_scores: EvalRewardSummary = Field(default_factory=EvalRewardSummary)
     stats_run_id: Optional[UUID] = None
-    latest_saved_epoch: int = 0
 
 
 class NoOpStatsReporter(TrainerComponent):
@@ -323,19 +322,6 @@ class StatsReporter(TrainerComponent):
             grad_stats: New gradient statistics
         """
         self._state.grad_stats = grad_stats
-
-    def update_latest_saved_epoch(self, epoch: int) -> None:
-        """Update the latest saved epoch.
-
-        Args:
-            epoch: Latest saved epoch
-        """
-        self._state.latest_saved_epoch = epoch
-        if self._context is not None:
-            try:
-                self.context.latest_saved_policy_epoch = epoch
-            except AttributeError:
-                logger.debug("Context missing latest_saved_policy_epoch attribute")
 
     def create_epoch(
         self,
@@ -586,13 +572,8 @@ class StatsReporter(TrainerComponent):
             "learning_rate": learning_rate,
             "epoch_steps": timing_info.get("epoch_steps", 0),
             "num_minibatches": getattr(experience, "num_minibatches", 0),
-            "latest_saved_policy_epoch": getattr(
-                self.context.state,
-                "latest_saved_policy_epoch",
-                self._state.latest_saved_epoch,
-            ),
+            "latest_saved_policy_epoch": getattr(self.context.state, "latest_saved_policy_epoch", 0),
         }
-        self._state.latest_saved_epoch = parameters["latest_saved_policy_epoch"]
         return parameters
 
     def _collect_hyperparameters(

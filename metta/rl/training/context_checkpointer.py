@@ -42,7 +42,6 @@ class ContextCheckpointer(TrainerComponent):
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
-        self._latest_saved_epoch = 0
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -81,12 +80,7 @@ class ContextCheckpointer(TrainerComponent):
         restored_epoch = payload["epoch"]
         context.agent_step = payload["agent_step"]
         context.epoch = restored_epoch
-        self._latest_saved_epoch = restored_epoch
         context.latest_saved_policy_epoch = restored_epoch
-
-        stats_reporter = getattr(context, "stats_reporter", None)
-        if stats_reporter is not None and hasattr(stats_reporter, "update_latest_saved_epoch"):
-            stats_reporter.update_latest_saved_epoch(restored_epoch)
 
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
@@ -121,7 +115,7 @@ class ContextCheckpointer(TrainerComponent):
         if epoch % self._config.epoch_interval != 0:
             return
 
-        self._save_state(force=False)
+        self._save_state()
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if not self._distributed.should_checkpoint():
@@ -136,6 +130,10 @@ class ContextCheckpointer(TrainerComponent):
         context = self.context
         current_epoch = context.epoch
         agent_step = context.agent_step
+
+        if not force and self._config.epoch_interval and current_epoch % self._config.epoch_interval != 0:
+            return
+
         try:
             context.state.stopwatch_state = context.stopwatch.save_state()
         except Exception as exc:  # pragma: no cover - defensive guard
@@ -150,4 +148,3 @@ class ContextCheckpointer(TrainerComponent):
             agent_step,
             stopwatch_state=context.state.stopwatch_state,
         )
-        self._latest_saved_epoch = current_epoch
