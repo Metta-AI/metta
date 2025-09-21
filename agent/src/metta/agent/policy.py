@@ -66,8 +66,10 @@ class Policy(ABC, nn.Module):
     def device(self) -> torch.device: ...
 
     @property
-    @abstractmethod
-    def total_params(self) -> int: ...
+    def total_params(self) -> int:
+        """Count trainable parameters for logging/metrics."""
+
+        return sum(param.numel() for param in self.parameters() if param.requires_grad)
 
     @abstractmethod
     def reset_memory(self):

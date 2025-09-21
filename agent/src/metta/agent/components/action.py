@@ -47,11 +47,8 @@ class ActionEmbedding(nn.Module):
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
         self.net = nn.Embedding(num_embeddings=self.num_embeddings, embedding_dim=self.embedding_dim)
 
-        weight_limit = 0.1
-        nn.init.orthogonal_(self.net.weight)
-        with torch.no_grad():
-            max_abs_value = torch.max(torch.abs(self.net.weight))
-            self.net.weight.mul_(weight_limit / max_abs_value)
+        self._weight_limit = 0.1
+        self._orthogonal_init(self.net.weight)
 
     def initialize_to_environment(
         self,
@@ -69,9 +66,17 @@ class ActionEmbedding(nn.Module):
 
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:
-                embedding_index = len(self._reserved_action_embeds) + 1  # generate index for this string
-                self._reserved_action_embeds[action_name] = embedding_index  # update this component's known embeddings
+                embedding_index = len(self._reserved_action_embeds)
+                self._reserved_action_embeds[action_name] = embedding_index
 
+        required_embeddings = len(self._reserved_action_embeds)
+        if required_embeddings > self.net.num_embeddings:
+            raise ValueError(
+                "ActionEmbeddingConfig.num_embeddings is too small for discovered actions: "
+                f"required={required_embeddings}, available={self.net.num_embeddings}"
+            )
+
+        self.net = self.net.to(device)
         self.active_indices = torch.tensor(
             [self._reserved_action_embeds[action_name] for action_name in action_names], device=device, dtype=torch.long
         )
@@ -81,5 +86,13 @@ class ActionEmbedding(nn.Module):
         B_TT = td.batch_size.numel()
 
         # get embeddings then expand to match the batch size
-        td[self.out_key] = repeat(self.net(self.active_indices), "a e -> b a e", b=B_TT)
+        indices = self.active_indices.to(self.net.weight.device)
+        td[self.out_key] = repeat(self.net(indices), "a e -> b a e", b=B_TT)
         return td
+
+    def _orthogonal_init(self, weight: torch.Tensor) -> None:
+        nn.init.orthogonal_(weight)
+        with torch.no_grad():
+            max_abs_value = torch.max(torch.abs(weight))
+            if max_abs_value > 0:
+                weight.mul_(self._weight_limit / max_abs_value)
