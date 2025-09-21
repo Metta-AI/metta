@@ -3,10 +3,10 @@ from typing import Any, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -140,18 +140,13 @@ class ActionProbs(nn.Module):
     def forward_inference(self, td: TensorDict) -> TensorDict:
         logits = td[self.config.in_key]
         """Forward pass for inference mode with action sampling."""
-        log_probs = F.log_softmax(logits, dim=-1)
-        action_probs = torch.exp(log_probs)
+        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
-        actions = torch.multinomial(action_probs, num_samples=1).view(-1)
-        batch_indices = torch.arange(actions.shape[0], device=actions.device)
-        selected_log_probs = log_probs[batch_indices, actions]
-
-        action = self._convert_logit_index_to_action(actions)
+        action = self._convert_logit_index_to_action(action_logit_index)
 
         td["actions"] = action.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
-        td["full_log_probs"] = log_probs
+        td["full_log_probs"] = full_log_probs
 
         return td
 
@@ -167,14 +162,8 @@ class ActionProbs(nn.Module):
             if td.batch_dims > 1:
                 td = td.reshape(td.batch_size.numel())
 
-        action_log_probs = F.log_softmax(logits, dim=-1)
-        action_probs = torch.exp(action_log_probs)
-
         action_logit_index = self._convert_action_to_logit_index(action)
-        batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
-        selected_log_probs = action_log_probs[batch_indices, action_logit_index]
-
-        entropy = -(action_probs * action_log_probs).sum(dim=-1)
+        selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
 
         # Store in flattened TD (will be reshaped by caller if needed)
         td["act_log_prob"] = selected_log_probs
