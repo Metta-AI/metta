@@ -140,9 +140,5 @@ class FastPolicy(Policy):
         )
 
     @property
-    def total_params(self) -> int:
-        return 0
-
-    @property
     def device(self) -> torch.device:
         return next(self.parameters()).device
