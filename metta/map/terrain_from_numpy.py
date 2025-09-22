@@ -182,7 +182,8 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
         converter_indices = np.argwhere((grid != "agent.agent") & (grid != "wall") & (grid != "empty"))
 
         assert len(self.config.object_names) == len(converter_indices), (
-            "Mismatch between object names and available positions"
+            f"Mismatch between object names ({len(self.config.object_names)}) "
+            f"and available positions ({len(converter_indices)})"
         )
         for object, index in zip(self.config.object_names, converter_indices, strict=False):
             grid[tuple(index)] = object
