@@ -11,18 +11,8 @@ from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 import einops
 
-from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
-from metta.agent.components.actor import (
-    ActionProbs,
-    ActionProbsConfig,
-    ActorKey,
-    ActorKeyConfig,
-    ActorQuery,
-    ActorQueryConfig,
-)
-from metta.agent.components.cnn_encoder import CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
-from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
+from metta.agent.components.obs_shim import ObsShimBox
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -41,16 +31,6 @@ class PufferLibCompatibleConfig(PolicyArchitecture):
 
     class_path: str = "metta.agent.policies.pufferlib_compatible.PufferLibCompatiblePolicy"
 
-    # Configure for exact PufferLib match
-    obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
-    cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(
-        in_key="obs_normalizer",
-        out_key="encoded_obs",
-        cnn1_cfg={"out_channels": 128, "kernel_size": 5, "stride": 3},  # Match PufferLib: 128 not 64
-        cnn2_cfg={"out_channels": 128, "kernel_size": 3, "stride": 1},  # Match PufferLib: 128 not 64
-        fc1_cfg={"out_features": 256},  # Match PufferLib network.5: 256 features
-        encoded_obs_cfg={"out_features": 256},  # Match PufferLib network.5: 256 features
-    )
     lstm_config: LSTMConfig = LSTMConfig(
         in_key="encoded_obs",
         out_key="core",
@@ -58,18 +38,6 @@ class PufferLibCompatibleConfig(PolicyArchitecture):
         hidden_size=512,  # Match PufferLib LSTM: 512 not 128
         num_layers=1,
     )
-
-    # Match PufferLib critic and actor dimensions
-    critic_hidden_dim: int = 512  # Match LSTM hidden size
-    actor_hidden_dim: int = 512  # Match LSTM hidden size
-
-    action_embedding_config: ActionEmbeddingConfig = ActionEmbeddingConfig(out_key="action_embedding")
-    actor_query_config: ActorQueryConfig = ActorQueryConfig(in_key="actor_1", out_key="actor_query")
-    actor_key_config: ActorKeyConfig = ActorKeyConfig(
-        query_key="actor_query", embedding_key="action_embedding", out_key="logits"
-    )
-    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
-
 
 class PufferLibCompatiblePolicy(Policy):
     """Policy that exactly matches PufferLib architecture for seamless checkpoint loading."""
@@ -93,7 +61,6 @@ class PufferLibCompatiblePolicy(Policy):
         self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
 
         self.num_layers = max(env.feature_normalizations.keys())
-
 
         self.conv1 = nn.Conv2d(24, 128, kernel_size=5, stride=3)
         self.conv2 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
