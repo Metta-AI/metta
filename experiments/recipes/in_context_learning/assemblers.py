@@ -32,12 +32,15 @@ import random
 from mettagrid.builder import building
 from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import MettaGridConfig, RecipeConfig
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_config import TrainerConfig, LossConfig
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
+import subprocess
+import time
 from metta.sim.simulation_config import SimulationConfig
 import numpy as np
 CONVERTER_TYPES = {
@@ -369,9 +372,12 @@ def make_curriculum(
 def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
     curriculum = make_curriculum(**curriculum_args[curriculum_style])
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum,
+        losses=LossConfig(),
     )
-    return TrainTool(trainer=trainer_cfg)
+    trainer_cfg.batch_size = 4128768
+    trainer_cfg.bptt_horizon = 512
+    return TrainTool(trainer=trainer_cfg, training_env=TrainingEnvironmentConfig(curriculum=curriculum))
+
 
 def play(curriculum_style: str = "single_agent_two_altars") -> PlayTool:
     eval_env = make_mettagrid(curriculum_style)
@@ -397,3 +403,28 @@ def replay(curriculum_style: str = "single_agent_two_altars") -> ReplayTool:
         ),
         policy_uri=default_policy_uri,
     )
+
+def experiment():
+    curriculum_styles = [
+        "single_agent_two_altars",
+        "two_agent_two_altars_pattern",
+        "two_agent_two_altars_any",
+    ]
+
+    for curriculum_style in curriculum_styles:
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.in_context_learning.assemblers.train",
+                f"run=icl_assemblers2_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    experiment()
