@@ -12,7 +12,6 @@ from torch import nn
 import einops
 
 from metta.agent.components.lstm import LSTM, LSTMConfig
-from metta.agent.components.obs_shim import ObsShimBox
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -56,9 +55,6 @@ class PufferLibCompatiblePolicy(Policy):
 
         self.out_width = env.obs_width
         self.out_height = env.obs_height
-
-        # Build components to match PufferLib exactly
-        self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
 
         self.num_layers = max(env.feature_normalizations.keys())
 
