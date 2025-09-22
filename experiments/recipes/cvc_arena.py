@@ -105,11 +105,11 @@ def train(
 
     evaluator_cfg = EvaluatorConfig(
         simulations=[
-                SimulationConfig(
-                    suite="cvc_arena", name="basic", env=make_mettagrid(num_agents=24)
-                ),
             SimulationConfig(
-                    suite="cvc_arena", name="combat", env=make_mettagrid(num_agents=24)
+                suite="cvc_arena", name="basic", env=make_mettagrid(num_agents=24)
+            ),
+            SimulationConfig(
+                suite="cvc_arena", name="combat", env=make_mettagrid(num_agents=24)
             ),
         ],
     )
