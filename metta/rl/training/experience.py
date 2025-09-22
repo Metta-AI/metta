@@ -20,6 +20,9 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
+        *,
+        storage_device: torch.device | str | None = None,
+        pin_memory: bool = False,
     ):
         """Initialize experience buffer with segmented storage."""
         self._check_for_duplicate_keys(experience_spec)
@@ -29,6 +32,13 @@ class Experience:
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
+        self.compute_device = self.device
+        self.storage_device = (
+            (storage_device if isinstance(storage_device, torch.device) else torch.device(storage_device))
+            if storage_device is not None
+            else self.compute_device
+        )
+        self.pin_memory = pin_memory and self.storage_device.type == "cpu"
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -41,12 +51,14 @@ class Experience:
                 f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
             )
 
-        spec = experience_spec.expand(self.segments, self.bptt_horizon).to(self.device)
+        spec = experience_spec.expand(self.segments, self.bptt_horizon).to(self.storage_device)
         self.buffer = spec.zero()
+        if self.pin_memory:
+            self.buffer = self.buffer.pin_memory()
 
         # Episode tracking
-        self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
-        self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
+        self.ep_lengths = torch.zeros(total_agents, device=self.storage_device, dtype=torch.int32)
+        self.ep_indices = torch.arange(total_agents, device=self.storage_device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
 
         # Minibatch configuration
@@ -74,7 +86,7 @@ class Experience:
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
-        self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
+        self._range_tensor = torch.arange(total_agents, device=self.storage_device, dtype=torch.int32)
 
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
@@ -94,6 +106,9 @@ class Experience:
         )
         episode_lengths = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
+
+        if data_td.device != self.buffer.device:
+            data_td = data_td.to(self.buffer.device, non_blocking=True)
 
         self.buffer.update_at_(data_td.select(*self.buffer.keys(include_nested=True)), (indices, episode_lengths))
 
@@ -119,6 +134,8 @@ class Experience:
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
+        if data_td.device != self.buffer.device:
+            data_td = data_td.to(self.buffer.device, non_blocking=True)
         self.buffer[indices].update(data_td)
 
     def reset_importance_sampling_ratios(self) -> None:
@@ -163,7 +180,7 @@ class Experience:
         return TensorDict(
             {},
             batch_size=(self.minibatch_segments, self.bptt_horizon),
-            device=self.device,
+            device=self.compute_device,
         )
 
     @staticmethod
@@ -176,6 +193,9 @@ class Experience:
         policy_experience_spec: Composite,
         losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
         device: torch.device | str,
+        *,
+        storage_device: torch.device | str | None = None,
+        pin_memory: bool = False,
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 
@@ -194,6 +214,8 @@ class Experience:
             max_minibatch_size=max_minibatch_size,
             experience_spec=Composite(merged_spec_dict),
             device=device,
+            storage_device=storage_device,
+            pin_memory=pin_memory,
         )
         for loss in losses.values():
             loss.attach_replay_buffer(experience)

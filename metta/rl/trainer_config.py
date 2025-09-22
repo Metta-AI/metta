@@ -62,6 +62,10 @@ class TrainerConfig(Config):
 
     compile: bool = False
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
+    amp: bool = True
+    precision: Literal["float32", "bfloat16"] = "float32"
+    cpu_offload: bool = False
+    lr_scheduler: Literal["none", "cosine"] = "cosine"
 
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)

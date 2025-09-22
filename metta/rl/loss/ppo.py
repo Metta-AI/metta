@@ -133,8 +133,14 @@ class PPO(Loss):
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+        original_device = td.device
+        rollout_td = td.to(self.device, non_blocking=True)
+
         with torch.no_grad():
-            self.policy.forward(td)
+            with context.autocast():
+                self.policy.forward(rollout_td)
+
+        td.update_(rollout_td.to(original_device, non_blocking=True))
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
@@ -184,7 +190,8 @@ class PPO(Loss):
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
 
-        policy_td = self.policy.forward(policy_td, action=flat_actions)
+        with context.autocast():
+            policy_td = self.policy.forward(policy_td, action=flat_actions)
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
 
         # Finally, calculate the loss!
@@ -211,6 +218,7 @@ class PPO(Loss):
             self.replay.buffer["ratio"].fill_(1.0)
 
         cfg = self.loss_cfg
+        storage_device = self.replay.buffer.device
         with torch.no_grad():
             anneal_beta = calculate_prioritized_sampling_params(
                 epoch=context.epoch,
@@ -220,12 +228,16 @@ class PPO(Loss):
                 prio_beta0=cfg.prioritized_experience_replay.prio_beta0,
             )
 
-            advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
+            values = self.replay.buffer["values"].to(self.device, non_blocking=True)
+            rewards = self.replay.buffer["rewards"].to(self.device, non_blocking=True)
+            dones = self.replay.buffer["dones"].to(self.device, non_blocking=True)
+            ones = torch.ones_like(values, device=self.device)
+            advantages = torch.zeros_like(values, device=self.device)
             advantages = compute_advantage(
-                self.replay.buffer["values"],
-                self.replay.buffer["rewards"],
-                self.replay.buffer["dones"],
-                torch.ones_like(self.replay.buffer["values"]),
+                values,
+                rewards,
+                dones,
+                ones,
                 advantages,
                 cfg.gamma,
                 cfg.gae_lambda,
@@ -233,6 +245,7 @@ class PPO(Loss):
                 cfg.vtrace.c_clip,
                 self.device,
             )
+            advantages = advantages.to(storage_device, non_blocking=True)
 
         return advantages, anneal_beta
 
@@ -285,6 +298,7 @@ class PPO(Loss):
         update_td = TensorDict(
             {"values": newvalue.view(minibatch["values"].shape).detach(), "ratio": importance_sampling_ratio.detach()},
             batch_size=minibatch.batch_size,
+            device=minibatch.device,
         )
         self.replay.update(indices, update_td)
 
@@ -360,13 +374,20 @@ class PPO(Loss):
         # Sample segment indices
         idx = torch.multinomial(prio_probs, self.replay.minibatch_segments)
 
-        minibatch = self.replay.buffer[idx]
+        minibatch_storage = self.replay.buffer[idx]
 
         with torch.no_grad():
-            minibatch["advantages"] = advantages[idx]
-            minibatch["returns"] = advantages[idx] + minibatch["values"]
+            selected_advantages = advantages[idx]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
-        return minibatch.clone(), idx, prio_weights
+
+        minibatch = minibatch_storage.clone().to(self.device, non_blocking=True)
+        with torch.no_grad():
+            adv_device = selected_advantages.to(self.device, non_blocking=True)
+            minibatch["advantages"] = adv_device
+            minibatch["returns"] = adv_device + minibatch["values"]
+            prio_weights = prio_weights.to(self.device, non_blocking=True)
+
+        return minibatch, idx, prio_weights
 
     def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)

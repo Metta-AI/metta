@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from typing import Any, Callable, Dict, Optional
 
@@ -60,6 +61,10 @@ class Trainer:
 
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
+
+        if self._cfg.compile:
+            self._policy = torch.compile(self._policy, mode=self._cfg.compile_mode)
+
         self._policy.train()
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
@@ -72,6 +77,9 @@ class Trainer:
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
 
+        storage_device = torch.device("cpu") if self._cfg.cpu_offload else self._device
+        pin_memory = self._cfg.cpu_offload and self._device.type == "cuda"
+
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
             batch_size=self._cfg.batch_size,
@@ -81,6 +89,8 @@ class Trainer:
             policy_experience_spec=self._policy.get_agent_experience_spec(),
             losses=losses,
             device=self._device,
+            storage_device=storage_device,
+            pin_memory=pin_memory,
         )
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
@@ -100,6 +110,23 @@ class Trainer:
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
 
+        amp_dtype = getattr(torch, self._cfg.precision, torch.float32)
+        amp_enabled = self._cfg.amp and self._device.type == "cuda"
+
+        if amp_enabled:
+
+            def make_autocast() -> contextlib.AbstractContextManager:
+                return torch.amp.autocast(device_type="cuda", dtype=amp_dtype)
+
+        else:
+
+            def make_autocast() -> contextlib.AbstractContextManager:
+                return contextlib.nullcontext()
+
+        self._context.set_autocast_factory(make_autocast)
+        self._context.amp_enabled = amp_enabled
+        self._context.amp_dtype = amp_dtype
+
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
         self.core_loop = CoreTrainingLoop(
@@ -113,6 +140,12 @@ class Trainer:
 
         for loss in losses.values():
             loss.attach_context(self._context)
+
+        self._lr_scheduler = None
+        if self._cfg.lr_scheduler == "cosine":
+            total_epochs = max(1, self._cfg.total_timesteps // self._cfg.batch_size)
+            self._lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=total_epochs)
+        self._context.lr_scheduler = self._lr_scheduler
 
         self._prev_agent_step_for_step_callbacks: int = 0
 
@@ -170,6 +203,9 @@ class Trainer:
                 max_grad_norm=0.5,
             )
             self._context.advance_epoch(epochs_trained)
+            if self._lr_scheduler is not None and epochs_trained > 0:
+                for _ in range(epochs_trained):
+                    self._lr_scheduler.step()
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
