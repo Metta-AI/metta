@@ -58,6 +58,7 @@ class TrainTool(Tool):
     run: Optional[str] = None
     run_dir: Optional[str] = None
     device: str = guess_device()
+    checkpoint_base_dir: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
@@ -96,7 +97,7 @@ class TrainTool(Tool):
 
         checkpoint_manager = CheckpointManager(
             run=self.run or "default",
-            run_dir=self.run_dir or str(Path(self.system.data_dir)),
+            run_dir=self._checkpoint_base_dir(),
             remote_prefix=self.trainer.checkpoint.remote_prefix,
         )
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
@@ -137,7 +138,18 @@ class TrainTool(Tool):
         group_override = args.get("group")
 
         if self.run_dir is None:
-            self.run_dir = f"{self.system.data_dir}/{self.run}"
+            data_dir_path = Path(self.system.data_dir)
+            self.checkpoint_base_dir = str(data_dir_path)
+            self.run_dir = str(data_dir_path / self.run)
+        else:
+            run_dir_path = Path(self.run_dir)
+            if self.run and run_dir_path.name == self.run:
+                base_dir = run_dir_path.parent
+            else:
+                base_dir = run_dir_path
+            base_dir_str = str(base_dir)
+            self.checkpoint_base_dir = base_dir_str if base_dir_str else str(Path("."))
+            self.run_dir = str(run_dir_path)
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
@@ -198,6 +210,12 @@ class TrainTool(Tool):
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy
+
+    def _checkpoint_base_dir(self) -> str:
+        """Return the directory that should contain per-run subdirectories."""
+        if self.checkpoint_base_dir:
+            return self.checkpoint_base_dir
+        return str(Path(self.system.data_dir))
 
     def _initialize_trainer(
         self,
