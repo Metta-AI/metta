@@ -148,7 +148,7 @@ class CheckpointManager:
     def __init__(
         self,
         run_dir: str,
-        remote_prefix: str | None,
+        remote_prefix: str | None = None,
         run: str = "default",
         cache_size: int = 3,
     ):

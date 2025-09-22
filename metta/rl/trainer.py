@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import torch
 
@@ -220,7 +220,7 @@ class Trainer:
         self._components.append(component)
         component.register(self._context)
 
-    def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
+    def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
         """Invoke all registered callbacks of the specified type.
 
         Args:
@@ -231,7 +231,7 @@ class Trainer:
             try:
                 if callback_type == TrainerCallback.STEP:
                     interval = component._step_interval
-                    if interval:
+                    if interval and infos:
                         current_step = self._context.agent_step
                         previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
                         if current_step // interval > previous_step // interval:
