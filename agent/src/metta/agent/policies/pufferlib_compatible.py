@@ -91,51 +91,120 @@ class PufferLibCompatiblePolicy(Policy):
         # Build components to match PufferLib exactly
         self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
 
-        # Custom CNN encoder that exactly matches PufferLib dimensions (24 input channels)
-        self.cnn_encoder = self._create_pufferlib_cnn_encoder()
 
-        # LSTM with 512 hidden size to match PufferLib
-        self.lstm = LSTM(config=self.config.lstm_config)
+        self.conv1 = nn.Conv2d(24, 128, kernel_size=5, stride=3)
+        self.conv2 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
 
-        # Actor branch - single linear layer to match PufferLib actor.0 and actor.1
-        # PufferLib has: actor.0 (5 outputs) and actor.1 (9 outputs) both from 512 inputs
-        module = pufferlib.pytorch.layer_init(
-            nn.Linear(self.config.lstm_config.hidden_size, self.config.actor_hidden_dim), std=np.sqrt(2)
+        self.network = nn.Sequential(
+            self.conv1,
+            nn.ReLU(),
+            self.conv2,
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(128, 256),
+            nn.ReLU(),
         )
-        self.actor_1 = TDM(module, in_keys=["core"], out_keys=["actor_1"])
 
-        # Critic branch - single linear layer to match PufferLib value head
-        # PufferLib has: value (1 output from 512 inputs)
-        module = pufferlib.pytorch.layer_init(nn.Linear(self.config.lstm_config.hidden_size, 1), std=1.0)
-        self.value_head = TDM(module, in_keys=["core"], out_keys=["values"])
+        self.self_encoder = nn.Sequential(
+            nn.Linear(24, 256),
+            nn.ReLU(),
+        )
 
-        # Action components
-        self.action_embeddings = ActionEmbedding(config=self.config.action_embedding_config)
-        self.config.actor_query_config.embed_dim = self.config.action_embedding_config.embedding_dim
-        self.config.actor_query_config.hidden_size = self.config.actor_hidden_dim
-        self.actor_query = ActorQuery(config=self.config.actor_query_config)
-        self.config.actor_key_config.embed_dim = self.config.action_embedding_config.embedding_dim
-        self.actor_key = ActorKey(config=self.config.actor_key_config)
-        self.action_probs = ActionProbs(config=self.config.action_probs_config)
+        self.max_vec = [1.0] * 24
+        for feature_id, norm_value in self.env.feature_normalizations.items():
+            if feature_id < 24:
+                self.max_vec[feature_id] = norm_value if norm_value > 0 else 1.0
+        self.max_vec = torch.tensor(self.max_vec, dtype=torch.float32)
+        self.max_vec = torch.maximum(self.max_vec, torch.ones_like(self.max_vec))
+        self.max_vec = self.max_vec[None, :, None, None]
+        self.register_buffer("max_vec", self.max_vec)
+
+        action_nvec = self.env.single_action_space.nvec
+        self.actor = nn.ModuleList(
+            [
+                nn.Linear(256, n)
+                for n in action_nvec
+            ]
+        )
+        self.value = nn.Linear(256, 1)
+
+
+
+        # # LSTM with 512 hidden size to match PufferLib
+        # self.lstm = LSTM(config=self.config.lstm_config)
+
+    def encode_observations(
+        self, observations: torch.Tensor, state=None
+    ) -> torch.Tensor:
+        """Converts raw observation tokens into a concatenated self + CNN feature vector."""
+        B = observations.shape[0]
+        TT = 1 if observations.dim() == 3 else observations.shape[1]
+
+        if observations.dim() != 3:
+            observations = einops.rearrange(observations, "b t m c -> (b t) m c")
+
+        observations[observations == 255] = 0
+        coords_byte = observations[..., 0].to(torch.uint8)
+
+        # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
+        x_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        y_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        atr_indices = observations[
+            ..., 1
+        ].long()  # Shape: [B_TT, M], ready for embedding
+        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+
+        box_obs = torch.zeros(
+            (B * TT, self.num_layers, self.out_width, self.out_height),
+            dtype=atr_values.dtype,
+            device=observations.device,
+        )
+
+        valid_tokens = (
+            (coords_byte != 0xFF)
+            & (x_coords < self.out_width)
+            & (y_coords < self.out_height)
+            & (atr_indices < self.num_layers)
+        )
+
+
+        batch_idx = (
+            torch.arange(B * TT, device=observations.device)
+            .unsqueeze(-1)
+            .expand_as(atr_values)
+        )
+        box_obs[
+            batch_idx[valid_tokens],
+            atr_indices[valid_tokens],
+            x_coords[valid_tokens],
+            y_coords[valid_tokens],
+        ] = atr_values[valid_tokens]
+
+        # Normalize features with epsilon for numerical stability
+        features = box_obs / (self.max_vec + 1e-8)
+
+        self_features = self.self_encoder(features[:, :, 5, 5])
+        cnn_features = self.network(features)
+        result = torch.cat([self_features, cnn_features], dim=1)
+        return result
+    
+
+    def decode_actions(self, hidden):
+        #hidden = self.layer_norm(hidden)
+        logits = [dec(hidden) for dec in self.actor]
+        value = self.value(hidden)
+        return logits, value
+
+
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        self.obs_shim(td)
-        td = self.cnn_encoder(td)  # Custom CNN encoder returns modified td
-        self.lstm(td)
-
-        # Actor path
-        self.actor_1(td)
-        td["actor_1"] = torch.relu(td["actor_1"])
-
-        # Critic path
-        self.value_head(td)
-
-        # Action processing
-        self.action_embeddings(td)
-        self.actor_query(td)
-        self.actor_key(td)
-        self.action_probs(td)
+        
+        observations = td["env_obs"]
+        hidden = self.encode_observations(observations)
+        logits, value = self.decode_actions(hidden)
+        td["action_probs"] = logits
+        td["values"] = value
 
         return td
 
@@ -175,48 +244,3 @@ class PufferLibCompatiblePolicy(Policy):
         # Reset LSTM state if it has one
         if hasattr(self.lstm, "reset_memory"):
             self.lstm.reset_memory()
-
-    def _create_pufferlib_cnn_encoder(self):
-        """Create CNN encoder that exactly matches PufferLib architecture (24 input channels)."""
-
-        # PufferLib CNN1: 24 -> 128 channels, 5x5 kernel, stride 3
-        cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(24, 128, kernel_size=5, stride=3), std=1.0)
-
-        # PufferLib CNN2: 128 -> 128 channels, 3x3 kernel, stride 1
-        cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(128, 128, kernel_size=3, stride=1), std=1.0)
-
-        # Calculate flattened size for FC layer (assuming 11x11 input like standard metta)
-        # After conv1 (5x5, stride 3): (11-5)/3 + 1 = 3
-        # After conv2 (3x3, stride 1): (3-3)/1 + 1 = 1
-        # So output is 128 * 1 * 1 = 128
-        flattened_size = 128
-
-        # PufferLib FC1: 128 -> 256 features (network.5 in checkpoint)
-        fc1 = pufferlib.pytorch.layer_init(nn.Linear(flattened_size, 256), std=1.0)
-
-        class PufferLibCNNEncoder(nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.cnn1 = cnn1
-                self.cnn2 = cnn2
-                self.flatten = nn.Flatten()
-                self.fc1 = fc1
-
-            def forward(self, td):
-                # Get input from obs_normalizer (Metta's 25 channels)
-                x = td["obs_normalizer"]
-
-                # Slice to match PufferLib's 24 channels (remove last channel)
-                x = x[:, :24, :, :]
-
-                # CNN forward pass matching PufferLib exactly
-                x = torch.relu(self.cnn1(x))
-                x = torch.relu(self.cnn2(x))
-                x = self.flatten(x)
-                x = torch.relu(self.fc1(x))
-
-                # Output to encoded_obs for LSTM input
-                td["encoded_obs"] = x
-                return td
-
-        return PufferLibCNNEncoder()
