@@ -6,7 +6,6 @@ import logging
 import numpy as np
 import torch as torch
 
-import mettagrid.mettascope as mettascope2
 from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
@@ -39,6 +38,8 @@ class PlayTool(Tool):
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.mettascope2:
+            import mettagrid.mettascope as mettascope2
+
             sim = Simulation.create(
                 sim_config=self.sim,
                 device=self.system.device,
