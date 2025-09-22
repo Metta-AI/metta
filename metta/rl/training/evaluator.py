@@ -126,9 +126,9 @@ class Evaluator(TrainerComponent):
             if not stats_client:
                 eval_cfg.evaluate_remote = False
                 logger.info("Not connected to stats server, disabling remote evaluations")
-            elif not eval_cfg.evaluate_interval:
+            elif not eval_cfg.epoch_interval:
                 eval_cfg.evaluate_remote = False
-                logger.info("Evaluate interval set to 0, disabling remote evaluations")
+                logger.info("Epoch interval set to 0, disabling remote evaluations")
             elif not eval_cfg.git_hash:
                 eval_cfg.git_hash = git.get_git_hash_for_remote_task(
                     target_repo=REPO_SLUG,
