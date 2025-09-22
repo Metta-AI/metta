@@ -154,36 +154,9 @@ def cmd_configure(
             help="Set user profile",
         ),
     ] = None,
-    cuda: Annotated[
-        Optional[str],
-        typer.Option("--cuda", help="Set preferred CUDA toolkit version (e.g. 13.0)"),
-    ] = None,
-    cuda_home: Annotated[
-        Optional[str],
-        typer.Option("--cuda-home", help="Set CUDA toolkit root (defaults to /usr/local/cuda-<version>)"),
-    ] = None,
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
 ):
     """Configure Metta settings."""
-    from metta.setup.saved_settings import get_saved_settings
-
-    if cuda:
-        settings = get_saved_settings()
-        settings.set("system.cuda_version", cuda)
-        success(f"Configured CUDA toolkit version to {cuda}.")
-        if not component and not profile:
-            info(f"Run 'metta install --cuda {cuda}' to apply.")
-            if not cuda_home:
-                return
-
-    if cuda_home:
-        settings = get_saved_settings()
-        settings.set("system.cuda_home", cuda_home)
-        success(f"Configured CUDA toolkit path to {cuda_home}.")
-        if not component and not profile and not cuda:
-            info("Run 'metta install' to apply the new CUDA path.")
-            return
-
     if component:
         if profile:
             error("Cannot configure a component and a profile at the same time.")
@@ -191,6 +164,7 @@ def cmd_configure(
         configure_component(component)
     elif profile:
         from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+        from metta.setup.saved_settings import get_saved_settings
 
         selected_user_type = UserType(profile)
         if selected_user_type in PROFILE_DEFINITIONS:
@@ -233,36 +207,6 @@ def _get_selected_modules(components: list[str] | None = None) -> list["SetupMod
     ]
 
 
-def _prepare_cuda_environment(cuda_version: str, cuda_home: Optional[str]) -> None:
-    """Install CUDA-specific torch wheels and set environment variables."""
-    if cuda_version == "13.0":
-        info("Installing PyTorch nightly wheels for CUDA 13.0...")
-        subprocess.run(
-            [
-                "uv",
-                "pip",
-                "install",
-                "--pre",
-                "torch",
-                "torchvision",
-                "--index-url",
-                "https://download.pytorch.org/whl/nightly/cu130",
-            ],
-            check=True,
-        )
-        home = Path(cuda_home) if cuda_home else Path("/usr/local/cuda-13.0")
-        if not home.exists():
-            warning(f"CUDA home {home} does not exist; ensure the toolkit is installed.")
-        os.environ["CUDA_HOME"] = str(home)
-        ld_path = os.environ.get("LD_LIBRARY_PATH", "")
-        cuda_ld = str(home / "lib64")
-        os.environ["LD_LIBRARY_PATH"] = f"{cuda_ld}:{ld_path}" if ld_path else cuda_ld
-        os.environ["FORCE_CUDA"] = "1"
-        success("Configured environment for CUDA 13.0")
-    else:
-        warning(f"CUDA version '{cuda_version}' is not explicitly supported; proceeding without changes.")
-
-
 @app.command(name="install", help="Install or update components")
 def cmd_install(
     components: Annotated[Optional[list[str]], typer.Argument(help="Components to install")] = None,
@@ -271,14 +215,6 @@ def cmd_install(
     no_clean: Annotated[bool, typer.Option("--no-clean", help="Skip cleaning before install")] = False,
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
     check_status: Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
-    cuda: Annotated[
-        Optional[str],
-        typer.Option("--cuda", help="CUDA toolkit version to use for this install (e.g. 13.0)"),
-    ] = None,
-    cuda_home: Annotated[
-        Optional[str],
-        typer.Option("--cuda-home", help="CUDA toolkit root to use for this install"),
-    ] = None,
 ):
     if not no_clean:
         cmd_clean()
@@ -288,23 +224,12 @@ def cmd_install(
     # A profile must exist before installing. If installing in non-interactive mode,
     # the target profile must be specified with --profile. If in interactive mode and
     # no profile is specified, the setup wizard will be run.
-    settings = get_saved_settings()
-    profile_exists = settings.exists()
+    profile_exists = get_saved_settings().exists()
     if non_interactive and not profile_exists and not profile:
         error("Must specify a profile if installing in non-interactive mode without an existing one.")
         raise typer.Exit(1)
     elif profile or not profile_exists:
         cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
-
-    if cuda:
-        settings.set("system.cuda_version", cuda)
-    if cuda_home:
-        settings.set("system.cuda_home", cuda_home)
-
-    cuda_version = settings.get("system.cuda_version", None)
-    cuda_home_setting = settings.get("system.cuda_home", None)
-    if cuda_version:
-        _prepare_cuda_environment(cuda_version, cuda_home_setting)
 
     if components:
         always_required_components = ["system", "core"]
