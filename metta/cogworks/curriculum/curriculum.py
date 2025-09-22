@@ -465,10 +465,11 @@ class Curriculum(StatsLogger):
         self._task_ids.clear()
 
         # Restore tasks
-        for task_id, task_data in state["tasks"].items():
+        for task_id_str, task_data in state["tasks"].items():
             # Recreate env_cfg using task_id
-            env_cfg = self._task_generator.get_task(int(task_id))
-            task = CurriculumTask(int(task_id), env_cfg, task_data["slice_values"])
+            task_id = int(task_id_str)
+            env_cfg = self._task_generator.get_task(task_id)
+            task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
             task._num_completions = task_data["num_completions"]
             task._total_score = task_data["total_score"]
             task._mean_score = task_data["mean_score"]

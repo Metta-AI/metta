@@ -471,3 +471,285 @@ class TestTaskRecreation:
         # Verify tasks work correctly after loading
         task = curriculum2.get_task()
         assert task._env_cfg is not None, "env_cfg should be recreated when task is accessed"
+
+
+class TestCurriculumRoundtripBehavior:
+    """Test that curriculum behavior is preserved through save/load cycles."""
+
+    def test_discrete_random_curriculum_roundtrip(self):
+        """Test roundtrip for discrete random curriculum (no algorithm)."""
+        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
+        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+
+        curriculum_config = CurriculumConfig(
+            task_generator=task_generator_config,
+            num_active_tasks=10,
+            algorithm_config=None,  # Use default discrete random
+        )
+
+        # Create original curriculum
+        curriculum1 = Curriculum(curriculum_config, seed=42)
+
+        # Simulate training activity
+        task_selections = []
+        for _ in range(30):
+            task = curriculum1.get_task()
+            task_selections.append(task._task_id)
+
+            # Complete some tasks with scores
+            if random.random() < 0.7:
+                score = random.uniform(0.3, 0.9)
+                task.complete(score)
+                curriculum1.update_task_performance(task._task_id, score)
+
+        # Checkpoint and restore
+        state = curriculum1.get_state()
+        curriculum2 = Curriculum(curriculum_config, seed=999)  # Different seed
+        curriculum2.load_state(state)
+
+        # Continue activity and verify consistent behavior
+        post_restore_selections = []
+        for _ in range(30):
+            task = curriculum2.get_task()
+            post_restore_selections.append(task._task_id)
+
+            if random.random() < 0.7:
+                score = random.uniform(0.3, 0.9)
+                task.complete(score)
+                curriculum2.update_task_performance(task._task_id, score)
+
+        # Verify curriculum state consistency
+        assert curriculum1._num_created == curriculum2._num_created
+        assert curriculum1._num_evicted == curriculum2._num_evicted
+        assert len(curriculum1._tasks) == len(curriculum2._tasks)
+
+        # Tasks should exist and be selectable
+        assert len(post_restore_selections) == 30
+        assert all(task_id in curriculum2._tasks for task_id in post_restore_selections)
+
+    def test_learning_progress_curriculum_roundtrip(self):
+        """Test roundtrip for learning progress curriculum with bidirectional scoring."""
+        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
+        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+
+        curriculum_config = CurriculumConfig(
+            task_generator=task_generator_config,
+            num_active_tasks=15,
+            algorithm_config=LearningProgressConfig(
+                num_active_tasks=15, use_bidirectional=True, max_memory_tasks=100, ema_timescale=0.01
+            ),
+        )
+
+        # Create and train original curriculum
+        curriculum1 = Curriculum(curriculum_config, seed=123)
+
+        # Create diverse task performance to trigger learning progress
+        task_performance = {}
+        for _ in range(50):
+            task = curriculum1.get_task()
+            task_id = task._task_id
+
+            # Create varied performance patterns
+            if task_id not in task_performance:
+                task_performance[task_id] = []
+
+            # Simulate learning: improving scores over time for some tasks
+            if len(task_performance[task_id]) < 3:
+                score = random.uniform(0.2, 0.4)  # Initial low performance
+            elif len(task_performance[task_id]) < 8:
+                score = random.uniform(0.4, 0.7)  # Improving
+            else:
+                score = random.uniform(0.6, 0.9)  # Learned
+
+            task.complete(score)
+            curriculum1.update_task_performance(task_id, score)
+            task_performance[task_id].append(score)
+
+        # Capture algorithm state before checkpointing
+        original_algorithm = curriculum1._algorithm
+        original_task_scores = original_algorithm.score_tasks(list(curriculum1._tasks.keys()))
+        original_stats = original_algorithm.stats()
+
+        # Checkpoint and restore
+        state = curriculum1.get_state()
+        curriculum2 = Curriculum(curriculum_config, seed=456)  # Different seed
+        curriculum2.load_state(state)
+
+        # Verify algorithm state preservation
+        restored_algorithm = curriculum2._algorithm
+        restored_task_scores = restored_algorithm.score_tasks(list(curriculum2._tasks.keys()))
+        restored_stats = restored_algorithm.stats()
+
+        # Learning progress scores should be preserved
+        assert len(original_task_scores) == len(restored_task_scores)
+        for task_id in original_task_scores:
+            if task_id in restored_task_scores:
+                # Scores should be approximately equal (floating point tolerance)
+                assert abs(original_task_scores[task_id] - restored_task_scores[task_id]) < 1e-6
+
+        # Key statistics should be preserved
+        key_stats = ["tracker/total_completions", "tracker/total_tracked_tasks"]
+        for stat_key in key_stats:
+            if stat_key in original_stats and stat_key in restored_stats:
+                assert original_stats[stat_key] == restored_stats[stat_key]
+
+        # Continue training and verify algorithm functionality
+        for _ in range(20):
+            task = curriculum2.get_task()
+            score = random.uniform(0.5, 0.8)
+            task.complete(score)
+            curriculum2.update_task_performance(task._task_id, score)
+
+        # Algorithm should still function (able to score tasks)
+        final_scores = restored_algorithm.score_tasks(list(curriculum2._tasks.keys()))
+        assert len(final_scores) > 0
+        assert all(isinstance(score, (int, float)) for score in final_scores.values())
+
+    def test_curriculum_deterministic_after_restore(self):
+        """Test that curriculum produces deterministic sequences after restore."""
+        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
+        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+
+        curriculum_config = CurriculumConfig(
+            task_generator=task_generator_config,
+            num_active_tasks=10,
+            algorithm_config=LearningProgressConfig(num_active_tasks=10),
+        )
+
+        # Create two identical curricula
+        curriculum1 = Curriculum(curriculum_config, seed=789)
+        curriculum2 = Curriculum(curriculum_config, seed=789)
+
+        # Run identical training on both
+        for _ in range(25):
+            task1 = curriculum1.get_task()
+            task2 = curriculum2.get_task()
+
+            # Should select same tasks (deterministic)
+            assert task1._task_id == task2._task_id
+
+            score = random.uniform(0.4, 0.8)
+            task1.complete(score)
+            task2.complete(score)
+            curriculum1.update_task_performance(task1._task_id, score)
+            curriculum2.update_task_performance(task2._task_id, score)
+
+        # Checkpoint curriculum1 and restore to curriculum3
+        state = curriculum1.get_state()
+        curriculum3 = Curriculum(curriculum_config, seed=999)  # Different seed
+        curriculum3.load_state(state)
+
+        # Continue with curriculum2 and curriculum3 - they should be identical
+        for _ in range(15):
+            task2 = curriculum2.get_task()
+            task3 = curriculum3.get_task()
+
+            # Should produce same sequence after restore
+            assert task2._task_id == task3._task_id
+
+            score = random.uniform(0.5, 0.9)
+            task2.complete(score)
+            task3.complete(score)
+            curriculum2.update_task_performance(task2._task_id, score)
+            curriculum3.update_task_performance(task3._task_id, score)
+
+    def test_task_state_consistency_after_roundtrip(self):
+        """Test that task internal state is consistent after save/load."""
+        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
+        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+
+        curriculum_config = CurriculumConfig(
+            task_generator=task_generator_config,
+            num_active_tasks=8,
+            algorithm_config=LearningProgressConfig(num_active_tasks=8, use_bidirectional=True),
+        )
+
+        curriculum = Curriculum(curriculum_config, seed=333)
+
+        # Build up task history
+        task_history = {}
+        for _ in range(40):
+            task = curriculum.get_task()
+            task_id = task._task_id
+
+            if task_id not in task_history:
+                task_history[task_id] = {"scores": [], "scheduled_count": 0}
+
+            task_history[task_id]["scheduled_count"] += 1
+
+            # Complete task with score
+            if random.random() < 0.8:
+                score = random.uniform(0.2, 0.95)
+                task.complete(score)
+                curriculum.update_task_performance(task_id, score)
+                task_history[task_id]["scores"].append(score)
+
+        # Verify pre-checkpoint state
+        pre_checkpoint_tasks = {}
+        for task_id, task in curriculum._tasks.items():
+            pre_checkpoint_tasks[task_id] = {
+                "num_completions": task._num_completions,
+                "total_score": task._total_score,
+                "mean_score": task._mean_score,
+                "num_scheduled": task._num_scheduled,
+            }
+
+        # Checkpoint and restore
+        state = curriculum.get_state()
+        curriculum2 = Curriculum(curriculum_config, seed=777)
+        curriculum2.load_state(state)
+
+        # Verify all task states are identical
+        for task_id, expected_state in pre_checkpoint_tasks.items():
+            assert task_id in curriculum2._tasks
+            restored_task = curriculum2._tasks[task_id]
+
+            assert restored_task._num_completions == expected_state["num_completions"]
+            assert abs(restored_task._total_score - expected_state["total_score"]) < 1e-10
+            assert abs(restored_task._mean_score - expected_state["mean_score"]) < 1e-10
+            assert restored_task._num_scheduled == expected_state["num_scheduled"]
+
+        # Verify task functionality post-restore
+        for _ in range(10):
+            # Get task (this increments num_scheduled for the returned task)
+            task = curriculum2.get_task()
+            initial_completions = task._num_completions
+            initial_total_score = task._total_score
+
+            # Task should still be functional
+            score = 0.75
+            task.complete(score)
+            curriculum2.update_task_performance(task._task_id, score)
+
+            # State should update correctly after completion
+            assert task._num_completions == initial_completions + 1
+            assert task._total_score == initial_total_score + score
+            assert task._num_scheduled >= 1  # Should be at least 1 since we just got it
+
+    def test_empty_curriculum_roundtrip(self):
+        """Test roundtrip with minimal/empty curriculum state."""
+        mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
+        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+
+        curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=5)
+
+        # Create curriculum but don't use it much
+        curriculum1 = Curriculum(curriculum_config, seed=444)
+
+        # Just create the initial task pool, no additional activity
+        assert len(curriculum1._tasks) == 5  # Should be initialized at capacity
+
+        # Checkpoint immediately
+        state = curriculum1.get_state()
+        curriculum2 = Curriculum(curriculum_config, seed=555)
+        curriculum2.load_state(state)
+
+        # Should restore successfully
+        assert len(curriculum2._tasks) == len(curriculum1._tasks)
+        assert curriculum2._num_created == curriculum1._num_created
+        assert curriculum2._num_evicted == curriculum1._num_evicted
+
+        # Should be functional after restore
+        task = curriculum2.get_task()
+        assert task is not None
+        assert task._task_id in curriculum2._tasks
