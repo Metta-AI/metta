@@ -90,8 +90,7 @@ def _():
     import logging
     from metta.tools.train import TrainTool
     from metta.rl.trainer_config import TrainerConfig
-    from metta.rl.training.evaluator import EvaluatorConfig
-    from metta.rl.training.training_environment import TrainingEnvironmentConfig
+    from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 
     from metta.cogworks.curriculum import (
         env_curriculum,
