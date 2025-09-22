@@ -181,10 +181,11 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
 
   // Handle key press in comment input
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmitComment();
     }
+    // Allow Enter to create newlines by not preventing default
   };
 
   if (!post) return null;
@@ -323,7 +324,7 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
                 />
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-xs text-gray-500">
-                    Press Enter to post, Shift+Enter for new line
+                    Press Cmd+Enter (or Ctrl+Enter) to post
                   </span>
                   <button
                     onClick={handleSubmitComment}

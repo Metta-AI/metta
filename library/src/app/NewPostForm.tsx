@@ -73,11 +73,12 @@ export const NewPostForm: FC = () => {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={(e) => {
-            // Submit on Enter (without Shift for new line)
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Submit on Command+Enter (Mac) or Ctrl+Enter (Windows/Linux)
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               handleSubmit(e);
             }
+            // Allow Enter to create newlines by not preventing default
           }}
         />
 
