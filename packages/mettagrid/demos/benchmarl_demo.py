@@ -31,6 +31,7 @@ from mettagrid.envs.benchmarl_wrapper import create_navigation_task
 # BenchMARL imports
 try:
     import benchmarl  # noqa: F401
+
     BENCHMARL_AVAILABLE = True
 except ImportError:
     BENCHMARL_AVAILABLE = False
