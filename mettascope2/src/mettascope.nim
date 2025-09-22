@@ -1,4 +1,4 @@
-import std/[random, os, times, strformat, strutils, parseopt],
+import std/[random, os, times, strformat, strutils, parseopt, json],
   boxy, opengl, windy, windy/http, chroma, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, footer, timeline,
   worldmap, minimap, agenttable, agenttraces, envconfig]
@@ -8,6 +8,27 @@ var replay = ""
 # TODO: Remove with dynamic panels.
 var topArea: Area
 var bottomArea: Area
+
+proc updateReplayHeader(replayPath: string) =
+  ## Set the global header's display name for the current replay.
+  if common.replay.isNil:
+    return
+  var display = ""
+  if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
+    let node = common.replay.mgConfig["label"]
+    if node.kind == JString:
+      display = node.getStr
+  if display.len == 0 and common.replay.fileName.len > 0:
+    display = common.replay.fileName
+  if display.len == 0 and replayPath.len > 0:
+    display = extractFilename(replayPath)
+  if display.len == 0:
+    display = "unknown"
+
+  let titleNode = find("**/GlobalTitle")
+  titleNode.text = display
+
+
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -69,10 +90,13 @@ find "/UI/Main":
         req.onResponse = proc(response: HttpResponse) =
           echo "onResponse: code=", $response.code, ", len=", response.body.len
           common.replay = loadReplay(response.body, replay)
+          updateReplayHeader(replay)
       else:
         common.replay = loadReplay(replay)
+        updateReplayHeader(replay)
     elif common.replay == nil:
       common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
+      updateReplayHeader(dataDir / "replays" / "pens.json.z")
 
     echo "Creating panels"
     rootArea = Area(layout: Horizontal, node: find("**/AreaHeader"))
