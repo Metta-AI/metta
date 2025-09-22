@@ -1,3 +1,5 @@
+import shutil
+
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import info
@@ -25,6 +27,9 @@ class HelmSetup(SetupModule):
         return plugins
 
     def check_installed(self) -> bool:
+        if not shutil.which("helm"):
+            return False
+
         installed_plugins = self.get_installed_plugins()
         for plugin in self.HELM_PLUGINS.keys():
             if plugin not in installed_plugins:

@@ -116,7 +116,7 @@ public:
         deposit_positions(cfg.deposit_positions),
         withdrawal_positions(cfg.withdrawal_positions),
         grid(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
 
   virtual ~Chest() = default;
