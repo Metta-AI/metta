@@ -1,6 +1,3 @@
-import json
-import os
-import random
 from typing import Optional
 
 import mettagrid.mapgen.scenes.random
