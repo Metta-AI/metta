@@ -289,6 +289,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         if numpy_dir is not None:  # load from s3
             from metta.map.terrain_from_numpy import InContextLearningFromNumpy
+
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
             dir = f"{numpy_dir}/{room_size}/{len(resources)}chains_{num_sinks}sinks/{terrain}"
 

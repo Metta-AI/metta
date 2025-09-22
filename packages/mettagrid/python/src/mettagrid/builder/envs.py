@@ -233,7 +233,6 @@ def make_icl_with_numpy(
     game_objects: dict,
     instance_map: MapBuilderConfig,
 ) -> MettaGridConfig:
-
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
         game=GameConfig(
