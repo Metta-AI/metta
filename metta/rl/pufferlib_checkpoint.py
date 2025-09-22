@@ -47,9 +47,7 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
     processed = {}
     for key, value in state_dict.items():
         # Remove common PufferLib-specific prefixes
-        if key.startswith("fast_policy."):
-            key = key[len("fast_policy.") :]
-        elif key.startswith("policy."):
+        if key.startswith("policy."):
             key = key[len("policy.") :]
         elif key.startswith("learner."):
             key = key[len("learner.") :]
