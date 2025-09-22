@@ -1,5 +1,5 @@
 from typing import Optional
-
+import json
 import mettagrid.mapgen.scenes.random
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
@@ -260,4 +260,10 @@ def make_icl_with_numpy(
             ),
         )
     )
+
+    # get reward estimates per map
+    with open(f"{dir.split('/')[0]}/reward_estimates.json", "r") as f:
+        reward_estimates_dict = json.load(f)
+        cfg.game.reward_estimates = reward_estimates_dict[dir]
+
     return cfg

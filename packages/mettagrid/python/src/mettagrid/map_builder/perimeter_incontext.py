@@ -194,7 +194,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         return False
 
-    def build(self, save_to_numpy=False):
+    def build(self, dir=None):
         height = self._config.height
         width = self._config.width
 
@@ -307,7 +307,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         center_i, center_j = height // 2, width // 2
         grid[center_i, center_j] = agents[0]
 
-        if save_to_numpy:
+        if dir is not None:
             area = height * width
 
             if area < 49:
@@ -321,7 +321,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
             density = density if density else ""
 
             random_number = self._rng.integers(1000000)
-            filename = f"icl_resource_chain/{size}/{self._config.chain_length - 2}chains_{self._config.num_sinks}sinks/{terrain}-{density}/{random_number}.npy"
+            filename = f"{dir}/{size}/{self._config.chain_length - 2}chains_{self._config.num_sinks}sinks/{terrain}-{density}/{random_number}.npy"
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             np.save(filename, grid)
 

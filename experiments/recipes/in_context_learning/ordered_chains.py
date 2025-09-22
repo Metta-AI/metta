@@ -114,6 +114,75 @@ class _BuildCfg:
     map_builder_objects: Dict[str, int] = field(default_factory=dict)
 
 
+def get_reward_estimates(
+    num_resources: int,
+    num_sinks: int,
+    max_steps: int,
+    avg_hop: float,
+) -> tuple[float, float]:
+    """
+    Returns (best_case_optimal_reward, worst_case_optimal_reward).
+
+    Updates vs prior:
+        * Each converter interaction = 2 actions (put + get).
+        * Both scenarios include average hop distance between perimeter objects.
+        * Per-heart cycle time is the bottleneck of either converter cooldown or the
+        movement+interaction cost to traverse the whole chain again.
+
+    Definitions:
+        - num_resources: number of *intermediate* resources between "nothing" and "heart".
+        - n_converters = chain_length + 1 (edges: nothing->r1, ..., r_k->heart).
+        - cooldown = avg_hop * n_converters (as set in _make_env_cfg).
+    """
+
+    # Number of converters in the chain (nothing->r1, ..., r_k->heart)
+    n_converters = num_resources + 1
+    total_objects = n_converters + num_sinks
+
+    # Mirror _make_env_cfg’s episode-length extension
+    effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
+
+    # Converter cooldown applied uniformly
+    cooldown = avg_hop * n_converters
+
+    # Cost per attempt at any object = move there + (put + get)
+    step_per_attempt = avg_hop + 2
+
+    # Cost to traverse the *correct* chain once (movement + interactions at each stage)
+    correct_chain_traverse_cost = n_converters * step_per_attempt
+
+    # One full production cycle after the first heart is limited by either cooldown
+    # or the time to traverse the chain again (including moving between stages).
+    per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
+
+    def hearts_after(first_heart_steps: float) -> float:
+        if first_heart_steps > effective_max_steps:
+            return 0
+        remaining = effective_max_steps - first_heart_steps
+        return 1 + (remaining // per_heart_cycle)
+
+    # ---------- Most efficient ----------
+    # Immediately discover the correct chain; still pay average hop + (put+get) at each stage.
+    best_first_heart_steps = correct_chain_traverse_cost
+    most_efficient = hearts_after(best_first_heart_steps)
+
+    # ---------- Least efficient ----------
+    #   1. Find the first converter: (converters + sinks) attempts
+    #   2. Find all sinks: ~(converters + 2 * sinks) attempts
+    #      (every time you find a sink, you need to go get an item again)
+    #   3. Find the right pattern: ~converters * (converters - 1) attempts
+    find_first_converter_cost = (n_converters + num_sinks) * step_per_attempt
+    find_all_sinks_cost = (n_converters + 2 * num_sinks) * step_per_attempt
+    find_right_pattern_cost = n_converters * (n_converters - 1) * step_per_attempt
+
+    worst_first_heart_steps = (
+        find_first_converter_cost + find_all_sinks_cost + find_right_pattern_cost
+    )
+    least_efficient = hearts_after(worst_first_heart_steps)
+
+    return int(most_efficient), int(least_efficient)
+
+
 class ConverterChainTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["ConverterChainTaskGenerator"]):
         """Configuration for ConverterChainTaskGenerator."""
@@ -198,7 +267,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         avg_hop,
         rng,
         max_steps=512,
-        with_numpy=True,
+        numpy_dir: str | None = "icl_ordered_chains",
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
@@ -218,11 +287,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = int(cooldown)
 
-        if with_numpy:  # load from s3
-            terrain = (
-                "simple-" if obstacle_type is None else f"{obstacle_type}-{density}"
-            )
-            dir = f"icl_resource_chain/{room_size}/{len(resources)}chains_{num_sinks}sinks/{terrain}"
+        if numpy_dir is not None:  # load from s3
+            terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
+            dir = f"{numpy_dir}/{room_size}/{len(resources)}chains_{num_sinks}sinks/{terrain}"
 
             return make_icl_with_numpy(
                 num_agents=1,
@@ -260,7 +327,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         self,
         task_id: int,
         rng: random.Random,
-        with_numpy: bool = True,
+        numpy_dir: str | None = "icl_ordered_chains",
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
         num_resources = rng.choice(self.config.chain_lengths)
@@ -291,13 +358,13 @@ class ConverterChainTaskGenerator(TaskGenerator):
             avg_hop=avg_hop,
             max_steps=max_steps,
             rng=rng,
-            with_numpy=with_numpy,
+            numpy_dir=numpy_dir,
         )
 
         if estimate_max_rewards:
             # optimal reward estimates for the task, to be used in evaluation
-            best_case_optimal_reward, worst_case_optimal_reward = (
-                self._estimate_max_rewards(num_resources, num_sinks, max_steps, avg_hop)
+            best_case_optimal_reward, worst_case_optimal_reward = get_reward_estimates(
+                num_resources, num_sinks, max_steps, avg_hop
             )
             icl_env.game.reward_estimates = {
                 "best_case_optimal_reward": best_case_optimal_reward,
@@ -309,74 +376,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
         icl_env.label += f"_{density}" if density else ""
 
         return icl_env
-
-    def _estimate_max_rewards(
-        self,
-        num_resources: int,
-        num_sinks: int,
-        max_steps: int,
-        avg_hop: float,
-    ) -> tuple[float, float]:
-        """
-        Returns (best_case_optimal_reward, worst_case_optimal_reward).
-
-        Updates vs prior:
-          * Each converter interaction = 2 actions (put + get).
-          * Both scenarios include average hop distance between perimeter objects.
-          * Per-heart cycle time is the bottleneck of either converter cooldown or the
-            movement+interaction cost to traverse the whole chain again.
-
-        Definitions:
-          - num_resources: number of *intermediate* resources between "nothing" and "heart".
-          - n_converters = chain_length + 1 (edges: nothing->r1, ..., r_k->heart).
-          - cooldown = avg_hop * n_converters (as set in _make_env_cfg).
-        """
-        # Number of converters in the chain (nothing->r1, ..., r_k->heart)
-        n_converters = num_resources + 1
-        total_objects = n_converters + num_sinks
-
-        # Mirror _make_env_cfg’s episode-length extension
-        effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
-
-        # Converter cooldown applied uniformly
-        cooldown = avg_hop * n_converters
-
-        # Cost per attempt at any object = move there + (put + get)
-        step_per_attempt = avg_hop + 2
-
-        # Cost to traverse the *correct* chain once (movement + interactions at each stage)
-        correct_chain_traverse_cost = n_converters * step_per_attempt
-
-        # One full production cycle after the first heart is limited by either cooldown
-        # or the time to traverse the chain again (including moving between stages).
-        per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
-
-        def hearts_after(first_heart_steps: float) -> float:
-            if first_heart_steps > effective_max_steps:
-                return 0
-            remaining = effective_max_steps - first_heart_steps
-            return 1 + (remaining // per_heart_cycle)
-
-        # ---------- Most efficient ----------
-        # Immediately discover the correct chain; still pay average hop + (put+get) at each stage.
-        best_first_heart_steps = correct_chain_traverse_cost
-        most_efficient = hearts_after(best_first_heart_steps)
-
-        # ---------- Least efficient ----------
-        #   1. Find the first converter: (converters + sinks) attempts
-        #   2. Find all sinks: ~(converters + 2 * sinks) attempts
-        #      (every time you find a sink, you need to go get an item again)
-        #   3. Find the right pattern: ~converters * (converters - 1) attempts
-        find_first_converter_cost = (n_converters + num_sinks) * step_per_attempt
-        find_all_sinks_cost = (n_converters + 2 * num_sinks) * step_per_attempt
-        find_right_pattern_cost = n_converters * (n_converters - 1) * step_per_attempt
-
-        worst_first_heart_steps = (
-            find_first_converter_cost + find_all_sinks_cost + find_right_pattern_cost
-        )
-        least_efficient = hearts_after(worst_first_heart_steps)
-
-        return int(most_efficient), int(least_efficient)
 
 
 def make_mettagrid(curriculum_style: str) -> MettaGridConfig:
@@ -525,7 +524,7 @@ def experiment():
         )
 
 
-def save_envs_to_numpy(num_envs: int = 1000):
+def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 1000):
     curriculum_styles = [
         "small",
         "small_medium",
@@ -541,11 +540,45 @@ def save_envs_to_numpy(num_envs: int = 1000):
                 **curriculum_args[curriculum_style],
             )
             task_generator = ConverterChainTaskGenerator(task_generator_cfg)
-            env_cfg = task_generator._generate_task(i, random.Random(i))
+            env_cfg = task_generator._generate_task(i, random.Random(i), numpy_dir=None)
             map_builder = env_cfg.game.map_builder.create()
-            map_builder.build(save_to_numpy=True)
+            map_builder.build(dir=dir)
+    generate_reward_estimates(dir=dir)
+
+
+def generate_reward_estimates(dir="icl_ordered_chains"):
+    # TODO: Eventually we want to make the reward estimates more accurate, per actual map and including terrain.
+    # For now we just use the average hop distance.
+    import os
+    import numpy as np
+    import json
+
+    room_sizes = os.listdir(dir)
+
+    reward_estimates = {}
+    for room_size in room_sizes:
+        chains = os.listdir(f"{dir}/{room_size}")
+        for chain_dir in chains:
+            num_resources = int(chain_dir[0])
+            num_sinks = int(chain_dir[1:].strip("chains_")[0])
+            for terrain in os.listdir(f"{dir}/{room_size}/{chain_dir}"):
+                files = os.listdir(f"{dir}/{room_size}/{chain_dir}/{terrain}")
+                for file in files:
+                    grid = np.load(f"{dir}/{room_size}/{chain_dir}/{terrain}/{file}")
+                    avg_hop = (grid.shape[0] + grid.shape[1]) / 2
+                    best_case_optimal_reward, worst_case_optimal_reward = (
+                        get_reward_estimates(num_resources, num_sinks, 512, avg_hop)
+                    )
+                    reward_estimates[f"{dir}/{room_size}/{chain_dir}/{terrain}"] = {
+                        "best_case_optimal_reward": best_case_optimal_reward,
+                        "worst_case_optimal_reward": worst_case_optimal_reward,
+                    }
+    # Save the reward_estimates dictionary to a JSON file
+    with open("reward_estimates.json", "w") as f:
+        json.dump(reward_estimates, f, indent=2)
 
 
 if __name__ == "__main__":
+    # experiment()
     # save_envs_to_numpy()
-    experiment()
+    generate_reward_estimates()
