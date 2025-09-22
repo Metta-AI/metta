@@ -67,24 +67,35 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
 
 def _map_pufferlib_key_to_metta(key: str) -> str:
     """Map PufferLib checkpoint keys to Metta agent keys."""
-    # Handle PufferLib Policy -> Metta mappings
+    # Handle PufferLib Policy -> Metta mappings based on actual checkpoint analysis
     key_mappings = {
-        # CNN layers mapping
+        # CNN layers mapping (PufferLib -> Metta)
         "conv1.": "cnn_encoder.cnn1.",
         "conv2.": "cnn_encoder.cnn2.",
-        "network.0.": "cnn_encoder.cnn1.",  # First conv layer
-        "network.2.": "cnn_encoder.cnn2.",  # Second conv layer
-        "network.4.": "cnn_encoder.fc1.",  # First linear layer
+        "network.0.": "cnn_encoder.fc1.",  # Linear layer after CNN
+        "network.2.": "cnn_encoder.fc1.",  # Another linear layer
+        "network.5.": "cnn_encoder.fc1.",  # Final linear layer before LSTM
+        # LSTM mappings - direct mapping for weight names
+        "lstm.weight_ih_l0": "lstm.net.weight_ih_l0",
+        "lstm.weight_hh_l0": "lstm.net.weight_hh_l0", 
+        "lstm.bias_ih_l0": "lstm.net.bias_ih_l0",
+        "lstm.bias_hh_l0": "lstm.net.bias_hh_l0",
+        # Cell mappings (additional LSTM components)
+        "cell.weight_ih": "lstm.net.weight_ih_l0",
+        "cell.weight_hh": "lstm.net.weight_hh_l0",
+        "cell.bias_ih": "lstm.net.bias_ih_l0", 
+        "cell.bias_hh": "lstm.net.bias_hh_l0",
+        # Actor mappings
+        "actor.0.": "actor_1.module.",
+        "actor.1.": "actor_query.",
+        # Critic mapping
+        "value.": "value_head.module.",
         # Self encoder mapping
-        "self_encoder.": "obs_shim.",
-        # Actor/critic mappings
-        "actor.": "action_probs.",
-        "value.": "critic.",
-        # LSTM mappings (if present)
-        "lstm.": "core.lstm.",
-        "hidden_": "core.hidden_",
-        "cell_": "core.cell_",
+        "self_encoder.0.": "action_embeddings.net.",
+        # Max vec mapping (observation normalizer)
+        "max_vec": "obs_shim.observation_normalizer.obs_norm",
     }
+
 
     for puffer_key, metta_key in key_mappings.items():
         if puffer_key in key:
@@ -109,6 +120,7 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
 
     # Create the policy directly
     policy = PufferLibCompatiblePolicy(temp_env, policy_cfg)
+    print(f"policy: {policy.state_dict().keys()}")
     temp_env.close()
 
     # Move policy to the specified device
