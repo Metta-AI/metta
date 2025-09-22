@@ -1,10 +1,10 @@
 import
-  boxy, vmath, windy, fidget2/hybridrender,
+  std/[os],
+  boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, sim
 
-
 var
-  typeface* = readTypeface("data/fonts/Inter-Regular.ttf")
+  typeface*: Typeface
 
 proc drawText*(
   bxy: Boxy,
@@ -31,7 +31,8 @@ proc drawText*(
 
 proc measureText*(
   text: string,
-  size: float32
+  size: float32,
+  typeface: Typeface
 ): Vec2 =
   var font = newFont(typeface)
   font.size = size
@@ -39,7 +40,6 @@ proc measureText*(
   let transform = translate(vec2(0, 0))
   let bounds = arrangement.computeBounds(transform).snapToPixels()
   return vec2(bounds.w, bounds.h)
-
 
 proc drawBubbleLine*(bxy: Boxy, start: Vec2, stop: Vec2, color: Color) =
   ## Draw a line with circles.

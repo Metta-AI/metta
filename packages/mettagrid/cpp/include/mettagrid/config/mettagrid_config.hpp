@@ -34,9 +34,10 @@ struct GameConfig {
   std::vector<std::string> resource_names;
   unsigned int num_observation_tokens;
   GlobalObsConfig global_obs;
-  std::map<std::string, std::shared_ptr<ActionConfig>> actions;
+  std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>> actions;  // Ordered list of (name, config) pairs
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   float resource_loss_prob = 0.0;
+  std::map<int, std::string> tag_id_map;
 
   // FEATURE FLAGS
   bool track_movement_metrics = false;
@@ -73,9 +74,10 @@ inline void bind_game_config(py::module& m) {
                     const std::vector<std::string>&,
                     unsigned int,
                     const GlobalObsConfig&,
-                    const std::map<std::string, std::shared_ptr<ActionConfig>>&,
+                    const std::vector<std::pair<std::string, std::shared_ptr<ActionConfig>>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     float,
+                    const std::map<int, std::string>&,
 
                     // FEATURE FLAGS
                     bool,
@@ -93,6 +95,7 @@ inline void bind_game_config(py::module& m) {
            py::arg("actions"),
            py::arg("objects"),
            py::arg("resource_loss_prob") = 0.0f,
+           py::arg("tag_id_map") = std::map<int, std::string>(),
 
            // FEATURE FLAGS
            py::arg("track_movement_metrics"),
@@ -115,6 +118,7 @@ inline void bind_game_config(py::module& m) {
       // .def_readwrite("objects", &GameConfig::objects);
 
       .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
+      .def_readwrite("tag_id_map", &GameConfig::tag_id_map)
 
       // FEATURE FLAGS
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
