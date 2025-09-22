@@ -8,7 +8,8 @@ import boto3
 import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
-from pydantic import Field, ConfigDict
+from pydantic import ConfigDict, Field
+
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.util.uri import ParsedURI
 

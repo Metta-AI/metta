@@ -1,8 +1,8 @@
+import os
 from collections import deque
 from typing import Optional
 
 import numpy as np
-import os
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.map_builder.utils import draw_border

@@ -1,6 +1,10 @@
-from typing import Optional
 import json
+import os
+import random
+from typing import Optional
+
 import mettagrid.mapgen.scenes.random
+from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -10,12 +14,10 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
-import random
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
-from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
 from . import building, empty_converters
 
