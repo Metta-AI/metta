@@ -77,10 +77,11 @@ proc drawAgentTraces*(panel: Panel) =
             2) - 32/256), angle = 0, scale = 1/800)
 
       if settings.showResources and i > 0:
-        let gainMap = obj.gainMap[i]
-        for item in gainMap:
-          for j in 0..<item.count:
-            bxy.drawImage(replay.itemImages[item.itemId], vec2(pos.x, pos.y - (
-                traceHeight / 2) + ((j + 1) * 32/256)), angle = 0, scale = 1/800)
+        if obj.gainMap.len > i:
+          let gainMap = obj.gainMap[i]
+          for item in gainMap:
+            for j in 0..<item.count:
+              bxy.drawImage(replay.itemImages[item.itemId], vec2(pos.x, pos.y - (
+                  traceHeight / 2) + ((j + 1) * 32/256)), angle = 0, scale = 1/800)
 
   panel.endPanAndZoom()
