@@ -22,6 +22,9 @@ python.toolchain(
 python.toolchain(
     python_version = "3.12",
 )
+python.toolchain(
+    python_version = "3.13",
+)
 
 # pybind11 for Python bindings
 bazel_dep(name = "pybind11_bazel", version = "2.13.6")
