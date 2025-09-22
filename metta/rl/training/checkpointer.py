@@ -1,9 +1,10 @@
 """Policy checkpoint management component."""
 
 import logging
+import warnings
 from typing import Optional
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -19,8 +20,25 @@ class CheckpointConfig(Config):
     """Persistent checkpoint configuration shared across training components."""
 
     checkpoint_interval: int = Field(default=30, ge=0)
-    checkpoint_dir: str | None = Field(default=None)
     remote_prefix: str | None = Field(default=None)
+    checkpoint_path_override: str | None = Field(default=None)
+
+    _deprecated_checkpoint_dir: str | None = Field(default=None, alias="checkpoint_dir")
+
+    @model_validator(mode="after")
+    def _apply_deprecated_checkpoint_dir(self) -> "CheckpointConfig":
+        if self._deprecated_checkpoint_dir:
+            warnings.warn(
+                (
+                    "CheckpointConfig.checkpoint_dir is deprecated; "
+                    "configure TrainTool.run_dir or use checkpoint_path_override."
+                ),
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if self.checkpoint_path_override is None:
+                self.checkpoint_path_override = self._deprecated_checkpoint_dir
+        return self
 
 
 class CheckpointerConfig(Config):
