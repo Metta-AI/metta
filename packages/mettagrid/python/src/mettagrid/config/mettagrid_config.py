@@ -3,8 +3,8 @@ from typing import Any, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from mettagrid.config.config import Config
+from mettagrid.map_builder import MapBuilderConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 
 # ===== Python Configuration Models =====
@@ -196,7 +196,7 @@ class GameConfig(Config):
     resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
+    map_builder: MapBuilderConfig[Any] = RandomMapBuilder.Config(agents=24)
 
     # Feature Flags
     track_movement_metrics: bool = Field(

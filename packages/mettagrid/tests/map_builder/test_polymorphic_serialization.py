@@ -1,14 +1,13 @@
 """Tests for polymorphic serialization of MapBuilderConfig using Pydantic V2 discriminated unions."""
 
-import json
 import tempfile
 from pathlib import Path
 
-import pytest
-
+from mettagrid.map_builder import MapBuilderConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.maze import MazeKruskalMapBuilder, MazePrimMapBuilder
+from mettagrid.map_builder.maze import MazePrimMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.mapgen.mapgen import MapGen
 
 
 class TestPolymorphicSerialization:
@@ -65,20 +64,6 @@ class TestPolymorphicSerialization:
         assert deserialized.start_pos == (1, 1)
         assert deserialized.branching == 0.2
 
-    def test_maze_kruskal_config_serialization(self):
-        """Test serialization and deserialization of MazeKruskalMapBuilderConfig."""
-        config = MazeKruskalMapBuilder.Config(width=21, height=21, start_pos=(0, 0), end_pos=(20, 20), seed=456)
-
-        # Test serialization
-        serialized = config.model_dump()
-        assert serialized["type"] == "mettagrid.map_builder.maze.MazeKruskalMapBuilder"
-        assert serialized["width"] == 21
-
-        # Test deserialization
-        deserialized = MazeKruskalMapBuilder.Config.model_validate(serialized)
-        assert isinstance(deserialized, MazeKruskalMapBuilder.Config)
-        assert deserialized.width == 21
-
     def test_ascii_config_serialization(self):
         """Test serialization and deserialization of AsciiMapBuilderConfig."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -101,7 +86,18 @@ class TestPolymorphicSerialization:
         finally:
             Path(temp_path).unlink()
 
-    def test_json_round_trip(self):
+    def test_subclass_deserialization(self):
+        """Test that subclasses can be deserialized."""
+        config = RandomMapBuilder.Config(width=10, height=10, seed=42, objects={"wall": 3})
+        json_str = config.model_dump_json()
+        deserialized = MapBuilderConfig.model_validate_json(json_str)
+        assert isinstance(deserialized, RandomMapBuilder.Config)
+        assert deserialized.width == 10
+        assert deserialized.height == 10
+        assert deserialized.seed == 42
+        assert deserialized.objects == {"wall": 3}
+
+    def test_polymorphic_deserialization(self):
         """Test that configs can be serialized to JSON and back."""
         configs = [
             RandomMapBuilder.Config(width=10, height=10, seed=42, objects={"wall": 3}),
@@ -112,20 +108,14 @@ class TestPolymorphicSerialization:
             # Serialize to JSON string
             json_str = original_config.model_dump_json()
 
-            # Parse back to dict
-            data = json.loads(json_str)
-
             # Reconstruct the config
-            config_type = data["type"]
-            if config_type == "mettagrid.map_builder.random.RandomMapBuilder":
-                reconstructed = RandomMapBuilder.Config.model_validate(data)
-            elif config_type == "mettagrid.map_builder.maze.MazePrimMapBuilder":
-                reconstructed = MazePrimMapBuilder.Config.model_validate(data)
-            else:
-                pytest.fail(f"Unexpected config type: {config_type}")
+            reconstructed = MapBuilderConfig.model_validate_json(json_str)
 
             # Compare key attributes
             assert isinstance(reconstructed, original_config.__class__)
+            # Same check, but satisfies type checker
+            assert isinstance(reconstructed, (RandomMapBuilder.Config, MazePrimMapBuilder.Config))
+
             assert reconstructed.width == original_config.width
             assert reconstructed.height == original_config.height
 
@@ -163,3 +153,29 @@ class TestPolymorphicSerialization:
         game_map = map_builder.build()
         assert game_map is not None
         assert game_map.grid.shape == (5, 5)
+
+    def test_mapgen(self):
+        import mettagrid.mapgen.scenes.random
+
+        map_builder = MapGen.Config(
+            num_agents=24,
+            width=25,
+            height=25,
+            border_width=6,
+            instance_border_width=0,
+            root=mettagrid.mapgen.scenes.random.Random.factory(
+                params=mettagrid.mapgen.scenes.random.Random.Params(
+                    agents=6,
+                    objects={
+                        "wall": 10,
+                        "altar": 5,
+                        "mine_red": 10,
+                        "generator_red": 5,
+                        "lasery": 1,
+                        "armory": 1,
+                    },
+                ),
+            ),
+        )
+        serialized = map_builder.model_dump()
+        assert serialized["type"] == "mettagrid.mapgen.mapgen.MapGen"

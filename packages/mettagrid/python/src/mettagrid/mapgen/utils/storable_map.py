@@ -37,17 +37,20 @@ class StorableMap:
 
     grid: MapGrid
     metadata: dict
-    config: MapBuilderConfig  # config that was used to generate the map
+    # Config that was used to generate the map.
+    # We use `dict` here instead of `MapBuilderConfig` because stored maps can include configs that are no longer valid.
+    config: dict
     scene_tree: dict | None = None
 
+    def frontmatter_dict(self) -> FrontmatterDict:
+        return {
+            "metadata": self.metadata,
+            "config": self.config.model_dump() if isinstance(self.config, MapBuilderConfig) else self.config,
+            "scene_tree": self.scene_tree,
+        }
+
     def __str__(self) -> str:
-        frontmatter = yaml.safe_dump(
-            {
-                "metadata": self.metadata,
-                "config": self.config.model_dump(),
-                "scene_tree": self.scene_tree,
-            }
-        )
+        frontmatter = yaml.safe_dump(self.frontmatter_dict())
         content = frontmatter + "\n---\n" + "\n".join(grid_to_lines(self.grid)) + "\n"
         return content
 
@@ -105,13 +108,7 @@ class StorableMap:
 
     # Useful in API responses
     def to_dict(self) -> StorableMapDict:
-        config_dict = self.config.model_dump()
-        assert isinstance(config_dict, dict)
         return {
-            "frontmatter": {
-                "metadata": self.metadata,
-                "config": config_dict,
-                "scene_tree": self.scene_tree,
-            },
+            "frontmatter": self.frontmatter_dict(),
             "data": "\n".join(grid_to_lines(self.grid)),
         }
