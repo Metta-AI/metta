@@ -14,7 +14,7 @@ from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
-from metta.map.terrain_from_numpy import TerrainFromNumpy
+from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
 from . import building, empty_converters
 
@@ -174,21 +174,18 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
     )
     return cfg
 
-def make_in_context_chains_with_numpy(
+
+def make_in_context_chains(
     num_agents: int,
     max_steps,
     game_objects: dict,
-    room_size: str,
+    map_builder_objects: dict,
+    width: int = 6,
+    height: int = 6,
     obstacle_type: Optional[str] = None,
     density: Optional[str] = None,
-    chain_length: int = 2,
-    num_sinks: int = 0,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
-    if obstacle_type is None:
-        terrain = "simple-"
-    else:
-        terrain = f"{obstacle_type}-{density}"
     cfg = MettaGridConfig(
         game=GameConfig(
             max_steps=max_steps,
@@ -196,9 +193,13 @@ def make_in_context_chains_with_numpy(
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_agents,
-                instance_map=TerrainFromNumpy.Config(
-                    agents=num_agents,
-                    dir=f"icl_resource_chain/{room_size}/{chain_length}chains_{num_sinks}sinks/{terrain}",
+                instance_map=PerimeterInContextMapBuilder.Config(
+                    agents=1,
+                    width=width,
+                    height=height,
+                    objects=map_builder_objects,
+                    obstacle_type=obstacle_type,
+                    density=density,
                 ),
             ),
             actions=ActionsConfig(
@@ -221,33 +222,25 @@ def make_in_context_chains_with_numpy(
     return cfg
 
 
-def make_in_context_chains(
+def make_icl_with_numpy(
     num_agents: int,
+    num_instances: int,
     max_steps,
     game_objects: dict,
-    map_builder_objects: dict,
-    room_size: str,
-    obstacle_type: Optional[str] = None,
-    density: Optional[str] = None,
-    chain_length: int = 2,
-    num_sinks: int = 0,
+    object_names: list[str],
+    dir: str,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
-    if obstacle_type is None:
-        terrain = "simple-"
-    else:
-        terrain = f"{obstacle_type}-{density}"
     cfg = MettaGridConfig(
         game=GameConfig(
             max_steps=max_steps,
-            num_agents=num_agents,
+            num_agents=num_agents * num_instances,
             objects=game_objects,
             map_builder=MapGen.Config(
-                instances=num_agents,
-                instance_map=TerrainFromNumpy.Config(
-                    num_agents=num_agents*num_instances,
-                    dir=f"icl_resource_chain/{room_size}/{chain_length}chains_{num_sinks}sinks/{terrain/{random_number}.npy",
+                instances=num_instances,
+                instance_map=InContextLearningFromNumpy.Config(
                     dir=dir,
+                    object_names=object_names,
                 ),
             ),
             actions=ActionsConfig(

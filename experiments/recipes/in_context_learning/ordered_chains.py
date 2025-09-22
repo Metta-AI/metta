@@ -3,7 +3,8 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
-
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
+from metta.rl.training.evaluator import EvaluatorConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -18,8 +19,9 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_in_context_chains
-from mettagrid.builder.envs import make_in_context_chains_with_numpy
+from mettagrid.builder.envs import make_icl_with_numpy
 from mettagrid.config.mettagrid_config import MettaGridConfig
+
 from pydantic import Field
 
 CONVERTER_TYPES = {
@@ -49,6 +51,7 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
+
 class LPParams:
     def __init__(
         self,
@@ -70,35 +73,37 @@ class LPParams:
         self.num_active_tasks = num_active_tasks
         self.rand_task_rate = rand_task_rate
 
+
 curriculum_args = {
-    "small": {
+    "tiny": {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
-        "room_sizes": ["small"],
+        "room_sizes": ["tiny"],
     },
-    "small_medium": {
+    "tiny_small": {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1],
-        "room_sizes": ["small", "medium"],
+        "room_sizes": ["tiny", "small"],
     },
     "all_room_sizes": {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
-        "room_sizes": ["small", "medium", "large"],
+        "room_sizes": ["tiny", "small", "medium"],
     },
     "longer_chains": {
         "chain_lengths": [2, 3, 4, 5, 6, 7],
         "num_sinks": [0, 1, 2],
-        "room_sizes": ["small", "medium", "large"],
+        "room_sizes": ["tiny", "small", "medium"],
     },
     "terrain": {
         "chain_lengths": [2, 3, 4, 5, 6, 7],
         "num_sinks": [0, 1, 2],
         "obstacle_types": ["square", "cross", "L"],
         "densities": ["", "balanced", "sparse", "high"],
-        "room_sizes": ["small", "medium", "large"],
+        "room_sizes": ["tiny", "small", "medium"],
     },
 }
+
 
 @dataclass
 class _BuildCfg:
@@ -174,6 +179,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             self.converter_types, set(cfg.used_objects), rng
         )
         cfg.used_objects.append(sink_name)
+
         sink = self.converter_types[sink_name].copy()
 
         for input_resource in cfg.all_input_resources:
@@ -192,9 +198,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
         avg_hop,
         rng,
         max_steps=512,
-        with_numpy=False,
+        with_numpy=True,
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
+
         resource_chain = ["nothing"] + list(resources) + ["heart"]
 
         chain_length = len(resource_chain)
@@ -211,31 +218,51 @@ class ConverterChainTaskGenerator(TaskGenerator):
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = int(cooldown)
 
-        if with_numpy:
-            return make_in_context_chains_with_numpy(
-                num_agents=24,
+        if with_numpy:  # load from s3
+            terrain = (
+                "simple-" if obstacle_type is None else f"{obstacle_type}-{density}"
+            )
+            dir = f"icl_resource_chain/{room_size}/{len(resources)}chains_{num_sinks}sinks/{terrain}"
+
+            return make_icl_with_numpy(
+                num_agents=1,
+                num_instances=24,
                 max_steps=max_steps,
+                dir=dir,
                 game_objects=cfg.game_objects,
-                room_size=room_size,
-                obstacle_type=obstacle_type,
-                density=density,
-                chain_length=chain_length,
-                num_sinks=num_sinks,
+                object_names=cfg.used_objects,
             )
 
+        size_range = (
+            (8, 12)
+            if room_size == "small"
+            else (12, 16)
+            if room_size == "medium"
+            else (5, 8)
+        )
+
+        width, height = (
+            rng.randint(size_range[0], size_range[1]),
+            rng.randint(size_range[0], size_range[1]),
+        )
         return make_in_context_chains(
             num_agents=24,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
-            room_size=room_size,
+            width=width,
+            height=height,
             obstacle_type=obstacle_type,
             density=density,
-            chain_length=chain_length,
-            num_sinks=num_sinks,
         )
 
-    def _generate_task(self, task_id: int, rng: random.Random, with_numpy: bool = True) -> MettaGridConfig:
+    def _generate_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        with_numpy: bool = True,
+        estimate_max_rewards: bool = False,
+    ) -> MettaGridConfig:
         num_resources = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
@@ -253,17 +280,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         max_steps = self.config.max_steps
 
-        if room_size == "tiny":
-            avg_hop = 7
-        elif room_size == "small":
-            avg_hop = 10
-        elif room_size == "medium":
-            avg_hop = 13
-
-        # optimal reward estimates for the task, to be used in evaluation
-        best_case_optimal_reward, worst_case_optimal_reward = (
-            self._estimate_max_rewards(num_resources, num_sinks, max_steps, avg_hop)
-        )
+        avg_hop = 7 if room_size == "tiny" else 10 if room_size == "small" else 13
 
         icl_env = self._make_env_cfg(
             resources,
@@ -277,10 +294,15 @@ class ConverterChainTaskGenerator(TaskGenerator):
             with_numpy=with_numpy,
         )
 
-        icl_env.game.reward_estimates = {
-            "best_case_optimal_reward": best_case_optimal_reward,
-            "worst_case_optimal_reward": worst_case_optimal_reward,
-        }
+        if estimate_max_rewards:
+            # optimal reward estimates for the task, to be used in evaluation
+            best_case_optimal_reward, worst_case_optimal_reward = (
+                self._estimate_max_rewards(num_resources, num_sinks, max_steps, avg_hop)
+            )
+            icl_env.game.reward_estimates = {
+                "best_case_optimal_reward": best_case_optimal_reward,
+                "worst_case_optimal_reward": worst_case_optimal_reward,
+            }
 
         icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{room_size}"
         icl_env.label += "_terrain" if obstacle_type else ""
@@ -364,7 +386,7 @@ def make_mettagrid(curriculum_style: str) -> MettaGridConfig:
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
 
     env_cfg = task_generator.get_task(0)
-    #TODO FINISHI THIS
+    # TODO FINISHI THIS
     dir = f"icl_resource_chain/{curriculum_style}/{task_generator_cfg.chain_lengths[0]}chains_{task_generator_cfg.num_sinks[0]}sinks/"
 
     return env_cfg
@@ -409,10 +431,22 @@ def train(
     trainer_cfg.batch_size = 4128768
     trainer_cfg.bptt_horizon = 512
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(
+            curriculum=curriculum,
+        ),
+        evaluator=EvaluatorConfig(
+            simulations=make_icl_resource_chain_eval_suite(),
+            evaluate_remote=True,
+            evaluate_local=False,
+        ),
+    )
 
 
-def play(env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain") -> PlayTool:
+def play(
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain"
+) -> PlayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     return PlayTool(
         sim=SimulationConfig(
@@ -422,10 +456,12 @@ def play(env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain
     )
 
 
-def replay(env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain") -> ReplayTool:
+def replay(
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain"
+) -> ReplayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     # Default to the research policy if none specified
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_all_room_sizes.2025-09-19/icl_resource_chain_all_room_sizes.2025-09-19:v1470.pt"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -453,14 +489,14 @@ def evaluate(
 
 def experiment():
     curriculum_styles = [
-        "small",
-        "small_medium",
+        "tiny",
+        "tiny_small",
         "all_room_sizes",
         "longer_chains",
         "terrain",
     ]
 
-    pretrained_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt"
+    pretrained_policy_uri = "s3://softmax-public/policies/icl_resource_chain_all_room_sizes.2025-09-19/icl_resource_chain_all_room_sizes.2025-09-19:v1470.pt"
 
     for curriculum_style in curriculum_styles:
         subprocess.run(
@@ -490,7 +526,13 @@ def experiment():
 
 
 def save_envs_to_numpy(num_envs: int = 1000):
-    curriculum_styles = ["small", "small_medium", "all_room_sizes", "longer_chains", "terrain"]
+    curriculum_styles = [
+        "small",
+        "small_medium",
+        "all_room_sizes",
+        "longer_chains",
+        "terrain",
+    ]
     for curriculum_style in curriculum_styles:
         print(f"Generating {curriculum_style}...")
         for i in range(num_envs):
@@ -501,8 +543,9 @@ def save_envs_to_numpy(num_envs: int = 1000):
             task_generator = ConverterChainTaskGenerator(task_generator_cfg)
             env_cfg = task_generator._generate_task(i, random.Random(i))
             map_builder = env_cfg.game.map_builder.create()
-            map_builder.build()
+            map_builder.build(save_to_numpy=True)
+
 
 if __name__ == "__main__":
-    generate_envs()
-    # experiment()
+    # save_envs_to_numpy()
+    experiment()

@@ -59,6 +59,7 @@ class TerrainFromNumpy(MapBuilder):
         dir: str
         file: Optional[str] = None
         remove_altars: bool = False
+        object_names: list[str] = Field(default_factory=list)
 
     def __init__(self, config: Config):
         self.config = config
@@ -88,6 +89,14 @@ class TerrainFromNumpy(MapBuilder):
         return valid_positions
 
     def build(self):
+        pass
+
+
+class NavigationFromNumpy(TerrainFromNumpy):
+    def __init__(self, config: TerrainFromNumpy.Config):
+        super().__init__(config)
+
+    def build(self):
         root = self.config.dir.split("/")[0]
 
         map_dir = f"train_dir/{self.config.dir}"
@@ -112,7 +121,7 @@ class TerrainFromNumpy(MapBuilder):
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
-        # remove agents to then repopulate
+        # for navigation we remove and repopulate agents
         grid[grid == "agent.agent"] = "empty"
 
         if self.config.remove_altars:
@@ -146,5 +155,42 @@ class TerrainFromNumpy(MapBuilder):
             for pos in positions:
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
+
+        return GameMap(grid=grid)
+
+
+class InContextLearningFromNumpy(TerrainFromNumpy):
+    def __init__(self, config: TerrainFromNumpy.Config):
+        super().__init__(config)
+
+    def build(self):
+        root = self.config.dir.split("/")[0]
+
+        map_dir = f"train_dir/{self.config.dir}"
+        root_dir = f"train_dir/{root}"
+
+        s3_path = f"{MAPS_ROOT}/{root}.zip"
+        local_zipped_dir = root_dir + ".zip"
+        # Only one process can hold this lock at a time:
+        with FileLock(local_zipped_dir + ".lock"):
+            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
+                download_from_s3(s3_path, local_zipped_dir)
+            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
+                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root_dir))
+                os.remove(local_zipped_dir)
+                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+
+        if self.config.file is None:
+            uri = pick_random_file(map_dir)
+        else:
+            uri = self.config.file
+
+        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
+
+        converter_indices = np.argwhere((grid != "agent.agent") & (grid != "wall") & (grid != "empty"))
+
+        for object, index in zip(self.config.object_names, converter_indices, strict=True):
+            grid[tuple(index)] = object
 
         return GameMap(grid=grid)
