@@ -24,7 +24,7 @@ from mettagrid.builder.envs import make_arena
 
 class TestTrainerCheckpointIntegration:
     def setup_method(self) -> None:
-        self.temp_dir = tempfile.mkdtemp()
+        self.temp_dir = Path(tempfile.mkdtemp())
         self.run_root = Path(self.temp_dir) / "runs"
         self.run_root.mkdir(parents=True, exist_ok=True)
 
@@ -34,11 +34,8 @@ class TestTrainerCheckpointIntegration:
 
     def _create_minimal_config(
         self,
-        run_dir: Path,
     ) -> tuple[TrainerConfig, TrainingEnvironmentConfig, FastConfig, SystemConfig]:
         curriculum = env_curriculum(make_arena(num_agents=6))
-
-        run_dir.mkdir(parents=True, exist_ok=True)
 
         trainer_cfg = TrainerConfig(
             total_timesteps=1_000,
@@ -71,7 +68,6 @@ class TestTrainerCheckpointIntegration:
         self,
         *,
         run_name: str,
-        run_root: Path,
         trainer_cfg: TrainerConfig,
         training_env_cfg: TrainingEnvironmentConfig,
         policy_cfg: FastConfig,
@@ -79,18 +75,13 @@ class TestTrainerCheckpointIntegration:
     ) -> None:
         tool = TrainTool(
             run=run_name,
-            run_dir=str(run_root),
-            device=system_cfg.device,
-            system=system_cfg.model_copy(deep=True),
+            system_cfg=system_cfg.model_copy(deep=True),
             trainer=trainer_cfg.model_copy(deep=True),
             training_env=training_env_cfg.model_copy(deep=True),
             policy_architecture=policy_cfg.model_copy(deep=True),
             stats_server_uri=None,
             checkpointer=CheckpointerConfig(epoch_interval=1),
-            context_checkpointer=ContextCheckpointerConfig(
-                epoch_interval=1,
-                checkpoint_dir=str(run_root / run_name / "checkpoints"),
-            ),
+            context_checkpointer=ContextCheckpointerConfig(epoch_interval=1),
             evaluator=EvaluatorConfig(epoch_interval=0, evaluate_local=False, evaluate_remote=False),
         )
         tool.invoke({})
@@ -98,14 +89,13 @@ class TestTrainerCheckpointIntegration:
     def test_trainer_checkpoint_save_and_resume(self) -> None:
         run_name = "test_checkpoint_run"
         expected_run_dir = self.run_root / run_name
-        trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config(expected_run_dir)
+        trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=str(self.run_root))
+        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         print("Starting first training run...")
         self._run_training(
             run_name=run_name,
-            run_root=self.run_root,
             trainer_cfg=trainer_cfg,
             training_env_cfg=training_env_cfg,
             policy_cfg=policy_cfg,
@@ -130,11 +120,10 @@ class TestTrainerCheckpointIntegration:
         print("Starting second training run (resume from checkpoint)...")
         trainer_cfg.total_timesteps = first_run_agent_step + 500
 
-        checkpoint_manager_2 = CheckpointManager(run=run_name, run_dir=str(self.run_root))
+        checkpoint_manager_2 = CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
-            run_root=self.run_root,
             trainer_cfg=trainer_cfg,
             training_env_cfg=training_env_cfg,
             policy_cfg=policy_cfg,
@@ -152,16 +141,13 @@ class TestTrainerCheckpointIntegration:
         assert len(policy_files_2) >= len(policy_files)
 
     def test_checkpoint_fields_are_preserved(self) -> None:
-        run_name = "test_checkpoint_fields_are_preserved"
-        run_dir = Path(self.run_root)
+        run_name = "test_checkpoint_fields"
+        trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
-        trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config(run_dir=run_dir)
-
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=str(run_dir))
+        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
-            run_root=self.run_root,
             trainer_cfg=trainer_cfg,
             training_env_cfg=training_env_cfg,
             policy_cfg=policy_cfg,
@@ -179,14 +165,12 @@ class TestTrainerCheckpointIntegration:
 
     def test_policy_loading_from_checkpoint(self) -> None:
         run_name = "test_policy_loading"
-        expected_run_dir = self.run_root / run_name
-        trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config(expected_run_dir)
+        trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=str(self.run_root))
+        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
-            run_root=self.run_root,
             trainer_cfg=trainer_cfg,
             training_env_cfg=training_env_cfg,
             policy_cfg=policy_cfg,

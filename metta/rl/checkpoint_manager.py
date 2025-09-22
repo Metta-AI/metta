@@ -1,4 +1,5 @@
 import logging
+import os
 import pickle
 from collections import OrderedDict
 from pathlib import Path
@@ -7,6 +8,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
+from metta.rl.system_config import SystemConfig
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -147,9 +149,8 @@ class CheckpointManager:
 
     def __init__(
         self,
-        run_dir: str,
-        remote_prefix: str | None = None,
-        run: str = "default",
+        run: str,
+        system_cfg: SystemConfig,
         cache_size: int = 3,
     ):
         # Validate run name
@@ -162,14 +163,19 @@ class CheckpointManager:
 
         self.run = run
         self.run_name = run
-        self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
+        self.run_dir = system_cfg.data_dir / self.run
+        self.checkpoint_dir = self.run_dir / "checkpoints"
+
+        os.makedirs(system_cfg.data_dir, exist_ok=True)
+        os.makedirs(self.run_dir, exist_ok=True)
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
         self.cache_size = cache_size
         self._cache = OrderedDict()
 
         self._remote_prefix = None
-        if remote_prefix:
-            parsed = ParsedURI.parse(remote_prefix)
+        if system_cfg.remote_prefix:
+            parsed = ParsedURI.parse(system_cfg.remote_prefix)
             if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
                 raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
             # Remove trailing slash from prefix for deterministic joins

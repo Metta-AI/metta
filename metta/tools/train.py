@@ -1,7 +1,6 @@
 import contextlib
 import os
 import platform
-from pathlib import Path
 from typing import Optional
 
 import torch
@@ -15,7 +14,6 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.system_config import guess_device
 from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
@@ -57,9 +55,6 @@ logger = getRankAwareLogger(__name__)
 
 class TrainTool(Tool):
     run: Optional[str] = None
-    run_dir: Optional[str] = None  # if none, auto-assigned based on the name
-    remote_prefix: Optional[str] = None
-    device: str = guess_device()
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
@@ -102,46 +97,35 @@ class TrainTool(Tool):
 
         group_override = args.get("group")
 
-        if self.run_dir is None:
-            self.run_dir = f"{self.system.data_dir}/{self.run}"
-
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
         if group_override:
             self.wandb.group = group_override
 
-        self._setup_checkpoint_directory()
         self._setup_remote_prefix()
-
-        init_logging(run_dir=self.run_dir)
 
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
-        os.makedirs(self.run_dir, exist_ok=True)
-        init_logging(run_dir=self.run_dir)
-        record_heartbeat()
-
-        distributed_helper = DistributedHelper(torch.device(self.device))
+        distributed_helper = DistributedHelper(torch.device(self.system_cfg.device))
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 
-        checkpoint_manager = CheckpointManager(
-            run=self.run or "default",
-            run_dir=self.run_dir or str(Path(self.system.data_dir)),
-            remote_prefix=self.remote_prefix,
-        )
+        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system_cfg)
 
         if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
             raise ValueError("without a remote prefix we cannot use remote evaluation")
 
+        init_logging(run_dir=checkpoint_manager.run_dir)
+        record_heartbeat()
+
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
-        self._log_run_configuration(distributed_helper, env)
+        self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
         stats_client = self._maybe_create_stats_client(distributed_helper)
         wandb_manager = self._build_wandb_manager(distributed_helper)
@@ -164,11 +148,6 @@ class TrainTool(Tool):
             if stats_client and hasattr(stats_client, "close"):
                 stats_client.close()
             distributed_helper.cleanup()
-
-    def _setup_checkpoint_directory(self) -> None:
-        """Set up the checkpoint directory if not already configured."""
-        if not self.context_checkpointer.checkpoint_dir:
-            self.context_checkpointer.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
     def _setup_remote_prefix(self) -> None:
         """Determine and set the remote prefix for policy storage if needed."""
@@ -216,12 +195,6 @@ class TrainTool(Tool):
         )
         return policy_checkpointer, policy
 
-    def _checkpoint_base_dir(self) -> str:
-        """Return the directory that should contain per-run subdirectories."""
-        if not self.run_dir:
-            return str(Path(self.system.data_dir))
-        return str(Path(self.run_dir).parent)
-
     def _initialize_trainer(
         self,
         env: VectorizedTrainingEnvironment,
@@ -232,7 +205,7 @@ class TrainTool(Tool):
             self.trainer,
             env,
             policy,
-            torch.device(self.device),
+            torch.device(self.system_cfg.device),
             distributed_helper=distributed_helper,
             run_name=self.run,
         )
@@ -291,8 +264,8 @@ class TrainTool(Tool):
             components.append(
                 Evaluator(
                     config=self.evaluator,
-                    device=torch.device(self.device),
-                    system_cfg=self.system,
+                    device=torch.device(self.system_cfg.device),
+                    system_cfg=self.system_cfg,
                     stats_client=stats_client,
                 )
             )
@@ -325,7 +298,7 @@ class TrainTool(Tool):
                 TorchProfiler(
                     profiler_config=self.torch_profiler,
                     wandb_run=wandb_run,
-                    run_dir=self.run_dir,
+                    run_dir=checkpoint_manager.run_dir,
                     is_master=True,
                 )
             )
@@ -341,16 +314,17 @@ class TrainTool(Tool):
     def _log_run_configuration(
         self,
         distributed_helper: DistributedHelper,
+        checkpoint_manager: CheckpointManager,
         env: VectorizedTrainingEnvironment,
     ) -> None:
         if not distributed_helper.is_master():
             return
 
-        if not self.run_dir:
+        if not checkpoint_manager.run_dir:
             raise ValueError("cannot _log_run_configuration without a valid run_dir")
 
         logger.info(f"Training environment: {env}")
-        config_path = os.path.join(self.run_dir, "config.json")
+        config_path = os.path.join(checkpoint_manager.run_dir, "config.json")
         with open(config_path, "w") as config_file:
             config_file.write(self.model_dump_json(indent=2))
         logger.info(f"Config saved to {config_path}")
