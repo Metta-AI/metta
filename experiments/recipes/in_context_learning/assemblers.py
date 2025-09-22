@@ -39,7 +39,7 @@ from metta.tools.sim import SimTool
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
 from metta.sim.simulation_config import SimulationConfig
-
+import numpy as np
 CONVERTER_TYPES = {
     "generator_red": building.assembler_generator_red,
     "generator_blue": building.assembler_generator_blue,
@@ -61,87 +61,140 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
+# curriculum_args = {
+#     # 1) Single agent, only altars; positions vary (Any, W+E, N+S)
+#     "single_agent_only_altars": {
+#         "num_agents": [1],
+#         "num_altars": [2],
+#         "num_converters": [0],
+#         "widths": [6, 10, 12],
+#         "heights": [6, 10, 12],
+#         "generator_positions": [["Any"]],
+#         "altar_positions": [["Any"], ["W"], ["E"], ["N"], ["S"]],
+#     },
+#
+#     # 2) Single agent, 1 converter + 1 altar; positions Any or single-side (N/S/E/W) TODO: cur
+#     "single_agent_converter_and_altar": {
+#         "num_agents": [1],
+#         "num_altars": [1],
+#         "num_converters": [1],
+#         "widths": [6, 10, 12],
+#         "heights": [6, 10, 12],
+#         "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+#         "altar_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+#         "altar_inputs": ["one"],                          # one converter available
+#     },
+#
+#     # 3) Single agent, 2 converters + 1 altar; only one converter required
+#     #    Positions: either Any for both, or both constrained to N+S or E+W error: unknown object type generator_green
+#     "single_agent_two_converters_one_active": {
+#         "num_agents": [1],
+#         "num_altars": [1],
+#         "num_converters": [2],
+#         "widths": [6, 10, 12],
+#         "heights": [6, 10, 12],
+#         "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+#         "altar_positions": [["Any"]],
+#         "altar_inputs": ["one"],                          # only one converter’s output needed
+#     },
+#
+#     # 4) Multi-agent (up to 2 agents), 2 altars; Any positions ISSUE: cooldown needs to be longer or we'll get degenerate strategies. is there another way to enforce alternate usage?
+#     "multi_agent_any": {
+#         "num_agents": [1, 2],
+#         "num_altars": [2],
+#         "num_converters": [0],
+#         "widths": [4, 6, 8, 10],
+#         "heights": [4, 6, 8, 10],
+#         "generator_positions": [["Any"]],          # no converters, ignored
+#         "altar_positions": [["Any"]],
+#         "altar_inputs": ["one"],
+#     },
+#
+#     # 5) Multi-agent (2 agents), altars positioned N+S or W+E
+#     "multi_agent_altars": {
+#         "num_agents": [2],
+#         "num_altars": [2],
+#         "num_converters": [0],
+#         "widths": [4, 6, 8, 10],
+#         "heights": [4, 6, 8, 10],
+#         "generator_positions": [["Any", "Any"]],          # no converters, ignored
+#         "altar_positions": [["N", "S"], ["W", "E"]],
+#         "altar_inputs": ["one"],
+#     },
+#     "multi_agent_both": {
+#         "num_agents": [2],
+#         "num_altars": [1],
+#         "num_converters": [2],
+#         "widths": [4, 6, 8, 10],
+#         "heights": [4, 6, 8, 10],
+#         "generator_positions": [["Any", "Any"], ["N", "S"], ["E", "W"]],
+#         "altar_positions": [["Any"]],
+#         "altar_inputs": ["both"],
+#     },
+#     "multi_agent_one_converter_one_altar": {
+#         "num_agents": [2],
+#         "num_altars": [1],
+#         "num_converters": [1],
+#         "widths": [4, 6, 8, 10],
+#         "heights": [4, 6, 8, 10],
+#         "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+#         "altar_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
+#         "altar_inputs": ["one"],
+#     },
+# }
+
 curriculum_args = {
-    # 1) Single agent, only altars; positions vary (Any, W+E, N+S)
-    "single_agent_only_altars": {
+    "single_agent_two_altars": {
         "num_agents": [1],
         "num_altars": [2],
         "num_converters": [0],
-        "widths": [6, 10, 12],
-        "heights": [6, 10, 12],
+        "widths": [5, 6, 7, 8],
+        "heights": [5, 6, 7, 8],
         "generator_positions": [["Any"]],
-        "altar_positions": [["Any"], ["W"], ["E"], ["N"], ["S"]],
+        "altar_positions": [
+            ["Any"],
+            ["N", "S"], ["E", "W"],
+            ["N", "E"], ["N", "W"], ["S", "E"], ["S", "W"],
+            ["N"], ["S"], ["E"], ["W"],
+        ],
     },
-
-    # 2) Single agent, 1 converter + 1 altar; positions Any or single-side (N/S/E/W) TODO: cur
-    "single_agent_converter_and_altar": {
-        "num_agents": [1],
-        "num_altars": [1],
-        "num_converters": [1],
-        "widths": [6, 10, 12],
-        "heights": [6, 10, 12],
-        "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
-        "altar_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
-        "altar_inputs": ["one"],                          # one converter available
-    },
-
-    # 3) Single agent, 2 converters + 1 altar; only one converter required
-    #    Positions: either Any for both, or both constrained to N+S or E+W error: unknown object type generator_green
-    "single_agent_two_converters_one_active": {
-        "num_agents": [1],
-        "num_altars": [1],
-        "num_converters": [2],
-        "widths": [6, 10, 12],
-        "heights": [6, 10, 12],
-        "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
-        "altar_positions": [["Any"]],
-        "altar_inputs": ["one"],                          # only one converter’s output needed
-    },
-
-    # 4) Multi-agent (up to 2 agents), 2 altars; Any positions ISSUE: cooldown needs to be longer or we'll get degenerate strategies. is there another way to enforce alternate usage?
-    "multi_agent_any": {
-        "num_agents": [1, 2],
-        "num_altars": [2],
-        "num_converters": [0],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any"]],          # no converters, ignored
-        "altar_positions": [["Any"]],
-        "altar_inputs": ["one"],
-    },
-
-    # 5) Multi-agent (2 agents), altars positioned N+S or W+E
-    "multi_agent_altars": {
+    "two_agent_two_altars_pattern": {
         "num_agents": [2],
         "num_altars": [2],
         "num_converters": [0],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any", "Any"]],          # no converters, ignored
-        "altar_positions": [["N", "S"], ["W", "E"]],
-        "altar_inputs": ["one"],
+        "widths": [5, 6, 7, 8],
+        "heights": [5, 6, 7, 8],
+        "generator_positions": [["Any"]],
+        "altar_positions": [
+            ["Any"],
+            ["N", "S"], ["E", "W"],
+            ["N", "E"], ["N", "W"], ["S", "E"], ["S", "W"],
+        ],
     },
-    "multi_agent_both": {
+    "two_agent_two_altars_any": {
         "num_agents": [2],
-        "num_altars": [1],
-        "num_converters": [2],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any", "Any"], ["N", "S"], ["E", "W"]],
+        "num_altars": [2],
+        "num_converters": [0],
+        "widths": [5, 6, 7, 8],
+        "heights": [5, 6, 7, 8],
+        "generator_positions": [["Any"]],
         "altar_positions": [["Any"]],
-        "altar_inputs": ["both"],
     },
-    "multi_agent_one_converter_one_altar": {
-        "num_agents": [2],
-        "num_altars": [1],
-        "num_converters": [1],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
-        "altar_positions": [["Any"], ["N"], ["S"], ["E"], ["W"]],
-        "altar_inputs": ["one"],
-    },
-    }
+    # "three_agents_two_altars": {
+    #     "num_agents": [3],
+    #     "num_altars": [2],
+    #     "num_converters": [0],
+    #     "widths": [4, 6, 8, 10],
+    #     "heights": [4, 6, 8, 10],
+    #     "generator_positions": [["Any"]],
+    #     "altar_positions": [
+    #         ["Any"],
+    #         ["N", "S"], ["E", "W"],
+    #         ["N", "E"], ["N", "W"], ["S", "E"], ["S", "W"],
+    #         ["N"], ["S"], ["E"], ["W"],
+    #     ],
+    # },
+}
 
 @dataclass
 class _BuildCfg:
@@ -212,7 +265,7 @@ class AssemblerTaskGenerator(TaskGenerator):
             recipe = (
                 converter_positions,
                 RecipeConfig(
-                    input_resources={}, output_resources={resources[i]: 1}, cooldown=10
+                    input_resources={}, output_resources={resources[i]: 1}, cooldown=20
                 ),
             )
             converter.recipes = [recipe]
@@ -231,7 +284,7 @@ class AssemblerTaskGenerator(TaskGenerator):
                 RecipeConfig(
                     input_resources=input_resources,
                     output_resources={"heart": 1},
-                    cooldown=10,
+                    cooldown=20,
                 ),
             )
             altar.recipes = [recipe]
@@ -283,10 +336,10 @@ class AssemblerTaskGenerator(TaskGenerator):
         )
 
 
-def make_mettagrid(curriculum_style: str = "single_agent_only_altars") -> MettaGridConfig:
+def make_mettagrid(curriculum_style: str = "single_agent_two_altars") -> MettaGridConfig:
     task_generator_cfg = AssemblerTaskGenerator.Config( **curriculum_args[curriculum_style])
     task_generator = AssemblerTaskGenerator(task_generator_cfg)
-    return task_generator.get_task(0)
+    return task_generator.get_task(np.random.randint(0, 1000000))
 
 
 def make_curriculum(
@@ -313,14 +366,14 @@ def make_curriculum(
     return CurriculumConfig(task_generator=task_generator_cfg)
 
 
-def train(curriculum_style: str = "single_agent_only_altars") -> TrainTool:
+def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
     curriculum = make_curriculum(**curriculum_args[curriculum_style])
     trainer_cfg = TrainerConfig(
         curriculum=curriculum,
     )
     return TrainTool(trainer=trainer_cfg)
 
-def play(curriculum_style: str = "single_agent_only_altars") -> PlayTool:
+def play(curriculum_style: str = "single_agent_two_altars") -> PlayTool:
     eval_env = make_mettagrid(curriculum_style)
     return PlayTool(
         sim=SimulationConfig(
@@ -330,7 +383,7 @@ def play(curriculum_style: str = "single_agent_only_altars") -> PlayTool:
     )
 
 
-def replay(curriculum_style: str = "single_agent_only_altars") -> ReplayTool:
+def replay(curriculum_style: str = "single_agent_two_altars") -> ReplayTool:
     eval_env = make_mettagrid(curriculum_style)
     # Default to the research policy if none specified
     default_policy_uri = (
