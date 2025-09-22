@@ -65,6 +65,7 @@ jobs:
             curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
           CI: "true"
         with:
           package-dir: packages/mettagrid
