@@ -1153,9 +1153,13 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
   const Recipe* current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe0.get());
 
-  // Test with no grid set
-  assembler->set_grid(nullptr);
-  EXPECT_EQ(assembler->get_current_recipe(), nullptr);
+  // Add one agent at NW position (bit 0) - should get pattern 1 (recipe1)
+  AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
+  Agent* agent = new Agent(4, 4, agent_cfg);  // NW of assembler
+  grid.add_object(agent);
+
+  current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent, should select recipe1";
 }
 
 TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
