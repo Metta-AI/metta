@@ -185,7 +185,7 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
             f"Mismatch between object names ({len(self.config.object_names)}) "
             f"and available positions ({len(converter_indices)})"
         )
-        for object, index in zip(self.config.object_names, converter_indices, strict=False):
+        for object, index in zip(self.config.object_names, converter_indices):
             grid[tuple(index)] = object
 
         return GameMap(grid=grid)
