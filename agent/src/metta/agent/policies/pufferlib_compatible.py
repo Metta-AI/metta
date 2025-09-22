@@ -9,6 +9,7 @@ import torch
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
+import einops
 
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.components.actor import (
@@ -91,6 +92,8 @@ class PufferLibCompatiblePolicy(Policy):
         # Build components to match PufferLib exactly
         self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
 
+        self.num_layers = max(env.feature_normalizations.keys()) + 1
+
 
         self.conv1 = nn.Conv2d(24, 128, kernel_size=5, stride=3)
         self.conv2 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
@@ -117,7 +120,7 @@ class PufferLibCompatiblePolicy(Policy):
         self.max_vec = torch.tensor(self.max_vec, dtype=torch.float32)
         self.max_vec = torch.maximum(self.max_vec, torch.ones_like(self.max_vec))
         self.max_vec = self.max_vec[None, :, None, None]
-        self.register_buffer("max_vec", self.max_vec)
+        # self.register_buffer("max_vec", self.max_vec)
 
         action_nvec = self.env.single_action_space.nvec
         self.actor = nn.ModuleList(
@@ -131,7 +134,7 @@ class PufferLibCompatiblePolicy(Policy):
 
 
         # # LSTM with 512 hidden size to match PufferLib
-        # self.lstm = LSTM(config=self.config.lstm_config)
+        self.lstm = LSTM(config=self.config.lstm_config)
 
     def encode_observations(
         self, observations: torch.Tensor, state=None
@@ -203,8 +206,10 @@ class PufferLibCompatiblePolicy(Policy):
         observations = td["env_obs"]
         hidden = self.encode_observations(observations)
         logits, value = self.decode_actions(hidden)
+
         td["action_probs"] = logits
-        td["values"] = value
+        td["values"] = value.flatten()
+        
 
         return td
 
