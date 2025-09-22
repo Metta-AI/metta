@@ -40,7 +40,7 @@ dependencies = [
   "pixie-python>=4.3.0",
   "plotly>=6.1.1",
   "psycopg[binary]>=3.2.9",
-  "pufferlib @ git+https://github.com/PufferAI/PufferLib@3.0",
+  "pufferlib>=3.0.0,<3.1.0",
   "pyarrow>=21.0.0",
   "pybind11>=2.10.4",
   "pydantic>=2.11.5",
@@ -60,8 +60,7 @@ dependencies = [
   "tensordict>=0.8.3",
   "termcolor>=2.4.0",
   "tiktoken>=0.9.0",
-  "torch==2.10.0.dev20250920+cu130",
-  "torchvision==0.25.0.dev20250921+cu130",
+  "torch>=2.7.1",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
   "typer>=0.16.0",
@@ -132,8 +131,6 @@ addopts = "-n auto --import-mode=importlib -W ignore:Gym\\ has\\ been\\ unmainta
 pythonpath = [".", "packages/mettagrid/python/src"]
 
 [tool.uv]
-extra-index-url = ["https://download.pytorch.org/whl/nightly/cu130"]
-index-strategy = "unsafe-best-match"
 cache-keys = [
   { file = "pyproject.toml" },
   { file = "packages/mettagrid/BUILD" },
@@ -141,7 +138,6 @@ cache-keys = [
   { file = "metta/**/*.{cpp,hpp}" },
 ]
 default-groups = ["interactive", "dev"]
-no-build-isolation-package = ["pufferlib"]
 
 [tool.uv.workspace]
 members = [
