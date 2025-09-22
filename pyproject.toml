@@ -141,6 +141,7 @@ cache-keys = [
   { file = "metta/**/*.{cpp,hpp}" },
 ]
 default-groups = ["interactive", "dev"]
+no-build-isolation-package = ["pufferlib"]
 
 [tool.uv.workspace]
 members = [
