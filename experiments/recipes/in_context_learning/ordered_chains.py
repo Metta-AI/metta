@@ -423,7 +423,6 @@ def train(
         evaluator=EvaluatorConfig(
             simulations=make_icl_resource_chain_eval_suite(),
             evaluate_remote=True,
-            evaluate_local=False,
         ),
     )
 
