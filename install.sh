@@ -57,7 +57,7 @@ for cmd in uv bazel git g++; do
   fi
 done
 
-uv sync --no-build-isolation-package pufferlib
+uv sync
 uv run python -m metta.setup.metta_cli symlink-setup setup --quiet
 uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 

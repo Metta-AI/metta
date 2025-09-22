@@ -570,7 +570,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "mettagrid", editable = "packages/mettagrid" },
-    { name = "pufferlib", git = "https://github.com/relh/PufferLib?rev=richard-no-build-isolation" },
+    { name = "pufferlib", git = "https://github.com/PufferAI/PufferLib?rev=3.0" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "rich", specifier = ">=13.7.0" },
@@ -2137,7 +2137,7 @@ requires-dist = [
     { name = "pixie-python", specifier = ">=4.3.0" },
     { name = "plotly", specifier = ">=6.1.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
-    { name = "pufferlib", git = "https://github.com/relh/PufferLib?rev=richard-no-build-isolation" },
+    { name = "pufferlib", git = "https://github.com/PufferAI/PufferLib?rev=3.0" },
     { name = "pyarrow", specifier = ">=21.0.0" },
     { name = "pybind11", specifier = ">=2.10.4" },
     { name = "pydantic", specifier = ">=2.11.5" },
@@ -2227,7 +2227,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pufferlib", git = "https://github.com/relh/PufferLib?rev=richard-no-build-isolation" }]
+requires-dist = [{ name = "pufferlib", git = "https://github.com/PufferAI/PufferLib?rev=3.0" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2362,7 +2362,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26.4,<2" },
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pettingzoo", specifier = ">=1.24.1,<1.25" },
-    { name = "pufferlib", git = "https://github.com/relh/PufferLib?rev=richard-no-build-isolation" },
+    { name = "pufferlib", git = "https://github.com/PufferAI/PufferLib?rev=3.0" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "scipy", specifier = ">=1.15.3" },
@@ -3250,7 +3250,7 @@ wheels = [
 [[package]]
 name = "pufferlib"
 version = "3.0.0"
-source = { git = "https://github.com/relh/PufferLib?rev=richard-no-build-isolation#c66c3032f5b24cf3dacbabc312e15fcb64551166" }
+source = { git = "https://github.com/PufferAI/PufferLib?rev=3.0#59553d07c2b2696018fe0893f899c6625556791d" }
 dependencies = [
     { name = "gym" },
     { name = "gymnasium" },
