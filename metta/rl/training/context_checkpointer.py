@@ -1,11 +1,8 @@
 """Trainer state checkpoint management component."""
 
 import logging
-import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
-
-from pydantic import Field, model_validator
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
@@ -25,23 +22,6 @@ class ContextCheckpointerConfig(Config):
     keep_last_n: int = 5
     """Number of trainer checkpoints to retain locally."""
 
-    checkpoint_path_override: str | None = Field(default=None)
-    """Optional override for the checkpoint directory (deprecated: use run_dir instead)."""
-
-    deprecated_checkpoint_dir: str | None = Field(default=None, alias="checkpoint_dir", exclude=True)
-
-    @model_validator(mode="after")
-    def _apply_deprecated_checkpoint_dir(self) -> "ContextCheckpointerConfig":
-        if self.deprecated_checkpoint_dir:
-            warnings.warn(
-                "ContextCheckpointerConfig.checkpoint_dir is deprecated; set TrainTool.run_dir instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            if self.checkpoint_path_override is None:
-                self.checkpoint_path_override = self.deprecated_checkpoint_dir
-        return self
-
 
 class ContextCheckpointer(TrainerComponent):
     """Persist and restore optimizer/timing state alongside policy checkpoints."""
@@ -59,23 +39,15 @@ class ContextCheckpointer(TrainerComponent):
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
-        self._explicit_dir = Path(config.checkpoint_path_override) if config.checkpoint_path_override else None
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
-        target_path = self._explicit_dir if self._explicit_dir else self._checkpoint_manager.checkpoint_dir
+        target_path = self._checkpoint_manager.checkpoint_dir
         target_path.mkdir(parents=True, exist_ok=True)
-        if self._explicit_dir:
-            self._checkpoint_manager.checkpoint_dir = target_path
-            logger.debug(
-                "Trainer checkpoints will be written to explicit override %s",
-                target_path,
-            )
-        else:
-            logger.debug("Trainer checkpoints will be written to %s", target_path)
+        logger.debug("Trainer checkpoints will be written to %s", target_path)
 
     # ------------------------------------------------------------------
     # Public API used by Trainer
