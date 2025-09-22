@@ -9,7 +9,7 @@ import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 from pydantic import Field
-
+import json
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.util.uri import ParsedURI
 
@@ -64,6 +64,25 @@ class TerrainFromNumpy(MapBuilder):
     def __init__(self, config: Config):
         self.config = config
 
+    def setup(self):
+        root = self.config.dir.split("/")[0]
+
+        map_dir = f"train_dir/{self.config.dir}"
+        root_dir = f"train_dir/{root}"
+
+        s3_path = f"{MAPS_ROOT}/{root}.zip"
+        local_zipped_dir = root_dir + ".zip"
+        # Only one process can hold this lock at a time:
+        with FileLock(local_zipped_dir + ".lock"):
+            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
+                download_from_s3(s3_path, local_zipped_dir)
+            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
+                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root_dir))
+                os.remove(local_zipped_dir)
+                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+        return map_dir
+
     def get_valid_positions(self, level):
         # Create a boolean mask for empty cells
         empty_mask = level == "empty"
@@ -97,23 +116,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
         super().__init__(config)
 
     def build(self):
-        root = self.config.dir.split("/")[0]
-
-        map_dir = f"train_dir/{self.config.dir}"
-        root_dir = f"train_dir/{root}"
-
-        s3_path = f"{MAPS_ROOT}/{root}.zip"
-        local_zipped_dir = root_dir + ".zip"
-        # Only one process can hold this lock at a time:
-        with FileLock(local_zipped_dir + ".lock"):
-            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
-                download_from_s3(s3_path, local_zipped_dir)
-            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
-                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
-                    zip_ref.extractall(os.path.dirname(root_dir))
-                os.remove(local_zipped_dir)
-                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
-
+        map_dir = self.setup()
         if self.config.file is None:
             uri = pick_random_file(map_dir)
         else:
@@ -164,22 +167,7 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
         super().__init__(config)
 
     def build(self):
-        root = self.config.dir.split("/")[0]
-
-        map_dir = f"train_dir/{self.config.dir}"
-        root_dir = f"train_dir/{root}"
-
-        s3_path = f"{MAPS_ROOT}/{root}.zip"
-        local_zipped_dir = root_dir + ".zip"
-        # Only one process can hold this lock at a time:
-        with FileLock(local_zipped_dir + ".lock"):
-            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
-                download_from_s3(s3_path, local_zipped_dir)
-            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
-                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
-                    zip_ref.extractall(os.path.dirname(root_dir))
-                os.remove(local_zipped_dir)
-                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+        map_dir = self.setup()
 
         if self.config.file is None:
             uri = pick_random_file(map_dir)

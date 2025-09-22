@@ -347,6 +347,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         max_steps = self.config.max_steps
 
+        # estimate average hop for cooldowns
         avg_hop = 7 if room_size == "tiny" else 10 if room_size == "small" else 13
 
         icl_env = self._make_env_cfg(
@@ -361,7 +362,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
             numpy_dir=numpy_dir,
         )
 
-        if estimate_max_rewards:
+        # for numpy generated maps, we just load these rewards from a file
+        if numpy_dir is None and estimate_max_rewards:
             # optimal reward estimates for the task, to be used in evaluation
             best_case_optimal_reward, worst_case_optimal_reward = get_reward_estimates(
                 num_resources, num_sinks, max_steps, avg_hop
@@ -385,8 +387,6 @@ def make_mettagrid(curriculum_style: str) -> MettaGridConfig:
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
 
     env_cfg = task_generator.get_task(0)
-    # TODO FINISHI THIS
-    dir = f"icl_resource_chain/{curriculum_style}/{task_generator_cfg.chain_lengths[0]}chains_{task_generator_cfg.num_sinks[0]}sinks/"
 
     return env_cfg
 
