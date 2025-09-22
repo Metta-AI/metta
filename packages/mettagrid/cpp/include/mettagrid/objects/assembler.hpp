@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -143,9 +142,6 @@ public:
   // Current cooldown state
   unsigned int cooldown_end_timestep;
 
-  // Event manager for scheduling cooldown events
-  class EventManager* event_manager;
-
   // Stats tracking
   class StatsTracker stats;
 
@@ -156,19 +152,10 @@ public:
   unsigned int* current_timestep_ptr;
 
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
-      : recipes(cfg.recipes),
-        cooldown_end_timestep(0),
-        event_manager(nullptr),
-        grid(nullptr),
-        current_timestep_ptr(nullptr) {
+      : recipes(cfg.recipes), cooldown_end_timestep(0), grid(nullptr), current_timestep_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
-
-  // Set event manager for cooldown scheduling
-  void set_event_manager(class EventManager* event_manager_ptr) {
-    this->event_manager = event_manager_ptr;
-  }
 
   // Set grid access
   void set_grid(class Grid* grid_ptr) {
@@ -190,7 +177,7 @@ public:
 
   // Implement pure virtual method from Usable
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
-    if (!grid || !event_manager || !current_timestep_ptr) {
+    if (!grid || !current_timestep_ptr) {
       return false;
     }
     if (cooldown_remaining() > 0) {
@@ -214,7 +201,6 @@ public:
     stats.incr("assembler.recipe_pattern_" + std::to_string(pattern));
     if (recipe->cooldown > 0) {
       cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
-      event_manager->schedule_event(EventType::CoolDown, recipe->cooldown, id, 0);
       stats.incr("assembler.cooldown_started");
     }
     return true;

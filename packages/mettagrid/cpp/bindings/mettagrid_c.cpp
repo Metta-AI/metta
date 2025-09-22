@@ -205,7 +205,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         Assembler* assembler = new Assembler(r, c, *assembler_config);
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
-        assembler->set_event_manager(_event_manager.get());
         assembler->stats.set_environment(this);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
