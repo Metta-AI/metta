@@ -19,7 +19,7 @@ from metta.agent.components.actor import (
     ActorQuery,
     ActorQueryConfig,
 )
-from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
+from metta.agent.components.cnn_encoder import CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -91,8 +91,8 @@ class PufferLibCompatiblePolicy(Policy):
         # Build components to match PufferLib exactly
         self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
 
-        # CNN encoder with PufferLib-matching dimensions
-        self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, env=env)
+        # Custom CNN encoder that exactly matches PufferLib dimensions (24 input channels)
+        self.cnn_encoder = self._create_pufferlib_cnn_encoder()
 
         # LSTM with 512 hidden size to match PufferLib
         self.lstm = LSTM(config=self.config.lstm_config)
@@ -121,7 +121,7 @@ class PufferLibCompatiblePolicy(Policy):
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         self.obs_shim(td)
-        self.cnn_encoder(td)
+        td = self.cnn_encoder(td)  # Custom CNN encoder returns modified td
         self.lstm(td)
 
         # Actor path
@@ -173,5 +173,50 @@ class PufferLibCompatiblePolicy(Policy):
     def reset_memory(self):
         """Reset policy memory/state if any."""
         # Reset LSTM state if it has one
-        if hasattr(self.lstm, 'reset_memory'):
+        if hasattr(self.lstm, "reset_memory"):
             self.lstm.reset_memory()
+
+    def _create_pufferlib_cnn_encoder(self):
+        """Create CNN encoder that exactly matches PufferLib architecture (24 input channels)."""
+
+        # PufferLib CNN1: 24 -> 128 channels, 5x5 kernel, stride 3
+        cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(24, 128, kernel_size=5, stride=3), std=1.0)
+
+        # PufferLib CNN2: 128 -> 128 channels, 3x3 kernel, stride 1
+        cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(128, 128, kernel_size=3, stride=1), std=1.0)
+
+        # Calculate flattened size for FC layer (assuming 11x11 input like standard metta)
+        # After conv1 (5x5, stride 3): (11-5)/3 + 1 = 3
+        # After conv2 (3x3, stride 1): (3-3)/1 + 1 = 1
+        # So output is 128 * 1 * 1 = 128
+        flattened_size = 128
+
+        # PufferLib FC1: 128 -> 256 features (network.5 in checkpoint)
+        fc1 = pufferlib.pytorch.layer_init(nn.Linear(flattened_size, 256), std=1.0)
+
+        class PufferLibCNNEncoder(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.cnn1 = cnn1
+                self.cnn2 = cnn2
+                self.flatten = nn.Flatten()
+                self.fc1 = fc1
+
+            def forward(self, td):
+                # Get input from obs_normalizer (Metta's 25 channels)
+                x = td["obs_normalizer"]
+
+                # Slice to match PufferLib's 24 channels (remove last channel)
+                x = x[:, :24, :, :]
+
+                # CNN forward pass matching PufferLib exactly
+                x = torch.relu(self.cnn1(x))
+                x = torch.relu(self.cnn2(x))
+                x = self.flatten(x)
+                x = torch.relu(self.fc1(x))
+
+                # Output to encoded_obs for LSTM input
+                td["encoded_obs"] = x
+                return td
+
+        return PufferLibCNNEncoder()
