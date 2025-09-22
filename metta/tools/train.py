@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Optional
 
 import torch
+import torch.multiprocessing as mp
 from pydantic import Field, model_validator
 
 from metta.agent.policies.fast import FastConfig
@@ -55,6 +56,8 @@ from metta.tools.utils.auto_config import (
     auto_stats_server_uri,
     auto_wandb_config,
 )
+
+mp.set_sharing_strategy(os.getenv("TORCH_MP_SHARING", "file_system"))
 
 logger = getRankAwareLogger(__name__)
 

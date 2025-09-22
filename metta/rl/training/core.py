@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any, Dict, List, Tuple
 
 import torch
@@ -110,8 +111,15 @@ class CoreTrainingLoop:
             # incurring allocations on every step by reusing cached constant tensors.
             batch_elems = td.batch_size.numel()
             device = td.device
+            diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
             if "batch" not in td.keys() or "bptt" not in td.keys():
                 ensure_sequence_metadata(td, batch_size=batch_elems, time_steps=1)
+            elif diag_enabled:
+                logger.info(
+                    "[TRANSFORMER_DIAG] rollout metadata batch=%s bptt=%s",
+                    td.get("batch")[0].item() if td.get("batch") is not None else None,
+                    td.get("bptt")[0].item() if td.get("bptt").numel() else None,
+                )
             training_env_shape = tuple(int(dim) for dim in td.batch_size)
             if "training_env_id" not in td.keys():
                 td.set(

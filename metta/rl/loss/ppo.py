@@ -1,3 +1,5 @@
+import logging
+import os
 from typing import Any, Tuple
 
 import numpy as np
@@ -97,6 +99,7 @@ class PPO(Loss):
         "anneal_beta",
         "burn_in_steps",
         "burn_in_steps_iter",
+        "_diag_batch_logged",
     )
 
     def __init__(
@@ -113,6 +116,7 @@ class PPO(Loss):
         self.anneal_beta = 0.0
         self.burn_in_steps = self.loss_cfg.burn_in_steps
         self.burn_in_steps_iter = 0
+        self._diag_batch_logged = False
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
@@ -178,6 +182,10 @@ class PPO(Loss):
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         B, TT = policy_td.batch_size
+        if os.getenv("TRANSFORMER_DIAG", "0") == "1" and not getattr(self, "_diag_batch_logged", False):
+            logger = logging.getLogger(__name__)
+            logger.info("[TRANSFORMER_DIAG] PPO minibatch shape B=%s TT=%s", B, TT)
+            self._diag_batch_logged = True
         policy_td = policy_td.reshape(B * TT)
         policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
         policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
@@ -186,6 +194,21 @@ class PPO(Loss):
 
         policy_td = self.policy.forward(policy_td, action=flat_actions)
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
+
+        if os.getenv("TRANSFORMER_DIAG", "0") == "1":
+            logger = logging.getLogger(__name__)
+            adv = self.advantages if isinstance(self.advantages, torch.Tensor) else torch.tensor(self.advantages)
+            values_tensor = minibatch["values"].float()
+            ratio_tensor = minibatch.get("ratio", torch.ones_like(values_tensor)).float()
+            logger.info(
+                "[TRANSFORMER_DIAG] PPO rollout stats: values_mean=%s values_std=%s advantages_mean=%s advantages_std=%s ratio_mean=%s ratio_std=%s",
+                float(values_tensor.mean().item()),
+                float(values_tensor.std().item()),
+                float(adv.float().mean().item()),
+                float(adv.float().std().item()),
+                float(ratio_tensor.mean().item()),
+                float(ratio_tensor.std().item()),
+            )
 
         # Finally, calculate the loss!
         loss = self._process_minibatch_update(
@@ -250,6 +273,14 @@ class PPO(Loss):
         newvalue = policy_td["values"]
 
         importance_sampling_ratio = self._importance_ratio(new_logprob, old_logprob)
+        if os.getenv("TRANSFORMER_DIAG", "0") == "1":
+            logger = logging.getLogger(__name__)
+            logger.info(
+                "[TRANSFORMER_DIAG] logprob_stats: old_mean=%s new_mean=%s diff_mean=%s",
+                float(old_logprob.mean().item()),
+                float(new_logprob.mean().item()),
+                float((new_logprob - old_logprob).mean().item()),
+            )
 
         # Re-compute advantages with new ratios (V-trace)
         adv = compute_advantage(

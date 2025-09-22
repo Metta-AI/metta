@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from typing import Dict, List, Optional, Tuple, Type
 
 import pufferlib.pytorch
@@ -31,6 +32,16 @@ from metta.agent.policy import Policy, PolicyArchitecture
 logger = logging.getLogger(__name__)
 
 
+def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
+    if tensor.numel() == 0:
+        return f"{name}=empty"
+    return (
+        f"{name}(shape={tuple(tensor.shape)}, mean={tensor.float().mean().item():.4f}, "
+        f"std={tensor.float().std().item():.4f}, min={tensor.float().min().item():.4f}, "
+        f"max={tensor.float().max().item():.4f})"
+    )
+
+
 class TransformerPolicyConfig(PolicyArchitecture):
     """Hyperparameters for the legacy convolutional Transformer policy."""
 
@@ -56,7 +67,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     transformer_num_heads: int = 8
     transformer_ff_size: int = 512
     transformer_max_seq_len: int = 256
-    transformer_memory_len: int = 0
+    transformer_memory_len: int = 64
     transformer_dropout: float = 0.1
     transformer_attn_dropout: float = 0.1
     transformer_clamp_len: int = -1
@@ -131,6 +142,11 @@ class TransformerPolicy(Policy):
         # Expose action-metadata placeholders for compatibility with legacy helpers
         self.cum_action_max_params: Optional[torch.Tensor] = None
         self.action_index_tensor: Optional[torch.Tensor] = None
+
+        self._diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
+        self._diag_limit = int(os.getenv("TRANSFORMER_DIAG_STEPS", "5"))
+        self._diag_counter = 0
+        self._diag_train_logged = False
 
         if self.latent_size != self.hidden_size:
             self.input_projection = pufferlib.pytorch.layer_init(nn.Linear(self.latent_size, self.hidden_size), std=1.0)
@@ -269,6 +285,9 @@ class TransformerPolicy(Policy):
         latent = td[encoded_key]
         latent = self.input_projection(latent)
 
+        if self._diag_enabled and self._diag_counter < self._diag_limit:
+            logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(latent, "latent"))
+
         core = self._forward_transformer(td, latent, batch_size, tt)
         td["core"] = core
 
@@ -285,6 +304,14 @@ class TransformerPolicy(Policy):
         self.actor_key(td)
 
         td = self.action_probs(td, action)
+        if self._diag_enabled and self._diag_counter < self._diag_limit:
+            logits = td.get("logits")
+            if logits is not None:
+                logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(logits, "logits"))
+            values = td.get("values")
+            if values is not None:
+                logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(values, "values"))
+            self._diag_counter += 1
         if original_shape is not None:
             td = td.reshape(original_shape)
         return td
@@ -309,6 +336,19 @@ class TransformerPolicy(Policy):
         core_out, new_memory = self.transformer_module(latent_seq, memory)
         core_flat = core_out.transpose(0, 1).reshape(batch_size * tt, self.hidden_size)
 
+        if self._diag_enabled and self._diag_counter < self._diag_limit:
+            logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(core_flat, "core"))
+            if new_memory is not None:
+                hidden_states = new_memory.get("hidden_states")
+                if hidden_states:
+                    mem_norms = []
+                    for layer_mem in hidden_states:
+                        if layer_mem is None or layer_mem.numel() == 0:
+                            mem_norms.append(0.0)
+                        else:
+                            mem_norms.append(float(layer_mem.float().norm().item()))
+                    logger.info("[TRANSFORMER_DIAG] memory_norms=%s", mem_norms)
+
         if use_memory and tt == 1 and env_key is not None:
             updated_memory = self._detach_memory(new_memory)
             if updated_memory is not None:
@@ -316,6 +356,11 @@ class TransformerPolicy(Policy):
                 truncateds = td.get("truncateds", None)
                 reset_mask = self._compute_reset_mask(dones, truncateds, batch_size)
                 if reset_mask is not None and reset_mask.any():
+                    if self._diag_enabled and self._diag_counter < self._diag_limit:
+                        logger.info(
+                            "[TRANSFORMER_DIAG] reset_mask true_count=%s",
+                            int(reset_mask.sum().item()),
+                        )
                     hidden_states = updated_memory.get("hidden_states")
                     if hidden_states:
                         for idx, layer_mem in enumerate(hidden_states):
@@ -325,15 +370,33 @@ class TransformerPolicy(Policy):
                             masked_layer[:, reset_mask] = 0
                             hidden_states[idx] = masked_layer
                 self._memory[env_key] = updated_memory
+                if self._diag_enabled and self._diag_counter < self._diag_limit:
+                    logger.info("[TRANSFORMER_DIAG] memory cached for env %s", env_key)
         elif use_memory and tt > 1 and env_key is not None:
             self._memory.pop(env_key, None)
+            if self._diag_enabled and self._diag_counter < self._diag_limit:
+                logger.info("[TRANSFORMER_DIAG] cleared cached memory for env %s (tt=%s)", env_key, tt)
 
         return core_flat
 
     def _prepare_observations(self, td: TensorDict) -> Tuple[TensorDict, torch.Tensor, int, int, Optional[torch.Size]]:
         observations = td["env_obs"]
 
-        if observations.dim() == 4:
+        meta_bptt = td.get("bptt", None)
+        meta_batch = td.get("batch", None)
+        if meta_bptt is not None and meta_bptt.numel() > 0 and meta_batch is not None and meta_batch.numel() > 0:
+            tt = int(meta_bptt.reshape(-1)[0].item())
+            batch_size = int(meta_batch.reshape(-1)[0].item())
+            total_batch = batch_size * tt
+            if td.batch_dims > 1:
+                td = td.reshape(total_batch)
+                observations = td["env_obs"]
+            original_shape = torch.Size([batch_size, tt]) if tt > 1 else None
+            if self._diag_enabled and self._diag_counter < self._diag_limit:
+                logger.info(
+                    "[TRANSFORMER_DIAG] prepare_obs meta batch=%s tt=%s", batch_size, tt
+                )
+        elif observations.dim() == 4:
             batch_size, tt = observations.shape[:2]
             total_batch = batch_size * tt
             if td.batch_dims > 1:
@@ -345,6 +408,10 @@ class TransformerPolicy(Policy):
             if "batch" not in td.keys():
                 td.set("batch", torch.full((total_batch,), batch_size, device=device, dtype=torch.long))
             original_shape: Optional[torch.Size] = torch.Size([batch_size, tt])
+            if self._diag_enabled and self._diag_counter < self._diag_limit:
+                logger.info(
+                    "[TRANSFORMER_DIAG] prepare_obs sequence batch=%s tt=%s", batch_size, tt
+                )
         else:
             batch_size = observations.shape[0]
             tt = 1
@@ -357,6 +424,8 @@ class TransformerPolicy(Policy):
             if "batch" not in td.keys():
                 td.set("batch", torch.full((batch_size,), batch_size, device=device, dtype=torch.long))
             original_shape = None
+            if self._diag_enabled and self._diag_counter < self._diag_limit:
+                logger.info("[TRANSFORMER_DIAG] prepare_obs batch=%s tt=1", batch_size)
 
         return td, observations, batch_size, tt, original_shape
 
@@ -408,7 +477,20 @@ class TransformerPolicy(Policy):
             truncateds = truncateds.view(1, batch_size)
 
         reset = dones.bool() | truncateds.bool()
+        if self._diag_enabled and self._diag_counter < self._diag_limit:
+            logger.info(
+                "[TRANSFORMER_DIAG] compute_reset_mask dones_last=%s truncateds_last=%s",
+                bool(dones[-1].any().item()),
+                bool(truncateds[-1].any().item()),
+            )
         return reset[-1]
+
+    # Legacy compatibility placeholders (no longer used)
+    def _build_memory_batch(self, *args, **kwargs):
+        return None
+
+    def _store_memory_batch(self, *args, **kwargs):
+        return None
 
     def _detach_memory(
         self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
@@ -423,10 +505,19 @@ class TransformerPolicy(Policy):
     def _get_env_start(self, td: TensorDict) -> int:
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is not None and training_env_ids.numel() > 0:
-            return int(training_env_ids.reshape(-1)[0].item())
+            env_start = int(training_env_ids.reshape(-1)[0].item())
+            if self._diag_enabled and self._diag_counter < self._diag_limit:
+                env_ids = training_env_ids.reshape(-1)
+                logger.info(
+                    "[TRANSFORMER_DIAG] env_ids start=%s min=%s max=%s", env_start, int(env_ids.min()), int(env_ids.max())
+                )
+            return env_start
         training_env_id = td.get("training_env_id", None)
         if training_env_id is not None and training_env_id.numel() > 0:
-            return int(training_env_id.reshape(-1)[0].item())
+            env_start = int(training_env_id.reshape(-1)[0].item())
+            if self._diag_enabled and self._diag_counter < self._diag_limit:
+                logger.info("[TRANSFORMER_DIAG] env_start from training_env_id=%s", env_start)
+            return env_start
         return 0
 
     # ------------------------------------------------------------------
