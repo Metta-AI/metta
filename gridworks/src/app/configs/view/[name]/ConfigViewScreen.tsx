@@ -23,19 +23,6 @@ export const ConfigViewScreen: FC<{ cfg: Config }> = ({ cfg }) => {
     });
   }
 
-  tabs.push({
-    id: "config",
-    label: "Config",
-    content: (
-      <div className="pt-4">
-        <ConfigViewer
-          value={cfg.config.value}
-          unsetFields={cfg.config.unset_fields}
-        />
-      </div>
-    ),
-  });
-
   if (
     [
       "MettaGridConfig",
@@ -56,6 +43,19 @@ export const ConfigViewScreen: FC<{ cfg: Config }> = ({ cfg }) => {
     });
   }
 
+  tabs.push({
+    id: "config",
+    label: "Config",
+    content: (
+      <div className="pt-4">
+        <ConfigViewer
+          value={cfg.config.value}
+          unsetFields={cfg.config.unset_fields}
+        />
+      </div>
+    ),
+  });
+
   if (cfg.maker.kind.endsWith("Tool")) {
     tabs.push({
       id: "run",
@@ -66,7 +66,7 @@ export const ConfigViewScreen: FC<{ cfg: Config }> = ({ cfg }) => {
 
   return (
     <div>
-      <Tabs tabs={tabs} defaultTab="config" />
+      <Tabs tabs={tabs} defaultTab={tabs[0].id} />
     </div>
   );
 };
