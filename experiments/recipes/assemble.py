@@ -30,7 +30,7 @@ import random
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Union
 
 import numpy as np
 from metta.cogworks.curriculum.curriculum import (
@@ -626,12 +626,9 @@ def make_curriculum(
     num_mines: list[int] = None,
     initial_resource_ratios: list[float] = None,
     room_sizes: list[str] = None,
-    lp_params: LPParams = None,
+    lp_params: LPParams = LPParams(),
 ) -> CurriculumConfig:
     """Create curriculum configuration for assembler tasks."""
-
-    if lp_params is None:
-        lp_params = LPParams()
 
     # Use defaults if not specified
     environment_types = environment_types or list(range(1, 9))
@@ -669,11 +666,14 @@ def make_curriculum(
     )
 
 
-def train(curriculum_style: str = "basic", lp_params: LPParams = None) -> TrainTool:
+def train(
+    curriculum_style: str = "basic", lp_params: Union[LPParams, Dict] = LPParams()
+) -> TrainTool:
     """Create training configuration for assembler tasks."""
 
-    if lp_params is None:
-        lp_params = LPParams()
+    # Handle case where run tool passes dict instead of LPParams object
+    if isinstance(lp_params, dict):
+        lp_params = LPParams(**lp_params)
 
     curriculum_args = {
         "basic": {
@@ -710,8 +710,9 @@ def train(curriculum_style: str = "basic", lp_params: LPParams = None) -> TrainT
     )
 
     # Assembler tasks may need longer episodes for coordination
-    trainer_cfg.batch_size = 2048768
-    trainer_cfg.bptt_horizon = 128
+    # batch_size must be divisible by minibatch_size (default 16384)
+    trainer_cfg.batch_size = 2064384  # 126 * 16384 = 2064384
+    trainer_cfg.bptt_horizon = 512
 
     return TrainTool(trainer=trainer_cfg)
 
