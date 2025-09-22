@@ -6,6 +6,7 @@ export type FeedPostDTO = {
   id: string;
   title: string;
   content: string | null;
+  images: string[];
   postType: "user-post" | "paper-post" | "pure-paper";
   queues: number;
   replies: number;
@@ -72,6 +73,7 @@ export function toFeedPostDTO(
     id: dbModel.id,
     title: dbModel.title,
     content: dbModel.content,
+    images: dbModel.images ?? [],
     postType: dbModel.postType as "user-post" | "paper-post" | "pure-paper",
     queues: dbModel.queues ?? 0,
     replies: dbModel.replies ?? 0,

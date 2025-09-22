@@ -2,20 +2,30 @@
 
 /**
  * Papers Import Script
- * 
+ *
  * This script imports papers data from the mockup into the new database schema.
  * It handles the transformation from the mock data structure to the new schema.
  */
 
-import { PrismaClient } from '@prisma/client';
-import * as fs from 'fs';
-import * as path from 'path';
+import { PrismaClient } from "@prisma/client";
+import * as fs from "fs";
+import * as path from "path";
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
 
 // Import the papers data from the metta-library-mock directory
-const papersDataPath = path.join(__dirname, '..', '..', '..', 'metta-library-mock', 'observatory', 'src', 'mockData', 'papers.ts');
+const papersDataPath = path.join(
+  __dirname,
+  "..",
+  "..",
+  "..",
+  "metta-library-mock",
+  "observatory",
+  "src",
+  "mockData",
+  "papers.ts"
+);
 
 interface MockUser {
   id: string;
@@ -45,23 +55,25 @@ function loadPapersData(): MockPaper[] {
     throw new Error(`Papers data file not found: ${papersDataPath}`);
   }
 
-  const fileContent = fs.readFileSync(papersDataPath, 'utf8');
-  
+  const fileContent = fs.readFileSync(papersDataPath, "utf8");
+
   // Extract the mockPapers array from the file content
-  const papersMatch = fileContent.match(/export const mockPapers: Paper\[\] = (\[[\s\S]*?\]);/);
-  
+  const papersMatch = fileContent.match(
+    /export const mockPapers: Paper\[\] = (\[[\s\S]*?\]);/
+  );
+
   if (!papersMatch) {
-    throw new Error('Could not find mockPapers array in papers.ts');
+    throw new Error("Could not find mockPapers array in papers.ts");
   }
-  
+
   const papersArrayString = papersMatch[1];
-  
+
   // The data might have trailing commas, so we need to clean it up
   const cleanedString = papersArrayString
-    .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
-    .replace(/\n/g, ' ') // Replace newlines with spaces
-    .replace(/\s+/g, ' '); // Normalize whitespace
-  
+    .replace(/,(\s*[}\]])/g, "$1") // Remove trailing commas
+    .replace(/\n/g, " ") // Replace newlines with spaces
+    .replace(/\s+/g, " "); // Normalize whitespace
+
   return JSON.parse(cleanedString);
 }
 
@@ -78,18 +90,18 @@ function loadUsersData(): MockUser[] {
  */
 function transformPaper(mockPaper: MockPaper) {
   // Extract source from link
-  let source = 'manual';
-  let externalId = '';
-  
-  if (mockPaper.link.includes('arxiv.org')) {
-    source = 'arxiv';
+  let source = "manual";
+  let externalId = "";
+
+  if (mockPaper.link.includes("arxiv.org")) {
+    source = "arxiv";
     // Extract arXiv ID from URL
     const arxivMatch = mockPaper.link.match(/arxiv\.org\/abs\/(\d+\.\d+)/);
     if (arxivMatch) {
       externalId = arxivMatch[1];
     }
-  } else if (mockPaper.link.includes('biorxiv.org')) {
-    source = 'biorxiv';
+  } else if (mockPaper.link.includes("biorxiv.org")) {
+    source = "biorxiv";
   }
 
   return {
@@ -106,7 +118,7 @@ function transformPaper(mockPaper: MockPaper) {
     starred: mockPaper.starred,
     pdfS3Url: null, // Future use
     createdAt: new Date(),
-    updatedAt: new Date()
+    updatedAt: new Date(),
   };
 }
 
@@ -125,7 +137,7 @@ function createUserInteractions(mockPaper: MockPaper) {
       starred: false,
       readAt: new Date(), // Use current time as read time
       queued: false,
-      notes: null
+      notes: null,
     });
   }
 
@@ -138,7 +150,7 @@ function createUserInteractions(mockPaper: MockPaper) {
       starred: false,
       readAt: null,
       queued: true,
-      notes: null
+      notes: null,
     });
   }
 
@@ -149,18 +161,18 @@ function createUserInteractions(mockPaper: MockPaper) {
  * Main import function
  */
 async function importPapers() {
-  console.log('📄 Starting papers import...\n');
+  console.log("📄 Starting papers import...\n");
 
   try {
     // Load papers data from file
-    console.log('📂 Loading papers data from mockup file...');
+    console.log("📂 Loading papers data from mockup file...");
     const papers = loadPapersData();
-    
+
     console.log(`   Loaded ${papers.length} papers`);
 
     // Create users
-    console.log('👥 Creating users...');
-    
+    console.log("👥 Creating users...");
+
     // Extract unique users from the mock data
     const uniqueUsers = new Set<string>();
     for (const paper of papers) {
@@ -171,70 +183,73 @@ async function importPapers() {
         uniqueUsers.add(user.id);
       }
     }
-    
+
     // Create user records
-    const userRecords = Array.from(uniqueUsers).map(userId => ({
+    const userRecords = Array.from(uniqueUsers).map((userId) => ({
       id: userId,
-      name: userId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), // Convert kebab-case to Title Case
+      name: userId.replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()), // Convert kebab-case to Title Case
       email: `${userId}@example.com`,
-      image: null
+      image: null,
     }));
-    
+
     // Check if the specific users we need already exist
-    const existingUserIds = await prisma.user.findMany({ select: { id: true } });
-    const existingUserSet = new Set(existingUserIds.map(u => u.id));
-    
+    const existingUserIds = await prisma.user.findMany({
+      select: { id: true },
+    });
+    const existingUserSet = new Set(existingUserIds.map((u) => u.id));
+
     // Filter out users that already exist
-    const newUsers = userRecords.filter(user => !existingUserSet.has(user.id));
-    
+    const newUsers = userRecords.filter(
+      (user) => !existingUserSet.has(user.id)
+    );
+
     if (newUsers.length > 0) {
       await prisma.user.createMany({ data: newUsers });
       console.log(`✅ Created ${newUsers.length} new users`);
     } else {
-      console.log('ℹ️  All required users already exist');
+      console.log("ℹ️  All required users already exist");
     }
 
     // Transform papers
     console.log(`📋 Processing ${papers.length} papers...`);
-    
+
     const transformedPapers = papers.map(transformPaper);
-    
+
     // Check if papers already exist
     const existingPapers = await prisma.paper.findMany({ take: 1 });
-    
+
     if (existingPapers.length === 0) {
       // Insert papers only if they don't exist
-      console.log('📋 Inserting papers...');
+      console.log("📋 Inserting papers...");
       await prisma.paper.createMany({ data: transformedPapers });
-      console.log('✅ Papers imported successfully');
+      console.log("✅ Papers imported successfully");
     } else {
-      console.log('ℹ️  Papers already exist, skipping insertion');
+      console.log("ℹ️  Papers already exist, skipping insertion");
     }
 
     // Create user interactions
-    console.log('🔗 Creating user interactions...');
+    console.log("🔗 Creating user interactions...");
     const allInteractions = papers.flatMap(createUserInteractions);
-    
+
     if (allInteractions.length > 0) {
       await prisma.userPaperInteraction.createMany({ data: allInteractions });
       console.log(`✅ Created ${allInteractions.length} user interactions`);
     } else {
-      console.log('ℹ️  No user interactions to create');
+      console.log("ℹ️  No user interactions to create");
     }
 
-    console.log('\n🎉 Import completed successfully!');
+    console.log("\n🎉 Import completed successfully!");
     console.log(`📊 Summary:`);
     console.log(`  - Papers imported: ${transformedPapers.length}`);
     console.log(`  - User interactions created: ${allInteractions.length}`);
-
   } catch (error) {
-    console.error('❌ Error during import:', error);
+    console.error("❌ Error during import:", error);
     if (error instanceof Error) {
-      console.error('Error details:', error.message);
+      console.error("Error details:", error.message);
     }
     process.exit(1);
   }
 }
 
 // Run import
-importPapers().catch(console.error); 
+importPapers().catch(console.error);

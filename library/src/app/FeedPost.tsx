@@ -365,6 +365,39 @@ export const FeedPost: FC<{
           <PaperCard paper={post.paper} onPaperClick={onPaperClick} />
         </div>
 
+        {/* Attached images for pure-paper posts */}
+        {post.images && post.images.length > 0 && (
+          <div className="px-4 pb-2">
+            <div
+              className={`grid gap-2 ${
+                post.images.length === 1
+                  ? "grid-cols-1"
+                  : post.images.length === 2
+                    ? "grid-cols-2"
+                    : "grid-cols-2 sm:grid-cols-3"
+              }`}
+            >
+              {post.images.map((imageUrl, index) => (
+                <div
+                  key={index}
+                  className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`Attached image ${index + 1}`}
+                    className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(imageUrl, "_blank");
+                    }}
+                    style={{ cursor: "pointer" }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* In-post comments */}
         <div onClick={(e) => e.stopPropagation()}>
           <InPostComments
@@ -528,6 +561,40 @@ export const FeedPost: FC<{
       {post.content && cleanPostContent(post.content).trim() && (
         <div className="px-4 pb-2 text-[14px] leading-[1.55] whitespace-pre-wrap text-neutral-900">
           {linkifyText(cleanPostContent(post.content))}
+        </div>
+      )}
+
+      {/* Attached images */}
+      {post.images && post.images.length > 0 && (
+        <div className="px-4 pb-2">
+          <div
+            className={`grid gap-2 ${
+              post.images.length === 1
+                ? "grid-cols-1"
+                : post.images.length === 2
+                  ? "grid-cols-2"
+                  : "grid-cols-2 sm:grid-cols-3"
+            }`}
+          >
+            {post.images.map((imageUrl, index) => (
+              <div
+                key={index}
+                className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+              >
+                <img
+                  src={imageUrl}
+                  alt={`Attached image ${index + 1}`}
+                  className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // TODO: Add lightbox/full-screen view
+                    window.open(imageUrl, "_blank");
+                  }}
+                  style={{ cursor: "pointer" }}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
