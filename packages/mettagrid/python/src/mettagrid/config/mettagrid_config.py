@@ -45,6 +45,7 @@ class AgentConfig(Config):
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
+    tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
 
 
 class ActionConfig(Config):
@@ -108,6 +109,7 @@ class WallConfig(Config):
 
     type_id: int
     swappable: bool = Field(default=False)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class ConverterConfig(Config):
@@ -122,6 +124,7 @@ class ConverterConfig(Config):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class RecipeConfig(Config):
@@ -136,6 +139,7 @@ class AssemblerConfig(Config):
     name: str = Field(default="assembler")
     type_id: int = Field(default=0, ge=0, le=255)
     recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class ChestConfig(Config):
@@ -149,6 +153,7 @@ class ChestConfig(Config):
     withdrawal_positions: list[FixedPosition] = Field(
         default_factory=list, description="Positions where agents can withdraw resources"
     )
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class GameConfig(Config):

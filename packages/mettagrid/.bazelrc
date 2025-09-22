@@ -70,3 +70,10 @@ build:ci --repo_env=PYTHON_BIN_PATH=/usr/bin/python3
 build:ci --python_path=/usr/bin/python3
 # Skip hermetic Python toolchain in CI
 build:ci --@rules_python//python/config_settings:bootstrap_impl=system
+
+# Add retries for external dependency downloads to handle rate limiting
+build:ci --repository_cache=~/.cache/bazel-repo
+build:ci --experimental_repository_downloader_retries=5
+build:ci --http_timeout_scaling=2.0
+# Add delays between retries (exponential backoff)
+build:ci --experimental_scale_timeouts=2.0
