@@ -156,7 +156,7 @@ class TestTokenSystem(BaseAsyncTest):
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["user_email"] == "test@example.com"
+        assert data["user_email"] == test_user_headers["X-Auth-Request-Email"]
 
     def test_whoami_with_token(
         self,
@@ -180,7 +180,7 @@ class TestTokenSystem(BaseAsyncTest):
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["user_email"] == "test@example.com"
+        assert data["user_email"] == test_user_headers["X-Auth-Request-Email"]
 
     def test_whoami_no_auth(self, isolated_test_client: TestClient) -> None:
         """Test whoami endpoint without authentication."""
