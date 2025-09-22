@@ -9,6 +9,14 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "Running cpplint from $PROJECT_ROOT..."
 
-# Find all C++ files in the relevant directories
-find "$PROJECT_ROOT/cpp/" "$PROJECT_ROOT/tests" "$PROJECT_ROOT/benchmarks" -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
-  | xargs cpplint --filter=-legal,-whitespace/line_length,-readability/casting,-whitespace/indent,-readability/inheritance,-runtime/int,-readability/todo,-build/include_what_you_use
+# cpplint filter configuration
+CPPLINT_FILTERS="--filter=-legal,-whitespace/line_length,-readability/casting,-whitespace/indent,-readability/inheritance,-runtime/int,-readability/todo,-build/include_what_you_use"
+
+if [ $# -eq 0 ]; then
+    # No arguments provided - find all C++ files in the relevant directories
+    find "$PROJECT_ROOT/cpp/" "$PROJECT_ROOT/tests" "$PROJECT_ROOT/benchmarks" -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
+      | xargs uv run cpplint $CPPLINT_FILTERS
+else
+    # Arguments provided - lint the specific files
+    uv run cpplint $CPPLINT_FILTERS "$@"
+fi
