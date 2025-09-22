@@ -61,7 +61,7 @@ class PPOConfig(Config):
     target_kl: float | None = None
 
     # Discarded rollout steps before saving experience (temporary placement)
-    burn_in_steps: int = Field(default=128, ge=0)
+    burn_in_steps: int = Field(default=0, ge=0)
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
