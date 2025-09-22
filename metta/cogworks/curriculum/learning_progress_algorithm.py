@@ -78,10 +78,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stats_cache: Dict[str, Any] = {}
         self._stats_cache_valid = False
 
-        # Cache for task distribution and scores (shared between scoring methods)
-        self._score_cache: Dict[int, float] = {}
-        self._cache_valid_tasks: set[int] = set()
-
     @property
     def lp_scorer(self):
         """Compatibility property for tests that expect lp_scorer attribute."""
@@ -143,11 +139,18 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Cache for task distribution and scores
         self._task_dist: Optional[np.ndarray] = None
         self._stale_dist = True
+        self._score_cache: Dict[int, float] = {}
+        self._cache_valid_tasks: set[int] = set()
 
     def _init_basic_scoring(self):
         """Initialize basic EMA tracking (fallback method)."""
         # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
         self._task_emas: Dict[int, tuple[float, float, int]] = {}
+        # Ensure cache is initialized for basic scoring mode
+        if not hasattr(self, "_score_cache"):
+            self._score_cache: Dict[int, float] = {}
+        if not hasattr(self, "_cache_valid_tasks"):
+            self._cache_valid_tasks: set[int] = set()
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using the configured method (bidirectional by default)."""
@@ -672,7 +675,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
         state = {
-            "type": "learning_progress",
+            "type": self.hypers.algorithm_type(),
             "hypers": self.hypers.model_dump(),
             "task_tracker": self.task_tracker.get_state(),
         }

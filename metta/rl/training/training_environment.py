@@ -5,7 +5,7 @@ import os
 import platform
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, List, Literal, Tuple
+from typing import Any, List, Literal, Optional, Tuple
 
 import numpy as np
 import torch
@@ -112,6 +112,11 @@ class TrainingEnvironment(ABC):
     def meta_data(self) -> EnvironmentMetaData:
         """Get the environment metadata."""
 
+    @property
+    @abstractmethod
+    def curriculum(self) -> Curriculum:
+        """Get the curriculum for checkpointing and state management."""
+
 
 class VectorizedTrainingEnvironment(TrainingEnvironment):
     """Manages the vectorized training environment and experience generation."""
@@ -124,7 +129,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._num_envs = 0
         self._target_batch_size = 0
         self._num_workers = 0
-        self._curriculum = None
+        self._curriculum: Optional[Curriculum] = None
         self._vecenv = None
 
         self._curriculum = Curriculum(cfg.curriculum)
@@ -233,6 +238,13 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
     def driver_env(self) -> Any:
         """Expose the driver environment for components that need direct access."""
         return self._vecenv.driver_env
+
+    @property
+    def curriculum(self) -> Curriculum:
+        """Expose the curriculum for checkpointing and state management."""
+        if self._curriculum is None:
+            raise RuntimeError("Curriculum not initialized")
+        return self._curriculum
 
     def get_observations(self) -> Tuple[Tensor, Tensor, Tensor, Tensor, List[dict], slice, Tensor, int]:
         o, r, d, t, info, env_id, mask = self._vecenv.recv()

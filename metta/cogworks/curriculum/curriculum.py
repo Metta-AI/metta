@@ -330,11 +330,6 @@ class Curriculum(StatsLogger):
                 task = self._choose_task()
 
         task._num_scheduled += 1
-
-        # Ensure task has valid env_cfg (lazy recreation for loaded tasks)
-        if task._env_cfg is None:
-            task._env_cfg = self._task_generator.get_task(task._task_id)
-
         return task
 
     def _initialize_at_capacity(self) -> None:
@@ -470,11 +465,10 @@ class Curriculum(StatsLogger):
         self._task_ids.clear()
 
         # Restore tasks
-        # Note: We recreate env_cfg lazily to avoid expensive calls during loading.
-        # The env_cfg will be properly set when tasks are first accessed.
         for task_id, task_data in state["tasks"].items():
-            # Create task with None env_cfg initially - it will be set when needed
-            task = CurriculumTask(task_id, None, task_data["slice_values"])
+            # Recreate env_cfg using task_id
+            env_cfg = self._task_generator.get_task(int(task_id))
+            task = CurriculumTask(int(task_id), env_cfg, task_data["slice_values"])
             task._num_completions = task_data["num_completions"]
             task._total_score = task_data["total_score"]
             task._mean_score = task_data["mean_score"]

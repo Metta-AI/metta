@@ -71,6 +71,7 @@ class ContextCheckpointer(TrainerComponent):
                     "epoch": raw.get("epoch", 0),
                     "optimizer_state": raw.get("optimizer_state", {}),
                     "stopwatch_state": raw.get("stopwatch_state"),
+                    "curriculum_state": raw.get("curriculum_state"),
                 }
 
         payload = self._distributed.broadcast_from_master(payload)
@@ -99,6 +100,15 @@ class ContextCheckpointer(TrainerComponent):
                 wall_time_baseline = context.stopwatch.get_elapsed()
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Failed to restore stopwatch state: %s", exc)
+
+        curriculum_state = payload.get("curriculum_state")
+        context.state.curriculum_state = curriculum_state
+        if curriculum_state:
+            try:
+                context.env.curriculum.load_state(curriculum_state)
+                logger.info("Successfully restored curriculum state")
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Failed to restore curriculum state: %s", exc)
 
         context.timing_baseline = {
             "agent_step": context.agent_step,
@@ -142,9 +152,17 @@ class ContextCheckpointer(TrainerComponent):
 
         context.state.optimizer_state = context.optimizer.state_dict()
 
+        # Capture curriculum state
+        try:
+            context.state.curriculum_state = context.env.curriculum.get_state()
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.debug("Unable to capture curriculum state: %s", exc)
+            context.state.curriculum_state = None
+
         self._checkpoint_manager.save_trainer_state(
             context.optimizer,
             current_epoch,
             agent_step,
             stopwatch_state=context.state.stopwatch_state,
+            curriculum_state=context.state.curriculum_state,
         )

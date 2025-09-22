@@ -11,7 +11,6 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -407,10 +406,7 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        # for in context learning, we need episode length to be equal to bptt_horizon
-        # which requires a large batch size
-        batch_size=4128768,
-        bptt_horizon=512,
+        curriculum=curriculum,
         evaluation=EvaluationConfig(
             simulations=make_icl_resource_chain_eval_suite(),
             evaluate_remote=True,
@@ -420,11 +416,12 @@ def train(
         #     uri="s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt",
         # ),
     )
+    # for in context learning, we need episode length to be equal to bptt_horizon
+    # which requires a large batch size
+    trainer_cfg.batch_size = 4128768
+    trainer_cfg.bptt_horizon = 512
 
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        trainer=trainer_cfg,
-    )
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:

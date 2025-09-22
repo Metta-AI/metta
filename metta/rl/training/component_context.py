@@ -52,6 +52,7 @@ class TrainerState:
     training_env_window: Optional[TrainingEnvWindow] = None
     optimizer_state: Optional[Dict[str, Any]] = None
     stopwatch_state: Optional[Dict[str, Any]] = None
+    curriculum_state: Optional[Dict[str, Any]] = None
     latest_saved_policy_epoch: int = 0
 
 
