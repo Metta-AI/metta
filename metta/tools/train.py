@@ -58,7 +58,6 @@ class TrainTool(Tool):
     run: Optional[str] = None
     run_dir: Optional[str] = None
     device: str = guess_device()
-    checkpoint_base_dir: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
@@ -137,19 +136,10 @@ class TrainTool(Tool):
 
         group_override = args.get("group")
 
-        if self.run_dir is None:
-            data_dir_path = Path(self.system.data_dir)
-            self.checkpoint_base_dir = str(data_dir_path)
-            self.run_dir = str(data_dir_path / self.run)
-        else:
-            run_dir_path = Path(self.run_dir)
-            if self.run and run_dir_path.name == self.run:
-                base_dir = run_dir_path.parent
-            else:
-                base_dir = run_dir_path
-            base_dir_str = str(base_dir)
-            self.checkpoint_base_dir = base_dir_str if base_dir_str else str(Path("."))
-            self.run_dir = str(run_dir_path)
+        run_dir_path = Path(self.run_dir) if self.run_dir else Path(self.system.data_dir)
+        if self.run and run_dir_path.name != self.run:
+            run_dir_path = run_dir_path / self.run
+        self.run_dir = str(run_dir_path)
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
@@ -213,9 +203,9 @@ class TrainTool(Tool):
 
     def _checkpoint_base_dir(self) -> str:
         """Return the directory that should contain per-run subdirectories."""
-        if self.checkpoint_base_dir:
-            return self.checkpoint_base_dir
-        return str(Path(self.system.data_dir))
+        if not self.run_dir:
+            return str(Path(self.system.data_dir))
+        return str(Path(self.run_dir).parent)
 
     def _initialize_trainer(
         self,
