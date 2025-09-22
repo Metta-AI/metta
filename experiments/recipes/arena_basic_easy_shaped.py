@@ -10,6 +10,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss.contrastive_config import ContrastiveConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.protein_config import ParameterConfig
@@ -122,6 +123,41 @@ def train(
     return TrainTool(trainer=trainer_cfg)
 
 
+def train_with_contrastive(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    contrastive_temperature: float = 0.07,
+    contrastive_coef: float = 0.1,
+) -> TrainTool:
+    """Train with contrastive loss using specified hyperparameters."""
+    # Create loss config with contrastive enabled and configured
+    loss_config = LossConfig(enable_contrastive=True)
+    loss_config.loss_configs["contrastive"] = ContrastiveConfig(
+        temperature=contrastive_temperature,
+        contrastive_coef=contrastive_coef,
+    )
+
+    trainer_cfg = TrainerConfig(
+        losses=loss_config,
+        curriculum=curriculum
+        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
+        evaluation=EvaluationConfig(
+            simulations=[
+                SimulationConfig(
+                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
+                ),
+                SimulationConfig(
+                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
+                ),
+            ],
+            evaluate_remote=True,
+            evaluate_local=False,
+        ),
+    )
+
+    return TrainTool(trainer=trainer_cfg)
+
+
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
@@ -201,18 +237,20 @@ def sweep_contrastive(
         batch_size: Batch size multiplier
         local_test: Whether to run locally for testing
     """
+    # Create a custom sweep configuration for contrastive loss
     contrastive_protein_config = make_custom_protein_config(
         base_config=PPO_BASIC,
         parameters={
-            # Set contrastive loss hyperparameters with the correct path
-            "trainer.losses.loss_configs.contrastive.temperature": ParameterConfig(
+            # Temperature parameter for contrastive loss
+            "contrastive_temperature": ParameterConfig(
                 distribution="uniform",
                 min=0.0,
                 max=0.5,
                 mean=0.25,
                 scale="auto",
             ),
-            "trainer.losses.loss_configs.contrastive.coef": ParameterConfig(
+            # Coefficient for contrastive loss
+            "contrastive_coef": ParameterConfig(
                 distribution="uniform",
                 min=0.0,
                 max=1.0,
@@ -226,10 +264,11 @@ def sweep_contrastive(
     contrastive_protein_config.metric = "experience/rewards"
 
     # Remove batch_size from parameters if it exists (we'll use the batch_size argument instead)
+    contrastive_protein_config.parameters.pop("trainer.batch_size", None)
 
     return protein_sweep(
         recipe="experiments.recipes.arena_basic_easy_shaped",
-        train="train",
+        train="train_with_contrastive",  # Use the custom train function that accepts contrastive params
         eval="evaluate_in_sweep",
         protein_config=contrastive_protein_config,
         max_parallel_jobs=max_parallel_jobs,
@@ -238,7 +277,4 @@ def sweep_contrastive(
         gpus=gpus,
         batch_size=batch_size,
         local_test=local_test,
-        train_overrides= {
-            "enable_contrastive": True
-        }
     )
