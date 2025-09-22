@@ -74,7 +74,7 @@ class TestNewPolicySystem:
 
     def test_checkpoint_manager_cache_interface(self):
         """Test that CheckpointManager caching interface works."""
-        manager = CheckpointManager(cache_size=5)
+        manager = CheckpointManager(cache_size=5, run_dir="./train_dir")
         manager.clear_cache()
         assert manager.cache_size == 5
 
