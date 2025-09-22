@@ -96,8 +96,8 @@ def _map_pufferlib_key_to_metta(key: str) -> str:
 
 
 def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
-    """Create a Policy with default configuration suitable for PufferLib checkpoint loading."""
-    from metta.agent.policies.fast import FastConfig, FastPolicy
+    """Create a Policy with PufferLib-compatible configuration for checkpoint loading."""
+    from metta.agent.policies.pufferlib_compatible import PufferLibCompatibleConfig, PufferLibCompatiblePolicy
     from mettagrid import MettaGridEnv
     from mettagrid.builder.envs import make_arena
 
@@ -105,11 +105,11 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
     env_cfg = make_arena(num_agents=60)
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
-    # Create a basic policy configuration
-    policy_cfg = FastConfig()
+    # Create a PufferLib-compatible policy configuration
+    policy_cfg = PufferLibCompatibleConfig()
 
     # Create the policy directly
-    policy = FastPolicy(temp_env, policy_cfg)
+    policy = PufferLibCompatiblePolicy(temp_env, policy_cfg)
     temp_env.close()
 
     # Move policy to the specified device
