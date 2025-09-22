@@ -126,8 +126,19 @@ public:
   // Pointer to current timestep from environment
   unsigned int* current_timestep_ptr;
 
+  // Recipe observation configuration
+  bool recipe_details_obs;
+  ObservationType input_recipe_offset;
+  ObservationType output_recipe_offset;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
-      : recipes(cfg.recipes), cooldown_end_timestep(0), grid(nullptr), current_timestep_ptr(nullptr) {
+      : recipes(cfg.recipes),
+        cooldown_end_timestep(0),
+        grid(nullptr),
+        current_timestep_ptr(nullptr),
+        recipe_details_obs(cfg.recipe_details_obs),
+        input_recipe_offset(cfg.input_recipe_offset),
+        output_recipe_offset(cfg.output_recipe_offset) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
@@ -175,6 +186,14 @@ public:
     return pattern;
   }
 
+  // Get current recipe based on surrounding agent pattern
+  const Recipe* get_current_recipe() const {
+    if (!grid) return nullptr;
+    uint8_t pattern = get_agent_pattern_byte();
+    if (pattern >= recipes.size()) return nullptr;
+    return recipes[pattern].get();
+  }
+
   // Implement pure virtual method from Usable
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid || !current_timestep_ptr) {
@@ -184,8 +203,7 @@ public:
       stats.incr("assembler.blocked.cooldown");
       return false;
     }
-    uint8_t pattern = get_agent_pattern_byte();
-    Recipe* recipe = recipes[pattern].get();
+    const Recipe* recipe = get_current_recipe();
     if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
       stats.incr("assembler.blocked.no_recipe");
       return false;
@@ -198,7 +216,6 @@ public:
     consume_resources_for_recipe(*recipe, surrounding_agents);
     give_output_to_agent(*recipe, actor);
     stats.incr("assembler.recipes_executed");
-    stats.incr("assembler.recipe_pattern_" + std::to_string(pattern));
     if (recipe->cooldown > 0) {
       cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
       stats.incr("assembler.cooldown_started");
@@ -209,13 +226,33 @@ public:
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
       features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
     }
 
-    // uint8_t pattern = get_agent_pattern_byte();
-    // features.push_back({ObservationFeature::Group, static_cast<ObservationType>(pattern)});
+    // Add recipe details if configured to do so
+    if (this->recipe_details_obs) {
+      const Recipe* current_recipe = get_current_recipe();
+      if (current_recipe) {
+        // Add recipe inputs (input:resource) - only non-zero values
+        for (const auto& [item, amount] : current_recipe->input_resources) {
+          if (amount > 0) {
+            features.push_back(
+                {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
+          }
+        }
+
+        // Add recipe outputs (output:resource) - only non-zero values
+        for (const auto& [item, amount] : current_recipe->output_resources) {
+          if (amount > 0) {
+            features.push_back(
+                {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+          }
+        }
+      }
+    }
 
     // Emit tag features
     for (int tag_id : this->tag_ids) {
