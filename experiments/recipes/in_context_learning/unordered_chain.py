@@ -7,8 +7,7 @@ from typing import List, Optional, Sequence
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.evaluator import EvaluatorConfig
+from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -302,8 +301,8 @@ def train(
     lp_params: LPParams = LPParams(),
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.ordered_chains import (
-        make_icl_resource_chain_eval_suite,
+    from experiments.evals.in_context_learning.unordered_chains import (
+        make_unordered_chain_eval_suite,
     )
 
     if curriculum is None:
@@ -351,8 +350,8 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         curriculum=curriculum,
-        evaluation=EvaluatorConfig(
-            simulations=make_icl_resource_chain_eval_suite(),
+        evaluation=EvaluationConfig(
+            simulations=make_unordered_chain_eval_suite(),
             evaluate_remote=True,
             evaluate_local=False,
         ),
@@ -391,11 +390,11 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     # Local import to   avoid circular import at module load time
-    from experiments.evals.in_context_learning.ordered_chains import (
-        make_icl_resource_chain_eval_suite,
+    from experiments.evals.in_context_learning.unordered_chains import (
+        make_unordered_chain_eval_suite,
     )
 
-    simulations = simulations or make_icl_resource_chain_eval_suite()
+    simulations = simulations or make_unordered_chain_eval_suite()
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
