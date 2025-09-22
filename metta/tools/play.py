@@ -2,17 +2,18 @@
 
 import json
 import logging
-import sys
 
 import numpy as np
 import torch as torch
 
+import mettagrid.mettascope as mettascope2
 from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
+from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +39,6 @@ class PlayTool(Tool):
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.mettascope2:
-            # Add Mettascope2 bindings to the path
-            sys.path.append("mettascope2/bindings/generated")
-
-            import mettascope2
-            from mettagrid.util.grid_object_formatter import format_grid_object
-
             sim = Simulation.create(
                 sim_config=self.sim,
                 device=self.system.device,
