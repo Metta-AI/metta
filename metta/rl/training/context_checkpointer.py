@@ -1,7 +1,6 @@
 """Trainer state checkpoint management component."""
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager

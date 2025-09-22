@@ -165,12 +165,8 @@ class CheckpointManager:
         self.run_name = run
 
         provided_path = Path(run_dir)
-        if provided_path.name == self.run:
-            self.base_dir = provided_path.parent
-            self.run_dir = provided_path
-        else:
-            self.base_dir = provided_path
-            self.run_dir = provided_path / self.run
+        self.base_dir = provided_path.parent if provided_path.name == self.run else provided_path
+        self.run_dir = self.base_dir / self.run
 
         default_checkpoint_dir = self.run_dir / "checkpoints"
         self.checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else default_checkpoint_dir
