@@ -84,16 +84,31 @@ def create_navigation_task(
         ]
         # For more than 3 agents, add additional positions
         if num_agents > 3:
+            # Count available empty cells
+            empty_cells = sum(row.count(".") for row in map_data)
+            agents_to_place = num_agents - 3  # Already have positions for agents 1, 2, 3
+
+            if agents_to_place > empty_cells:
+                raise ValueError(
+                    f"Cannot place {num_agents} agents on navigation map. "
+                    f"Only {empty_cells} empty cells available for {agents_to_place} additional agents. "
+                    f"Maximum supported agents: {3 + empty_cells}"
+                )
+
             for i in range(4, num_agents + 1):
                 # Add agent positions to empty spots
+                placed = False
                 for row_idx, row in enumerate(map_data):
                     for col_idx, cell in enumerate(row):
                         if cell == "." and str(i) not in [cell for row in map_data for cell in row]:
                             map_data[row_idx][col_idx] = str(i)
+                            placed = True
                             break
-                    else:
-                        continue
-                    break
+                    if placed:
+                        break
+
+                if not placed:
+                    raise ValueError(f"Failed to place agent {i} on navigation map")
 
     # Create agents with proper configuration (team_id should match map positions)
     agents = []

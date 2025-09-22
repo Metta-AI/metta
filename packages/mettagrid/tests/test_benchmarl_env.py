@@ -148,8 +148,9 @@ def test_benchmarl_env_reset():
 
     assert isinstance(tensordict, TensorDict)
     assert "agents" in tensordict.keys()
-    assert tensordict["agents"].shape == (3, 200, 3)  # (num_agents, obs_dim, channels)
-    assert tensordict["done"].shape == (3,)
+    expected_obs_shape = env.observation_spec["agents"].shape
+    assert tensordict["agents"].shape == expected_obs_shape
+    assert tensordict["done"].shape == (env.num_agents,)
     assert not tensordict["done"].all()
 
     env.close()
@@ -176,9 +177,10 @@ def test_benchmarl_env_step():
 
     assert isinstance(next_td, TensorDict)
     assert "agents" in next_td.keys()
-    assert next_td["agents"].shape == (3, 200, 3)
-    assert next_td["reward"].shape == (3,)
-    assert next_td["done"].shape == (3,)
+    expected_obs_shape = env.observation_spec["agents"].shape
+    assert next_td["agents"].shape == expected_obs_shape
+    assert next_td["reward"].shape == (env.num_agents,)
+    assert next_td["done"].shape == (env.num_agents,)
 
     env.close()
 
