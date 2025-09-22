@@ -8,8 +8,7 @@ import boto3
 import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
-from pydantic import Field
-import json
+from pydantic import Field, ConfigDict
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.util.uri import ParsedURI
 
@@ -18,14 +17,14 @@ logger = logging.getLogger(__name__)
 MAPS_ROOT = "s3://softmax-public/maps"
 
 
-def pick_random_file(path):
+def pick_random_file(path, rng):
     chosen = None
     count = 0
     with os.scandir(path) as it:
         for entry in it:
             count += 1
             # with probability 1/count, pick this entry
-            if random.randrange(count) == 0:
+            if rng.randrange(count) == 0:
                 chosen = entry.name
     return chosen
 
@@ -54,12 +53,15 @@ class TerrainFromNumpy(MapBuilder):
     It's not a MapGen scene, because we don't know the grid size until we load the file."""
 
     class Config(MapBuilderConfig["TerrainFromNumpy"]):
+        # Allow non-pydantic types like random.Random
+        model_config = ConfigDict(arbitrary_types_allowed=True)
         objects: dict[str, int] = Field(default_factory=dict)
         agents: int | dict[str, int] = Field(default=0, ge=0)
         dir: str
         file: Optional[str] = None
         remove_altars: bool = False
         object_names: list[str] = Field(default_factory=list)
+        rng: random.Random = Field(default_factory=random.Random, exclude=True)
 
     def __init__(self, config: Config):
         self.config = config
@@ -118,7 +120,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
     def build(self):
         map_dir = self.setup()
         if self.config.file is None:
-            uri = pick_random_file(map_dir)
+            uri = pick_random_file(map_dir, self.config.rng)
         else:
             uri = self.config.file
 
@@ -139,7 +141,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
         num_agents = len(agent_labels)
 
         valid_positions = self.get_valid_positions(grid)
-        random.shuffle(valid_positions)
+        self.config.rng.shuffle(valid_positions)
 
         # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
@@ -154,7 +156,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
             if count < 0:
                 continue
             # Sample from remaining valid positions
-            positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
+            positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
@@ -170,7 +172,7 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
         map_dir = self.setup()
 
         if self.config.file is None:
-            uri = pick_random_file(map_dir)
+            uri = pick_random_file(map_dir, self.config.rng)
         else:
             uri = self.config.file
 

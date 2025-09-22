@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
+import random
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -229,6 +230,7 @@ def make_icl_with_numpy(
     game_objects: dict,
     object_names: list[str],
     dir: str,
+    rng: random.Random,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -241,6 +243,7 @@ def make_icl_with_numpy(
                 instance_map=InContextLearningFromNumpy.Config(
                     dir=dir,
                     object_names=object_names,
+                    rng=rng,
                 ),
             ),
             actions=ActionsConfig(

@@ -322,11 +322,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
             random_number = self._rng.integers(1000000)
 
-            subdir = (
-                f"{size}/"
-                f"{self._config.chain_length - 2}chains_{self._config.num_sinks}sinks/"
-                f"{terrain}-{density}"
-            )
+            subdir = f"{size}/{self._config.chain_length - 2}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
             filename = os.path.join(dir, subdir, f"{random_number}.npy")
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             np.save(filename, grid)

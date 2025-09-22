@@ -300,6 +300,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
                 dir=dir,
                 game_objects=cfg.game_objects,
                 object_names=cfg.used_objects,
+                rng=rng,
             )
 
         size_range = (
