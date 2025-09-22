@@ -26,3 +26,10 @@ FORCE_CUDA=1 uv sync
 
 Ensure the CUDA 13.0 toolkit and cuDNN are installed under
 `/usr/local/cuda-13.0` so the shared libraries are available to PyTorch.
+
+You can also configure this via the CLI (optionally supplying a custom toolkit path):
+
+```
+metta configure --cuda 13.0 --cuda-home /usr/local/cuda-13.0
+metta install --cuda 13.0
+```
