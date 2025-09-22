@@ -216,6 +216,12 @@ class TrainTool(Tool):
         )
         return policy_checkpointer, policy
 
+    def _checkpoint_base_dir(self) -> str:
+        """Return the directory that should contain per-run subdirectories."""
+        if not self.run_dir:
+            return str(Path(self.system.data_dir))
+        return str(Path(self.run_dir).parent)
+
     def _initialize_trainer(
         self,
         env: VectorizedTrainingEnvironment,
