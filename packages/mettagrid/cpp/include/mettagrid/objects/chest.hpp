@@ -152,6 +152,8 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
+    features.reserve(2 + this->inventory.size() + this->tag_ids.size());
+
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->resource_type)});
 
@@ -161,6 +163,11 @@ public:
         features.push_back(
             {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
       }
+    }
+
+    // Emit tag features
+    for (int tag_id : tag_ids) {
+      features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
     return features;
