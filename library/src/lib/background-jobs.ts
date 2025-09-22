@@ -5,7 +5,7 @@
  * using BullMQ for reliable processing with retries and monitoring.
  */
 
-import { JobQueueService } from './job-queue';
+import { JobQueueService } from "./job-queue";
 
 /**
  * Queue an arXiv institution processing job for background execution
@@ -39,9 +39,7 @@ export async function queueLLMAbstractGeneration(
 /**
  * Queue auto-tagging for a paper
  */
-export async function queueAutoTagging(
-  paperId: string
-): Promise<void> {
+export async function queueAutoTagging(paperId: string): Promise<void> {
   await JobQueueService.queueAutoTagging(paperId);
 }
 

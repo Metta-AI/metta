@@ -20,6 +20,7 @@ const inputSchema = zfd.formData({
     z.enum(["user-post", "paper-post", "pure-paper"]).optional()
   ),
   paperId: zfd.text(z.string().optional()), // Added support for paperId
+  images: zfd.text(z.string().optional()), // JSON string of image URLs
 });
 
 export const createPostAction = actionClient
@@ -31,6 +32,16 @@ export const createPostAction = actionClient
     let paperId = input.paperId || null;
     let postType = input.postType || "user-post";
     let arxivUrl: string | null = null;
+
+    // Parse images if provided
+    let images: string[] = [];
+    if (input.images) {
+      try {
+        images = JSON.parse(input.images);
+      } catch (error) {
+        console.error("Error parsing images:", error);
+      }
+    }
 
     if (input.content && !paperId) {
       // Check for arXiv URL and import paper immediately (fast - no institutions)
@@ -58,6 +69,7 @@ export const createPostAction = actionClient
         content: input.content || null,
         postType,
         paperId,
+        images,
         authorId: session.user.id,
       },
       select: {

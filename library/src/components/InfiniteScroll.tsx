@@ -4,7 +4,7 @@ import { FC, useEffect, useRef, useCallback } from "react";
 
 /**
  * InfiniteScroll Component
- * 
+ *
  * Automatically loads more content when the user scrolls near the bottom.
  * Uses Intersection Observer API for efficient scroll detection.
  */
@@ -48,13 +48,13 @@ export const InfiniteScroll: FC<{
   return (
     <div ref={observerRef}>
       {children}
-      
+
       {/* Loading indicator at the bottom */}
       {hasMore && (
         <div ref={loadingRef} className="p-4 text-center">
           {loading ? (
             <div className="flex items-center justify-center gap-2 text-gray-500">
-              <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
               <span>Loading more posts...</span>
             </div>
           ) : (
@@ -64,4 +64,4 @@ export const InfiniteScroll: FC<{
       )}
     </div>
   );
-}; 
+};

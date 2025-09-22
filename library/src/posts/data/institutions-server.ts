@@ -146,7 +146,10 @@ export async function loadInstitutions(): Promise<InstitutionDTO[]> {
     );
     const recentPapers = sortedPapers.slice(0, 5);
 
-    const totalUserStars = data.papers.reduce((sum, paper) => sum + paper.userStars, 0);
+    const totalUserStars = data.papers.reduce(
+      (sum, paper) => sum + paper.userStars,
+      0
+    );
     const avgStars =
       data.papers.length > 0 ? totalUserStars / data.papers.length : 0;
 

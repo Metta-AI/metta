@@ -85,6 +85,7 @@ model Post {
   queues    Int        @default(0)
   replies   Int        @default(0)
   paperId   String?
+  images    String[]   @default([]) // Array of image URLs
   author    User       @relation(fields: [authorId], references: [id])
   paper     Paper?     @relation(fields: [paperId], references: [id])
   comments  Comment[]
