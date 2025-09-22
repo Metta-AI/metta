@@ -2,6 +2,7 @@ from collections import deque
 from typing import Optional
 
 import numpy as np
+import os
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.map_builder.utils import draw_border
@@ -32,6 +33,9 @@ class PerimeterInContextMapBuilder(MapBuilder):
         agents: int | dict[str, int] = 1
         border_width: int = 0
         border_object: str = "wall"
+
+        chain_length: int = 2
+        num_sinks: int = 0
 
     def __init__(self, config: Config):
         self._config = config
@@ -190,7 +194,8 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         return False
 
-    def build(self):
+    def build(self, save_to_numpy = True):
+        print("Building PerimeterInContextMapBuilder")
         height = self._config.height
         width = self._config.width
 
@@ -303,4 +308,26 @@ class PerimeterInContextMapBuilder(MapBuilder):
         center_i, center_j = height // 2, width // 2
         grid[center_i, center_j] = agents[0]
 
+        if save_to_numpy:
+
+            area = height * width
+
+            if area < 49:
+                size = "tiny"
+            elif area < 144:
+                size = "small"
+            else:
+                size = "medium"
+
+            terrain = "terrain" if obstacle_type else "simple"
+            density = density if density else ""
+
+            random_number = self._rng.integers(1000000)
+            filename = f"icl_resource_chain/{size}/{self._config.chain_length-2}chains_{self._config.num_sinks}sinks/{terrain}-{density}/{random_number}.npy"
+            print(f"Saving to {filename}")
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            np.save(filename, grid)
+            print("Done")
+
         return GameMap(grid)
+
