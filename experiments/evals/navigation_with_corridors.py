@@ -4,19 +4,26 @@ This replaces static ASCII maps with dynamically generated corridor patterns
 using the unified AngledCorridorBuilder API.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 from metta.map.scenes.angled_corridor_builder import (
     AngledCorridorBuilder,
     AngledCorridorBuilderParams,
     horizontal,
-    radial_corridors,
-    star_pattern,
     vertical,
 )
 from metta.mettagrid.config.envs import make_navigation
+from metta.mettagrid.map_builder.ops_builder import OpsMapBuilder
 from metta.mettagrid.mapgen.mapgen import MapGen
+from metta.mettagrid.mapgen.ops import (
+    Operation,
+    StampOp,
+    grid_ops,
+    line,
+    radial_ops,
+    react,
+)
 from metta.mettagrid.mapgen.scenes.mean_distance import MeanDistance
 from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -26,6 +33,12 @@ def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     """Set the heart reward to 0.333 for normalization"""
     env.game.agent.rewards.inventory["heart"] = 0.333
     return env
+
+
+def _stamp_cell(y: int, x: int, material: str) -> StampOp:
+    import numpy as _np
+
+    return StampOp(center=(y, x), pattern=_np.array([[material]], dtype=str))
 
 
 def make_nav_ascii_env(
@@ -45,10 +58,10 @@ def make_nav_ascii_env(
 
 
 def make_corridors_env(vertical_orientation: bool = False) -> MettaGridConfig:
-    """Generate corridors.map pattern procedurally.
+    """Generate corridors pattern using ops.
 
     Args:
-        vertical_orientation: If True, swap horizontal/vertical to create vertical version
+        vertical_orientation: If True, vertical main and horizontal cross-cuts
     """
     env = make_navigation(num_agents=4)
     env.game.max_steps = 450
@@ -56,191 +69,175 @@ def make_corridors_env(vertical_orientation: bool = False) -> MettaGridConfig:
     from random import choice
 
     if vertical_orientation:
-        # Vertical version: main vertical corridor with horizontal intersectors
         width, height = 26, 74
-        corridors = [
-            vertical(x=13, thickness=7, y_start=1, y_end=73),
-            horizontal(y=10, thickness=3, x_start=1, x_end=10),
-            horizontal(y=20, thickness=4),
-            horizontal(y=30, thickness=2, x_start=17, x_end=26),
-            horizontal(y=40, thickness=3),
-            horizontal(y=50, thickness=5, x_start=5, x_end=20),
-            horizontal(y=60, thickness=2),
-            horizontal(y=68, thickness=3, x_start=8, x_end=18),
-        ]
-        # Agent at either end of main vertical corridor
-        agent_y = choice([2, 72])
-        agent_position = (agent_y, 13)
-    else:
-        # Original horizontal version
-        width, height = 74, 26
-        corridors = [
-            horizontal(y=13, thickness=7, x_start=1, x_end=73),
-            vertical(x=10, thickness=3, y_start=1, y_end=10),
-            vertical(x=20, thickness=4),
-            vertical(x=30, thickness=2, y_start=17, y_end=26),
-            vertical(x=40, thickness=3),
-            vertical(x=50, thickness=5, y_start=5, y_end=20),
-            vertical(x=60, thickness=2),
-            vertical(x=68, thickness=3, y_start=8, y_end=18),
-        ]
-        # Agent at either end of main horizontal corridor
-        agent_x = choice([2, 72])
-        agent_position = (13, agent_x)
-
-    env.game.map_builder = MapGen.Config(
-        instances=4,
-        border_width=6,
-        instance_border_width=3,
-        instance_map=MapGen.Config(
-            width=width,
-            height=height,
-            border_width=2,
-            root=AngledCorridorBuilder.factory(
-                params=AngledCorridorBuilderParams(
-                    corridors=corridors,
-                    objects={"altar": 3},
-                    place_at_ends=True,
-                    agent_position=agent_position,
-                    ensure_altar_near_agent=False,
-                    prefer_far_from_center=True,
-                )
+        ops: List[Operation] = []
+        # Main vertical
+        ops.append(line((1, 13), (73, 13), thickness=7))
+        # Cross-cuts
+        ops.append(line((10, 1), (10, 10), thickness=3))
+        ops.append(line((20, 1), (20, 25), thickness=4))
+        ops.append(line((30, 17), (30, 25), thickness=2))
+        ops.append(line((40, 1), (40, 25), thickness=3))
+        ops.append(line((50, 5), (50, 20), thickness=5))
+        ops.append(line((60, 1), (60, 25), thickness=2))
+        ops.append(line((68, 8), (68, 18), thickness=3))
+        _ = choice([2, 72])  # maintain source of randomness; agent placed by env
+        # Place altars near far cross-cuts
+        ops.append(_stamp_cell(10, 9, "altar"))
+        ops.append(_stamp_cell(50, 19, "altar"))
+        ops.append(_stamp_cell(68, 17, "altar"))
+        env.game.map_builder = MapGen.Config(
+            instances=4,
+            border_width=6,
+            instance_border_width=3,
+            instance_map=OpsMapBuilder.Config(
+                ops=ops,
+                width=width,
+                height=height,
+                initial_fill="wall",
+                border_width=2,
             ),
-        ),
-    )
+        )
+    else:
+        width, height = 74, 26
+        ops = []
+        # Main horizontal
+        ops.append(line((13, 1), (13, 73), thickness=7))
+        # Cross-cuts
+        ops.append(line((1, 10), (10, 10), thickness=3))
+        ops.append(line((1, 20), (25, 20), thickness=4))
+        ops.append(line((17, 30), (25, 30), thickness=2))
+        ops.append(line((1, 40), (25, 40), thickness=3))
+        ops.append(line((5, 50), (20, 50), thickness=5))
+        ops.append(line((1, 60), (25, 60), thickness=2))
+        ops.append(line((8, 68), (18, 68), thickness=3))
+        _ = choice([2, 72])
+        # Altars near far cross-cuts
+        ops.append(_stamp_cell(9, 10, "altar"))
+        ops.append(_stamp_cell(19, 50, "altar"))
+        ops.append(_stamp_cell(17, 68, "altar"))
+        env.game.map_builder = MapGen.Config(
+            instances=4,
+            border_width=6,
+            instance_border_width=3,
+            instance_map=OpsMapBuilder.Config(
+                ops=ops,
+                width=width,
+                height=height,
+                initial_fill="wall",
+                border_width=2,
+            ),
+        )
+
     return make_nav_eval_env(env)
 
 
 def make_radial_mini_env() -> MettaGridConfig:
-    """Generate radial_mini.map pattern procedurally."""
+    """Generate radial_mini using ops-based radial spokes."""
     env = make_navigation(num_agents=4)
     env.game.max_steps = 150
 
-    corridors = radial_corridors(
-        center=(11, 11),
-        num_spokes=8,
-        length=8,
-        thickness=1,
-    )
+    center = (11, 11)
+    ops: List[Operation] = []
+    ops.extend(radial_ops(center=center, num_spokes=8, length=8, thickness=1))
+    # Place altars at three distinct spoke ends deterministically
+    ops.append(_stamp_cell(center[0] - 8, center[1], "altar"))
+    ops.append(_stamp_cell(center[0], center[1] + 8, "altar"))
+    ops.append(_stamp_cell(center[0] + 8, center[1], "altar"))
 
     env.game.map_builder = MapGen.Config(
         instances=4,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config(
+        instance_map=OpsMapBuilder.Config(
+            ops=ops,
             width=22,
             height=22,
+            initial_fill="wall",
             border_width=1,
-            root=AngledCorridorBuilder.factory(
-                params=AngledCorridorBuilderParams(
-                    corridors=corridors,
-                    objects={"altar": 3},
-                    place_at_ends=True,
-                    agent_position=(11, 11),
-                )
-            ),
         ),
     )
     return make_nav_eval_env(env)
 
 
 def make_radial_small_env() -> MettaGridConfig:
-    """Generate radial_small.map pattern procedurally."""
+    """Generate radial_small using ops-based radial spokes."""
     env = make_navigation(num_agents=4)
     env.game.max_steps = 120
 
-    corridors = radial_corridors(
-        center=(17, 17),
-        num_spokes=6,
-        length=12,
-        thickness=2,
-    )
+    center = (17, 17)
+    ops: List[Operation] = []
+    ops.extend(radial_ops(center=center, num_spokes=6, length=12, thickness=2))
+    ops.append(_stamp_cell(center[0] - 12, center[1], "altar"))
+    ops.append(_stamp_cell(center[0] + 12, center[1], "altar"))
+    ops.append(_stamp_cell(center[0], center[1] + 12, "altar"))
 
     env.game.map_builder = MapGen.Config(
         instances=4,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config(
+        instance_map=OpsMapBuilder.Config(
+            ops=ops,
             width=34,
             height=34,
+            initial_fill="wall",
             border_width=2,
-            root=AngledCorridorBuilder.factory(
-                params=AngledCorridorBuilderParams(
-                    corridors=corridors,
-                    objects={"altar": 3},
-                    place_at_ends=True,
-                    agent_position=(17, 17),
-                )
-            ),
         ),
     )
     return make_nav_eval_env(env)
 
 
 def make_radial_large_env() -> MettaGridConfig:
-    """Generate radial_large.map pattern procedurally."""
+    """Generate radial_large using ops-based star spokes."""
     env = make_navigation(num_agents=4)
     env.game.max_steps = 1000
 
-    # Create a star pattern for larger map
-    corridors = star_pattern(
-        center=(40, 40),
-        num_spokes=8,
-        length=35,
-        thickness=3,
-    )
+    center = (40, 40)
+    ops: List[Operation] = []
+    # Star = pairwise opposite radial lines; approximate with 8 spokes
+    ops.extend(radial_ops(center=center, num_spokes=8, length=35, thickness=3))
+    # One altar at a far end
+    ops.append(_stamp_cell(center[0] - 35, center[1], "altar"))
 
     env.game.map_builder = MapGen.Config(
         instances=4,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config(
+        instance_map=OpsMapBuilder.Config(
+            ops=ops,
             width=80,
             height=80,
+            initial_fill="wall",
             border_width=3,
-            root=AngledCorridorBuilder.factory(
-                params=AngledCorridorBuilderParams(
-                    corridors=corridors,
-                    objects={"altar": 1},
-                    place_at_ends=True,
-                    agent_position=(40, 40),
-                )
-            ),
         ),
     )
     return make_nav_eval_env(env)
 
 
 def make_grid_maze_env() -> MettaGridConfig:
-    """Generate a grid/maze pattern using corridors."""
+    """Generate a grid/maze pattern using ops."""
     env = make_navigation(num_agents=4)
     env.game.max_steps = 500
 
-    corridors = []
-
-    # Create a grid pattern
-    for y in [10, 20, 30, 40, 50]:
-        corridors.append(horizontal(y=y, thickness=2))
-
-    for x in [10, 20, 30, 40, 50]:
-        corridors.append(vertical(x=x, thickness=2))
+    ops: List[Operation] = []
+    # Base grid
+    ops.extend(grid_ops(origin=(10, 10), rows=5, cols=5, spacing=10, thickness=2))
+    # Altar stamps at four intersections
+    for y in [10, 30, 50, 30]:
+        for x in [10, 30, 50, 30]:
+            if (y, x) in [(10, 10), (10, 50), (50, 10), (50, 50)]:
+                ops.append(_stamp_cell(y, x, "altar"))
 
     env.game.map_builder = MapGen.Config(
         instances=4,
         border_width=6,
         instance_border_width=3,
-        instance_map=MapGen.Config(
+        instance_map=OpsMapBuilder.Config(
+            ops=ops,
             width=60,
             height=60,
+            initial_fill="wall",
             border_width=2,
-            root=AngledCorridorBuilder.factory(
-                params=AngledCorridorBuilderParams(
-                    corridors=corridors,
-                    objects={"altar": 4},
-                    place_at_intersections=True,
-                    agent_position=(30, 30),
-                )
-            ),
         ),
     )
     return make_nav_eval_env(env)
@@ -284,6 +281,187 @@ def make_hall_of_mirrors_env() -> MettaGridConfig:
         place_at_ends=True,
         prefer_far_from_center=True,
         agent_position=(center_y, 2),
+        shuffle_placements=False,
+    )
+
+    env.game.map_builder = MapGen.Config(
+        instances=4,
+        border_width=6,
+        instance_border_width=3,
+        instance_map=MapGen.Config(
+            width=width,
+            height=height,
+            border_width=1,
+            root=AngledCorridorBuilder.factory(params=params),
+        ),
+    )
+
+    return make_nav_eval_env(env)
+
+
+def make_rooms_env() -> MettaGridConfig:
+    """Procedural remake of systematic_exploration_memory/rooms.map using stamping walls.
+
+    We start from an empty canvas and carve rectangular rooms, automatically
+    surrounding them with 1-cell wall rings. Doorways are carved by additional
+    thin corridors that cross the ring.
+    """
+    env = make_navigation(num_agents=4)
+    env.game.max_steps = 400
+
+    # Approximate the original map dimensions (inner area)
+    width = 38
+    height = 45
+
+    corridors = []
+
+    # Room A (top-left): bounded ring with an open doorway (post-carve)
+    corridors.append(
+        horizontal(y=9, thickness=9, x_start=4, x_end=15, surround_with_walls=True)
+    )
+    # Room B (mid-right)
+    corridors.append(
+        horizontal(y=22, thickness=11, x_start=24, x_end=36, surround_with_walls=True)
+    )
+    # Room C (bottom-left)
+    corridors.append(
+        horizontal(y=38, thickness=11, x_start=3, x_end=20, surround_with_walls=True)
+    )
+
+    # Doorways that should not be surrounded
+    post_doors = [
+        vertical(x=6, thickness=1, y_start=1, y_end=12, surround_with_walls=False),
+        horizontal(y=22, thickness=1, x_start=18, x_end=24, surround_with_walls=False),
+        vertical(x=10, thickness=1, y_start=30, y_end=38, surround_with_walls=False),
+    ]
+
+    params = AngledCorridorBuilderParams(
+        corridors=corridors,
+        post_carve_corridors=post_doors,
+        # Start empty and surround carved areas with wall rings
+        initial_fill="empty",
+        surround_with_walls=False,
+        wall_sides=["N", "S", "E", "W"],
+        # Place a few altars at fixed inner coords to avoid blocking
+        fixed_objects={"altar": [(9, 8), (22, 30), (38, 10)]},
+        # Prefer center placement after fixed objects only for any remaining objects
+        objects={},
+        place_at_center=False,
+        place_at_ends=False,
+        agent_position=(9, 8),  # inside Room A
+        shuffle_placements=False,
+    )
+
+    env.game.map_builder = MapGen.Config(
+        instances=4,
+        border_width=6,
+        instance_border_width=3,
+        instance_map=MapGen.Config(
+            width=width,
+            height=height,
+            border_width=1,
+            root=AngledCorridorBuilder.factory(params=params),
+        ),
+    )
+
+    return make_nav_eval_env(env)
+
+
+def make_tease_small_env() -> MettaGridConfig:
+    """Procedural remake of systematic_exploration_memory/tease_small.map.
+
+    Large left room bounded by a wall ring with one bottom-right opening,
+    plus scattered altars and agent in the top-right.
+    """
+    env = make_navigation(num_agents=4)
+    env.game.max_steps = 300
+
+    width = 72
+    height = 17
+
+    corridors = []
+
+    # Main left room (rectangle via thick horizontal corridor)
+    corridors.append(
+        horizontal(y=9, thickness=7, x_start=8, x_end=60, surround_with_walls=True)
+    )
+
+    # Bottom-right opening: carve across the ring
+    corridors.append(
+        horizontal(y=14, thickness=1, x_start=56, x_end=69, surround_with_walls=False)
+    )
+
+    # Interior decoration corridors for mild asymmetry (optional)
+    corridors.append(
+        vertical(x=12, thickness=1, y_start=5, y_end=12, surround_with_walls=False)
+    )
+
+    params = AngledCorridorBuilderParams(
+        corridors=corridors,
+        initial_fill="empty",
+        surround_with_walls=False,
+        wall_sides=["N", "S", "E", "W"],
+        fixed_objects={"altar": [(14, 63), (5, 6), (6, 10)]},
+        objects={},
+        place_at_center=False,
+        place_at_ends=False,
+        agent_position=(2, width - 3),  # near top-right like the ASCII
+        shuffle_placements=False,
+    )
+
+    env.game.map_builder = MapGen.Config(
+        instances=4,
+        border_width=6,
+        instance_border_width=3,
+        instance_map=MapGen.Config(
+            width=width,
+            height=height,
+            border_width=1,
+            root=AngledCorridorBuilder.factory(params=params),
+        ),
+    )
+
+    return make_nav_eval_env(env)
+
+
+def make_tease_env() -> MettaGridConfig:
+    """Procedural remake of systematic_exploration_memory/tease.map.
+
+    Same motif as tease_small, but taller, with additional lower features.
+    """
+    env = make_navigation(num_agents=4)
+    env.game.max_steps = 500
+
+    width = 72
+    height = 44
+
+    corridors = []
+
+    # Main left room (taller variant)
+    corridors.append(
+        horizontal(y=22, thickness=15, x_start=8, x_end=60, surround_with_walls=True)
+    )
+
+    # Bottom-right opening of the room ring
+    corridors.append(
+        horizontal(y=32, thickness=1, x_start=54, x_end=69, surround_with_walls=False)
+    )
+
+    # A mid-height thin connector (echoing the long corridor edge)
+    corridors.append(
+        horizontal(y=28, thickness=1, x_start=16, x_end=24, surround_with_walls=False)
+    )
+
+    params = AngledCorridorBuilderParams(
+        corridors=corridors,
+        initial_fill="empty",
+        surround_with_walls=False,
+        wall_sides=["N", "S", "E", "W"],
+        fixed_objects={"altar": [(40, 65), (8, 6), (10, 12)]},
+        objects={},
+        place_at_center=False,
+        place_at_ends=False,
+        agent_position=(2, width - 3),
         shuffle_placements=False,
     )
 
@@ -375,6 +553,86 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
     return make_nav_eval_env(env)
 
 
+def make_ops_demo_env() -> MettaGridConfig:
+    """Demonstrate pure operations-based map generation.
+
+    This creates a map using only operations, showing how the chemistry
+    approach can work alongside the existing corridor builder.
+    """
+    env = make_navigation(num_agents=4)
+    env.game.max_steps = 400
+
+    # Generate operations for a combined pattern
+    ops = []
+
+    # Add a grid base
+    ops.extend(grid_ops(origin=(10, 10), rows=5, cols=5, spacing=8, thickness=2))
+
+    # Add radial patterns at grid intersections
+    for i in range(0, 6):
+        for j in range(0, 6):
+            center = (10 + i * 8, 10 + j * 8)
+            if (i + j) % 2 == 0:  # Checkerboard pattern
+                ops.extend(
+                    radial_ops(center=center, num_spokes=4, length=3, thickness=1)
+                )
+
+    # Use OpsMapBuilder directly
+    env.game.map_builder = MapGen.Config(
+        instances=4,
+        border_width=6,
+        instance_border_width=3,
+        instance_map=OpsMapBuilder.Config(
+            ops=ops, width=60, height=60, initial_fill="empty", border_width=2
+        ),
+    )
+
+    return make_nav_eval_env(env)
+
+
+def make_chemistry_demo_env() -> MettaGridConfig:
+    """Demonstrate chemistry reactions between operation sets.
+
+    This shows how complex patterns emerge from reacting simple patterns.
+    """
+    env = make_navigation(num_agents=4)
+    env.game.max_steps = 500
+
+    # Create two sets of operations
+    # Set 1: Diagonal lines
+    diagonal_ops: List[Operation] = [
+        line((10, 10), (40, 40), thickness=2),
+        line((10, 40), (40, 10), thickness=2),
+    ]
+
+    # Set 2: Grid
+    grid_pattern: List[Operation] = list(
+        grid_ops(origin=(15, 15), rows=3, cols=3, spacing=10, thickness=1)
+    )
+
+    # React them with intersection rule - adds stamps at crossing points
+    combined = react(diagonal_ops, grid_pattern, "intersection")
+
+    # Add some radial patterns
+    radial_pattern: List[Operation] = list(
+        radial_ops(center=(30, 30), num_spokes=8, length=15, thickness=1)
+    )
+
+    # React with the combined pattern
+    final_ops = react(combined, radial_pattern, "intersection")
+
+    env.game.map_builder = MapGen.Config(
+        instances=4,
+        border_width=6,
+        instance_border_width=3,
+        instance_map=OpsMapBuilder.Config(
+            ops=final_ops, width=60, height=60, initial_fill="empty", border_width=2
+        ),
+    )
+
+    return make_nav_eval_env(env)
+
+
 def visualize_env_map(
     env_func, title: Optional[str] = None, show_ascii: bool = True
 ) -> np.ndarray:
@@ -446,6 +704,9 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
         SimulationConfig(name="radial_small", env=make_radial_small_env()),
         SimulationConfig(name="radial_large", env=make_radial_large_env()),
         SimulationConfig(name="grid_maze", env=make_grid_maze_env()),
+        SimulationConfig(name="rooms", env=make_rooms_env()),
+        SimulationConfig(name="tease_small", env=make_tease_small_env()),
+        SimulationConfig(name="tease", env=make_tease_env()),
         SimulationConfig(name="hall_of_mirrors", env=make_hall_of_mirrors_env()),
         SimulationConfig(name="hard_sequence", env=make_hard_sequence_env()),
         # ASCII maps that are unique enough to keep as-is
@@ -482,4 +743,7 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
         SimulationConfig(name="labyrinth", env=make_nav_ascii_env("labyrinth", 250)),
         # Mean distance based
         SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env()),
+        # Pure operations demo
+        SimulationConfig(name="ops_demo", env=make_ops_demo_env()),
+        SimulationConfig(name="chemistry_demo", env=make_chemistry_demo_env()),
     ]

@@ -18,6 +18,9 @@ class AngledCorridorSpec:
     thickness: int  # Corridor thickness
     bidirectional: bool = False  # If True, extend in both directions from center
     name: Optional[str] = None
+    # Optional per-corridor wall ring settings (override global params)
+    surround_with_walls: Optional[bool] = None
+    wall_sides: Optional[List[str]] = None
 
 
 class AngledCorridorBuilderParams(Config):
@@ -25,6 +28,15 @@ class AngledCorridorBuilderParams(Config):
 
     # List of corridors to create
     corridors: List[AngledCorridorSpec] = field(default_factory=list)
+
+    # Additional corridors carved AFTER optional surrounding walls.
+    # Useful for doorways that shouldn't get a wall ring.
+    post_carve_corridors: List[AngledCorridorSpec] = field(default_factory=list)
+
+    # How to initialize the scene area before carving corridors
+    # - "wall": start fully walled, carve empty corridors (default)
+    # - "empty": start empty, carve corridors, optionally surround with walls
+    initial_fill: str = "wall"
 
     # Objects to place
     objects: Dict[str, int] = field(default_factory=dict)
@@ -49,25 +61,127 @@ class AngledCorridorBuilderParams(Config):
     # Prefer ends far from map center when placing at ends
     prefer_far_from_center: bool = False
 
+    # When initial_fill = "empty", optionally build a wall ring around carved corridors
+    surround_with_walls: bool = False
+    # Which sides to place wall cells around the corridor path.
+    # Allowed values: "N", "S", "E", "W" (cardinals). Defaults to all.
+    wall_sides: List[str] = field(default_factory=lambda: ["N", "S", "E", "W"])
+
+    # Control center placement order (for place_at_center). If True, newest
+    # centers (including post_carve_corridors) are prioritized.
+    center_newest_first: bool = False
+
+    # Place specific objects at fixed coordinates before strategy placement.
+    # Example: {"altar": [(y1, x1), (y2, x2)]}
+    fixed_objects: Dict[str, List[Tuple[int, int]]] = field(default_factory=dict)
+
 
 class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
     """Build corridors at any angle with full control."""
+
+    @classmethod
+    def intrinsic_size(cls, params: AngledCorridorBuilderParams) -> tuple[int, int] | None:
+        """Best-effort intrinsic size based on corridor endpoints and thickness.
+
+        Returns (height, width) if all specs yield a finite bounding box; otherwise None.
+
+        Notes:
+        - Uses corridor centers and projected endpoints (via length and angle).
+        - Adds a margin for thickness and the builder's 1-cell outer wall ring.
+        - If inputs imply negative coordinates for the interior area, returns None.
+        """
+        if not params.corridors:
+            return None
+
+        # Track extrema across all corridors
+        min_x: float | None = None
+        min_y: float | None = None
+        max_x: float | None = None
+        max_y: float | None = None
+
+        # Conservative margin: half thickness plus small bridging allowance
+        global_margin = 0
+
+        for spec in params.corridors:
+            cy, cx = spec.center
+
+            angle_rad = math.radians(spec.angle)
+            dx = math.cos(angle_rad)
+            dy = -math.sin(angle_rad)
+
+            # Endpoints for one-way and bidirectional corridors
+            endpoints: list[tuple[float, float]] = []
+            endpoints.append((cy, cx))
+            endpoints.append((cy + dy * spec.length, cx + dx * spec.length))
+            if spec.bidirectional:
+                endpoints.append((cy - dy * spec.length, cx - dx * spec.length))
+
+            # Update global margin
+            per_spec_margin = (spec.thickness // 2) + 2
+            if per_spec_margin > global_margin:
+                global_margin = per_spec_margin
+
+            for ey, ex in endpoints:
+                if min_x is None or ex < min_x:
+                    min_x = ex
+                if max_x is None or ex > max_x:
+                    max_x = ex
+                if min_y is None or ey < min_y:
+                    min_y = ey
+                if max_y is None or ey > max_y:
+                    max_y = ey
+
+        assert min_x is not None and min_y is not None and max_x is not None and max_y is not None
+
+        # Account for corridor thickness and a 1-cell wall ring around the interior
+        # Interior coordinates must be > 0 to leave the outer wall intact
+        # If requested coordinates would push into the wall ring, we decline intrinsic sizing
+        if min_x - global_margin < 1 or min_y - global_margin < 1:
+            return None
+
+        interior_max_x = int(math.ceil(max_x + global_margin))
+        interior_max_y = int(math.ceil(max_y + global_margin))
+
+        # Ensure room for 1-cell walls on all sides (empty cells must lie in 1..w-2, 1..h-2)
+        width = interior_max_x + 2
+        height = interior_max_y + 2
+
+        # Sanity clamp to positive
+        if width <= 2 or height <= 2:
+            return None
+
+        return (height, width)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.corridor_ends = []
         self.corridor_centers = []
         self.corridor_cells = []
+        self.corridor_cells_by_spec: List[List[Tuple[int, int]]] = []
         self.intersections = []
 
     def render(self):
         """Render all specified corridors."""
-        # Start with all walls
-        self.grid[:] = "wall"
+        # Initialize fill
+        if getattr(self.params, "initial_fill", "wall") == "empty":
+            self.grid[:] = "empty"
+        else:
+            self.grid[:] = "wall"
 
-        # Create each corridor
+        # Create each corridor and collect per-spec cells
+        self.corridor_cells_by_spec = []
         for spec in self.params.corridors:
-            self._create_angled_corridor(spec)
+            spec_cells = self._create_angled_corridor(spec)
+            self.corridor_cells_by_spec.append(spec_cells)
+
+        # Optionally surround carved corridors with walls (useful when initial_fill="empty")
+        if getattr(self.params, "surround_with_walls", False):
+            self._surround_corridors_with_walls()
+
+        # Post-carve corridors (e.g., doorways) - applied after surrounding walls
+        if getattr(self.params, "post_carve_corridors", None):
+            for spec in self.params.post_carve_corridors:
+                self._create_angled_corridor(spec)
 
         # Find intersections if needed
         if self.params.place_at_intersections:
@@ -76,9 +190,62 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
         # Place entities
         self._place_entities()
 
-    def _create_angled_corridor(self, spec: AngledCorridorSpec):
-        """Create a corridor at the specified angle."""
+    def _surround_corridors_with_walls(self):
+        """Place walls adjacent to corridor cells on selected sides.
+
+        Walls are placed only on cells that are not part of the corridor path
+        and lie strictly within the inner boundary (0 < y < h-1, 0 < x < w-1).
+        """
+        # Normalize sides
+        allowed = {"N", "S", "E", "W"}
+        sides = {s.upper() for s in getattr(self.params, "wall_sides", ["N", "S", "E", "W"]) if s.upper() in allowed}
+        if not sides:
+            return
+
+        offsets = []
+        if "N" in sides:
+            offsets.append((-1, 0))
+        if "S" in sides:
+            offsets.append((1, 0))
+        if "W" in sides:
+            offsets.append((0, -1))
+        if "E" in sides:
+            offsets.append((0, 1))
+
+        all_cells_set = set(self.corridor_cells)
+        # Apply per-corridor overrides when provided
+        for spec, cells in zip(self.params.corridors, self.corridor_cells_by_spec, strict=False):
+            if spec.surround_with_walls is False:
+                continue
+            use_sides = sides
+            if spec.wall_sides:
+                use_sides = {s for s in spec.wall_sides if s in allowed}
+                if not use_sides:
+                    continue
+            spec_offsets = []
+            if "N" in use_sides:
+                spec_offsets.append((-1, 0))
+            if "S" in use_sides:
+                spec_offsets.append((1, 0))
+            if "W" in use_sides:
+                spec_offsets.append((0, -1))
+            if "E" in use_sides:
+                spec_offsets.append((0, 1))
+
+            cell_set = set(cells)
+            for y, x in cell_set:
+                for dy, dx in spec_offsets:
+                    ny = y + dy
+                    nx = x + dx
+                    if 0 < ny < self.height - 1 and 0 < nx < self.width - 1:
+                        is_corridor_cell = (ny, nx) in all_cells_set
+                        if not is_corridor_cell and self.grid[ny, nx] == "empty":
+                            self.grid[ny, nx] = "wall"
+
+    def _create_angled_corridor(self, spec: AngledCorridorSpec) -> List[Tuple[int, int]]:
+        """Create a corridor at the specified angle and return carved cells."""
         center_y, center_x = spec.center
+        cells: List[Tuple[int, int]] = []
 
         # Convert angle to radians
         angle_rad = math.radians(spec.angle)
@@ -93,13 +260,24 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
         # Create corridor in the specified direction(s)
         if spec.bidirectional:
             # Extend in both directions
-            self._draw_corridor_line(center_y, center_x, dx, dy, spec.length, spec.thickness)
-            self._draw_corridor_line(center_y, center_x, -dx, -dy, spec.length, spec.thickness)
+            self._draw_corridor_line(center_y, center_x, dx, dy, spec.length, spec.thickness, cells)
+            self._draw_corridor_line(center_y, center_x, -dx, -dy, spec.length, spec.thickness, cells)
         else:
             # Extend in one direction
-            self._draw_corridor_line(center_y, center_x, dx, dy, spec.length, spec.thickness)
+            self._draw_corridor_line(center_y, center_x, dx, dy, spec.length, spec.thickness, cells)
 
-    def _draw_corridor_line(self, start_y: int, start_x: int, dx: float, dy: float, length: int, thickness: int):
+        return cells
+
+    def _draw_corridor_line(
+        self,
+        start_y: int,
+        start_x: int,
+        dx: float,
+        dy: float,
+        length: int,
+        thickness: int,
+        collector: Optional[List[Tuple[int, int]]] = None,
+    ):
         """Draw a corridor line from start point in given direction."""
         # Calculate end point (float dir * length)
         end_x = int(round(start_x + dx * length))
@@ -128,6 +306,8 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
                 if 0 < y < self.height - 1 and 0 < x < self.width - 1:
                     self.grid[y, x] = "empty"
                     self.corridor_cells.append((y, x))
+                    if collector is not None:
+                        collector.append((y, x))
 
                 if prev_x is not None and prev_y is not None:
                     # If the step was diagonal (both x and y changed), add a bridge
@@ -142,6 +322,8 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
                             if self.grid[bridge_y, bridge_x] != "empty":
                                 self.grid[bridge_y, bridge_x] = "empty"
                                 self.corridor_cells.append((bridge_y, bridge_x))
+                                if collector is not None:
+                                    collector.append((bridge_y, bridge_x))
                 prev_x, prev_y = x, y
         else:
             # Draw multiple parallel lines for thickness
@@ -175,6 +357,8 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
                     if 0 < y < self.height - 1 and 0 < x < self.width - 1:
                         self.grid[y, x] = "empty"
                         self.corridor_cells.append((y, x))
+                        if collector is not None:
+                            collector.append((y, x))
                     if prev_x is not None and prev_y is not None and x != prev_x and y != prev_y:
                         if abs(dx) >= abs(dy):
                             bridge_x, bridge_y = x, prev_y
@@ -184,6 +368,8 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
                             if self.grid[bridge_y, bridge_x] != "empty":
                                 self.grid[bridge_y, bridge_x] = "empty"
                                 self.corridor_cells.append((bridge_y, bridge_x))
+                                if collector is not None:
+                                    collector.append((bridge_y, bridge_x))
                     prev_x, prev_y = x, y
 
             # Fill any gaps between parallel lines for diagonal corridors
@@ -258,6 +444,13 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
 
     def _place_entities(self):
         """Place agent and objects according to strategy."""
+        # Place fixed objects first, so strategic placement avoids blocking them.
+        if getattr(self.params, "fixed_objects", None):
+            for obj_name, coords in self.params.fixed_objects.items():
+                for y, x in coords:
+                    if 0 < y < self.height - 1 and 0 < x < self.width - 1:
+                        if self.grid[y, x] == "empty":
+                            self.grid[y, x] = obj_name
         # Place agent
         if self.params.agent_position:
             y, x = self.params.agent_position
@@ -288,7 +481,10 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
             placement_positions.extend(valid_ends)
 
         if self.params.place_at_center and self.corridor_centers:
-            valid_centers = [pos for pos in self.corridor_centers if self.grid[pos] == "empty"]
+            centers = list(self.corridor_centers)
+            if getattr(self.params, "center_newest_first", False):
+                centers = list(reversed(centers))
+            valid_centers = [pos for pos in centers if self.grid[pos] == "empty"]
             placement_positions.extend(valid_centers)
 
         if self.params.place_at_intersections:
@@ -340,7 +536,14 @@ class AngledCorridorBuilder(Scene[AngledCorridorBuilderParams]):
 
 
 def corridor(
-    center: Tuple[int, int], angle: float, length: int, thickness: int = 3, bidirectional: bool = False
+    center: Tuple[int, int],
+    angle: float,
+    length: int,
+    thickness: int = 3,
+    bidirectional: bool = False,
+    *,
+    surround_with_walls: Optional[bool] = None,
+    wall_sides: Optional[List[str]] = None,
 ) -> AngledCorridorSpec:
     """Create a corridor at any angle.
 
@@ -352,11 +555,25 @@ def corridor(
         bidirectional: If True, extend in both directions
     """
     return AngledCorridorSpec(
-        angle=angle, center=center, length=length, thickness=thickness, bidirectional=bidirectional
+        angle=angle,
+        center=center,
+        length=length,
+        thickness=thickness,
+        bidirectional=bidirectional,
+        surround_with_walls=surround_with_walls,
+        wall_sides=wall_sides,
     )
 
 
-def horizontal(y: int, thickness: int = 3, x_start: int = 1, x_end: Optional[int] = None) -> AngledCorridorSpec:
+def horizontal(
+    y: int,
+    thickness: int = 3,
+    x_start: int = 1,
+    x_end: Optional[int] = None,
+    *,
+    surround_with_walls: Optional[bool] = None,
+    wall_sides: Optional[List[str]] = None,
+) -> AngledCorridorSpec:
     """Convenience function for horizontal corridor (angle=0)."""
     length = (x_end if x_end else 999) - x_start
     return corridor(
@@ -365,10 +582,20 @@ def horizontal(y: int, thickness: int = 3, x_start: int = 1, x_end: Optional[int
         length=length,
         thickness=thickness,
         bidirectional=False,
+        surround_with_walls=surround_with_walls,
+        wall_sides=wall_sides,
     )
 
 
-def vertical(x: int, thickness: int = 3, y_start: int = 1, y_end: Optional[int] = None) -> AngledCorridorSpec:
+def vertical(
+    x: int,
+    thickness: int = 3,
+    y_start: int = 1,
+    y_end: Optional[int] = None,
+    *,
+    surround_with_walls: Optional[bool] = None,
+    wall_sides: Optional[List[str]] = None,
+) -> AngledCorridorSpec:
     """Convenience function for vertical corridor (angle=270)."""
     length = (y_end if y_end else 999) - y_start
     return corridor(
@@ -377,6 +604,8 @@ def vertical(x: int, thickness: int = 3, y_start: int = 1, y_end: Optional[int] 
         length=length,
         thickness=thickness,
         bidirectional=False,
+        surround_with_walls=surround_with_walls,
+        wall_sides=wall_sides,
     )
 
 
