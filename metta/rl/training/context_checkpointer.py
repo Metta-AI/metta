@@ -1,7 +1,6 @@
 """Trainer state checkpoint management component."""
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -21,9 +20,6 @@ class ContextCheckpointerConfig(Config):
 
     keep_last_n: int = 5
     """Number of trainer checkpoints to retain locally."""
-
-    checkpoint_dir: str | None = None
-    """Optional explicit directory for checkpoint artifacts."""
 
 
 class ContextCheckpointer(TrainerComponent):
@@ -48,10 +44,9 @@ class ContextCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
-        explicit_dir = self._config.checkpoint_dir
-        if explicit_dir:
-            Path(explicit_dir).mkdir(parents=True, exist_ok=True)
-            logger.debug("Trainer checkpoints will be written to %s", explicit_dir)
+        target_path = self._checkpoint_manager.checkpoint_dir
+        target_path.mkdir(parents=True, exist_ok=True)
+        logger.debug("Trainer checkpoints will be written to %s", target_path)
 
     # ------------------------------------------------------------------
     # Public API used by Trainer

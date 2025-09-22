@@ -58,7 +58,6 @@ class TrainTool(Tool):
     run: Optional[str] = None
     run_dir: Optional[str] = None
     device: str = guess_device()
-
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
     policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
@@ -96,7 +95,7 @@ class TrainTool(Tool):
 
         checkpoint_manager = CheckpointManager(
             run=self.run or "default",
-            run_dir=self._checkpoint_base_dir(),
+            run_dir=self.run_dir or str(Path(self.system.data_dir) / (self.run or "default")),
             remote_prefix=self.trainer.checkpoint.remote_prefix,
         )
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
@@ -150,9 +149,6 @@ class TrainTool(Tool):
         return group_override
 
     def _prepare_run_directories(self) -> None:
-        if not self.context_checkpointer.checkpoint_dir:
-            self.context_checkpointer.checkpoint_dir = f"{self.run_dir}/checkpoints/"
-
         if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
             storage_decision = auto_policy_storage_decision(self.run)
             if storage_decision.remote_prefix:
@@ -200,12 +196,6 @@ class TrainTool(Tool):
             policy_uri=self.initial_policy_uri,
         )
         return policy_checkpointer, policy
-
-    def _checkpoint_base_dir(self) -> str:
-        """Return the directory that should contain per-run subdirectories."""
-        if not self.run_dir:
-            return str(Path(self.system.data_dir))
-        return str(Path(self.run_dir).parent)
 
     def _initialize_trainer(
         self,
