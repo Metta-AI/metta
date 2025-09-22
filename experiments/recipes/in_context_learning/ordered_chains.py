@@ -4,7 +4,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
-import numpy as np
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -34,6 +33,7 @@ CONVERTER_TYPES = {
     "lasery": empty_converters.lasery,
     "factory": empty_converters.factory,
     "temple": empty_converters.temple,
+    "armory": empty_converters.armory,
 }
 
 RESOURCE_TYPES = [
@@ -53,12 +53,12 @@ class LPParams:
     def __init__(
         self,
         ema_timescale: float = 0.001,
-        exploration_bonus: float = 0.08,
+        exploration_bonus: float = 0.15,
         max_memory_tasks: int = 1000,
         max_slice_axes: int = 3,
-        progress_smoothing: float = 0.1,
+        progress_smoothing: float = 0.15,
         enable_detailed_slice_logging: bool = False,
-        num_active_tasks: int = 3000,
+        num_active_tasks: int = 1000,
         rand_task_rate: float = 0.25,
     ):
         self.ema_timescale = ema_timescale
@@ -211,11 +211,11 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         # by default, use a small room
         size_range = (
-            (7, 10)
+            (8, 12)
             if room_size == "medium"
-            else (10, 15)
+            else (12, 16)
             if room_size == "large"
-            else (4, 7)
+            else (5, 8)
         )
 
         width, height = (
@@ -249,14 +249,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
             "worst_case_optimal_reward": worst_case_optimal_reward,
         }
 
-        icl_env.label = (
-            f"{num_resources}resources_{num_sinks}sinks_{room_size}"
-            + f"_{obstacle_type}"
-            if obstacle_type
-            else "" + f"_{density}"
-            if density
-            else ""
-        )
+        icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{room_size}"
+        icl_env.label += "_terrain" if obstacle_type else ""
+        icl_env.label += f"_{density}" if density else ""
 
         return icl_env
 
@@ -365,7 +360,7 @@ def make_curriculum(
 
 
 def train(
-    curriculum_style: str = "longer_chains_more_sinks", lp_params: LPParams = LPParams()
+    curriculum_style: str = "terrain", lp_params: LPParams = LPParams()
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
@@ -392,20 +387,14 @@ def train(
             "lp_params": lp_params,
         },
         "longer_chains": {
-            "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
+            "chain_lengths": [2, 3, 4, 5, 6, 7],
             "num_sinks": [0, 1, 2],
-            "room_sizes": ["medium", "large"],
-            "lp_params": lp_params,
-        },
-        "longer_chains_more_sinks": {
-            "chain_lengths": [2, 3, 4, 5, 6, 7, 8],
-            "num_sinks": [0, 1, 2, 3, 4],
-            "room_sizes": ["medium", "large"],
+            "room_sizes": ["small", "medium", "large"],
             "lp_params": lp_params,
         },
         "terrain": {
-            "chain_lengths": [2, 3, 4, 5],
-            "num_sinks": [0, 1],
+            "chain_lengths": [2, 3, 4, 5, 6, 7],
+            "num_sinks": [0, 1, 2],
             "obstacle_types": ["square", "cross", "L"],
             "densities": ["", "balanced", "sparse", "high"],
             "lp_params": lp_params,
@@ -423,6 +412,9 @@ def train(
             evaluate_remote=True,
             evaluate_local=False,
         ),
+        # initial_policy=InitialPolicyConfig(
+        #     uri="s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt",
+        # ),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
     # which requires a large batch size
@@ -445,10 +437,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
     # Default to the research policy if none specified
-    default_policy_uri = (
-        "s3://your-bucket/checkpoints/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19/"
-        "georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50.pt"
-    )
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -482,40 +471,34 @@ def experiment():
         "longer_chains",
         "terrain",
     ]
-    progress_smoothings = list(np.linspace(0.05, 0.15, 2))
-    exploration_bonuses = list(np.linspace(0.03, 0.15, 2))
-    num_active_tasks = list(np.linspace(1000, 5000, 2))
-    rand_task_rates = list(np.linspace(0.1, 0.25, 2))
-    total_experiments = (
-        len(curriculum_styles)
-        * len(progress_smoothings)
-        * len(exploration_bonuses)
-        * len(num_active_tasks)
-        * len(rand_task_rates)
-    )
-    print(f"Total experiments to run: {total_experiments}")
+
+    pretrained_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt"
 
     for curriculum_style in curriculum_styles:
-        for progress_smoothing in progress_smoothings:
-            for exploration_bonus in exploration_bonuses:
-                for num_active_task in num_active_tasks:
-                    for rand_task_rate in rand_task_rates:
-                        subprocess.run(
-                            [
-                                "./devops/skypilot/launch.py",
-                                "experiments.recipes.in_context_learning.ordered_chains.train",
-                                f"run=icl_resource_chain_{curriculum_style}_PS{progress_smoothing.round(2)}_EB{exploration_bonus.round(2)}_NAT{int(num_active_task)}_RTR{rand_task_rate.round(2)}.09-19",
-                                f"curriculum_style={curriculum_style}",
-                                f"lp_params.progress_smoothing={progress_smoothing.round(2)}",
-                                f"lp_params.exploration_bonus={exploration_bonus.round(2)}",
-                                f"lp_params.num_active_tasks={int(num_active_task)}",
-                                f"lp_params.rand_task_rate={rand_task_rate.round(2)}",
-                                "--gpus=4",
-                                "--heartbeat-timeout=3600",
-                                "--skip-git-check",
-                            ]
-                        )
-                        time.sleep(1)
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.in_context_learning.ordered_chains.train",
+                f"run=icl_resource_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
+        time.sleep(1)
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.in_context_learning.ordered_chains.train",
+                f"run=icl_resource_chain_{curriculum_style}_pretrained.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                f"trainer.initial_policy.uri={pretrained_policy_uri}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
 
 
 if __name__ == "__main__":

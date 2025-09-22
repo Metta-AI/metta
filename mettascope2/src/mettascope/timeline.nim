@@ -51,7 +51,9 @@ proc playControls*() =
   if play:
     stepFloat += playSpeed
     if stepFloat >= replay.maxSteps.float32:
-      stepFloat -= replay.maxSteps.float32
+      echo "Requesting Python form timeline"
+      requestPython = true
+      stepFloat = replay.maxSteps.float32 - 1
     step = stepFloat.int
     step = step.clamp(0, replay.maxSteps - 1)
 
@@ -140,7 +142,7 @@ proc drawFrozenMarkers(panel: Panel) =
       if isFrozen and (not prevFrozen):
         let x = trackLeft + (float32(j) / float32(fullSteps)) * scrubberWidth
         # Draw icon above the scrubber and a small tick on the bar.
-        bxy.drawImage("agents/frozen", vec2(x, trackTop - 22), angle = 0, scale = 1/200)
+        bxy.drawImage("agents/frozen", vec2(x, trackTop - 22), angle = 0, scale = 1/10)
         bxy.drawRect(rect(x - 1, trackTop - 10, 2, 8), color(1, 1, 1, 1))
       prevFrozen = isFrozen
 

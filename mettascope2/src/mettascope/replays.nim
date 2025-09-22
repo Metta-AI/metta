@@ -52,12 +52,64 @@ type
     actionNames*: seq[string]
     itemNames*: seq[string]
     groupNames*: seq[string]
+    typeImages*: seq[string]
+    actionImages*: seq[string]
+    actionAttackImages*: seq[string]
+    actionIconImages*: seq[string]
     itemImages*: seq[string]
     traceImages*: seq[string]
     objects*: seq[Entity]
     rewardSharingMatrix*: seq[seq[float]]
     agents*: seq[Entity]
+    attackActionId*: int
+    drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
+
+  ReplayEntity* = ref object
+    ## Replay entity does not have time series and only has the current step value.
+    id*: int
+    typeId*: int
+    groupId*: int
+    agentId*: int
+    location*: IVec3
+    orientation*: int
+    inventory*: seq[ItemAmount]
+    inventoryMax*: int
+    color*: int
+
+    # Agent specific keys.
+    actionId*: int
+    actionParameter*: int
+    actionSuccess*: bool
+    currentReward*: float
+    totalReward*: float
+    isFrozen*: bool
+    frozenProgress*: int
+    frozenTime*: int
+    visionSize*: int
+
+    # Building specific keys.
+    inputResources*: seq[ItemAmount]
+    outputResources*: seq[ItemAmount]
+    recipeMax*: int
+    productionProgress*: int
+    productionTime*: int
+    cooldownProgress*: int
+    cooldownTime*: int
+
+  ReplayStep* = ref object
+    step*: int
+    objects*: seq[ReplayEntity]
+
+proc parseHook*(s: string, i: var int, v: var IVec3) =
+  var arr: array[3, int32]
+  parseHook(s, i, arr)
+  v = ivec3(arr[0], arr[1], arr[2])
+
+proc parseHook*(s: string, i: var int, v: var ItemAmount) =
+  var arr: array[2, int32]
+  parseHook(s, i, arr)
+  v = ItemAmount(itemId: arr[0], count: arr[1])
 
 proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
   if data == nil:
@@ -86,6 +138,8 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
     # A single value is a valid sequence.
     return @[data.to(T)]
 
+let drawnAgentActionNames =
+  ["attack", "attack_nearest", "put_items", "get_items", "swap"]
 
 proc expandSequenceV2(sequence: JsonNode, numSteps: int): JsonNode =
   ## Expand an array of [step, value] pairs into an array of values per step.
@@ -180,7 +234,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
       location.add(pair(newJInt(step), triple))
       if x > maxX: maxX = x
       if y > maxY: maxY = y
-    
+
     # Inventory per step.
     var inventory = newJArray()
     let itemNames = data["item_names"]
@@ -244,7 +298,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
         else:
           var b = if frozen.kind == JBool: frozen.getBool else: (if frozen.kind == JInt: frozen.getInt != 0 else: false)
           obj["is_frozen"] = newJBool(b)
-      
+
       # color: prefer agent color; ensure presence for loader.
       if "agent:color" in gridObject:
         obj["color"] = gridObject["agent:color"]
@@ -299,15 +353,47 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
 
   return data
 
+proc computeGainMap(replay: Replay) =
+  #$ Compute gain/loss for agents.
+  var items = [
+    newSeq[int](replay.itemNames.len),
+    newSeq[int](replay.itemNames.len)
+  ]
+  for agent in replay.agents:
+    agent.gainMap = newSeq[seq[ItemAmount]](replay.maxSteps)
 
-proc loadReplay*(data: string, fileName: string): Replay =
+    # Gain map for step 0.
+    let inventory = agent.inventory[0]
+    var gainMap = newSeq[ItemAmount]()
+    for i in 0 ..< items[0].len:
+      items[0][i] = 0
+    for item in inventory:
+      gainMap.add(item)
+      items[0][item.itemId] = item.count
+    agent.gainMap[0] = gainMap
+
+    # Gain map for step > 1.
+    for i in 1 ..< replay.maxSteps:
+      let inventory = agent.inventory[i]
+      var gainMap = newSeq[ItemAmount]()
+      let n = i mod 2
+      for j in 0 ..< items[n].len:
+        items[n][j] = 0
+      for item in inventory:
+        items[n][item.itemId] = item.count
+      let m = 1 - n
+      for j in 0..<replay.itemNames.len:
+        if items[n][j] != items[m][j]:
+          gainMap.add(ItemAmount(itemId: j, count: items[n][j] - items[m][j]))
+      agent.gainMap[i] = gainMap
+
+proc loadReplayString*(jsonData: string, fileName: string): Replay =
   ## Load a replay from a string.
-
-  # Decompress with zippy deflate:
-  let jsonData = zippy.uncompress(data)
   var jsonObj = fromJson(jsonData)
+
   if jsonObj["version"].getInt == 1:
     jsonObj = convertReplayV1ToV2(jsonObj)
+
   doAssert jsonObj["version"].getInt == 2
 
   let replay = Replay(
@@ -320,6 +406,22 @@ proc loadReplay*(data: string, fileName: string): Replay =
     mapSize: (jsonObj["map_size"][0].getInt, jsonObj["map_size"][1].getInt)
   )
 
+  replay.typeImages = newSeq[string](replay.typeNames.len)
+  for i in 0 ..< replay.typeNames.len:
+    replay.typeImages[i] = "objects/" & replay.typeNames[i]
+
+  replay.actionImages = newSeq[string](replay.actionNames.len)
+  for i in 0 ..< replay.actionNames.len:
+    replay.actionImages[i] = "actions/" & replay.actionNames[i]
+
+  replay.actionAttackImages = newSeq[string](9)
+  for i in 0 ..< 9:
+    replay.actionAttackImages[i] = "actions/attack" & $(i + 1)
+
+  replay.actionIconImages = newSeq[string](replay.actionNames.len)
+  for i in 0 ..< replay.actionNames.len:
+    replay.actionIconImages[i] = "actions/icons/" & replay.actionNames[i]
+
   replay.traceImages = newSeq[string](replay.actionNames.len)
   for i in 0 ..< replay.actionNames.len:
     replay.traceImages[i] = "trace/" & replay.actionNames[i]
@@ -327,6 +429,13 @@ proc loadReplay*(data: string, fileName: string): Replay =
   replay.itemImages = newSeq[string](replay.itemNames.len)
   for i in 0 ..< replay.itemNames.len:
     replay.itemImages[i] = "resources/" & replay.itemNames[i]
+
+  for actionName in drawnAgentActionNames:
+    let idx = replay.actionNames.find(actionName)
+    if idx != -1:
+      replay.drawnAgentActionMask = replay.drawnAgentActionMask or (1'u64 shl idx)
+
+  replay.attackActionId = replay.actionNames.find("attack")
 
   if "file_name" in jsonObj:
     replay.fileName = jsonObj["file_name"].getStr
@@ -421,41 +530,61 @@ proc loadReplay*(data: string, fileName: string): Replay =
     if "agent_id" in obj:
       replay.agents.add(entity)
 
-  # Compute gain/loss for agents.
-  var items = [
-    newSeq[int](replay.itemNames.len),
-    newSeq[int](replay.itemNames.len)
-  ]
-  for agent in replay.agents:
-    agent.gainMap = newSeq[seq[ItemAmount]](replay.maxSteps)
-
-    # Gain map for step 0.
-    let inventory = agent.inventory[0]
-    var gainMap = newSeq[ItemAmount]()
-    for i in 0 ..< items[0].len:
-      items[0][i] = 0
-    for item in inventory:
-      gainMap.add(item)
-      items[0][item.itemId] = item.count
-    agent.gainMap[0] = gainMap
-
-    # Gain map for step > 1.
-    for i in 1 ..< replay.maxSteps:
-      let inventory = agent.inventory[i]
-      var gainMap = newSeq[ItemAmount]()
-      let n = i mod 2
-      for j in 0 ..< items[n].len:
-        items[n][j] = 0
-      for item in inventory:
-        items[n][item.itemId] = item.count
-      let m = 1 - n
-      for j in 0..<replay.itemNames.len:
-        if items[n][j] != items[m][j]:
-          gainMap.add(ItemAmount(itemId: j, count: items[n][j] - items[m][j]))
-      agent.gainMap[i] = gainMap
-
   return replay
 
+proc loadReplay*(data: string, fileName: string): Replay =
+  ## Load a replay from a string.
+  let jsonData = zippy.uncompress(data)
+  return loadReplayString(jsonData, fileName)
+
 proc loadReplay*(fileName: string): Replay =
+  ## Load a replay from a file.
   let data = readFile(fileName)
   return loadReplay(data, fileName)
+
+proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
+  ## Apply a replay step to the replay.
+  let agentTypeIndex = replay.typeNames.find("agent")
+  for obj in objects:
+    let index = obj.id - 1
+    while index >= replay.objects.len:
+      replay.objects.add(Entity(id: obj.id))
+
+    let entity = replay.objects[index]
+    doAssert entity.id == obj.id, "Object id mismatch"
+
+    entity.typeId = obj.typeId
+    if obj.typeId == agentTypeIndex:
+      entity.isAgent = true
+    entity.groupId = obj.groupId
+    entity.agentId = obj.agentId
+    entity.location.add(obj.location)
+    entity.orientation.add(obj.orientation)
+    entity.inventory.add(obj.inventory)
+    entity.inventoryMax = obj.inventoryMax
+    entity.color.add(obj.color)
+    entity.actionId.add(obj.actionId)
+    entity.actionParameter.add(obj.actionParameter)
+    entity.actionSuccess.add(obj.actionSuccess)
+    entity.currentReward.add(obj.currentReward)
+    entity.totalReward.add(obj.totalReward)
+    entity.isFrozen.add(obj.isFrozen)
+    entity.frozenProgress.add(obj.frozenProgress)
+    entity.frozenTime = obj.frozenTime
+    entity.visionSize = obj.visionSize
+    entity.inputResources = obj.inputResources
+    entity.outputResources = obj.outputResources
+    entity.recipeMax = obj.recipeMax
+    entity.productionProgress.add(obj.productionProgress)
+    entity.productionTime = obj.productionTime
+    entity.cooldownProgress.add(obj.cooldownProgress)
+    entity.cooldownTime = obj.cooldownTime
+
+  computeGainMap(replay)
+
+  replay.maxSteps = max(replay.maxSteps, step + 1)
+
+proc apply*(replay: Replay, replayStepJsonData: string) =
+  ## Apply a replay step to the replay.
+  let replayStep = fromJson(replayStepJsonData, ReplayStep)
+  replay.apply(replayStep.step, replayStep.objects)

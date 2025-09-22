@@ -35,7 +35,6 @@ if defined(emscripten):
     """
     -o dist/mettascope.html
     --preload-file data
-    --preload-file replays
     --shell-file src/mettascope/shell.html
     -s USE_WEBGL2=1
     -s MAX_WEBGL_VERSION=2
