@@ -9,6 +9,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+from softmax.dashboard.report import app as softmax_system_health_app
 
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
@@ -18,7 +19,6 @@ from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.live_run_monitor import app as run_monitor_app
-from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
