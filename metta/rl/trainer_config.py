@@ -14,13 +14,13 @@ from mettagrid.config import Config
 class OptimizerConfig(Config):
     type: Literal["adam", "muon"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
-    learning_rate: float = Field(default=0.000453637, gt=0, le=1.0)
+    learning_rate: float = Field(default=0.001153637, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
     beta1: float = Field(default=0.9, ge=0, le=1.0)
     # Beta2: Standard Adam default from Kingma & Ba (2014)
     beta2: float = Field(default=0.999, ge=0, le=1.0)
-    # Epsilon: default tuned for numerical stability pre-components
-    eps: float = Field(default=1e-12, gt=0)
+    # Epsilon: Type 2 default chosen arbitrarily
+    eps: float = Field(default=3.186531e-07, gt=0)
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
 
