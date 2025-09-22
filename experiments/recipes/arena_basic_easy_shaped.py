@@ -204,14 +204,15 @@ def sweep_contrastive(
     contrastive_protein_config = make_custom_protein_config(
         base_config=PPO_BASIC,
         parameters={
-            "trainer.losses.contrastive.temperature": ParameterConfig(
+            # Set contrastive loss hyperparameters with the correct path
+            "trainer.losses.loss_configs.contrastive.temperature": ParameterConfig(
                 distribution="uniform",
                 min=0.0,
                 max=0.5,
                 mean=0.25,
                 scale="auto",
             ),
-            "trainer.losses.contrastive.coef": ParameterConfig(
+            "trainer.losses.loss_configs.contrastive.coef": ParameterConfig(
                 distribution="uniform",
                 min=0.0,
                 max=1.0,
