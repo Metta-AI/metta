@@ -55,7 +55,7 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
     system_cfg = SystemConfig(device=str(device))
-    agent_cfg = AgentConfig(name="pytorch/fast")
+    agent_cfg = AgentConfig(name="pytorch/example")
 
     # Create the agent
     agent = MettaAgent(temp_env, system_cfg, agent_cfg)
