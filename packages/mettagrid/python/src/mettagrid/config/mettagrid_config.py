@@ -10,7 +10,8 @@ from mettagrid.map_builder.random import RandomMapBuilder
 # ===== Python Configuration Models =====
 
 # Left to right, top to bottom.
-Position = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]
+FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
+Position = FixedPosition | Literal["Any"]
 
 
 class StatsRewards(Config):
@@ -44,6 +45,7 @@ class AgentConfig(Config):
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
+    tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
 
 
 class ActionConfig(Config):
@@ -107,6 +109,7 @@ class WallConfig(Config):
 
     type_id: int
     swappable: bool = Field(default=False)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class ConverterConfig(Config):
@@ -121,6 +124,7 @@ class ConverterConfig(Config):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class RecipeConfig(Config):
@@ -132,8 +136,24 @@ class RecipeConfig(Config):
 class AssemblerConfig(Config):
     """Python assembler configuration."""
 
+    name: str = Field(default="assembler")
     type_id: int = Field(default=0, ge=0, le=255)
     recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+
+
+class ChestConfig(Config):
+    """Python chest configuration."""
+
+    type_id: int = Field(default=0, ge=0, le=255)
+    resource_type: str = Field(description="Resource type that this chest can store")
+    deposit_positions: list[FixedPosition] = Field(
+        default_factory=list, description="Positions where agents can deposit resources"
+    )
+    withdrawal_positions: list[FixedPosition] = Field(
+        default_factory=list, description="Positions where agents can withdraw resources"
+    )
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class GameConfig(Config):
@@ -167,7 +187,7 @@ class GameConfig(Config):
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    objects: dict[str, ConverterConfig | WallConfig | AssemblerConfig] = Field(default_factory=dict)
+    objects: dict[str, ConverterConfig | WallConfig | AssemblerConfig | ChestConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.

@@ -771,7 +771,7 @@ class MettaRepo:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: dict[str, str],
+        attributes: dict[str, Any],
     ) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
