@@ -150,7 +150,7 @@ class PufferLibCompatiblePolicy(Policy):
         # Normalize features with epsilon for numerical stability
         features = box_obs / (self.max_vec + 1e-8)
 
-        self_features = self.self_encoder(features[:, :, 5, 5])
+        self_features = self.self_encoder(features)
         cnn_features = self.network(features)
         result = torch.cat([self_features, cnn_features], dim=1)
         return result
