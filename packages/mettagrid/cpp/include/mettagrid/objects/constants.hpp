@@ -74,7 +74,7 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::Tag, "tag"},
       {ObservationFeature::CooldownRemaining, "cooldown_remaining"}};
   return feature_names;
-};
+}
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
