@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import logging
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 
@@ -10,9 +12,11 @@ from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids
+
+if TYPE_CHECKING:
+    from metta.rl.training.evaluator import EvaluatorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +27,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
     stats_epoch_id: uuid.UUID | None,
     stats_client: StatsClient | None,
     wandb_run: WandbRun | None,
-    trainer_cfg: TrainerConfig,
+    evaluation_cfg: "EvaluatorConfig" | None,
 ) -> TaskResponse | None:
     """Create a remote evaluation task using a policy URI.
 
@@ -33,7 +37,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
         stats_epoch_id: Stats epoch ID for tracking
         stats_client: Client for stats server communication
         wandb_run: WandB run context
-        trainer_cfg: Training configuration
+        evaluation_cfg: Evaluation configuration
 
     Returns:
         TaskResponse if evaluation task created, None otherwise
@@ -62,7 +66,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
             policy_id=stats_server_policy_id,
             sim_suite=simulations[0].name,
             attributes={
-                "git_hash": (trainer_cfg.evaluation and trainer_cfg.evaluation.git_hash),
+                "git_hash": (evaluation_cfg and evaluation_cfg.git_hash),
                 "simulations": [sim.model_dump() for sim in simulations],
             },
         )
