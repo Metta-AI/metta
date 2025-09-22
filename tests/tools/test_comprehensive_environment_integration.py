@@ -270,6 +270,7 @@ class TestComprehensiveEnvironmentIntegration:
                 f"run={run_name}",
                 "trainer.total_timesteps=50",  # Minimal training
                 "wandb=off",
+                "--dry-run",
             ]
 
             env = os.environ.copy()
@@ -348,6 +349,7 @@ class TestComprehensiveEnvironmentIntegration:
                 f"run={run_name}",
                 "trainer.total_timesteps=100",
                 "wandb=off",
+                "--dry-run",
             ]
 
             env = os.environ.copy()
@@ -375,6 +377,7 @@ class TestComprehensiveEnvironmentIntegration:
                     "./tools/run.py",
                     "experiments.recipes.arena.evaluate",
                     "policy_uri=mock://test",  # Use mock policy
+                    "--dry-run",
                 ]
 
                 sim_result = subprocess.run(
