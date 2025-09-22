@@ -28,7 +28,10 @@ if nim_bindings_path.exists():
     sys.path.remove(str(nim_bindings_path))
 
     # Re-export the functions and classes
-    init = mettascope2.init
+
+    def init(replay):
+        return mettascope2.init(data_dir=str(package_root / "nim" / "mettascope" / "data"), replay=replay)
+
     render = mettascope2.render
     Mettascope2Error = mettascope2.Mettascope2Error
 

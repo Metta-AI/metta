@@ -55,7 +55,7 @@ class PlayTool(Tool):
             actions = np.zeros((env.num_agents, 2))
             total_rewards = np.zeros(env.num_agents)
 
-            mettascope2.init(data_dir="mettascope2/data", replay=json.dumps(initial_replay))
+            mettascope2.init(replay=json.dumps(initial_replay))
 
             def send_replay_step():
                 grid_objects = []

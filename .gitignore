@@ -117,5 +117,4 @@ cluster_test_jobs.json
 
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
-packages/mettagrid/nim/mettascope/data/fidget/
 packages/mettagrid/nim/mettascope/bindings/generated/
