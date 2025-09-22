@@ -262,8 +262,14 @@ def make_icl_with_numpy(
     )
 
     # get reward estimates per map
-    with open(f"{dir.split('/')[0]}/reward_estimates.json", "r") as f:
-        reward_estimates_dict = json.load(f)
-        cfg.game.reward_estimates = reward_estimates_dict[dir]
+
+    try:
+        with open(f"{dir.split('/')[0]}/reward_estimates.json", "r") as f:
+            reward_estimates_dict = json.load(f)
+            cfg.game.reward_estimates = reward_estimates_dict.get(dir, {})
+    except FileNotFoundError:
+        # Fallback to default estimates when file is missing
+        cfg.game.reward_estimates = {}
+
 
     return cfg
