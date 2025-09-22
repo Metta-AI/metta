@@ -79,14 +79,8 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     """
     action_probs, full_log_probs = _stable_action_distribution(action_logits)
 
-    # Sample actions from categorical distribution.
-    # Explicitly set replacement=True to stay compatible with MPS where the
-    # replacement=False kernel is unsupported and raises at runtime.
-    actions = torch.multinomial(
-        action_probs,
-        num_samples=1,
-        replacement=True,
-    ).view(-1)  # [batch_size]
+    # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
+    actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
 
     # Extract log-probabilities for sampled actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
