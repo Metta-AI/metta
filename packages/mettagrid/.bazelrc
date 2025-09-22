@@ -40,6 +40,11 @@ build:macos --copt=-mmacosx-version-min=11.0
 build:macos --linkopt=-mmacosx-version-min=11.0
 build:macos --host_copt=-mmacosx-version-min=11.0
 build:macos --host_linkopt=-mmacosx-version-min=11.0
+# Fix for Apple Clang 17+ - disable problematic flags
+build:macos --copt=-Wno-unknown-warning-option
+build:macos --host_copt=-Wno-unknown-warning-option
+# Disable the specific problematic flag
+build:macos --features=-canonical_system_headers
 
 # Platform-specific settings for Linux
 build:linux --copt=-fvisibility=hidden

@@ -6,6 +6,7 @@ This module provides various environment adapters for different RL frameworks:
 - MettaGridEnv: Training environment (PufferLib-based with stats/replay)
 - MettaGridGymEnv: Gymnasium adapter
 - MettaGridPettingZooEnv: PettingZoo adapter
+- MettaGridBenchMARLEnv: BenchMARL/TorchRL adapter
 
 All adapters inherit from MettaGridCore and provide framework-specific interfaces.
 For PufferLib integration, use PufferLib's MettaPuff wrapper directly.
@@ -17,6 +18,9 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 # Import environment classes
 from mettagrid.core import MettaGridCore
+
+# BenchMARL integration (optional dependency, will fail gracefully if not installed)
+from mettagrid.envs.benchmarl_env import MettaGridBenchMARLEnv, MettaGridTask
 
 # Import other commonly used classes
 from mettagrid.envs.gym_env import MettaGridGymEnv
@@ -47,6 +51,8 @@ __all__ = [
     # Environment adapters
     "MettaGridGymEnv",
     "MettaGridPettingZooEnv",
+    "MettaGridBenchMARLEnv",
+    "MettaGridTask",
     # Data types
     "dtype_actions",
     "dtype_observations",
