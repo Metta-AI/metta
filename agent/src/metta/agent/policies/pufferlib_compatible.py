@@ -92,7 +92,7 @@ class PufferLibCompatiblePolicy(Policy):
         # Build components to match PufferLib exactly
         self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
 
-        self.num_layers = max(env.feature_normalizations.keys()) + 1
+        self.num_layers = max(env.feature_normalizations.keys())
 
 
         self.conv1 = nn.Conv2d(24, 128, kernel_size=5, stride=3)
@@ -115,6 +115,7 @@ class PufferLibCompatiblePolicy(Policy):
 
         self.max_vec = [1.0] * 24
         for feature_id, norm_value in self.env.feature_normalizations.items():
+            print(f"feature_id: {feature_id}, norm_value: {norm_value}") 
             if feature_id < 24:
                 self.max_vec[feature_id] = norm_value if norm_value > 0 else 1.0
         self.max_vec = torch.tensor(self.max_vec, dtype=torch.float32)
