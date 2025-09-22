@@ -7,14 +7,14 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from mettagrid import MettaGridConfig
+from metta.rl.training.evaluator import EvaluatorConfig
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
@@ -83,23 +83,14 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
-        evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-                ),
-                SimulationConfig(
-                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-                ),
-            ],
-        ),
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
+    )
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
@@ -130,15 +121,10 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     if converters:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=cc.env_curriculum(env_cfg),
-        evaluation=EvaluationConfig(
-            simulations=make_evals(env_cfg),
-        ),
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
     )
-
-    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
