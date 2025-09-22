@@ -22,5 +22,6 @@ class CoreSetup(SetupModule):
             sys.exit(1)
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        self.run_command(["uv", "sync"], non_interactive=non_interactive)
+        cmd = ["uv", "sync", "--no-build-isolation-package", "pufferlib"]
+        self.run_command(cmd, non_interactive=non_interactive)
         success("Core dependencies installed")

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11.7"
 dependencies = [
   "mettagrid>=0.2.0.6",
-  "pufferlib @ git+https://github.com/PufferAI/PufferLib@3.0",
+  "pufferlib @ git+https://github.com/relh/PufferLib@richard-no-build-isolation",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
   "scipy>=1.15.3",

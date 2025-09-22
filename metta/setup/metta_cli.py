@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+import os
 import shutil
 import subprocess
 import sys
@@ -254,13 +255,76 @@ def _prepare_cuda_environment(cuda_version: str, cuda_home: Optional[str]) -> No
         if not home.exists():
             warning(f"CUDA home {home} does not exist; ensure the toolkit is installed.")
         os.environ["CUDA_HOME"] = str(home)
-        ld_path = os.environ.get("LD_LIBRARY_PATH", "")
-        cuda_ld = str(home / "lib64")
-        os.environ["LD_LIBRARY_PATH"] = f"{cuda_ld}:{ld_path}" if ld_path else cuda_ld
+
+        ld_paths = []
+        cuda_lib64 = home / "lib64"
+        if cuda_lib64.exists():
+            ld_paths.append(str(cuda_lib64))
+
+        site_packages = Path(sys.prefix) / f"lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+        nvidia_libs = sorted(site_packages.glob("nvidia/*/lib"))
+        for lib_dir in nvidia_libs:
+            ld_paths.append(str(lib_dir))
+
+        existing_ld = os.environ.get("LD_LIBRARY_PATH", "")
+        if existing_ld:
+            ld_paths.append(existing_ld)
+        os.environ["LD_LIBRARY_PATH"] = ":".join(ld_paths)
         os.environ["FORCE_CUDA"] = "1"
         success("Configured environment for CUDA 13.0")
+
+        _ensure_triton(cuda_version, home)
     else:
         warning(f"CUDA version '{cuda_version}' is not explicitly supported; proceeding without changes.")
+
+
+def _ensure_triton(cuda_version: str, cuda_home: Path) -> None:
+    """Ensure Triton is available for the given CUDA version."""
+    try:
+        import triton.backends.compiler  # noqa: F401
+        return
+    except Exception:
+        info("Triton backend modules not found; building Triton from source...")
+
+    repo_dir = Path.home() / ".metta" / "triton-src"
+    repo_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    if repo_dir.exists():
+        subprocess.run(["git", "fetch", "origin"], cwd=repo_dir, check=True)
+    else:
+        subprocess.run(
+            ["git", "clone", "https://github.com/triton-lang/triton.git", str(repo_dir)],
+            check=True,
+        )
+
+    subprocess.run(["git", "checkout", "v3.4.0"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "submodule", "update", "--init", "--recursive"], cwd=repo_dir, check=True)
+
+    subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "cmake", "ninja"], check=True)
+
+    env = os.environ.copy()
+    env["CUDA_HOME"] = str(cuda_home)
+    env.setdefault("CMAKE_CUDA_COMPILER", str(cuda_home / "bin" / "nvcc"))
+
+    python_dir = repo_dir / "python"
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
+        cwd=python_dir,
+        env=env,
+        check=True,
+    )
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "."],
+        cwd=python_dir,
+        env=env,
+        check=True,
+    )
+
+    try:
+        import triton.backends.compiler  # noqa: F401
+        success("Triton built from source successfully.")
+    except Exception as exc:  # pragma: no cover
+        warning(f"Triton source build did not expose expected modules: {exc}")
 
 
 @app.command(name="install", help="Install or update components")
