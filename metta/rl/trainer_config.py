@@ -2,11 +2,9 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.training.heartbeat import HeartbeatConfig
 from metta.rl.training.scheduler import HyperparameterSchedulerConfig
-from mettagrid.builder.envs import make_arena
 from mettagrid.config import Config
 
 
@@ -67,9 +65,7 @@ class TrainerConfig(Config):
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
-    curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
-
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(

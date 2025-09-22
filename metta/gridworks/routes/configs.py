@@ -38,7 +38,7 @@ def make_configs_router() -> APIRouter:
         if isinstance(cfg, CurriculumConfig):
             return cfg.make().get_task().get_env_cfg().game.map_builder
         if isinstance(cfg, TrainTool):
-            return config_to_map_builder(cfg.trainer.curriculum)
+            return config_to_map_builder(cfg.training_env.curriculum)
 
         raise HTTPException(
             status_code=400, detail=f"Config of type {type(cfg)} can't be converted to a MapBuilderConfig"
