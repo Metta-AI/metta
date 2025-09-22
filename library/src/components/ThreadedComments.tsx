@@ -143,7 +143,7 @@ function CommentComposer({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
     } else if (
@@ -154,6 +154,7 @@ function CommentComposer({
       e.preventDefault();
       onChange(value + "_bot ");
     }
+    // Allow Enter to create newlines by not preventing default
   };
 
   return (
