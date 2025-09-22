@@ -205,9 +205,13 @@ class TestTrainingRunsRoutes:
             "episode_ids": episode_ids,
         }
 
-    def test_get_training_runs_empty(self, test_client: TestClient, auth_headers: Dict[str, str]) -> None:
+    def test_get_training_runs_empty(
+        self,
+        isolated_test_client: TestClient,
+        auth_headers: Dict[str, str],
+    ) -> None:
         """Test getting training runs when none exist."""
-        response = test_client.get("/training-runs", headers=auth_headers)
+        response = isolated_test_client.get("/training-runs", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert "training_runs" in data
