@@ -264,12 +264,13 @@ class TrainTool(Tool):
 
             components.append(policy_checkpointer)
 
+            self.evaluator = self.evaluator.model_copy(deep=True)
             components.append(
                 Evaluator(
                     config=self.evaluator,
                     device=torch.device(self.device),
                     system_cfg=self.system,
-                    trainer_cfg=self.trainer,
+                    checkpoint_cfg=self.trainer.checkpoint,
                     stats_client=stats_client,
                 )
             )
@@ -356,3 +357,6 @@ class TrainTool(Tool):
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
 
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
+        self.trainer.checkpoint.checkpoint_interval = min(
+            self.trainer.checkpoint.checkpoint_interval, self.evaluator.epoch_interval or 10
+        )
