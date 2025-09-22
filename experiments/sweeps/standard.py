@@ -60,7 +60,7 @@ def protein_sweep(
         total_timesteps = max_timesteps  # 2B timesteps for production
         monitoring_interval = 60
 
-    train_overrides["total_timesteps"] = total_timesteps
+    train_overrides["trainer.total_timesteps"] = total_timesteps
     # Create and return the sweep tool using adaptive infrastructure
     return SweepTool(
         protein_config=protein_config,
