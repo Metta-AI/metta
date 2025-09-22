@@ -861,9 +861,10 @@ class MettaRepo:
     ) -> uuid.UUID:
         async with self.connect() as con:
             # Validate that eval name is in the format of 'eval_category/env_name'
-            eval_category, env_name = eval_name.split("/")
-            if eval_category is None or env_name is None:
+            parts = eval_name.split("/")
+            if len(parts) != 2:
                 raise ValueError("Eval name must be in the format of 'eval_category/env_name'")
+            eval_category, env_name = parts
 
             # Insert into episodes table
             result = await con.execute(
