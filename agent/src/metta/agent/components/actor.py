@@ -11,6 +11,119 @@ from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 
 logger = logging.getLogger(__name__)
 
+_MAX_LOGGED_INDICES = 5
+_MAX_LOGGED_VALUES = 10
+_MAX_LOGGED_TD_KEYS = 25
+
+
+def _snapshot_td_keys(td: TensorDict) -> list[str]:
+    """Return a truncated, stringified snapshot of TD keys for logging."""
+    keys: list[str] = []
+    try:
+        raw_keys = list(td.keys())
+    except TypeError:
+        raw_keys = [key for key in td.keys()]
+
+    total = len(raw_keys)
+    limit = min(total, _MAX_LOGGED_TD_KEYS)
+    for idx in range(limit):
+        keys.append(repr(raw_keys[idx]))
+    if total > limit:
+        keys.append(f"...( +{total - limit} more )")
+    return keys
+
+
+def _collect_row_context(td: TensorDict, batch_index: int) -> dict[str, Any]:
+    """Capture lightweight context tensors for a problematic batch index."""
+    context: dict[str, Any] = {}
+    collected = 0
+    for key in td.keys():
+        if collected >= 5:
+            break
+        try:
+            value = td.get(key)
+        except KeyError:
+            continue
+        if not isinstance(value, torch.Tensor):
+            continue
+        if value.dim() == 0 or value.shape[0] <= batch_index:
+            continue
+        with torch.no_grad():
+            sample_tensor = value[batch_index]
+            flattened = sample_tensor.reshape(-1)
+            sample_values = flattened[:_MAX_LOGGED_VALUES].detach().cpu().tolist()
+        context[repr(key)] = {
+            "shape": list(sample_tensor.shape),
+            "dtype": str(sample_tensor.dtype),
+            "sample_values": sample_values,
+        }
+        collected += 1
+    return context
+
+
+def _log_and_sanitize(
+    *,
+    tensor: torch.Tensor,
+    name: str,
+    component: str,
+    td: TensorDict,
+) -> tuple[torch.Tensor, bool]:
+    """
+    Inspect `tensor`, emit diagnostics for NaN/Inf, and return a sanitized tensor.
+
+    Returns a tuple of (possibly sanitized tensor, whether an anomaly was detected).
+    """
+
+    if tensor is None:
+        return tensor, False
+
+    invalid_mask = ~torch.isfinite(tensor)
+    if not invalid_mask.any():
+        return tensor, False
+
+    invalid_count = int(invalid_mask.sum().item())
+    nan_count = int(torch.isnan(tensor).sum().item())
+    posinf_count = int(torch.isposinf(tensor).sum().item())
+    neginf_count = int(torch.isneginf(tensor).sum().item())
+
+    detached = tensor.detach()
+    sanitized_view = torch.nan_to_num(detached, nan=0.0, posinf=0.0, neginf=0.0)
+    finite_min = float(sanitized_view.min().item()) if sanitized_view.numel() else 0.0
+    finite_max = float(sanitized_view.max().item()) if sanitized_view.numel() else 0.0
+    finite_abs_max = float(sanitized_view.abs().max().item()) if sanitized_view.numel() else 0.0
+
+    invalid_indices = invalid_mask.nonzero(as_tuple=False)[:_MAX_LOGGED_INDICES].detach().cpu().tolist()
+    offending_batch_index = None
+    if invalid_indices:
+        first_index = invalid_indices[0]
+        if len(first_index) > 0:
+            offending_batch_index = first_index[0]
+    batch_context: dict[str, Any] | None = None
+    if offending_batch_index is not None:
+        batch_context = _collect_row_context(td, int(offending_batch_index))
+
+    logger.error(
+        "[%s] Invalid values detected in %s: shape=%s dtype=%s total_invalid=%d nan=%d posinf=%d neginf=%d "
+        "finite_min=%s finite_max=%s finite_abs_max=%s sample_indices=%s td_keys=%s batch_context=%s",
+        component,
+        name,
+        list(tensor.shape),
+        tensor.dtype,
+        invalid_count,
+        nan_count,
+        posinf_count,
+        neginf_count,
+        finite_min,
+        finite_max,
+        finite_abs_max,
+        invalid_indices,
+        _snapshot_td_keys(td),
+        batch_context,
+    )
+
+    sanitized = torch.nan_to_num(tensor, nan=0.0, posinf=0.0, neginf=0.0)
+    return sanitized, True
+
 
 class ActorQueryConfig(ComponentConfig):
     in_key: str
@@ -43,9 +156,26 @@ class ActorQuery(nn.Module):
 
     def forward(self, td: TensorDict):
         hidden = td[self.in_key]  # Shape: [B*TT, hidden]
+        hidden, hidden_invalid = _log_and_sanitize(
+            tensor=hidden,
+            name=f"{self.__class__.__name__}.input[{self.in_key}]",
+            component="ActorQuery",
+            td=td,
+        )
+        if hidden_invalid:
+            td[self.in_key] = hidden
 
         query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)
+
+        query, query_invalid = _log_and_sanitize(
+            tensor=query,
+            name=f"{self.__class__.__name__}.output[{self.out_key}]",
+            component="ActorQuery",
+            td=td,
+        )
+        if query_invalid:
+            td[self.out_key] = query
 
         td[self.out_key] = query
         return td
@@ -91,55 +221,54 @@ class ActorKey(nn.Module):
         query = td[self.query_key]  # Shape: [B*TT, embed_dim]
         action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
 
-        if not torch.isfinite(query).all():
-            invalid_idx = torch.nonzero(~torch.isfinite(query), as_tuple=False)
-            safe_query = torch.nan_to_num(query, nan=0.0, neginf=0.0, posinf=0.0)
-            logger.error(
-                "Invalid query tensor before ActorKey einsum: count=%d, example_indices=%s, min=%s, max=%s",
-                int(invalid_idx.shape[0]),
-                invalid_idx[:5].cpu().tolist(),
-                safe_query.min().item(),
-                safe_query.max().item(),
-            )
+        query, query_invalid = _log_and_sanitize(
+            tensor=query,
+            name=f"{self.__class__.__name__}.query[{self.query_key}]",
+            component="ActorKey",
+            td=td,
+        )
+        if query_invalid:
+            td[self.query_key] = query
 
-        if not torch.isfinite(action_embeds).all():
-            invalid_idx = torch.nonzero(~torch.isfinite(action_embeds), as_tuple=False)
-            safe_embeds = torch.nan_to_num(action_embeds, nan=0.0, neginf=0.0, posinf=0.0)
-            logger.error(
-                "Invalid action embeddings before ActorKey einsum: count=%d, example_indices=%s, min=%s, max=%s",
-                int(invalid_idx.shape[0]),
-                invalid_idx[:5].cpu().tolist(),
-                safe_embeds.min().item(),
-                safe_embeds.max().item(),
-            )
+        action_embeds, embeds_invalid = _log_and_sanitize(
+            tensor=action_embeds,
+            name=f"{self.__class__.__name__}.embeds[{self.embedding_key}]",
+            component="ActorKey",
+            td=td,
+        )
+        if embeds_invalid:
+            td[self.embedding_key] = action_embeds
+
+        bias_tensor = self.bias
+        _, bias_invalid = _log_and_sanitize(
+            tensor=bias_tensor,
+            name=f"{self.__class__.__name__}.bias",
+            component="ActorKey",
+            td=td,
+        )
+        if bias_invalid:
+            with torch.no_grad():
+                self.bias.copy_(torch.nan_to_num(self.bias, nan=0.0, posinf=0.0, neginf=0.0))
 
         # Compute scores
         scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
 
-        if not torch.isfinite(scores).all():
-            invalid_idx = torch.nonzero(~torch.isfinite(scores), as_tuple=False)
-            safe_scores = torch.nan_to_num(scores, nan=0.0, neginf=0.0, posinf=0.0)
-            logger.error(
-                "Invalid ActorKey scores after einsum: count=%d, example_indices=%s, min=%s, max=%s",
-                int(invalid_idx.shape[0]),
-                invalid_idx[:5].cpu().tolist(),
-                safe_scores.min().item(),
-                safe_scores.max().item(),
-            )
+        scores, _ = _log_and_sanitize(
+            tensor=scores,
+            name=f"{self.__class__.__name__}.scores",
+            component="ActorKey",
+            td=td,
+        )
 
         # Add bias
         biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
 
-        if not torch.isfinite(biased_scores).all():
-            invalid_idx = torch.nonzero(~torch.isfinite(biased_scores), as_tuple=False)
-            safe_biased = torch.nan_to_num(biased_scores, nan=0.0, neginf=0.0, posinf=0.0)
-            logger.error(
-                "Invalid ActorKey biased scores: count=%d, example_indices=%s, min=%s, max=%s",
-                int(invalid_idx.shape[0]),
-                invalid_idx[:5].cpu().tolist(),
-                safe_biased.min().item(),
-                safe_biased.max().item(),
-            )
+        biased_scores, _ = _log_and_sanitize(
+            tensor=biased_scores,
+            name=f"{self.__class__.__name__}.biased_scores[{self.out_key}]",
+            component="ActorKey",
+            td=td,
+        )
 
         td[self.out_key] = biased_scores
         return td
@@ -186,32 +315,24 @@ class ActionProbs(nn.Module):
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         logits = td[self.config.in_key]
-        if not torch.isfinite(logits).all():
-            invalid_mask = ~torch.isfinite(logits)
-            invalid_indices = torch.nonzero(invalid_mask, as_tuple=False)
-            sample_rows = torch.unique(invalid_indices[:, 0])[:1]
-            sample_values: list[float] | None = None
-            if sample_rows.numel() > 0:
-                row = logits[sample_rows[0]].detach().cpu()
-                sample_values = row.tolist()[:10]
-            logger.error(
-                "Invalid logits detected before sampling: count=%d, example_indices=%s, min=%s, max=%s, sample_row=%s, "
-                "td_keys=%s",
-                int(invalid_indices.shape[0]),
-                invalid_indices[:5].cpu().tolist(),
-                torch.nan_to_num(logits, nan=0.0, neginf=0.0, posinf=0.0).min().item(),
-                torch.nan_to_num(logits, nan=0.0, neginf=0.0, posinf=0.0).max().item(),
-                sample_values,
-                sorted(td.keys()),
-            )
+        raw_logits = logits
 
-        row_all_neg_inf = torch.isneginf(logits).all(dim=-1)
+        row_all_neg_inf = torch.isneginf(raw_logits).all(dim=-1)
         if row_all_neg_inf.any():
             offending_rows = torch.nonzero(row_all_neg_inf, as_tuple=False)[:5].view(-1).cpu().tolist()
             logger.error(
                 "All-logits-masked rows encountered before sampling: rows=%s",
                 offending_rows,
             )
+
+        logits, logits_invalid = _log_and_sanitize(
+            tensor=logits,
+            name=f"{self.__class__.__name__}.logits[{self.config.in_key}]",
+            component="ActionProbs",
+            td=td,
+        )
+        if logits_invalid:
+            td[self.config.in_key] = logits
 
         """Forward pass for inference mode with action sampling."""
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
@@ -229,12 +350,30 @@ class ActionProbs(nn.Module):
         # CRITICAL: ComponentPolicy expects the action to be flattened already during training
         # The TD should be reshaped to match the flattened batch dimension
         logits = td[self.config.in_key]
+        raw_logits = logits
         if action.dim() == 3:  # (B, T, A) -> (BT, A)
             batch_size_orig, time_steps, A = action.shape
             action = action.view(batch_size_orig * time_steps, A)
             # Also flatten the TD to match
             if td.batch_dims > 1:
                 td = td.reshape(td.batch_size.numel())
+
+        row_all_neg_inf = torch.isneginf(raw_logits).all(dim=-1)
+        if row_all_neg_inf.any():
+            offending_rows = torch.nonzero(row_all_neg_inf, as_tuple=False)[:5].view(-1).cpu().tolist()
+            logger.error(
+                "All-logits-masked rows encountered before training evaluation: rows=%s",
+                offending_rows,
+            )
+
+        logits, logits_invalid = _log_and_sanitize(
+            tensor=logits,
+            name=f"{self.__class__.__name__}.logits[{self.config.in_key}]",
+            component="ActionProbs",
+            td=td,
+        )
+        if logits_invalid:
+            td[self.config.in_key] = logits
 
         action_logit_index = self._convert_action_to_logit_index(action)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
