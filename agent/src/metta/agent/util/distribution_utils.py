@@ -2,12 +2,10 @@ from typing import Any, Tuple
 
 import torch
 import torch.distributed as dist
-import torch.jit
 import torch.nn.functional as F
 from torch import Tensor
 
 
-@torch.jit.script
 def _compute_action_distribution(action_logits: Tensor) -> Tuple[Tensor, Tensor]:
     """Direct softmax conversion, matching the pre-components behaviour."""
 
@@ -16,7 +14,16 @@ def _compute_action_distribution(action_logits: Tensor) -> Tuple[Tensor, Tensor]
     return action_probs, full_log_probs
 
 
-@torch.jit.script
+def _finite_stats(t: Tensor) -> Tuple[float, float]:
+    mask = torch.isfinite(t)
+    if not torch.any(mask):
+        return float("nan"), float("nan")
+    values = t[mask]
+    mean = float(values.mean().item())
+    std = float(values.std(unbiased=False).item())
+    return mean, std
+
+
 def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Sample actions from logits during inference.
@@ -36,7 +43,15 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
         full_log_probs: Full log-probability distribution over all actions,
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
+    if not torch.isfinite(action_logits).all():
+        mean, std = _finite_stats(action_logits)
+        raise RuntimeError(f"Encountered non-finite action logits prior to sampling; statistics= mean={mean} std={std}")
+
     action_probs, full_log_probs = _compute_action_distribution(action_logits)
+
+    if not torch.isfinite(action_probs).all():
+        mean, std = _finite_stats(action_logits)
+        raise RuntimeError(f"Non-finite action probabilities produced; logits stats= mean={mean} std={std}")
 
     # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
@@ -51,7 +66,6 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     return actions, act_log_prob, entropy, full_log_probs
 
 
-@torch.jit.script
 def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Evaluate provided actions against logits during training.
@@ -73,7 +87,17 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
         action_log_probs: Full log-probability distribution over all actions,
                           shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
+    if not torch.isfinite(action_logits).all():
+        mean, std = _finite_stats(action_logits)
+        raise RuntimeError(f"Encountered non-finite action logits during evaluation; statistics= mean={mean} std={std}")
+
     action_probs, action_log_probs = _compute_action_distribution(action_logits)
+
+    if not torch.isfinite(action_probs).all():
+        mean, std = _finite_stats(action_logits)
+        raise RuntimeError(
+            f"Non-finite action probabilities produced during evaluation; logits stats= mean={mean} std={std}"
+        )
 
     # Extract log-probabilities for the provided actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
