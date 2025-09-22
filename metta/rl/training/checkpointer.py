@@ -23,11 +23,11 @@ class CheckpointConfig(Config):
     remote_prefix: str | None = Field(default=None)
     checkpoint_path_override: str | None = Field(default=None)
 
-    _deprecated_checkpoint_dir: str | None = Field(default=None, alias="checkpoint_dir")
+    deprecated_checkpoint_dir: str | None = Field(default=None, alias="checkpoint_dir", exclude=True)
 
     @model_validator(mode="after")
     def _apply_deprecated_checkpoint_dir(self) -> "CheckpointConfig":
-        if self._deprecated_checkpoint_dir:
+        if self.deprecated_checkpoint_dir:
             warnings.warn(
                 (
                     "CheckpointConfig.checkpoint_dir is deprecated; "
@@ -37,7 +37,7 @@ class CheckpointConfig(Config):
                 stacklevel=2,
             )
             if self.checkpoint_path_override is None:
-                self.checkpoint_path_override = self._deprecated_checkpoint_dir
+                self.checkpoint_path_override = self.deprecated_checkpoint_dir
         return self
 
 
