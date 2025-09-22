@@ -42,7 +42,7 @@ class TestBasicSaveLoad:
 
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
 
-        checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
+        checkpoint_dir = checkpoint_manager.checkpoint_dir
         expected_filename = "test_run:v5.pt"
         agent_file = checkpoint_dir / expected_filename
 
@@ -211,7 +211,7 @@ class TestCleanup:
                 mock_agent, epoch=epoch, metadata={"agent_step": epoch * 1000, "total_time": epoch * 30}
             )
 
-        checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
+        checkpoint_dir = checkpoint_manager.checkpoint_dir
         checkpoint_files = [p for p in checkpoint_dir.glob("*.pt") if ":v" in p.stem]
         assert len(checkpoint_files) == 10
 
@@ -232,7 +232,7 @@ class TestCleanup:
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
         checkpoint_manager.save_trainer_state(mock_optimizer, epoch=1, agent_step=1000)
 
-        checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
+        checkpoint_dir = checkpoint_manager.checkpoint_dir
         assert (checkpoint_dir / "test_run:v1.pt").exists()
         assert (checkpoint_dir / "trainer_state.pt").exists()
 
