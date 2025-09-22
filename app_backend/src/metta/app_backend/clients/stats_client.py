@@ -1,6 +1,7 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Optional, Type, TypeVar
 
 import httpx
@@ -48,10 +49,51 @@ class StatsClient(ABC):
     def close(self):
         pass
 
+    @abstractmethod
+    def create_training_run(
+        self,
+        name: str,
+        attributes: dict[str, str] | None = None,
+        url: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> TrainingRunResponse:
+        return TrainingRunResponse(id=uuid.uuid1())
+
+    @abstractmethod
+    def create_epoch(
+        self,
+        run_id: uuid.UUID,
+        start_training_epoch: int,
+        end_training_epoch: int,
+        attributes: dict[str, Any] | None = None,
+    ) -> EpochResponse:
+        return EpochResponse(id=uuid.uuid1())
+
+    @abstractmethod
+    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        pass
+
+    @abstractmethod
+    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
+        pass
+
+    @staticmethod
+    def create(stats_server_uri: Optional[str]) -> "StatsClient":
+        if stats_server_uri is None:
+            return NoopStatsClient()
+
+        machine_token = get_machine_token(stats_server_uri)
+        if machine_token is None:
+            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
+        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client._validate_authenticated()
+        return stats_client
+
 
 class NoopStatsClient(StatsClient):
     def __init__(self):
-        pass
+        self.id = uuid.uuid1()
 
     def __enter__(self):
         return self
@@ -61,6 +103,40 @@ class NoopStatsClient(StatsClient):
 
     def close(self):
         pass
+
+    def create_training_run(
+        self,
+        name: str,
+        attributes: dict[str, str] | None = None,
+        url: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> TrainingRunResponse:
+        return TrainingRunResponse(id=self.id)
+
+    def create_epoch(
+        self,
+        run_id: uuid.UUID,
+        start_training_epoch: int,
+        end_training_epoch: int,
+        attributes: dict[str, Any] | None = None,
+    ) -> EpochResponse:
+        return EpochResponse(id=self.id)
+
+    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        pass
+
+    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
+        return TaskResponse(
+            id=self.id,
+            policy_id=uuid.uuid4(),
+            sim_suite="default_suite",
+            status="unprocessed",
+            created_at=datetime.now(),
+            attributes={},
+            retries=0,
+            updated_at=datetime.now(),
+        )
 
 
 class HttpStatsClient(StatsClient):
@@ -202,15 +278,3 @@ class HttpStatsClient(StatsClient):
         return self._make_sync_request(
             PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
         )
-
-    @staticmethod
-    def create(stats_server_uri: Optional[str]) -> "StatsClient":
-        if stats_server_uri is None:
-            return NoopStatsClient()
-
-        machine_token = get_machine_token(stats_server_uri)
-        if machine_token is None:
-            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
-        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
-        stats_client._validate_authenticated()
-        return stats_client

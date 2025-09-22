@@ -17,7 +17,6 @@ from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.checkpointer import CheckpointConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
@@ -45,12 +44,6 @@ class TestTrainerCheckpointIntegration:
             minibatch_size=256,
             bptt_horizon=8,
             update_epochs=1,
-            checkpoint=CheckpointConfig(
-                checkpoint_interval=2,
-                checkpoint_dir=self.checkpoint_dir,
-                remote_prefix=None,
-            ),
-            evaluation=None,
         )
 
         training_env_cfg = TrainingEnvironmentConfig(
