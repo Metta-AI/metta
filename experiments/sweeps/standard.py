@@ -19,7 +19,7 @@ def protein_sweep(
     gpus: int = 1,
     batch_size: int = 4,
     local_test: bool = False,
-    train_overrides: dict = field(default_factory=dict)
+    train_overrides: dict = {}
 ) -> SweepTool:
     """Create PPO hyperparameter sweep using adaptive infrastructure.
 
