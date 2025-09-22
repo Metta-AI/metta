@@ -147,10 +147,10 @@ class CheckpointManager:
 
     def __init__(
         self,
+        run_dir: str,
+        remote_prefix: str | None,
         run: str = "default",
-        run_dir: str = "./train_dir",
         cache_size: int = 3,
-        remote_prefix: str | None = None,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -166,6 +166,7 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
+
         self._remote_prefix = None
         if remote_prefix:
             parsed = ParsedURI.parse(remote_prefix)
@@ -174,6 +175,9 @@ class CheckpointManager:
             # Remove trailing slash from prefix for deterministic joins
             key_prefix = parsed.key.rstrip("/")
             self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+
+    def remote_checkpoints_enabled(self):
+        return self._remote_prefix is not None
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""

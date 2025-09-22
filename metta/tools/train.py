@@ -5,11 +5,11 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -21,6 +21,7 @@ from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
+    ContextCheckpointer,
     ContextCheckpointerConfig,
     DistributedHelper,
     Evaluator,
@@ -34,16 +35,16 @@ from metta.rl.training import (
     SchedulerConfig,
     StatsReporter,
     StatsReporterConfig,
+    TorchProfiler,
+    TrainerComponent,
+    TrainingEnvironmentConfig,
     Uploader,
     UploaderConfig,
+    VectorizedTrainingEnvironment,
     WandbAborter,
     WandbAborterConfig,
+    WandbLogger,
 )
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context_checkpointer import ContextCheckpointer
-from metta.rl.training.torch_profiler import TorchProfiler
-from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
-from metta.rl.training.wandb_logger import WandbLogger
 from metta.tools.utils.auto_config import (
     auto_policy_storage_decision,
     auto_run_name,
@@ -56,7 +57,8 @@ logger = getRankAwareLogger(__name__)
 
 class TrainTool(Tool):
     run: Optional[str] = None
-    run_dir: Optional[str] = None
+    run_dir: Optional[str] = None  # if none, auto-assigned based on the name
+    remote_prefix: Optional[str] = None
     device: str = guess_device()
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
@@ -79,14 +81,47 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
+    @model_validator(mode="after")
+    def validate_fields(self) -> "TrainTool":
+        if self.evaluator.epoch_interval != 0:
+            if self.evaluator.epoch_interval < self.checkpointer.epoch_interval:
+                raise ValueError(
+                    "evaluator.epoch_interval must be at least as large as checkpointer.epoch_interval "
+                    "to ensure policies are saved before evaluation"
+                )
+
+        return self
+
     def invoke(self, args: dict[str, str]) -> int | None:
+        if "run" in args:
+            assert self.run is None, "run cannot be set via args if already provided in config"
+            self.run = args["run"]
+
+        if self.run is None:
+            self.run = auto_run_name(prefix="local")
+
+        group_override = args.get("group")
+
+        if self.run_dir is None:
+            self.run_dir = f"{self.system.data_dir}/{self.run}"
+
+        if self.wandb == WandbConfig.Unconfigured():
+            self.wandb = auto_wandb_config(self.run)
+
+        if group_override:
+            self.wandb.group = group_override
+
+        self._setup_checkpoint_directory()
+        self._setup_remote_prefix()
+
         init_logging(run_dir=self.run_dir)
 
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
-            self._minimize_config_for_debugging()
+            self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
-        self._configure_run_metadata(args)
-        self._prepare_run_directories()
+        os.makedirs(self.run_dir, exist_ok=True)
+        init_logging(run_dir=self.run_dir)
+        record_heartbeat()
 
         distributed_helper = DistributedHelper(torch.device(self.device))
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
@@ -97,8 +132,12 @@ class TrainTool(Tool):
         checkpoint_manager = CheckpointManager(
             run=self.run or "default",
             run_dir=self.run_dir or str(Path(self.system.data_dir)),
-            remote_prefix=self.trainer.checkpoint.remote_prefix,
+            remote_prefix=self.remote_prefix,
         )
+
+        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
+            raise ValueError("without a remote prefix we cannot use remote evaluation")
+
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
@@ -126,35 +165,17 @@ class TrainTool(Tool):
                 stats_client.close()
             distributed_helper.cleanup()
 
-    def _configure_run_metadata(self, args: dict[str, str]) -> Optional[str]:
-        if "run" in args:
-            assert self.run is None, "run cannot be set via args and config"
-            self.run = args["run"]
-
-        if self.run is None:
-            self.run = auto_run_name(prefix="local")
-
-        group_override = args.get("group")
-
-        if self.run_dir is None:
-            self.run_dir = f"{self.system.data_dir}/{self.run}"
-
-        if self.wandb == WandbConfig.Unconfigured():
-            self.wandb = auto_wandb_config(self.run)
-
-        if group_override:
-            self.wandb.group = group_override
-
-        return group_override
-
-    def _prepare_run_directories(self) -> None:
+    def _setup_checkpoint_directory(self) -> None:
+        """Set up the checkpoint directory if not already configured."""
         if not self.context_checkpointer.checkpoint_dir:
             self.context_checkpointer.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
-        if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
+    def _setup_remote_prefix(self) -> None:
+        """Determine and set the remote prefix for policy storage if needed."""
+        if self.remote_prefix is None:
             storage_decision = auto_policy_storage_decision(self.run)
             if storage_decision.remote_prefix:
-                self.trainer.checkpoint.remote_prefix = storage_decision.remote_prefix
+                self.remote_prefix = storage_decision.remote_prefix
                 if storage_decision.reason == "env_override":
                     logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
                 else:
@@ -176,10 +197,6 @@ class TrainTool(Tool):
                     "Remote policy prefix unset; policies will remain local. Configure POLICY_REMOTE_PREFIX or run "
                     "'metta configure aws'."
                 )
-
-        os.makedirs(self.run_dir, exist_ok=True)
-        init_logging(run_dir=self.run_dir)
-        record_heartbeat()
 
     def _load_or_create_policy(
         self,
@@ -215,7 +232,7 @@ class TrainTool(Tool):
         )
 
         if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
-            self.gradient_reporter.epoch_interval = self.trainer.grad_mean_variance_interval
+            self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
 
         return trainer
 
@@ -322,6 +339,10 @@ class TrainTool(Tool):
     ) -> None:
         if not distributed_helper.is_master():
             return
+
+        if not self.run_dir:
+            raise ValueError("cannot _log_run_configuration without a valid run_dir")
+
         logger.info(f"Training environment: {env}")
         config_path = os.path.join(self.run_dir, "config.json")
         with open(config_path, "w") as config_file:
@@ -332,7 +353,8 @@ class TrainTool(Tool):
         if not (distributed_helper.is_master() and self.stats_server_uri):
             return None
         try:
-            return StatsClient.create(self.stats_server_uri)
+            return HttpStatsClient.create(stats_server_uri=self.stats_server_uri)
+
         except Exception as exc:
             logger.warning("Failed to initialize stats client: %s", exc)
             return None

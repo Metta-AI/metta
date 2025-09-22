@@ -3,6 +3,8 @@
 import logging
 from typing import Optional
 
+from pydantic import Field
+
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training.component import TrainerComponent
@@ -16,8 +18,7 @@ logger = logging.getLogger(__name__)
 class CheckpointerConfig(Config):
     """Configuration for policy checkpointing."""
 
-    epoch_interval: int = 100
-    """How often to save policy checkpoints (in epochs)."""
+    epoch_interval: int = Field(default=30, ge=0)  # How often to save policy checkpoints (in epochs)
 
 
 class Checkpointer(TrainerComponent):

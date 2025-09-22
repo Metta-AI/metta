@@ -23,8 +23,6 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "ComponentContext": ("metta.rl.training.component_context", "ComponentContext"),
     "TrainerState": ("metta.rl.training.component_context", "TrainerState"),
     "TrainingEnvWindow": ("metta.rl.training.component_context", "TrainingEnvWindow"),
-    "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
-    "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
     "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
     "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),
     "NoOpEvaluator": ("metta.rl.training.evaluator", "NoOpEvaluator"),
@@ -43,10 +41,14 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "GradientReporter": ("metta.rl.training.gradient_reporter", "GradientReporter"),
     "GradientReporterConfig": ("metta.rl.training.gradient_reporter", "GradientReporterConfig"),
     "ProgressLogger": ("metta.rl.training.progress_logger", "ProgressLogger"),
-    "training_environment": ("metta.rl.training.training_environment", None),
+    "TrainingEnvironmentConfig": ("metta.rl.training.training_environment", "TrainingEnvironmentConfig"),
+    "VectorizedTrainingEnvironment": ("metta.rl.training.training_environment", "VectorizedTrainingEnvironment"),
+    "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
+    "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
+    "WandbLogger": ("metta.rl.training.wandb_logger", "WandbLogger"),
 }
 
-__all__ = list(_EXPORTS.keys())
+__all__ = list(_EXPORTS.keys())  # type: ignore[reportUnsupportedDunderAll]
 
 
 def __getattr__(name: str) -> Any:

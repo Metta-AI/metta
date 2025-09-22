@@ -33,6 +33,7 @@
     "cfgs",
     "charconv",
     "charliermarsh",
+    "checkpointer",
     "chrono",
     "cimport",
     "cinit",
@@ -312,5 +313,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }

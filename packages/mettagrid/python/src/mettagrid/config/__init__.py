@@ -7,12 +7,14 @@ from .mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
+    AssemblerConfig,
     AttackActionConfig,
     ChangeGlyphActionConfig,
     ConverterConfig,
     GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
+    RecipeConfig,
     StatsRewards,
     WallConfig,
 )
@@ -32,4 +34,6 @@ __all__ = [
     "GlobalObsConfig",
     "StatsRewards",
     "WallConfig",
+    "RecipeConfig",
+    "AssemblerConfig",
 ]

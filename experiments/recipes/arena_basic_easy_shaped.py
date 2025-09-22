@@ -9,9 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from mettagrid import MettaGridConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.evaluator import EvaluatorConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -19,6 +17,8 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from mettagrid import MettaGridConfig
+from mettagrid.config import ConverterConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -42,7 +42,9 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     }
 
     # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
-    arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
+    altar = arena_env.game.objects.get("altar")
+    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+        altar.input_resources["battery_red"] = 1
 
     return arena_env
 
@@ -105,20 +107,13 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    eval_simulations = make_evals()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum,
-        evaluation=EvaluationConfig(simulations=eval_simulations),
-    )
-
     if policy_architecture is None:
         policy_architecture = FastConfig()
 
     return TrainTool(
-        trainer=trainer_cfg,
+        trainer=TrainerConfig(),
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
         policy_architecture=policy_architecture,
     )
 

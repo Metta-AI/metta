@@ -5,8 +5,9 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import Span
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training.evaluator import EvaluatorConfig
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -43,7 +44,7 @@ def _default_run_name() -> str:
 
     # Try to get git hash (7 chars like CI) for better tracking
     try:
-        from metta.common.util.git import get_current_commit
+        from gitta import get_current_commit
 
         git_hash = get_current_commit()[:7]
         return f"object_use.{user}.{timestamp}.{git_hash}"
@@ -198,17 +199,14 @@ def train(
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
-        evaluation=EvaluationConfig(
-            simulations=make_object_use_eval_suite(),
-        ),
-    )
 
     return TrainTool(
-        trainer=trainer_cfg,
         run=run,
+        trainer=TrainerConfig(),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=curriculum or make_curriculum()
+        ),
+        evaluator=EvaluatorConfig(simulations=make_object_use_eval_suite()),
     )
 
 

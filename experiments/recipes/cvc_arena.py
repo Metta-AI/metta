@@ -12,15 +12,16 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training.evaluator import EvaluatorConfig
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building
-from mettagrid.mettagrid_config import AssemblerConfig, MettaGridConfig
+from mettagrid.config import AssemblerConfig, MettaGridConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -93,11 +94,15 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
-        evaluation=EvaluationConfig(
+    return TrainTool(
+        trainer=TrainerConfig(),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=curriculum
+            or make_curriculum(
+                enable_detailed_slice_logging=enable_detailed_slice_logging
+            )
+        ),
+        evaluator=EvaluatorConfig(
             simulations=[
                 SimulationConfig(
                     name="cvc_arena/basic", env=make_mettagrid(num_agents=24)
@@ -105,11 +110,9 @@ def train(
                 SimulationConfig(
                     name="cvc_arena/combat", env=make_mettagrid(num_agents=24)
                 ),
-            ],
+            ]
         ),
     )
-
-    return TrainTool(trainer=trainer_cfg)
 
 
 def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
@@ -143,15 +146,11 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
         assert isinstance(altar_config, AssemblerConfig)
         altar_config.recipes[0][1].input_resources["battery_red"] = 1
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=cc.env_curriculum(env_cfg),
-        evaluation=EvaluationConfig(
-            simulations=make_evals(env_cfg),
-        ),
+    return TrainTool(
+        trainer=TrainerConfig(),
+        training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
+        evaluator=EvaluatorConfig(simulations=make_evals(env_cfg)),
     )
-
-    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
