@@ -145,7 +145,7 @@ def create_test_data(stats_client: StatsClient):
         overriding_stats_client: StatsClient | None = None,
     ) -> dict[str, Any]:
         use_stats_client = overriding_stats_client or stats_client
-        data: dict[str, Any] = {"policies": [], "policy_names": []}
+        data: dict[str, Any] = {"policies": [], "policy_names": [], "policy_epoch_ids": []}
 
         if num_policies > 0:
             timestamp = int(time.time() * 1_000_000)
@@ -183,6 +183,7 @@ def create_test_data(stats_client: StatsClient):
                 )
                 data["policies"].append(policy)
                 data["policy_names"].append(policy_name)
+                data["policy_epoch_ids"].append(epoch.id)
 
         timestamp = int(time.time() * 1_000_000)
         for i in range(create_run_free_policies):
@@ -194,6 +195,7 @@ def create_test_data(stats_client: StatsClient):
             )
             data["policies"].append(policy)
             data["policy_names"].append(policy_name)
+            data["policy_epoch_ids"].append(None)
 
         return data
 
@@ -210,9 +212,14 @@ def record_episodes(stats_client: StatsClient):
         overriding_stats_client: StatsClient | None = None,
     ) -> None:
         use_stats_client = overriding_stats_client or stats_client
+        policy_epoch_ids: list[Any] = test_data.get("policy_epoch_ids", [])
         epochs = test_data.get("epochs", [])
         for i, policy in enumerate(test_data["policies"]):
-            epoch_id = epochs[i % len(epochs)].id if epochs and i < len(epochs) else None
+            epoch_id = None
+            if i < len(policy_epoch_ids):
+                epoch_id = policy_epoch_ids[i]
+            elif epochs:
+                epoch_id = epochs[i % len(epochs)].id
             for env_name in env_names:
                 sim_name = f"{eval_category}/{env_name}"
                 metric_key = f"policy_{i}_{env_name}"

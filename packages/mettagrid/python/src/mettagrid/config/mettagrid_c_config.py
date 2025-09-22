@@ -89,6 +89,25 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
+    # Build tag mappings - collect all unique tags from all objects
+    all_tags = set()
+    for obj_config in game_config.objects.values():
+        all_tags.update(obj_config.tags)
+
+    # Also collect tags from agents
+    for agent_config in game_config.agents:
+        all_tags.update(agent_config.tags)
+
+    tag_id_offset = 0  # Start tag IDs at 0
+    sorted_tags = sorted(all_tags)
+
+    # Validate tag count doesn't exceed uint8 max (255)
+    if len(sorted_tags) > 256:
+        raise ValueError(f"Too many unique tags ({len(sorted_tags)}). Maximum supported is 256 due to uint8 limit.")
+
+    tag_name_to_id = {tag: tag_id_offset + i for i, tag in enumerate(sorted_tags)}
+    tag_id_to_name = {id: name for name, id in tag_name_to_id.items()}
+
     objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
 
     # These are the baseline settings for all agents
@@ -118,6 +137,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # Use the first agent in the team as the template for the group
         _, first_agent = team_agents[0]
         agent_props = first_agent.model_dump()
+
+        # Validate that all agents in the team have identical tags
+        # Currently tags are applied per-team, not per-agent
+        first_agent_tags = set(first_agent.tags)
+        for agent_idx, agent_config in team_agents[1:]:
+            if set(agent_config.tags) != first_agent_tags:
+                raise ValueError(
+                    f"All agents in team {team_id} must have identical tags. "
+                    f"Agent 0 has tags {sorted(first_agent_tags)}, "
+                    f"but agent {agent_idx} has tags {sorted(agent_config.tags)}. "
+                    f"Tags are currently applied per-team, not per-agent."
+                )
 
         rewards_config = agent_props.get("rewards", {})
         inventory_rewards = {
@@ -151,6 +182,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # Map team IDs to conventional group names
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
         group_name = team_names.get(team_id, f"team_{team_id}")
+        # Convert tag names to IDs for first agent in team
+        tag_ids = [tag_name_to_id[tag] for tag in first_agent.tags if tag in tag_name_to_id]
+
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
             "group_id": team_id,
@@ -168,6 +202,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_id": 0,
             "type_name": "agent",
             "initial_inventory": initial_inventory,
+            "tag_ids": tag_ids,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -183,6 +218,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
         if isinstance(object_config, ConverterConfig):
+            # Convert tag names to IDs
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
+
             cpp_converter_config = CppConverterConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
@@ -203,13 +241,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 initial_resource_count=object_config.initial_resource_count,
                 color=object_config.color,
                 recipe_details_obs=game_config.recipe_details_obs,
+                tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_converter_config
         elif isinstance(object_config, WallConfig):
+            # Convert tag names to IDs
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
+
             cpp_wall_config = CppWallConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
                 swappable=object_config.swappable,
+                tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
@@ -245,12 +288,20 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             for byte_pattern, recipe in recipe_map.items():
                 cpp_recipes[byte_pattern] = recipe
 
-            cpp_assembler_config = CppAssemblerConfig(type_id=object_config.type_id, type_name=object_type)
+            # Convert tag names to IDs
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
+
+            cpp_assembler_config = CppAssemblerConfig(
+                type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
+            )
             cpp_assembler_config.recipes = cpp_recipes
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert resource type name to ID
             resource_type_id = resource_name_to_id.get(object_config.resource_type, 0)
+
+            # Convert tag names to IDs
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
 
             cpp_chest_config = CppChestConfig(
                 type_id=object_config.type_id,
@@ -258,6 +309,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 resource_type=resource_type_id,
                 deposit_positions=set(object_config.deposit_positions),
                 withdrawal_positions=set(object_config.withdrawal_positions),
+                tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config
         else:
@@ -359,6 +411,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
     game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
+
+    # Add tag mappings for C++ debugging/display
+    game_cpp_params["tag_id_map"] = tag_id_to_name
 
     return CppGameConfig(**game_cpp_params)
 
