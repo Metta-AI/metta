@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Tuple
+from typing import Dict
 
 import torch
 import torch.nn as nn
@@ -57,8 +57,8 @@ class LSTM(nn.Module):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
-        self.lstm_h: Dict[Tuple[int, int], torch.Tensor] = {}
-        self.lstm_c: Dict[Tuple[int, int], torch.Tensor] = {}
+        self.lstm_h: Dict[int, torch.Tensor] = {}
+        self.lstm_c: Dict[int, torch.Tensor] = {}
 
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
@@ -93,11 +93,20 @@ class LSTM(nn.Module):
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
 
-        cache_key = self._cache_key(td, B)
+        training_env_ids = td.get("training_env_ids", None)
+        if training_env_ids is not None:
+            flat_env_ids = training_env_ids.reshape(-1)
+            training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
+        else:
+            training_env_id = td.get("training_env_id", None)
+            if training_env_id is None:
+                training_env_id_start = 0
+            else:
+                training_env_id_start = training_env_id.reshape(-1)[0].item()  # av remove "start" aspects
 
-        if cache_key is not None and cache_key in self.lstm_h:
-            h_0 = self.lstm_h[cache_key]
-            c_0 = self.lstm_c[cache_key]
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
+            h_0 = self.lstm_h[training_env_id_start]
+            c_0 = self.lstm_c[training_env_id_start]
             # reset the hidden state if the episode is done or truncated
             dones = td.get("dones", None)
             truncateds = td.get("truncateds", None)
@@ -111,9 +120,8 @@ class LSTM(nn.Module):
 
         hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
 
-        if cache_key is not None:
-            self.lstm_h[cache_key] = h_n.detach()
-            self.lstm_c[cache_key] = c_n.detach()
+        self.lstm_h[training_env_id_start] = h_n.detach()
+        self.lstm_c[training_env_id_start] = c_n.detach()
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
@@ -131,35 +139,3 @@ class LSTM(nn.Module):
     def reset_memory(self):
         self.lstm_h.clear()
         self.lstm_c.clear()
-
-    def _cache_key(self, td: TensorDict, batch_size: int) -> Optional[Tuple[int, int]]:
-        """Build a cache key for LSTM state, guarding against non-contiguous env slices."""
-
-        training_env_ids = td.get("training_env_ids", None)
-        if training_env_ids is not None:
-            flat_env_ids = training_env_ids.reshape(-1)
-            if flat_env_ids.numel() == 0:
-                return None
-
-            diffs = torch.diff(flat_env_ids)
-            if diffs.numel() and not torch.all(diffs == diffs[0]):
-                return None
-
-            stride = int(diffs[0].item()) if diffs.numel() else 1
-            if stride != 1:
-                return None
-
-            start = int(flat_env_ids[0].item())
-            stop = start + int(flat_env_ids.numel())
-            return (start, stop)
-
-        training_env_id = td.get("training_env_id", None)
-        if training_env_id is not None:
-            flat_env_id = training_env_id.reshape(-1)
-            if flat_env_id.numel() == 0:
-                return None
-            start = int(flat_env_id[0].item())
-            return (start, start + batch_size)
-
-        # Without environment identifiers we cannot safely reuse hidden state.
-        return None
