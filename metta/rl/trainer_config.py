@@ -2,12 +2,10 @@ from typing import Any, ClassVar, List, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.training.heartbeat import HeartbeatConfig
 from metta.rl.training.scheduler import HyperparameterSchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
-from mettagrid.builder.envs import make_arena
 from mettagrid.config import Config
 
 
@@ -86,11 +84,8 @@ class TrainerConfig(Config):
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
-    curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
-    evaluation: Optional[EvaluationConfig] = Field(default=EvaluationConfig())
-
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -105,15 +100,5 @@ class TrainerConfig(Config):
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
-
-        if self.evaluation and self.evaluation.evaluate_interval != 0:
-            if self.evaluation.evaluate_interval < self.checkpoint.checkpoint_interval:
-                raise ValueError(
-                    "evaluate_interval must be at least as large as checkpoint_interval "
-                    "to ensure policies are saved before evaluation"
-                )
-            if self.evaluation.evaluate_remote and not self.checkpoint.remote_prefix:
-                # Without a remote prefix we cannot evaluate remotely; fall back to local evaluations only.
-                self.evaluation.evaluate_remote = False
 
         return self

@@ -44,7 +44,6 @@ class TestTrainerCheckpointIntegration:
             minibatch_size=256,
             bptt_horizon=8,
             update_epochs=1,
-            curriculum=curriculum,
             checkpoint=CheckpointConfig(
                 checkpoint_interval=2,
                 checkpoint_dir=self.checkpoint_dir,

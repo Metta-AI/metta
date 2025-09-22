@@ -16,6 +16,7 @@ from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
+from metta.rl.trainer_config import CheckpointConfig
 from metta.rl.training.component import TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
@@ -63,7 +64,7 @@ class Evaluator(TrainerComponent):
         config: EvaluatorConfig,
         device: torch.device,
         system_cfg: Any,
-        trainer_cfg: Any,
+        checkpoint_cfg: CheckpointConfig,
         stats_client: Optional[StatsClient] = None,
     ):
         """Initialize evaluator.
@@ -72,7 +73,6 @@ class Evaluator(TrainerComponent):
             config: Evaluation configuration
             device: Device to evaluate on
             system_cfg: System configuration
-            trainer_cfg: Trainer configuration
             stats_client: Optional stats client
         """
         super().__init__()
@@ -80,60 +80,43 @@ class Evaluator(TrainerComponent):
         self._config = config
         self._device = device
         self._system_cfg = system_cfg
-        self._trainer_cfg = trainer_cfg
         self._stats_client = stats_client
         self._latest_scores = EvalRewardSummary()
+
+        self._configure_evaluation_settings(
+            eval_cfg=self._config,
+            checkpoint_cfg=checkpoint_cfg,
+            stats_client=self._stats_client,
+        )
 
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         self.context.latest_eval_scores = self._latest_scores
 
-    @classmethod
-    def from_config(
-        cls,
-        config: Optional[EvaluatorConfig],
-        device: Optional[torch.device] = None,
-        system_cfg: Optional[Any] = None,
-        trainer_cfg: Optional[Any] = None,
-        stats_client: Optional[StatsClient] = None,
-    ):
-        """Create an Evaluator from optional config, returning no-op if None.
-
-        Args:
-            config: Optional evaluation configuration
-            device: Optional torch device
-            system_cfg: Optional system configuration
-            trainer_cfg: Optional trainer configuration
-            stats_client: Optional stats client
-
-        Returns:
-            Evaluator instance (no-op if config is None)
-        """
-        if config is None:
-            return NoOpEvaluator()
-
-        # Configure evaluation settings
-        if trainer_cfg and trainer_cfg.evaluation:
-            cls._configure_evaluation_settings(trainer_cfg.evaluation, stats_client)
-
-        if device is None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        return cls(
-            config=config,
-            device=device,
-            system_cfg=system_cfg,
-            trainer_cfg=trainer_cfg,
-            stats_client=stats_client,
-        )
-
     @staticmethod
-    def _configure_evaluation_settings(eval_cfg: Any, stats_client: Optional[StatsClient]) -> None:
+    def _configure_evaluation_settings(
+        *,
+        eval_cfg: EvaluatorConfig,
+        checkpoint_cfg: CheckpointConfig,
+        stats_client: Optional[StatsClient],
+    ) -> None:
         """Configure evaluation settings.
 
         Args:
-            eval_cfg: Evaluation configuration from trainer config
+            eval_cfg: Evaluation configuration from TrainTool
+            checkpoint_cfg: Trainer checkpoint configuration
             stats_client: Optional stats client
         """
+        if eval_cfg.epoch_interval and eval_cfg.epoch_interval < checkpoint_cfg.checkpoint_interval:
+            raise ValueError(
+                "evaluator.epoch_interval must be >= trainer.checkpoint.checkpoint_interval "
+                "to ensure policies are saved before evaluation"
+            )
+
+        if eval_cfg.evaluate_remote and not checkpoint_cfg.remote_prefix:
+            eval_cfg.evaluate_remote = False
+            logger.info("Remote prefix unset; disabling remote evaluations")
+
         if eval_cfg.replay_dir is None:
             eval_cfg.replay_dir = auto_replay_dir()
             logger.info(f"Setting replay_dir to {eval_cfg.replay_dir}")
@@ -150,7 +133,7 @@ class Evaluator(TrainerComponent):
                 eval_cfg.git_hash = git.get_git_hash_for_remote_task(
                     target_repo=REPO_SLUG,
                     skip_git_check=eval_cfg.skip_git_check,
-                    skip_cmd="trainer.evaluation.skip_git_check=true",
+                    skip_cmd="evaluator.skip_git_check=true",
                 )
                 if eval_cfg.git_hash:
                     logger.info(f"Git hash for remote evaluations: {eval_cfg.git_hash}")
@@ -292,7 +275,7 @@ class Evaluator(TrainerComponent):
             stats_epoch_id=stats_epoch_id,
             stats_client=self._stats_client,
             wandb_run=wandb_run,
-            trainer_cfg=self._trainer_cfg,
+            evaluation_cfg=self._config,
         )
 
     def _evaluate_local(

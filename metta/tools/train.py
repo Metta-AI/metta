@@ -264,12 +264,13 @@ class TrainTool(Tool):
 
             components.append(policy_checkpointer)
 
+            self.evaluator = self.evaluator.model_copy(deep=True)
             components.append(
                 Evaluator(
                     config=self.evaluator,
                     device=torch.device(self.device),
                     system_cfg=self.system,
-                    trainer_cfg=self.trainer,
+                    checkpoint_cfg=self.trainer.checkpoint,
                     stats_client=stats_client,
                 )
             )

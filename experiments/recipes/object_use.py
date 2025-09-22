@@ -6,7 +6,8 @@ import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.trainer_config import EvaluatorConfig, TrainerConfig
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -198,16 +199,20 @@ def train(
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
+    resolved_curriculum = curriculum or make_curriculum()
+
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
-        evaluation=EvaluationConfig(
-            simulations=make_object_use_eval_suite(),
-        ),
+    )
+
+    evaluator_cfg = EvaluatorConfig(
+        simulations=make_object_use_eval_suite(),
     )
 
     return TrainTool(
         trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        evaluator=evaluator_cfg,
         run=run,
     )
 
