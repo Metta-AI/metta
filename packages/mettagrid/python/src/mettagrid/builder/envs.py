@@ -271,5 +271,4 @@ def make_icl_with_numpy(
         # Fallback to default estimates when file is missing
         cfg.game.reward_estimates = {}
 
-
     return cfg
