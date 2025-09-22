@@ -1,3 +1,4 @@
+import logging
 import math
 from typing import Any, Optional
 
@@ -7,6 +8,8 @@ from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+
+logger = logging.getLogger(__name__)
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -88,11 +91,55 @@ class ActorKey(nn.Module):
         query = td[self.query_key]  # Shape: [B*TT, embed_dim]
         action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
 
+        if not torch.isfinite(query).all():
+            invalid_idx = torch.nonzero(~torch.isfinite(query), as_tuple=False)
+            safe_query = torch.nan_to_num(query, nan=0.0, neginf=0.0, posinf=0.0)
+            logger.error(
+                "Invalid query tensor before ActorKey einsum: count=%d, example_indices=%s, min=%s, max=%s",
+                int(invalid_idx.shape[0]),
+                invalid_idx[:5].cpu().tolist(),
+                safe_query.min().item(),
+                safe_query.max().item(),
+            )
+
+        if not torch.isfinite(action_embeds).all():
+            invalid_idx = torch.nonzero(~torch.isfinite(action_embeds), as_tuple=False)
+            safe_embeds = torch.nan_to_num(action_embeds, nan=0.0, neginf=0.0, posinf=0.0)
+            logger.error(
+                "Invalid action embeddings before ActorKey einsum: count=%d, example_indices=%s, min=%s, max=%s",
+                int(invalid_idx.shape[0]),
+                invalid_idx[:5].cpu().tolist(),
+                safe_embeds.min().item(),
+                safe_embeds.max().item(),
+            )
+
         # Compute scores
         scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
 
+        if not torch.isfinite(scores).all():
+            invalid_idx = torch.nonzero(~torch.isfinite(scores), as_tuple=False)
+            safe_scores = torch.nan_to_num(scores, nan=0.0, neginf=0.0, posinf=0.0)
+            logger.error(
+                "Invalid ActorKey scores after einsum: count=%d, example_indices=%s, min=%s, max=%s",
+                int(invalid_idx.shape[0]),
+                invalid_idx[:5].cpu().tolist(),
+                safe_scores.min().item(),
+                safe_scores.max().item(),
+            )
+
         # Add bias
         biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
+
+        if not torch.isfinite(biased_scores).all():
+            invalid_idx = torch.nonzero(~torch.isfinite(biased_scores), as_tuple=False)
+            safe_biased = torch.nan_to_num(biased_scores, nan=0.0, neginf=0.0, posinf=0.0)
+            logger.error(
+                "Invalid ActorKey biased scores: count=%d, example_indices=%s, min=%s, max=%s",
+                int(invalid_idx.shape[0]),
+                invalid_idx[:5].cpu().tolist(),
+                safe_biased.min().item(),
+                safe_biased.max().item(),
+            )
 
         td[self.out_key] = biased_scores
         return td
@@ -139,6 +186,33 @@ class ActionProbs(nn.Module):
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         logits = td[self.config.in_key]
+        if not torch.isfinite(logits).all():
+            invalid_mask = ~torch.isfinite(logits)
+            invalid_indices = torch.nonzero(invalid_mask, as_tuple=False)
+            sample_rows = torch.unique(invalid_indices[:, 0])[:1]
+            sample_values: list[float] | None = None
+            if sample_rows.numel() > 0:
+                row = logits[sample_rows[0]].detach().cpu()
+                sample_values = row.tolist()[:10]
+            logger.error(
+                "Invalid logits detected before sampling: count=%d, example_indices=%s, min=%s, max=%s, sample_row=%s, "
+                "td_keys=%s",
+                int(invalid_indices.shape[0]),
+                invalid_indices[:5].cpu().tolist(),
+                torch.nan_to_num(logits, nan=0.0, neginf=0.0, posinf=0.0).min().item(),
+                torch.nan_to_num(logits, nan=0.0, neginf=0.0, posinf=0.0).max().item(),
+                sample_values,
+                sorted(td.keys()),
+            )
+
+        row_all_neg_inf = torch.isneginf(logits).all(dim=-1)
+        if row_all_neg_inf.any():
+            offending_rows = torch.nonzero(row_all_neg_inf, as_tuple=False)[:5].view(-1).cpu().tolist()
+            logger.error(
+                "All-logits-masked rows encountered before sampling: rows=%s",
+                offending_rows,
+            )
+
         """Forward pass for inference mode with action sampling."""
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
