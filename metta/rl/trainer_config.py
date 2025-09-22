@@ -1,11 +1,11 @@
-from typing import Any, ClassVar, List, Literal, Optional
+from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss.loss_config import LossConfig
+from metta.rl.training.checkpointer import CheckpointConfig
 from metta.rl.training.heartbeat import HeartbeatConfig
 from metta.rl.training.scheduler import HyperparameterSchedulerConfig
-from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config import Config
 
 
@@ -29,24 +29,6 @@ class InitialPolicyConfig(Config):
     range: int = Field(default=1, gt=0)
     metric: str = "epoch"
     filters: dict[str, Any] = Field(default_factory=dict)
-
-
-class CheckpointConfig(Config):
-    checkpoint_interval: int = Field(default=30, ge=0)
-    checkpoint_dir: str | None = Field(default=None)
-    remote_prefix: str | None = Field(default=None)
-
-
-class EvaluationConfig(Config):
-    simulations: List[SimulationConfig] = Field(default_factory=list)
-    replay_dir: str | None = Field(default=None)
-
-    evaluate_interval: int = Field(default=50, ge=0)
-    evaluate_remote: bool = Field(default=True)
-    evaluate_local: bool = Field(default=True)
-    skip_git_check: bool = Field(default=False)
-    git_hash: str | None = Field(default=None)
-    num_training_tasks: int = Field(default=1)
 
 
 class TorchProfilerConfig(Config):

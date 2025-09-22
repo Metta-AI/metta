@@ -10,7 +10,8 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluatorConfig, TrainerConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training.evaluator import EvaluatorConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
