@@ -1,3 +1,4 @@
+import logging
 import warnings
 from typing import Optional
 
@@ -6,6 +7,9 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+
+LOGGER = logging.getLogger(__name__)
+_NORMALIZATION_EPS = 1e-6
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
@@ -165,11 +169,33 @@ class ObsAttrValNorm(nn.Module):
         if device is None:
             device = "cpu"  # assume that the policy is sent to device after its built for the first time.
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32, device=device)
-        for i, val in self._feature_normalizations.items():
-            if i < len(norm_tensor):  # Ensure we don't go out of bounds
-                norm_tensor[i] = val
-            else:
-                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
+        for idx, raw_val in self._feature_normalizations.items():
+            if idx >= len(norm_tensor):
+                raise ValueError(f"Feature normalization {raw_val} is out of bounds for Embedding layer size {idx}")
+
+            # Guard against zero / negative values so downstream division remains finite.
+            safe_val = float(raw_val)
+            if not torch.isfinite(torch.tensor(safe_val)):
+                LOGGER.warning(
+                    "Feature normalization for index %s is non-finite (%s); falling back to %s",
+                    idx,
+                    raw_val,
+                    _NORMALIZATION_EPS,
+                )
+                safe_val = _NORMALIZATION_EPS
+            elif safe_val <= 0:
+                LOGGER.warning(
+                    "Feature normalization for index %s is <= 0 (value=%s); clamping to %s",
+                    idx,
+                    raw_val,
+                    _NORMALIZATION_EPS,
+                )
+                safe_val = _NORMALIZATION_EPS
+
+            norm_tensor[idx] = safe_val
+
+        # Ensure we never divide by zero even if the config dictionary is empty.
+        norm_tensor = torch.clamp(norm_tensor, min=_NORMALIZATION_EPS)
         self.register_buffer("_norm_factors", norm_tensor)
         return None
 
