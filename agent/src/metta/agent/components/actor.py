@@ -14,31 +14,79 @@ logger = logging.getLogger(__name__)
 _MAX_LOGGED_INDICES = 5
 _MAX_LOGGED_VALUES = 10
 _MAX_LOGGED_TD_KEYS = 25
+_MAX_LOGGED_CONTEXT_TENSORS = 8
 
 
-def _snapshot_td_keys(td: TensorDict) -> list[str]:
+def _snapshot_td_keys(td: Optional[TensorDict], priority_keys: tuple[Any, ...] | None = None) -> list[str]:
     """Return a truncated, stringified snapshot of TD keys for logging."""
+    if td is None:
+        return []
+
     keys: list[str] = []
     try:
         raw_keys = list(td.keys())
     except TypeError:
         raw_keys = [key for key in td.keys()]
 
-    total = len(raw_keys)
+    ordered_keys: list[Any]
+    if priority_keys:
+        priority_set = {k for k in priority_keys}
+        ordered_keys = []
+        seen: set[Any] = set()
+        for key in raw_keys:
+            if key in priority_set and key not in seen:
+                ordered_keys.append(key)
+                seen.add(key)
+        for key in raw_keys:
+            if key not in seen:
+                ordered_keys.append(key)
+                seen.add(key)
+    else:
+        ordered_keys = raw_keys
+
+    total = len(ordered_keys)
     limit = min(total, _MAX_LOGGED_TD_KEYS)
     for idx in range(limit):
-        keys.append(repr(raw_keys[idx]))
+        keys.append(repr(ordered_keys[idx]))
     if total > limit:
         keys.append(f"...( +{total - limit} more )")
     return keys
 
 
-def _collect_row_context(td: TensorDict, batch_index: int) -> dict[str, Any]:
+def _collect_row_context(
+    td: Optional[TensorDict],
+    batch_index: int,
+    priority_keys: tuple[Any, ...] | None = None,
+) -> dict[str, Any]:
     """Capture lightweight context tensors for a problematic batch index."""
+    if td is None:
+        return {}
+
     context: dict[str, Any] = {}
+    try:
+        raw_keys = list(td.keys())
+    except TypeError:
+        raw_keys = [key for key in td.keys()]
+
+    ordered_keys: list[Any]
+    if priority_keys:
+        priority_set = {k for k in priority_keys}
+        ordered_keys = []
+        seen: set[Any] = set()
+        for key in raw_keys:
+            if key in priority_set and key not in seen:
+                ordered_keys.append(key)
+                seen.add(key)
+        for key in raw_keys:
+            if key not in seen:
+                ordered_keys.append(key)
+                seen.add(key)
+    else:
+        ordered_keys = raw_keys
+
     collected = 0
-    for key in td.keys():
-        if collected >= 5:
+    for key in ordered_keys:
+        if collected >= _MAX_LOGGED_CONTEXT_TENSORS:
             break
         try:
             value = td.get(key)
@@ -66,7 +114,8 @@ def _log_and_sanitize(
     tensor: torch.Tensor,
     name: str,
     component: str,
-    td: TensorDict,
+    td: Optional[TensorDict] = None,
+    priority_keys: tuple[Any, ...] | None = None,
 ) -> tuple[torch.Tensor, bool]:
     """
     Inspect `tensor`, emit diagnostics for NaN/Inf, and return a sanitized tensor.
@@ -100,7 +149,7 @@ def _log_and_sanitize(
             offending_batch_index = first_index[0]
     batch_context: dict[str, Any] | None = None
     if offending_batch_index is not None:
-        batch_context = _collect_row_context(td, int(offending_batch_index))
+        batch_context = _collect_row_context(td, int(offending_batch_index), priority_keys=priority_keys)
 
     logger.error(
         "[%s] Invalid values detected in %s: shape=%s dtype=%s total_invalid=%d nan=%d posinf=%d neginf=%d "
@@ -117,12 +166,56 @@ def _log_and_sanitize(
         finite_max,
         finite_abs_max,
         invalid_indices,
-        _snapshot_td_keys(td),
+        _snapshot_td_keys(td, priority_keys=priority_keys),
         batch_context,
     )
 
     sanitized = torch.nan_to_num(tensor, nan=0.0, posinf=0.0, neginf=0.0)
     return sanitized, True
+
+
+def _log_and_sanitize_parameter(
+    *,
+    parameter: torch.Tensor,
+    name: str,
+    component: str,
+) -> bool:
+    """Log and sanitize invalid values in a module parameter."""
+
+    invalid_mask = ~torch.isfinite(parameter)
+    if not invalid_mask.any():
+        return False
+
+    invalid_count = int(invalid_mask.sum().item())
+    nan_count = int(torch.isnan(parameter).sum().item())
+    posinf_count = int(torch.isposinf(parameter).sum().item())
+    neginf_count = int(torch.isneginf(parameter).sum().item())
+
+    sanitized_view = torch.nan_to_num(parameter.detach(), nan=0.0, posinf=0.0, neginf=0.0)
+    finite_min = float(sanitized_view.min().item()) if sanitized_view.numel() else 0.0
+    finite_max = float(sanitized_view.max().item()) if sanitized_view.numel() else 0.0
+    finite_abs_max = float(sanitized_view.abs().max().item()) if sanitized_view.numel() else 0.0
+
+    logger.error(
+        "[%s] Invalid parameter detected in %s: shape=%s dtype=%s total_invalid=%d nan=%d posinf=%d neginf=%d "
+        "finite_min=%s finite_max=%s finite_abs_max=%s",
+        component,
+        name,
+        list(parameter.shape),
+        parameter.dtype,
+        invalid_count,
+        nan_count,
+        posinf_count,
+        neginf_count,
+        finite_min,
+        finite_max,
+        finite_abs_max,
+    )
+
+    with torch.no_grad():
+        torch.nan_to_num(parameter, nan=0.0, posinf=0.0, neginf=0.0, out=parameter)
+
+    return True
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -156,14 +249,28 @@ class ActorQuery(nn.Module):
 
     def forward(self, td: TensorDict):
         hidden = td[self.in_key]  # Shape: [B*TT, hidden]
+        priority_keys = (
+            self.in_key,
+            "core",
+            "encoded_obs",
+            "actor_query",
+        )
+
         hidden, hidden_invalid = _log_and_sanitize(
             tensor=hidden,
             name=f"{self.__class__.__name__}.input[{self.in_key}]",
             component="ActorQuery",
             td=td,
+            priority_keys=priority_keys,
         )
         if hidden_invalid:
             td[self.in_key] = hidden
+
+        _log_and_sanitize_parameter(
+            parameter=self.W,
+            name=f"{self.__class__.__name__}.weight",
+            component="ActorQuery",
+        )
 
         query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)
@@ -173,6 +280,7 @@ class ActorQuery(nn.Module):
             name=f"{self.__class__.__name__}.output[{self.out_key}]",
             component="ActorQuery",
             td=td,
+            priority_keys=priority_keys,
         )
         if query_invalid:
             td[self.out_key] = query
@@ -221,11 +329,20 @@ class ActorKey(nn.Module):
         query = td[self.query_key]  # Shape: [B*TT, embed_dim]
         action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
 
+        priority_keys = (
+            self.query_key,
+            self.embedding_key,
+            self.out_key,
+            "core",
+            "encoded_obs",
+        )
+
         query, query_invalid = _log_and_sanitize(
             tensor=query,
             name=f"{self.__class__.__name__}.query[{self.query_key}]",
             component="ActorKey",
             td=td,
+            priority_keys=priority_keys,
         )
         if query_invalid:
             td[self.query_key] = query
@@ -235,20 +352,16 @@ class ActorKey(nn.Module):
             name=f"{self.__class__.__name__}.embeds[{self.embedding_key}]",
             component="ActorKey",
             td=td,
+            priority_keys=priority_keys,
         )
         if embeds_invalid:
             td[self.embedding_key] = action_embeds
 
-        bias_tensor = self.bias
-        _, bias_invalid = _log_and_sanitize(
-            tensor=bias_tensor,
+        _log_and_sanitize_parameter(
+            parameter=self.bias,
             name=f"{self.__class__.__name__}.bias",
             component="ActorKey",
-            td=td,
         )
-        if bias_invalid:
-            with torch.no_grad():
-                self.bias.copy_(torch.nan_to_num(self.bias, nan=0.0, posinf=0.0, neginf=0.0))
 
         # Compute scores
         scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
@@ -258,6 +371,7 @@ class ActorKey(nn.Module):
             name=f"{self.__class__.__name__}.scores",
             component="ActorKey",
             td=td,
+            priority_keys=priority_keys,
         )
 
         # Add bias
@@ -268,6 +382,7 @@ class ActorKey(nn.Module):
             name=f"{self.__class__.__name__}.biased_scores[{self.out_key}]",
             component="ActorKey",
             td=td,
+            priority_keys=priority_keys,
         )
 
         td[self.out_key] = biased_scores
@@ -325,11 +440,19 @@ class ActionProbs(nn.Module):
                 offending_rows,
             )
 
+        priority_keys = (
+            self.config.in_key,
+            "actor_query",
+            "action_embedding",
+            "logits",
+        )
+
         logits, logits_invalid = _log_and_sanitize(
             tensor=logits,
             name=f"{self.__class__.__name__}.logits[{self.config.in_key}]",
             component="ActionProbs",
             td=td,
+            priority_keys=priority_keys,
         )
         if logits_invalid:
             td[self.config.in_key] = logits
@@ -366,11 +489,19 @@ class ActionProbs(nn.Module):
                 offending_rows,
             )
 
+        priority_keys = (
+            self.config.in_key,
+            "actor_query",
+            "action_embedding",
+            "logits",
+        )
+
         logits, logits_invalid = _log_and_sanitize(
             tensor=logits,
             name=f"{self.__class__.__name__}.logits[{self.config.in_key}]",
             component="ActionProbs",
             td=td,
+            priority_keys=priority_keys,
         )
         if logits_invalid:
             td[self.config.in_key] = logits

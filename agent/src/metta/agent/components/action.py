@@ -1,10 +1,15 @@
+import logging
+
 import torch
 import torch.nn as nn
 from einops import repeat
 from tensordict import TensorDict
 
+from metta.agent.components.actor import _log_and_sanitize, _log_and_sanitize_parameter
 from metta.agent.components.component_config import ComponentConfig
 from metta.rl.training.training_environment import EnvironmentMetaData
+
+logger = logging.getLogger(__name__)
 
 
 class ActionEmbeddingConfig(ComponentConfig):
@@ -82,12 +87,47 @@ class ActionEmbedding(nn.Module):
         )
         self.num_actions = len(self.active_indices)
 
+        logger.info(
+            "[ActionEmbedding] Initialized action embeddings: total_reserved=%d active=%d device=%s",
+            len(self._reserved_action_embeds),
+            self.num_actions,
+            device,
+        )
+
     def forward(self, td: TensorDict):
         B_TT = td.batch_size.numel()
 
         # get embeddings then expand to match the batch size
         indices = self.active_indices.to(self.net.weight.device)
-        td[self.out_key] = repeat(self.net(indices), "a e -> b a e", b=B_TT)
+        _log_and_sanitize_parameter(
+            parameter=self.net.weight,
+            name=f"{self.__class__.__name__}.weight",
+            component="ActionEmbedding",
+        )
+
+        raw_embeds = repeat(self.net(indices), "a e -> b a e", b=B_TT)
+
+        priority_keys = (
+            self.out_key,
+            "actor_query",
+            "logits",
+            "core",
+        )
+
+        embeds, embeds_invalid = _log_and_sanitize(
+            tensor=raw_embeds,
+            name=f"{self.__class__.__name__}.output[{self.out_key}]",
+            component="ActionEmbedding",
+            td=td,
+            priority_keys=priority_keys,
+        )
+        td[self.out_key] = embeds
+        if embeds_invalid:
+            logger.error(
+                "[ActionEmbedding] Sanitized invalid embeddings for batch: shape=%s",
+                list(embeds.shape),
+            )
+
         return td
 
     def _orthogonal_init(self, weight: torch.Tensor) -> None:
