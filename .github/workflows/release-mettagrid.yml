@@ -55,7 +55,7 @@ jobs:
       - uses: bazelbuild/setup-bazelisk@v3
         if: runner.os == 'macOS'
 
-      - uses: pypa/cibuildwheel@v2.16.5
+      - uses: pypa/cibuildwheel@v3.2.0
         env:
           CIBW_BUILD: "cp311-* cp312-*"
           CIBW_SKIP: "*-musllinux* *i686"
