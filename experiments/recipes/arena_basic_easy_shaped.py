@@ -2,6 +2,8 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_BASIC
+from experiments.sweeps.standard import protein_sweep
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -10,9 +12,11 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -172,4 +176,68 @@ def evaluate_in_sweep(
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
+    )
+
+
+def sweep_contrastive(
+    max_trials: int = 300,
+    max_parallel_jobs: int = 6,
+    max_timesteps: int = 1000000,
+    gpus: int = 1,
+    batch_size: int = 4,
+    local_test: bool = False,
+) -> SweepTool:
+    """Sweep for contrastive loss hyperparameters.
+
+    Sweeps over:
+    - temperature: [0, 0.5] with uniform distribution
+    - contrastive_coef: [0, 1] with uniform distribution
+
+    Args:
+        max_trials: Maximum number of trials to run
+        max_parallel_jobs: Maximum number of parallel jobs
+        max_timesteps: Maximum timesteps per trial
+        gpus: Number of GPUs per job
+        batch_size: Batch size multiplier
+        local_test: Whether to run locally for testing
+    """
+    contrastive_protein_config = make_custom_protein_config(
+        base_config=PPO_BASIC,
+        parameters={
+            "trainer.losses.contrastive.temperature": ParameterConfig(
+                distribution="uniform",
+                min=0.0,
+                max=0.5,
+                mean=0.25,
+                scale="auto",
+            ),
+            "trainer.losses.contrastive.coef": ParameterConfig(
+                distribution="uniform",
+                min=0.0,
+                max=1.0,
+                mean=0.5,
+                scale="auto",
+            ),
+        },
+    )
+
+    # Set the metric for optimization
+    contrastive_protein_config.metric = "experience/rewards"
+
+    # Remove batch_size from parameters if it exists (we'll use the batch_size argument instead)
+
+    return protein_sweep(
+        recipe="experiments.recipes.arena_basic_easy_shaped",
+        train="train",
+        eval="evaluate_in_sweep",
+        protein_config=contrastive_protein_config,
+        max_parallel_jobs=max_parallel_jobs,
+        max_timesteps=max_timesteps,
+        max_trials=max_trials,
+        gpus=gpus,
+        batch_size=batch_size,
+        local_test=local_test,
+        train_overrides= {
+            "enable_contrastive": True
+        }
     )

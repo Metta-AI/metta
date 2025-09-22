@@ -1,5 +1,7 @@
 """Standard sweep configurations using the adaptive module."""
 
+from dataclasses import field
+
 from experiments.sweeps.protein_configs import PPO_BASIC
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 from metta.tools.sweep import SweepTool
@@ -17,6 +19,7 @@ def protein_sweep(
     gpus: int = 1,
     batch_size: int = 4,
     local_test: bool = False,
+    train_overrides: dict = field(default_factory=dict)
 ) -> SweepTool:
     """Create PPO hyperparameter sweep using adaptive infrastructure.
 
@@ -57,6 +60,7 @@ def protein_sweep(
         total_timesteps = max_timesteps  # 2B timesteps for production
         monitoring_interval = 60
 
+    train_overrides["total_timesteps"] = total_timesteps
     # Create and return the sweep tool using adaptive infrastructure
     return SweepTool(
         protein_config=protein_config,
@@ -69,7 +73,5 @@ def protein_sweep(
         max_parallel_jobs=max_parallel_jobs,
         gpus=gpus,
         dispatcher_type=dispatcher_type,
-        train_overrides={
-            "trainer.total_timesteps": total_timesteps,
-        },
+        train_overrides=train_overrides
     )
