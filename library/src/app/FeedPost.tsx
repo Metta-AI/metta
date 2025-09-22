@@ -8,6 +8,7 @@ import { useAction } from "next-safe-action/hooks";
 import { FeedPostDTO } from "@/posts/data/feed";
 import { PaperCard } from "@/components/PaperCard";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
+import { PhotoViewer } from "@/components/PhotoViewer";
 import { linkifyText } from "@/lib/utils/linkify";
 import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
@@ -64,6 +65,10 @@ export const FeedPost: FC<{
 
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Photo viewer state
+  const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Sync local state when post prop changes
   useEffect(() => {
@@ -189,7 +194,18 @@ export const FeedPost: FC<{
     executeQueue(formData);
   };
 
-  const handlePostClick = () => {
+  const handlePostClick = (e: React.MouseEvent) => {
+    // Check if the click came from an image container
+    const target = e.target as HTMLElement;
+    const clickedImageContainer = target.closest(
+      '[data-image-container="true"]'
+    );
+
+    if (clickedImageContainer) {
+      // Don't handle post click if clicking on an image
+      return;
+    }
+
     // Always toggle comments
     onCommentToggle();
 
@@ -216,6 +232,16 @@ export const FeedPost: FC<{
 
   const handleCancelDelete = () => {
     setShowDeleteModal(false);
+  };
+
+  // Photo viewer handlers
+  const handleImageClick = (imageIndex: number) => {
+    setSelectedImageIndex(imageIndex);
+    setIsPhotoViewerOpen(true);
+  };
+
+  const handlePhotoViewerClose = () => {
+    setIsPhotoViewerOpen(false);
   };
 
   // Handle pure paper posts (papers without user commentary)
@@ -331,7 +357,7 @@ export const FeedPost: FC<{
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                handlePostClick();
+                handlePostClick(e);
               }}
               className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
                 !isSelected ? "group-hover:hidden" : ""
@@ -380,17 +406,18 @@ export const FeedPost: FC<{
               {post.images.map((imageUrl, index) => (
                 <div
                   key={index}
+                  data-image-container="true"
                   className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleImageClick(index);
+                  }}
+                  style={{ cursor: "pointer" }}
                 >
                   <img
                     src={imageUrl}
                     alt={`Attached image ${index + 1}`}
                     className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(imageUrl, "_blank");
-                    }}
-                    style={{ cursor: "pointer" }}
                   />
                 </div>
               ))}
@@ -417,6 +444,21 @@ export const FeedPost: FC<{
           message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
           isDeleting={isDeleting}
         />
+
+        {/* Photo Viewer */}
+        {post.images && post.images.length > 0 && (
+          <PhotoViewer
+            images={post.images}
+            initialIndex={selectedImageIndex}
+            isOpen={isPhotoViewerOpen}
+            onClose={handlePhotoViewerClose}
+            postAuthor={
+              post.author.name ||
+              post.author.email?.split("@")[0] ||
+              "Unknown User"
+            }
+          />
+        )}
       </div>
     );
   }
@@ -528,7 +570,7 @@ export const FeedPost: FC<{
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handlePostClick();
+              handlePostClick(e);
             }}
             className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
               !isSelected ? "group-hover:hidden" : ""
@@ -579,18 +621,18 @@ export const FeedPost: FC<{
             {post.images.map((imageUrl, index) => (
               <div
                 key={index}
+                data-image-container="true"
                 className="group relative overflow-hidden rounded-lg border border-gray-200 bg-gray-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleImageClick(index);
+                }}
+                style={{ cursor: "pointer" }}
               >
                 <img
                   src={imageUrl}
                   alt={`Attached image ${index + 1}`}
                   className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // TODO: Add lightbox/full-screen view
-                    window.open(imageUrl, "_blank");
-                  }}
-                  style={{ cursor: "pointer" }}
                 />
               </div>
             ))}
@@ -634,6 +676,21 @@ export const FeedPost: FC<{
         message="Are you sure you want to delete this post? This action cannot be undone and will permanently remove the post and all its comments from the feed."
         isDeleting={isDeleting}
       />
+
+      {/* Photo Viewer */}
+      {post.images && post.images.length > 0 && (
+        <PhotoViewer
+          images={post.images}
+          initialIndex={selectedImageIndex}
+          isOpen={isPhotoViewerOpen}
+          onClose={handlePhotoViewerClose}
+          postAuthor={
+            post.author.name ||
+            post.author.email?.split("@")[0] ||
+            "Unknown User"
+          }
+        />
+      )}
     </div>
   );
 };
