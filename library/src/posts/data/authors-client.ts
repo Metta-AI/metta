@@ -31,7 +31,9 @@ export type AuthorDTO = {
 };
 
 // Client-side version that fetches from an API endpoint
-export async function loadAuthorClient(authorId: string): Promise<AuthorDTO | null> {
+export async function loadAuthorClient(
+  authorId: string
+): Promise<AuthorDTO | null> {
   try {
     const response = await fetch(`/api/authors/${authorId}`);
     if (!response.ok) {
@@ -39,7 +41,7 @@ export async function loadAuthorClient(authorId: string): Promise<AuthorDTO | nu
     }
     return await response.json();
   } catch (error) {
-    console.error('Error loading author:', error);
+    console.error("Error loading author:", error);
     return null;
   }
-} 
+}
