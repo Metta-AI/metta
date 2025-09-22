@@ -141,8 +141,7 @@ public:
   std::vector<std::shared_ptr<Recipe>> recipes;
 
   // Current cooldown state
-  bool cooling_down;
-  unsigned short cooldown_remaining;
+  unsigned int cooldown_end_timestep;
 
   // Event manager for scheduling cooldown events
   class EventManager* event_manager;
@@ -153,8 +152,15 @@ public:
   // Grid access for finding surrounding agents
   class Grid* grid;
 
+  // Pointer to current timestep from environment
+  unsigned int* current_timestep_ptr;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
-      : recipes(cfg.recipes), cooling_down(false), cooldown_remaining(0), event_manager(nullptr), grid(nullptr) {
+      : recipes(cfg.recipes),
+        cooldown_end_timestep(0),
+        event_manager(nullptr),
+        grid(nullptr),
+        current_timestep_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
@@ -169,12 +175,25 @@ public:
     this->grid = grid_ptr;
   }
 
+  // Set current timestep pointer
+  void set_current_timestep_ptr(unsigned int* timestep_ptr) {
+    this->current_timestep_ptr = timestep_ptr;
+  }
+
+  // Calculate remaining cooldown time
+  unsigned int cooldown_remaining() const {
+    if (!current_timestep_ptr || cooldown_end_timestep <= *current_timestep_ptr) {
+      return 0;
+    }
+    return cooldown_end_timestep - *current_timestep_ptr;
+  }
+
   // Implement pure virtual method from Usable
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
-    if (!grid || !event_manager) {
+    if (!grid || !event_manager || !current_timestep_ptr) {
       return false;
     }
-    if (cooling_down) {
+    if (cooldown_remaining() > 0) {
       stats.incr("assembler.blocked.cooldown");
       return false;
     }
@@ -194,8 +213,7 @@ public:
     stats.incr("assembler.recipes_executed");
     stats.incr("assembler.recipe_pattern_" + std::to_string(pattern));
     if (recipe->cooldown > 0) {
-      cooling_down = true;
-      cooldown_remaining = recipe->cooldown;
+      cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
       event_manager->schedule_event(EventType::CoolDown, recipe->cooldown, id, 0);
       stats.incr("assembler.cooldown_started");
     }
@@ -205,8 +223,11 @@ public:
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
-    features.push_back({ObservationFeature::ConvertingOrCoolingDown, static_cast<ObservationType>(this->cooling_down)});
-    // features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->cooldown_remaining)});
+    unsigned int remaining = std::min(cooldown_remaining(), 255u);
+    if (remaining > 0) {
+      features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
+    }
+
     // uint8_t pattern = get_agent_pattern_byte();
     // features.push_back({ObservationFeature::Group, static_cast<ObservationType>(pattern)});
 
@@ -220,8 +241,7 @@ public:
 
   // Handle cooldown completion
   void finish_cooldown() {
-    this->cooling_down = false;
-    this->cooldown_remaining = 0;
+    this->cooldown_end_timestep = 0;
     stats.incr("assembler.cooldown_completed");
   }
 };
