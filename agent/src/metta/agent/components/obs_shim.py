@@ -1,4 +1,5 @@
 import logging
+import math
 import warnings
 from typing import Optional
 
@@ -172,29 +173,16 @@ class ObsAttrValNorm(nn.Module):
         for idx, raw_val in self._feature_normalizations.items():
             if idx >= len(norm_tensor):
                 raise ValueError(f"Feature normalization {raw_val} is out of bounds for Embedding layer size {idx}")
-
-            # Guard against zero / negative values so downstream division remains finite.
             safe_val = float(raw_val)
-            if not torch.isfinite(torch.tensor(safe_val)):
+            if not math.isfinite(safe_val) or safe_val <= 0:
                 LOGGER.warning(
-                    "Feature normalization for index %s is non-finite (%s); falling back to %s",
+                    "Feature normalization for index %s is invalid (%s); clamping to %s",
                     idx,
                     raw_val,
                     _NORMALIZATION_EPS,
                 )
                 safe_val = _NORMALIZATION_EPS
-            elif safe_val <= 0:
-                LOGGER.warning(
-                    "Feature normalization for index %s is <= 0 (value=%s); clamping to %s",
-                    idx,
-                    raw_val,
-                    _NORMALIZATION_EPS,
-                )
-                safe_val = _NORMALIZATION_EPS
-
             norm_tensor[idx] = safe_val
-
-        # Ensure we never divide by zero even if the config dictionary is empty.
         norm_tensor = torch.clamp(norm_tensor, min=_NORMALIZATION_EPS)
         self.register_buffer("_norm_factors", norm_tensor)
         return None
