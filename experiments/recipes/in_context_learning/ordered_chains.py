@@ -495,7 +495,7 @@ def experiment():
         "terrain",
     ]
 
-    pretrained_policy_uri = "s3://softmax-public/policies/icl_resource_chain_all_room_sizes.2025-09-19/icl_resource_chain_all_room_sizes.2025-09-19:v1470.pt"
+    # pretrained_policy_uri = "s3://softmax-public/policies/icl_resource_chain_all_room_sizes.2025-09-19/icl_resource_chain_all_room_sizes.2025-09-19:v1470.pt"
 
     for curriculum_style in curriculum_styles:
         subprocess.run(
@@ -510,18 +510,18 @@ def experiment():
             ]
         )
         time.sleep(1)
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}_pretrained.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                f"trainer.initial_policy.uri={pretrained_policy_uri}",
-                "--gpus=4",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
+        # subprocess.run(
+        #     [
+        #         "./devops/skypilot/launch.py",
+        #         "experiments.recipes.in_context_learning.ordered_chains.train",
+        #         f"run=icl_resource_chain_{curriculum_style}_pretrained.{time.strftime('%Y-%m-%d')}",
+        #         f"curriculum_style={curriculum_style}",
+        #         f"trainer.initial_policy.uri={pretrained_policy_uri}",
+        #         "--gpus=4",
+        #         "--heartbeat-timeout=3600",
+        #         "--skip-git-check",
+        #     ]
+        # )
 
 
 def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 1000):
@@ -579,6 +579,5 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
 
 
 if __name__ == "__main__":
-    # experiment()
+    experiment()
     # save_envs_to_numpy()
-    generate_reward_estimates()
