@@ -169,6 +169,7 @@ class PufferLibCompatiblePolicy(Policy):
         
         observations = td["env_obs"]
         hidden = self.encode_observations(observations)
+        hidden = self.lstm(hidden)
         logits, value = self.decode_actions(hidden)
 
         td["action_probs"] = logits
