@@ -8,7 +8,27 @@ from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
 
 from metta.agent.components.component_config import ComponentConfig
-from mettagrid.config import Config
+
+
+class LazyLinearConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    out_features: int
+    name: str
+
+    def make_component(self, env=None):
+        return LazyLinear(config=self)
+
+
+class LazyLinear(nn.Module):
+    def __init__(self, config: LazyLinearConfig):
+        super().__init__()
+        self.config = config
+        self.linear = nn.LazyLinear(self.config.out_features)
+
+    def forward(self, td: TensorDict) -> TensorDict:
+        td[self.config.out_key] = self.linear(td[self.config.in_key])
+        return td
 
 
 class MLPConfig(ComponentConfig):
@@ -89,12 +109,15 @@ class MLP(nn.Module):
 
 
 ###------------- Deep Residual MLP -------------------------
-class DeepResMLPConfig(Config):
+class DeepResMLPConfig(ComponentConfig):
     in_key: str
     out_key: str
     depth: int
     in_features: int
     name: str = "deep_res_mlp"
+
+    def make_component(self, env=None):
+        return ResNetMLP(config=self)
 
 
 class ResidualBlock(nn.Module):
