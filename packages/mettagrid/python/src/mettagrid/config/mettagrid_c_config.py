@@ -164,14 +164,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         }
 
         # Process stats rewards
-        stat_rewards = {
-            resource_name_to_id[k]: v for k, v in rewards_config.get("stats", {}).items() if k in resource_name_to_id
-        }
-        stat_reward_max = {
-            resource_name_to_id[k]: v
-            for k, v in rewards_config.get("stats_max", {}).items()
-            if k in resource_name_to_id
-        }
+        stat_rewards = rewards_config.get("stats", {})
+        stat_reward_max = rewards_config.get("stats_max", {})
 
         # Process potential initial inventory
         initial_inventory = {}
