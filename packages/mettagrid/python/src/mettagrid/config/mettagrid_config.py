@@ -14,25 +14,13 @@ FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 Position = FixedPosition | Literal["Any"]
 
 
-class StatsRewards(Config):
-    """Agent stats-based reward configuration.
-
-    Maps stat names to reward values. Stats are tracked by the StatsTracker
-    and can include things like 'action.attack.agent', 'inventory.armor.gained', etc.
-    Each entry can have:
-    - stat_name: reward_per_unit
-    - stat_name_max: maximum cumulative reward for this stat
-    """
-
-    model_config = ConfigDict(extra="allow")  # Allow any stat names to be added dynamically
-
-
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
     inventory: dict[str, float] = Field(default_factory=dict)
     inventory_max: dict[str, int] = Field(default_factory=dict)
-    stats: StatsRewards = Field(default_factory=StatsRewards)
+    stats: dict[str, float] = Field(default_factory=dict)
+    stats_max: dict[str, float] = Field(default_factory=dict)
 
 
 class AgentConfig(Config):

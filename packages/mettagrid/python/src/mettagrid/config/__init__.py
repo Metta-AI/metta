@@ -13,7 +13,6 @@ from .mettagrid_config import (
     GameConfig,
     GlobalObsConfig,
     MettaGridConfig,
-    StatsRewards,
     WallConfig,
 )
 
@@ -30,6 +29,5 @@ __all__ = [
     "ConverterConfig",
     "GameConfig",
     "GlobalObsConfig",
-    "StatsRewards",
     "WallConfig",
 ]
