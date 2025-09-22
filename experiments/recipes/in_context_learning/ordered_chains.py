@@ -288,6 +288,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             cfg.game_objects[obj].cooldown = int(cooldown)
 
         if numpy_dir is not None:  # load from s3
+            from metta.map.terrain_from_numpy import InContextLearningFromNumpy
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
             dir = f"{numpy_dir}/{room_size}/{len(resources)}chains_{num_sinks}sinks/{terrain}"
 
@@ -295,10 +296,12 @@ class ConverterChainTaskGenerator(TaskGenerator):
                 num_agents=1,
                 num_instances=24,
                 max_steps=max_steps,
-                dir=dir,
                 game_objects=cfg.game_objects,
-                object_names=cfg.used_objects,
-                rng=rng,
+                instance_map=InContextLearningFromNumpy.Config(
+                    dir=dir,
+                    object_names=cfg.used_objects,
+                    rng=rng,
+                ),
             )
 
         size_range = (

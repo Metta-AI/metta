@@ -231,12 +231,8 @@ def make_icl_with_numpy(
     num_instances: int,
     max_steps,
     game_objects: dict,
-    object_names: list[str],
-    dir: str,
-    rng: random.Random,
+    instance_map: MapBuilderConfig,
 ) -> MettaGridConfig:
-    # Local import to avoid forbidden top-level dependency
-    from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -246,11 +242,7 @@ def make_icl_with_numpy(
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_instances,
-                instance_map=InContextLearningFromNumpy.Config(
-                    dir=dir,
-                    object_names=object_names,
-                    rng=rng,
-                ),
+                instance_map=instance_map,
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
@@ -269,15 +261,5 @@ def make_icl_with_numpy(
             ),
         )
     )
-
-    # get reward estimates per map
-
-    try:
-        with open(os.path.join(os.path.dirname(os.path.dirname(dir)), "reward_estimates.json"), "r") as f:
-            reward_estimates_dict = json.load(f)
-            cfg.game.reward_estimates = reward_estimates_dict.get(dir, {})
-    except FileNotFoundError:
-        # Fallback to default estimates when file is missing
-        cfg.game.reward_estimates = {}
 
     return cfg
