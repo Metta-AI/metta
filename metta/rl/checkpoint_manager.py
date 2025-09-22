@@ -166,14 +166,30 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
-        self._remote_prefix = None
+        self._remote_prefix: str | None = None
+        self._remote_dir_uri: ParsedURI | None = None
         if remote_prefix:
             parsed = ParsedURI.parse(remote_prefix)
             if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
                 raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
             # Remove trailing slash from prefix for deterministic joins
             key_prefix = parsed.key.rstrip("/")
-            self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+            base_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+            base_prefix = base_prefix.rstrip("/")
+
+            remote_base = ParsedURI.parse(base_prefix)
+            key_segments = [segment for segment in (remote_base.key or "").split("/") if segment]
+
+            if key_segments and key_segments[-1] == "checkpoints":
+                # Already points at .../<run>/checkpoints. Accept as-is.
+                remote_dir = remote_base
+            elif key_segments and key_segments[-1] == self.run:
+                remote_dir = remote_base.join("checkpoints")
+            else:
+                remote_dir = remote_base.join(self.run, "checkpoints")
+
+            self._remote_dir_uri = remote_dir
+            self._remote_prefix = remote_dir.canonical
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
@@ -300,8 +316,8 @@ class CheckpointManager:
         torch.save(agent, checkpoint_path)
 
         remote_uri = None
-        if self._remote_prefix:
-            remote_uri = f"{self._remote_prefix}/{filename}"
+        if self._remote_dir_uri is not None:
+            remote_uri = self._remote_dir_uri.join(filename).canonical
             write_file(remote_uri, str(checkpoint_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
@@ -337,8 +353,8 @@ class CheckpointManager:
             return []
         checkpoint_files.sort(key=lambda f: _extract_run_and_epoch(f)[1], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
-        if self._remote_prefix:
-            return [f"{self._remote_prefix}/{path.name}" for path in selected_files]
+        if self._remote_dir_uri is not None:
+            return [self._remote_dir_uri.join(path.name).canonical for path in selected_files]
         return [f"file://{path.resolve()}" for path in selected_files]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:

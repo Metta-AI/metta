@@ -7,7 +7,7 @@ mock://, Google Drive, HTTP URLs, etc.).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional
 from urllib.parse import unquote, urlparse
 
@@ -88,6 +88,68 @@ class ParsedURI:
         if self.scheme == "mock":
             return f"mock://{self.path or ''}"
         return self.raw
+
+    def join(self, *segments: str) -> "ParsedURI":
+        """Return a new URI with *segments* appended to the current path.
+
+        Supports file://, s3://, and mock:// URIs where hierarchical path
+        semantics apply. Segments are treated as path components (any leading
+        or trailing slashes are stripped before joining).
+        """
+
+        cleaned = [seg.strip("/") for seg in segments if seg and seg.strip("/")]
+        if not cleaned:
+            return self
+
+        if self.scheme == "s3":
+            key = (self.key or "").rstrip("/")
+            combined = "/".join(filter(None, [key, *cleaned]))
+            return ParsedURI.parse(f"s3://{self.bucket}/{combined}")
+
+        if self.scheme == "file" and self.local_path is not None:
+            new_path = self.local_path.joinpath(*cleaned).resolve()
+            return ParsedURI.parse(str(new_path))
+
+        if self.scheme == "mock":
+            base = (self.path or "").rstrip("/")
+            combined = "/".join(filter(None, [base, *cleaned]))
+            return ParsedURI.parse(f"mock://{combined}")
+
+        raise ValueError(f"join not supported for URI scheme '{self.scheme}'")
+
+    def relative_to(self, base: "ParsedURI") -> str:
+        """Return the relative path from *base* to this URI.
+
+        For file:// URIs this mirrors :meth:`pathlib.Path.relative_to`; for
+        s3:// URIs it returns a POSIX-style path relative to *base*'s key.
+        """
+
+        if self.scheme != base.scheme:
+            raise ValueError("Cannot compute relative path across different URI schemes")
+
+        if self.scheme == "s3":
+            current_key = (self.key or "").rstrip("/")
+            base_key = (base.key or "").rstrip("/")
+            if base_key:
+                if not current_key.startswith(f"{base_key}"):
+                    raise ValueError(f"URI '{self.canonical}' is not within base '{base.canonical}'")
+                remainder = current_key[len(base_key) :].lstrip("/")
+            else:
+                remainder = current_key
+            return remainder
+
+        if self.scheme == "file" and self.local_path is not None and base.local_path is not None:
+            return str(self.local_path.relative_to(base.local_path))
+
+        if self.scheme == "mock" and self.path is not None and base.path is not None:
+            current = PurePosixPath(self.path)
+            base_path = PurePosixPath(base.path)
+            try:
+                return str(current.relative_to(base_path))
+            except ValueError as exc:  # pragma: no cover - defensive guard
+                raise ValueError(f"URI '{self.canonical}' is not within base '{base.canonical}'") from exc
+
+        raise ValueError(f"relative_to not supported for URI scheme '{self.scheme}'")
 
     def require_local_path(self) -> Path:
         if self.scheme != "file" or self.local_path is None:
