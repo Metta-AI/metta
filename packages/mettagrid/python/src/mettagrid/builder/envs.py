@@ -4,7 +4,8 @@ import random
 from typing import Optional
 
 import mettagrid.mapgen.scenes.random
-from metta.map.terrain_from_numpy import InContextLearningFromNumpy
+
+# Local import moved to factory usage to avoid forbidden cross-package dependency at import time
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -234,6 +235,9 @@ def make_icl_with_numpy(
     dir: str,
     rng: random.Random,
 ) -> MettaGridConfig:
+    # Local import to avoid forbidden top-level dependency
+    from metta.map.terrain_from_numpy import InContextLearningFromNumpy
+
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
         game=GameConfig(

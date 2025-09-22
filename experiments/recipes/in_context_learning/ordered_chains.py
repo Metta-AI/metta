@@ -408,7 +408,10 @@ def make_curriculum(
 
 
 def train(
-    curriculum_style: str = "terrain", lp_params: LPParams = LPParams()
+    curriculum_style: str = "terrain",
+    lp_params: LPParams = LPParams(),
+    batch_size: int = 4128768,
+    bptt_horizon: int = 512,
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
@@ -422,8 +425,8 @@ def train(
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
     # which requires a large batch size
-    trainer_cfg.batch_size = 4128768
-    trainer_cfg.bptt_horizon = 512
+    trainer_cfg.batch_size = batch_size
+    trainer_cfg.bptt_horizon = bptt_horizon
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -488,12 +491,20 @@ def experiment():
         "terrain",
     ]
 
+    batch_size = 4128768
+    bptt_horizon = 512
+
+    bptt_horizon = 256
+    batch_size = 2064384
+
     for curriculum_style in curriculum_styles:
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"batch_size={batch_size}",
+                f"bptt_horizon={bptt_horizon}",
+                f"run=icl_resource_chain_{curriculum_style}.256.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
