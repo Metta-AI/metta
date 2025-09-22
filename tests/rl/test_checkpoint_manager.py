@@ -62,16 +62,35 @@ class TestBasicSaveLoad:
 
     def test_remote_prefix_upload(self, temp_run_dir, mock_agent):
         metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
-        manager = CheckpointManager(run="test_run", run_dir=temp_run_dir, remote_prefix="s3://bucket/checkpoints")
+        manager = CheckpointManager(run="test_run", run_dir=temp_run_dir, remote_prefix="s3://bucket/policies")
 
         expected_filename = "test_run:v3.pt"
-        expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
+        expected_remote = f"s3://bucket/policies/test_run/checkpoints/{expected_filename}"
 
         with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
             remote_uri = manager.save_agent(mock_agent, epoch=3, metadata=metadata)
 
         assert remote_uri == expected_remote
         mock_write.assert_called_once()
+        remote_arg, local_arg = mock_write.call_args[0]
+        assert remote_arg == expected_remote
+        assert Path(local_arg).name == expected_filename
+
+    def test_remote_prefix_already_includes_run(self, temp_run_dir, mock_agent):
+        metadata = {"agent_step": 42, "total_time": 5, "score": 0.1}
+        manager = CheckpointManager(
+            run="test_run",
+            run_dir=temp_run_dir,
+            remote_prefix="s3://bucket/policies/test_run",
+        )
+
+        expected_filename = "test_run:v1.pt"
+        expected_remote = f"s3://bucket/policies/test_run/checkpoints/{expected_filename}"
+
+        with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
+            remote_uri = manager.save_agent(mock_agent, epoch=1, metadata=metadata)
+
+        assert remote_uri == expected_remote
         remote_arg, local_arg = mock_write.call_args[0]
         assert remote_arg == expected_remote
         assert Path(local_arg).name == expected_filename
