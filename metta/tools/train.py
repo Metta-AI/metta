@@ -357,3 +357,6 @@ class TrainTool(Tool):
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
 
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
+        self.trainer.checkpoint.checkpoint_interval = min(
+            self.trainer.checkpoint.checkpoint_interval, self.evaluator.epoch_interval or 10
+        )
