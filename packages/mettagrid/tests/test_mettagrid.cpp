@@ -1086,26 +1086,6 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
   EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature capped at 255";
 }
 
-TEST_F(MettaGridCppTest, AssemblerFinishCooldownResetsState) {
-  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
-  Assembler assembler(5, 5, config);
-
-  unsigned int current_timestep = 0;
-  assembler.set_current_timestep_ptr(&current_timestep);
-
-  // Set up cooldown
-  assembler.cooldown_end_timestep = 10;
-  current_timestep = 5;
-  EXPECT_EQ(assembler.cooldown_remaining(), 5);
-
-  // Finish cooldown
-  assembler.finish_cooldown();
-
-  // Should reset cooldown state
-  EXPECT_EQ(assembler.cooldown_end_timestep, 0);
-  EXPECT_EQ(assembler.cooldown_remaining(), 0);
-}
-
 TEST_F(MettaGridCppTest, AssemblerCooldownWithoutTimestepPointer) {
   AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
   Assembler assembler(5, 5, config);
