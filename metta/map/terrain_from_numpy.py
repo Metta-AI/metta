@@ -180,7 +180,8 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
 
         converter_indices = np.argwhere((grid != "agent.agent") & (grid != "wall") & (grid != "empty"))
 
-        for object, index in zip(self.config.object_names, converter_indices, strict=True):
+        assert len(self.config.object_names) == len(converter_indices), "Mismatch between object names and available positions"
+        for object, index in zip(self.config.object_names, converter_indices):
             grid[tuple(index)] = object
 
         return GameMap(grid=grid)
