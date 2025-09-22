@@ -45,12 +45,11 @@ def _is_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
 def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     """Remove PufferLib-specific prefixes from state dict keys and handle key mappings."""
     processed = {}
+    print(f"state_dict keys: {state_dict.keys()}")
     for key, value in state_dict.items():
         # Remove common PufferLib-specific prefixes
         if key.startswith("policy."):
             key = key[len("policy.") :]
-        elif key.startswith("learner."):
-            key = key[len("learner.") :]
         elif key.startswith("recurrent.policy."):
             key = key[len("recurrent.policy.") :]
         elif key.startswith("recurrent."):
