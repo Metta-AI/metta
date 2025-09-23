@@ -58,3 +58,69 @@ class ViTSmallConfig(PolicyArchitecture):
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+
+
+class ViTDefaultConfig(ViTSmallConfig):
+    """Speed-optimized ViT variant with lighter token embeddings and attention stack."""
+
+    _hidden_size = 128
+    _embedding_dim = 16
+
+    _token_embed_dim = 8
+    _num_fourier_freqs = 3
+    _latent_dim = 64
+    _lstm_latent = 96
+
+    components: List[ComponentConfig] = [
+        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
+        ObsAttrEmbedFourierConfig(
+            in_key="obs_shim_tokens",
+            out_key="obs_attr_embed_fourier",
+            attr_embed_dim=_token_embed_dim,
+            num_freqs=_num_fourier_freqs,
+        ),
+        ObsLatentAttnConfig(
+            in_key="obs_attr_embed_fourier",
+            out_key="obs_latent_attn",
+            feat_dim=_token_embed_dim + (4 * _num_fourier_freqs) + 1,
+            out_dim=_latent_dim,
+            num_query_tokens=4,
+            num_heads=2,
+            num_layers=1,
+            query_token_dim=_latent_dim,
+            qk_dim=_latent_dim,
+            v_dim=_latent_dim,
+            mlp_ratio=2.0,
+            use_cls_token=True,
+        ),
+        LSTMConfig(
+            in_key="obs_latent_attn",
+            out_key="core",
+            latent_size=_latent_dim,
+            hidden_size=_lstm_latent,
+            num_layers=2,
+        ),
+        MLPConfig(
+            in_key="core",
+            out_key="values",
+            name="critic",
+            in_features=_lstm_latent,
+            out_features=1,
+            hidden_features=[512],
+        ),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActorQueryConfig(
+            in_key="core",
+            out_key="actor_query",
+            hidden_size=_lstm_latent,
+            embed_dim=_embedding_dim,
+        ),
+        ActorKeyConfig(
+            query_key="actor_query",
+            embedding_key="action_embedding",
+            out_key="logits",
+            embed_dim=_embedding_dim,
+        ),
+    ]
+
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

@@ -2,7 +2,7 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit import ViTSmallConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -113,7 +113,7 @@ def train(
     )
 
     if policy_architecture is None:
-        policy_architecture = ViTSmallConfig()
+        policy_architecture = ViTDefaultConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
