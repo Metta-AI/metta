@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.rl.training.evaluator import EvaluatorConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.fast import FastConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -415,6 +416,9 @@ def make_curriculum(
 def train(
     curriculum_style: str = "terrain",
     lp_params: LPParams = LPParams(),
+    batch_size: int = 4177920,
+    bptt_horizon: int = 512,
+    use_fast_lstm_reset: bool = True,
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
@@ -425,12 +429,18 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
+        batch_size=batch_size,
+        bptt_horizon=bptt_horizon,
+
     )
-    policy_config = FastLSTMResetConfig()
+    # if use_fast_lstm_reset:
+    #     policy_config = FastLSTMResetConfig()
+    # else:
+    #     policy_config = FastConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
-        policy_architecture=policy_config,
+        # policy_architecture=policy_config,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
             simulations=make_icl_resource_chain_eval_suite(),
@@ -497,7 +507,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}.defaults.newarchitecture.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_resource_chain_{curriculum_style}.512.oldarchitecture.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
