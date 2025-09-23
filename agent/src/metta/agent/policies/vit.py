@@ -7,11 +7,9 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.lstm import LSTMConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
+from metta.agent.components.obs_pool import ObsTokenPoolConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import (
-    ObsAttrCoordEmbedConfig,
-    ObsAttrEmbedFourierConfig,
-)
+from metta.agent.components.obs_tokenizers import ObsAttrCoordEmbedConfig, ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -75,25 +73,18 @@ class ViTDefaultConfig(ViTSmallConfig):
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
         ObsAttrCoordEmbedConfig(
             in_key="obs_shim_tokens",
-            out_key="obs_attr_embed_fourier",
+            out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
         ),
-        ObsLatentAttnConfig(
-            in_key="obs_attr_embed_fourier",
-            out_key="obs_latent_attn",
+        ObsTokenPoolConfig(
+            in_key="obs_attr_embed",
+            out_key="obs_token_pooled",
             feat_dim=_token_embed_dim + 1,
-            out_dim=_latent_dim,
-            num_query_tokens=1,
-            num_heads=1,
-            num_layers=1,
-            query_token_dim=_latent_dim,
-            qk_dim=_latent_dim,
-            v_dim=_latent_dim,
-            mlp_ratio=1.5,
-            use_cls_token=True,
+            hidden_dim=_latent_dim,
+            pool="mean",
         ),
         LSTMConfig(
-            in_key="obs_latent_attn",
+            in_key="obs_token_pooled",
             out_key="core",
             latent_size=_latent_dim,
             hidden_size=_lstm_latent,
