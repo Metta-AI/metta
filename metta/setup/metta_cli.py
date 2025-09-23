@@ -470,6 +470,7 @@ def cmd_publish(
     ] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview actions without tagging")] = False,
     remote: Annotated[str, typer.Option("--remote", help="Git remote to push the tag to")] = "origin",
+    force: Annotated[bool, typer.Option("--force", help="Bypass branch and clean checks")] = False,
 ):
     package = package.lower()
     if package not in PACKAGE_TAG_PREFIXES:
@@ -484,8 +485,8 @@ def cmd_publish(
         error(f"Failed to read git status: {exc}")
         raise typer.Exit(exc.returncode) from exc
 
-    if status_output.strip():
-        error("Working tree is not clean. Commit, stash, or clean changes before publishing.")
+    if status_output.strip() and not force:
+        error("Working tree is not clean. Commit, stash, or clean changes before publishing (use --force to override).")
         raise typer.Exit(1)
 
     try:
@@ -494,6 +495,10 @@ def cmd_publish(
     except subprocess.CalledProcessError as exc:
         error(f"Failed to determine git state: {exc}")
         raise typer.Exit(exc.returncode) from exc
+
+    if current_branch not in {"main"} and not force:
+        error("Publishing is only supported from the main branch. Switch to 'main' or pass --force to override.")
+        raise typer.Exit(1)
 
     try:
         tag_list_output = _get_git_output(["tag", "--list", f"{prefix}*", "--sort=-v:refname"])
@@ -528,6 +533,8 @@ def cmd_publish(
         info(f"  Previous tag: {latest_tag}")
     else:
         info("  Previous tag: none")
+    if force:
+        warning("Force mode enabled: branch and clean checks were bypassed.")
     info("")
 
     if dry_run:
