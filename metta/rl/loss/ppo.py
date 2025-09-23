@@ -140,7 +140,9 @@ class PPO(Loss):
             with context.autocast():
                 self.policy.forward(rollout_td)
 
-        td.update_(rollout_td.to(original_device, non_blocking=True))
+        rollout_td = rollout_td.to(original_device, non_blocking=True)
+        for key in rollout_td.keys(include_nested=True, leaves_only=True):
+            td.set(key, rollout_td.get(key))
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
