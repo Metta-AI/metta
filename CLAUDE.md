@@ -188,51 +188,40 @@ metta install core                   # Reinstall core dependencies only
 
 ### Key Entry Points
 
-#### Training and Evaluation Pipeline
+See `tool/README.md` for the runner, aliases, two‑token usage, and recipe inference.
 
-All tools are now run through `./tools/run.py` with recipe functions:
-
-1. **Training**: Use recipe functions for different training configurations
-
-   ```bash
-   # Training with arena recipe
-   uv run ./tools/run.py arena.train run=my_experiment
-
-   # Training with navigation recipe
-   uv run ./tools/run.py navigation.train run=my_experiment
-   ```
-
-2. **Simulation/Evaluation**: Run evaluation suites on trained policies
+#### Common Workflows
 
 ```bash
-# Run evaluation
-uv run ./tools/run.py arena.evaluate \
+# Train
+uv run ./tools/run.py train arena run=my_experiment
+
+# Evaluate locally (single policy)
+uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
-# Using a remote S3 checkpoint
-uv run ./tools/run.py arena.evaluate \
-  policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
+# Evaluate remotely (dispatch to server)
+uv run ./tools/run.py evaluate_remote arena \
+  policy_uri=s3://my-bucket/checkpoints/run/run:v10.pt
+
+# Analyze evaluation results
+uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval/stats.db
+
+# Interactive play / Replay
+uv run ./tools/run.py play arena policy_uri=... 
+uv run ./tools/run.py replay arena policy_uri=...
+
+# List tools for a recipe (explicit + inferred)
+uv run ./tools/run.py arena.train --list-tools
+
+# Dry run (resolve only; does not construct or run the tool)
+uv run ./tools/run.py eval arena --dry-run
 ```
 
-3. **Analysis**: Analyze evaluation results
-
-   ```bash
-   uv run ./tools/run.py arena.analyze eval_db_uri=./train_dir/eval/stats.db
-   ```
-
-4. **Interactive Play**: Test policies interactively (browser-based)
-
-```bash
-uv run ./tools/run.py arena.play \
-  policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
-```
-
-5. **View Replays**: Watch recorded gameplay
-
-```bash
-uv run ./tools/run.py arena.replay \
-  policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
-```
+Notes:
+- Two‑token form: `./tools/run.py <tool> <recipe>` (e.g., `train arena`).
+- Aliases: `eval`/`sim` → `evaluate`, `eval_remote`/`sim_remote` → `evaluate_remote`.
+- Inference: play/replay prefer `simulations()[0]`; otherwise fallback to `mettagrid()`.
 
 #### Visualization Tools
 
