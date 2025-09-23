@@ -214,19 +214,14 @@ class PufferLibCompatiblePolicy(Policy):
         self.max_vec = self.max_vec[None, :, None, None]
 
         action_nvec = self.env.single_action_space.nvec
-        self.actor = nn.ModuleList(
-            [
-                nn.Linear(512, n) 
-                for n in action_nvec
-            ]
-        )
-        self.value = nn.Linear(512, 1) 
+        self.actor = nn.ModuleList([nn.Linear(512, n) for n in action_nvec])
+        self.value = nn.Linear(512, 1)
 
         lstm_config = LSTMConfig(
             in_key="encoded_obs",
             out_key="core",
-            latent_size=512,  
-            hidden_size=512,  
+            latent_size=512,
+            hidden_size=512,
             num_layers=1,
         )
         self.lstm = LSTM(lstm_config)
@@ -324,7 +319,6 @@ class PufferLibCompatiblePolicy(Policy):
             selected_log_probs = log_probs.gather(-1, sampled_action.unsqueeze(-1)).squeeze(-1)
             action_log_probs.append(selected_log_probs)
 
-
         actions_tensor = torch.stack(actions, dim=-1)
         entropies_tensor = torch.stack(entropies, dim=-1)
         log_probs_tensor = torch.stack(action_log_probs, dim=-1)
@@ -337,7 +331,7 @@ class PufferLibCompatiblePolicy(Policy):
         else:
             td["act_log_prob"] = log_probs_tensor
             td["entropy"] = entropies_tensor
-            td["full_log_probs"] = log_probs_tensor # TODO: This is not correct (fix this later)
+            td["full_log_probs"] = log_probs_tensor  # TODO: This is not correct (fix this later)
 
         return td
 

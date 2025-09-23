@@ -143,7 +143,6 @@ def _load_checkpoint_file(path: str, device: str | torch.device):
 
         return checkpoint_data
 
-
     except FileNotFoundError:
         raise
     except (pickle.UnpicklingError, RuntimeError, OSError) as err:
