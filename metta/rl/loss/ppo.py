@@ -139,9 +139,7 @@ class PPO(Loss):
         with torch.no_grad():
             with context.autocast():
                 rollout_td = self.policy.forward(rollout_td)
-            try:
-                rollout_td_actions = rollout_td["actions"]
-            except KeyError:
+            if "actions" not in rollout_td.keys(include_nested=False):
                 raise RuntimeError(
                     "Policy.forward did not populate actions during rollout; received keys: "
                     + str(list(rollout_td.keys(include_nested=False)))
