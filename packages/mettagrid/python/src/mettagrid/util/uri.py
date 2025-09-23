@@ -124,12 +124,17 @@ class ParsedURI:
 
         if value.startswith("s3://"):
             remainder = value[5:]
-            if "/" not in remainder:
-                raise ValueError("Malformed S3 URI. Expected s3://bucket/key")
-            bucket, key = remainder.split("/", 1)
-            if not bucket or not key:
-                raise ValueError("Malformed S3 URI. Bucket and key must be non-empty")
-            return cls(raw=value, scheme="s3", bucket=bucket, key=key, path=key)
+            if not remainder:
+                raise ValueError("Malformed S3 URI. Expected s3://bucket[/key]")
+            if "/" in remainder:
+                bucket, key = remainder.split("/", 1)
+                key = key or None
+            else:
+                bucket, key = remainder, None
+            if not bucket:
+                raise ValueError("Malformed S3 URI. Bucket must be non-empty")
+            path = key if key else None
+            return cls(raw=value, scheme="s3", bucket=bucket, key=key, path=path)
 
         if value.startswith("mock://"):
             path = value[len("mock://") :]
