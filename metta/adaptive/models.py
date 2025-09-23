@@ -6,13 +6,6 @@ from enum import StrEnum, auto
 from typing import Any
 
 
-@dataclass
-class Observation:
-    score: float
-    cost: float
-    suggestion: dict
-
-
 class JobTypes(StrEnum):
     LAUNCH_TRAINING = auto()
     LAUNCH_EVAL = auto()
