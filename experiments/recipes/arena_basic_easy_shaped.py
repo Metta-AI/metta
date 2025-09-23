@@ -1,4 +1,4 @@
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -83,7 +83,7 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 

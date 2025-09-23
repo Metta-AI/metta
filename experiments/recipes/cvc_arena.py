@@ -3,7 +3,7 @@
 This is meant as a basic testbed for CvC buildings / mechanics, not as a full-fledged recipe.
 """
 
-from typing import List, Optional
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -77,7 +77,7 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
