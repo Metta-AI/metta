@@ -353,10 +353,10 @@ Evaluate on the navigation eval suite (provide the policy URI):
 
 #### Configuring a MettaAgent
 
-This repo implements a `MettaAgent` policy class. The underlying network is parameterized by config files in
-`configs/agent` (with `configs/agent/fast.yaml` used by default). See `configs/agent/reference_design.yaml` for an
-explanation of the config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture)
-for further documentation.
+This repo implements a `MettaAgent` policy class. By default we now build policies using the ViT-based
+`ViTSmallConfig` from `metta.agent.policies.vit`. See `configs/agent/reference_design.yaml` for an explanation of the
+config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture) for further
+documentation.
 
 To use `MettaAgent` with a non-default architecture config:
 
