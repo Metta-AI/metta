@@ -5,7 +5,7 @@ import os
 import uuid
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from cogweb.cogweb_client import CogwebClient
 from metta.common.tool import Tool
@@ -70,6 +70,7 @@ class DispatcherType(StrEnum):
 
 
 class SweepTool(Tool):
+    tool_name: ClassVar[str] = "sweep"
     """Tool for running hyperparameter sweeps."""
 
     # Sweep identity - optional, will be generated if not provided
