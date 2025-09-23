@@ -98,6 +98,9 @@ class ContrastiveLoss(Loss):
             return policy_td["hidden_state"]
         elif "features" in policy_td:
             return policy_td["features"]
+        elif "core" in policy_td:
+            # FastPolicy outputs 'core' from LSTM - this is a good embedding source
+            return policy_td["core"]
         else:
             # Fallback: use value as embeddings but warn about suboptimal choice
             # This should only happen if policy doesn't provide proper feature representations
