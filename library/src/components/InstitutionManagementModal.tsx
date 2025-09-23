@@ -34,6 +34,9 @@ export const InstitutionManagementModal: FC<
   InstitutionManagementModalProps
 > = ({ isOpen, onClose, institution, currentUserRole }) => {
   const [activeTab, setActiveTab] = useState<"members" | "add">("members");
+  const [localMembers, setLocalMembers] = useState<InstitutionMember[]>(
+    institution.members || []
+  );
   const [newMemberData, setNewMemberData] = useState({
     userEmail: "",
     role: "member",
@@ -41,11 +44,32 @@ export const InstitutionManagementModal: FC<
     title: "",
   });
 
+  // Update local members when institution prop changes
+  useEffect(() => {
+    setLocalMembers(institution.members || []);
+  }, [institution.members]);
+
   const { execute: manageMembership, isExecuting } = useAction(
     manageUserMembershipAction,
     {
-      onSuccess: () => {
+      onSuccess: (result) => {
         if (activeTab === "add") {
+          // Optimistically add the new member to local state using current form data
+          const newMember: InstitutionMember = {
+            id: `temp_${Date.now()}`, // Temporary ID until page refresh
+            user: {
+              name: newMemberData.userEmail.split("@")[0] || null,
+              email: newMemberData.userEmail,
+            },
+            role: newMemberData.role || "member",
+            department: newMemberData.department || null,
+            title: newMemberData.title || null,
+            joinedAt: new Date(),
+            isActive: true,
+          };
+
+          setLocalMembers((prev) => [...prev, newMember]);
+
           setNewMemberData({
             userEmail: "",
             role: "member",
@@ -77,6 +101,11 @@ export const InstitutionManagementModal: FC<
 
   const handleRemoveMember = (memberEmail: string) => {
     if (window.confirm("Are you sure you want to remove this member?")) {
+      // Optimistically remove from local state
+      setLocalMembers((prev) =>
+        prev.filter((member) => member.user.email !== memberEmail)
+      );
+
       const formData = new FormData();
       formData.append("institutionId", institution.id);
       formData.append("userEmail", memberEmail);
@@ -120,7 +149,7 @@ export const InstitutionManagementModal: FC<
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                Members ({institution.members?.length || 0})
+                Members ({localMembers.length})
               </button>
               <button
                 onClick={() => setActiveTab("add")}
@@ -143,8 +172,8 @@ export const InstitutionManagementModal: FC<
         >
           {activeTab === "members" && (
             <div className="space-y-4">
-              {institution.members && institution.members.length > 0 ? (
-                institution.members.map((member) => (
+              {localMembers.length > 0 ? (
+                localMembers.map((member) => (
                   <div
                     key={member.id}
                     className="flex items-center justify-between rounded-lg border border-gray-200 p-4"
