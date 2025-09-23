@@ -1,7 +1,5 @@
 from typing import List, Optional, Sequence
 
-from typer import Option
-
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.fast import FastConfig
@@ -136,21 +134,14 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: str | None = None, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_evals()
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri],
-    )
+    policy_uris = [policy_uri] if policy_uri is not None else []
 
-def evaluate_run(
-    run: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
-    simulations = simulations or make_evals()
     return SimTool(
         simulations=simulations,
-        run=run,
+        policy_uris=policy_uris,
     )
 
 
