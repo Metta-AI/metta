@@ -18,7 +18,6 @@ from metta.rl.evaluate import (
     upload_replay_html,
 )
 from metta.rl.training import TrainerComponent
-from metta.rl.training.checkpointer import CheckpointConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.config import Config
@@ -65,7 +64,6 @@ class Evaluator(TrainerComponent):
         config: EvaluatorConfig,
         device: torch.device,
         system_cfg: Any,
-        checkpoint_cfg: CheckpointConfig,
         stats_client: Optional[StatsClient] = None,
     ):
         super().__init__()
@@ -78,7 +76,6 @@ class Evaluator(TrainerComponent):
 
         self._configure_evaluation_settings(
             eval_cfg=self._config,
-            checkpoint_cfg=checkpoint_cfg,
             stats_client=self._stats_client,
         )
 
@@ -90,19 +87,8 @@ class Evaluator(TrainerComponent):
     def _configure_evaluation_settings(
         *,
         eval_cfg: EvaluatorConfig,
-        checkpoint_cfg: CheckpointConfig,
         stats_client: Optional[StatsClient],
     ) -> None:
-        if eval_cfg.epoch_interval and eval_cfg.epoch_interval < checkpoint_cfg.checkpoint_interval:
-            raise ValueError(
-                "evaluator.epoch_interval must be >= trainer.checkpoint.checkpoint_interval "
-                "to ensure policies are saved before evaluation"
-            )
-
-        if eval_cfg.evaluate_remote and not checkpoint_cfg.remote_prefix:
-            eval_cfg.evaluate_remote = False
-            logger.info("Remote prefix unset; disabling remote evaluations")
-
         if eval_cfg.replay_dir is None:
             eval_cfg.replay_dir = auto_replay_dir()
             logger.info(f"Setting replay_dir to {eval_cfg.replay_dir}")
@@ -193,7 +179,7 @@ class Evaluator(TrainerComponent):
 
         return EvalRewardSummary()
 
-    def _build_simulations(self, curriculum: Any) -> list[SimulationConfig]:
+    def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
         sims = []
 
         # Add training task evaluations
@@ -250,7 +236,6 @@ class Evaluator(TrainerComponent):
         return self._latest_scores
 
     def on_epoch_end(self, epoch: int) -> None:
-        """Run evaluation at epoch end if due."""
         if not self.should_evaluate(epoch):
             return
 

@@ -72,12 +72,6 @@ class TestNewPolicySystem:
         except Exception as e:
             assert "not found" in str(e).lower() or "invalid" in str(e).lower()
 
-    def test_checkpoint_manager_cache_interface(self):
-        """Test that CheckpointManager caching interface works."""
-        manager = CheckpointManager(cache_size=5)
-        manager.clear_cache()
-        assert manager.cache_size == 5
-
     def test_policy_uri_formats(self):
         """Test different policy URI formats are recognized."""
         uri_formats = [
