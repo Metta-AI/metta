@@ -88,49 +88,176 @@ def output_exception(message: str) -> None:
 
 
 def parse_value(value_str: str) -> Any:
-    """Parse a string value into appropriate Python type (minimal heuristics)."""
-    lower = value_str.lower()
+    """Parse a CLI value into an appropriate Python type."""
+    if not isinstance(value_str, str):
+        raise ValueError(f"Value must be a string, got {type(value_str).__name__}")
+
+    raw = value_str.strip()
+    if raw == "":
+        return ""
+
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {"'", '"'}:
+        # Remove quotes and unescape common sequences
+        return parse_quoted_string(raw[1:-1])
+
+    lower = raw.lower()
 
     if lower in {"true", "false"}:
         return lower == "true"
     if lower in {"none", "null"}:
         return None
 
-    # Try to parse JSON containers
-    if (value_str.startswith("{") and value_str.endswith("}")) or (
-        value_str.startswith("[") and value_str.endswith("]")
-    ):
-        if len(value_str) > 1_000_000:  # 1MB limit
-            logger.warning(f"Skipping JSON parsing for oversized value ({len(value_str)} chars)")
-            return value_str
-        try:
-            return json.loads(value_str)
-        except json.JSONDecodeError:
-            pass
+    if (raw.startswith("{") and raw.endswith("}")) or (raw.startswith("[") and raw.endswith("]")):
+        if len(raw) > 1_000_000:
+            logger.warning(f"Skipping JSON parsing for oversized value ({len(raw)} chars)")
+        else:
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                pass
 
-    # Try numeric
-    try:
-        return int(value_str)
-    except ValueError:
-        pass
-    try:
-        return float(value_str)
-    except ValueError:
-        pass
+    if is_number(raw):
+        return parse_number(raw)
 
-    return value_str
+    return raw
+
+
+def parse_quoted_string(content: str) -> str:
+    """Unescape a quoted string."""
+    result: list[str] = []
+    escape_next = False
+
+    for char in content:
+        if escape_next:
+            escape_map = {
+                "n": "\n",
+                "t": "\t",
+                "r": "\r",
+                "b": "\b",
+                "f": "\f",
+                "\\": "\\",
+                '"': '"',
+                "'": "'",
+                "0": "\0",
+            }
+            result.append(escape_map.get(char, char))
+            escape_next = False
+            continue
+
+        if char == "\\":
+            escape_next = True
+            continue
+
+        result.append(char)
+
+    if escape_next:
+        result.append("\\")
+
+    return "".join(result)
+
+
+def is_number(candidate: str) -> bool:
+    """Return True if the string can be parsed as int or float."""
+    if candidate in {"+", "-", "."}:
+        return False
+    if not candidate:
+        return False
+    work = candidate
+    if work[0] in "+-":
+        work = work[1:]
+        if not work:
+            return False
+    if not any(ch.isdigit() for ch in work):
+        return False
+    try:
+        float(candidate)
+    except ValueError:
+        return False
+    return True
+
+
+def parse_number(candidate: str) -> int | float:
+    """Parse a numeric string as int when possible, otherwise float."""
+    try:
+        if any(sep in candidate.lower() for sep in (".", "e")):
+            return float(candidate)
+        return int(candidate)
+    except ValueError as exc:
+        raise ValueError(f"Invalid number format: {candidate}") from exc
 
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
-    """Parse CLI arguments in key=value format, keeping dotted keys flat."""
+    """Parse CLI arguments, supporting commander-style flags and key=value tokens."""
     parsed: dict[str, Any] = {}
-    for arg in cli_args:
-        # Unlike earlier versions, we no longer lstrip('-'); args should be plain key=value
-        if "=" not in arg:
-            raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
-        key, value = arg.split("=", 1)
-        parsed[key] = parse_value(value)
+    i = 0
+    while i < len(cli_args):
+        token = cli_args[i]
+
+        if token == "--":
+            i += 1
+            continue
+
+        key: str
+        value: Any
+        consumed = 1
+
+        if _has_separator(token):
+            key_token, value_token = _split_token(token)
+            key = _strip_flag_prefix(key_token)
+            if not key:
+                raise ValueError(f"Invalid argument format: {token}. Expected non-empty key")
+            value = parse_value(value_token)
+        elif token.startswith("-"):
+            key = _strip_flag_prefix(token)
+            if not key:
+                raise ValueError(f"Invalid flag: {token}")
+            if i + 1 < len(cli_args) and _is_value_token(cli_args[i + 1]):
+                value = parse_value(cli_args[i + 1])
+                consumed = 2
+            else:
+                value = True
+        else:
+            if not _has_separator(token):
+                raise ValueError(f"Invalid argument format: {token}. Expected key=value or --key value")
+            key, value_token = _split_token(token)
+            if not key:
+                raise ValueError(f"Invalid argument format: {token}. Expected non-empty key")
+            value = parse_value(value_token)
+
+        parsed[key] = value
+        i += consumed
+
     return parsed
+
+
+def _has_separator(token: str) -> bool:
+    return "=" in token or ":" in token
+
+
+def _split_token(token: str) -> tuple[str, str]:
+    if "=" in token:
+        return token.split("=", 1)
+    if ":" in token:
+        return token.split(":", 1)
+    raise ValueError(f"Argument {token} does not contain a separator")
+
+
+def _strip_flag_prefix(token: str) -> str:
+    if token.startswith("--"):
+        return token[2:]
+    if token.startswith("-"):
+        return token[1:]
+    return token
+
+
+def _is_value_token(token: str) -> bool:
+    if token == "--":
+        return False
+    if token.startswith("--"):
+        return False
+    if token.startswith("-"):
+        return is_number(token)
+    return True
 
 
 def deep_merge(dst: dict, src: dict) -> dict:
