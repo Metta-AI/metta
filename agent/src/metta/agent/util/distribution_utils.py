@@ -1,13 +1,30 @@
+import logging
 from typing import Any, Tuple
 
 import torch
 import torch.distributed as dist
-import torch.jit
 import torch.nn.functional as F
 from torch import Tensor
 
+logger = logging.getLogger(__name__)
 
-@torch.jit.script
+
+def _log_invalid_tensor(name: str, tensor: Tensor, logits: Tensor) -> None:
+    invalid_mask = ~torch.isfinite(tensor)
+    rows = torch.nonzero(invalid_mask.view(invalid_mask.shape[0], -1).any(dim=1), as_tuple=False)
+    rows_list = rows[:5].view(-1).cpu().tolist() if rows.numel() else []
+    example = None
+    if rows_list:
+        row_index = rows_list[0]
+        example = logits[row_index].detach().cpu().reshape(-1)[:10].tolist()
+    logger.error(
+        "[distribution_utils] Non-finite %s detected: rows=%s example_logits_row=%s",
+        name,
+        rows_list,
+        example,
+    )
+
+
 def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Sample actions from logits during inference.
@@ -29,7 +46,12 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     """
 
     full_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
+    if not torch.isfinite(full_log_probs).all():
+        _log_invalid_tensor("full_log_probs", full_log_probs, action_logits)
+
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
+    if not torch.isfinite(action_probs).all():
+        _log_invalid_tensor("action_probs", action_probs, action_logits)
 
     # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
@@ -40,11 +62,12 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
 
     # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
     entropy = -torch.sum(action_probs * full_log_probs, dim=-1)  # [batch_size]
+    if not torch.isfinite(entropy).all():
+        _log_invalid_tensor("entropy", entropy.unsqueeze(-1), action_logits)
 
     return actions, act_log_prob, entropy, full_log_probs
 
 
-@torch.jit.script
 def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Evaluate provided actions against logits during training.
@@ -68,14 +91,23 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     """
 
     action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
+    if not torch.isfinite(action_log_probs).all():
+        _log_invalid_tensor("train_full_log_probs", action_log_probs, action_logits)
+
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
+    if not torch.isfinite(action_probs).all():
+        _log_invalid_tensor("train_action_probs", action_probs, action_logits)
 
     # Extract log-probabilities for the provided actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
     log_probs = action_log_probs[batch_indices, actions]  # [batch_size]
+    if not torch.isfinite(log_probs).all():
+        _log_invalid_tensor("train_log_probs", log_probs.unsqueeze(-1), action_logits)
 
     # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
+    if not torch.isfinite(entropy).all():
+        _log_invalid_tensor("train_entropy", entropy.unsqueeze(-1), action_logits)
 
     return log_probs, entropy, action_log_probs
 

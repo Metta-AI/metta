@@ -1,3 +1,4 @@
+import logging
 import math
 from typing import Any, Optional
 
@@ -7,6 +8,214 @@ from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+
+logger = logging.getLogger(__name__)
+
+_MAX_LOGGED_INDICES = 5
+_MAX_LOGGED_VALUES = 10
+_MAX_LOGGED_TD_KEYS = 25
+_MAX_LOGGED_CONTEXT_TENSORS = 8
+
+
+def _snapshot_td_keys(td: Optional[TensorDict], priority_keys: tuple[Any, ...] | None = None) -> list[str]:
+    """Return a truncated, stringified snapshot of TD keys for logging."""
+    if td is None:
+        return []
+
+    keys: list[str] = []
+    try:
+        raw_keys = list(td.keys())
+    except TypeError:
+        raw_keys = [key for key in td.keys()]
+
+    ordered_keys: list[Any]
+    if priority_keys:
+        priority_set = {k for k in priority_keys}
+        ordered_keys = []
+        seen: set[Any] = set()
+        for key in raw_keys:
+            if key in priority_set and key not in seen:
+                ordered_keys.append(key)
+                seen.add(key)
+        for key in raw_keys:
+            if key not in seen:
+                ordered_keys.append(key)
+                seen.add(key)
+    else:
+        ordered_keys = raw_keys
+
+    total = len(ordered_keys)
+    limit = min(total, _MAX_LOGGED_TD_KEYS)
+    for idx in range(limit):
+        keys.append(repr(ordered_keys[idx]))
+    if total > limit:
+        keys.append(f"...( +{total - limit} more )")
+    return keys
+
+
+def _collect_row_context(
+    td: Optional[TensorDict],
+    batch_index: int,
+    priority_keys: tuple[Any, ...] | None = None,
+) -> dict[str, Any]:
+    """Capture lightweight context tensors for a problematic batch index."""
+    if td is None:
+        return {}
+
+    context: dict[str, Any] = {}
+    try:
+        raw_keys = list(td.keys())
+    except TypeError:
+        raw_keys = [key for key in td.keys()]
+
+    ordered_keys: list[Any]
+    if priority_keys:
+        priority_set = {k for k in priority_keys}
+        ordered_keys = []
+        seen: set[Any] = set()
+        for key in raw_keys:
+            if key in priority_set and key not in seen:
+                ordered_keys.append(key)
+                seen.add(key)
+        for key in raw_keys:
+            if key not in seen:
+                ordered_keys.append(key)
+                seen.add(key)
+    else:
+        ordered_keys = raw_keys
+
+    collected = 0
+    for key in ordered_keys:
+        if collected >= _MAX_LOGGED_CONTEXT_TENSORS:
+            break
+        try:
+            value = td.get(key)
+        except KeyError:
+            continue
+        if not isinstance(value, torch.Tensor):
+            continue
+        if value.dim() == 0 or value.shape[0] <= batch_index:
+            continue
+        with torch.no_grad():
+            sample_tensor = value[batch_index]
+            flattened = sample_tensor.reshape(-1)
+            sample_values = flattened[:_MAX_LOGGED_VALUES].detach().cpu().tolist()
+        context[repr(key)] = {
+            "shape": list(sample_tensor.shape),
+            "dtype": str(sample_tensor.dtype),
+            "sample_values": sample_values,
+        }
+        collected += 1
+    return context
+
+
+def _log_and_sanitize(
+    *,
+    tensor: torch.Tensor,
+    name: str,
+    component: str,
+    td: Optional[TensorDict] = None,
+    priority_keys: tuple[Any, ...] | None = None,
+) -> tuple[torch.Tensor, bool]:
+    """
+    Inspect `tensor`, emit diagnostics for NaN/Inf, and return a sanitized tensor.
+
+    Returns a tuple of (possibly sanitized tensor, whether an anomaly was detected).
+    """
+
+    if tensor is None:
+        return tensor, False
+
+    invalid_mask = ~torch.isfinite(tensor)
+    if not invalid_mask.any():
+        return tensor, False
+
+    invalid_count = int(invalid_mask.sum().item())
+    nan_count = int(torch.isnan(tensor).sum().item())
+    posinf_count = int(torch.isposinf(tensor).sum().item())
+    neginf_count = int(torch.isneginf(tensor).sum().item())
+
+    detached = tensor.detach()
+    sanitized_view = torch.nan_to_num(detached, nan=0.0, posinf=0.0, neginf=0.0)
+    finite_min = float(sanitized_view.min().item()) if sanitized_view.numel() else 0.0
+    finite_max = float(sanitized_view.max().item()) if sanitized_view.numel() else 0.0
+    finite_abs_max = float(sanitized_view.abs().max().item()) if sanitized_view.numel() else 0.0
+
+    invalid_indices = invalid_mask.nonzero(as_tuple=False)[:_MAX_LOGGED_INDICES].detach().cpu().tolist()
+    offending_batch_index = None
+    if invalid_indices:
+        first_index = invalid_indices[0]
+        if len(first_index) > 0:
+            offending_batch_index = first_index[0]
+    batch_context: dict[str, Any] | None = None
+    if offending_batch_index is not None:
+        batch_context = _collect_row_context(td, int(offending_batch_index), priority_keys=priority_keys)
+
+    logger.error(
+        "[%s] Invalid values detected in %s: shape=%s dtype=%s total_invalid=%d nan=%d posinf=%d neginf=%d "
+        "finite_min=%s finite_max=%s finite_abs_max=%s sample_indices=%s td_keys=%s batch_context=%s",
+        component,
+        name,
+        list(tensor.shape),
+        tensor.dtype,
+        invalid_count,
+        nan_count,
+        posinf_count,
+        neginf_count,
+        finite_min,
+        finite_max,
+        finite_abs_max,
+        invalid_indices,
+        _snapshot_td_keys(td, priority_keys=priority_keys),
+        batch_context,
+    )
+
+    sanitized = torch.nan_to_num(tensor, nan=0.0, posinf=0.0, neginf=0.0)
+    return sanitized, True
+
+
+def _log_and_sanitize_parameter(
+    *,
+    parameter: torch.Tensor,
+    name: str,
+    component: str,
+) -> bool:
+    """Log and sanitize invalid values in a module parameter."""
+
+    invalid_mask = ~torch.isfinite(parameter)
+    if not invalid_mask.any():
+        return False
+
+    invalid_count = int(invalid_mask.sum().item())
+    nan_count = int(torch.isnan(parameter).sum().item())
+    posinf_count = int(torch.isposinf(parameter).sum().item())
+    neginf_count = int(torch.isneginf(parameter).sum().item())
+
+    sanitized_view = torch.nan_to_num(parameter.detach(), nan=0.0, posinf=0.0, neginf=0.0)
+    finite_min = float(sanitized_view.min().item()) if sanitized_view.numel() else 0.0
+    finite_max = float(sanitized_view.max().item()) if sanitized_view.numel() else 0.0
+    finite_abs_max = float(sanitized_view.abs().max().item()) if sanitized_view.numel() else 0.0
+
+    logger.error(
+        "[%s] Invalid parameter detected in %s: shape=%s dtype=%s total_invalid=%d nan=%d posinf=%d neginf=%d "
+        "finite_min=%s finite_max=%s finite_abs_max=%s",
+        component,
+        name,
+        list(parameter.shape),
+        parameter.dtype,
+        invalid_count,
+        nan_count,
+        posinf_count,
+        neginf_count,
+        finite_min,
+        finite_max,
+        finite_abs_max,
+    )
+
+    with torch.no_grad():
+        torch.nan_to_num(parameter, nan=0.0, posinf=0.0, neginf=0.0, out=parameter)
+
+    return True
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -41,8 +250,41 @@ class ActorQuery(nn.Module):
     def forward(self, td: TensorDict):
         hidden = td[self.in_key]  # Shape: [B*TT, hidden]
 
+        priority_keys = (
+            self.in_key,
+            "core",
+            "encoded_obs",
+            "actor_query",
+        )
+
+        hidden, hidden_invalid = _log_and_sanitize(
+            tensor=hidden,
+            name=f"{self.__class__.__name__}.input[{self.in_key}]",
+            component="ActorQuery",
+            td=td,
+            priority_keys=priority_keys,
+        )
+        if hidden_invalid:
+            td[self.in_key] = hidden
+
+        _log_and_sanitize_parameter(
+            parameter=self.W,
+            name=f"{self.__class__.__name__}.weight",
+            component="ActorQuery",
+        )
+
         query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)
+
+        query, query_invalid = _log_and_sanitize(
+            tensor=query,
+            name=f"{self.__class__.__name__}.output[{self.out_key}]",
+            component="ActorQuery",
+            td=td,
+            priority_keys=priority_keys,
+        )
+        if query_invalid:
+            td[self.out_key] = query
 
         td[self.out_key] = query
         return td
@@ -88,11 +330,61 @@ class ActorKey(nn.Module):
         query = td[self.query_key]  # Shape: [B*TT, embed_dim]
         action_embeds = td[self.embedding_key]  # Shape: [B*TT, num_actions, embed_dim]
 
+        priority_keys = (
+            self.query_key,
+            self.embedding_key,
+            self.out_key,
+            "core",
+            "encoded_obs",
+        )
+
+        query, query_invalid = _log_and_sanitize(
+            tensor=query,
+            name=f"{self.__class__.__name__}.query[{self.query_key}]",
+            component="ActorKey",
+            td=td,
+            priority_keys=priority_keys,
+        )
+        if query_invalid:
+            td[self.query_key] = query
+
+        action_embeds, embeds_invalid = _log_and_sanitize(
+            tensor=action_embeds,
+            name=f"{self.__class__.__name__}.embeds[{self.embedding_key}]",
+            component="ActorKey",
+            td=td,
+            priority_keys=priority_keys,
+        )
+        if embeds_invalid:
+            td[self.embedding_key] = action_embeds
+
+        _log_and_sanitize_parameter(
+            parameter=self.bias,
+            name=f"{self.__class__.__name__}.bias",
+            component="ActorKey",
+        )
+
         # Compute scores
         scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
 
+        scores, _ = _log_and_sanitize(
+            tensor=scores,
+            name=f"{self.__class__.__name__}.scores",
+            component="ActorKey",
+            td=td,
+            priority_keys=priority_keys,
+        )
+
         # Add bias
         biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
+
+        biased_scores, _ = _log_and_sanitize(
+            tensor=biased_scores,
+            name=f"{self.__class__.__name__}.biased_scores[{self.out_key}]",
+            component="ActorKey",
+            td=td,
+            priority_keys=priority_keys,
+        )
 
         td[self.out_key] = biased_scores
         return td
@@ -139,6 +431,42 @@ class ActionProbs(nn.Module):
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         logits = td[self.config.in_key]
+        raw_logits = logits
+
+        row_all_neg_inf = torch.isneginf(raw_logits).all(dim=-1)
+        if row_all_neg_inf.any():
+            offending_rows = torch.nonzero(row_all_neg_inf, as_tuple=False)[:5].view(-1).cpu().tolist()
+            logger.error(
+                "All-logits-masked rows encountered before sampling: rows=%s",
+                offending_rows,
+            )
+
+        mixed_neg_inf_rows = torch.isneginf(raw_logits).any(dim=-1) & (~row_all_neg_inf)
+        if mixed_neg_inf_rows.any():
+            offending_rows = torch.nonzero(mixed_neg_inf_rows, as_tuple=False)[:5].view(-1).cpu().tolist()
+            logger.warning(
+                "Mixed finite/-inf logits detected before sampling: rows=%s sample_logit_row=%s",
+                offending_rows,
+                raw_logits[offending_rows[0]].detach().cpu().tolist() if offending_rows else None,
+            )
+
+        priority_keys = (
+            self.config.in_key,
+            "actor_query",
+            "action_embedding",
+            "logits",
+        )
+
+        logits, logits_invalid = _log_and_sanitize(
+            tensor=logits,
+            name=f"{self.__class__.__name__}.logits[{self.config.in_key}]",
+            component="ActionProbs",
+            td=td,
+            priority_keys=priority_keys,
+        )
+        if logits_invalid:
+            td[self.config.in_key] = logits
+
         """Forward pass for inference mode with action sampling."""
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
@@ -155,12 +483,47 @@ class ActionProbs(nn.Module):
         # CRITICAL: ComponentPolicy expects the action to be flattened already during training
         # The TD should be reshaped to match the flattened batch dimension
         logits = td[self.config.in_key]
+        raw_logits = logits
         if action.dim() == 3:  # (B, T, A) -> (BT, A)
             batch_size_orig, time_steps, A = action.shape
             action = action.view(batch_size_orig * time_steps, A)
             # Also flatten the TD to match
             if td.batch_dims > 1:
                 td = td.reshape(td.batch_size.numel())
+
+        row_all_neg_inf = torch.isneginf(raw_logits).all(dim=-1)
+        if row_all_neg_inf.any():
+            offending_rows = torch.nonzero(row_all_neg_inf, as_tuple=False)[:5].view(-1).cpu().tolist()
+            logger.error(
+                "All-logits-masked rows encountered before training evaluation: rows=%s",
+                offending_rows,
+            )
+
+        mixed_neg_inf_rows = torch.isneginf(raw_logits).any(dim=-1) & (~row_all_neg_inf)
+        if mixed_neg_inf_rows.any():
+            offending_rows = torch.nonzero(mixed_neg_inf_rows, as_tuple=False)[:5].view(-1).cpu().tolist()
+            logger.warning(
+                "Mixed finite/-inf logits detected before training evaluation: rows=%s sample_logit_row=%s",
+                offending_rows,
+                raw_logits[offending_rows[0]].detach().cpu().tolist() if offending_rows else None,
+            )
+
+        priority_keys = (
+            self.config.in_key,
+            "actor_query",
+            "action_embedding",
+            "logits",
+        )
+
+        logits, logits_invalid = _log_and_sanitize(
+            tensor=logits,
+            name=f"{self.__class__.__name__}.logits[{self.config.in_key}]",
+            component="ActionProbs",
+            td=td,
+            priority_keys=priority_keys,
+        )
+        if logits_invalid:
+            td[self.config.in_key] = logits
 
         action_logit_index = self._convert_action_to_logit_index(action)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
