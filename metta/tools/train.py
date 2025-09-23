@@ -88,7 +88,7 @@ class TrainTool(Tool):
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
-            assert self.run is None, "run cannot be set via args if already provided in config"
+            assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
             self.run = args["run"]
 
         if self.run is None:

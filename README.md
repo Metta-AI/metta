@@ -244,44 +244,29 @@ Minimal example:
 
 ```python
 # experiments/user/my_tasks.py
-from mettagrid.builder.envs import make_arena
-from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.tools.train import TrainTool
+from mettagrid.builder.envs import make_arena
 
-def my_train(run: str = "local.me.1") -> TrainTool:
-    tasks = cc.bucketed(make_arena(num_agents=4))
-    tasks.add_bucket("game.map_builder.width", [10, 20, 30])
-    tasks.add_bucket("game.map_builder.height", [10, 20, 30])
-    tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.5, 1.0])
 
-    algorithm_config = LearningProgressConfig(
-        use_bidirectional=True,      # Enable bidirectional learning
-        ema_timescale=0.001,         # Exponential moving average timescale
-        exploration_bonus=0.1,       # Bonus for exploring new tasks
-        max_memory_tasks=100,        # Keep track of 100 tasks
-        max_slice_axes=2,            # Simple slicing
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-    )
-
-    curriculum = tasks.to_curriculum(
-        num_active_tasks=20,
-        algorithm_config=algorithm_config,
-    )
-
+def my_train() -> TrainTool:
     return TrainTool(
-        run=run,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))])
+        training_env=TrainingEnvironmentConfig(),
+        evaluator=EvaluatorConfig(
+            simulations=[
+                SimulationConfig(
+                    suite="arena", name="arena/basic", env=make_arena(num_agents=6)
+                )
+            ]
+        ),
     )
 ```
 
 Run your task:
 
 ```bash
-./tools/run.py experiments.user.my_tasks.my_train run=local.me.2 system.device=cpu wandb.enabled=false
+./tools/run.py experiments.user.my_tasks.my_train run=local.me.1 system.device=cpu wandb.enabled=false
 ```
 
 Notes:
