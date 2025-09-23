@@ -13,7 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.artifact_paths import ArtifactReference, build_policy_simulation_roots
+from mettagrid.util.artifact_paths import ArtifactReference, PolicyArtifactLayout
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +42,13 @@ def evaluate_policy(
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
 
     metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-    run_replay_root, sim_roots = build_policy_simulation_roots(
-        replay_dir,
+    layout = PolicyArtifactLayout.build(
         run_name=metadata.get("run_name"),
+        replay_base=replay_dir,
         epoch=metadata.get("epoch"),
-        simulations=[(cfg.suite, cfg.name) for cfg in simulations],
     )
+    run_replay_root = layout.replay_root
+    sim_roots = layout.simulation_roots((cfg.suite, cfg.name) for cfg in simulations)
 
     sims = []
     for sim_cfg in simulations:

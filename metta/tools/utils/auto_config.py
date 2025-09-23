@@ -12,7 +12,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.setup.components.aws import AWSSetup
 from metta.setup.components.observatory_key import ObservatoryKeySetup
 from metta.setup.components.wandb import WandbSetup
-from mettagrid.util.artifact_paths import ArtifactRef, ensure_artifact_reference
+from mettagrid.util.artifact_paths import ArtifactRef
 
 
 class SupportedWandbEnvOverrides(BaseSettings):
@@ -113,18 +113,34 @@ class SupportedAwsEnvOverrides(BaseSettings):
 supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
 
+@dataclass(frozen=True)
+class ArtifactSettings:
+    replay_dir: ArtifactRef
+    policy_remote_prefix: ArtifactRef | None
+
+    @classmethod
+    def load(cls) -> "ArtifactSettings":
+        overrides = supported_aws_env_overrides.to_config_settings()
+        aws_setup_module = AWSSetup()
+        aws_settings = aws_setup_module.to_config_settings()  # type: ignore[arg-type]
+
+        replay_value = overrides.get("replay_dir") or aws_settings.get("replay_dir")
+        if not isinstance(replay_value, str) or not replay_value.strip():
+            raise ValueError("Replay directory is not configured for this environment")
+        replay_ref = ArtifactRef(replay_value)
+
+        policy_value = overrides.get("policy_remote_prefix") or aws_settings.get("policy_remote_prefix")
+        policy_ref = ArtifactRef(policy_value) if isinstance(policy_value, str) and policy_value.strip() else None
+
+        return cls(replay_dir=replay_ref, policy_remote_prefix=policy_ref)
+
+
+def artifact_settings() -> ArtifactSettings:
+    return ArtifactSettings.load()
+
+
 def auto_replay_dir() -> ArtifactRef:
-    aws_setup_module = AWSSetup()
-    config = {
-        **aws_setup_module.to_config_settings(),  # type: ignore
-        **supported_aws_env_overrides.to_config_settings(),
-    }.get("replay_dir")
-    if config is None:
-        raise ValueError("Replay directory is not configured for this environment")
-    ref = ensure_artifact_reference(config)
-    if ref is None:
-        raise ValueError("Replay directory cannot be empty")
-    return ArtifactRef(ref.as_str())
+    return artifact_settings().replay_dir
 
 
 def _join_prefix(prefix: str, run: str | None) -> str:

@@ -15,7 +15,7 @@ cases stay in one place.
 | `ArtifactReference.with_simulation(suite, name, simulation_id=None)` | Append simulation metadata using the standard `<suite>/<name>/<id>` layout. |
 | `artifact_policy_run_root(base, run_name, epoch)` | Helper for policy replay roots. Returns an `ArtifactReference` or `None`. |
 | `artifact_simulation_root(base, suite, name, simulation_id=None)` | Helper for simulation replay directories. |
-| `build_policy_simulation_roots(base, run_name, epoch, simulations)` | Returns a run-level replay root plus per-simulation roots for `(suite, name)` pairs. |
+| `PolicyArtifactLayout.build(...)` | Precomputes checkpoint and replay roots and can hand out paths for simulations/checkpoints. |
 | `ArtifactRef` | A Pydantic-compatible wrapper that normalizes artifact strings and exposes `.as_reference()` / `.join()`. |
 
 ### Example
@@ -40,14 +40,16 @@ print(sim_root.as_str())
   `ArtifactReference` (or keep using `ArtifactRef`, which is already a string) so conversion logic stays centralized.
 * Configuration utilities (`auto_replay_dir`, CLI validators, etc.) should rely on `ensure_artifact_reference` to catch
   invalid overrides early.
+* Use `artifact_settings()` when you need the canonical replay directory or remote prefix derived from environment/AWS
+  configuration.
 
 ## Updated Call Sites
 
 The helpers are already wired into the main replay stack:
 
-- `CheckpointManager` now builds remote URIs via `ArtifactReference.join`.
-- `Simulation` / `EvalService` / `SimTool` construct replay directories with `artifact_policy_run_root` and
-  `artifact_simulation_root`.
+- `CheckpointManager` now builds remote URIs via `PolicyArtifactLayout` and `ArtifactReference.join`.
+- `Simulation` / `EvalService` / `SimTool` construct replay directories through `PolicyArtifactLayout` or
+  `ArtifactReference` helpers.
 - `ReplayWriter` accepts `ArtifactReference` objects directly and emits canonical strings via `ref.as_str()`.
 
 If you add new tooling that writes artifacts, reuse these helpers instead of reinventing the path handling.
