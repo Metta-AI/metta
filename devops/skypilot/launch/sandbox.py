@@ -341,7 +341,11 @@ Common management commands:
         default=300,
         help="Timeout in seconds to wait for cluster to reach UP state (default: 300)",
     )
-    parser.add_argument("--sweep-controller", action="store_true", help="Launch a sweep-controller CPU-only sandbox (t3.medium, ~$0.04/hour)")
+    parser.add_argument(
+        "--sweep-controller",
+        action="store_true",
+        help="Launch a sweep-controller CPU-only sandbox (t3.medium, ~$0.04/hour)",
+    )
 
     args = parser.parse_args()
 
@@ -520,7 +524,6 @@ Common management commands:
             try:
                 obs_path = os.path.expanduser("~/.metta/observatory_tokens.yaml")
                 if os.path.exists(obs_path):
-
                     subprocess.run(
                         ["scp", "-q", obs_path, f"{cluster_name}:~/.metta/observatory_tokens.yaml"],
                         check=True,
