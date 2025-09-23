@@ -15,7 +15,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
+from metta.tools.eval import EvalTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
@@ -394,6 +394,14 @@ def make_mettagrid(curriculum_style: str) -> MettaGridConfig:
     return env_cfg
 
 
+def mettagrid() -> MettaGridConfig:
+    """Default MettaGridConfig for inference-based tools.
+
+    Uses the default curriculum style consistent with play()/replay() defaults.
+    """
+    return make_mettagrid(curriculum_style="terrain")
+
+
 def make_curriculum(
     curriculum_style: str,
     lp_params: LPParams = LPParams(),
@@ -472,14 +480,14 @@ def replay(
 
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
+) -> EvalTool:
     # Local import to   avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
 
     simulations = simulations or make_icl_resource_chain_eval_suite()
-    return SimTool(
+    return EvalTool(
         simulations=simulations,
         policy_uris=[policy_uri],
         stats_server_uri="https://api.observatory.softmax-research.net",
