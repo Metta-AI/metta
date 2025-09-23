@@ -15,6 +15,18 @@ def test_artifact_path_join_s3_with_trailing_slash():
     assert joined == "s3://bucket/replays/run_a"
 
 
+def test_artifact_path_join_s3_bucket_root():
+    base = "s3://bucket"
+    joined = artifact_path_join(base, "run_a", "episode.json.z")
+    assert joined == "s3://bucket/run_a/episode.json.z"
+
+
+def test_artifact_path_join_s3_bucket_root_trailing_slash():
+    base = "s3://bucket/"
+    joined = artifact_path_join(base, "run_a")
+    assert joined == "s3://bucket/run_a"
+
+
 def test_artifact_path_join_local_str(tmp_path: Path):
     base = str(tmp_path / "replays")
     joined = artifact_path_join(base, "run_a", "sim")
@@ -36,6 +48,11 @@ def test_artifact_path_join_gdrive():
 def test_artifact_policy_run_root_s3_epoch():
     root = artifact_policy_run_root("s3://bucket/replays", run_name="run_a", epoch=3)
     assert root == "s3://bucket/replays/run_a/v3"
+
+
+def test_artifact_policy_run_root_s3_bucket_root():
+    root = artifact_policy_run_root("s3://bucket", run_name="run_a", epoch=None)
+    assert root == "s3://bucket/run_a"
 
 
 def test_artifact_policy_run_root_path(tmp_path: Path):

@@ -31,28 +31,48 @@ def artifact_path_join(base: ArtifactBase, *segments: str) -> ArtifactBase:
         joined = "/".join(filter(None, [prefix, *cleaned]))
         return f"gdrive://{joined}"
 
-    parsed = ParsedURI.parse(base_str)
-
-    if parsed.scheme == "file" and parsed.local_path is not None:
-        result_path = parsed.local_path.joinpath(*cleaned)
-        return str(result_path)
-
-    if parsed.scheme == "s3":
+    if base_str.startswith("s3://"):
+        bucket_and_key = base_str[len("s3://") :].lstrip("/")
+        if not bucket_and_key:
+            raise ValueError("S3 URI must include a bucket name")
+        bucket, sep, key_prefix = bucket_and_key.partition("/")
+        if not bucket:
+            raise ValueError("S3 URI must include a bucket name")
         key_parts = []
-        if parsed.key:
-            key_parts.append(parsed.key.rstrip("/"))
+        if sep:
+            key_prefix = key_prefix.rstrip("/")
+            if key_prefix:
+                key_parts.append(key_prefix)
         key_parts.extend(cleaned)
         key = "/".join(part for part in key_parts if part)
-        return f"s3://{parsed.bucket}/{key}" if parsed.bucket else f"s3:///{key}"
+        return f"s3://{bucket}/{key}" if key else f"s3://{bucket}"
 
-    if parsed.scheme == "mock":
-        path = "/".join(filter(None, [(parsed.path or "").rstrip("/"), *cleaned]))
-        return f"mock://{path}"
+    try:
+        parsed = ParsedURI.parse(base_str)
+    except ValueError:
+        parsed = None
 
-    if parsed.scheme in {"http", "https"}:
-        base_http = base_str.rstrip("/")
-        suffix = "/".join(cleaned)
-        return f"{base_http}/{suffix}"
+    if parsed is not None:
+        if parsed.scheme == "file" and parsed.local_path is not None:
+            result_path = parsed.local_path.joinpath(*cleaned)
+            return str(result_path)
+
+        if parsed.scheme == "s3":
+            key_parts = []
+            if parsed.key:
+                key_parts.append(parsed.key.rstrip("/"))
+            key_parts.extend(cleaned)
+            key = "/".join(part for part in key_parts if part)
+            return f"s3://{parsed.bucket}/{key}" if parsed.bucket else f"s3:///{key}"
+
+        if parsed.scheme == "mock":
+            path = "/".join(filter(None, [(parsed.path or "").rstrip("/"), *cleaned]))
+            return f"mock://{path}"
+
+        if parsed.scheme in {"http", "https"}:
+            base_http = base_str.rstrip("/")
+            suffix = "/".join(cleaned)
+            return f"{base_http}/{suffix}"
 
     result_path = Path(base_str).joinpath(*cleaned)
     return str(result_path)
