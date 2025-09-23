@@ -2,11 +2,11 @@
 
 import logging
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pydantic import Field
 
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,25 @@ class TrainerComponent:
 
         self._context = context
 
+    # ------------------------------------------------------------------
+    # Interval helpers
+    # ------------------------------------------------------------------
+    def should_handle_step(self, *, current_step: int, previous_step: int) -> bool:
+        """Return True when this component should receive a step callback."""
+
+        interval = getattr(self, "_step_interval", 0)
+        if interval <= 0:
+            return False
+        return current_step // interval > previous_step // interval
+
+    def should_handle_epoch(self, epoch: int) -> bool:
+        """Return True when this component should receive an epoch callback."""
+
+        interval = getattr(self, "_epoch_interval", 1)
+        if interval == 0:
+            return True
+        return epoch % interval == 0
+
     @property
     def context(self) -> ComponentContext:
         """Return the trainer context associated with this component."""
@@ -46,7 +65,7 @@ class TrainerComponent:
             raise RuntimeError("TrainerComponent has not been registered with a ComponentContext")
         return self._context
 
-    def on_step(self, infos: Dict[str, Any]) -> None:
+    def on_step(self, infos: list[dict[str, Any]]) -> None:
         """Called after each environment step."""
         pass
 

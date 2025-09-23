@@ -15,9 +15,9 @@ def train() -> TrainTool:
     cfg.trainer.minibatch_size = 8
     cfg.trainer.batch_size = 1536
     cfg.trainer.bptt_horizon = 8
-    cfg.trainer.forward_pass_minibatch_target_size = 192
-    cfg.trainer.checkpoint.checkpoint_interval = 0
-    cfg.trainer.checkpoint.remote_prefix = None
+    cfg.training_env.forward_pass_minibatch_target_size = 192
+    cfg.checkpointer.epoch_interval = 0
+
     if cfg.evaluator is not None:
         cfg.evaluator.epoch_interval = 0
 
