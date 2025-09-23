@@ -77,17 +77,15 @@ class WandbLogger(TrainerComponent):
     def _log_task_pool_visualizations(self) -> None:
         """Log task pool visualization histograms to wandb."""
         try:
-            # Get the most recent info from rollout context
-            latest_infos = getattr(self.context, "latest_infos", [])
-            if not latest_infos:
-                return
-
-            # Look for visualization data in the most recent info
-            for info in reversed(latest_infos):
-                if isinstance(info, dict) and "_task_pool_visualizations" in info:
-                    viz_data = info["_task_pool_visualizations"]
-                    self._log_histograms(viz_data)
-                    break  # Only log once per epoch
+            # Access visualization data directly from the environment
+            env = getattr(self.context, "env", None)
+            if env is not None:
+                # For vectorized environments, access the driver environment
+                driver_env = getattr(env, "driver_env", None)
+                if driver_env is not None and hasattr(driver_env, "get_latest_viz_data"):
+                    viz_data = driver_env.get_latest_viz_data()
+                    if viz_data:
+                        self._log_histograms(viz_data)
         except Exception:
             # Fail silently - visualization is optional
             pass

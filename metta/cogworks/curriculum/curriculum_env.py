@@ -65,12 +65,15 @@ class CurriculumEnv(PufferEnv):
                 info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
             self._stats_update_counter = 0
 
-        # Check for visualization data - pass this through info dict for wandb logging
+        # Check for visualization data - store it as an attribute for wandb access
         # We check on each call but only generate when epoch changes
         viz_data = self._curriculum.get_visualization_data(self._current_epoch)
         if viz_data:
-            # Mark with underscore prefix so PufferLib won't try to average this data
-            info_dict["_task_pool_visualizations"] = viz_data
+            # Store visualization data as an attribute rather than in info dict
+            # to avoid PufferLib trying to average it
+            self._latest_viz_data = viz_data
+        elif not hasattr(self, "_latest_viz_data"):
+            self._latest_viz_data = None
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
@@ -136,6 +139,10 @@ class CurriculumEnv(PufferEnv):
         """Set the current training epoch for visualization tracking."""
         self._current_epoch = epoch
 
+    def get_latest_viz_data(self) -> dict:
+        """Get the latest visualization data if available."""
+        return getattr(self, "_latest_viz_data", None) or {}
+
     def __getattribute__(self, name: str):
         """Intercept all attribute access and delegate to wrapped environment when appropriate.
         This handles the case where PufferEnv defines methods that raise NotImplementedError,
@@ -157,6 +164,8 @@ class CurriculumEnv(PufferEnv):
             "_first_reset_done",
             "_current_epoch",
             "set_epoch",
+            "_latest_viz_data",
+            "get_latest_viz_data",
         ):
             return object.__getattribute__(self, name)
 
