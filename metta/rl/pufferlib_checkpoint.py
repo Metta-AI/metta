@@ -1,9 +1,9 @@
 """
 PufferLib checkpoint loading and conversion utilities.
 
-This module handles the integration between PufferLib checkpoints (state_dict format)
-and Metta agents, providing a clean abstraction for checkpoint format detection
-and conversion.
+This module provides integration between PufferLib checkpoints (state_dict format)
+and Metta agents. It detects checkpoint formats, preprocesses state dictionaries,
+and loads them into compatible Metta agents.
 """
 
 import logging
@@ -15,88 +15,83 @@ logger = logging.getLogger(__name__)
 
 
 def _is_puffer_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
-    """Check if object is a PufferLib state_dict."""
+    """Return True if the object appears to be a PufferLib state_dict."""
     return (
         isinstance(loaded_obj, dict)
-        and loaded_obj
-        and any(key.startswith("policy.") for key in loaded_obj.keys())
+        and bool(loaded_obj)
+        and any(key.startswith("policy.") for key in loaded_obj)
     )
 
 
 def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    """Remove PufferLib-specific prefixes from state dict keys and handle key mappings."""
+    """Map PufferLib-specific keys to Metta-compatible keys."""
     processed = {}
-    print(f"state_dict keys: {state_dict.keys()}")
-    print(f"state_dict keys: {len(state_dict)}")
 
     key_mappings = {
-        # Conv layers
+        # Convolution layers
         "policy.conv1.weight": "conv1.weight",
         "policy.conv1.bias": "conv1.bias",
         "policy.conv2.weight": "conv2.weight",
         "policy.conv2.bias": "conv2.bias",
-        # network param
+        # Fully connected layers
         "policy.network.0.weight": "network.0.weight",
         "policy.network.0.bias": "network.0.bias",
         "policy.network.2.weight": "network.2.weight",
         "policy.network.2.bias": "network.2.bias",
         "policy.network.5.weight": "network.5.weight",
         "policy.network.5.bias": "network.5.bias",
-        # self encoder params
-        # LSTM mappings - PufferLib checkpoint has different structure
+        # LSTM mappings (different structure in PufferLib)
         "lstm.weight_ih_l0": "lstm.net.weight_ih_l0",
         "lstm.weight_hh_l0": "lstm.net.weight_hh_l0",
         "lstm.bias_ih_l0": "lstm.net.bias_ih_l0",
         "lstm.bias_hh_l0": "lstm.net.bias_hh_l0",
-        # Cell mappings (duplicates in checkpoint) - map to same LSTM targets
+        # Alternate cell mappings (duplicates in checkpoint)
         "cell.weight_ih": "lstm.net.weight_ih_l0",
         "cell.weight_hh": "lstm.net.weight_hh_l0",
         "cell.bias_ih": "lstm.net.bias_ih_l0",
         "cell.bias_hh": "lstm.net.bias_hh_l0",
-        # value
+        # Value head
         "policy.value.weight": "value.weight",
         "policy.value.bias": "value.bias",
-        # actor
+        # Actor head
         "policy.actor.0.weight": "actor.0.weight",
         "policy.actor.0.bias": "actor.0.bias",
         "policy.actor.1.weight": "actor.1.weight",
         "policy.actor.1.bias": "actor.1.bias",
     }
 
-    for key, value in key_mappings.items():
-        puffer_tensor = state_dict[key]
-        processed[value] = puffer_tensor
+    for src_key, dst_key in key_mappings.items():
+        if src_key in state_dict:
+            processed[dst_key] = state_dict[src_key]
+        else:
+            logger.debug(f"Missing expected key in checkpoint: {src_key}")
 
-    logger.info(f"Preprocessed state_dict: {len(state_dict)} -> {len(processed)} parameters")
+    logger.info(f"Preprocessed checkpoint: {len(state_dict)} -> {len(processed)} parameters")
     return processed
 
 
 def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
-    """Create a Policy with PufferLib-compatible configuration for checkpoint loading."""
-    from metta.agent.policies.pufferlib_compatible import PufferLibCompatibleConfig, PufferLibCompatiblePolicy
+    """Instantiate a PufferLib-compatible Metta policy for checkpoint loading."""
+    from metta.agent.policies.pufferlib_compatible import (
+        PufferLibCompatibleConfig,
+        PufferLibCompatiblePolicy,
+    )
     from mettagrid import MettaGridEnv
     from mettagrid.builder.envs import make_arena
 
-    # Create minimal environment for agent initialization
+    # Minimal environment for initialization
     env_cfg = make_arena(num_agents=60)
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
-    # Create a PufferLib-compatible policy configuration
     policy_cfg = PufferLibCompatibleConfig()
+    policy = PufferLibCompatiblePolicy(temp_env, policy_cfg).to(device)
 
-    # Create the policy directly
-    policy = PufferLibCompatiblePolicy(temp_env, policy_cfg)
-    print(f"policy: {policy.state_dict().keys()}")
-    print(f"policy: {len(policy.state_dict())}")
     temp_env.close()
-
-    policy = policy.to(device)
-
     return policy
 
 
 def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]) -> Any:
-    """Load state dict into policy, handling compatibility issues."""
+    """Load a state_dict into a policy, handling key and shape mismatches."""
     policy_state = policy.state_dict()
     compatible_state = {}
     shape_mismatches = []
@@ -104,41 +99,47 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
     keys_matched = 0
     for key, value in state_dict.items():
         if key in policy_state:
-            policy_param = policy_state[key]
-            if policy_param.shape == value.shape:
+            target_param = policy_state[key]
+            if target_param.shape == value.shape:
                 compatible_state[key] = value
                 keys_matched += 1
             else:
-                shape_mismatches.append(f"{key}: PufferLib {value.shape} vs Metta {policy_param.shape}")
-                logger.debug(f"Shape mismatch for {key}: PufferLib {value.shape} vs Metta {policy_param.shape}")
+                shape_mismatches.append(
+                    f"{key}: checkpoint {value.shape} vs policy {target_param.shape}"
+                )
+                logger.debug(
+                    f"Shape mismatch for {key}: checkpoint {value.shape} vs policy {target_param.shape}"
+                )
         else:
-            logger.debug(f"Skipping incompatible parameter: {key}")
+            logger.debug(f"Skipping unmatched parameter: {key}")
 
     if shape_mismatches:
-        logger.warning(f"Found mismatches for {len(shape_mismatches)} parameters")
+        logger.warning(f"Shape mismatches found for {len(shape_mismatches)} parameters")
 
     logger.info(f"Loaded {keys_matched}/{len(state_dict)} compatible parameters")
 
-    if compatible_state:
-        try:
-            policy.load_state_dict(compatible_state, strict=False)
-            logger.info("Successfully loaded PufferLib checkpoint into Metta policy")
-            logger.warning("Proceeding with random initialization")
-        except Exception as e:
-            logger.error(f"Failed to load state dict: {e}")
-            raise
-    else:
-        raise Exception("No compatible parameters found")
+    if not compatible_state:
+        raise RuntimeError("No compatible parameters found in checkpoint")
+
+    try:
+        policy.load_state_dict(compatible_state, strict=False)
+        logger.info("Successfully loaded checkpoint into Metta policy")
+    except Exception as e:
+        logger.error(f"Failed to load checkpoint: {e}")
+        raise
+
     return policy
 
 
 class PufferLibCheckpoint:
-    """Simple checkpoint loader supporting both Metta and PufferLib formats."""
+    """Loader for checkpoints in both Metta and PufferLib formats."""
 
     def load_checkpoint(self, checkpoint_data: Any, device: str | torch.device = "cpu") -> Any:
-        # If it's a PufferLib state_dict, create policy and load weights
-        logger.info("Loading PufferLib checkpoint format (state_dict)")
-        logger.debug(f"Checkpoint keys sample: {list(checkpoint_data.keys())[:10]}")
+        logger.info("Loading checkpoint in PufferLib state_dict format")
+        if not isinstance(checkpoint_data, dict):
+            raise TypeError("Expected checkpoint_data to be a dict (state_dict format)")
+
+        logger.debug(f"Checkpoint sample keys: {list(checkpoint_data.keys())[:10]}")
         policy = _create_metta_agent(device)
-        processed_state_dict = _preprocess_state_dict(checkpoint_data)
-        return _load_state_dict_into_agent(policy, processed_state_dict)
+        processed_state = _preprocess_state_dict(checkpoint_data)
+        return _load_state_dict_into_agent(policy, processed_state)
