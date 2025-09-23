@@ -399,23 +399,29 @@ def main():
         allow_abbrev=True,
         epilog="""
 Examples:
-  %(prog)s arena.train run=test_123 trainer.total_timesteps=100000
-  %(prog)s arena.train run=test_123                      # 'experiments.recipes.' prefix optional
-  %(prog)s train arena run=test_123                      # two-part sugar: 'train arena' == 'arena.train'
+  %(prog)s arena.train run=test_123                      # Shorthand (recommended)
+  %(prog)s experiments.recipes.arena.train run=test_123  # Full path (still works)
+  %(prog)s train arena run=test_123                      # Two-token syntax
   %(prog)s arena.play \
     policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
   %(prog)s arena.train optim='{"lr":1e-3,"beta1":0.9}'
 
-Rules:
-  - Dotted keys (a.b.c) are configuration paths and will be nested and validated.
-  - Exact parameter names are function arguments for factory functions.
-  - Values: true/false, null/none, JSON containers {...}/[...], or int/float/string.
-  - Tool args are plain key=value tokens. If you need to pass flags to the runner, use them
-    before `--`. Put tool args after `--` if there is any ambiguity.
+Common verbs:
+  train           - Train a new policy
+  play            - Interactive browser-based gameplay
+  replay          - View recorded gameplay
+  evaluate        - Run evaluation suite (aliases: eval, sim)
+  evaluate_remote - Remote evaluation (aliases: eval_remote, sim_remote)
 
-Verb aliases:
-  - Non-remote: evaluate / eval / sim (all map to evaluation)
-  - Remote: evaluate_remote / eval_remote / sim_remote
+Recipe requirements:
+  - Define mettagrid() -> MettaGridConfig for basic functionality
+  - Define simulations() -> list[SimulationConfig] for custom evaluations
+  - Or define explicit tool functions for full control
+
+Advanced:
+  %(prog)s arena.train -h                           # List all arguments
+  %(prog)s arena.train --dry-run                    # Validate without running
+  %(prog)s arena.train run=test trainer.lr=0.001    # Override nested config
 
 This script automatically determines which arguments are meant for the tool
 constructor/function vs configuration overrides based on introspection.
@@ -434,6 +440,7 @@ constructor/function vs configuration overrides based on introspection.
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
     parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
+    parser.add_argument("--list-tools", action="store_true", help="List available verbs for a recipe module and exit")
     parser.add_argument(
         "-h", "--help", action="store_true", help="Show help and list all available arguments for the tool"
     )
@@ -488,6 +495,10 @@ constructor/function vs configuration overrides based on introspection.
     signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))  # 130 = interrupted by Ctrl-C
 
     # Determine the tool path and adjust remaining args accordingly
+    # Warn on ambiguous two-token like 'train train'
+    if two_part_second and known_args.make_tool_cfg_path == two_part_second:
+        output_info(yellow("Hint: two-token form looks ambiguous (e.g., 'train train')."))
+
     from metta.common.tool.resolve import DEFAULT_VERB_ALIASES as _VERB_ALIASES
 
     candidate_paths = generate_candidate_paths(
@@ -556,9 +567,34 @@ constructor/function vs configuration overrides based on introspection.
     nested_cli = nestify(cli_args)
 
     if resolved_path is None or make_tool_cfg is None:
-        # Show the most relevant error: prefer the error from the first candidate
-        target, err = load_errors[0]
-        output_exception(f"{red('Error loading')} {target}: {err}")
+        output_error(f"{red('Error:')} Could not find tool '{known_args.make_tool_cfg_path}'")
+
+        # Check if it's a recipe that might need inference and suggest verbs
+        import importlib
+
+        module_cache: dict[str, object] = {}
+        for cand in candidate_paths:
+            if "." in cand:
+                module_name, verb = cand.rsplit(".", 1)
+                try:
+                    mod = module_cache.get(module_name) or importlib.import_module(module_name)
+                    module_cache[module_name] = mod
+                except Exception:
+                    continue
+                if hasattr(mod, "mettagrid") or hasattr(mod, "simulations"):
+                    output_info(f"\n{yellow('Hint:')} Recipe '{module_name}' exists but doesn't define '{verb}'.")
+                    output_info(
+                        "Available inferred verbs: train, play, replay, "
+                        "evaluate (or eval/sim), evaluate_remote (or eval_remote/sim_remote)"
+                    )
+                    break
+
+        # Show what was tried (first 3 attempts)
+        if load_errors:
+            output_info(f"\n{yellow('Searched in:')}")
+            for i, (target, err) in enumerate(load_errors[:3]):
+                output_info(f"  {i + 1}. {target}: {str(err)[:80]}...")
+
         return 1
 
     output_info(f"\n{bold(cyan('Loading tool:'))} {resolved_path}")
@@ -566,6 +602,24 @@ constructor/function vs configuration overrides based on introspection.
     # If help flag is set, list arguments and exit
     if known_args.help:
         list_tool_arguments(make_tool_cfg, console)
+        return 0
+
+    # List-tools: show available verbs for the module
+    if known_args.list_tools and resolved_path:
+        import importlib
+
+        from metta.common.tool.infer_tool import get_available_verbs
+
+        module_name = resolved_path.rsplit(".", 1)[0]
+        try:
+            mod = importlib.import_module(module_name)
+            verbs = get_available_verbs(mod)
+            console.print(f"\n[bold]Available tools for {module_name}:[/bold]\n")
+            for verb in verbs:
+                console.print(f"  {module_name}.{verb}")
+        except Exception as e:
+            output_exception(f"{red('Error listing tools for')} {module_name}: {e}")
+            return 1
         return 0
 
     # ----------------------------------------------------------------------------------

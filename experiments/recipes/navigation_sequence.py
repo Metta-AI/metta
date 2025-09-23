@@ -69,6 +69,10 @@ def mettagrid() -> MettaGridConfig:
     return make_env()
 
 
+def simulations() -> list[SimulationConfig]:
+    return list(make_navigation_sequence_eval_suite())
+
+
 def make_curriculum(
     nav_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
@@ -151,10 +155,3 @@ def train(
         evaluator=evaluator_cfg,
         run=run,
     )
-
-
-"""Play and replay are provided implicitly via mettagrid() inference."""
-
-
-def simulations() -> list[SimulationConfig]:
-    return list(make_navigation_sequence_eval_suite())

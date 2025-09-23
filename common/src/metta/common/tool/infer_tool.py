@@ -38,6 +38,32 @@ VERB_ALIASES = {
 }
 
 
+def get_available_verbs(module: ModuleType) -> list[str]:
+    """Return list of verbs available for a module (explicit + inferred)."""
+    available: list[str] = []
+
+    # Explicit functions
+    for verb in ["train", "play", "replay", "evaluate", "sim", "eval", "evaluate_remote", "eval_remote", "sim_remote"]:
+        fn = getattr(module, verb, None)
+        if callable(fn):
+            available.append(verb)
+
+    # Inference possibilities
+    has_mg = _resolve_mettagrid(module) is not None
+    has_sims = _resolve_simulations(module) is not None
+
+    if has_mg:
+        for v in ["train", "play", "replay"]:
+            if v not in available:
+                available.append(v)
+    if has_mg or has_sims:
+        for v in ["evaluate", "eval", "sim", "evaluate_remote", "eval_remote", "sim_remote"]:
+            if v not in available:
+                available.append(v)
+
+    return sorted(set(available))
+
+
 def _resolve_mettagrid(module: ModuleType) -> MettaGridConfig | None:
     """Find and call mettagrid() in the recipe module to get a MettaGridConfig."""
     mg_fn = getattr(module, "mettagrid", None)

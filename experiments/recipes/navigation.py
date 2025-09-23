@@ -37,7 +37,8 @@ def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
     return nav
 
 
-"""Default mettagrid() defined above."""
+def simulations() -> list[SimulationConfig]:
+    return list(make_navigation_eval_suite())
 
 
 def make_curriculum(
@@ -108,10 +109,3 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
     )
-
-
-"""Play/replay/evaluate are provided implicitly via mettagrid()/simulations() inference."""
-
-
-def simulations() -> list[SimulationConfig]:
-    return list(make_navigation_eval_suite())
