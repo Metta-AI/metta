@@ -65,7 +65,15 @@ def open_browser(replay_url: str, cfg: ReplayTool) -> None:
 
             # Run a metascope server that serves the replay
             # Create a PlayTool from ReplayTool (they have the same fields)
-            play_cfg = PlayTool(system=cfg.system, wandb=cfg.wandb, sim=cfg.sim, policy_uri=cfg.policy_uri, replay_dir=cfg.replay_dir, stats_dir=cfg.stats_dir, open_browser_on_start=cfg.open_browser_on_start)
+            play_cfg = PlayTool(
+                system=cfg.system,
+                wandb=cfg.wandb,
+                sim=cfg.sim,
+                policy_uri=cfg.policy_uri,
+                replay_dir=cfg.replay_dir,
+                stats_dir=cfg.stats_dir,
+                open_browser_on_start=cfg.open_browser_on_start,
+            )
 
             if cfg.open_browser_on_start:
                 server.run(play_cfg, open_url=full_url)

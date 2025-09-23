@@ -29,7 +29,9 @@ def mg_to_trainer(mg: MettaGridConfig) -> TrainerConfig:
     return TrainerConfig(curriculum=mg_to_curriculum(mg))
 
 
-def recipe_tool(tool: Literal["train", "sim", "play", "replay", "analyze"]) -> Callable[[Callable[..., object]], Callable[..., object]]:
+def recipe_tool(
+    tool: Literal["train", "sim", "play", "replay", "analyze"],
+) -> Callable[[Callable[..., object]], Callable[..., object]]:
     """Decorator to mark a recipe function's default tool when no verb is provided.
 
     Example:
@@ -39,6 +41,7 @@ def recipe_tool(tool: Literal["train", "sim", "play", "replay", "analyze"]) -> C
     This lets `./tools/run.py my.module.my_custom_env` default to PlayTool,
     while `./tools/run.py sim my.module.my_custom_env policy_uri=...` still forces SimTool.
     """
+
     def _wrap(fn: Callable[..., object]) -> Callable[..., object]:
         setattr(fn, "_default_tool", tool)
         return fn
