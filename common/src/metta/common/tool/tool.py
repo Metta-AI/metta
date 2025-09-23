@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from typing import ClassVar, List
 
 from pydantic import Field
 
@@ -16,6 +17,10 @@ class Tool(Config):
     4) Run the tool with `./tools/run.py <path.to.tool.function>`.
 
     The function can optionally take arguments."""
+
+    # Optional canonical name for discovery and display; not a Pydantic field
+    tool_name: ClassVar[str | None] = None
+    tool_aliases: ClassVar[List[str]] = []
 
     system: SystemConfig = Field(default_factory=SystemConfig)
 

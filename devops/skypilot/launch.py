@@ -217,12 +217,12 @@ Examples:
                 sys.exit(1)
 
     # Accept shorthand like 'arena.train' by trying the experiments.recipes prefix only here.
-    from metta.common.tool.resolve import DEFAULT_VERB_ALIASES as _VERB_ALIASES
+    from metta.common.tool.discover import get_tool_aliases
 
     if not validate_module_path(
         args.module_path,
         auto_prefixes=["experiments.recipes"],
-        verb_aliases=_VERB_ALIASES,
+        verb_aliases=get_tool_aliases(),
     ):
         sys.exit(1)
 

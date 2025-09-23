@@ -229,7 +229,7 @@ Examples:
 ./tools/run.py arena.train run=test --verbose
 ```
 
-### Recipe Inference and Verb Aliases
+### Recipe Inference and Aliases
 
 Recipes should expose simple functions:
 
@@ -240,9 +240,14 @@ def simulations() -> list[SimulationConfig]: ...  # optional curated eval suite
 
 When present, the runner can infer common verbs even if not explicitly defined in the module. If both `simulations()`
 and `mettagrid()` exist, `simulations()` takes precedence for evaluation tools and the evaluator used by inferred
-training tools.
+training tools. Internally, tools use canonical names (train, play, replay, evaluate, evaluate_remote). CLI aliases
+like `eval`/`sim` map to `evaluate` and `eval_remote`/`sim_remote` map to `evaluate_remote` at the CLI layer.
 
-- Inferred verbs: `train`, `play`, `replay`, `evaluate`/`eval`/`sim` (non‑remote), and `evaluate_remote`/`eval_remote`/`sim_remote` (remote)
+Inference details:
+- Play: uses `mettagrid()` to construct the interactive environment (does not use `simulations()`).
+- Replay: uses `simulations()[0]` when available; falls back to `mettagrid()` if `simulations()` is absent.
+
+- Inferred tools: `train`, `play`, `replay`, `evaluate` (alias: `eval`/`sim`), and `evaluate_remote` (alias: `eval_remote`/`sim_remote`)
 - Example:
   - `./tools/run.py arena.play`
   - `./tools/run.py arena.sim policy_uris=mock://test` (alias for `arena.evaluate`)

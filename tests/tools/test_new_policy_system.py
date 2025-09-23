@@ -51,7 +51,7 @@ class TestNewPolicySystem:
         assert sim is not None
         assert sim.name == "sim_suite/test"
 
-    def test_sim_tool_with_policy_uris(self):
+    def test_eval_tool_with_policy_uris(self):
         """Test EvalTool with policy URIs."""
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
