@@ -40,17 +40,22 @@ jobs:
           python-version: "3.11.7"
       - run: pipx run build --sdist --outdir dist packages/mettagrid
       - name: Verify sdist version
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mettagrid-v')
         run: |
-          expected="${GITHUB_REF_NAME#mettagrid-v}"
           sdist=$(ls dist/mettagrid-*.tar.gz)
-          actual=$(basename "$sdist")
-          actual=${actual#mettagrid-}
-          actual=${actual%.tar.gz}
-          actual=${actual%%+*}
-          if [ "$actual" != "$expected" ]; then
-            echo "Expected sdist version $expected but found $actual"
+          version=$(basename "$sdist")
+          version=${version#mettagrid-}
+          version=${version%.tar.gz}
+          version=${version%%+*}
+          if [ "$version" = "0.0.0" ]; then
+            echo "Detected fallback sdist version 0.0.0. Aborting."
             exit 1
+          fi
+          if [[ "${GITHUB_REF}" == refs/tags/mettagrid-v* ]]; then
+            expected="${GITHUB_REF_NAME#mettagrid-v}"
+            if [ "$version" != "$expected" ]; then
+              echo "Expected sdist version $expected but found $version"
+              exit 1
+            fi
           fi
       - uses: actions/upload-artifact@v4
         with:
@@ -90,15 +95,21 @@ jobs:
           package-dir: packages/mettagrid
           output-dir: wheelhouse
       - name: Verify wheel versions
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mettagrid-v')
         run: |
-          expected="${GITHUB_REF_NAME#mettagrid-v}"
+          expected=""
+          if [[ "${GITHUB_REF}" == refs/tags/mettagrid-v* ]]; then
+            expected="${GITHUB_REF_NAME#mettagrid-v}"
+          fi
           for wheel in wheelhouse/mettagrid-*.whl; do
             base=$(basename "$wheel")
             version=${base#mettagrid-}
             version=${version%%-*}
             version=${version%%+*}
-            if [ "$version" != "$expected" ]; then
+            if [ "$version" = "0.0.0" ]; then
+              echo "Detected fallback wheel version 0.0.0 in $base. Aborting."
+              exit 1
+            fi
+            if [ -n "$expected" ] && [ "$version" != "$expected" ]; then
               echo "Expected wheel version $expected but found $version in $base"
               exit 1
             fi
