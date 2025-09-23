@@ -121,7 +121,9 @@ class ObsTokenPadStrip(nn.Module):
         max_flip = row_lengths.max()
 
         # build a 1‐D "positions" row [0,1,2,…,L−1]
-        positions = torch.arange(M, device=obs_mask.device)
+        if not hasattr(self, "_positions") or self._positions.device != obs_mask.device or self._positions.numel() < M:
+            self._positions = torch.arange(M, device=obs_mask.device)
+        positions = self._positions[:M]
 
         # make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool

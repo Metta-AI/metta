@@ -1,4 +1,3 @@
-import contextlib
 import logging
 from collections import OrderedDict
 
@@ -42,15 +41,6 @@ class PolicyAutoBuilder(nn.Module):
         self.action_probs = self.config.action_probs_config.make_component()
 
         self.network = TensorDictSequential(self.components, inplace=True)
-        self._sdpa_kernel_stack = contextlib.ExitStack()
-
-        self._runner = self._run_network
-        if getattr(self.config, "compile_policy", False) and hasattr(torch, "compile"):
-            compile_kwargs = {
-                "mode": getattr(self.config, "compile_mode", "default"),
-                "dynamic": getattr(self.config, "compile_dynamic", True),
-            }
-            self._runner = torch.compile(self._runner, **compile_kwargs)
 
         # PyTorch's nn.Module no longer exposes count_params(); defer to manual
         # aggregation to avoid AttributeError during policy construction.
@@ -61,17 +51,10 @@ class PolicyAutoBuilder(nn.Module):
         )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
-        compiler_mod = getattr(torch, "compiler", None)
-        mark_step = getattr(compiler_mod, "cudagraph_mark_step_begin", None)
-        if mark_step is not None:
-            mark_step()
-        self._runner(td, action)
-        td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
-        return td
-
-    def _run_network(self, td: TensorDict, action: torch.Tensor = None) -> None:
         self.network(td)
         self.action_probs(td, action)
+        td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
+        return td
 
     def initialize_to_environment(
         self,
@@ -79,31 +62,6 @@ class PolicyAutoBuilder(nn.Module):
         device: torch.device,
     ):
         self.to(device)
-        device_type = device.type
-        self._sdpa_kernel_stack.close()
-        self._sdpa_kernel_stack = contextlib.ExitStack()
-        if device_type == "cuda":
-            attention_mod = getattr(torch.nn, "attention", None)
-            if (
-                attention_mod is not None
-                and hasattr(attention_mod, "sdpa_kernel")
-                and hasattr(attention_mod, "SDPBackend")
-            ):
-                backends = [
-                    attention_mod.SDPBackend.FLASH_ATTENTION,
-                    attention_mod.SDPBackend.EFFICIENT_ATTENTION,
-                ]
-                try:
-                    self._sdpa_kernel_stack.enter_context(attention_mod.sdpa_kernel(backends=backends))
-                except TypeError:
-                    torch.backends.cuda.sdp_kernel(
-                        enable_flash=True,
-                        enable_mem_efficient=True,
-                        enable_math=False,
-                    )
-            else:
-                torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
-            torch.set_float32_matmul_precision("high")
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):

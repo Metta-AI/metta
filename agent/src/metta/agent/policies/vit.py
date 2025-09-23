@@ -70,10 +70,6 @@ class ViTDefaultConfig(ViTSmallConfig):
     _lstm_latent = 96
     _critic_hidden = 256
 
-    compile_policy: bool = True
-    compile_dynamic: bool = True
-    compile_mode: str = "max-autotune"
-
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
         ObsAttrCoordEmbedConfig(
