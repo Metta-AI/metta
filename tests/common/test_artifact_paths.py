@@ -92,3 +92,12 @@ def test_parsed_uri_bucket_root_has_no_key():
     parsed = ParsedURI.parse("s3://bucket")
     assert parsed.bucket == "bucket"
     assert parsed.key is None
+
+
+def test_artifact_reference_with_policy_and_simulation_helpers():
+    base = ensure_artifact_reference("s3://bucket/replays")
+    assert base is not None
+    policy_root = base.with_policy("run_a", 4)
+    assert str(policy_root.value) == "s3://bucket/replays/run_a/v4"
+    sim_root = policy_root.with_simulation("suite", "sim", simulation_id="abc123")
+    assert str(sim_root.value) == "s3://bucket/replays/run_a/v4/suite/sim/abc123"

@@ -46,7 +46,10 @@ def _join_value(base: ArtifactBase, cleaned: list[str]) -> ArtifactBase:
             return f"s3://{parsed.bucket}/{key}" if key else f"s3://{parsed.bucket}"
 
         if parsed.scheme == "gdrive":
-            prefix = (parsed.path or "").rstrip("/")
+            raw_path = parsed.path or ""
+            if raw_path.startswith("gdrive://"):
+                raw_path = raw_path[len("gdrive://") :]
+            prefix = raw_path.rstrip("/")
             joined = "/".join(filter(None, [prefix, *cleaned]))
             return f"gdrive://{joined}" if joined else parsed.raw
 
@@ -87,6 +90,30 @@ class ArtifactReference:
     def __str__(self) -> str:  # pragma: no cover - convenience repr
         return self.as_str()
 
+    def with_policy(self, run_name: Optional[str], epoch: Optional[int]) -> "ArtifactReference":
+        """Return a replay root nested under a policy run/epoch."""
+
+        if not run_name:
+            return self
+        policy_root = self.join(run_name)
+        if epoch:
+            return policy_root.join(f"v{epoch}")
+        return policy_root
+
+    def with_simulation(
+        self,
+        suite: str,
+        name: str,
+        *,
+        simulation_id: Optional[str] = None,
+    ) -> "ArtifactReference":
+        """Append simulation suite/name (and optional ID) to this reference."""
+
+        sim_root = self.join(suite, name)
+        if simulation_id:
+            return sim_root.join(simulation_id)
+        return sim_root
+
     def as_path(self) -> Path:
         if isinstance(self.value, Path):
             return self.value
@@ -97,6 +124,8 @@ class ArtifactReference:
 
     def to_public_url(self) -> Optional[str]:
         candidate = http_url(str(self.value))
+        if candidate.startswith("file://"):
+            return None
         if candidate == str(self.value) and not candidate.startswith(("http://", "https://")):
             return None
         return candidate
@@ -134,10 +163,7 @@ def artifact_policy_run_root(
     if ref is None or not run_name:
         return ref
 
-    run_root = ref.join(run_name)
-    if epoch:
-        return run_root.join(f"v{epoch}")
-    return run_root
+    return ref.with_policy(run_name, epoch)
 
 
 def artifact_simulation_root(
@@ -152,10 +178,7 @@ def artifact_simulation_root(
     ref = ensure_artifact_reference(base)
     if ref is None:
         return None
-    sim_root = ref.join(suite, name)
-    if simulation_id:
-        return sim_root.join(simulation_id)
-    return sim_root
+    return ref.with_simulation(suite, name, simulation_id=simulation_id)
 
 
 __all__ = [
