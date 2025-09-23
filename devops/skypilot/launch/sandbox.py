@@ -311,6 +311,7 @@ Examples:
   %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
   %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
+  %(prog)s --new --cheap  # Launch a cheap CPU-only sandbox (t3.medium)
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
 
@@ -340,6 +341,9 @@ Common management commands:
         default=300,
         help="Timeout in seconds to wait for cluster to reach UP state (default: 300)",
     )
+    parser.add_argument(
+        "--cheap", action="store_true", help="Launch a cheap CPU-only sandbox (t3.medium, ~$0.04/hour)"
+    )
 
     args = parser.parse_args()
 
@@ -365,11 +369,18 @@ Common management commands:
 
     # Launch new sandbox
     cluster_name = get_next_sandbox_name(existing_clusters)
-    print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
+
+    # Determine configuration based on --cheap flag
+    if args.cheap:
+        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CHEAP MODE')} (CPU-only, t3.medium)")
+        config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
+    else:
+        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
+        config_path = "./devops/skypilot/config/sandbox.yaml"
+
     print(f"🔌 Git ref: {cyan(git_ref)}")
 
     # Load configuration
-    config_path = "./devops/skypilot/config/sandbox.yaml"
     config = load_sandbox_config(config_path)
 
     # Extract cloud configuration
@@ -377,17 +388,24 @@ Common management commands:
     cloud = resources.get("cloud", "aws")
     region = resources.get("region", "us-east-1")
 
-    # Parse GPU type from the config (e.g., "L4:1" -> "L4")
-    accelerators_str = resources.get("accelerators", "L4:1")
-    gpu_type = accelerators_str.split(":")[0]
-
-    # Get instance type and calculate cost
-    instance_type, region, hourly_cost = get_gpu_instance_info(args.gpus, gpu_type, region, cloud)
-
-    if instance_type:
+    if args.cheap:
+        # For cheap mode, we know the instance type from config
+        instance_type = resources.get("instance_type", "t3.medium")
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+        # t3.medium is approximately $0.04/hour on-demand
+        print(f"Approximate cost: {green('~$0.04/hour')} (on-demand pricing)")
+    else:
+        # Parse GPU type from the config (e.g., "L4:1" -> "L4")
+        accelerators_str = resources.get("accelerators", "L4:1")
+        gpu_type = accelerators_str.split(":")[0]
 
-    print_cost_info(hourly_cost, args.gpus)
+        # Get instance type and calculate cost
+        instance_type, region, hourly_cost = get_gpu_instance_info(args.gpus, gpu_type, region, cloud)
+
+        if instance_type:
+            print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+
+        print_cost_info(hourly_cost, args.gpus)
 
     autostop_hours = 48
 
@@ -395,7 +413,11 @@ Common management commands:
     with spinner("Preparing task configuration", style=cyan):
         task = sky.Task.from_yaml(config_path)
         set_task_secrets(task)
-        task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
+
+        if not args.cheap:
+            # Only override GPU resources for non-cheap mode
+            task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
+
         task.update_envs({"METTA_GIT_REF": git_ref})
         time.sleep(1)
 
@@ -465,6 +487,58 @@ Common management commands:
             print(f"  • Manual SSH: {green(f'ssh {cluster_name}')}")
             print(f"  • Update SSH config: {green(f'sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
+
+    # For cheap mode, SCP the additional files over
+    if args.cheap:
+        print("\n📤 Transferring additional files to sandbox...")
+        scp_success = True
+
+        # Transfer .sky folder
+        with spinner("Copying ~/.sky folder", style=cyan):
+            try:
+                sky_path = os.path.expanduser("~/.sky")
+                if os.path.exists(sky_path):
+                    subprocess.run(
+                        ["scp", "-rq", sky_path, f"{cluster_name}:~/"],
+                        check=True,
+                        capture_output=True,
+                    )
+                    print(f"  {green('✓')} ~/.sky folder transferred")
+                else:
+                    print(f"  {yellow('⚠')} ~/.sky folder not found locally")
+                    scp_success = False
+            except subprocess.CalledProcessError as e:
+                print(f"  {red('✗')} Failed to transfer ~/.sky folder: {str(e)}")
+                scp_success = False
+
+        # Transfer observatory tokens
+        with spinner("Copying ~/.metta/observatory_tokens.yaml", style=cyan):
+            try:
+                obs_path = os.path.expanduser("~/.metta/observatory_tokens.yaml")
+                if os.path.exists(obs_path):
+                    # Ensure remote directory exists
+                    subprocess.run(
+                        ["ssh", cluster_name, "mkdir", "-p", "~/.metta"],
+                        check=True,
+                        capture_output=True,
+                    )
+                    subprocess.run(
+                        ["scp", "-q", obs_path, f"{cluster_name}:~/.metta/observatory_tokens.yaml"],
+                        check=True,
+                        capture_output=True,
+                    )
+                    print(f"  {green('✓')} Observatory tokens transferred")
+                else:
+                    print(f"  {yellow('⚠')} Observatory tokens not found locally")
+            except subprocess.CalledProcessError as e:
+                print(f"  {red('✗')} Failed to transfer observatory tokens: {str(e)}")
+                scp_success = False
+
+        if not scp_success:
+            print(f"\n{yellow('⚠')} Some files failed to transfer.")
+            print("  You can manually copy them later with:")
+            print(f"    {green(f'scp -r ~/.sky {cluster_name}:~/')}")
+            print(f"    {green(f'scp ~/.metta/observatory_tokens.yaml {cluster_name}:~/.metta/')}")
 
     # Success!
     print(f"\n{green('✓')} Sandbox is ready!")
