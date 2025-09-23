@@ -166,8 +166,3 @@ class PufferLibCheckpoint:
         policy = _create_metta_agent(device)
         processed_state_dict = _preprocess_state_dict(checkpoint_data)
         return _load_state_dict_into_agent(policy, processed_state_dict)
-
-    def is_pufferlib_format(self, checkpoint_data: Any) -> bool:
-        """Check if checkpoint data is in PufferLib format."""
-        return _is_puffer_state_dict(checkpoint_data)
-
