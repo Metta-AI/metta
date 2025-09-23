@@ -139,15 +139,17 @@ class PPO(Loss):
         with torch.no_grad():
             with context.autocast():
                 rollout_td = self.policy.forward(rollout_td)
-            rollout_keys = list(rollout_td.keys(include_nested=False))
-            if "actions" not in rollout_keys:
+            try:
+                rollout_td_actions = rollout_td["actions"]
+            except KeyError:
                 raise RuntimeError(
                     "Policy.forward did not populate actions during rollout; received keys: "
-                    + str(rollout_keys)
+                    + str(list(rollout_td.keys(include_nested=False)))
                 )
 
         rollout_td = rollout_td.to(original_device, non_blocking=True)
-        td.update_(rollout_td)
+        for key in rollout_td.keys(include_nested=False):
+            td[key] = rollout_td[key]
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
