@@ -112,7 +112,7 @@ def train(
         losses=LossConfig(),
         batch_size=262_144,
         minibatch_size=8_192,
-        bptt_horizon=32,
+        bptt_horizon=16,
     )
 
     if policy_architecture is None:
