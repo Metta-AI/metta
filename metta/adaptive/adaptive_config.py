@@ -1,30 +1,16 @@
 """Simplified configuration for adaptive experiments."""
 
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class AdaptiveConfig:
-    """
-    Simple, focused configuration for adaptive experiments.
-
-    Contains only the essential settings - no nested hierarchies or unused fields.
-    """
-
+class AdaptiveConfig(BaseModel):
     # Core resource limits
-    max_parallel: int = 1
+    max_parallel: int = Field(default=1, gt=0)
 
     # Execution settings
-    monitoring_interval: int = 60
+    monitoring_interval: int = Field(default=60, gt=0)
     resume: bool = False  # Whether we are resuming from an existing experiment
     # TODO: In future, this check should be automatic.
 
     # Optional settings
-    experiment_tags: list[str] = field(default_factory=list)
-
-    def validate(self) -> None:
-        """Validate configuration values"""
-        if self.max_parallel <= 0:
-            raise ValueError("max_parallel must be positive")
-        if self.monitoring_interval <= 0:
-            raise ValueError("monitoring_interval must be positive")
+    experiment_tags: list[str] = Field(default_factory=list)
