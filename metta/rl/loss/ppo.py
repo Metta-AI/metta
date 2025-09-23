@@ -145,9 +145,7 @@ class PPO(Loss):
                 )
 
         if rollout_td is not td:
-            rollout_td = rollout_td.to(original_device, non_blocking=True)
-            for key in rollout_td.keys(include_nested=False):
-                td[key] = rollout_td[key]
+            td.update_(rollout_td.to(original_device, non_blocking=True))
 
         if "actions" not in td.keys(include_nested=False):
             rollout_keys = list(rollout_td.keys(include_nested=False))
@@ -396,7 +394,7 @@ class PPO(Loss):
             selected_advantages = advantages[idx]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
 
-        minibatch = minibatch_storage.to(self.device, non_blocking=True)
+        minibatch = minibatch_storage.to(self.device, non_blocking=True, copy=True)
         with torch.no_grad():
             adv_device = selected_advantages.to(self.device, non_blocking=True)
             minibatch["advantages"] = adv_device

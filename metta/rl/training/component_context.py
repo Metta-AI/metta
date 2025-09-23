@@ -6,6 +6,7 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, ContextManager, Dict, Optional
 
+import torch
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
@@ -98,7 +99,7 @@ class ComponentContext:
 
         self._autocast_factory: Callable[[], ContextManager[Any]] = contextlib.nullcontext
         self.amp_enabled: bool = False
-        self.amp_dtype: Any = None
+        self.amp_dtype: Any = torch.float32
 
     # ------------------------------------------------------------------
     # Epoch / step tracking

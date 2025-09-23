@@ -4,6 +4,7 @@ import torch
 from metta.agent.util.distribution_utils import (
     configure_sampling_backend,
     evaluate_actions,
+    reset_sampling_backend,
     sample_actions,
 )
 
@@ -171,10 +172,10 @@ class TestCompatibility:
 
 class TestSamplerBackendConfiguration:
     def setup_method(self) -> None:
-        configure_sampling_backend(False)
+        reset_sampling_backend()
 
     def teardown_method(self) -> None:
-        configure_sampling_backend(False)
+        reset_sampling_backend()
 
     def test_eager_backend_is_default(self) -> None:
         logits = torch.randn(4, 6)
