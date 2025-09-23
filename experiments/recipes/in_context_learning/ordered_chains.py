@@ -310,16 +310,14 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
         resource_chain = ["nothing"] + list(resources) + ["heart"]
 
-        chain_length = len(resource_chain)
-
-        for i in range(chain_length - 1):
+        for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
             self._add_converter(input_resource, output_resource, cfg, rng=rng)
 
         for _ in range(num_sinks):
             self._add_sink(cfg, rng=rng)
 
-        cooldown = avg_hop * (chain_length - 1)
+        cooldown = avg_hop * (len(resource_chain) - 1)
 
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = int(cooldown)
@@ -328,7 +326,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
-            dir = f"{numpy_dir}/{room_size}/{len(resources)}chains_{num_sinks}sinks/{terrain}"
+            dir = f"{numpy_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
             env = make_icl_with_numpy(
                 num_agents=1,
                 num_instances=24,
@@ -366,7 +364,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             height=height,
             obstacle_type=obstacle_type,
             density=density,
-            chain_length=len(resources),
+            chain_length=len(resources) + 1,
             num_sinks=num_sinks,
         )
 
@@ -377,7 +375,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         numpy_dir: str | None = "icl_ordered_chains",
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
-        num_resources = rng.choice(self.config.chain_lengths)
+        num_resources = rng.choice(self.config.chain_lengths) - 1
         num_sinks = rng.choice(self.config.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
         room_size = rng.choice(self.config.room_sizes)
@@ -566,7 +564,9 @@ def experiment():
 
 
 def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
-    for chain_length in range(2, 9):
+    for chain_length in range(
+        2, 8
+    ):  # chain length should be equal to the number of converters, which is equal to the number of resources + 1
         for n_sinks in range(0, 3):
             for room_size in ["tiny", "small", "medium"]:
                 for terrain_type in ["", "terrain"]:
@@ -639,6 +639,6 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
 
 
 if __name__ == "__main__":
-    experiment()
-# save_envs_to_numpy()
+    # experiment()
+    save_envs_to_numpy()
 # generate_reward_estimates()
