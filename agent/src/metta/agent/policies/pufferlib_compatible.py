@@ -189,17 +189,12 @@ class PufferLibCompatiblePolicy(Policy):
         observations = td["env_obs"]
         hidden = self.encode_observations(observations)
 
-        # # Add sequence dimension for LSTM: [B, 512] -> [B, 1, 512]
-        # hidden = hidden.unsqueeze(1)
-
         td["encoded_obs"] = hidden
 
         # Pass through LSTM: [B, 512] -> [B, 512]
         self.lstm(td)
         hidden = td["core"]
 
-        # # Remove sequence dimension: [B, 1, 512] -> [B, 512]
-        # hidden = lstm_out.squeeze(1)
 
         # Decode actions and value
         logits, value = self.decode_actions(hidden)
