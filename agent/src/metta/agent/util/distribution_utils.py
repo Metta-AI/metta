@@ -31,6 +31,13 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
 
     # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
+    is_valid = torch.all(torch.isfinite(action_probs) & (action_probs >= 0), dim=-1, keepdim=True)
+    if not torch.all(is_valid):
+        action_probs = torch.where(
+            is_valid,
+            action_probs,
+            torch.full_like(action_probs, 1.0 / action_logits.shape[-1]),
+        )
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
 
     # Extract log-probabilities for sampled actions using advanced indexing
