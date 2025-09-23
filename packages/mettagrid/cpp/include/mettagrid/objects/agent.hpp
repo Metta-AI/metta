@@ -22,8 +22,6 @@ public:
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
-  std::map<InventoryItem, RewardType> resource_rewards;
-  std::map<InventoryItem, RewardType> resource_reward_max;
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
   std::map<InventoryItem, InventoryQuantity> resource_limits;
@@ -51,8 +49,6 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::North),
-        resource_rewards(config.resource_rewards),
-        resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
         stat_reward_max(config.stat_reward_max),
         resource_limits(config.resource_limits),
@@ -169,21 +165,19 @@ public:
 
     const InventoryDelta delta = this->HasInventory::update_inventory(item, attempted_delta);
 
-    // Update stats
-    if (delta > 0) {
-      this->stats.add(this->stats.resource_name(item) + ".gained", delta);
-    } else if (delta < 0) {
-      this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
+    if (delta != 0) {
+      if (delta > 0) {
+        this->stats.add(this->stats.resource_name(item) + ".gained", delta);
+      } else if (delta < 0) {
+        this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
+      }
+      InventoryQuantity current_amount = 0;
+      auto inv_it = this->inventory.find(item);
+      if (inv_it != this->inventory.end()) {
+        current_amount = inv_it->second;
+      }
+      this->stats.set(this->stats.resource_name(item), current_amount);
     }
-
-    InventoryQuantity new_amount = 0;
-    auto inv_it = this->inventory.find(item);
-    if (inv_it != this->inventory.end()) {
-      new_amount = inv_it->second;
-    }
-
-    // Update resource rewards incrementally
-    this->_update_resource_reward(item, new_amount - delta, new_amount);
 
     return delta;
   }
@@ -250,31 +244,6 @@ public:
   }
 
 private:
-  inline void _update_resource_reward(InventoryItem item, InventoryQuantity old_amount, InventoryQuantity new_amount) {
-    // Early exit if this item doesn't contribute to rewards
-    auto reward_it = this->resource_rewards.find(item);
-    if (reward_it == this->resource_rewards.end()) {
-      return;
-    }
-
-    // Calculate the old and new contributions from this item
-    float reward_per_item = reward_it->second;
-    float old_contribution = reward_per_item * old_amount;
-    float new_contribution = reward_per_item * new_amount;
-
-    // Apply per-item cap if it exists
-    auto max_it = this->resource_reward_max.find(item);
-    if (max_it != this->resource_reward_max.end()) {
-      float reward_cap = max_it->second;
-      old_contribution = std::min(old_contribution, reward_cap);
-      new_contribution = std::min(new_contribution, reward_cap);
-    }
-
-    // Update both the current resource reward and the total reward
-    float reward_delta = new_contribution - old_contribution;
-    *this->reward += reward_delta;
-  }
-
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const {
     if (visitation_grid.empty() || r >= static_cast<GridCoord>(visitation_grid.size()) ||
         c >= static_cast<GridCoord>(visitation_grid[0].size())) {
