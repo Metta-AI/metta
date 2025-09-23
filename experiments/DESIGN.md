@@ -50,7 +50,7 @@ class LearningRateABTest(Experiment):
             trainer = TrainerConfig(
                 num_workers=4,
                 optimizer=OptimizerConfig(learning_rate=lr),
-                checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
+                checkpoint=CheckpointConfig(),  # checkpoints saved under <run_dir>/<run>/checkpoints
                 simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
                 profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
             )
@@ -143,7 +143,7 @@ trainer = TrainerConfig(
         type="muon",
         learning_rate=0.001,
     ),
-    checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
+    checkpoint=CheckpointConfig(),  # checkpoints saved under <run_dir>/<run>/checkpoints
     simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
     profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
 )
