@@ -51,8 +51,6 @@ class PPOConfig(Config):
     # L2 regularization defaults to disabled
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
-    # KL penalty coefficient (0 disables KL penalty)
-    kl_penalty_coef: float = Field(default=0, ge=0)
 
     # Normalization and clipping
     # Advantage normalization toggle
@@ -272,7 +270,7 @@ class PPO(Loss):
         adv = prio_weights * adv
 
         # Compute losses
-        pg_loss, v_loss, entropy_loss, kl_penalty_loss, approx_kl, clipfrac = self.compute_ppo_losses(
+        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self.compute_ppo_losses(
             minibatch,
             new_logprob,
             entropy,
@@ -281,7 +279,7 @@ class PPO(Loss):
             adv,
         )
 
-        loss = pg_loss - cfg.ent_coef * entropy_loss + v_loss * cfg.vf_coef + cfg.kl_penalty_coef * kl_penalty_loss
+        loss = pg_loss - cfg.ent_coef * entropy_loss + v_loss * cfg.vf_coef
 
         # Update values and ratio in experience buffer
         update_td = TensorDict(
@@ -294,7 +292,6 @@ class PPO(Loss):
         self._track("policy_loss", pg_loss)
         self._track("value_loss", v_loss)
         self._track("entropy", entropy_loss)
-        self._track("kl_penalty_loss", kl_penalty_loss)
         self._track("approx_kl", approx_kl)
         self._track("clipfrac", clipfrac)
         self._track("importance", importance_sampling_ratio.mean())
@@ -310,7 +307,7 @@ class PPO(Loss):
         newvalue: Tensor,
         importance_sampling_ratio: Tensor,
         adv: Tensor,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         """Compute PPO losses for policy and value functions."""
         # Policy loss
         pg_loss1 = -adv * importance_sampling_ratio
@@ -346,10 +343,7 @@ class PPO(Loss):
             approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
             clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.loss_cfg.clip_coef).float().mean()
 
-        # KL penalty loss
-        kl_penalty_loss = approx_kl
-
-        return pg_loss, v_loss, entropy_loss, kl_penalty_loss, approx_kl, clipfrac
+        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
 
     def _sample_minibatch(
         self,
