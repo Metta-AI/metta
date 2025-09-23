@@ -177,7 +177,6 @@ class Simulation:
 
         # Create and return simulation
         return cls(
-            sim_config.name,
             sim_config,
             policy,
             policy_uri or "mock://",
