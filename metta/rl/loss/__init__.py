@@ -1,10 +1,8 @@
-"""Lazy-loading facade for training components.
+"""Lazy-loading facade for loss components.
 
 This avoids import-time circular dependencies between loss modules and the
-training package by deferring heavy submodule imports until the symbols are
-actually needed. External callers can continue to use
-``from metta.rl.training import Evaluator`` and similar statements without
-change.
+loss package by deferring heavy submodule imports until the symbols are
+actually needed.
 """
 
 import importlib
@@ -27,9 +25,9 @@ __all__ = ["LossConfig", "Loss", "PPOConfig"]
 
 
 def __getattr__(name: str) -> Any:
-    """Dynamically import training submodules on attribute access."""
+    """Dynamically import loss submodules on attribute access."""
     if name not in _EXPORTS:
-        raise AttributeError(f"module 'metta.rl.training' has no attribute '{name}'")
+        raise AttributeError(f"module 'metta.rl.loss' has no attribute '{name}'")
 
     module_path, attr_name = _EXPORTS[name]
     module = importlib.import_module(module_path)
