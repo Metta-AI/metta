@@ -10,6 +10,7 @@ py-modules = []
 dependencies = [
   "altair>=5.5.0",
   "anywidget>=0.9.18",
+  "asana>=5.2.2",
   "bidict>=0.23.1",
   "boto3>=1.38.32",
   "codebot",
@@ -46,7 +47,6 @@ dependencies = [
   "pydantic>=2.11.5",
   "pydantic-settings>=2.10.1",
   "pyro-ppl>=1.9.1",
-  "python-dotenv>=1.1.0",
   "pyyaml>=6.0.2",
   "schedulefree>=1.4.0",
   "rich>=13.9.4",
