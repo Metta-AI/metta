@@ -227,11 +227,16 @@ class TestStopwatch:
         stopwatch.start("estimate_test")
         time.sleep(0.1)
 
+        elapsed = stopwatch.get_elapsed("estimate_test")
+
         # Estimate at 25% completion
         remaining_seconds, remaining_str = stopwatch.estimate_remaining(25, 100, "estimate_test")
 
-        # Should be about 0.3 seconds (0.1 elapsed for 25 steps, so 0.3 for remaining 75)
-        assert remaining_seconds == pytest.approx(0.3, abs=0.1)
+        # If 25% took 'elapsed' seconds, then 75% should take 3x that
+        expected_remaining = elapsed * 3
+
+        # Should be extremely accurate since we're using the same elapsed time
+        assert remaining_seconds == pytest.approx(expected_remaining, rel=0.01)
         assert "sec" in remaining_str
 
         stopwatch.stop("estimate_test")
@@ -384,44 +389,172 @@ class TestStopwatch:
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
     def test_lap_all_with_running_and_stopped_timers(self, stopwatch: Stopwatch):
-        tol = 0.05
+        tol = 0.02  # Tighter tolerance for actual time comparisons
 
+        # Track when each timer was last started/stopped
+        timer_states = {
+            "A": {"running": False, "elapsed": 0.0, "last_start": None},
+            "B": {"running": False, "elapsed": 0.0, "last_start": None},
+            "C": {"running": False, "elapsed": 0.0, "last_start": None},
+        }
+
+        def update_timer_state(name, action, current_time):
+            """Helper to track actual elapsed time for each timer"""
+            state = timer_states[name]
+            if action == "start" and not state["running"]:
+                state["running"] = True
+                state["last_start"] = current_time
+            elif action == "stop" and state["running"]:
+                state["elapsed"] += current_time - state["last_start"]
+                state["running"] = False
+                state["last_start"] = None
+
+        def get_current_elapsed(name, current_time):
+            """Get the actual elapsed time for a timer"""
+            state = timer_states[name]
+            elapsed = state["elapsed"]
+            if state["running"]:
+                elapsed += current_time - state["last_start"]
+            return elapsed
+
+        # Start all timers and track actual start time
+        start_time = time.time()
         stopwatch.start("A")
+        update_timer_state("A", "start", start_time)
         stopwatch.start("B")
+        update_timer_state("B", "start", start_time)
         stopwatch.start("C")
-        time.sleep(0.1)  # 0.1, 0.1, 0.1
+        update_timer_state("C", "start", start_time)
 
+        # Sleep 0.1s - all timers running
+        time.sleep(0.1)
+        checkpoint1_time = time.time()
+
+        # Stop A
         stopwatch.stop("A")
-        time.sleep(0.1)  # 0.1, 0.2, 0.2
+        update_timer_state("A", "stop", checkpoint1_time)
 
+        # Sleep 0.1s - B and C running
+        time.sleep(0.1)
+        checkpoint2_time = time.time()
+
+        # Stop B, Start A
         stopwatch.stop("B")
+        update_timer_state("B", "stop", checkpoint2_time)
         stopwatch.start("A")
-        time.sleep(0.1)  # 0.2, 0.2, 0.3
+        update_timer_state("A", "start", checkpoint2_time)
 
+        # Sleep 0.1s - A and C running
+        time.sleep(0.1)
+        lap1_time = time.time()
+
+        # First lap_all
         lap_times = stopwatch.lap_all(1000)
-        assert lap_times["A"] == pytest.approx(0.2, abs=tol)
-        assert lap_times["B"] == pytest.approx(0.2, abs=tol)
-        assert lap_times["C"] == pytest.approx(0.3, abs=tol)
 
-        time.sleep(0.1)  # 0.3, 0.2, 0.4
+        # Verify lap times match actual elapsed times
+        actual_A = get_current_elapsed("A", lap1_time)
+        actual_B = get_current_elapsed("B", lap1_time)
+        actual_C = get_current_elapsed("C", lap1_time)
+
+        assert lap_times["A"] == pytest.approx(actual_A, abs=tol)
+        assert lap_times["B"] == pytest.approx(actual_B, abs=tol)
+        assert lap_times["C"] == pytest.approx(actual_C, abs=tol)
+
+        # Also verify against expected values
+        assert lap_times["A"] == pytest.approx(0.2, abs=0.05)
+        assert lap_times["B"] == pytest.approx(0.2, abs=0.05)
+        assert lap_times["C"] == pytest.approx(0.3, abs=0.05)
+
+        # Sleep 0.1s - A and C running
+        time.sleep(0.1)
+        checkpoint3_time = time.time()
+
+        # Stop A
         stopwatch.stop("A")
-        time.sleep(0.1)  # 0.3, 0.2, 0.5
+        update_timer_state("A", "stop", checkpoint3_time)
 
+        # Sleep 0.1s - only C running
+        time.sleep(0.1)
+        lap2_time = time.time()
+
+        # Store previous elapsed times for delta calculation
+        prev_A = actual_A
+        prev_B = actual_B
+        prev_C = actual_C
+
+        # Second lap_all
         lap_times_2 = stopwatch.lap_all(2000)
-        assert lap_times_2["A"] == pytest.approx(0.1, abs=tol)
+
+        # Calculate actual deltas since last lap
+        actual_A2 = get_current_elapsed("A", lap2_time)
+        actual_B2 = get_current_elapsed("B", lap2_time)
+        actual_C2 = get_current_elapsed("C", lap2_time)
+
+        delta_A = actual_A2 - prev_A
+        delta_B = actual_B2 - prev_B
+        delta_C = actual_C2 - prev_C
+
+        assert lap_times_2["A"] == pytest.approx(delta_A, abs=tol)
+        assert lap_times_2["B"] == pytest.approx(delta_B, abs=tol)
+        assert lap_times_2["C"] == pytest.approx(delta_C, abs=tol)
+
+        # Also verify against expected values
+        assert lap_times_2["A"] == pytest.approx(0.1, abs=0.05)
         assert lap_times_2["B"] == pytest.approx(0.0, abs=tol)
-        assert lap_times_2["C"] == pytest.approx(0.2, abs=tol)
+        assert lap_times_2["C"] == pytest.approx(0.2, abs=0.05)
 
+        # Start A
         stopwatch.start("A")
-        time.sleep(0.1)  # 0.4, 0.2, 0.6
-        stopwatch.stop("A")
-        stopwatch.stop("C")
-        time.sleep(0.1)  # 0.4, 0.2, 0.6
+        update_timer_state("A", "start", lap2_time)
 
+        # Sleep 0.1s - A and C running
+        time.sleep(0.1)
+        checkpoint4_time = time.time()
+
+        # Stop A and C
+        stopwatch.stop("A")
+        update_timer_state("A", "stop", checkpoint4_time)
+        stopwatch.stop("C")
+        update_timer_state("C", "stop", checkpoint4_time)
+
+        # Sleep 0.1s - all stopped
+        time.sleep(0.1)
+        lap3_time = time.time()
+
+        # Store previous elapsed times for delta calculation
+        prev_A2 = actual_A2
+        prev_B2 = actual_B2
+        prev_C2 = actual_C2
+
+        # Third lap_all
         lap_times_3 = stopwatch.lap_all(3000)
-        assert lap_times_3["A"] == pytest.approx(0.1, abs=tol)
+
+        # Calculate actual deltas since last lap
+        actual_A3 = get_current_elapsed("A", lap3_time)
+        actual_B3 = get_current_elapsed("B", lap3_time)
+        actual_C3 = get_current_elapsed("C", lap3_time)
+
+        delta_A3 = actual_A3 - prev_A2
+        delta_B3 = actual_B3 - prev_B2
+        delta_C3 = actual_C3 - prev_C2
+
+        assert lap_times_3["A"] == pytest.approx(delta_A3, abs=tol)
+        assert lap_times_3["B"] == pytest.approx(delta_B3, abs=tol)
+        assert lap_times_3["C"] == pytest.approx(delta_C3, abs=tol)
+
+        # Also verify against expected values
+        assert lap_times_3["A"] == pytest.approx(0.1, abs=0.05)
         assert lap_times_3["B"] == pytest.approx(0.0, abs=tol)
-        assert lap_times_3["C"] == pytest.approx(0.1, abs=tol)
+        assert lap_times_3["C"] == pytest.approx(0.1, abs=0.05)
+
+        # Verify final total elapsed times match our tracking
+        for name in ["A", "B", "C"]:
+            timer = stopwatch._get_timer(name)
+            final_elapsed = timer.elapsed_time
+            actual_final = get_current_elapsed(name, lap3_time)
+            assert final_elapsed == pytest.approx(actual_final, abs=tol), (
+                f"Timer {name}: stopwatch elapsed {final_elapsed} != actual {actual_final}"
+            )
 
         # Expected checkpoints
         expected_checkpoints = {
@@ -438,6 +571,14 @@ class TestStopwatch:
                 f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
             )
 
+            # Verify checkpoint times
+            for i, (_, checkpoint_data) in enumerate(checkpoints):
+                checkpoint_elapsed = checkpoint_data["elapsed_time"]
+                assert checkpoint_elapsed == pytest.approx(expected_times[i], abs=0.05), (
+                    f"Timer {name}: checkpoint {i} time {checkpoint_elapsed} != expected {expected_times[i]}"
+                )
+
+            # Verify lap times match checkpoint deltas
             laps = len(checkpoints) - 1
             for i in range(laps):
                 start_checkpoint_time = checkpoints[i][1]["elapsed_time"]
@@ -514,44 +655,99 @@ class TestStopwatchIntegration:
     def test_lap_rate_tracking(self):
         """Test tracking rates across multiple laps."""
         sw = Stopwatch()
+
+        # Start timing
+        start_time = time.time()
         sw.start("training")
 
-        # First lap: 100 steps in 0.1 seconds
+        # First lap: 100 steps in ~0.1 seconds
         time.sleep(0.1)
+        lap1_actual_start = start_time
+        lap1_actual_end = time.time()
         lap1_time = sw.lap(100, "training")
-        assert lap1_time == pytest.approx(0.1, abs=0.1)
+        lap1_actual_delta = lap1_actual_end - lap1_actual_start
 
-        # Second lap: 200 more steps (total 300) in another 0.1 seconds
+        # Verify lap time matches actual time delta
+        assert lap1_time == pytest.approx(lap1_actual_delta, abs=0.02)
+        assert lap1_time == pytest.approx(0.1, abs=0.02)
+
+        # Second lap: 200 more steps (total 300) in another ~0.1 seconds
+        lap2_start = time.time()
         time.sleep(0.1)
+        lap2_end = time.time()
         lap2_time = sw.lap(300, "training")
-        assert lap2_time == pytest.approx(0.1, abs=0.1)
+        lap2_actual_delta = lap2_end - lap2_start
 
-        # Third lap: 300 more steps (total 600) in another 0.1 seconds
+        # Verify lap time matches actual time delta
+        assert lap2_time == pytest.approx(lap2_actual_delta, abs=0.02)
+        assert lap2_time == pytest.approx(0.1, abs=0.02)
+
+        # Third lap: 300 more steps (total 600) in another ~0.1 seconds
+        lap3_start = time.time()
         time.sleep(0.1)
+        lap3_end = time.time()
         lap3_time = sw.lap(600, "training")
-        assert lap3_time == pytest.approx(0.1, abs=0.1)
+        lap3_actual_delta = lap3_end - lap3_start
 
-        # Now calculate rates BETWEEN checkpoints
-        # Move forward a bit in time so we can calculate rates
+        # Verify lap time matches actual time delta
+        assert lap3_time == pytest.approx(lap3_actual_delta, abs=0.02)
+        assert lap3_time == pytest.approx(0.1, abs=0.02)
+
+        # Calculate rate for additional steps
+        rate_calc_start = time.time()
         time.sleep(0.05)
+        rate_calc_end = time.time()
+        rate_calc_delta = rate_calc_end - rate_calc_start
 
         # Get current lap rate (should be based on steps since last checkpoint)
-        current_rate = sw.get_lap_rate(650, "training")  # 50 steps in ~0.05 seconds
-        assert current_rate == pytest.approx(1000, rel=0.3)
+        # 50 steps in ~0.05 seconds = ~1000 steps/sec
+        current_rate = sw.get_lap_rate(650, "training")
+        expected_rate = 50 / rate_calc_delta  # actual rate based on time delta
 
+        # Allow for some variance due to timing precision
+        assert current_rate == pytest.approx(expected_rate, rel=0.1)
+        assert current_rate == pytest.approx(1000, rel=0.2)
+
+        # Stop and verify total elapsed time
+        stop_time = time.time()
         sw.stop("training")
+        total_actual_elapsed = stop_time - start_time
 
         # Verify the checkpoint data
         timer = sw._get_timer("training")
         checkpoints = timer.checkpoints
-        assert len(checkpoints) == 4  # with _start
+        assert len(checkpoints) == 4  # start + 3 laps
 
-        # Extract checkpoint data for verification
+        # Verify total elapsed time matches
+        final_elapsed = timer.elapsed_time
+        assert final_elapsed == pytest.approx(total_actual_elapsed, abs=0.02)
+
+        # Extract and verify checkpoint data
         checkpoint_list = sorted(checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
-        assert checkpoint_list[0][1]["steps"] == 0  # First checkpoint at 0 steps
-        assert checkpoint_list[1][1]["steps"] == 100  # First checkpoint at 100 steps
-        assert checkpoint_list[2][1]["steps"] == 300  # Second checkpoint at 300 steps
-        assert checkpoint_list[3][1]["steps"] == 600  # Third checkpoint at 600 steps
+
+        # Verify checkpoint steps
+        assert checkpoint_list[0][1]["steps"] == 0  # Start checkpoint
+        assert checkpoint_list[1][1]["steps"] == 100  # First lap
+        assert checkpoint_list[2][1]["steps"] == 300  # Second lap
+        assert checkpoint_list[3][1]["steps"] == 600  # Third lap
+
+        # Verify checkpoint times are monotonically increasing and reasonable
+        prev_time = 0
+        for i, (_, checkpoint_data) in enumerate(checkpoint_list):
+            elapsed = checkpoint_data["elapsed_time"]
+            assert elapsed > prev_time  # Monotonically increasing
+
+            # Verify approximate expected times
+            if i == 0:
+                assert elapsed == pytest.approx(0, abs=0.01)  # Start time
+            elif i == 1:
+                assert elapsed == pytest.approx(0.1, abs=0.02)  # First lap
+            elif i == 2:
+                assert elapsed == pytest.approx(0.2, abs=0.03)  # Second lap
+            elif i == 3:
+                assert elapsed == pytest.approx(0.3, abs=0.04)  # Third lap
+
+            prev_time = elapsed
 
     def test_real_world_scenario(self):
         """Test a realistic usage scenario."""

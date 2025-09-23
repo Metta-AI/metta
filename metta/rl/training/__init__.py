@@ -20,6 +20,7 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "DistributedHelper": ("metta.rl.training.distributed_helper", "DistributedHelper"),
     "EnvironmentMetaData": ("metta.rl.training.training_environment", "EnvironmentMetaData"),
     "Evaluator": ("metta.rl.training.evaluator", "Evaluator"),
+    "EvaluatorConfig": ("metta.rl.training.evaluator", "EvaluatorConfig"),
     "Experience": ("metta.rl.training.experience", "Experience"),
     "GradientReporter": ("metta.rl.training.gradient_reporter", "GradientReporter"),
     "GradientReporterConfig": ("metta.rl.training.gradient_reporter", "GradientReporterConfig"),
