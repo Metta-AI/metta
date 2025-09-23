@@ -103,7 +103,7 @@ class CoreTrainingLoop:
             td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
             td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
 
-            self._ensure_rollout_metadata(td, training_env_id)
+            self._ensure_rollout_metadata(td)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
@@ -133,7 +133,7 @@ class CoreTrainingLoop:
             env_indices = env_indices.to(device=device)
         return env_indices
 
-    def _ensure_rollout_metadata(self, td: TensorDict, training_env_id: slice) -> None:
+    def _ensure_rollout_metadata(self, td: TensorDict) -> None:
         """Populate metadata fields needed downstream while reusing cached tensors."""
 
         batch_elems = td.batch_size.numel()
