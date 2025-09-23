@@ -487,7 +487,7 @@ def train(
 
 
 def play(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain"
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny"
 ) -> PlayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     return PlayTool(
