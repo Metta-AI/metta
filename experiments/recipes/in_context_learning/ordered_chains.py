@@ -718,7 +718,7 @@ def sweep(
         },
     )
 
-    lp_protein_config.metric = "experience/rewards"
+    lp_protein_config.metric = "evaluator/eval_in_context_learning/score"
 
     return SweepTool(
         protein_config=lp_protein_config,
