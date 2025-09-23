@@ -21,6 +21,7 @@ from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
+    ContextCheckpointer,
     ContextCheckpointerConfig,
     DistributedHelper,
     Evaluator,
@@ -34,16 +35,16 @@ from metta.rl.training import (
     SchedulerConfig,
     StatsReporter,
     StatsReporterConfig,
+    TorchProfiler,
+    TrainerComponent,
+    TrainingEnvironmentConfig,
     Uploader,
     UploaderConfig,
+    VectorizedTrainingEnvironment,
     WandbAborter,
     WandbAborterConfig,
+    WandbLogger,
 )
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context_checkpointer import ContextCheckpointer
-from metta.rl.training.torch_profiler import TorchProfiler
-from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
-from metta.rl.training.wandb_logger import WandbLogger
 from metta.tools.utils.auto_config import (
     auto_policy_storage_decision,
     auto_run_name,

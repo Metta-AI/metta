@@ -22,6 +22,7 @@
 #include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/hash.hpp"
+#include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
@@ -31,11 +32,10 @@
 #include "objects/production_handler.hpp"
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
+#include "renderer/hermes.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/packed_coordinate.hpp"
-#include "renderer/hermes.hpp"
 #include "systems/stats_tracker.hpp"
-#include "core/types.hpp"
 
 namespace py = pybind11;
 
@@ -202,12 +202,18 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
       if (assembler_config) {
-        Assembler* assembler = new Assembler(r, c, *assembler_config);
+        // Create a new AssemblerConfig with the recipe offsets from the observation encoder
+        AssemblerConfig config_with_offsets(*assembler_config);
+        config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
+        config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
+        config_with_offsets.recipe_details_obs = _obs_encoder->recipe_details_obs;
+
+        Assembler* assembler = new Assembler(r, c, config_with_offsets);
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
-        assembler->set_event_manager(_event_manager.get());
         assembler->stats.set_environment(this);
         assembler->set_grid(_grid.get());
+        assembler->set_current_timestep_ptr(&current_step);
         continue;
       }
 
