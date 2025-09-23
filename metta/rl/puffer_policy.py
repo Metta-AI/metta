@@ -7,10 +7,10 @@ and loads them into compatible Metta agents.
 """
 
 import logging
-from typing import Any, Dict, TypeGuard, Optional
-import torch
+from typing import Any, Dict, Optional, TypeGuard
 
 import einops
+import torch
 from tensordict import TensorDict
 from torch import nn
 
@@ -18,17 +18,12 @@ from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 
-
 logger = logging.getLogger(__name__)
 
 
 def _is_puffer_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
     """Return True if the object appears to be a PufferLib state_dict."""
-    return (
-        isinstance(loaded_obj, dict)
-        and bool(loaded_obj)
-        and any(key.startswith("policy.") for key in loaded_obj)
-    )
+    return isinstance(loaded_obj, dict) and bool(loaded_obj) and any(key.startswith("policy.") for key in loaded_obj)
 
 
 def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
@@ -109,12 +104,8 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
                 compatible_state[key] = value
                 keys_matched += 1
             else:
-                shape_mismatches.append(
-                    f"{key}: checkpoint {value.shape} vs policy {target_param.shape}"
-                )
-                logger.debug(
-                    f"Shape mismatch for {key}: checkpoint {value.shape} vs policy {target_param.shape}"
-                )
+                shape_mismatches.append(f"{key}: checkpoint {value.shape} vs policy {target_param.shape}")
+                logger.debug(f"Shape mismatch for {key}: checkpoint {value.shape} vs policy {target_param.shape}")
         else:
             logger.debug(f"Skipping unmatched parameter: {key}")
 
@@ -150,10 +141,6 @@ class PufferLibCheckpoint:
         return _load_state_dict_into_agent(policy, processed_state)
 
 
-
-
-
-
 class PufferLibCompatibleConfig(PolicyArchitecture):
     """
     Policy configuration that exactly matches PufferLib architecture for checkpoint loading.
@@ -177,7 +164,6 @@ class PufferLibCompatibleConfig(PolicyArchitecture):
 
     # Minimal action_probs_config to satisfy base class requirement
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
-
 
 
 class PufferLibCompatiblePolicy(Policy):
@@ -323,17 +309,38 @@ class PufferLibCompatiblePolicy(Policy):
 
         # Convert logits to actions by sampling from categorical distributions
         actions = []
+        entropies = []
+        action_log_probs = []
+
         for logit_tensor in logits:
             action_probs = torch.softmax(logit_tensor, dim=-1)
-            action = torch.multinomial(action_probs, num_samples=1).squeeze(-1)
-            actions.append(action)
+            sampled_action = torch.multinomial(action_probs, num_samples=1).squeeze(-1)
+            actions.append(sampled_action)
 
-        # Stack all action components into a single tensor
+            # Correct entropy calculation
+            entropy = -torch.sum(action_probs * torch.log(action_probs + 1e-8), dim=-1)
+            entropies.append(entropy)
+
+            # Get log probabilities of the selected actions
+            log_probs = torch.log(action_probs + 1e-8)
+            selected_log_probs = log_probs.gather(-1, sampled_action.unsqueeze(-1)).squeeze(-1)
+            action_log_probs.append(selected_log_probs)
+
+        # Stack all components
         actions_tensor = torch.stack(actions, dim=-1)  # [batch_size, num_action_heads]
+        entropies_tensor = torch.stack(entropies, dim=-1)
+        log_probs_tensor = torch.stack(action_log_probs, dim=-1)
 
-        td["actions"] = actions_tensor
-        td["action_probs"] = torch.tensor(action_probs)
-        td["values"] = value.flatten()
+        if action is None:
+            td["actions"] = actions_tensor
+            td["act_log_prob"] = log_probs_tensor
+            td["values"] = value.flatten()
+            td["entropy"] = entropies_tensor
+        else:
+            # When action is provided, we should use the provided action instead
+            td["act_log_prob"] = log_probs_tensor
+            td["entropy"] = entropies_tensor
+            td["full_log_probs"] = log_probs_tensor
 
         return td
 
@@ -372,4 +379,3 @@ class PufferLibCompatiblePolicy(Policy):
         """Reset policy memory/state if any."""
         # PyTorch LSTM doesn't need explicit memory reset (stateless by default)
         pass
-
