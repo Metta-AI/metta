@@ -21,8 +21,7 @@ from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
-from metta.common.tool.infer_tool import try_infer_tool_factory
-from metta.common.tool.resolve import generate_candidate_paths
+from metta.common.tool.discover import generate_candidate_paths, try_infer_tool_factory
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
@@ -406,7 +405,7 @@ Examples:
     policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
   %(prog)s arena.train optim='{"lr":1e-3,"beta1":0.9}'
 
-Common verbs:
+Common tools:
   train           - Train a new policy
   play            - Interactive browser-based gameplay
   replay          - View recorded gameplay
@@ -440,7 +439,7 @@ constructor/function vs configuration overrides based on introspection.
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
     parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
-    parser.add_argument("--list-tools", action="store_true", help="List available verbs for a recipe module and exit")
+    parser.add_argument("--list-tools", action="store_true", help="List available tools for a recipe module and exit")
     parser.add_argument(
         "-h", "--help", action="store_true", help="Show help and list all available arguments for the tool"
     )
@@ -499,14 +498,11 @@ constructor/function vs configuration overrides based on introspection.
     if two_part_second and known_args.make_tool_cfg_path == two_part_second:
         output_info(yellow("Hint: two-token form looks ambiguous (e.g., 'train train')."))
 
-    from metta.common.tool.resolve import DEFAULT_VERB_ALIASES as _VERB_ALIASES
-
     candidate_paths = generate_candidate_paths(
         known_args.make_tool_cfg_path,
         two_part_second,
         auto_prefixes=["experiments.recipes"],
         short_only=True,
-        verb_aliases=_VERB_ALIASES,
     )
     resolved_path: str | None = None
     make_tool_cfg = None
@@ -584,7 +580,7 @@ constructor/function vs configuration overrides based on introspection.
                 if hasattr(mod, "mettagrid") or hasattr(mod, "simulations"):
                     output_info(f"\n{yellow('Hint:')} Recipe '{module_name}' exists but doesn't define '{verb}'.")
                     output_info(
-                        "Available inferred verbs: train, play, replay, "
+                        "Available inferred tools: train, play, replay, "
                         "evaluate (or eval/sim), evaluate_remote (or eval_remote/sim_remote)"
                     )
                     break
@@ -604,22 +600,27 @@ constructor/function vs configuration overrides based on introspection.
         list_tool_arguments(make_tool_cfg, console)
         return 0
 
-    # List-tools: show available verbs for the module
+    # List-tools: show available tools for the module
     if known_args.list_tools and resolved_path:
         import importlib
 
-        from metta.common.tool.infer_tool import get_available_verbs
+        from metta.common.tool.discover import get_available_tools
 
         module_name = resolved_path.rsplit(".", 1)[0]
         try:
             mod = importlib.import_module(module_name)
-            verbs = get_available_verbs(mod)
+            tools = get_available_tools(mod)
             console.print(f"\n[bold]Available tools for {module_name}:[/bold]\n")
-            for verb in verbs:
-                console.print(f"  {module_name}.{verb}")
+            for name, _ in tools:
+                console.print(f"  {module_name}.{name}")
         except Exception as e:
             output_exception(f"{red('Error listing tools for')} {module_name}: {e}")
             return 1
+        return 0
+
+    # Short-circuit for dry-run: verify resolution only, skip construction/validation
+    if known_args.dry_run:
+        output_info(f"\n{bold(green('✅ Resolution successful (dry run)'))}")
         return 0
 
     # ----------------------------------------------------------------------------------

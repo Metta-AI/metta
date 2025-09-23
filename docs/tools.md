@@ -41,7 +41,13 @@ The main entry point is `./tools/run.py` which uses the recipe system for all ma
 
 If a recipe module defines `def mettagrid() -> MettaGridConfig` and optionally `def simulations() -> list[SimulationConfig]`,
 `run.py` can infer common verbs even if the module does not implement them explicitly. If both are present,
-`simulations()` takes precedence for evaluation (and for the evaluator in inferred training tools).
+`simulations()` takes precedence for evaluation (and for the evaluator in inferred training tools). Internally, tools
+use canonical names only: `train`, `play`, `replay`, `evaluate`, `evaluate_remote`. CLI aliases such as `eval`/`sim`
+are expanded to `evaluate`, and `eval_remote`/`sim_remote` to `evaluate_remote`.
+
+Inference details:
+- Play: inferred from `mettagrid()` only (interactive session environment).
+- Replay: inferred from `simulations()[0]` if present, otherwise from `mettagrid()`.
 
 - Non-remote aliases: `<recipe>.evaluate`, `<recipe>.eval`, `<recipe>.sim` (all map to evaluation)
 - Remote aliases: `<recipe>.evaluate_remote`, `<recipe>.eval_remote`, `<recipe>.sim_remote`

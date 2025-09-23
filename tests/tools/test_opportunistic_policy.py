@@ -146,7 +146,7 @@ class TestBasicPolicyEnvironment:
         finally:
             simulation._vecenv.close()  # type: ignore[attr-defined]
 
-    def test_sim_tool_config_with_policy_uri(self):
+    def test_eval_tool_config_with_policy_uri(self):
         """Test that EvalTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)

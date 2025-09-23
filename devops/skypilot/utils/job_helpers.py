@@ -15,7 +15,7 @@ from sky.server.common import RequestId, get_server_url
 
 import gitta as git
 from metta.app_backend.clients.base_client import get_machine_token
-from metta.common.tool.resolve import generate_candidate_paths
+from metta.common.tool.discover import generate_candidate_paths
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
@@ -94,7 +94,7 @@ def validate_module_path(
                 None,
                 auto_prefixes=auto_prefixes or [],
                 short_only=True,
-                verb_aliases=verb_aliases or {},
+                verb_aliases=verb_aliases,
             )
 
         last_error: Exception | None = None

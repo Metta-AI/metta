@@ -3,7 +3,7 @@ import logging
 import sys
 import uuid
 from datetime import datetime
-from typing import Sequence
+from typing import ClassVar, Sequence
 
 import torch
 from pydantic import Field
@@ -33,6 +33,8 @@ def _determine_run_name(policy_uri: str) -> str:
 
 
 class EvalTool(Tool):
+    tool_name: ClassVar[str] = "evaluate"
+    tool_aliases: ClassVar[list[str]] = ["sim", "eval"]
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate

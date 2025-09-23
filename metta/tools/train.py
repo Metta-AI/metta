@@ -1,13 +1,12 @@
 import contextlib
 import os
 import platform
-from datetime import timedelta
-from typing import Optional
+from typing import ClassVar, Optional
 
 import torch
 from pydantic import Field, model_validator
 
-from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
@@ -55,11 +54,12 @@ logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
+    tool_name: ClassVar[str] = "train"
     run: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
+    policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
     initial_policy_uri: Optional[str] = None
     uploader: UploaderConfig = Field(default_factory=UploaderConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
@@ -67,7 +67,6 @@ class TrainTool(Tool):
 
     stats_server_uri: Optional[str] = auto_stats_server_uri()
     wandb: WandbConfig = WandbConfig.Unconfigured()
-    group: Optional[str] = None
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
@@ -98,24 +97,17 @@ class TrainTool(Tool):
             self.run = auto_run_name(prefix="local")
 
         group_override = args.get("group")
-        if group_override:
-            self.group = group_override
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
-        if self.group:
-            self.wandb.group = self.group
+        if group_override:
+            self.wandb.group = group_override
 
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
-        if self.evaluator and self.evaluator.evaluate_local:
-            # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
-            logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
-            self.system.nccl_timeout = timedelta(hours=4)
-
-        distributed_helper = DistributedHelper(self.system)
+        distributed_helper = DistributedHelper(torch.device(self.system.device))
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()

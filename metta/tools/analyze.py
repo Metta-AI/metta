@@ -1,4 +1,5 @@
 import logging
+from typing import ClassVar
 
 from pydantic import Field
 
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisTool(Tool):
+    tool_name: ClassVar[str] = "analyze"
     wandb: WandbConfig = auto_wandb_config()
 
     analysis: AnalysisConfig
