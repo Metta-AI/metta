@@ -204,6 +204,7 @@ model Institution {
   userInstitutions UserInstitution[]
   authors          Author[]            @relation("AuthorInstitution") // Authors affiliated with this institution
   papers           PaperInstitution[]  // Papers from this institution
+  groups           Group[]             // Groups belonging to this institution
   createdBy        User?               @relation(fields: [createdByUserId], references: [id])
 
   @@map("institution")
@@ -238,15 +239,18 @@ model PaperInstitution {
 
 model Group {
   id              String      @id @default(cuid())
-  name            String      @unique
+  name            String
   description     String?
   isPublic        Boolean     @default(true) // Public groups can be discovered, private are invite-only
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @default(now()) @updatedAt
   createdByUserId String?
+  institutionId   String
   userGroups      UserGroup[]
   createdBy       User?       @relation(fields: [createdByUserId], references: [id])
+  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 
+  @@unique([name, institutionId]) // Group names are unique within an institution
   @@map("group")
 }
 

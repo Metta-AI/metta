@@ -28,9 +28,11 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
       setNameError(null);
       return;
     }
-    
+
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-      setNameError("Group name can only contain letters, numbers, hyphens, and underscores (no spaces)");
+      setNameError(
+        "Group name can only contain letters, numbers, hyphens, and underscores (no spaces)"
+      );
     } else {
       setNameError(null);
     }
@@ -119,7 +121,8 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
                 <p className="mt-1 text-xs text-red-600">{nameError}</p>
               )}
               <p className="mt-1 text-xs text-gray-500">
-                Use letters, numbers, hyphens, and underscores only. Perfect for @-tagging!
+                Use letters, numbers, hyphens, and underscores only. Perfect for
+                @-tagging!
               </p>
             </div>
 

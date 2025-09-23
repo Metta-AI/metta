@@ -11,10 +11,14 @@ import { prisma } from "@/lib/db/prisma";
 const inputSchema = zfd.formData({
   groupId: zfd.text(z.string()),
   name: zfd.text(
-    z.string()
+    z
+      .string()
       .min(1)
       .max(100)
-      .regex(/^[a-zA-Z0-9_-]+$/, "Group name can only contain letters, numbers, hyphens, and underscores (no spaces)")
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        "Group name can only contain letters, numbers, hyphens, and underscores (no spaces)"
+      )
   ),
   description: zfd.text(z.string().optional()),
   isPublic: zfd.checkbox(),
@@ -39,17 +43,27 @@ export const updateGroupAction = actionClient
       throw new Error("You don't have permission to update this group");
     }
 
-    // Check if another group with this name already exists
+    // Check if another group with this name already exists in the same institution
     if (input.name) {
+      const currentGroup = await prisma.group.findUnique({
+        where: { id: input.groupId },
+        select: { institutionId: true },
+      });
+
+      if (!currentGroup) {
+        throw new Error("Group not found");
+      }
+
       const existingGroup = await prisma.group.findFirst({
         where: {
           name: input.name,
+          institutionId: currentGroup.institutionId,
           id: { not: input.groupId },
         },
       });
 
       if (existingGroup) {
-        throw new Error("A group with this name already exists");
+        throw new Error("A group with this name already exists in this institution");
       }
     }
 
