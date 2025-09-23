@@ -272,7 +272,7 @@ class PPO(Loss):
         adv = prio_weights * adv
 
         # Compute losses
-        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self.compute_ppo_losses(
+        pg_loss, v_loss, entropy_loss, kl_penalty_loss, approx_kl, clipfrac = self.compute_ppo_losses(
             minibatch,
             new_logprob,
             entropy,
@@ -281,7 +281,7 @@ class PPO(Loss):
             adv,
         )
 
-        loss = pg_loss - cfg.ent_coef * entropy_loss + v_loss * cfg.vf_coef
+        loss = pg_loss - cfg.ent_coef * entropy_loss + v_loss * cfg.vf_coef + cfg.kl_penalty_coef * kl_penalty_loss
 
         # Update values and ratio in experience buffer
         update_td = TensorDict(
