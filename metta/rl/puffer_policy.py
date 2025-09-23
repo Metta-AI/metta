@@ -340,7 +340,7 @@ class PufferLibCompatiblePolicy(Policy):
             # When action is provided, we should use the provided action instead
             td["act_log_prob"] = log_probs_tensor
             td["entropy"] = entropies_tensor
-            td["full_log_probs"] = log_probs_tensor
+            td["full_log_probs"] = log_probs_tensor # TODO: This is not correct (fix this later)
 
         return td
 
