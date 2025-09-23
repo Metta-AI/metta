@@ -326,7 +326,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
-            dir = f"{numpy_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
+            dir = f"{numpy_dir}/{room_size}/{len(resources) - 1}chains_{num_sinks}sinks/{terrain}"
             env = make_icl_with_numpy(
                 num_agents=1,
                 num_instances=24,
