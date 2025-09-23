@@ -1,5 +1,6 @@
 import logging
 from collections import OrderedDict
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -31,13 +32,6 @@ class PolicyAutoBuilder(nn.Module):
         super().__init__()
         self.config = config
 
-        if torch.cuda.is_available():
-            try:
-                torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
-                torch.set_float32_matmul_precision("high")
-            except AttributeError:
-                pass
-
         self.components = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
@@ -51,6 +45,7 @@ class PolicyAutoBuilder(nn.Module):
 
         self._autocast_enabled = getattr(self.config, "enable_autocast", False)
         self._autocast_dtype = getattr(self.config, "autocast_dtype", torch.bfloat16)
+        self._device_type: Optional[str] = None
 
         self._runner = self._run_network
         if getattr(self.config, "compile_policy", False) and hasattr(torch, "compile"):
@@ -69,19 +64,13 @@ class PolicyAutoBuilder(nn.Module):
         )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
-        try:
+        device_type = self._device_type
+        if device_type is None:
             param_device = next(self.parameters()).device
-        except StopIteration:
-            param_device = torch.device("cpu")
-        device_type = param_device.type
+            device_type = param_device.type
         if self._autocast_enabled and device_type == "cuda":
             autocast_dtype = self._autocast_dtype
-            try:
-                with torch.autocast(device_type=device_type, dtype=autocast_dtype):
-                    self._runner(td, action)
-            except RuntimeError as err:
-                logger.warning("Disabling autocast after failure: %s", err)
-                self._autocast_enabled = False
+            with torch.autocast(device_type=device_type, dtype=autocast_dtype):
                 self._runner(td, action)
         else:
             self._runner(td, action)
@@ -98,6 +87,10 @@ class PolicyAutoBuilder(nn.Module):
         device: torch.device,
     ):
         self.to(device)
+        self._device_type = device.type
+        if self._device_type == "cuda":
+            torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
+            torch.set_float32_matmul_precision("high")
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
