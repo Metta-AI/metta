@@ -14,7 +14,6 @@ from mettagrid.config import Config
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -260,7 +260,6 @@ class Trainer:
 
         This should be called after setup() to restore any saved state.
         """
-
         for component in self._components:
             if isinstance(component, ContextCheckpointer):
                 component.restore(self._context)

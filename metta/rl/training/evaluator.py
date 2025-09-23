@@ -9,7 +9,7 @@ from pydantic import Field
 
 import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.cogworks.curriculum.curriculum import Curriculum
+from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy

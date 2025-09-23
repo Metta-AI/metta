@@ -14,7 +14,7 @@ from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
 
-if TYPE_CHECKING:  # pragma: no cover - import only for type checking
+if TYPE_CHECKING:
     from metta.rl.training.stats_reporter import StatsReporter
 
 
