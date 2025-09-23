@@ -14,6 +14,7 @@ interface InPostCommentsProps {
     email?: string | null;
   } | null;
   onCommentCountChange?: (delta: number) => void;
+  highlightedCommentId?: string | null;
 }
 
 // --- Main component ---------------------------------------------------------
@@ -23,6 +24,7 @@ export const InPostComments: React.FC<InPostCommentsProps> = ({
   onToggle,
   currentUser,
   onCommentCountChange,
+  highlightedCommentId,
 }) => {
   return (
     <>
@@ -34,6 +36,7 @@ export const InPostComments: React.FC<InPostCommentsProps> = ({
             currentUser={currentUser}
             showBackToFeed={false}
             onCommentCountChange={onCommentCountChange}
+            highlightedCommentId={highlightedCommentId}
           />
         </div>
       )}

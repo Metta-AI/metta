@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { FC } from "react";
 
 import { auth } from "@/lib/auth";
+import { ClientNotificationBell } from "@/components/ClientNotificationBell";
 
 import { SignOutButton } from "./SignOutButton";
 
@@ -16,6 +17,7 @@ const UserInfo: FC = async () => {
 
   return (
     <div className="flex items-center gap-2">
+      <ClientNotificationBell />
       <span>{session.user.email}</span>
       <SignOutButton />
     </div>

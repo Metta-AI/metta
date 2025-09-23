@@ -56,10 +56,7 @@ export const FeedPostsPage: FC<{
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Global comment expansion state - only one post can have expanded comments at a time
-  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
-
-  // Selected post for paper sidebar
+  // Selected post for paper sidebar (still used for paper overlay)
   const [selectedPostForPaper, setSelectedPostForPaper] =
     useState<FeedPostDTO | null>(null);
 
@@ -90,23 +87,14 @@ export const FeedPostsPage: FC<{
     setSelectedUser(null);
   };
 
-  // Handle comment toggle - only one post can have expanded comments
-  const handleCommentToggle = (postId: string) => {
-    setExpandedPostId((current) => (current === postId ? null : postId));
-  };
-
-  // Handle post selection for paper sidebar
+  // Handle post selection for paper sidebar (used for paper overlay only)
   const handlePostSelect = (post: FeedPostDTO) => {
     setSelectedPostForPaper(post);
-    // Also expand comments for the selected post
-    setExpandedPostId(post.id);
   };
 
   // Handle paper sidebar close
   const handlePaperSidebarClose = () => {
     setSelectedPostForPaper(null);
-    // Also close expanded comments when closing paper sidebar
-    setExpandedPostId(null);
   };
 
   // Handle toggle star
@@ -169,10 +157,11 @@ export const FeedPostsPage: FC<{
                     onPaperClick={handlePaperClick}
                     onUserClick={handleUserClick}
                     currentUser={currentUser}
-                    isCommentsExpanded={expandedPostId === post.id}
-                    onCommentToggle={() => handleCommentToggle(post.id)}
+                    isCommentsExpanded={false}
+                    onCommentToggle={() => {}} // No longer used - posts navigate to dedicated pages
                     onPostSelect={() => handlePostSelect(post)}
                     isSelected={selectedPostForPaper?.id === post.id}
+                    highlightedCommentId={null}
                   />
                 ))}
               </div>

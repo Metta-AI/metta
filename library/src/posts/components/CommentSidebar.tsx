@@ -158,10 +158,10 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
   // Handle content changes that also updates mentions
   const handleCommentContentChange = (newContent: string) => {
     setNewComment(newContent);
-    
+
     // Parse mentions from content
     const parsedMentions = parseMentions(newContent);
-    const mentionValues = parsedMentions.map(m => m.raw);
+    const mentionValues = parsedMentions.map((m) => m.raw);
     setNewCommentMentions(mentionValues);
   };
 
