@@ -1,7 +1,7 @@
 import contextlib
 import os
 import platform
-from typing import Any, ClassVar, Optional
+from typing import Any, Optional
 
 import torch
 from pydantic import Field, field_validator, model_validator
@@ -53,18 +53,19 @@ logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
-    POLICY_PRESETS: ClassVar[dict[str, str]] = PolicyArchitecture.available_aliases()
+    @classmethod
+    def policy_presets(cls) -> dict[str, str]:
+        provider = getattr(PolicyArchitecture, "available_aliases", None)
+        if callable(provider):
+            return provider()
+        return {}
 
     @field_validator("policy_architecture", mode="before")
     @classmethod
     def _normalize_policy_architecture(cls, value: Any) -> Any:
         if value is None:
             return value
-        try:
-            return PolicyArchitecture.resolve(value)
-        except (ValueError, TypeError) as exc:
-            presets = ", ".join(sorted(cls.POLICY_PRESETS)) if cls.POLICY_PRESETS else "(none available)"
-            raise ValueError(f"Unable to resolve policy preset: {exc}. Known presets: {presets}") from exc
+        return PolicyArchitecture.resolve(value)
 
     run: Optional[str] = None
 

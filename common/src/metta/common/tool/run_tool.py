@@ -155,12 +155,13 @@ def parse_number(candidate: str) -> int | float:
 
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
-    """Parse CLI arguments, supporting commander-style flags and key=value tokens."""
-    canonical_args = _normalize_tokens(cli_args)
+    """Parse CLI arguments in key=value format, keeping dotted keys flat."""
     parsed: dict[str, Any] = {}
-    for arg in canonical_args:
-        key, value_str = arg.split("=", 1)
-        parsed[key] = parse_value(value_str)
+    for arg in cli_args:
+        if "=" not in arg:
+            raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
+        key, value = arg.split("=", 1)
+        parsed[key] = parse_value(value)
     return parsed
 
 
@@ -396,6 +397,13 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
             if top_level != list(grouped.keys())[-1]:
                 console.print()
 
+        presets_provider = getattr(make_tool_cfg, "policy_presets", None)
+        if callable(presets_provider):
+            alias_map = presets_provider()
+            if alias_map:
+                alias_str = ", ".join(sorted(alias_map))
+                console.print(f"\n[dim]Policy presets: {alias_str}[/dim]")
+
     else:
         console.print("[yellow]Function Parameters:[/yellow]\n")
 
@@ -562,7 +570,8 @@ constructor/function vs configuration overrides based on introspection.
 
     # Parse CLI arguments
     try:
-        cli_args = parse_cli_args(all_args)
+        canonical_args = _normalize_tokens(all_args)
+        cli_args = parse_cli_args(canonical_args)
     except ValueError as e:
         output_error(f"{red('Error:')} {e}")
         return 2  # Exit code 2 for usage errors

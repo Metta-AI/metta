@@ -1,9 +1,39 @@
+import importlib.util
+import sys
+from pathlib import Path
+
 import pytest
 from pydantic import Field
 
-from metta.common.tool import Tool
-from metta.common.tool.run_tool import nestify, parse_cli_args
-from mettagrid.config import Config
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+def load_local_module(name: str, relative_path: str):
+    module_path = ROOT / relative_path
+    spec = importlib.util.spec_from_file_location(name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load module {name} from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules[name] = module
+    return module
+
+
+# Load dependencies from local workspace before importing the runner module.
+metta_common_tool_module = load_local_module("metta.common.tool", "common/src/metta/common/tool/__init__.py")
+mettagrid_config_module = load_local_module(
+    "mettagrid.config.config", "packages/mettagrid/python/src/mettagrid/config/config.py"
+)
+run_tool = load_local_module("metta.common.tool.run_tool", "common/src/metta/common/tool/run_tool.py")
+
+# ruff: noqa: E402
+Tool = metta_common_tool_module.Tool
+Config = mettagrid_config_module.Config
+_normalize_tokens = run_tool._normalize_tokens
+nestify = run_tool.nestify
+parse_cli_args = run_tool.parse_cli_args
 
 
 class InnerConfig(Config):
@@ -20,19 +50,20 @@ class DemoTool(Tool):
 
 
 def test_parse_cli_args_supports_commander_formats() -> None:
-    parsed = parse_cli_args(
-        [
-            "--inner.value",
-            "-1",
-            "--enabled",
-            "--name=worker",
-            "--payload",
-            '{"foo": 1}',
-            "threshold:0.5",
-            "--ratio:2",
-            "outer.depth=9",
-        ]
-    )
+    raw_args = [
+        "--inner.value",
+        "-1",
+        "--enabled",
+        "--name=worker",
+        "--payload",
+        '{"foo": 1}',
+        "threshold:0.5",
+        "--ratio:2",
+        "outer.depth=9",
+    ]
+
+    canonical = _normalize_tokens(raw_args)
+    parsed = parse_cli_args(canonical)
 
     assert parsed["inner.value"] == -1
     assert parsed["enabled"] is True
@@ -44,14 +75,16 @@ def test_parse_cli_args_supports_commander_formats() -> None:
 
 
 def test_parse_cli_args_parses_strings_and_nulls() -> None:
-    parsed = parse_cli_args(["--message", '"hello\\nworld"', "--maybe", "null"])
+    canonical = _normalize_tokens(["--message", '"hello\\nworld"', "--maybe", "null"])
+    parsed = parse_cli_args(canonical)
 
     assert parsed["message"] == "hello\nworld"
     assert parsed["maybe"] is None
 
 
 def test_parse_cli_args_handles_dash_separator() -> None:
-    parsed = parse_cli_args(["--flag", "--", "trailing=3"])
+    canonical = _normalize_tokens(["--flag", "--", "trailing=3"])
+    parsed = parse_cli_args(canonical)
 
     assert parsed["flag"] is True
     assert parsed["trailing"] == 3
@@ -68,7 +101,8 @@ def test_nestify_builds_nested_dicts() -> None:
 
 
 def test_tool_model_validation_with_commander_args() -> None:
-    cli_args = parse_cli_args(["--inner.value", "5", "--name=scenario", "--enabled"])
+    canonical = _normalize_tokens(["--inner.value", "5", "--name=scenario", "--enabled"])
+    cli_args = parse_cli_args(canonical)
     payload = nestify(cli_args)
 
     tool = DemoTool.model_validate(payload)

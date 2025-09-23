@@ -3,7 +3,6 @@
 This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
 implement the required methods that MettaAgent depends on."""
 
-import importlib.util
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Dict, List
 
@@ -41,7 +40,7 @@ class PolicyArchitecture(Config):
     @classmethod
     def register_alias(cls, alias: str, target: str) -> None:
         cls._ALIASES[alias] = target
-        cls._ALIASES[alias.lower()] = target
+        cls._ALIASES[alias.casefold()] = target
         cls._CANONICAL_ALIASES[alias] = target
 
     @classmethod
@@ -59,7 +58,7 @@ class PolicyArchitecture(Config):
         if isinstance(value, str):
             reference = cls._ALIASES.get(value)
             if reference is None:
-                reference = cls._ALIASES.get(value.lower())
+                reference = cls._ALIASES.get(value.casefold())
             if reference is None:
                 reference = value
 
@@ -222,11 +221,5 @@ _POLICY_ALIAS_TARGETS: Dict[str, str] = {
 }
 
 
-def _module_available(module_path: str) -> bool:
-    return importlib.util.find_spec(module_path) is not None
-
-
 for alias, target in _POLICY_ALIAS_TARGETS.items():
-    module_name = target.rsplit(".", 1)[0]
-    if _module_available(module_name):
-        PolicyArchitecture.register_alias(alias, target)
+    PolicyArchitecture.register_alias(alias, target)
