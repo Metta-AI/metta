@@ -18,6 +18,8 @@ from metta.sim.utils import get_or_create_policy_ids
 logger = logging.getLogger(__name__)
 
 
+# Avoid circular import: evaluator.py → evaluate.py → evaluator.py
+# EvaluatorConfig is only used as a type hint, never instantiated here
 if TYPE_CHECKING:
     from metta.rl.training.evaluator import EvaluatorConfig
 
