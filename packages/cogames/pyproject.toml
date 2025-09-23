@@ -34,3 +34,6 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 [tool.coverage.run]
 source = ["cogames"]
+
+[tool.uv.sources]
+mettagrid = { workspace = true }

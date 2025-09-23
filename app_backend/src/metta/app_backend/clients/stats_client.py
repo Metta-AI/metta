@@ -1,6 +1,7 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Optional, Type, TypeVar
 
 import httpx
@@ -48,10 +49,80 @@ class StatsClient(ABC):
     def close(self):
         pass
 
+    @abstractmethod
+    def create_training_run(
+        self,
+        name: str,
+        attributes: dict[str, str] | None = None,
+        url: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> TrainingRunResponse:
+        pass
 
+    @abstractmethod
+    def create_epoch(
+        self,
+        run_id: uuid.UUID,
+        start_training_epoch: int,
+        end_training_epoch: int,
+        attributes: dict[str, Any] | None = None,
+    ) -> EpochResponse:
+        pass
+
+    @abstractmethod
+    def create_policy(
+        self,
+        name: str,
+        description: str | None = None,
+        url: str | None = None,
+        epoch_id: uuid.UUID | None = None,
+    ) -> PolicyResponse:
+        pass
+
+    @abstractmethod
+    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        pass
+
+    @abstractmethod
+    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
+        pass
+
+    @abstractmethod
+    def record_episode(
+        self,
+        *,
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
+        primary_policy_id: uuid.UUID,
+        sim_suite: str,
+        env_name: str,
+        stats_epoch: uuid.UUID | None = None,
+        replay_url: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        eval_task_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
+    ) -> EpisodeResponse:
+        pass
+
+    @staticmethod
+    def create(stats_server_uri: Optional[str]) -> "StatsClient":
+        if stats_server_uri is None:
+            return NoopStatsClient()
+
+        machine_token = get_machine_token(stats_server_uri)
+        if machine_token is None:
+            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
+        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client._validate_authenticated()
+        return stats_client
+
+
+# TODO: REMOVE THIS
 class NoopStatsClient(StatsClient):
     def __init__(self):
-        pass
+        self.id = uuid.uuid1()
 
     def __enter__(self):
         return self
@@ -61,6 +132,66 @@ class NoopStatsClient(StatsClient):
 
     def close(self):
         pass
+
+    def create_training_run(
+        self,
+        name: str,
+        attributes: dict[str, str] | None = None,
+        url: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> TrainingRunResponse:
+        return TrainingRunResponse(id=self.id)
+
+    def create_epoch(
+        self,
+        run_id: uuid.UUID,
+        start_training_epoch: int,
+        end_training_epoch: int,
+        attributes: dict[str, Any] | None = None,
+    ) -> EpochResponse:
+        return EpochResponse(id=self.id)
+
+    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        pass
+
+    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
+        return TaskResponse(
+            id=self.id,
+            policy_id=uuid.uuid4(),
+            sim_suite="default_suite",
+            status="unprocessed",
+            created_at=datetime.now(),
+            attributes={},
+            retries=0,
+            updated_at=datetime.now(),
+        )
+
+    def record_episode(
+        self,
+        *,
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
+        primary_policy_id: uuid.UUID,
+        sim_suite: str,
+        env_name: str,
+        stats_epoch: uuid.UUID | None = None,
+        replay_url: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        eval_task_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
+    ) -> EpisodeResponse:
+        return EpisodeResponse(id=self.id)
+
+    def create_policy(
+        self,
+        name: str,
+        description: str | None = None,
+        url: str | None = None,
+        epoch_id: uuid.UUID | None = None,
+    ) -> PolicyResponse:
+        return PolicyResponse(id=self.id)
 
 
 class HttpStatsClient(StatsClient):
@@ -167,8 +298,8 @@ class HttpStatsClient(StatsClient):
         agent_policies: dict[int, uuid.UUID],
         agent_metrics: dict[int, dict[str, float]],
         primary_policy_id: uuid.UUID,
-        sim_name: str,
-        env_label: str,
+        sim_suite: str,
+        env_name: str,
         stats_epoch: uuid.UUID | None = None,
         replay_url: str | None = None,
         attributes: dict[str, Any] | None = None,
@@ -181,8 +312,8 @@ class HttpStatsClient(StatsClient):
             agent_metrics=agent_metrics,
             primary_policy_id=primary_policy_id,
             stats_epoch=stats_epoch,
-            sim_name=sim_name,
-            env_label=env_label,
+            sim_suite=sim_suite,
+            env_name=env_name,
             replay_url=replay_url,
             attributes=attributes or {},
             eval_task_id=eval_task_id,
@@ -202,15 +333,3 @@ class HttpStatsClient(StatsClient):
         return self._make_sync_request(
             PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
         )
-
-    @staticmethod
-    def create(stats_server_uri: Optional[str]) -> "StatsClient":
-        if stats_server_uri is None:
-            return NoopStatsClient()
-
-        machine_token = get_machine_token(stats_server_uri)
-        if machine_token is None:
-            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
-        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
-        stats_client._validate_authenticated()
-        return stats_client
