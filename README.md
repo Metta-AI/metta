@@ -245,17 +245,19 @@ Minimal example:
 ```python
 # experiments/user/my_tasks.py
 from mettagrid.config.envs import make_arena
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training.evaluator import EvaluatorConfig
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
 
 def my_train(run: str = "local.me.1") -> TrainTool:
-    trainer = TrainerConfig(
-        evaluation=EvaluationConfig(
-            simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
-        )
+    trainer = TrainerConfig()
+    evaluator = EvaluatorConfig(
+        simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
     )
-    return TrainTool(trainer=trainer, run=run)
+    training_env = TrainingEnvironmentConfig()
+    return TrainTool(trainer=trainer, training_env=training_env, evaluator=evaluator, run=run)
 ```
 
 Run your task:

@@ -137,7 +137,7 @@ class TestBasicPolicyEnvironment:
         """Test simulation configuration creation and instantiation."""
 
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(name="test_nav", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_nav", env=env_config)
 
         assert sim_config.name == "test_nav"
         assert sim_config.env.game.num_agents == 2
@@ -149,7 +149,7 @@ class TestBasicPolicyEnvironment:
             policy_uri=None,
         )
         try:
-            assert simulation.name == "test_nav"
+            assert simulation.name == "test/test_nav"
         finally:
             simulation._vecenv.close()  # type: ignore[attr-defined]
 
@@ -157,7 +157,7 @@ class TestBasicPolicyEnvironment:
         """Test that SimTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)
-        sim_config = SimulationConfig(name="test_arena", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
 
         sim_tool = SimTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
 
@@ -168,7 +168,7 @@ class TestBasicPolicyEnvironment:
         """Ensure basic tool wiring stays aligned with SimulationConfig usage."""
 
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(name="tool_config", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="tool_config", env=env_config)
 
         play_tool = PlayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
         replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)

@@ -52,8 +52,8 @@ class EpisodeCreate(BaseModel):
     # agent_id -> metric_name -> metric_value
     agent_metrics: dict[int, dict[str, float]]
     primary_policy_id: uuid.UUID
-    sim_name: str
-    env_label: str
+    sim_suite: str
+    env_name: str
     stats_epoch: uuid.UUID | None = None
     replay_url: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
@@ -173,14 +173,14 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_route("record_episode")
     async def record_episode(episode: EpisodeCreate, user: str = user_or_token) -> EpisodeResponse:
         """Record a new episode with agent policies and metrics."""
+        eval_name = f"{episode.sim_suite}/{episode.env_name}"
         try:
             episode_id = await stats_repo.record_episode(
                 agent_policies=episode.agent_policies,
                 agent_metrics=episode.agent_metrics,
                 primary_policy_id=episode.primary_policy_id,
+                eval_name=eval_name,
                 stats_epoch=episode.stats_epoch,
-                sim_name=episode.sim_name,
-                env_label=episode.env_label,
                 replay_url=episode.replay_url,
                 attributes=episode.attributes,
                 eval_task_id=episode.eval_task_id,

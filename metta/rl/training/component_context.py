@@ -53,6 +53,7 @@ class TrainerState:
     optimizer_state: Optional[Dict[str, Any]] = None
     stopwatch_state: Optional[Dict[str, Any]] = None
     latest_saved_policy_epoch: int = 0
+    loss_states: Dict[str, Any] = field(default_factory=dict)
 
 
 class ComponentContext:
@@ -87,6 +88,7 @@ class ComponentContext:
         self.memory_monitor: MemoryMonitor | None = None
         self.system_monitor: SystemMonitor | None = None
         self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
+        self.losses: Dict[str, Any] = {}
 
         self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
         self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None

@@ -45,14 +45,14 @@ class TestStatsServerSimple:
         # 5. Record an episode
         episode = stats_client.record_episode(
             agent_policies={0: policy.id, 1: policy2.id},
-            env_label="mettagrid",
             agent_metrics={
                 0: {"reward": 100.5, "steps": 50.0, "success_rate": 0.8},
                 1: {"reward": 85.2, "steps": 45.0, "success_rate": 0.7},
             },
             primary_policy_id=policy.id,
             stats_epoch=epoch.id,
-            sim_name="test_evaluation",
+            sim_suite="test_evaluation",
+            env_name="mettagrid",
             replay_url="https://example.com/replay",
             attributes={"episode_length": 100, "difficulty": "medium"},
         )
@@ -83,8 +83,8 @@ class TestStatsServerSimple:
                 agent_metrics={0: {"reward": float(i * 10), "steps": float(i * 5)}},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                sim_name=f"episode_{i}",
-                env_label="test_env",
+                sim_suite="episode_{i}",
+                env_name="test_env",
             )
             episode_ids.append(episode.id)
             assert episode.id is not None
