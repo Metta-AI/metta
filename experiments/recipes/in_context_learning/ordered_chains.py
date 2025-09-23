@@ -539,7 +539,7 @@ def experiment():
         "level_0",
         "level_1",
         "level_2",
-        "tinytiny_small",
+        "tiny_small",
         "all_room_sizes",
         "longer_chains",
         "terrain_1",
