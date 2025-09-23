@@ -159,7 +159,7 @@ class Trainer:
             cmd_parts.append(f"wandb_project={self.config.wandb_project}")
 
         if self.save_path:
-            cmd_parts.append(f"checkpoint_dir={self.save_path}")
+            cmd_parts.append(f"run_dir={self.save_path}")
 
         return " ".join(cmd_parts)
 

@@ -408,7 +408,6 @@ class TestGlobalTokens:
                     episode_completion_pct=True,
                     last_action=True,
                     last_reward=True,
-                    resource_rewards=False,
                 ),
                 resource_names=["laser", "armor", "heart"],
                 map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
