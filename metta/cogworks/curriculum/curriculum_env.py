@@ -69,7 +69,8 @@ class CurriculumEnv(PufferEnv):
         # We check on each call but only generate when epoch changes
         viz_data = self._curriculum.get_visualization_data(self._current_epoch)
         if viz_data:
-            info_dict["task_pool_visualizations"] = viz_data
+            # Mark with underscore prefix so PufferLib won't try to average this data
+            info_dict["_task_pool_visualizations"] = viz_data
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""

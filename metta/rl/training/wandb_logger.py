@@ -84,8 +84,8 @@ class WandbLogger(TrainerComponent):
 
             # Look for visualization data in the most recent info
             for info in reversed(latest_infos):
-                if isinstance(info, dict) and "task_pool_visualizations" in info:
-                    viz_data = info["task_pool_visualizations"]
+                if isinstance(info, dict) and "_task_pool_visualizations" in info:
+                    viz_data = info["_task_pool_visualizations"]
                     self._log_histograms(viz_data)
                     break  # Only log once per epoch
         except Exception:
