@@ -30,6 +30,7 @@ def test_parse_cli_args_supports_commander_formats() -> None:
             '{"foo": 1}',
             "threshold:0.5",
             "--ratio:2",
+            "outer.depth=9",
         ]
     )
 
@@ -39,6 +40,7 @@ def test_parse_cli_args_supports_commander_formats() -> None:
     assert parsed["payload"] == {"foo": 1}
     assert parsed["threshold"] == 0.5
     assert parsed["ratio"] == 2
+    assert parsed["outer.depth"] == 9
 
 
 def test_parse_cli_args_parses_strings_and_nulls() -> None:
