@@ -89,8 +89,6 @@ class Evaluator(TrainerComponent):
         eval_cfg: EvaluatorConfig,
         stats_client: Optional[StatsClient],
     ) -> None:
-        """Configure evaluation settings."""
-
         if eval_cfg.replay_dir is None:
             eval_cfg.replay_dir = auto_replay_dir()
             logger.info(f"Setting replay_dir to {eval_cfg.replay_dir}")
@@ -115,7 +113,6 @@ class Evaluator(TrainerComponent):
                     logger.info("No git hash available for remote evaluations")
 
     def should_evaluate(self, epoch: int) -> bool:
-        """Check if evaluation should run at this epoch."""
         interval = self._config.epoch_interval
         if interval <= 0:
             return False
@@ -129,7 +126,6 @@ class Evaluator(TrainerComponent):
         agent_step: int,
         stats_epoch_id: Optional[UUID] = None,
     ) -> EvalRewardSummary:
-        """Run evaluation on the policy and return evaluation scores"""
         if not policy_uri:
             logger.warning("No policy URI available for evaluation")
             return EvalRewardSummary()
@@ -184,7 +180,6 @@ class Evaluator(TrainerComponent):
         return EvalRewardSummary()
 
     def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
-        """Build simulation configurations for evaluation."""
         sims = []
 
         # Add training task evaluations
@@ -208,7 +203,6 @@ class Evaluator(TrainerComponent):
         simulations: list[SimulationConfig],
         stats_epoch_id: Optional[UUID] = None,
     ) -> None:
-        """Run remote evaluation."""
         logger.info(f"Evaluating policy remotely from {policy_uri}")
         stats_reporter = getattr(self.context, "stats_reporter", None)
         wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter else None
@@ -218,7 +212,7 @@ class Evaluator(TrainerComponent):
             stats_epoch_id=stats_epoch_id,
             stats_client=self._stats_client,
             wandb_run=wandb_run,
-            evaluator=self._config,
+            evaluation_cfg=self._config,
         )
 
     def _evaluate_local(
@@ -227,7 +221,6 @@ class Evaluator(TrainerComponent):
         simulations: list[SimulationConfig],
         stats_epoch_id: Optional[UUID] = None,
     ) -> EvalResults:
-        """Run local evaluation."""
         logger.info(f"Evaluating policy locally from {policy_uri}")
         return evaluate_policy(
             checkpoint_uri=policy_uri,
@@ -240,11 +233,9 @@ class Evaluator(TrainerComponent):
         )
 
     def get_latest_scores(self) -> EvalRewardSummary:
-        """Get the latest evaluation scores."""
         return self._latest_scores
 
     def on_epoch_end(self, epoch: int) -> None:
-        """Run evaluation at epoch end if due."""
         if not self.should_evaluate(epoch):
             return
 

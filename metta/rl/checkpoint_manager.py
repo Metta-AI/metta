@@ -216,7 +216,8 @@ class CheckpointManager:
                     "'metta configure aws'."
                 )
 
-    def remote_checkpoints_enabled(self):
+    @property
+    def remote_checkpoints_enabled(self) -> bool:
         return self._remote_prefix is not None
 
     def clear_cache(self):

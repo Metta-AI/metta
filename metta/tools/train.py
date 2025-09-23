@@ -8,7 +8,7 @@ from pydantic import Field, model_validator
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -113,7 +113,8 @@ class TrainTool(Tool):
 
         checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
-        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled():
+        # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
+        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
             raise ValueError("without a remote prefix we cannot use remote evaluation")
 
         init_logging(run_dir=checkpoint_manager.run_dir)
@@ -302,7 +303,7 @@ class TrainTool(Tool):
         if not (distributed_helper.is_master() and self.stats_server_uri):
             return None
         try:
-            return HttpStatsClient.create(stats_server_uri=self.stats_server_uri)
+            return StatsClient.create(stats_server_uri=self.stats_server_uri)
 
         except Exception as exc:
             logger.warning("Failed to initialize stats client: %s", exc)

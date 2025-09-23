@@ -28,7 +28,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
     stats_epoch_id: uuid.UUID | None,
     stats_client: StatsClient | None,
     wandb_run: WandbRun | None,
-    evaluator: EvaluatorConfig | None,
+    evaluation_cfg: EvaluatorConfig | None,
 ) -> TaskResponse | None:
     """Create a remote evaluation task using a policy URI."""
     if not (wandb_run and stats_client and policy_uri):
@@ -55,7 +55,7 @@ def evaluate_policy_remote_with_checkpoint_manager(
             policy_id=stats_server_policy_id,
             sim_suite=simulations[0].name,
             attributes={
-                "git_hash": (evaluator and evaluator.git_hash),
+                "git_hash": (evaluation_cfg and evaluation_cfg.git_hash),
                 "simulations": [sim.model_dump() for sim in simulations],
             },
         )
