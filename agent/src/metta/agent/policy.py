@@ -3,8 +3,9 @@
 This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
 implement the required methods that MettaAgent depends on."""
 
+import importlib.util
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Dict, List
 
 import torch
 import torch.nn as nn
@@ -145,4 +146,22 @@ class ExternalPolicyWrapper(Policy):
         pass
 
 
-PolicyArchitecture.register_alias("fast", "metta.agent.policies.fast.FastConfig")
+_POLICY_ALIAS_TARGETS: Dict[str, str] = {
+    "fast": "metta.agent.policies.fast.FastConfig",
+    "fast_lstm_reset": "metta.agent.policies.fast_lstm_reset.FastLSTMResetConfig",
+    "fast_dynamics": "metta.agent.policies.fast_dynamics.FastDynamicsConfig",
+    "cnn_trans": "metta.agent.policies.cnn_trans.CNNTransConfig",
+    "vit_small": "metta.agent.policies.vit.ViTSmallConfig",
+    # Backwards compatibility alias for existing docs/CLI usage.
+    "vit": "metta.agent.policies.vit.ViTSmallConfig",
+}
+
+
+def _module_available(module_path: str) -> bool:
+    return importlib.util.find_spec(module_path) is not None
+
+
+for alias, target in _POLICY_ALIAS_TARGETS.items():
+    module_name = target.rsplit(".", 1)[0]
+    if _module_available(module_name):
+        PolicyArchitecture.register_alias(alias, target)

@@ -8,11 +8,6 @@ import torch
 from pydantic import Field, model_validator
 
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.transformer import (
-    TransformerImprovedConfig,
-    TransformerNvidiaConfig,
-    TransformerPolicyConfig,
-)
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -59,13 +54,17 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
+def _collect_policy_presets() -> dict[str, str]:
+    presets: dict[str, str] = {}
+    for base in PolicyArchitecture.__mro__:
+        alias_map = getattr(base, "_aliases", None)
+        if alias_map:
+            presets.update(alias_map)
+    return presets
+
+
 class TrainTool(Tool):
-    POLICY_PRESETS: ClassVar[dict[str, type[PolicyArchitecture]]] = {
-        "fast": FastConfig,
-        "transformer": TransformerPolicyConfig,
-        "transformer_improved": TransformerImprovedConfig,
-        "transformer_nvidia": TransformerNvidiaConfig,
-    }
+    POLICY_PRESETS: ClassVar[dict[str, str]] = _collect_policy_presets()
 
     @model_validator(mode="before")
     @classmethod
@@ -73,12 +72,21 @@ class TrainTool(Tool):
         if not isinstance(data, dict):
             return data
         value = data.get("policy_architecture")
-        if isinstance(value, str) and "." not in value:
-            preset_cls = cls.POLICY_PRESETS.get(value.lower())
-            if preset_cls is None:
-                valid = ", ".join(sorted(cls.POLICY_PRESETS))
+        if isinstance(value, str):
+            candidates = [value]
+            if "." not in value:
+                candidates.append(value.lower())
+
+            for candidate in candidates:
+                try:
+                    data["policy_architecture"] = PolicyArchitecture.resolve(candidate)
+                    break
+                except (ModuleNotFoundError, AttributeError, ImportError, TypeError):
+                    continue
+            else:
+                presets = _collect_policy_presets()
+                valid = ", ".join(sorted(presets)) if presets else "(none available)"
                 raise ValueError(f"Unknown policy preset '{value}'. Valid options: {valid}")
-            data["policy_architecture"] = preset_cls()
         return data
 
     run: Optional[str] = None
