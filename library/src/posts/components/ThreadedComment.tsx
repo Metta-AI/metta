@@ -49,10 +49,10 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
   // Handle content changes that also updates mentions
   const handleReplyContentChange = (newContent: string) => {
     setReplyContent(newContent);
-    
+
     // Parse mentions from content
     const parsedMentions = parseMentions(newContent);
-    const mentionValues = parsedMentions.map(m => m.raw);
+    const mentionValues = parsedMentions.map((m) => m.raw);
     setReplyMentions(mentionValues);
   };
 

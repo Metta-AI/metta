@@ -14,7 +14,7 @@ import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
 import { InPostComments } from "@/components/InPostComments";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight, MessageSquare, ExternalLink } from "lucide-react";
 
 /**
  * FeedPost Component
@@ -39,6 +39,7 @@ export const FeedPost: FC<{
   onCommentToggle: () => void;
   onPostSelect?: () => void;
   isSelected?: boolean;
+  highlightedCommentId?: string | null;
 }> = ({
   post,
   onPaperClick,
@@ -48,6 +49,7 @@ export const FeedPost: FC<{
   onCommentToggle,
   onPostSelect,
   isSelected,
+  highlightedCommentId,
 }) => {
   const router = useRouter();
 
@@ -206,13 +208,8 @@ export const FeedPost: FC<{
       return;
     }
 
-    // Always toggle comments
-    onCommentToggle();
-
-    // If the post has a paper, also show the paper sidebar
-    if (post.paper) {
-      onPostSelect?.();
-    }
+    // Navigate to post page instead of expanding in-place
+    router.push(`/posts/${post.id}`);
   };
 
   const handleOpenFullView = () => {
@@ -506,6 +503,15 @@ export const FeedPost: FC<{
 
         {/* Action buttons group */}
         <div className="flex items-center gap-2">
+          {/* Permalink button */}
+          <Link
+            href={`/posts/${post.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="rounded-full p-1 text-neutral-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-neutral-100 hover:text-blue-500"
+            title="Open post"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Link>
           {/* Queue button - only show for posts with papers */}
           {paperData && (
             <button
@@ -664,6 +670,7 @@ export const FeedPost: FC<{
           onToggle={onCommentToggle}
           currentUser={currentUser}
           onCommentCountChange={handleCommentCountChange}
+          highlightedCommentId={highlightedCommentId}
         />
       </div>
 
