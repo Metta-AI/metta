@@ -1,25 +1,72 @@
-from typing import Any
+from typing import Any, Tuple
 
+import numpy as np
 import torch
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
-from torchrl.data import Composite
+from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
 from metta.agent.policy import Policy
+from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
 from metta.rl.training.component_context import ComponentContext
 from metta.rl.training.training_environment import TrainingEnvironment
+from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.config import Config
 
 
-class KLPenaltyConfig(Config):
-    """Configuration for KL divergence penalty loss."""
+class PrioritizedExperienceReplayConfig(Config):
+    # Alpha=0 means uniform sampling; tuned via sweep
+    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
+    # Beta baseline per Schaul et al. (2016)
+    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
-    # KL penalty coefficient
+
+class VTraceConfig(Config):
+    # Defaults follow IMPALA (Espeholt et al., 2018)
+    rho_clip: float = Field(default=1.0, gt=0)
+    c_clip: float = Field(default=1.0, gt=0)
+
+
+class KLPenaltyConfig(Config):
+    """Configuration for PPO with KL penalty instead of clipping."""
+
+    # KL penalty coefficient (replaces clip_coef)
     kl_penalty_coef: float = Field(default=0.01, ge=0)
+    # Entropy term weight from sweep
+    ent_coef: float = Field(default=0.010000, ge=0)
+    # GAE lambda tuned via sweep (cf. standard 0.95)
+    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
+    # Gamma tuned for shorter effective horizon
+    gamma: float = Field(default=0.977, ge=0, le=1.0)
+
+    # Training parameters
+    # Gradient clipping default
+    max_grad_norm: float = Field(default=0.5, gt=0)
+    # Value clipping mirrors policy clip
+    vf_clip_coef: float = Field(default=0.1, ge=0)
+    # Value term weight from sweep
+    vf_coef: float = Field(default=0.897619, ge=0)
+    # L2 regularization defaults to disabled
+    l2_reg_loss_coef: float = Field(default=0, ge=0)
+    l2_init_loss_coef: float = Field(default=0, ge=0)
+
+    # Normalization and clipping
+    # Advantage normalization toggle
+    norm_adv: bool = True
+    # Value loss clipping toggle
+    clip_vloss: bool = True
+    # Target KL for early stopping (None disables)
+    target_kl: float | None = None
     # Clamp log ratio to prevent numerical issues
     max_log_ratio: float = Field(default=10.0, gt=0)
+
+    vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
+
+    prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
+        default_factory=PrioritizedExperienceReplayConfig
+    )
 
     def create(
         self,
@@ -36,8 +83,8 @@ class KLPenaltyConfig(Config):
             trainer_cfg,
             env,
             device,
-            instance_name=instance_name,
-            loss_config=loss_config,
+            instance_name,
+            loss_cfg=self,
         )
 
 
@@ -102,4 +149,5 @@ class KLPenalty(Loss):
 
     def _track(self, key: str, value: Tensor) -> None:
         """Track loss values for monitoring."""
-        self.loss_tracker[key].append(float(value.item()))
+        if self.loss_tracker is not None:
+            self.loss_tracker[key].append(float(value.item()))
