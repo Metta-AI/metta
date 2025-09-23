@@ -10,27 +10,6 @@ from tensordict.nn import TensorDictSequential
 from metta.agent.components.component_config import ComponentConfig
 
 
-class LazyLinearConfig(ComponentConfig):
-    in_key: str
-    out_key: str
-    out_features: int
-    name: str
-
-    def make_component(self, env=None):
-        return LazyLinear(config=self)
-
-
-class LazyLinear(nn.Module):
-    def __init__(self, config: LazyLinearConfig):
-        super().__init__()
-        self.config = config
-        self.linear = nn.LazyLinear(self.config.out_features)
-
-    def forward(self, td: TensorDict) -> TensorDict:
-        td[self.config.out_key] = self.linear(td[self.config.in_key])
-        return td
-
-
 class MLPConfig(ComponentConfig):
     """Variable depth MLP. You don't have to set input feats since it uses lazy linear.
     Don't set an output nonlinearity if it's used as an output head!"""
