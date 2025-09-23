@@ -57,9 +57,10 @@ class TestStopwatch:
         assert stopwatch.get_elapsed("timer1") == pytest.approx(elapsed1, abs=0.1)
         assert stopwatch.get_elapsed("timer2") == pytest.approx(elapsed2, abs=0.1)
 
-    @pytest.mark.skip(reason="Test failing sporadically - temporarily disabled")
-    def test_context_manager(self, stopwatch: Stopwatch, caplog: pytest.LogCaptureFixture):
+    def test_context_manager(self, caplog: pytest.LogCaptureFixture):
         """Test using stopwatch as context manager."""
+        stopwatch = Stopwatch(log_level=logging.INFO)
+
         # Test with time() method
         with stopwatch.time("test_context"):
             time.sleep(0.1)
@@ -68,15 +69,18 @@ class TestStopwatch:
         assert elapsed == pytest.approx(0.1, abs=0.1)
 
         # Test with callable syntax and logging
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger=stopwatch.logger.name):
+            caplog.clear()
+
             with stopwatch("test_callable", log_level=logging.INFO):
                 time.sleep(0.1)
 
             # Check log output
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "INFO"
-            assert "test_callable took" in caplog.records[0].message
-            assert "s" in caplog.records[0].message  # Should show seconds
+            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            assert len(stopwatch_logs) == 1
+            assert stopwatch_logs[0].levelname == "INFO"
+            assert "test_callable took" in stopwatch_logs[0].message
+            assert "s" in stopwatch_logs[0].message  # Should show seconds
 
     def test_checkpoint_functionality(self, stopwatch: Stopwatch):
         """Test checkpoint recording."""
@@ -102,19 +106,30 @@ class TestStopwatch:
         assert any(k.startswith("_lap_") for k in timer.checkpoints)
 
     def test_lap_functionality(self, stopwatch: Stopwatch):
-        """Test lap timing."""
         stopwatch.start("lap_timer")
-        time.sleep(0.1)
 
         # First lap
-        lap1_time = stopwatch.lap(100, "lap_timer")
-        assert lap1_time == pytest.approx(0.1, abs=0.1)
-
+        lap1_start = time.time()
         time.sleep(0.1)
+        lap1_end = time.time()
+        lap1_time = stopwatch.lap(100, "lap_timer")
+        lap1_actual = lap1_end - lap1_start
+
+        # Compare against actual elapsed time, not expected 0.1
+        assert lap1_time == pytest.approx(lap1_actual, abs=0.01)
+        # Also check it's reasonably close to 0.1 (with wider tolerance for parallel execution)
+        assert lap1_time == pytest.approx(0.1, abs=0.05)
 
         # Second lap
+        lap2_start = time.time()
+        time.sleep(0.1)
+        lap2_end = time.time()
         lap2_time = stopwatch.lap(200, "lap_timer")
-        assert lap2_time == pytest.approx(0.1, abs=0.1)
+        lap2_actual = lap2_end - lap2_start
+
+        # Compare against actual elapsed time
+        assert lap2_time == pytest.approx(lap2_actual, abs=0.01)
+        assert lap2_time == pytest.approx(0.1, abs=0.05)
 
         stopwatch.stop("lap_timer")
 
@@ -163,23 +178,38 @@ class TestStopwatch:
 
     def test_get_last_elapsed(self, stopwatch: Stopwatch):
         """Test getting last elapsed time."""
-        # First run
+        # First run - measure actual time
+        start1 = time.time()
         stopwatch.start("last_test")
         time.sleep(0.1)
+        end1 = time.time()
         elapsed1 = stopwatch.stop("last_test")
+        actual_elapsed1 = end1 - start1
 
-        # Second run
+        # Verify first run elapsed time matches actual
+        assert elapsed1 == pytest.approx(actual_elapsed1, abs=0.01)
+
+        # Second run - measure actual time
+        start2 = time.time()
         stopwatch.start("last_test")
         time.sleep(0.05)
+        end2 = time.time()
         elapsed2 = stopwatch.stop("last_test")
+        actual_elapsed2 = end2 - start2
 
-        # Check last elapsed
+        # Verify second run elapsed time matches actual
+        assert elapsed2 == pytest.approx(actual_elapsed2, abs=0.01)
+
+        # Check last elapsed matches the second run
         last = stopwatch.get_last_elapsed("last_test")
-        assert last == pytest.approx(elapsed2, abs=0.1)
+        assert last == pytest.approx(elapsed2, abs=0.01)
+        assert last == pytest.approx(actual_elapsed2, abs=0.01)
 
-        # Check total is sum
+        # Check total is sum of both runs
         total = stopwatch.get_elapsed("last_test")
-        assert total == pytest.approx(elapsed1 + elapsed2, abs=0.1)
+        expected_total = actual_elapsed1 + actual_elapsed2
+        assert total == pytest.approx(expected_total, abs=0.02)
+        assert total == pytest.approx(elapsed1 + elapsed2, abs=0.01)
 
     def test_running_timer_elapsed(self, stopwatch: Stopwatch):
         """Test getting elapsed time while timer is running."""
@@ -223,27 +253,37 @@ class TestStopwatch:
         stopwatch.start("estimate_test")
         time.sleep(0.1)
 
+        elapsed = stopwatch.get_elapsed("estimate_test")
+
         # Estimate at 25% completion
         remaining_seconds, remaining_str = stopwatch.estimate_remaining(25, 100, "estimate_test")
 
-        # Should be about 0.3 seconds (0.1 elapsed for 25 steps, so 0.3 for remaining 75)
-        assert remaining_seconds == pytest.approx(0.3, abs=0.1)
+        # If 25% took 'elapsed' seconds, then 75% should take 3x that
+        expected_remaining = elapsed * 3
+
+        # Should be extremely accurate since we're using the same elapsed time
+        assert remaining_seconds == pytest.approx(expected_remaining, rel=0.01)
         assert "sec" in remaining_str
 
         stopwatch.stop("estimate_test")
 
-    def test_log_progress(self, stopwatch: Stopwatch, caplog: pytest.LogCaptureFixture):
+    def test_log_progress(self, caplog: pytest.LogCaptureFixture):
         """Test progress logging."""
+        stopwatch = Stopwatch(log_level=logging.INFO)
+
         stopwatch.start("progress_test")
         time.sleep(0.1)
 
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger=stopwatch.logger.name):
+            caplog.clear()
+
             # Log progress
             stopwatch.log_progress(50, 100, "progress_test", "Test Progress")
 
             # Check log output
-            assert len(caplog.records) == 1
-            record = caplog.records[0]
+            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            assert len(stopwatch_logs) == 1
+            record = stopwatch_logs[0]
             assert record.levelname == "INFO"
             assert "Test Progress" in record.message
             assert "[progress_test]" in record.message
@@ -299,15 +339,22 @@ class TestStopwatch:
         all_elapsed_with_global = stopwatch.get_all_elapsed(exclude_global=False)
         assert stopwatch.GLOBAL_TIMER_NAME in all_elapsed_with_global
 
-    def test_edge_cases(self, stopwatch: Stopwatch, caplog: pytest.LogCaptureFixture):
+    def test_edge_cases(self, caplog: pytest.LogCaptureFixture):
         """Test edge cases and error handling."""
-        with caplog.at_level(logging.WARNING):
+        stopwatch = Stopwatch(log_level=logging.INFO)
+
+        with caplog.at_level(logging.WARNING, logger=stopwatch.logger.name):
+            caplog.clear()
+
             # Stop timer that's not running
             elapsed = stopwatch.stop("nonexistent")
             assert elapsed == 0.0
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "WARNING"
-            assert "Timer 'nonexistent' not running" in caplog.records[0].message
+
+            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            assert len(stopwatch_logs) == 1
+            record = stopwatch_logs[0]
+            assert record.levelname == "WARNING"
+            assert "Timer 'nonexistent' not running" in record.message
 
             # Clear for next test
             caplog.clear()
@@ -315,9 +362,12 @@ class TestStopwatch:
             # Start timer that's already running
             stopwatch.start("double_start")
             stopwatch.start("double_start")
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "WARNING"
-            assert "Timer 'double_start' already running" in caplog.records[0].message
+
+            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            assert len(stopwatch_logs) == 1
+            record = stopwatch_logs[0]
+            assert record.levelname == "WARNING"
+            assert "Timer 'double_start' already running" in record.message
 
         # Rate with zero elapsed time
         rate = stopwatch.get_rate(100, "zero_timer")
@@ -329,12 +379,20 @@ class TestStopwatch:
     def test_global_timer(self, stopwatch: Stopwatch):
         """Test global timer behavior."""
         # Test with None (should use global)
+        start_time = time.time()
         stopwatch.start()
         time.sleep(0.1)
+        end_time = time.time()
         elapsed = stopwatch.stop()
+        actual_elapsed = end_time - start_time
 
-        assert elapsed == pytest.approx(0.1, abs=0.1)
-        assert stopwatch.get_elapsed() == elapsed
+        # Verify elapsed time matches actual measured time
+        assert elapsed == pytest.approx(actual_elapsed, abs=0.01)
+        # Also check it's reasonably close to 0.1 (with wider tolerance for parallel)
+        assert elapsed == pytest.approx(0.1, abs=0.5)
+
+        # Verify get_elapsed returns the same value
+        assert stopwatch.get_elapsed() == pytest.approx(elapsed, abs=0.001)
 
         # Reset global timer
         stopwatch.reset()
@@ -364,52 +422,163 @@ class TestStopwatch:
         timer2.references.add(("same.py", 20))
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
-    @pytest.mark.skip(reason="Test failing sporadically - temporarily disabled")
     def test_lap_all_with_running_and_stopped_timers(self, stopwatch: Stopwatch):
-        tol = 0.05
+        tol = 0.02  # Keep tight tolerance for comparing against actual measurements
 
+        # Track when each timer was last started/stopped
+        timer_states = {
+            "A": {"running": False, "elapsed": 0.0, "last_start": None},
+            "B": {"running": False, "elapsed": 0.0, "last_start": None},
+            "C": {"running": False, "elapsed": 0.0, "last_start": None},
+        }
+
+        def update_timer_state(name, action, current_time):
+            """Helper to track actual elapsed time for each timer"""
+            state = timer_states[name]
+            if action == "start" and not state["running"]:
+                state["running"] = True
+                state["last_start"] = current_time
+            elif action == "stop" and state["running"]:
+                state["elapsed"] += current_time - state["last_start"]
+                state["running"] = False
+                state["last_start"] = None
+
+        def get_current_elapsed(name, current_time):
+            """Get the actual elapsed time for a timer"""
+            state = timer_states[name]
+            elapsed = state["elapsed"]
+            if state["running"]:
+                elapsed += current_time - state["last_start"]
+            return elapsed
+
+        # Start all timers and track actual start time
+        start_time = time.time()
         stopwatch.start("A")
+        update_timer_state("A", "start", start_time)
         stopwatch.start("B")
+        update_timer_state("B", "start", start_time)
         stopwatch.start("C")
-        time.sleep(0.1)  # 0.1, 0.1, 0.1
+        update_timer_state("C", "start", start_time)
 
+        # Sleep 0.1s - all timers running
+        time.sleep(0.1)
+        checkpoint1_time = time.time()
+
+        # Stop A
         stopwatch.stop("A")
-        time.sleep(0.1)  # 0.1, 0.2, 0.2
+        update_timer_state("A", "stop", checkpoint1_time)
 
+        # Sleep 0.1s - B and C running
+        time.sleep(0.1)
+        checkpoint2_time = time.time()
+
+        # Stop B, Start A
         stopwatch.stop("B")
+        update_timer_state("B", "stop", checkpoint2_time)
         stopwatch.start("A")
-        time.sleep(0.1)  # 0.2, 0.2, 0.3
+        update_timer_state("A", "start", checkpoint2_time)
 
+        # Sleep 0.1s - A and C running
+        time.sleep(0.1)
+        lap1_time = time.time()
+
+        # First lap_all
         lap_times = stopwatch.lap_all(1000)
-        assert lap_times["A"] == pytest.approx(0.2, abs=tol)
-        assert lap_times["B"] == pytest.approx(0.2, abs=tol)
-        assert lap_times["C"] == pytest.approx(0.3, abs=tol)
 
-        time.sleep(0.1)  # 0.3, 0.2, 0.4
+        # Verify lap times match actual elapsed times
+        actual_A = get_current_elapsed("A", lap1_time)
+        actual_B = get_current_elapsed("B", lap1_time)
+        actual_C = get_current_elapsed("C", lap1_time)
+
+        assert lap_times["A"] == pytest.approx(actual_A, abs=tol)
+        assert lap_times["B"] == pytest.approx(actual_B, abs=tol)
+        assert lap_times["C"] == pytest.approx(actual_C, abs=tol)
+
+        # Sleep 0.1s - A and C running
+        time.sleep(0.1)
+        checkpoint3_time = time.time()
+
+        # Stop A
         stopwatch.stop("A")
-        time.sleep(0.1)  # 0.3, 0.2, 0.5
+        update_timer_state("A", "stop", checkpoint3_time)
 
+        # Sleep 0.1s - only C running
+        time.sleep(0.1)
+        lap2_time = time.time()
+
+        # Store previous elapsed times for delta calculation
+        prev_A = actual_A
+        prev_B = actual_B
+        prev_C = actual_C
+
+        # Second lap_all
         lap_times_2 = stopwatch.lap_all(2000)
-        assert lap_times_2["A"] == pytest.approx(0.1, abs=tol)
-        assert lap_times_2["B"] == pytest.approx(0.0, abs=tol)
-        assert lap_times_2["C"] == pytest.approx(0.2, abs=tol)
 
+        # Calculate actual deltas since last lap
+        actual_A2 = get_current_elapsed("A", lap2_time)
+        actual_B2 = get_current_elapsed("B", lap2_time)
+        actual_C2 = get_current_elapsed("C", lap2_time)
+
+        delta_A = actual_A2 - prev_A
+        delta_B = actual_B2 - prev_B
+        delta_C = actual_C2 - prev_C
+
+        assert lap_times_2["A"] == pytest.approx(delta_A, abs=tol)
+        assert lap_times_2["B"] == pytest.approx(delta_B, abs=tol)
+        assert lap_times_2["C"] == pytest.approx(delta_C, abs=tol)
+
+        # Start A
         stopwatch.start("A")
-        time.sleep(0.1)  # 0.4, 0.2, 0.6
+        update_timer_state("A", "start", lap2_time)
+
+        # Sleep 0.1s - A and C running
+        time.sleep(0.1)
+        checkpoint4_time = time.time()
+
+        # Stop A and C
         stopwatch.stop("A")
+        update_timer_state("A", "stop", checkpoint4_time)
         stopwatch.stop("C")
-        time.sleep(0.1)  # 0.4, 0.2, 0.6
+        update_timer_state("C", "stop", checkpoint4_time)
 
+        # Sleep 0.1s - all stopped
+        time.sleep(0.1)
+        lap3_time = time.time()
+
+        # Store previous elapsed times for delta calculation
+        prev_A2 = actual_A2
+        prev_B2 = actual_B2
+        prev_C2 = actual_C2
+
+        # Third lap_all
         lap_times_3 = stopwatch.lap_all(3000)
-        assert lap_times_3["A"] == pytest.approx(0.1, abs=tol)
-        assert lap_times_3["B"] == pytest.approx(0.0, abs=tol)
-        assert lap_times_3["C"] == pytest.approx(0.1, abs=tol)
 
-        # Expected checkpoints
+        # Calculate actual deltas since last lap
+        actual_A3 = get_current_elapsed("A", lap3_time)
+        actual_B3 = get_current_elapsed("B", lap3_time)
+        actual_C3 = get_current_elapsed("C", lap3_time)
+
+        delta_A3 = actual_A3 - prev_A2
+        delta_B3 = actual_B3 - prev_B2
+        delta_C3 = actual_C3 - prev_C2
+
+        assert lap_times_3["A"] == pytest.approx(delta_A3, abs=tol)
+        assert lap_times_3["B"] == pytest.approx(delta_B3, abs=tol)
+        assert lap_times_3["C"] == pytest.approx(delta_C3, abs=tol)
+
+        # Verify final total elapsed times match our tracking
+        for name in ["A", "B", "C"]:
+            final_elapsed = stopwatch.get_elapsed(name)
+            actual_final = get_current_elapsed(name, lap3_time)
+            assert final_elapsed == pytest.approx(actual_final, abs=tol), (
+                f"Timer {name}: stopwatch elapsed {final_elapsed} != actual {actual_final}"
+            )
+
+        # Build expected checkpoints based on actual measurements
         expected_checkpoints = {
-            "A": [0.0, 0.2, 0.3, 0.4],
-            "B": [0.0, 0.2, 0.2, 0.2],
-            "C": [0.0, 0.3, 0.5, 0.6],
+            "A": [0.0, actual_A, actual_A2, actual_A3],
+            "B": [0.0, actual_B, actual_B2, actual_B3],
+            "C": [0.0, actual_C, actual_C2, actual_C3],
         }
 
         for name, expected_times in expected_checkpoints.items():
@@ -420,6 +589,14 @@ class TestStopwatch:
                 f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
             )
 
+            # Verify checkpoint times match our tracking (with tight tolerance)
+            for i, (_, checkpoint_data) in enumerate(checkpoints):
+                checkpoint_elapsed = checkpoint_data["elapsed_time"]
+                assert checkpoint_elapsed == pytest.approx(expected_times[i], abs=tol), (
+                    f"Timer {name}: checkpoint {i} time {checkpoint_elapsed} != expected {expected_times[i]}"
+                )
+
+            # Verify lap times match checkpoint deltas
             laps = len(checkpoints) - 1
             for i in range(laps):
                 start_checkpoint_time = checkpoints[i][1]["elapsed_time"]
@@ -496,44 +673,94 @@ class TestStopwatchIntegration:
     def test_lap_rate_tracking(self):
         """Test tracking rates across multiple laps."""
         sw = Stopwatch()
+
+        # Start timing
+        start_time = time.time()
         sw.start("training")
 
-        # First lap: 100 steps in 0.1 seconds
+        # First lap: 100 steps in ~0.1 seconds
         time.sleep(0.1)
+        lap1_actual_end = time.time()
         lap1_time = sw.lap(100, "training")
-        assert lap1_time == pytest.approx(0.1, abs=0.1)
+        lap1_actual_delta = lap1_actual_end - start_time
 
-        # Second lap: 200 more steps (total 300) in another 0.1 seconds
+        # Verify lap time matches actual time delta
+        assert lap1_time == pytest.approx(lap1_actual_delta, abs=0.02)
+        # Use wider tolerance for parallel execution
+        assert lap1_time == pytest.approx(0.1, abs=0.5)  # Very wide tolerance
+
+        # Second lap: 200 more steps (total 300) in another ~0.1 seconds
+        lap2_start = time.time()
         time.sleep(0.1)
+        lap2_end = time.time()
         lap2_time = sw.lap(300, "training")
-        assert lap2_time == pytest.approx(0.1, abs=0.1)
+        lap2_actual_delta = lap2_end - lap2_start
 
-        # Third lap: 300 more steps (total 600) in another 0.1 seconds
+        # Verify lap time matches actual time delta
+        assert lap2_time == pytest.approx(lap2_actual_delta, abs=0.02)
+        # Remove the problematic assertion - we can't assume sleep(0.1) takes 0.1s under load
+        # Instead, just verify the lap time is positive and reasonable
+        assert lap2_time > 0
+        assert lap2_time < 2.0  # Should be less than 2 seconds even under heavy load
+
+        # Third lap: 300 more steps (total 600) in another ~0.1 seconds
+        lap3_start = time.time()
         time.sleep(0.1)
+        lap3_end = time.time()
         lap3_time = sw.lap(600, "training")
-        assert lap3_time == pytest.approx(0.1, abs=0.1)
+        lap3_actual_delta = lap3_end - lap3_start
 
-        # Now calculate rates BETWEEN checkpoints
-        # Move forward a bit in time so we can calculate rates
+        # Verify lap time matches actual time delta
+        assert lap3_time == pytest.approx(lap3_actual_delta, abs=0.02)
+
+        # Calculate rate for additional steps
+        rate_calc_start = time.time()
         time.sleep(0.05)
+        rate_calc_end = time.time()
+        rate_calc_delta = rate_calc_end - rate_calc_start
 
-        # Get current lap rate (should be based on steps since last checkpoint)
-        current_rate = sw.get_lap_rate(650, "training")  # 50 steps in ~0.05 seconds
-        assert current_rate == pytest.approx(1000, rel=0.3)
+        # Get current lap rate (50 steps in whatever time actually elapsed)
+        current_rate = sw.get_lap_rate(650, "training")
+        expected_rate = 50 / rate_calc_delta  # actual rate based on time delta
 
+        # Verify rate calculation is correct
+        assert current_rate == pytest.approx(expected_rate, rel=0.1)
+        # Don't assert against a fixed rate like 1000 steps/sec
+
+        # Stop and verify total elapsed time
+        stop_time = time.time()
         sw.stop("training")
+        total_actual_elapsed = stop_time - start_time
 
         # Verify the checkpoint data
         timer = sw._get_timer("training")
         checkpoints = timer.checkpoints
-        assert len(checkpoints) == 4  # with _start
+        assert len(checkpoints) == 4  # start + 3 laps
 
-        # Extract checkpoint data for verification
+        # Verify total elapsed time matches
+        final_elapsed = sw.get_elapsed("training")
+        assert final_elapsed == pytest.approx(total_actual_elapsed, abs=0.02)
+
+        # Extract and verify checkpoint data
         checkpoint_list = sorted(checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
-        assert checkpoint_list[0][1]["steps"] == 0  # First checkpoint at 0 steps
-        assert checkpoint_list[1][1]["steps"] == 100  # First checkpoint at 100 steps
-        assert checkpoint_list[2][1]["steps"] == 300  # Second checkpoint at 300 steps
-        assert checkpoint_list[3][1]["steps"] == 600  # Third checkpoint at 600 steps
+
+        # Verify checkpoint steps
+        assert checkpoint_list[0][1]["steps"] == 0  # Start checkpoint
+        assert checkpoint_list[1][1]["steps"] == 100  # First lap
+        assert checkpoint_list[2][1]["steps"] == 300  # Second lap
+        assert checkpoint_list[3][1]["steps"] == 600  # Third lap
+
+        # Verify checkpoint times are monotonically increasing
+        prev_time = -1
+        for _, (_, checkpoint_data) in enumerate(checkpoint_list):
+            elapsed = checkpoint_data["elapsed_time"]
+            assert elapsed > prev_time  # Monotonically increasing
+            prev_time = elapsed
+
+        # Verify lap times match checkpoint deltas
+        for i in range(1, len(checkpoint_list)):
+            checkpoint_delta = checkpoint_list[i][1]["elapsed_time"] - checkpoint_list[i - 1][1]["elapsed_time"]
+            assert checkpoint_delta > 0  # All lap times should be positive
 
     def test_real_world_scenario(self):
         """Test a realistic usage scenario."""
@@ -568,12 +795,13 @@ class TestStopwatchIntegration:
         assert all_elapsed["process_data"] > all_elapsed["load_data"]
         assert all_elapsed["process_data"] > all_elapsed["save_results"]
 
-    @pytest.mark.skip(reason="Test failing with assert 0 == 5 - temporarily disabled")
     def test_logging_scenarios(self, caplog: pytest.LogCaptureFixture):
         """Test various logging scenarios in integration."""
         sw = Stopwatch(log_level=logging.INFO)
 
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger=sw.logger.name):
+            caplog.clear()
+
             # Test multiple operations with logging
             with sw("operation1", log_level=logging.INFO):
                 time.sleep(0.05)
@@ -589,7 +817,8 @@ class TestStopwatchIntegration:
             sw.stop("batch_process")
 
             # Verify all expected logs
-            info_records = [r for r in caplog.records if r.levelname == "INFO"]
+            info_records = [r for r in caplog.records if r.levelname == "INFO" and r.name == sw.logger.name]
+
             assert len(info_records) == 5  # 2 context managers + 3 progress logs
 
             # Check operation logs
@@ -666,14 +895,18 @@ class TestStopwatchIntegration:
         assert custom_elapsed == pytest.approx(0.02, abs=0.1)
 
         # Test logging functionality
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger=sw.logger.name):
+            caplog.clear()
+
             result = test_obj.logged_method(5, y=15)
             assert result == 20
 
             # Check log output
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "INFO"
-            assert "logged_method took" in caplog.records[0].message
+            instance_timer_logs = [r for r in caplog.records if r.name == test_obj.timer.logger.name]
+
+            assert len(instance_timer_logs) == 1
+            assert instance_timer_logs[0].levelname == "INFO"
+            assert "logged_method took" in instance_timer_logs[0].message
 
         # Test multiple calls accumulate time
         test_obj.external_timed_method(3)
