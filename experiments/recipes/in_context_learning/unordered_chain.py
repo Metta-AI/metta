@@ -1,7 +1,8 @@
-import itertools
 import random
 import subprocess
 import time
+from bisect import bisect_left
+from math import comb
 from typing import List, Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -44,24 +45,94 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         cfg.map_builder_objects[source_name] = 1
 
     def _add_converter(
-        self,
-        cfg: _BuildCfg,
-        rng: random.Random,
-        max_recipe_inputs: Optional[int] = None,
+        self, cfg: _BuildCfg, rng: random.Random, max_input_resources: Optional[int] = 6
     ):
         output_resource = "heart"  # can think about the output resource later
 
-        # sample one multiset (combination with replacement) of source resources
-        max_inputs = max_recipe_inputs if max_recipe_inputs else 6
-        num_input_resources = rng.randint(1, max_inputs)
-        # this implies all sources are reusable, if we have non-reusable sources, we need to flag that
-        # and impose a constraint on the number of non-reusable source resources we can have as input
-        all_combos = list(
-            itertools.combinations_with_replacement(
-                cfg.all_input_resources, num_input_resources
-            )
+        # Build a pool that allows duplicates for reusable resources but not for non-reusables
+        # non_reusable_resources is now auto-derived from sources with limited supply
+        non_reusable: set[str] = set(self.config.non_reusable_resources)
+        reusable: List[str] = [
+            r for r in cfg.all_input_resources if r not in non_reusable
+        ]
+        unique_non_reusable: List[str] = list(
+            {r for r in cfg.all_input_resources if r in non_reusable}
         )
-        chosen_combo = rng.choice(all_combos) if all_combos else ()
+        if not max_input_resources:
+            max_input_resources = 6
+        num_input_resources = rng.randint(1, max_input_resources)
+
+        # Keep elegance and efficiency: sample a valid multiset without enumerating all
+        def _sample_composition(total: int, parts: int) -> List[int]:
+            if parts <= 0:
+                return []
+            # Stars and bars: choose bar positions uniformly to sample a composition
+            # over 'parts' non-negative integers summing to 'total'.
+            if parts == 1:
+                return [total]
+            bars = sorted(rng.sample(range(total + parts - 1), parts - 1))
+            prev = -1
+            counts: List[int] = []
+            for b in bars + [total + parts - 1]:
+                counts.append(b - prev - 1)
+                prev = b
+            return counts
+
+        def _weighted_choice(weights: List[int]) -> int:
+            total = sum(weights)
+            if total == 0:
+                return len(weights) - 1
+            cumsum: List[int] = []
+            acc = 0
+            for w in weights:
+                acc += w
+                cumsum.append(acc)
+            x = rng.random() * total
+            return bisect_left(cumsum, x)
+
+        if len(non_reusable) == 0:
+            # Back-compat: draw a combination with replacement of random length 1..num_input_resources
+            L = rng.randint(1, num_input_resources)
+            counts = _sample_composition(L, len(reusable))
+            reusable_draw_list: List[str] = []
+            for typ, c in zip(reusable, counts):
+                reusable_draw_list.extend([typ] * c)
+            chosen_combo = tuple(sorted(reusable_draw_list))
+        else:
+            L = rng.randint(1, num_input_resources)
+            # Choose how many non-reusables to include (weighted by number of valid multisets)
+            nR = len(reusable)
+            nNR = len(unique_non_reusable)
+            max_m = min(L, nNR)
+            weights: List[int] = []
+            for m in range(0, max_m + 1):
+                r = L - m
+                if r < 0:
+                    weights.append(0)
+                    continue
+                if nR == 0 and r > 0:
+                    weights.append(0)
+                    continue
+                # number of ways: choose m distinct non-reusables * compositions of r over nR types
+                # C(nNR, m) * C(r + nR - 1, nR - 1)
+                ways_nr = comb(nNR, m)
+                ways_r = (
+                    1
+                    if r == 0 and nR >= 0
+                    else (comb(r + nR - 1, nR - 1) if nR > 0 else 0)
+                )
+                weights.append(ways_nr * ways_r)
+            # Fallback selection is handled in _weighted_choice
+            m = _weighted_choice(weights)
+            r = max(0, L - m)
+            # Sample m distinct non-reusables
+            chosen_nr = rng.sample(unique_non_reusable, m) if m > 0 else []
+            # Sample composition for reusables
+            counts = _sample_composition(r, nR)
+            reusable_draw_list = list(chosen_nr)
+            for typ, c in zip(reusable, counts):
+                reusable_draw_list.extend([typ] * c)
+            chosen_combo = tuple(sorted(reusable_draw_list))
         converter_name = self._choose_converter_name(
             self.converter_types, set(cfg.used_objects), rng
         )
@@ -89,7 +160,7 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         density,
         rng,
         max_steps=512,
-        max_recipe_inputs=None,
+        max_input_resources=None,
         source_initial_resource_count=None,
         source_max_conversions=None,
         source_cooldown=25,
@@ -113,7 +184,7 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
                 source.cooldown = source_cooldown
 
         for _ in range(num_converters):
-            self._add_converter(cfg, rng=rng, max_recipe_inputs=max_recipe_inputs)
+            self._add_converter(cfg, rng=rng, max_input_resources=max_input_resources)
 
         return make_in_context_chains(
             num_agents=24,
@@ -145,7 +216,7 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         )
         density = rng.choice(cfg.densities) if len(cfg.densities) > 0 else None
 
-        max_recipe_inputs = (
+        max_input_resources = (
             rng.choice(cfg.max_recipe_inputs) if cfg.max_recipe_inputs else None
         )
 
@@ -171,7 +242,7 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
             density=density,
             rng=rng,
             max_steps=self.config.max_steps,
-            max_recipe_inputs=max_recipe_inputs,
+            max_input_resources=max_input_resources,
             source_initial_resource_count=cfg.source_initial_resource_count,
             source_max_conversions=cfg.source_max_conversions,
             source_cooldown=cfg.source_cooldown,
@@ -180,8 +251,8 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         icl_env.label = (
             f"{len(resources)}resources_{num_converters}converters_{room_size}"
         )
-        if max_recipe_inputs:
-            icl_env.label += f"_maxinputs{max_recipe_inputs}"
+        if max_input_resources:
+            icl_env.label += f"_maxinputs{max_input_resources}"
         icl_env.label += "_terrain" if obstacle_type else ""
         icl_env.label += f"_{density}" if density else ""
         return icl_env
@@ -208,7 +279,7 @@ def make_curriculum(
     room_sizes=["small"],
     obstacle_types=[],
     densities=[],
-    max_recipe_inputs=[1, 2, 3],
+    max_input_resources=[1, 2, 3],
     lp_params: LPParams = LPParams(),
 ) -> CurriculumConfig:
     task_generator_cfg = ICLTaskGenerator.Config(
@@ -217,7 +288,7 @@ def make_curriculum(
         room_sizes=room_sizes,
         obstacle_types=obstacle_types,
         densities=densities,
-        max_recipe_inputs=max_recipe_inputs,
+        max_recipe_inputs=max_input_resources,
     )
     if algorithm_config is None:
         # Use LPParams to configure learning progress algorithm, matching ordered_chains
@@ -244,7 +315,7 @@ def small_curriculum():
         num_resources=[2, 3, 4],
         num_converters=[1, 2],
         room_sizes=["small"],
-        max_recipe_inputs=[1, 2],
+        max_input_resources=[1, 2],
     )
 
 
@@ -253,7 +324,7 @@ def small_medium_curriculum():
         num_resources=[2, 3, 4],
         num_converters=[1, 2, 3],
         room_sizes=["small", "medium"],
-        max_recipe_inputs=[1, 2, 3],
+        max_input_resources=[1, 2, 3],
     )
 
 
@@ -262,7 +333,7 @@ def all_room_sizes_curriculum():
         num_resources=[3, 4, 5],
         num_converters=[1, 2, 3],
         room_sizes=["small", "medium", "large"],
-        max_recipe_inputs=[1, 2, 3],
+        max_input_resources=[1, 2, 3],
     )
 
 
@@ -271,7 +342,7 @@ def complex_recipes():
         num_resources=[4, 5, 6],
         num_converters=[2, 3, 4],
         room_sizes=["small", "medium", "large"],
-        max_recipe_inputs=[2, 3, 4],
+        max_input_resources=[2, 3, 4],
     )
 
 
@@ -280,7 +351,7 @@ def many_converters():
         num_resources=[4, 5, 6],
         num_converters=[3, 4, 5],
         room_sizes=["small", "medium", "large"],
-        max_recipe_inputs=[2, 3, 4, 5],
+        max_input_resources=[2, 3, 4, 5],
     )
 
 
@@ -291,7 +362,7 @@ def terrain():
         room_sizes=["small", "medium", "large"],
         obstacle_types=["square", "cross", "L"],
         densities=["balanced", "sparse", "high"],
-        max_recipe_inputs=[1, 2, 3],
+        max_input_resources=[1, 2, 3],
     )
 
 
@@ -311,28 +382,28 @@ def train(
                 "num_resources": [2, 3, 4],
                 "num_converters": [1, 2],
                 "room_sizes": ["small"],
-                "max_recipe_inputs": [1, 2],
+                "max_input_resources": [1, 2],
                 "lp_params": lp_params,
             },
             "small_medium": {
                 "num_resources": [2, 3, 4],
                 "num_converters": [1, 2, 3],
                 "room_sizes": ["small", "medium"],
-                "max_recipe_inputs": [1, 2, 3],
+                "max_input_resources": [1, 2, 3],
                 "lp_params": lp_params,
             },
             "all_room_sizes": {
                 "num_resources": [3, 4, 5],
                 "num_converters": [1, 2, 3],
                 "room_sizes": ["small", "medium", "large"],
-                "max_recipe_inputs": [1, 2, 3],
+                "max_input_resources": [1, 2, 3],
                 "lp_params": lp_params,
             },
             "complex_recipes": {
                 "num_resources": [4, 5, 6],
                 "num_converters": [2, 3, 4],
                 "room_sizes": ["small", "medium", "large"],
-                "max_recipe_inputs": [2, 3, 4],
+                "max_input_resources": [2, 3, 4],
                 "lp_params": lp_params,
             },
             "terrain": {
@@ -340,7 +411,7 @@ def train(
                 "num_converters": [1, 2, 3],
                 "obstacle_types": ["square", "cross", "L"],
                 "densities": ["", "balanced", "sparse", "high"],
-                "max_recipe_inputs": [1, 2, 3],
+                "max_input_resources": [1, 2, 3],
                 "lp_params": lp_params,
                 "room_sizes": ["small", "medium", "large"],
             },
