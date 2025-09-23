@@ -13,12 +13,8 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.stats import (
-    accumulate_rollout_stats,
-    compute_timing_stats,
-    process_training_stats,
-)
-from metta.rl.training import TrainerComponent
+from metta.rl.stats.utils import accumulate_rollout_stats, compute_timing_stats, process_training_stats
+from metta.rl.training.component import TrainerComponent
 from metta.rl.utils import should_run
 from mettagrid.config import Config
 

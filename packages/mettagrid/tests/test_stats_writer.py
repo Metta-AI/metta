@@ -1,5 +1,5 @@
 """
-Unit tests for the StatsWriter functionality in mettagrid.util.stats_writer.
+Unit tests for the DuckDBStatsWriter functionality.
 """
 
 import datetime
@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from mettagrid.util.episode_stats_db import EpisodeStatsDB
-from mettagrid.util.stats_writer import StatsWriter
+from metta.rl.stats import DuckDBStatsWriter
+from metta.rl.stats.episode_stats_db import EpisodeStatsDB
 
 
 @pytest.fixture
@@ -21,15 +21,15 @@ def temp_dir():
 
 
 def test_stats_writer_initialization(temp_dir):
-    """Test that StatsWriter initializes correctly."""
-    writer = StatsWriter(temp_dir)
+    """Test that DuckDBStatsWriter initializes correctly."""
+    writer = DuckDBStatsWriter(temp_dir)
     assert writer.dir == temp_dir
     assert writer.db is None  # Database should be created on demand
 
 
 def test_ensure_db(temp_dir):
     """Test that _ensure_db creates a database when needed."""
-    writer = StatsWriter(temp_dir)
+    writer = DuckDBStatsWriter(temp_dir)
     writer._ensure_db()
     assert writer.db is not None
     assert isinstance(writer.db, EpisodeStatsDB)
@@ -43,7 +43,7 @@ def test_ensure_db(temp_dir):
 
 def test_episode_lifecycle(temp_dir):
     """Test the full lifecycle of an episode."""
-    writer = StatsWriter(temp_dir)
+    writer = DuckDBStatsWriter(temp_dir)
 
     # Create episode ID
     episode_id = str(uuid.uuid4())
@@ -104,8 +104,8 @@ def test_episode_lifecycle(temp_dir):
 
 
 def test_close_without_db(temp_dir):
-    """Test calling close() on a StatsWriter that hasn't created a DB yet."""
-    writer = StatsWriter(temp_dir)
+    """Test calling close() on a DuckDBStatsWriter that hasn't created a DB yet."""
+    writer = DuckDBStatsWriter(temp_dir)
     assert writer.db is None
 
     # This should not raise an error
