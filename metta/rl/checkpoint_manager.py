@@ -162,8 +162,12 @@ class CheckpointManager:
 
         self.run = run
         self.run_name = run
-        self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
+
+        provided_path = Path(run_dir)
+        self.base_dir = provided_path.parent if provided_path.name == self.run else provided_path
+        self.run_dir = self.base_dir / self.run
+
+        self.checkpoint_dir = self.run_dir / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
         self._remote_prefix = None
@@ -285,6 +289,8 @@ class CheckpointManager:
             result["stopwatch_state"] = state["stopwatch_state"]
         if "curriculum_state" in state:
             result["curriculum_state"] = state["curriculum_state"]
+        if "loss_states" in state:
+            result["loss_states"] = state["loss_states"]
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
@@ -326,6 +332,7 @@ class CheckpointManager:
         agent_step: int,
         stopwatch_state: Optional[Dict[str, Any]] = None,
         curriculum_state: Optional[Dict[str, Any]] = None,
+        loss_states: Optional[Dict[str, Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
@@ -334,6 +341,8 @@ class CheckpointManager:
             state["stopwatch_state"] = stopwatch_state
         if curriculum_state:
             state["curriculum_state"] = curriculum_state
+        if loss_states is not None:
+            state["loss_states"] = loss_states
         torch.save(state, trainer_file)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:

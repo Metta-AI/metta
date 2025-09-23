@@ -8,7 +8,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
-from metta.map.terrain_from_numpy import TerrainFromNumpy
+from metta.map.terrain_from_numpy import NavigationFromNumpy
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.evaluator import EvaluatorConfig
@@ -32,7 +32,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
         instances=num_instances,
         border_width=6,
         instance_border_width=3,
-        instance_map=TerrainFromNumpy.Config(
+        instance_map=NavigationFromNumpy.Config(
             agents=num_agents,
             objects={"altar": 10},
             dir="varied_terrain/dense_large",
@@ -116,7 +116,8 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="navigation",
+            suite="navigation",
+            name="eval",
         ),
     )
 
@@ -126,7 +127,8 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="navigation",
+            suite="navigation",
+            name="eval",
         ),
     )
 
