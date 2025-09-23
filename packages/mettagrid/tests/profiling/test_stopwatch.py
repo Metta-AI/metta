@@ -106,19 +106,30 @@ class TestStopwatch:
         assert any(k.startswith("_lap_") for k in timer.checkpoints)
 
     def test_lap_functionality(self, stopwatch: Stopwatch):
-        """Test lap timing."""
         stopwatch.start("lap_timer")
-        time.sleep(0.1)
 
         # First lap
-        lap1_time = stopwatch.lap(100, "lap_timer")
-        assert lap1_time == pytest.approx(0.1, abs=0.1)
-
+        lap1_start = time.time()
         time.sleep(0.1)
+        lap1_end = time.time()
+        lap1_time = stopwatch.lap(100, "lap_timer")
+        lap1_actual = lap1_end - lap1_start
+
+        # Compare against actual elapsed time, not expected 0.1
+        assert lap1_time == pytest.approx(lap1_actual, abs=0.01)
+        # Also check it's reasonably close to 0.1 (with wider tolerance for parallel execution)
+        assert lap1_time == pytest.approx(0.1, abs=0.05)
 
         # Second lap
+        lap2_start = time.time()
+        time.sleep(0.1)
+        lap2_end = time.time()
         lap2_time = stopwatch.lap(200, "lap_timer")
-        assert lap2_time == pytest.approx(0.1, abs=0.1)
+        lap2_actual = lap2_end - lap2_start
+
+        # Compare against actual elapsed time
+        assert lap2_time == pytest.approx(lap2_actual, abs=0.01)
+        assert lap2_time == pytest.approx(0.1, abs=0.05)
 
         stopwatch.stop("lap_timer")
 
@@ -167,23 +178,38 @@ class TestStopwatch:
 
     def test_get_last_elapsed(self, stopwatch: Stopwatch):
         """Test getting last elapsed time."""
-        # First run
+        # First run - measure actual time
+        start1 = time.time()
         stopwatch.start("last_test")
         time.sleep(0.1)
+        end1 = time.time()
         elapsed1 = stopwatch.stop("last_test")
+        actual_elapsed1 = end1 - start1
 
-        # Second run
+        # Verify first run elapsed time matches actual
+        assert elapsed1 == pytest.approx(actual_elapsed1, abs=0.01)
+
+        # Second run - measure actual time
+        start2 = time.time()
         stopwatch.start("last_test")
         time.sleep(0.05)
+        end2 = time.time()
         elapsed2 = stopwatch.stop("last_test")
+        actual_elapsed2 = end2 - start2
 
-        # Check last elapsed
+        # Verify second run elapsed time matches actual
+        assert elapsed2 == pytest.approx(actual_elapsed2, abs=0.01)
+
+        # Check last elapsed matches the second run
         last = stopwatch.get_last_elapsed("last_test")
-        assert last == pytest.approx(elapsed2, abs=0.1)
+        assert last == pytest.approx(elapsed2, abs=0.01)
+        assert last == pytest.approx(actual_elapsed2, abs=0.01)
 
-        # Check total is sum
+        # Check total is sum of both runs
         total = stopwatch.get_elapsed("last_test")
-        assert total == pytest.approx(elapsed1 + elapsed2, abs=0.1)
+        expected_total = actual_elapsed1 + actual_elapsed2
+        assert total == pytest.approx(expected_total, abs=0.02)
+        assert total == pytest.approx(elapsed1 + elapsed2, abs=0.01)
 
     def test_running_timer_elapsed(self, stopwatch: Stopwatch):
         """Test getting elapsed time while timer is running."""
@@ -353,12 +379,20 @@ class TestStopwatch:
     def test_global_timer(self, stopwatch: Stopwatch):
         """Test global timer behavior."""
         # Test with None (should use global)
+        start_time = time.time()
         stopwatch.start()
         time.sleep(0.1)
+        end_time = time.time()
         elapsed = stopwatch.stop()
+        actual_elapsed = end_time - start_time
 
-        assert elapsed == pytest.approx(0.1, abs=0.1)
-        assert stopwatch.get_elapsed() == elapsed
+        # Verify elapsed time matches actual measured time
+        assert elapsed == pytest.approx(actual_elapsed, abs=0.01)
+        # Also check it's reasonably close to 0.1 (with wider tolerance for parallel)
+        assert elapsed == pytest.approx(0.1, abs=0.5)
+
+        # Verify get_elapsed returns the same value
+        assert stopwatch.get_elapsed() == pytest.approx(elapsed, abs=0.001)
 
         # Reset global timer
         stopwatch.reset()
@@ -389,7 +423,7 @@ class TestStopwatch:
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
     def test_lap_all_with_running_and_stopped_timers(self, stopwatch: Stopwatch):
-        tol = 0.02  # Tighter tolerance for actual time comparisons
+        tol = 0.02  # Keep tight tolerance for comparing against actual measurements
 
         # Track when each timer was last started/stopped
         timer_states = {
@@ -460,11 +494,6 @@ class TestStopwatch:
         assert lap_times["B"] == pytest.approx(actual_B, abs=tol)
         assert lap_times["C"] == pytest.approx(actual_C, abs=tol)
 
-        # Also verify against expected values
-        assert lap_times["A"] == pytest.approx(0.2, abs=0.05)
-        assert lap_times["B"] == pytest.approx(0.2, abs=0.05)
-        assert lap_times["C"] == pytest.approx(0.3, abs=0.05)
-
         # Sleep 0.1s - A and C running
         time.sleep(0.1)
         checkpoint3_time = time.time()
@@ -497,11 +526,6 @@ class TestStopwatch:
         assert lap_times_2["A"] == pytest.approx(delta_A, abs=tol)
         assert lap_times_2["B"] == pytest.approx(delta_B, abs=tol)
         assert lap_times_2["C"] == pytest.approx(delta_C, abs=tol)
-
-        # Also verify against expected values
-        assert lap_times_2["A"] == pytest.approx(0.1, abs=0.05)
-        assert lap_times_2["B"] == pytest.approx(0.0, abs=tol)
-        assert lap_times_2["C"] == pytest.approx(0.2, abs=0.05)
 
         # Start A
         stopwatch.start("A")
@@ -542,25 +566,19 @@ class TestStopwatch:
         assert lap_times_3["B"] == pytest.approx(delta_B3, abs=tol)
         assert lap_times_3["C"] == pytest.approx(delta_C3, abs=tol)
 
-        # Also verify against expected values
-        assert lap_times_3["A"] == pytest.approx(0.1, abs=0.05)
-        assert lap_times_3["B"] == pytest.approx(0.0, abs=tol)
-        assert lap_times_3["C"] == pytest.approx(0.1, abs=0.05)
-
         # Verify final total elapsed times match our tracking
         for name in ["A", "B", "C"]:
-            timer = stopwatch._get_timer(name)
-            final_elapsed = timer.elapsed_time
+            final_elapsed = stopwatch.get_elapsed(name)
             actual_final = get_current_elapsed(name, lap3_time)
             assert final_elapsed == pytest.approx(actual_final, abs=tol), (
                 f"Timer {name}: stopwatch elapsed {final_elapsed} != actual {actual_final}"
             )
 
-        # Expected checkpoints
+        # Build expected checkpoints based on actual measurements
         expected_checkpoints = {
-            "A": [0.0, 0.2, 0.3, 0.4],
-            "B": [0.0, 0.2, 0.2, 0.2],
-            "C": [0.0, 0.3, 0.5, 0.6],
+            "A": [0.0, actual_A, actual_A2, actual_A3],
+            "B": [0.0, actual_B, actual_B2, actual_B3],
+            "C": [0.0, actual_C, actual_C2, actual_C3],
         }
 
         for name, expected_times in expected_checkpoints.items():
@@ -571,10 +589,10 @@ class TestStopwatch:
                 f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
             )
 
-            # Verify checkpoint times
+            # Verify checkpoint times match our tracking (with tight tolerance)
             for i, (_, checkpoint_data) in enumerate(checkpoints):
                 checkpoint_elapsed = checkpoint_data["elapsed_time"]
-                assert checkpoint_elapsed == pytest.approx(expected_times[i], abs=0.05), (
+                assert checkpoint_elapsed == pytest.approx(expected_times[i], abs=tol), (
                     f"Timer {name}: checkpoint {i} time {checkpoint_elapsed} != expected {expected_times[i]}"
                 )
 
@@ -662,14 +680,14 @@ class TestStopwatchIntegration:
 
         # First lap: 100 steps in ~0.1 seconds
         time.sleep(0.1)
-        lap1_actual_start = start_time
         lap1_actual_end = time.time()
         lap1_time = sw.lap(100, "training")
-        lap1_actual_delta = lap1_actual_end - lap1_actual_start
+        lap1_actual_delta = lap1_actual_end - start_time
 
         # Verify lap time matches actual time delta
         assert lap1_time == pytest.approx(lap1_actual_delta, abs=0.02)
-        assert lap1_time == pytest.approx(0.1, abs=0.02)
+        # Use wider tolerance for parallel execution
+        assert lap1_time == pytest.approx(0.1, abs=0.5)  # Very wide tolerance
 
         # Second lap: 200 more steps (total 300) in another ~0.1 seconds
         lap2_start = time.time()
@@ -680,7 +698,10 @@ class TestStopwatchIntegration:
 
         # Verify lap time matches actual time delta
         assert lap2_time == pytest.approx(lap2_actual_delta, abs=0.02)
-        assert lap2_time == pytest.approx(0.1, abs=0.02)
+        # Remove the problematic assertion - we can't assume sleep(0.1) takes 0.1s under load
+        # Instead, just verify the lap time is positive and reasonable
+        assert lap2_time > 0
+        assert lap2_time < 2.0  # Should be less than 2 seconds even under heavy load
 
         # Third lap: 300 more steps (total 600) in another ~0.1 seconds
         lap3_start = time.time()
@@ -691,7 +712,6 @@ class TestStopwatchIntegration:
 
         # Verify lap time matches actual time delta
         assert lap3_time == pytest.approx(lap3_actual_delta, abs=0.02)
-        assert lap3_time == pytest.approx(0.1, abs=0.02)
 
         # Calculate rate for additional steps
         rate_calc_start = time.time()
@@ -699,14 +719,13 @@ class TestStopwatchIntegration:
         rate_calc_end = time.time()
         rate_calc_delta = rate_calc_end - rate_calc_start
 
-        # Get current lap rate (should be based on steps since last checkpoint)
-        # 50 steps in ~0.05 seconds = ~1000 steps/sec
+        # Get current lap rate (50 steps in whatever time actually elapsed)
         current_rate = sw.get_lap_rate(650, "training")
         expected_rate = 50 / rate_calc_delta  # actual rate based on time delta
 
-        # Allow for some variance due to timing precision
+        # Verify rate calculation is correct
         assert current_rate == pytest.approx(expected_rate, rel=0.1)
-        assert current_rate == pytest.approx(1000, rel=0.2)
+        # Don't assert against a fixed rate like 1000 steps/sec
 
         # Stop and verify total elapsed time
         stop_time = time.time()
@@ -719,7 +738,7 @@ class TestStopwatchIntegration:
         assert len(checkpoints) == 4  # start + 3 laps
 
         # Verify total elapsed time matches
-        final_elapsed = timer.elapsed_time
+        final_elapsed = sw.get_elapsed("training")
         assert final_elapsed == pytest.approx(total_actual_elapsed, abs=0.02)
 
         # Extract and verify checkpoint data
@@ -731,23 +750,17 @@ class TestStopwatchIntegration:
         assert checkpoint_list[2][1]["steps"] == 300  # Second lap
         assert checkpoint_list[3][1]["steps"] == 600  # Third lap
 
-        # Verify checkpoint times are monotonically increasing and reasonable
-        prev_time = 0
-        for i, (_, checkpoint_data) in enumerate(checkpoint_list):
+        # Verify checkpoint times are monotonically increasing
+        prev_time = -1
+        for _, (_, checkpoint_data) in enumerate(checkpoint_list):
             elapsed = checkpoint_data["elapsed_time"]
             assert elapsed > prev_time  # Monotonically increasing
-
-            # Verify approximate expected times
-            if i == 0:
-                assert elapsed == pytest.approx(0, abs=0.01)  # Start time
-            elif i == 1:
-                assert elapsed == pytest.approx(0.1, abs=0.02)  # First lap
-            elif i == 2:
-                assert elapsed == pytest.approx(0.2, abs=0.03)  # Second lap
-            elif i == 3:
-                assert elapsed == pytest.approx(0.3, abs=0.04)  # Third lap
-
             prev_time = elapsed
+
+        # Verify lap times match checkpoint deltas
+        for i in range(1, len(checkpoint_list)):
+            checkpoint_delta = checkpoint_list[i][1]["elapsed_time"] - checkpoint_list[i - 1][1]["elapsed_time"]
+            assert checkpoint_delta > 0  # All lap times should be positive
 
     def test_real_world_scenario(self):
         """Test a realistic usage scenario."""

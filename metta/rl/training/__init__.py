@@ -49,6 +49,7 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "VectorizedTrainingEnvironment": ("metta.rl.training.training_environment", "VectorizedTrainingEnvironment"),
     "WandbAborter": ("metta.rl.training.wandb_aborter", "WandbAborter"),
     "WandbAborterConfig": ("metta.rl.training.wandb_aborter", "WandbAborterConfig"),
+    "WandbLogger": ("metta.rl.training.wandb_logger", "WandbLogger"),
 }
 
 __all__ = list(_EXPORTS.keys())  # type: ignore[reportUnsupportedDunderAll]
