@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, Optional
 import torch
 
 from metta.agent.policy import Policy
+from metta.agent.util.distribution_utils import configure_sampling_backend
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.component import TrainerCallback, TrainerComponent
 from metta.rl.training.component_context import ComponentContext, TrainerState
@@ -61,6 +62,8 @@ class Trainer:
 
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
+
+        configure_sampling_backend(self._cfg.compile, self._cfg.compile_mode)
 
         if self._cfg.compile:
             self._policy = torch.compile(self._policy, mode=self._cfg.compile_mode)

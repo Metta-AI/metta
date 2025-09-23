@@ -1,7 +1,11 @@
 import pytest
 import torch
 
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.agent.util.distribution_utils import (
+    configure_sampling_backend,
+    evaluate_actions,
+    sample_actions,
+)
 
 # Global seed for reproducibility
 SEED = 42
@@ -163,3 +167,37 @@ class TestCompatibility:
         assert torch.allclose(lp, eval_lp), "Logprobs mismatch"
         assert torch.allclose(ent, eval_ent), "Entropy mismatch"
         assert torch.allclose(norm, eval_norm), "Normalized logits mismatch"
+
+
+class TestSamplerBackendConfiguration:
+    def setup_method(self) -> None:
+        configure_sampling_backend(False)
+
+    def teardown_method(self) -> None:
+        configure_sampling_backend(False)
+
+    def test_eager_backend_is_default(self) -> None:
+        logits = torch.randn(4, 6)
+        actions, logprob, entropy, norm = sample_actions(logits)
+        assert actions.shape == (4,)
+        assert logprob.shape == (4,)
+        assert entropy.shape == (4,)
+        assert norm.shape == logits.shape
+
+    def test_compile_backend_executes_when_available(self) -> None:
+        if not hasattr(torch, "compile"):
+            pytest.skip("torch.compile is unavailable in this runtime")
+
+        logits = torch.randn(3, 5)
+        reference = sample_actions(logits)
+
+        configure_sampling_backend(True)
+        compiled_out = sample_actions(logits)
+        compiled_eval = evaluate_actions(logits, compiled_out[0])
+
+        for eager_tensor, compiled_tensor in zip(reference, compiled_out, strict=False):
+            assert eager_tensor.shape == compiled_tensor.shape
+
+        assert compiled_eval[0].shape == (3,)
+        assert compiled_eval[1].shape == (3,)
+        assert compiled_eval[2].shape == logits.shape
