@@ -266,3 +266,40 @@ def make_icl_assembler(
         )
     )
     return cfg
+
+def make_icl_with_numpy(
+    num_agents: int,
+    num_instances: int,
+    max_steps,
+    game_objects: dict,
+    instance_map: MapBuilderConfig,
+) -> MettaGridConfig:
+    game_objects["wall"] = empty_converters.wall
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            max_steps=max_steps,
+            num_agents=num_agents * num_instances,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_instances,
+                instance_map=instance_map,
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                get_items=ActionConfig(),
+                put_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory={
+                        "heart": 1,
+                    },
+                ),
+                default_resource_limit=1,
+                resource_limits={"heart": 15},
+            ),
+        )
+    )
+
+    return cfg

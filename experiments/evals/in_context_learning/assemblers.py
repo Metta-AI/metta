@@ -9,6 +9,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
     return [
         SimulationConfig(
             name="in_context_assemblers/single_agent_two_altars_W",
+            suite="in_context_learning",
             env=make_assembler_env(
                 num_agents=1,
                 max_steps=512,
@@ -21,6 +22,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="in_context_assemblers/two_agent_two_altars_any",
+            suite="in_context_learning",
             env=make_assembler_env(
                 num_agents=1,
                 max_steps=512,
@@ -33,6 +35,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
         ),
         SimulationConfig(
             name="in_context_assemblers/two_agent_two_altars_north_south",
+            suite="in_context_learning",
             env=make_assembler_env(
                 num_agents=1,
                 max_steps=512,

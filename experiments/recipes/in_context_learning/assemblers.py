@@ -260,7 +260,7 @@ class AssemblerTaskGenerator(TaskGenerator):
 def make_mettagrid(curriculum_style: str = "single_agent_two_altars") -> MettaGridConfig:
     task_generator_cfg = AssemblerTaskGenerator.Config( **curriculum_args[curriculum_style])
     task_generator = AssemblerTaskGenerator(task_generator_cfg)
-    return task_generator.get_task(np.random.randint(0, 1000000))
+    return task_generator.get_task(0)
 
 def make_assembler_env(
     num_agents: int,
@@ -322,14 +322,14 @@ def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
     return TrainTool(trainer=trainer_cfg, training_env=TrainingEnvironmentConfig(curriculum=curriculum))
 
 
-def play(curriculum_style: str = "single_agent_two_altars") -> PlayTool:
-    eval_env = make_mettagrid(curriculum_style)
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="in_context_assemblers",
-        ),
-    )
+# def play(curriculum_style: str = "single_agent_two_altars") -> PlayTool:
+#     eval_env = make_mettagrid(curriculum_style)
+#     return PlayTool(
+#         sim=SimulationConfig(
+#             env=eval_env,
+#             name="in_context_assemblers",
+#         ),
+#     )
 
 def play_eval() -> PlayTool:
     env = make_assembler_env(
@@ -356,16 +356,16 @@ def replay(curriculum_style: str = "single_agent_two_altars") -> ReplayTool:
     eval_env = make_mettagrid(curriculum_style)
     # Default to the research policy if none specified
     default_policy_uri = (
-        "s3://your-bucket/checkpoints/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19/"
-        "georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50.pt"
+        "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/"
+        "icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
     )
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_tiny_small.2025-09-22/icl_resource_chain_tiny_small.2025-09-22:v500.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
 
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_assemblers",
             suite="in_context_learning",
+            name="in_context_assemblers",
         ),
         policy_uri=default_policy_uri,
     )
@@ -382,7 +382,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.assemblers.train",
-                f"run=icl_assemblers2_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_assemblers3_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
