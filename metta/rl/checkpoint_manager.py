@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.rl.pufferlib_checkpoint import PufferLibCheckpoint
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -163,8 +162,12 @@ class CheckpointManager:
 
         self.run = run
         self.run_name = run
-        self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
+
+        provided_path = Path(run_dir)
+        self.base_dir = provided_path.parent if provided_path.name == self.run else provided_path
+        self.run_dir = self.base_dir / self.run
+
+        self.checkpoint_dir = self.run_dir / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
         self._remote_prefix = None
@@ -182,39 +185,27 @@ class CheckpointManager:
 
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device = "cpu"):
-        """Load a policy from a URI (file://, wandb://, s3://, or mock://).
-        Supports both Metta format (full agent) and PufferLib format (state_dict)."""
+        """Load a policy from a URI (file://, s3://, or mock://)."""
+        if uri.startswith(("http://", "https://", "ftp://", "gs://")):
+            raise ValueError(f"Invalid URI: {uri}")
+        parsed = ParsedURI.parse(uri)
 
-        pufferlib_checkpoint = PufferLibCheckpoint()
-
-        def _load_and_handle_format(checkpoint_path_or_obj):
-            """Helper to load checkpoint and handle both formats."""
-            if isinstance(checkpoint_path_or_obj, (str, Path)):
-                loaded_obj = torch.load(checkpoint_path_or_obj, weights_only=False, map_location=device)
-            else:
-                loaded_obj = checkpoint_path_or_obj
-
-            return pufferlib_checkpoint.load_checkpoint(loaded_obj, device)
-
-        if uri.startswith("file://"):
-            path = Path(uri[7:])  # Remove "file://" prefix
+        if parsed.scheme == "file" and parsed.local_path is not None:
+            path = parsed.local_path
             if path.is_dir():
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                return _load_and_handle_format(checkpoint_file)
-            # Load specific file
-            return _load_and_handle_format(path)
+                return _load_checkpoint_file(str(checkpoint_file), device)
+            if not path.exists():
+                raise FileNotFoundError(f"Checkpoint file not found: {path}")
+            return _load_checkpoint_file(str(path), device)
 
-        if uri.startswith("s3://"):
-            with local_copy(uri) as local_path:
-                return _load_and_handle_format(local_path)
+        if parsed.scheme == "s3":
+            with local_copy(parsed.canonical) as local_path:
+                return _load_checkpoint_file(str(local_path), device)
 
-        if uri.startswith("wandb://"):
-            with local_copy(uri) as local_path:
-                return _load_and_handle_format(local_path)
-
-        if uri.startswith("mock://"):
+        if parsed.scheme == "mock":
             return MockAgent()
 
         raise ValueError(f"Invalid URI: {uri}")
@@ -296,6 +287,8 @@ class CheckpointManager:
         }
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
+        if "loss_states" in state:
+            result["loss_states"] = state["loss_states"]
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
@@ -331,13 +324,20 @@ class CheckpointManager:
         return f"file://{checkpoint_path.resolve()}"
 
     def save_trainer_state(
-        self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
+        self,
+        optimizer,
+        epoch: int,
+        agent_step: int,
+        stopwatch_state: Optional[Dict[str, Any]] = None,
+        loss_states: Optional[Dict[str, Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
+        if loss_states is not None:
+            state["loss_states"] = loss_states
         torch.save(state, trainer_file)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:
