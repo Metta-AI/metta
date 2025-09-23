@@ -81,6 +81,13 @@ class ArtifactReference:
 
     value: ArtifactBase
 
+    def __post_init__(self) -> None:  # pragma: no cover - simple normalization
+        if isinstance(self.value, str):
+            normalized = self.value.strip()
+            if not normalized:
+                raise ValueError("ArtifactReference cannot wrap an empty string")
+            object.__setattr__(self, "value", normalized)
+
     def join(self, *segments: str) -> "ArtifactReference":
         return ArtifactReference(_join_value(self.value, _clean_segments(segments)))
 
@@ -142,6 +149,11 @@ def ensure_artifact_reference(value: ArtifactBase | ArtifactReference | None) ->
         return None
     if isinstance(value, ArtifactReference):
         return value
+    if isinstance(value, str):
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Artifact value cannot be empty")
+        return ArtifactReference(normalized)
     return ArtifactReference(value)
 
 
@@ -181,10 +193,20 @@ def artifact_simulation_root(
     return ref.with_simulation(suite, name, simulation_id=simulation_id)
 
 
+def artifact_to_str(value: ArtifactBase | ArtifactReference) -> str:
+    """Return a canonical string representation for *value*."""
+
+    ref = ensure_artifact_reference(value)
+    if ref is None:
+        raise ValueError("Artifact value cannot be None")
+    return ref.as_str()
+
+
 __all__ = [
     "ArtifactReference",
     "artifact_path_join",
     "artifact_policy_run_root",
     "artifact_simulation_root",
+    "artifact_to_str",
     "ensure_artifact_reference",
 ]

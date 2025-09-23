@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from mettagrid.util.artifact_paths import (
     ArtifactReference,
     artifact_path_join,
@@ -101,3 +103,16 @@ def test_artifact_reference_with_policy_and_simulation_helpers():
     assert str(policy_root.value) == "s3://bucket/replays/run_a/v4"
     sim_root = policy_root.with_simulation("suite", "sim", simulation_id="abc123")
     assert str(sim_root.value) == "s3://bucket/replays/run_a/v4/suite/sim/abc123"
+
+
+def test_ensure_artifact_reference_rejects_empty_strings():
+    with pytest.raises(ValueError):
+        ensure_artifact_reference("")
+    with pytest.raises(ValueError):
+        ensure_artifact_reference("   ")
+
+
+def test_ensure_artifact_reference_strips_whitespace():
+    ref = ensure_artifact_reference("  s3://bucket/path  ")
+    assert isinstance(ref, ArtifactReference)
+    assert str(ref.value) == "s3://bucket/path"

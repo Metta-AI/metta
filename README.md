@@ -403,3 +403,9 @@ pytest
 | Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
+
+### Artifact paths
+
+All replay/checkpoint URIs should flow through the helpers documented in
+[`docs/artifact_paths.md`](docs/artifact_paths.md). These helpers normalize `file://`, `s3://`, and other schemes so new
+tools can reuse the same layout logic without reimplementing path joins.

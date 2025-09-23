@@ -7,7 +7,11 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from mettagrid.util.artifact_paths import ArtifactReference, ensure_artifact_reference
+from mettagrid.util.artifact_paths import (
+    ArtifactReference,
+    artifact_to_str,
+    ensure_artifact_reference,
+)
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -318,7 +322,7 @@ class CheckpointManager:
         remote_uri = None
         if self._remote_run_prefix is not None:
             remote_uri_ref = self._remote_run_prefix.join("checkpoints", filename)
-            remote_uri = str(remote_uri_ref.value)
+            remote_uri = artifact_to_str(remote_uri_ref)
             write_file(remote_uri, str(checkpoint_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
@@ -365,7 +369,7 @@ class CheckpointManager:
         checkpoint_files.sort(key=lambda f: _extract_run_and_epoch(f)[1], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
         if self._remote_run_prefix is not None:
-            return [str(self._remote_run_prefix.join("checkpoints", path.name).value) for path in selected_files]
+            return [artifact_to_str(self._remote_run_prefix.join("checkpoints", path.name)) for path in selected_files]
         return [f"file://{path.resolve()}" for path in selected_files]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
