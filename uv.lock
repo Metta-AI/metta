@@ -587,7 +587,9 @@ dependencies = [
     { name = "pufferlib" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "rich" },
     { name = "scipy" },
+    { name = "typer" },
 ]
 
 [package.metadata]
@@ -596,7 +598,9 @@ requires-dist = [
     { name = "pufferlib", specifier = ">=3.0.0" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "rich", specifier = ">=13.7.0" },
     { name = "scipy", specifier = ">=1.15.3" },
+    { name = "typer", specifier = ">=0.9.0" },
 ]
 
 [[package]]
@@ -2063,6 +2067,7 @@ dependencies = [
     { name = "bidict" },
     { name = "boto3" },
     { name = "codebot" },
+    { name = "cogames" },
     { name = "colorama" },
     { name = "cpplint" },
     { name = "ddtrace" },
@@ -2081,7 +2086,6 @@ dependencies = [
     { name = "metta-agent" },
     { name = "metta-app-backend" },
     { name = "metta-common" },
-    { name = "mettagrid" },
     { name = "numpy" },
     { name = "omegaconf" },
     { name = "pandas" },
@@ -2166,6 +2170,7 @@ requires-dist = [
     { name = "bidict", specifier = ">=0.23.1" },
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "codebot", editable = "codebot" },
+    { name = "cogames", editable = "packages/cogames" },
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cpplint", specifier = ">=2.0.2" },
     { name = "ddtrace", specifier = ">=2.6.0" },
@@ -2184,7 +2189,6 @@ requires-dist = [
     { name = "metta-agent", editable = "agent" },
     { name = "metta-app-backend", editable = "app_backend" },
     { name = "metta-common", editable = "common" },
-    { name = "mettagrid", editable = "packages/mettagrid" },
     { name = "numpy", specifier = ">=1.26.4,<2" },
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pandas", specifier = ">=2.3.0" },
