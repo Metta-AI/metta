@@ -5,7 +5,7 @@ A unified script for launching and checking multi-node SkyPilot test jobs with v
 ## Basic Use
 
 ```bash
-# Launch 9 jobs: 3 node configs × 3 exit conditions
+# Launch 12 jobs: 3 node configs × 4 exit conditions
 ./cluster_test.py launch
 
 # Check results
@@ -13,6 +13,9 @@ A unified script for launching and checking multi-node SkyPilot test jobs with v
 
 # Check with detailed logs
 ./cluster_test.py check -l
+
+# Kill all jobs
+./cluster_test.py kill
 ```
 
 ## Test Configurations (3×3 Matrix)

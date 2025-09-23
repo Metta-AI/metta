@@ -1,3 +1,4 @@
+import os
 from collections import deque
 from typing import Optional
 
@@ -32,6 +33,9 @@ class PerimeterInContextMapBuilder(MapBuilder):
         agents: int | dict[str, int] = 1
         border_width: int = 0
         border_object: str = "wall"
+
+        chain_length: int = 2
+        num_sinks: int = 0
 
     def __init__(self, config: Config):
         self._config = config
@@ -190,7 +194,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         return False
 
-    def build(self):
+    def build(self, dir=None):
         height = self._config.height
         width = self._config.width
 
@@ -302,5 +306,25 @@ class PerimeterInContextMapBuilder(MapBuilder):
         # Place agent in center efficiently
         center_i, center_j = height // 2, width // 2
         grid[center_i, center_j] = agents[0]
+
+        if dir is not None:
+            area = height * width
+
+            if area < 49:
+                size = "tiny"
+            elif area < 144:
+                size = "small"
+            else:
+                size = "medium"
+
+            terrain = "terrain" if obstacle_type else "simple"
+            density = density if density else ""
+
+            random_number = self._rng.integers(1000000)
+
+            subdir = f"{size}/{self._config.chain_length - 2}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
+            filename = os.path.join(dir, subdir, f"{random_number}.npy")
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            np.save(filename, grid)
 
         return GameMap(grid)

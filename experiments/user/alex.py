@@ -8,9 +8,8 @@ import metta.cogworks.curriculum as cc
 # import mettagrid.builder.envs as eb
 import mettagrid.builder.envs as eb
 from experiments.recipes import arena
-from metta.agent.policies.vit import ViTSmallConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from mettagrid import MettaGridConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.evaluator import EvaluatorConfig
@@ -20,6 +19,7 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from mettagrid import MettaGridConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -79,8 +79,8 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=combat_env),
+        SimulationConfig(suite="arena", name="basic", env=basic_env),
+        SimulationConfig(suite="arena", name="combat", env=combat_env),
     ]
 
 
@@ -89,7 +89,9 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         losses=LossConfig(),
     )
     # policy_config = FastConfig()
-    policy_config = ViTSmallConfig()
+    # policy_config = ViTSmallConfig()
+    # policy_config = CNNTransConfig()
+    policy_config = FastLSTMResetConfig()
     curriculum = curriculum or make_curriculum()
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     evaluator = EvaluatorConfig(simulations=make_evals())
