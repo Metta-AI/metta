@@ -185,6 +185,8 @@ def make_in_context_chains(
     height: int = 6,
     obstacle_type: Optional[str] = None,
     density: Optional[str] = None,
+    chain_length: int = 2,
+    num_sinks: int = 0,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -202,6 +204,8 @@ def make_in_context_chains(
                     objects=map_builder_objects,
                     obstacle_type=obstacle_type,
                     density=density,
+                    chain_length=chain_length,
+                    num_sinks=num_sinks,
                 ),
             ),
             actions=ActionsConfig(

@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, Sequence
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
-import tqdm
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss.loss_config import LossConfig
@@ -367,6 +366,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
             height=height,
             obstacle_type=obstacle_type,
             density=density,
+            chain_length=len(resources),
+            num_sinks=num_sinks,
         )
 
     def _generate_task(
@@ -562,20 +563,17 @@ def experiment():
 
 
 def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
-    for chain_length in tqdm.tqdm(range(2, 9)):
-        print(f"Generating for {chain_length} chains")
+    for chain_length in range(2, 9):
         for n_sinks in range(0, 3):
             for room_size in ["tiny", "small", "medium"]:
                 for terrain_type in ["", "terrain"]:
                     for density in ["", "balanced", "sparse", "high"]:
                         for i in range(num_envs):
+                            print(f"Generating {i} for {chain_length} chains, {n_sinks} sinks, {room_size}, {terrain_type}, {density}")
                             if terrain_type == "terrain":
                                 obstacle_type = random.choice(["square", "cross", "L"])
                             else:
                                 obstacle_type = ""
-                            print(
-                                f"Generating {i} for {chain_length} chains, {n_sinks} sinks, {room_size}, {obstacle_type}, {density}"
-                            )
                             task_generator_cfg = ConverterChainTaskGenerator.Config(
                                 chain_lengths=[chain_length],
                                 num_sinks=[n_sinks],
@@ -592,7 +590,9 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                             map_builder = env_cfg.game.map_builder.create()
                             map_builder.build()
 
-        generate_reward_estimates(dir=dir)
+    generate_reward_estimates(dir=dir)
+
+
 
 
 def generate_reward_estimates(dir="icl_ordered_chains"):
@@ -604,16 +604,23 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     import numpy as np
 
     room_sizes = os.listdir(dir)
-
+    for root, dirs, files in os.walk(dir):
+        for file in files:
+            if file == ".DS_Store":
+                try:
+                    os.remove(os.path.join(root, file))
+                except Exception:
+                    pass
     reward_estimates = {}
     for room_size in room_sizes:
-        chains = os.listdir(f"{dir}/{room_size}")
+        # Delete all .DS_Store files in the directory tree
+        chains = [f for f in os.listdir(f"{dir}/{room_size}") if not "DS_Store" in f]
         for chain_dir in chains:
             num_resources = int(chain_dir[0])
             num_sinks = int(chain_dir[1:].strip("chains_")[0])
-            for terrain in os.listdir(f"{dir}/{room_size}/{chain_dir}"):
+            for terrain in [f for f in os.listdir(f"{dir}/{room_size}/{chain_dir}") if not "DS_Store" in f]:
                 files = os.listdir(f"{dir}/{room_size}/{chain_dir}/{terrain}")
-                for file in files:
+                for file in [f for f in files if not "DS_Store" in f]:
                     grid = np.load(f"{dir}/{room_size}/{chain_dir}/{terrain}/{file}")
                     avg_hop = (grid.shape[0] + grid.shape[1]) / 2
                     best_case_optimal_reward, worst_case_optimal_reward = (
