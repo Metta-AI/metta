@@ -17,10 +17,13 @@ from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.checkpointer import CheckpointConfig, CheckpointerConfig
-from metta.rl.training.context_checkpointer import ContextCheckpointerConfig
-from metta.rl.training.evaluator import EvaluatorConfig
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
+from metta.rl.training import (
+    CheckpointerConfig,
+    ContextCheckpointerConfig,
+    EvaluatorConfig,
+    TrainingEnvironmentConfig,
+)
+from metta.rl.training.checkpointer import CheckpointConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 

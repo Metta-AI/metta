@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import Field
 
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext
 
 logger = logging.getLogger(__name__)
 

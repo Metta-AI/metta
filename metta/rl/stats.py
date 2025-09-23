@@ -13,7 +13,7 @@ from metta.eval.eval_request_config import EvalResults
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.experience import Experience
+from metta.rl.training import Experience
 from metta.rl.wandb import (
     POLICY_EVALUATOR_EPOCH_METRIC,
     POLICY_EVALUATOR_METRIC_PREFIX,

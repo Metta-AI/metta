@@ -10,8 +10,7 @@ import wandb
 
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.distributed_helper import DistributedHelper
+from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.config import Config
 from mettagrid.util.file import local_copy
 

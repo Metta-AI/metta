@@ -3,10 +3,6 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
-from metta.rl.training.evaluator import EvaluatorConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from metta.agent.policies.fast import FastConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -14,16 +10,15 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import empty_converters
-from mettagrid.builder.envs import make_in_context_chains
-from mettagrid.builder.envs import make_icl_with_numpy
+from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
-
 from pydantic import Field
 
 CONVERTER_TYPES = {
@@ -464,12 +459,12 @@ def play(
 
 
 def replay(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny"
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny_small"
 ) -> ReplayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     # Default to the research policy if none specified
     default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_tiny_small.2025-09-22/icl_resource_chain_tiny_small.2025-09-22:v500.pt"
-    default_policy_uri = "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
+    # default_policy_uri = "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -499,7 +494,7 @@ def evaluate(
 def experiment():
     curriculum_styles = [
         # "tiny",
-        # "tiny_small",
+        "tiny_small",
         "all_room_sizes",
         "longer_chains",
         "terrain",
@@ -510,9 +505,9 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}.diffmaxsteps.newarchitecture.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_resource_chain_{curriculum_style}.diffmaxsteps.newarchitecture.1gpu.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
-                "--gpus=4",
+                "--gpus=1",
                 "--heartbeat-timeout=3600",
                 "--skip-git-check",
             ]
@@ -545,9 +540,10 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 1000):
 def generate_reward_estimates(dir="icl_ordered_chains"):
     # TODO: Eventually we want to make the reward estimates more accurate, per actual map and including terrain.
     # For now we just use the average hop distance.
-    import os
-    import numpy as np
     import json
+    import os
+
+    import numpy as np
 
     room_sizes = os.listdir(dir)
 
