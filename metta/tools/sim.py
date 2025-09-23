@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Sequence
 
 import torch
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
@@ -17,7 +17,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.artifact_paths import artifact_path_join
+from mettagrid.util.artifact_paths import ensure_artifact_reference
 from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,14 @@ class SimTool(Tool):
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
+
+    @field_validator("replay_dir")
+    @classmethod
+    def _validate_replay_dir(cls, value: str) -> str:
+        ref = ensure_artifact_reference(value)
+        if ref is None:
+            raise ValueError("replay_dir cannot be empty")
+        return str(ref.value)
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
@@ -98,7 +106,9 @@ class SimTool(Tool):
             eval_run_name = _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
-            replay_root = artifact_path_join(self.replay_dir, eval_run_name)
+            replay_root = ensure_artifact_reference(self.replay_dir)
+            if replay_root is not None:
+                replay_root = replay_root.join(eval_run_name)
 
             eval_results = evaluate_policy(
                 checkpoint_uri=normalized_uri,

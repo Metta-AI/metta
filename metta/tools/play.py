@@ -6,6 +6,7 @@ import sys
 
 import numpy as np
 import torch as torch
+from pydantic import field_validator
 
 from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
@@ -13,6 +14,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
+from mettagrid.util.artifact_paths import ensure_artifact_reference
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,16 @@ class PlayTool(Tool):
     stats_dir: str | None = None
     open_browser_on_start: bool = True
     mettascope2: bool = False
+
+    @field_validator("replay_dir")
+    @classmethod
+    def _validate_replay_dir(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        ref = ensure_artifact_reference(value)
+        if ref is None:
+            raise ValueError("replay_dir cannot be empty")
+        return str(ref.value)
 
     @property
     def effective_replay_dir(self) -> str:

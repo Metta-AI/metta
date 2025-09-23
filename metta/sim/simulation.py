@@ -26,7 +26,11 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
-from mettagrid.util.artifact_paths import artifact_path_join
+from mettagrid.util.artifact_paths import (
+    ArtifactReference,
+    artifact_simulation_root,
+    ensure_artifact_reference,
+)
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 
@@ -52,7 +56,7 @@ class Simulation:
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
-        replay_dir: str | None = None,
+        replay_dir: ArtifactReference | str | Path | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
@@ -62,13 +66,15 @@ class Simulation:
         self._eval_task_id = eval_task_id
         self._policy_uri = policy_uri
 
-        replay_dir = artifact_path_join(replay_dir, self._id) if replay_dir else None
+        replay_ref = ensure_artifact_reference(replay_dir)
+        if replay_ref is not None:
+            replay_ref = replay_ref.join(self._id)
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
         self._stats_writer = StatsWriter(sim_stats_dir)
-        self._replay_writer = ReplayWriter(replay_dir)
+        self._replay_writer = ReplayWriter(replay_ref)
         self._device = device
 
         self._display_name = f"{cfg.suite}/{cfg.name}"
@@ -163,7 +169,7 @@ class Simulation:
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
-        replay_dir: str = "./train_dir/replays",
+        replay_dir: ArtifactReference | str | Path = "./train_dir/replays",
         policy_uri: str | None = None,
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
@@ -174,7 +180,11 @@ class Simulation:
             policy = MockAgent()
 
         # Create replay directory path with simulation name
-        full_replay_dir = artifact_path_join(replay_dir, sim_config.suite, sim_config.name)
+        full_replay_dir = artifact_simulation_root(
+            replay_dir,
+            suite=sim_config.suite,
+            name=sim_config.name,
+        )
 
         # Create and return simulation
         return cls(

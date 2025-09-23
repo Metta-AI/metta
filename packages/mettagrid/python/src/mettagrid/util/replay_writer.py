@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import zlib
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 
-from mettagrid.util.artifact_paths import artifact_path_join
+from mettagrid.util.artifact_paths import ArtifactReference, ensure_artifact_reference
 from mettagrid.util.file import http_url, write_data
 from mettagrid.util.grid_object_formatter import format_grid_object
 
@@ -21,8 +22,8 @@ logger = logging.getLogger("ReplayWriter")
 class ReplayWriter:
     """Helper class for generating and uploading replays."""
 
-    def __init__(self, replay_dir: str | None = None):
-        self.replay_dir = replay_dir
+    def __init__(self, replay_dir: ArtifactReference | str | Path | None = None):
+        self._replay_root = ensure_artifact_reference(replay_dir)
         self.episodes = {}
 
     def start_episode(self, episode_id: str, env: MettaGridCore):
@@ -33,12 +34,13 @@ class ReplayWriter:
 
     def write_replay(self, episode_id: str) -> str | None:
         """Write the replay to the replay directory and return the URL."""
-        if self.replay_dir is None:
+        if self._replay_root is None:
             return None
         episode_replay = self.episodes[episode_id]
         if episode_replay is None:
             raise ValueError(f"Episode {episode_id} not found")
-        replay_path = artifact_path_join(self.replay_dir, f"{episode_id}.json.z")
+        replay_path_ref = self._replay_root.join(f"{episode_id}.json.z")
+        replay_path = replay_path_ref.value
         replay_path_str = str(replay_path)
         episode_replay.write_replay(replay_path_str)
         return http_url(replay_path_str)

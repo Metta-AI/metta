@@ -1,6 +1,13 @@
 from pathlib import Path
 
-from mettagrid.util.artifact_paths import artifact_path_join, artifact_policy_run_root
+from mettagrid.util.artifact_paths import (
+    ArtifactReference,
+    artifact_path_join,
+    artifact_policy_run_root,
+    artifact_simulation_root,
+    ensure_artifact_reference,
+)
+from mettagrid.util.uri import ParsedURI
 
 
 def test_artifact_path_join_s3():
@@ -47,15 +54,41 @@ def test_artifact_path_join_gdrive():
 
 def test_artifact_policy_run_root_s3_epoch():
     root = artifact_policy_run_root("s3://bucket/replays", run_name="run_a", epoch=3)
-    assert root == "s3://bucket/replays/run_a/v3"
+    assert isinstance(root, ArtifactReference)
+    assert str(root.value) == "s3://bucket/replays/run_a/v3"
 
 
 def test_artifact_policy_run_root_s3_bucket_root():
     root = artifact_policy_run_root("s3://bucket", run_name="run_a", epoch=None)
-    assert root == "s3://bucket/run_a"
+    assert isinstance(root, ArtifactReference)
+    assert str(root.value) == "s3://bucket/run_a"
 
 
 def test_artifact_policy_run_root_path(tmp_path: Path):
     base = tmp_path / "replays"
     root = artifact_policy_run_root(base, run_name="run_a", epoch=None)
-    assert root == base / "run_a"
+    assert isinstance(root, ArtifactReference)
+    assert root.as_path() == base / "run_a"
+
+
+def test_artifact_simulation_root_adds_suite_and_name():
+    base = ensure_artifact_reference("s3://bucket/replays")
+    sim_root = artifact_simulation_root(base, suite="nav", name="maze")
+    assert isinstance(sim_root, ArtifactReference)
+    assert str(sim_root.value) == "s3://bucket/replays/nav/maze"
+
+
+def test_artifact_reference_http_url(tmp_path: Path):
+    local_root = ensure_artifact_reference(tmp_path)
+    assert local_root is not None
+    assert local_root.to_public_url() is None
+
+    remote_root = ensure_artifact_reference("s3://bucket/path")
+    assert remote_root is not None
+    assert remote_root.to_public_url() == "https://bucket.s3.amazonaws.com/path"
+
+
+def test_parsed_uri_bucket_root_has_no_key():
+    parsed = ParsedURI.parse("s3://bucket")
+    assert parsed.bucket == "bucket"
+    assert parsed.key is None
