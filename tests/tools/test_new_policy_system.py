@@ -39,19 +39,19 @@ class TestNewPolicySystem:
         """Test creating simulations with policy URIs."""
         env_config = eb.make_navigation(num_agents=2)
         sim = Simulation.create(
-            sim_config=SimulationConfig(name="test", env=env_config),
+            sim_config=SimulationConfig(suite="sim_suite", name="test", env=env_config),
             device="cpu",
             vectorization="serial",
             policy_uri=None,
         )
 
         assert sim is not None
-        assert sim.name == "test"
+        assert sim.name == "sim_suite/test"
 
     def test_sim_tool_with_policy_uris(self):
         """Test SimTool with policy URIs."""
         env_config = eb.make_arena(num_agents=4)
-        sim_config = SimulationConfig(name="test_arena", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
         sim_tool = SimTool(
             simulations=[sim_config],
             policy_uris=["mock://test_policy"],
@@ -101,7 +101,7 @@ class TestNewPolicySystem:
         """Test that all tools have consistent configuration interfaces."""
 
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(name="test", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test", env=env_config)
         tools = [
             ReplayTool(sim=sim_config, policy_uri=None),
             PlayTool(sim=sim_config, policy_uri=None),

@@ -111,6 +111,9 @@ class Trainer:
             context=self._context,
         )
 
+        self._losses = losses
+        self._context.losses = losses
+
         for loss in losses.values():
             loss.attach_context(self._context)
 
@@ -151,11 +154,9 @@ class Trainer:
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
             self._context.training_env_id = rollout_result.training_env_id
             world_size = self._distributed_helper.get_world_size()
+            previous_agent_step = self._context.agent_step
             if rollout_result.agent_steps:
-                previous_agent_step = self._context.agent_step
                 self._context.record_rollout(rollout_result.agent_steps, world_size)
-            else:
-                previous_agent_step = self._context.agent_step
             if rollout_result.raw_infos:
                 self._prev_agent_step_for_step_callbacks = previous_agent_step
                 self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
@@ -227,20 +228,18 @@ class Trainer:
             callback_type: The type of callback to invoke
             infos: Step information from environment (only used for STEP callback)
         """
+        current_step = self._context.agent_step
+        previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
+        current_epoch = self._context.epoch
+
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    interval = component._step_interval
-                    if interval and infos:
-                        current_step = self._context.agent_step
-                        previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
-                        if current_step // interval > previous_step // interval:
-                            component.on_step(infos)
+                    if component.should_handle_step(current_step=current_step, previous_step=previous_step) and infos:
+                        component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
-                    if component._epoch_interval != 0 and self._context.epoch % component._epoch_interval == 0:
-                        component.on_epoch_end(self._context.epoch)
-                    elif component._epoch_interval == 0:
-                        component.on_epoch_end(self._context.epoch)
+                    if component.should_handle_epoch(current_epoch):
+                        component.on_epoch_end(current_epoch)
                 elif callback_type == TrainerCallback.TRAINING_COMPLETE:
                     component.on_training_complete()
                 elif callback_type == TrainerCallback.FAILURE:

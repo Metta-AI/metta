@@ -90,7 +90,26 @@ class StatsClient(ABC):
         stats_client._validate_authenticated()
         return stats_client
 
+    @abstractmethod
+    def record_episode(
+        self,
+        *,
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
+        primary_policy_id: uuid.UUID,
+        sim_suite: str,
+        env_name: str,
+        stats_epoch: uuid.UUID | None = None,
+        replay_url: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        eval_task_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
+    ) -> EpisodeResponse:
+        pass
 
+
+# TODO: REMOVE THIS
 class NoopStatsClient(StatsClient):
     def __init__(self):
         self.id = uuid.uuid1()
@@ -137,6 +156,23 @@ class NoopStatsClient(StatsClient):
             retries=0,
             updated_at=datetime.now(),
         )
+
+    def record_episode(
+        self,
+        *,
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
+        primary_policy_id: uuid.UUID,
+        sim_suite: str,
+        env_name: str,
+        stats_epoch: uuid.UUID | None = None,
+        replay_url: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        eval_task_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
+    ) -> EpisodeResponse:
+        return EpisodeResponse(id=self.id)
 
 
 class HttpStatsClient(StatsClient):
@@ -243,8 +279,8 @@ class HttpStatsClient(StatsClient):
         agent_policies: dict[int, uuid.UUID],
         agent_metrics: dict[int, dict[str, float]],
         primary_policy_id: uuid.UUID,
-        sim_name: str,
-        env_label: str,
+        sim_suite: str,
+        env_name: str,
         stats_epoch: uuid.UUID | None = None,
         replay_url: str | None = None,
         attributes: dict[str, Any] | None = None,
@@ -257,8 +293,8 @@ class HttpStatsClient(StatsClient):
             agent_metrics=agent_metrics,
             primary_policy_id=primary_policy_id,
             stats_epoch=stats_epoch,
-            sim_name=sim_name,
-            env_label=env_label,
+            sim_suite=sim_suite,
+            env_name=env_name,
             replay_url=replay_url,
             attributes=attributes or {},
             eval_task_id=eval_task_id,

@@ -191,6 +191,7 @@ class Evaluator(TrainerComponent):
         for i in range(self._config.num_training_tasks):
             sims.append(
                 SimulationConfig(
+                    suite="training",
                     name=f"train_task_{i}",
                     env=curriculum.get_task().get_env_cfg(),
                 )

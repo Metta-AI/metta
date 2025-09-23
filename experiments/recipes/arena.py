@@ -74,8 +74,8 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=combat_env),
+        SimulationConfig(suite="arena", name="basic", env=basic_env),
+        SimulationConfig(suite="arena", name="combat", env=combat_env),
     ]
 
 
@@ -131,12 +131,12 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return PlayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def evaluate(

@@ -93,8 +93,8 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=combat_env),
+        SimulationConfig(suite="arena", name="basic", env=basic_env),
+        SimulationConfig(suite="arena", name="combat", env=combat_env),
     ]
 
 
@@ -120,12 +120,12 @@ def train(
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return PlayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def evaluate(
@@ -156,13 +156,15 @@ def evaluate_in_sweep(
 
         simulations = [
             SimulationConfig(
-                name="arena/basic",
+                suite="arena",
+                name="basic",
                 env=basic_env,
                 num_episodes=10,  # 10 episodes for statistical reliability
                 max_time_s=240,  # 4 minutes max per simulation
             ),
             SimulationConfig(
-                name="arena/combat",
+                suite="arena",
+                name="combat",
                 env=combat_env,
                 num_episodes=10,
                 max_time_s=240,

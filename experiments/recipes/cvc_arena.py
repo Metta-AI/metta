@@ -84,8 +84,8 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(name="cvc_arena/basic", env=basic_env),
-        SimulationConfig(name="cvc_arena/combat", env=combat_env),
+        SimulationConfig(suite="cvc_arena", name="basic", env=basic_env),
+        SimulationConfig(suite="cvc_arena", name="combat", env=combat_env),
     ]
 
 
@@ -93,24 +93,25 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
+    resolved_curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
+    )
+
+    evaluator_cfg = EvaluatorConfig(
+        simulations=[
+            SimulationConfig(
+                suite="cvc_arena", name="basic", env=make_mettagrid(num_agents=24)
+            ),
+            SimulationConfig(
+                suite="cvc_arena", name="combat", env=make_mettagrid(num_agents=24)
+            ),
+        ],
+    )
+
     return TrainTool(
         trainer=TrainerConfig(),
-        training_env=TrainingEnvironmentConfig(
-            curriculum=curriculum
-            or make_curriculum(
-                enable_detailed_slice_logging=enable_detailed_slice_logging
-            )
-        ),
-        evaluator=EvaluatorConfig(
-            simulations=[
-                SimulationConfig(
-                    name="cvc_arena/basic", env=make_mettagrid(num_agents=24)
-                ),
-                SimulationConfig(
-                    name="cvc_arena/combat", env=make_mettagrid(num_agents=24)
-                ),
-            ]
-        ),
+        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        evaluator=evaluator_cfg,
     )
 
 
@@ -154,12 +155,14 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="cvc_arena"))
+    return PlayTool(sim=SimulationConfig(suite="cvc_arena", env=eval_env, name="eval"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="cvc_arena"))
+    return ReplayTool(
+        sim=SimulationConfig(suite="cvc_arena", env=eval_env, name="eval")
+    )
 
 
 def evaluate(
