@@ -11,6 +11,7 @@ from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 import einops
 
+from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 
@@ -33,10 +34,13 @@ class PufferLibCompatibleConfig(PolicyArchitecture):
     lstm_config: LSTMConfig = LSTMConfig(
         in_key="encoded_obs",
         out_key="core",
-        latent_size=256,  # Match PufferLib FC layer output
+        latent_size=512,  # Match PufferLib: 256 (self) + 256 (cnn) = 512 input to LSTM
         hidden_size=512,  # Match PufferLib LSTM: 512 not 128
         num_layers=1,
     )
+
+    # Minimal action_probs_config to satisfy base class requirement
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 class PufferLibCompatiblePolicy(Policy):
     """Policy that exactly matches PufferLib architecture for seamless checkpoint loading."""
@@ -148,7 +152,8 @@ class PufferLibCompatiblePolicy(Policy):
         ] = atr_values[valid_tokens]
 
         # Normalize features with epsilon for numerical stability
-        features = box_obs / (self.max_vec + 1e-8)
+        max_vec_device = self.max_vec.to(box_obs.device)
+        features = box_obs / (max_vec_device + 1e-8)
 
         self_features = self.self_encoder(features)
         cnn_features = self.network(features)
