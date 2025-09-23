@@ -4,7 +4,7 @@ import platform
 from typing import Any, ClassVar, Optional
 
 import torch
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -52,40 +52,19 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
-def _collect_policy_presets() -> dict[str, str]:
-    presets: dict[str, str] = {}
-    for base in PolicyArchitecture.__mro__:
-        alias_map = getattr(base, "_aliases", None)
-        if alias_map:
-            presets.update(alias_map)
-    return presets
-
-
 class TrainTool(Tool):
-    POLICY_PRESETS: ClassVar[dict[str, str]] = _collect_policy_presets()
+    POLICY_PRESETS: ClassVar[dict[str, str]] = PolicyArchitecture.available_aliases()
 
-    @model_validator(mode="before")
+    @field_validator("policy_architecture", mode="before")
     @classmethod
-    def _resolve_policy_preset(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        value = data.get("policy_architecture")
-        if isinstance(value, str):
-            candidates = [value]
-            if "." not in value:
-                candidates.append(value.lower())
-
-            for candidate in candidates:
-                try:
-                    data["policy_architecture"] = PolicyArchitecture.resolve(candidate)
-                    break
-                except (ModuleNotFoundError, AttributeError, ImportError, TypeError):
-                    continue
-            else:
-                presets = _collect_policy_presets()
-                valid = ", ".join(sorted(presets)) if presets else "(none available)"
-                raise ValueError(f"Unknown policy preset '{value}'. Valid options: {valid}")
-        return data
+    def _normalize_policy_architecture(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        try:
+            return PolicyArchitecture.resolve(value)
+        except (ValueError, TypeError) as exc:
+            presets = ", ".join(sorted(cls.POLICY_PRESETS)) if cls.POLICY_PRESETS else "(none available)"
+            raise ValueError(f"Unable to resolve policy preset: {exc}. Known presets: {presets}") from exc
 
     run: Optional[str] = None
 

@@ -184,9 +184,7 @@ def _normalize_tokens(cli_args: list[str]) -> list[str]:
                 raise ValueError(f"Invalid argument format: {token}. Expected non-empty key")
         else:
             if not token.startswith("-"):
-                raise ValueError(
-                    f"Invalid argument format: {token}. Expected key=value or --key value"
-                )
+                raise ValueError(f"Invalid argument format: {token}. Expected key=value or --key value")
 
             key = _strip_flag_prefix(token)
             if not key:

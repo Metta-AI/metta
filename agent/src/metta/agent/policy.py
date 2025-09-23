@@ -5,7 +5,7 @@ implement the required methods that MettaAgent depends on."""
 
 import importlib.util
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Any, ClassVar, Dict, List
 
 import torch
 import torch.nn as nn
@@ -34,6 +34,71 @@ class PolicyArchitecture(Config):
 
     # a separate component that optionally accepts actions and process logits into log probs, entropy, etc.
     action_probs_config: ComponentConfig
+
+    _ALIASES: ClassVar[Dict[str, str]] = {}
+    _CANONICAL_ALIASES: ClassVar[Dict[str, str]] = {}
+
+    @classmethod
+    def register_alias(cls, alias: str, target: str) -> None:
+        cls._ALIASES[alias] = target
+        cls._ALIASES[alias.lower()] = target
+        cls._CANONICAL_ALIASES[alias] = target
+
+    @classmethod
+    def available_aliases(cls) -> dict[str, str]:
+        return dict(cls._CANONICAL_ALIASES)
+
+    @classmethod
+    def resolve(cls, value: Any) -> "PolicyArchitecture":
+        if isinstance(value, cls):
+            return value
+
+        if isinstance(value, type) and issubclass(value, cls):
+            return value()
+
+        if isinstance(value, str):
+            reference = cls._ALIASES.get(value)
+            if reference is None:
+                reference = cls._ALIASES.get(value.lower())
+            if reference is None:
+                reference = value
+
+            try:
+                symbol = load_symbol(reference)
+            except (ImportError, AttributeError, ModuleNotFoundError) as exc:
+                if reference is value:
+                    aliases = cls._format_aliases()
+                    raise ValueError(f"Unknown policy preset '{value}'. Valid options: {aliases}") from exc
+                raise ValueError(f"Unable to load policy preset '{value}': {exc}") from exc
+
+            return cls._coerce_resolved(symbol, reference)
+
+        if callable(value):
+            candidate = value()
+            if isinstance(candidate, cls):
+                return candidate
+
+        raise TypeError(f"Unable to resolve value {value!r} into an instance of {cls.__name__}")
+
+    @classmethod
+    def _coerce_resolved(cls, resolved: Any, reference: str) -> "PolicyArchitecture":
+        if isinstance(resolved, cls):
+            return resolved
+
+        if isinstance(resolved, type) and issubclass(resolved, cls):
+            return resolved()
+
+        if callable(resolved):
+            candidate = resolved()
+            if isinstance(candidate, cls):
+                return candidate
+
+        raise TypeError(f"Resolved object {resolved!r} for reference {reference!r} is not a {cls.__name__}")
+
+    @classmethod
+    def _format_aliases(cls) -> str:
+        aliases = sorted(cls._CANONICAL_ALIASES)
+        return ", ".join(aliases) if aliases else "(none available)"
 
     def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""
