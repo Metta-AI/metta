@@ -159,7 +159,6 @@ class GlobalObsConfig:
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    resource_rewards: bool
     visitation_counts: bool
 
 class GameConfig:
