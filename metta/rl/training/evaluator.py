@@ -1,7 +1,7 @@
 """Policy evaluation management."""
 
 import logging
-from typing import Any, List, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 import torch
@@ -9,6 +9,7 @@ from pydantic import Field
 
 import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
@@ -16,8 +17,7 @@ from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
-from metta.rl.training.checkpointer import CheckpointConfig
-from metta.rl.training.component import TrainerComponent
+from metta.rl.training import TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.config import Config
@@ -32,7 +32,7 @@ class EvaluatorConfig(Config):
     evaluate_local: bool = True
     evaluate_remote: bool = False
     num_training_tasks: int = 2
-    simulations: List[SimulationConfig] = Field(default_factory=list)
+    simulations: list[SimulationConfig] = Field(default_factory=list)
     replay_dir: Optional[str] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
@@ -64,17 +64,8 @@ class Evaluator(TrainerComponent):
         config: EvaluatorConfig,
         device: torch.device,
         system_cfg: Any,
-        checkpoint_cfg: CheckpointConfig,
         stats_client: Optional[StatsClient] = None,
     ):
-        """Initialize evaluator.
-
-        Args:
-            config: Evaluation configuration
-            device: Device to evaluate on
-            system_cfg: System configuration
-            stats_client: Optional stats client
-        """
         super().__init__()
         self._master_only = True
         self._config = config
@@ -85,7 +76,6 @@ class Evaluator(TrainerComponent):
 
         self._configure_evaluation_settings(
             eval_cfg=self._config,
-            checkpoint_cfg=checkpoint_cfg,
             stats_client=self._stats_client,
         )
 
@@ -97,26 +87,8 @@ class Evaluator(TrainerComponent):
     def _configure_evaluation_settings(
         *,
         eval_cfg: EvaluatorConfig,
-        checkpoint_cfg: CheckpointConfig,
         stats_client: Optional[StatsClient],
     ) -> None:
-        """Configure evaluation settings.
-
-        Args:
-            eval_cfg: Evaluation configuration from TrainTool
-            checkpoint_cfg: Trainer checkpoint configuration
-            stats_client: Optional stats client
-        """
-        if eval_cfg.epoch_interval and eval_cfg.epoch_interval < checkpoint_cfg.checkpoint_interval:
-            raise ValueError(
-                "evaluator.epoch_interval must be >= trainer.checkpoint.checkpoint_interval "
-                "to ensure policies are saved before evaluation"
-            )
-
-        if eval_cfg.evaluate_remote and not checkpoint_cfg.remote_prefix:
-            eval_cfg.evaluate_remote = False
-            logger.info("Remote prefix unset; disabling remote evaluations")
-
         if eval_cfg.replay_dir is None:
             eval_cfg.replay_dir = auto_replay_dir()
             logger.info(f"Setting replay_dir to {eval_cfg.replay_dir}")
@@ -141,14 +113,6 @@ class Evaluator(TrainerComponent):
                     logger.info("No git hash available for remote evaluations")
 
     def should_evaluate(self, epoch: int) -> bool:
-        """Check if evaluation should run at this epoch.
-
-        Args:
-            epoch: Current epoch
-
-        Returns:
-            True if evaluation should run
-        """
         interval = self._config.epoch_interval
         if interval <= 0:
             return False
@@ -162,18 +126,6 @@ class Evaluator(TrainerComponent):
         agent_step: int,
         stats_epoch_id: Optional[UUID] = None,
     ) -> EvalRewardSummary:
-        """Run evaluation on the policy.
-
-        Args:
-            policy_uri: URI of the policy checkpoint to evaluate
-            curriculum: Training curriculum for getting tasks
-            epoch: Current epoch
-            agent_step: Current agent step
-            stats_epoch_id: Optional stats epoch ID
-
-        Returns:
-            Evaluation scores
-        """
         if not policy_uri:
             logger.warning("No policy URI available for evaluation")
             return EvalRewardSummary()
@@ -217,7 +169,6 @@ class Evaluator(TrainerComponent):
                         agent_step=agent_step,
                         epoch=epoch,
                         wandb_run=wandb_run,
-                        metric_prefix="training_eval",
                         step_metric_key="metric/epoch",
                         epoch_metric_key="metric/epoch",
                     )
@@ -228,21 +179,14 @@ class Evaluator(TrainerComponent):
 
         return EvalRewardSummary()
 
-    def _build_simulations(self, curriculum: Any) -> List[SimulationConfig]:
-        """Build simulation configurations for evaluation.
-
-        Args:
-            curriculum: Training curriculum
-
-        Returns:
-            List of simulation configurations
-        """
+    def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
         sims = []
 
         # Add training task evaluations
         for i in range(self._config.num_training_tasks):
             sims.append(
                 SimulationConfig(
+                    suite="training",
                     name=f"train_task_{i}",
                     env=curriculum.get_task().get_env_cfg(),
                 )
@@ -256,16 +200,9 @@ class Evaluator(TrainerComponent):
     def _evaluate_remote(
         self,
         policy_uri: str,
-        simulations: List[SimulationConfig],
+        simulations: list[SimulationConfig],
         stats_epoch_id: Optional[UUID] = None,
     ) -> None:
-        """Run remote evaluation.
-
-        Args:
-            policy_uri: URI of policy to evaluate
-            simulations: Simulations to run
-            stats_epoch_id: Optional stats epoch ID
-        """
         logger.info(f"Evaluating policy remotely from {policy_uri}")
         stats_reporter = getattr(self.context, "stats_reporter", None)
         wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter else None
@@ -281,19 +218,9 @@ class Evaluator(TrainerComponent):
     def _evaluate_local(
         self,
         policy_uri: str,
-        simulations: List[SimulationConfig],
+        simulations: list[SimulationConfig],
         stats_epoch_id: Optional[UUID] = None,
     ) -> EvalResults:
-        """Run local evaluation.
-
-        Args:
-            policy_uri: URI of policy to evaluate
-            simulations: Simulations to run
-            stats_epoch_id: Optional stats epoch ID
-
-        Returns:
-            Evaluation results
-        """
         logger.info(f"Evaluating policy locally from {policy_uri}")
         return evaluate_policy(
             checkpoint_uri=policy_uri,
@@ -306,38 +233,42 @@ class Evaluator(TrainerComponent):
         )
 
     def get_latest_scores(self) -> EvalRewardSummary:
-        """Get the latest evaluation scores.
-
-        Returns:
-            Latest evaluation scores
-        """
         return self._latest_scores
 
-    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        """Run evaluation at epoch end if due."""
+    def on_epoch_end(self, epoch: int) -> None:
         if not self.should_evaluate(epoch):
             return
 
         policy_uri = self.context.latest_policy_uri()
-
         if not policy_uri:
-            logger.debug("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
+            logger.warning("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
             return
 
-        curriculum = getattr(self.context.env, "_curriculum", None)
+        curriculum: Curriculum | None = getattr(self.context.env, "_curriculum", None)
         if curriculum is None:
-            logger.debug("Evaluator: curriculum unavailable; skipping evaluation")
+            logger.warning("Evaluator: curriculum unavailable; skipping evaluation")
             return
 
         stats_reporter = self.context.stats_reporter
-        stats_epoch_id = None
-        if stats_reporter and getattr(stats_reporter.state, "stats_run_id", None):
-            stats_epoch_id = stats_reporter.create_epoch(
-                stats_reporter.state.stats_run_id,
-                epoch,
-                epoch,
-                attributes={"source": "evaluation"},
-            )
+        if not stats_reporter:
+            logger.warning("Evaluator: skipping epoch %s because stats_reporter is not available", epoch)
+            return
+
+        if not hasattr(stats_reporter, "state") or stats_reporter.state is None:
+            logger.warning("Evaluator: skipping epoch %s because stats_reporter.state is not available", epoch)
+            return
+
+        stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
+        if not stats_run_id:
+            logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)
+            return
+
+        stats_epoch_id = stats_reporter.create_epoch(
+            stats_run_id,  # Now the type checker knows this is not None
+            epoch,
+            epoch,
+            attributes={"source": "evaluation"},
+        )
 
         scores = self.evaluate(
             policy_uri=policy_uri,
