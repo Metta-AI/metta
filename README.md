@@ -245,7 +245,6 @@ Minimal example:
 ```python
 # experiments/user/my_tasks.py
 from mettagrid.builder.envs import make_arena
-from mettagrid.config.envs import make_arena
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
