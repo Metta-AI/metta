@@ -14,7 +14,7 @@ class JobTypes(StrEnum):
 @dataclass
 class JobDefinition:
     run_id: str
-    cmd: str  # e.g., "experiments.recipes.arena.train_shaped" or "experiments.recipes.arena.evaluate"
+    cmd: str  # e.g., "train arena" or "sim arena"
     gpus: int = 1
     nodes: int = 1
     args: list[str] = field(default_factory=list)  # positional arguments

@@ -1,5 +1,4 @@
 import logging
-import types
 from typing import List
 
 import torch
@@ -18,7 +17,7 @@ from metta.agent.components.obs_tokenizers import (
     ObsAttrEmbedFourierConfig,
 )
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training.training_environment import EnvironmentMetaData
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
@@ -30,8 +29,8 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     self.action_probs(td, action)
 
     td["pred_input"] = torch.cat([td["core"], td["actor_query"]], dim=-1)
-    self.returns_pred(td)
-    self.reward_pred(td)
+    td["returns_pred"] = self.layers["returns_pred"](td)
+    td["reward_pred"] = self.layers["reward_pred"](td)
     td["values"] = td["values"].flatten()
     return td
 
@@ -86,9 +85,9 @@ class FastDynamicsConfig(PolicyArchitecture):
         pred_input_dim = self._hidden_size + self._embedding_dim
         returns_module = nn.Linear(pred_input_dim, 1)
         reward_module = nn.Linear(pred_input_dim, 1)
-        policy.returns_pred = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
-        policy.reward_pred = TDM(reward_module, in_keys=["pred_input"], out_keys=["reward_pred"])
+        policy.layers["returns_pred"] = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
+        policy.layers["reward_pred"] = TDM(reward_module, in_keys=["pred_input"], out_keys=["reward_pred"])
 
-        policy.forward = types.MethodType(forward, policy)
+        policy.forward = forward
 
         return policy

@@ -89,11 +89,14 @@ def _():
 
     import logging
     from metta.tools.train import TrainTool
-    from metta.rl.trainer_config import TrainerConfig
-    from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+    from metta.rl.trainer_config import (
+        TrainerConfig,
+        CheckpointConfig,
+        EvaluationConfig,
+    )
 
     from metta.cogworks.curriculum import (
-        env_curriculum,
+        single_task_curriculum,
         SingleTaskGeneratorConfig,
         CurriculumConfig,
     )
@@ -103,6 +106,7 @@ def _():
     from mettagrid.map_builder.ascii import AsciiMapBuilder
     from mettagrid.config.mettagrid_config import (
         AgentRewards,
+        StatsRewards,
     )
     from mettagrid.config import Config
     from mettagrid.test_support.actions import generate_valid_random_actions
@@ -360,14 +364,16 @@ def _():
     return (
         AgentRewards,
         AsciiMapBuilder,
+        CheckpointConfig,
         Config,
-        EvaluatorConfig,
+        EvaluationConfig,
         MettaGridEnv,
         OpportunisticPolicy,
         Path,
         CheckpointManager,
         RendererToolConfig,
         SimulationConfig,
+        StatsRewards,
         TensorDict,
         TrainTool,
         TrainerConfig,
@@ -375,7 +381,7 @@ def _():
         contextlib,
         datetime,
         display,
-        env_curriculum,
+        single_task_curriculum,
         generate_valid_random_actions,
         get_repo_root,
         io,
@@ -458,6 +464,7 @@ def _(
     make_arena,
     AsciiMapBuilder,
     AgentRewards,
+    StatsRewards,
     pprint,
     textwrap,
 ):
@@ -536,6 +543,7 @@ def _(
     return (
         AgentRewards,
         AsciiMapBuilder,
+        StatsRewards,
         mg_config,
         make_arena,
         renderer_config,
@@ -802,7 +810,8 @@ def _(mo):
 
 @app.cell
 def _(
-    EvaluatorConfig,
+    CheckpointConfig,
+    EvaluationConfig,
     TrainTool,
     TrainerConfig,
     datetime,
@@ -824,7 +833,8 @@ def _(
 
         # Create trainer configuration to reach peak performance before unlearning
         trainer_config = TrainerConfig(
-            total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 ore)
+            curriculum=single_task_curriculum(mg_config),
+            total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 hours)
             batch_size=32768,  # Reduced batch size for more stable learning
             minibatch_size=256,  # Smaller minibatches for better gradient estimates
             rollout_workers=min(
@@ -845,24 +855,17 @@ def _(
                 checkpoint_interval=20,  # Frequent checkpoints to catch peak performance
                 remote_prefix=f"s3://softmax-public/policies/{run_name}",
             ),
-        )
-
-        training_env_cfg = TrainingEnvironmentConfig(
-            curriculum=env_curriculum(mg_config)
-        )
-
-        evaluator_cfg = EvaluatorConfig(
-            epoch_interval=20,  # Frequent evaluation to monitor for unlearning
-            evaluate_remote=False,
-            evaluate_local=True,
-            replay_dir=f"s3://softmax-public/replays/{run_name}",
+            evaluation=EvaluationConfig(
+                evaluate_interval=20,  # Frequent evaluation to monitor for unlearning
+                evaluate_remote=False,
+                evaluate_local=True,
+                replay_dir=f"s3://softmax-public/replays/{run_name}",
+            ),
         )
 
         # Create and configure the training tool
         train_tool = TrainTool(
             trainer=trainer_config,
-            training_env=training_env_cfg,
-            evaluator=evaluator_cfg,
             # wandb=WandbConfigOff(),  # Disable wandb for simplicity
             run=run_name,
             run_dir=f"train_dir/{run_name}",
@@ -1265,6 +1268,7 @@ def _(
     AgentRewards,
     AsciiMapBuilder,
     RendererToolConfig,
+    StatsRewards,
     make_arena,
     textwrap,
 ):
@@ -1314,6 +1318,9 @@ def _(
 
     # Use action failure penalty for efficiency (encourages purposeful movement)
     mg_config2.game.agent.action_failure_penalty = 0.01
+
+    # Use proper StatsRewards object to avoid serialization warnings
+    mg_config2.game.agent.rewards.stats = StatsRewards()
 
     renderer_config2 = RendererToolConfig(
         policy_type="opportunistic",
@@ -1478,8 +1485,7 @@ def _(mo):
 @app.cell
 def _(
     CheckpointConfig,
-    EvaluatorConfig,
-    TrainingEnvironmentConfig,
+    EvaluationConfig,
     TrainTool,
     TrainerConfig,
     datetime,
@@ -1496,11 +1502,12 @@ def _(
 
     def train_agent2():
         # Create a simple curriculum with our hallway environment
-        curriculum = env_curriculum(mg_config2)
+        curriculum = single_task_curriculum(mg_config2)
 
         run_name2 = f"{username}.hello_world_train.mine_plus_generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         trainer_config = TrainerConfig(
+            curriculum=curriculum,
             total_timesteps=3500000,  # Extended training to master conversion cycles
             batch_size=65536,  # Larger batches for stable learning of clear signal
             minibatch_size=512,  # Bigger minibatches with clean reward structure
@@ -1541,22 +1548,17 @@ def _(
                 checkpoint_interval=10,  # More frequent checkpoints to catch peak
                 remote_prefix=f"s3://softmax-public/policies/{run_name2}",
             ),
-        )
-
-        training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
-
-        evaluator_cfg = EvaluatorConfig(
-            epoch_interval=10,  # More frequent evaluation to monitor unlearning
-            evaluate_remote=False,
-            evaluate_local=True,
-            replay_dir=f"s3://softmax-public/replays/{run_name2}",
+            evaluation=EvaluationConfig(
+                evaluate_interval=10,  # More frequent evaluation to monitor unlearning
+                evaluate_remote=False,
+                evaluate_local=True,
+                replay_dir=f"s3://softmax-public/replays/{run_name2}",
+            ),
         )
 
         # Create and configure the training tool
         train_tool = TrainTool(
             trainer=trainer_config,
-            training_env=training_env_cfg,
-            evaluator=evaluator_cfg,
             # wandb=WandbConfigOff(),  # Disable wandb for simplicity
             run=run_name2,
             run_dir=f"train_dir/{run_name2}",

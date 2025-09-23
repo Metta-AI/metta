@@ -24,8 +24,8 @@ uv run ./tools/run.py experiments.sweeps.standard.quick_test \
 uv run ./tools/run.py experiments.sweeps.standard.quick_test \
     sweep_name=test_arena_basic \
     recipe_module=experiments.recipes.arena_basic_easy_shaped \
-    train_entrypoint=train\
-    eval_entrypoint=evaluate \
+    train_entrypoint=train \
+    eval_entrypoint=sim \
     max_trials=5
 ```
 
@@ -49,7 +49,7 @@ uv run ./tools/run.py experiments.sweeps.standard.ppo \
     sweep_name=ppo_arena_basic \
     recipe_module=experiments.recipes.arena_basic_easy_shaped \
     train_entrypoint=train \
-    eval_entrypoint=evaluate \
+    eval_entrypoint=sim \
     max_trials=3 \
     dispatcher_type=hybrid_remote_train
 ```
@@ -116,7 +116,7 @@ After training completes, the orchestrator schedules evaluation:
 **Actual dispatched command (via LocalDispatcher for evaluation):**
 
 ```bash
-uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.evaluate \
+uv run ./tools/run.py sim experiments.recipes.arena_basic_easy_shaped \
     policy_uri=file://./train_dir/ppo_arena_basic_trial_0001/checkpoints/ppo_arena_basic_trial_0001:v50.pt \
     push_metrics_to_wandb=True
 ```
@@ -334,7 +334,7 @@ def my_custom_sweep(
         max_trials=max_trials,
         recipe_module="experiments.recipes.arena",
         train_entrypoint="train_shaped",
-        eval_entrypoint="evaluate",
+        eval_entrypoint="sim",
         max_parallel_jobs=1,  # Sequential execution
         dispatcher_type="hybrid_remote_train",  # Default dispatcher
     )

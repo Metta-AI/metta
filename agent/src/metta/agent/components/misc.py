@@ -8,6 +8,7 @@ from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
 
 from metta.agent.components.component_config import ComponentConfig
+from mettagrid.config import Config
 
 
 class MLPConfig(ComponentConfig):
@@ -88,15 +89,12 @@ class MLP(nn.Module):
 
 
 ###------------- Deep Residual MLP -------------------------
-class DeepResMLPConfig(ComponentConfig):
+class DeepResMLPConfig(Config):
     in_key: str
     out_key: str
     depth: int
     in_features: int
     name: str = "deep_res_mlp"
-
-    def make_component(self, env=None):
-        return ResNetMLP(config=self)
 
 
 class ResidualBlock(nn.Module):

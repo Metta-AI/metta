@@ -37,8 +37,10 @@ from experiments.experiment import Experiment, ExperimentConfig
 from experiments.training_job import TrainingJobConfig
 from experiments.training_run_config import TrainingRunConfig
 from experiments.skypilot_job_config import SkypilotJobConfig
-from metta.rl.trainer_config import TrainerConfig, OptimizerConfig, TorchProfilerConfig
-from metta.sim.simulation_config import SimulationConfig
+from metta.rl.trainer_config import (
+    TrainerConfig, OptimizerConfig, CheckpointConfig,
+    SimulationConfig, TorchProfilerConfig
+)
 
 class LearningRateABTest(Experiment):
     """A/B test comparing two learning rates."""
@@ -49,6 +51,7 @@ class LearningRateABTest(Experiment):
             trainer = TrainerConfig(
                 num_workers=4,
                 optimizer=OptimizerConfig(learning_rate=lr),
+                checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
                 simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
                 profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
             )
@@ -128,8 +131,9 @@ For experiments requiring specific hyperparameters:
 
 ```python
 from metta.rl.trainer_config import (
-    TrainerConfig, OptimizerConfig, TorchProfilerConfig
-from metta.sim.simulation_config import SimulationConfig
+    TrainerConfig, OptimizerConfig, CheckpointConfig,
+    SimulationConfig, TorchProfilerConfig
+)
 
 trainer = TrainerConfig(
     total_timesteps=50_000_000,
@@ -140,6 +144,7 @@ trainer = TrainerConfig(
         type="muon",
         learning_rate=0.001,
     ),
+    checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
     simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
     profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
 )

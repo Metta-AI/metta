@@ -16,9 +16,7 @@ class TestScoreRoutes:
         policies = test_data["policies"]
         epochs = test_data["epochs"]
 
-        sim_suite = "agg_suite"
-        env_name = "test_env"
-        eval_name = f"{sim_suite}/{env_name}"
+        eval_name = "agg_suite/test_env"
 
         # Policy 0: reward [10.0, 20.0], score [30.0, 50.0]
         stats_client.record_episode(
@@ -26,8 +24,8 @@ class TestScoreRoutes:
             agent_metrics={0: {"reward": 10.0, "score": 30.0}},
             primary_policy_id=policies[0].id,
             stats_epoch=epochs[0].id,
-            sim_suite=sim_suite,
-            env_name=env_name,
+            sim_name=eval_name,
+            env_label="test_env",
             replay_url="https://example.com/replay/p0_e1",
         )
         stats_client.record_episode(
@@ -35,8 +33,8 @@ class TestScoreRoutes:
             agent_metrics={0: {"reward": 20.0, "score": 50.0}},
             primary_policy_id=policies[0].id,
             stats_epoch=epochs[0].id,
-            sim_suite=sim_suite,
-            env_name=env_name,
+            sim_name=eval_name,
+            env_label="test_env",
             replay_url="https://example.com/replay/p0_e2",
         )
 
@@ -46,8 +44,8 @@ class TestScoreRoutes:
             agent_metrics={0: {"reward": 40.0, "score": 100.0}},
             primary_policy_id=policies[1].id,
             stats_epoch=epochs[1].id,
-            sim_suite=sim_suite,
-            env_name=env_name,
+            sim_name=eval_name,
+            env_label="test_env",
             replay_url="https://example.com/replay/p1_e1",
         )
         stats_client.record_episode(
@@ -55,8 +53,8 @@ class TestScoreRoutes:
             agent_metrics={0: {"reward": 60.0, "score": 200.0}},
             primary_policy_id=policies[1].id,
             stats_epoch=epochs[1].id,
-            sim_suite=sim_suite,
-            env_name=env_name,
+            sim_name=eval_name,
+            env_label="test_env",
             replay_url="https://example.com/replay/p1_e2",
         )
 

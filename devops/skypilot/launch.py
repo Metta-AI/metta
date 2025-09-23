@@ -118,18 +118,16 @@ Examples:
   # Basic:
   %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
 
+  # Short CLI (forwarded to tools/run.py):
+  %(prog)s train arena run=test_123 trainer.total_timesteps=100000
+
   # Mix of launch flags and tool args:
-  %(prog)s experiments.recipes.arena.train --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
+  %(prog)s train arena --gpus 2 --nodes 4 -- run=test_123 trainer.steps=1000
         """,
     )
 
-    # First, we need to separate launch flags from tool args
-    # We'll parse known args only, allowing unknown ones to be passed as tool args
-    parser.add_argument(
-        "module_path",
-        help="Module path to run (e.g., experiments.recipes.arena.train). "
-        "Any arguments following the module path will be passed to the tool.",
-    )
+    parser.add_argument("module_path", help="Module path to run (e.g., experiments.recipes.arena.train)")
+    parser.add_argument("tool_args", nargs="*", help="Arguments in key=value format (same as run_tool.py)")
 
     # Launch-specific flags
     parser.add_argument("--run", type=str, default=None, help="Run ID for the job")
@@ -173,14 +171,13 @@ Examples:
         help="Run NCCL and job restart tests",
     )
 
-    # Use parse_known_args to handle both launch flags and tool args
-    args, tool_args = parser.parse_known_args()
+    args = parser.parse_args()
 
     # Handle run ID extraction
     run_id = args.run
     filtered_args = []
 
-    for arg in tool_args:
+    for arg in args.tool_args:
         if arg.startswith("run="):
             # Extract the run ID
             new_run_id = arg[4:]

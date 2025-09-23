@@ -2,17 +2,17 @@
 
 import json
 import logging
+import sys
 
 import numpy as np
 import torch as torch
 
-from metta.common.tool import Tool
+from metta.common.tool.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.grid_object_formatter import format_grid_object
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +21,11 @@ class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
+
     replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
+
     mettascope2: bool = False
 
     @property
@@ -38,7 +40,11 @@ class PlayTool(Tool):
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.mettascope2:
-            import mettagrid.mettascope as mettascope2
+            # Add Mettascope2 bindings to the path
+            sys.path.append("mettascope2/bindings/generated")
+
+            import mettascope2
+            from mettagrid.util.grid_object_formatter import format_grid_object
 
             sim = Simulation.create(
                 sim_config=self.sim,
@@ -56,7 +62,7 @@ class PlayTool(Tool):
             actions = np.zeros((env.num_agents, 2))
             total_rewards = np.zeros(env.num_agents)
 
-            mettascope2.init(replay=json.dumps(initial_replay))
+            mettascope2.init(data_dir="mettascope2/data", replay=json.dumps(initial_replay))
 
             def send_replay_step():
                 grid_objects = []

@@ -85,8 +85,7 @@ class EvalTaskWithPolicyName(BaseModel):
     created_at: datetime
     attributes: dict[str, Any]
     retries: int
-    policy_name: str
-    policy_url: str
+    policy_name: str | None
     user_id: str | None
     updated_at: datetime
 
@@ -107,7 +106,6 @@ class SweepRow(BaseModel):
 class PolicyRow(BaseModel):
     id: uuid.UUID
     name: str
-    url: str | None
 
 
 class LeaderboardRow(BaseModel):
@@ -646,45 +644,6 @@ MIGRATIONS = [
             """,
         ],
     ),
-    SqlMigration(
-        version=26,
-        description="Drop simulation_suite column from episodes table",
-        sql_statements=[
-            """DROP VIEW wide_episodes""",
-            """ALTER TABLE episodes DROP COLUMN simulation_suite""",
-            """CREATE VIEW wide_episodes AS
-            SELECT
-                e.id,
-                e.internal_id,
-                e.created_at,
-                e.primary_policy_id,
-                e.stats_epoch,
-                e.replay_url,
-                e.thumbnail_url,
-                e.eval_name,
-                e.eval_category,
-                e.env_name,
-                e.attributes,
-                e.eval_task_id,
-                p.name as policy_name,
-                p.description as policy_description,
-                p.url as policy_url,
-                ep.start_training_epoch as epoch_start_training_epoch,
-                ep.end_training_epoch as epoch_end_training_epoch,
-                tr.id as training_run_id,
-                tr.name as training_run_name,
-                tr.user_id as training_run_user_id,
-                tr.status as training_run_status,
-                tr.url as training_run_url,
-                tr.description as training_run_description,
-                tr.tags as training_run_tags
-            FROM episodes e
-            LEFT JOIN policies p ON e.primary_policy_id = p.id
-            LEFT JOIN epochs ep ON p.epoch_id = ep.id
-            LEFT JOIN training_runs tr ON ep.run_id = tr.id
-            """,
-        ],
-    ),
 ]
 
 logger = logging.getLogger(name="metta_repo")
@@ -737,7 +696,7 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT id, name, url
+                    SELECT id, name
                     FROM policies
                     WHERE id = %s
                     """,
@@ -852,9 +811,10 @@ class MettaRepo:
         self,
         agent_policies: dict[int, uuid.UUID],
         agent_metrics: dict[int, dict[str, float]],
-        eval_name: str,
         primary_policy_id: uuid.UUID,
         stats_epoch: uuid.UUID | None,
+        sim_name: str,
+        env_label: str,
         replay_url: str | None,
         attributes: dict[str, Any],
         eval_task_id: uuid.UUID | None = None,
@@ -862,11 +822,14 @@ class MettaRepo:
         thumbnail_url: str | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
-            # Validate that eval name is in the format of 'eval_category/env_name'
-            parts = eval_name.split("/")
-            if len(parts) != 2:
-                raise ValueError("Eval name must be in the format of 'eval_category/env_name'")
-            eval_category, env_name = parts
+
+            def _get_simulation_suite(sim_name: str) -> str:
+                for delim in ["/", "."]:
+                    if delim in sim_name:
+                        return sim_name.split(delim)[0]
+                return sim_name
+
+            simulation_suite = _get_simulation_suite(sim_name) if sim_name else None
 
             # Insert into episodes table
             result = await con.execute(
@@ -874,6 +837,7 @@ class MettaRepo:
                 INSERT INTO episodes (
                     replay_url,
                     eval_name,
+                    simulation_suite,
                     eval_category,
                     env_name,
                     primary_policy_id,
@@ -882,14 +846,15 @@ class MettaRepo:
                     eval_task_id,
                     thumbnail_url
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 ) RETURNING id, internal_id
                 """,
                 (
                     replay_url,
-                    eval_name,
-                    eval_category,
-                    env_name,
+                    sim_name,
+                    simulation_suite,
+                    simulation_suite,
+                    env_label,
                     primary_policy_id,
                     stats_epoch,
                     Jsonb(attributes),
@@ -1258,7 +1223,7 @@ class MettaRepo:
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                           p.name as policy_name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE status = 'unprocessed'
@@ -1301,7 +1266,7 @@ class MettaRepo:
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                                 et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                                p.name as policy_name, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
                         WHERE assignee = %s AND status = 'unprocessed'
@@ -1314,7 +1279,7 @@ class MettaRepo:
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                                 et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                                p.name as policy_name, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
                         WHERE status = 'unprocessed' AND assignee IS NOT NULL
@@ -1514,7 +1479,7 @@ class MettaRepo:
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                           p.name as policy_name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE assignee = %s
@@ -1566,7 +1531,7 @@ class MettaRepo:
                     f"""
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+                           p.name as policy_name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     LEFT JOIN policies p ON et.policy_id = p.id
                     WHERE {where_clause}

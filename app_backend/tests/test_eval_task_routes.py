@@ -55,7 +55,6 @@ class TestEvalTaskRoutes:
             name=f"test_eval_policy_{uuid.uuid4().hex[:8]}",
             description="Test policy for eval tasks",
             epoch_id=epoch.id,
-            url="s3://example/policy.pt",
         )
 
         return policy.id
@@ -256,8 +255,8 @@ class TestEvalTaskRoutes:
             agent_policies={0: test_policy_id},
             agent_metrics={0: {"score": 100.0, "steps": 50}},
             primary_policy_id=test_policy_id,
-            sim_suite="navigation",
-            env_name="simple",
+            sim_name="navigation/simple",
+            env_label="mettagrid",
             replay_url="https://example.com/replay",
             attributes={"test": "true"},
             eval_task_id=eval_task_id,
@@ -591,7 +590,6 @@ class TestEvalTaskRoutes:
             name=f"test_multi_filter_policy_{uuid.uuid4().hex[:8]}",
             description="Second test policy",
             epoch_id=epoch.id,
-            url="s3://example/policy2.pt",
         )
 
         # Create tasks with different combinations
@@ -688,7 +686,6 @@ class TestEvalTaskRoutes:
                 name=f"test_sql_array_policy_{i}_{uuid.uuid4().hex[:8]}",
                 description=f"Test policy {i}",
                 epoch_id=epoch.id,
-                url="s3://example/policy3.pt",
             )
             policies.append(policy.id)
 

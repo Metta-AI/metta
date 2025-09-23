@@ -41,6 +41,7 @@ __all__ = [
     "multi_task",
     "single_task",
     "merge",
+    "single_task_curriculum",
     "env_curriculum",
     "CurriculumEnv",
 ]
@@ -71,6 +72,11 @@ def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGenerator
     return TaskGeneratorSetConfig(task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs))
 
 
-def env_curriculum(mg_config: MettaGridConfig) -> CurriculumConfig:
+def single_task_curriculum(mg_config: MettaGridConfig) -> CurriculumConfig:
     """Create a curriculum configuration from an MettaGridConfig."""
     return CurriculumConfig(task_generator=SingleTaskGeneratorConfig(env=mg_config))
+
+
+def env_curriculum(mg_config: MettaGridConfig) -> CurriculumConfig:
+    """Backward-compatible alias for creating a curriculum from a single env."""
+    return single_task_curriculum(mg_config)

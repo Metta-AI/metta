@@ -201,31 +201,31 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 ```bash
 # Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
+uv run ./tools/run.py sim arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # Using a remote S3 checkpoint
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
+uv run ./tools/run.py sim arena \
   policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
 ```
 
 3. **Analysis**: Analyze evaluation results
 
    ```bash
-   uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval/stats.db
+   uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval/stats.db
    ```
 
 4. **Interactive Play**: Test policies interactively (browser-based)
 
 ```bash
-uv run ./tools/run.py experiments.recipes.arena.play \
+uv run ./tools/run.py play arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 ```
 
 5. **View Replays**: Watch recorded gameplay
 
 ```bash
-uv run ./tools/run.py experiments.recipes.arena.replay \
+uv run ./tools/run.py replay arena \
   policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
@@ -284,7 +284,7 @@ The project uses OmegaConf for configuration, with config files organized in `co
 
 #### Running Training and Tools
 
-All tools are now run through `./tools/run.py` with recipe functions:
+All tools are now run through `./tools/run.py` with recipe functions (short syntax supported):
 
 ```bash
 # Training with arena recipe
@@ -294,15 +294,15 @@ uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
 uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
 
 # Play/test a trained policy (interactive browser)
-uv run ./tools/run.py experiments.recipes.arena.play \
+uv run ./tools/run.py play arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
+uv run ./tools/run.py sim arena \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay \
+uv run ./tools/run.py replay arena \
   policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
@@ -312,7 +312,7 @@ The project now uses Pydantic-based configuration instead of Hydra/YAML. Configu
 recipe files:
 
 - Recipes define training setups, environments, and evaluation suites
-- Each recipe function returns a Tool configuration object
+- Each recipe function returns a Tool or a config that the runner upgrades automatically
 - Override parameters can be passed via command line arguments to the recipe functions
 
 ### Development Workflows

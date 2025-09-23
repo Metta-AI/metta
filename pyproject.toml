@@ -32,6 +32,7 @@ dependencies = [
   "metta-agent",
   "metta-app-backend",
   "metta-common",
+  "mettagrid",
   "numpy>=1.26.4,<2",
   "omegaconf>=2.3.0",
   "pandas>=2.3.0",
@@ -158,6 +159,7 @@ gitta = { workspace = true }
 metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
+mettagrid = { workspace = true }
 softmax = { workspace = true }
 
 [tool.ruff]

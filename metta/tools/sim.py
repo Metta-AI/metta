@@ -8,8 +8,8 @@ from typing import Sequence
 import torch
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
-from metta.common.tool import Tool
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.tool.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.eval.eval_service import evaluate_policy
@@ -35,7 +35,8 @@ def _determine_run_name(policy_uri: str) -> str:
 class SimTool(Tool):
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
-    policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
+    policy_uri: str | Sequence[str] | None = None  # policy uri(s) to evaluate
+
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = auto_wandb_config()
@@ -48,23 +49,14 @@ class SimTool(Tool):
     push_metrics_to_wandb: bool = False
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        if self.policy_uris is None:
-            raise ValueError("policy_uris is required")
+        if self.policy_uri is None:
+            raise ValueError("policy_uri is required")
 
-        if isinstance(self.policy_uris, str):
-            self.policy_uris = [self.policy_uris]
-
-        for uri in self.policy_uris:
-            parsed_uri = ParsedURI.parse(uri)
-            if parsed_uri.scheme == "wandb":
-                raise ValueError(
-                    "Policy artifacts must be stored on local disk or S3. "
-                    "Download the checkpoint and re-run with a file:// or s3:// URI."
-                )
+        policy_uris = self.policy_uri if isinstance(self.policy_uri, list) else [self.policy_uri]
 
         stats_client: StatsClient | None = None
         if self.stats_server_uri is not None:
-            stats_client = HttpStatsClient.create(self.stats_server_uri)
+            stats_client = StatsClient.create(self.stats_server_uri)
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
@@ -81,7 +73,7 @@ class SimTool(Tool):
         if self.eval_task_id:
             eval_task_id = uuid.UUID(self.eval_task_id)
 
-        for policy_uri in self.policy_uris:
+        for policy_uri in policy_uris:
             # Normalize the URI using CheckpointManager
             normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 

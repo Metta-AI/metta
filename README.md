@@ -192,9 +192,9 @@ builds its configuration, and runs it. The current available tasks are:
 
   `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
 
-- **experiments.recipes.arena.evaluate**: Evaluate a policy on the arena eval suite
+- **sim (arena)**: Evaluate a policy on the arena eval suite
 
-  `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
+  `./tools/run.py sim arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
 
 ### Runner arguments
 
@@ -217,7 +217,7 @@ Examples:
   system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
 
 # Evaluate a specific policy URI
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py sim arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 
 # Use --verbose to see how arguments are classified
 ./tools/run.py experiments.recipes.arena.train run=test --verbose
@@ -231,43 +231,37 @@ Tips:
 
 ### Defining your own runner tasks
 
-A “task” is just a Python function (or class) that returns a Tool configuration. The runner loads it by name and runs
-its `invoke()` method.
+A “task” is just a Python function (or class) that returns either a Tool or a configuration that the runner can upgrade
+to a Tool (e.g., TrainerConfig, SimulationConfig, MettaGridConfig, or a list of SimulationConfig). The runner loads it
+by name and runs its `invoke()` method (after any needed upgrade).
 
 What you write:
 
-- A function that returns a Tool, for example `TrainTool`, `SimTool`, `PlayTool`, or `ReplayTool`.
+- A function that returns either a Tool or a config (e.g., `TrainerConfig`, `SimulationConfig`, etc.).
 - Place it anywhere importable (for personal use, `experiments/user/<your_file>.py` is convenient).
 - The function name becomes part of the task name you run.
 
-Minimal example:
+Minimal example (returning a config, runner upgrades automatically):
 
 ```python
 # experiments/user/my_tasks.py
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from mettagrid.config.envs import make_arena
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
+from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.sim.simulation_config import SimulationConfig
 
-
-def my_train() -> TrainTool:
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(),
-        evaluator=EvaluatorConfig(
-            simulations=[
-                SimulationConfig(
-                    suite="arena", name="arena/basic", env=make_arena(num_agents=6)
-                )
-            ]
-        ),
+def my_train(run: str = "local.me.1") -> TrainerConfig:
+    return TrainerConfig(
+        evaluation=EvaluationConfig(
+            simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
+        )
     )
 ```
 
 Run your task:
 
 ```bash
-./tools/run.py experiments.user.my_tasks.my_train run=local.me.1 system.device=cpu wandb.enabled=false
+./tools/run.py experiments.user.my_tasks.my_train run=local.me.2 \
+  system.device=cpu wandb.enabled=false
 ```
 
 Notes:
@@ -340,13 +334,13 @@ If you want to run evaluation post-training to compare different policies, you c
 Evaluate a policy against the arena eval suite:
 
 ```
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py sim arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 Evaluate on the navigation eval suite (provide the policy URI):
 
 ```
-./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py sim navigation policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 ### Specifying your agent architecture
@@ -396,11 +390,11 @@ pytest
 
 | Task                        | Command                                                                                                                        |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
-| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
-| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
-| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
-| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
-| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
+| Train (arena)               | `./tools/run.py train arena run=my_experiment`                                                             |
+| Train (navigation)          | `./tools/run.py train navigation run=my_experiment`                                                        |
+| Play (browser)              | `./tools/run.py play arna`                                                                                |
+| Replay (policy)             | `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
+| Evaluate (arena)            | `./tools/run.py sim arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
+| Evaluate (navigation suite) | `./tools/run.py sim navigation policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

@@ -41,7 +41,12 @@ public:
       return;
     }
 
-    // NB: Assemblers handle cooldown implicitly.
+    // Handle Assembler cooldown
+    Assembler* assembler = dynamic_cast<Assembler*>(obj);
+    if (assembler) {
+      assembler->finish_cooldown();
+      return;
+    }
   }
 };
 

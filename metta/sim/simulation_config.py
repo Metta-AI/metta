@@ -11,7 +11,6 @@ from mettagrid.config import Config
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
-    suite: str = Field(description="Name of the simulation suite")
     name: str = Field(description="Name of the simulation")
     env: MettaGridConfig
 

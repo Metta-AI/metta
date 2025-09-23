@@ -128,7 +128,12 @@ class Transformer(nn.Module):
         if training_env_ids is not None:
             env_ids = training_env_ids.reshape(-1)  # [B]
         else:
-            env_ids = torch.arange(B, device=x.device)
+            training_env_id = td.get("training_env_id", None)
+            if training_env_id is not None:
+                start = int(training_env_id.reshape(-1)[0].item())
+                env_ids = torch.arange(start, start + B, device=x.device)
+            else:
+                env_ids = torch.arange(B, device=x.device)
 
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)

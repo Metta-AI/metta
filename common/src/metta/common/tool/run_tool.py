@@ -14,7 +14,7 @@ import sys
 import tempfile
 import traceback
 import warnings
-from typing import Any
+from typing import Any, Optional, Type
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
@@ -28,6 +28,11 @@ from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
+
+#!/usr/bin/env python
+# Simplified runner: recipes should return Tool instances. No auto-conversion.
+ALLOWED_VERBS = {"train", "sim", "analyze", "play", "replay"}
+
 
 # --------------------------------------------------------------------------------------
 # Environment setup
@@ -154,14 +159,12 @@ def nestify(flat: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_tool_fields(tool_class: type[Tool]) -> set[str]:
-    """Get all field names from a Tool class and its parent classes."""
-    fields = set()
-    for base in tool_class.__mro__:
-        if base is Tool:
-            break
-        if issubclass(base, BaseModel) and hasattr(base, "model_fields"):
-            fields.update(base.model_fields.keys())
-    return fields
+    """Get all field names from a Tool class.
+
+    Pydantic v2 includes inherited fields in subclass.model_fields,
+    so we can simply read them directly.
+    """
+    return set(getattr(tool_class, "model_fields", {}).keys())
 
 
 def get_function_params(make_tool_cfg: Any) -> set[str]:
@@ -171,6 +174,121 @@ def get_function_params(make_tool_cfg: Any) -> set[str]:
         return set()
     else:
         return set(inspect.signature(make_tool_cfg).parameters.keys())
+
+
+def _wrap_to_tool(obj: Any, verb: str, cli_args: dict[str, Any]) -> Tool:
+    """Minimal conversion helper from configs to Tools based on verb.
+
+    Supported inputs:
+      - MettaGridConfig
+      - SimulationConfig
+      - Sequence[SimulationConfig]
+      - TrainerConfig
+      - AnalysisConfig
+    """
+    from collections.abc import Sequence as SeqABC
+    from metta.tools.train import TrainTool
+    from metta.tools.sim import SimTool
+    from metta.tools.play import PlayTool
+    from metta.tools.replay import ReplayTool
+    from metta.tools.analyze import AnalysisTool
+
+    # Lazy imports for config types
+    from mettagrid.config.mettagrid_config import MettaGridConfig
+    from metta.sim.simulation_config import SimulationConfig
+    from metta.rl.trainer_config import TrainerConfig
+
+    try:
+        from metta.eval.analysis_config import AnalysisConfig
+    except Exception:
+        AnalysisConfig = None  # type: ignore
+
+    def require(name: str) -> Any:
+        if name not in cli_args or cli_args[name] in (None, ""):
+            output_error(f"{red('Error:')} '{verb}' requires {name} parameter")
+            sys.exit(1)
+        return cli_args[name]
+
+    # TrainerConfig → TrainTool
+    if isinstance(obj, TrainerConfig):
+        from metta.rl.training.evaluator import EvaluatorConfig
+        from metta.rl.training.training_environment import TrainingEnvironmentConfig
+
+        env = TrainingEnvironmentConfig(curriculum=obj.curriculum)
+        eval_cfg = EvaluatorConfig(simulations=obj.evaluation.simulations if obj.evaluation else None)
+        return TrainTool(trainer=obj, training_env=env, evaluator=eval_cfg)
+
+    # MettaGridConfig → verb-specific tool
+    if isinstance(obj, MettaGridConfig):
+        from metta.cogworks.curriculum import single_task_curriculum
+
+        if verb == "train":
+            from metta.rl.trainer_config import EvaluationConfig, TrainerConfig as TC
+
+            trainer = TC(curriculum=single_task_curriculum(obj), evaluation=EvaluationConfig(simulations=[]))
+            from metta.rl.training.training_environment import TrainingEnvironmentConfig
+            from metta.rl.training.evaluator import EvaluatorConfig
+
+            return TrainTool(
+                trainer=trainer,
+                training_env=TrainingEnvironmentConfig(curriculum=trainer.curriculum),
+                evaluator=EvaluatorConfig(simulations=None),
+            )
+        elif verb == "sim":
+            policy_uri = require("policy_uri")
+            sim_cfg = SimulationConfig(env=obj, name=obj.label or "mettagrid")
+            return SimTool(simulations=[sim_cfg], policy_uri=policy_uri)
+        elif verb == "play":
+            return PlayTool(sim=SimulationConfig(env=obj, name=obj.label or "mettagrid"))
+        elif verb == "replay":
+            return ReplayTool(sim=SimulationConfig(env=obj, name=obj.label or "mettagrid"))
+        elif verb == "analyze":
+            eval_db_uri = require("eval_db_uri")
+            return AnalysisTool(analysis=AnalysisConfig(eval_db_uri=eval_db_uri, policy_uri=cli_args.get("policy_uri")))  # type: ignore
+
+    # SimulationConfig → verb-specific tool
+    if isinstance(obj, SimulationConfig):
+        if verb == "sim":
+            policy_uri = require("policy_uri")
+            return SimTool(simulations=[obj], policy_uri=policy_uri)
+        elif verb == "play":
+            return PlayTool(sim=obj)
+        elif verb == "replay":
+            return ReplayTool(sim=obj)
+        elif verb == "train":
+            from metta.cogworks.curriculum import single_task_curriculum
+            from metta.rl.trainer_config import EvaluationConfig, TrainerConfig as TC
+
+            trainer = TC(curriculum=single_task_curriculum(obj.env), evaluation=EvaluationConfig(simulations=[]))
+            from metta.rl.training.training_environment import TrainingEnvironmentConfig
+            from metta.rl.training.evaluator import EvaluatorConfig
+
+            return TrainTool(
+                trainer=trainer,
+                training_env=TrainingEnvironmentConfig(curriculum=trainer.curriculum),
+                evaluator=EvaluatorConfig(simulations=None),
+            )
+        elif verb == "analyze":
+            eval_db_uri = require("eval_db_uri")
+            return AnalysisTool(analysis=AnalysisConfig(eval_db_uri=eval_db_uri, policy_uri=cli_args.get("policy_uri")))  # type: ignore
+
+    # Sequence[SimulationConfig] → SimTool
+    if isinstance(obj, SeqABC) and obj and all(isinstance(s, SimulationConfig) for s in obj):
+        if verb != "sim":
+            output_error(f"{red('Error:')} A list of simulations can only be used with 'sim'")
+            sys.exit(1)
+        policy_uri = require("policy_uri")
+        return SimTool(simulations=list(obj), policy_uri=policy_uri)
+
+    # AnalysisConfig → AnalysisTool
+    if AnalysisConfig is not None and isinstance(obj, AnalysisConfig):
+        if verb != "analyze":
+            output_error(f"{red('Error:')} AnalysisConfig can only be used with 'analyze'")
+            sys.exit(1)
+        return AnalysisTool(analysis=obj)
+
+    output_error(f"{red('Error:')} Cannot convert {type(obj).__name__} to a Tool for verb '{verb}'.")
+    sys.exit(1)
 
 
 def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str]) -> tuple[dict[str, Any], list[str]]:
@@ -392,6 +510,62 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
 # --------------------------------------------------------------------------------------
 
 
+def preprocess_recipe_path(path: str) -> tuple[str, Optional[str]]:
+    """Convert recipe syntax to full module path and expected tool type.
+
+    Handles several formats:
+    1. Verb + recipe: "train arena" -> (experiments.recipes.arena.train, TrainTool)
+    2. Direct function path: "arena.train_shaped" -> (experiments.recipes.arena.train_shaped, None)
+    3. Subfolder: "train in_context_learning.ordered_chains" ->
+       (experiments.recipes.in_context_learning.ordered_chains.train, TrainTool)
+    4. Dotted path with function: "replay scratchpad.ci.replay_null" ->
+       (experiments.recipes.scratchpad.ci.replay_null, ReplayTool)
+    5. Single path needing prefix: "in_context_learning.ordered_chains.train" ->
+       (in_context_learning.ordered_chains.train, None)
+
+    Returns:
+        A tuple of (module_path, expected_verb)
+        - module_path: The full module path to the function
+        - expected_verb: The expected verb (if specified), else None
+
+    Examples:
+        train arena -> (experiments.recipes.arena.train, TrainTool)
+        arena.train_shaped -> (experiments.recipes.arena.train_shaped, None)
+        train in_context_learning.ordered_chains ->
+            (experiments.recipes.in_context_learning.ordered_chains.train, TrainTool)
+        sim navigation -> (experiments.recipes.navigation.sim, SimTool)
+        play minimal -> (experiments.recipes.minimal.play, PlayTool)
+        replay scratchpad.ci.replay_null -> (experiments.recipes.scratchpad.ci.replay_null, ReplayTool)
+    """
+    # Known tool names - these map directly to metta/tools/*.py
+    TOOL_MAPPINGS = {v: v for v in ALLOWED_VERBS}
+
+    parts = path.split()
+
+    # Handle two-part syntax: "verb recipe_or_path"
+    if len(parts) == 2 and parts[0] in TOOL_MAPPINGS:
+        tool_name, recipe_path = parts
+        canonical_tool = TOOL_MAPPINGS[tool_name]
+        # Return canonical verb (string); type checking is done later
+
+        def prefix_if_needed(path: str) -> str:
+            return path if path.startswith("experiments.recipes.") else f"experiments.recipes.{path}"
+
+        # If recipe_path is a dotted path with a function, preserve it as-is
+        path_parts = recipe_path.split(".")
+        if len(path_parts) > 1:
+            return prefix_if_needed(recipe_path), canonical_tool
+
+        # Otherwise, build the standard path with tool function appended
+        qualified = prefix_if_needed(recipe_path)
+        return f"{qualified}.{canonical_tool}", canonical_tool
+
+    # Handle single-path syntax (direct function path like "arena.train_shaped")
+    # No verb specified, so no expected tool type - will validate based on return annotation
+    # This path might need experiments.recipes prefix, which will be handled by the loader
+    return path, None
+
+
 def main():
     """Main entry point using argparse."""
     parser = argparse.ArgumentParser(
@@ -401,12 +575,13 @@ def main():
         allow_abbrev=True,
         epilog="""
 Examples:
-  %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
-  %(prog)s experiments.recipes.arena.play \
-    policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
-  %(prog)s experiments.recipes.arena.train optim='{"lr":1e-3,"beta1":0.9}'
+  %(prog)s train arena run=test_123 trainer.total_timesteps=100000
+  %(prog)s sim navigation policy_uri=file://./checkpoints
+  %(prog)s play arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+  %(prog)s experiments.recipes.arena.train run=test_123  # Full path also works
 
 Rules:
+  - Short syntax: "train arena" -> experiments.recipes.arena.train
   - Dotted keys (a.b.c) are configuration paths and will be nested and validated.
   - Exact parameter names are function arguments for factory functions.
   - Values: true/false, null/none, JSON containers {...}/[...], or int/float/string.
@@ -418,11 +593,7 @@ constructor/function vs configuration overrides based on introspection.
         """,
     )
 
-    parser.add_argument(
-        "make_tool_cfg_path",
-        nargs="?",
-        help="Path to the function or Tool class (e.g., experiments.recipes.arena.train)",
-    )
+    parser.add_argument("make_tool_cfg_path", help="Tool and recipe (e.g., 'train arena') or full path", nargs="+")
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
     parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
@@ -449,6 +620,29 @@ constructor/function vs configuration overrides based on introspection.
         console.print("  ./tools/run.py experiments.recipes.arena.train run=test trainer.batch_size=1024")
         return 0
 
+    # Handle the path as either a list (short syntax) or join it into a single string
+    # Separate tool/recipe from arguments (which contain '=')
+    path_parts = []
+    extra_args = []
+    for part in known_args.make_tool_cfg_path:
+        if "=" in part:
+            extra_args.append(part)
+        else:
+            # Once we hit an arg, rest are args too
+            if extra_args:
+                extra_args.append(part)
+            else:
+                path_parts.append(part)
+
+    # Prepend extra args to the args list
+    if extra_args:
+        known_args.args = extra_args + (known_args.args or [])
+
+    path_str = " ".join(path_parts)
+
+    # Preprocess the path to handle short syntax and get expected verb
+    make_tool_cfg_path, expected_verb = preprocess_recipe_path(path_str)
+
     # Initialize logging and environment
     init_logging()
     init_mettagrid_system_environment()
@@ -461,7 +655,7 @@ constructor/function vs configuration overrides based on introspection.
             f"{red('Error:')} Unknown runner option(s): "
             + ", ".join(dash_unknowns)
             + "\nUse `--` to separate runner options from tool args, e.g.:\n"
-            + f"  {os.path.basename(sys.argv[0])} {known_args.make_tool_cfg_path} -- trainer.total_timesteps=100000"
+            + f"  {os.path.basename(sys.argv[0])} {path_str} -- trainer.total_timesteps=100000"
         )
         return 2
     all_args = (known_args.args or []) + unknown_args
@@ -479,19 +673,63 @@ constructor/function vs configuration overrides based on introspection.
     # Build nested payload from dotted paths for Pydantic validation
     nested_cli = nestify(cli_args)
 
-    output_info(f"\n{bold(cyan('Loading tool:'))} {known_args.make_tool_cfg_path}")
+    output_info(f"\n{bold(cyan('Loading tool:'))} {make_tool_cfg_path}")
 
     # Load the tool configuration function/class
+    # Try multiple fallback strategies:
+    # 1. Try as-is
+    # 2. If single-path input and not found, try with experiments.recipes prefix
+    # 3. If it's a recipe function, try mettagrid_recipe as fallback
+    make_tool_cfg = None
+    original_error = None
+
     try:
-        make_tool_cfg = load_symbol(known_args.make_tool_cfg_path)
+        make_tool_cfg = load_symbol(make_tool_cfg_path)
+    except (AttributeError, ImportError) as e:
+        original_error = e
+
+        # Strategy 1: If it doesn't start with experiments.recipes, try adding that prefix
+        if not make_tool_cfg_path.startswith("experiments.recipes."):
+            prefixed_path = f"experiments.recipes.{make_tool_cfg_path}"
+            try:
+                output_info(f"  {yellow('Trying with prefix:')} {prefixed_path}")
+                make_tool_cfg = load_symbol(prefixed_path)
+                make_tool_cfg_path = prefixed_path  # Update path for later use
+            except Exception as prefix_error:
+                if known_args.verbose:
+                    output_info(f"  {yellow('Prefix failed:')} {prefix_error}")
+                pass  # Continue to next fallback
+
+        # Strategy 2: If input looks like a recipe.<verb>, try recipe.mettagrid as fallback
+        tool_names = ALLOWED_VERBS
+        last_part = make_tool_cfg_path.split(".")[-1] if "." in make_tool_cfg_path else ""
+
+        if make_tool_cfg is None and ".recipes." in make_tool_cfg_path and last_part in tool_names:
+            fallback_path = make_tool_cfg_path.rsplit(".", 1)[0] + ".mettagrid"
+            try:
+                output_info(f"  {yellow('Trying fallback:')} {fallback_path}")
+                make_tool_cfg = load_symbol(fallback_path)
+                # override the path string for logging
+                make_tool_cfg_path = fallback_path
+                # keep expected_verb as last_part to drive conversion
+                expected_verb = last_part
+            except Exception:
+                pass  # will report original error below
+
+        # If all strategies failed, report the original error
+        if make_tool_cfg is None:
+            output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {original_error}")
+            return 1
     except Exception as e:
-        output_exception(f"{red('Error loading')} {known_args.make_tool_cfg_path}: {e}")
+        output_exception(f"{red('Error loading')} {make_tool_cfg_path}: {e}")
         return 1
 
     # If help flag is set, list arguments and exit
     if known_args.help:
         list_tool_arguments(make_tool_cfg, console)
         return 0
+
+    # No pre-validation on function signature; verb enforcement occurs after instantiation
 
     # ----------------------------------------------------------------------------------
     # Construct the Tool
@@ -573,6 +811,12 @@ constructor/function vs configuration overrides based on introspection.
             # Construct via function
             tool_cfg = make_tool_cfg(**func_kwargs)
 
+            # If verb was provided and result is not a Tool, attempt conversion based on verb
+            if expected_verb is not None and not isinstance(tool_cfg, Tool):
+                tool_cfg = _wrap_to_tool(tool_cfg, expected_verb, cli_args)
+
+            # No auto-conversion: ensure we got a Tool
+
             # Remaining args = anything not consumed as function params
             remaining_args = {k: v for k, v in cli_args.items() if k not in consumed_keys}
 
@@ -594,10 +838,39 @@ constructor/function vs configuration overrides based on introspection.
         return 1
 
     if not isinstance(tool_cfg, Tool):
-        output_error(
-            f"{red('Error:')} {known_args.make_tool_cfg_path} must return a Tool instance, got {type(tool_cfg)}"
-        )
-        return 1
+        # If no verb was provided and result isn't a Tool, it's ambiguous
+        if expected_verb is None:
+            output_error(
+                f"{red('Error:')} {make_tool_cfg_path} returned {type(tool_cfg).__name__}. "
+                f"Specify a verb (e.g., 'train <recipe>' or 'sim <recipe>') to convert it into a Tool."
+            )
+            return 1
+        # Try conversion once more (covers class constructors returning configs)
+        tool_cfg = _wrap_to_tool(tool_cfg, expected_verb, cli_args)
+        assert isinstance(tool_cfg, Tool)
+
+    # Enforce verb vs Tool type match when a verb was explicitly provided
+    if expected_verb is not None:
+        from metta.tools.train import TrainTool
+        from metta.tools.sim import SimTool
+        from metta.tools.play import PlayTool
+        from metta.tools.replay import ReplayTool
+        from metta.tools.analyze import AnalysisTool
+
+        verb_to_cls: dict[str, type[Tool]] = {
+            "train": TrainTool,
+            "sim": SimTool,
+            "play": PlayTool,
+            "replay": ReplayTool,
+            "analyze": AnalysisTool,
+        }
+        expected_cls = verb_to_cls.get(expected_verb)
+        if expected_cls and not isinstance(tool_cfg, expected_cls):
+            output_error(
+                f"{red('Error:')} Verb '{expected_verb}' expects {expected_cls.__name__}, "
+                f"but recipe returned {type(tool_cfg).__name__}."
+            )
+            return 1
 
     # ----------------------------------------------------------------------------------
     # Overrides & Unknowns (post-construction)
@@ -636,7 +909,7 @@ constructor/function vs configuration overrides based on introspection.
         output_info(f"\n{bold(green('✅ Configuration validation successful'))}")
         if known_args.verbose:
             output_info(f"Tool type: {type(tool_cfg).__name__}")
-            output_info(f"Module: {known_args.make_tool_cfg_path}")
+            output_info(f"Module: {make_tool_cfg_path}")
         return 0
 
     # ----------------------------------------------------------------------------------

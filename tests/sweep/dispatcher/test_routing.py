@@ -34,7 +34,7 @@ def training_job():
     """Sample training job."""
     return JobDefinition(
         run_id="sweep_test_trial_001",
-        cmd="experiments.recipes.arena.train",
+        cmd="train arena",
         type=JobTypes.LAUNCH_TRAINING,
     )
 
@@ -44,7 +44,7 @@ def eval_job():
     """Sample evaluation job."""
     return JobDefinition(
         run_id="sweep_test_trial_001_eval",
-        cmd="experiments.recipes.arena.evaluate",
+        cmd="sim arena",
         type=JobTypes.LAUNCH_EVAL,
         metadata={"policy_uri": "s3://policies/test/policy.pt"},
     )
@@ -98,9 +98,7 @@ class TestBasicRouting:
         )
 
         # Create an eval job (not in routes)
-        eval_job = JobDefinition(
-            run_id="test_eval", cmd="experiments.recipes.arena.evaluate", type=JobTypes.LAUNCH_EVAL
-        )
+        eval_job = JobDefinition(run_id="test_eval", cmd="sim arena", type=JobTypes.LAUNCH_EVAL)
 
         dispatch_id = router.dispatch(eval_job)
 
@@ -188,9 +186,7 @@ class TestLogging:
 
         router = RoutingDispatcher(routes={JobTypes.LAUNCH_TRAINING: mock_local_dispatcher})
 
-        job = JobDefinition(
-            run_id="sweep_experiment_trial_042", cmd="experiments.recipes.arena.train", type=JobTypes.LAUNCH_TRAINING
-        )
+        job = JobDefinition(run_id="sweep_experiment_trial_042", cmd="train arena", type=JobTypes.LAUNCH_TRAINING)
 
         with caplog.at_level(logging.INFO):
             router.dispatch(job)
