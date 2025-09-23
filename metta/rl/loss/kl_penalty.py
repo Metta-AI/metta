@@ -1,4 +1,4 @@
-from typing import Any, Tuple
+from typing import Any
 
 import torch
 from pydantic import Field
@@ -90,11 +90,7 @@ class KLPenalty(Loss):
         """Compute KL divergence penalty between old and new policy."""
 
         # Compute log ratio with clamping to prevent numerical issues
-        logratio = torch.clamp(
-            new_logprob - old_logprob,
-            -self.loss_cfg.max_log_ratio,
-            self.loss_cfg.max_log_ratio
-        )
+        logratio = torch.clamp(new_logprob - old_logprob, -self.loss_cfg.max_log_ratio, self.loss_cfg.max_log_ratio)
 
         # Importance sampling ratio
         ratio = logratio.exp()
