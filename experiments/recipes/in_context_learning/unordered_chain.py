@@ -8,8 +8,8 @@ from typing import List, Optional, Sequence
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -18,11 +18,46 @@ from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-from .icl_resource_chain import (
+from experiments.recipes.in_context_learning.icl_resource_chain import (
     ICLTaskGenerator,
     LPParams,
     _BuildCfg,
 )
+
+curriculum_args = {
+    "small": {
+        "num_resources": [2, 3, 4],
+        "num_converters": [1, 2],
+        "room_sizes": ["small"],
+        "max_input_resources": [1, 2],
+    },
+    "small_medium": {
+        "num_resources": [2, 3, 4],
+        "num_converters": [1, 2, 3],
+        "room_sizes": ["small", "medium"],
+        "max_input_resources": [1, 2, 3],
+    },
+    "all_room_sizes": {
+        "num_resources": [3, 4, 5],
+        "num_converters": [1, 2, 3],
+        "room_sizes": ["small", "medium", "large"],
+        "max_input_resources": [1, 2, 3],
+    },
+    "complex_recipes": {
+        "num_resources": [4, 5, 6],
+        "num_converters": [2, 3, 4],
+        "room_sizes": ["small", "medium", "large"],
+        "max_input_resources": [2, 3, 4],
+    },
+    "terrain": {
+        "num_resources": [3, 4, 5],
+        "num_converters": [1, 2, 3],
+        "obstacle_types": ["square", "cross", "L"],
+        "densities": ["", "balanced", "sparse", "high"],
+        "max_input_resources": [1, 2, 3],
+        "room_sizes": ["small", "medium", "large"],
+    },
+}
 
 
 class UnorderedChainTaskGenerator(ICLTaskGenerator):
@@ -274,8 +309,6 @@ def make_mettagrid() -> MettaGridConfig:
 
 
 def make_curriculum(
-    enable_detailed_slice_logging: bool = False,
-    algorithm_config: Optional[LearningProgressConfig] = None,
     num_resources=[2, 3, 4],
     num_converters=[1, 2, 3],
     room_sizes=["small"],
@@ -292,79 +325,11 @@ def make_curriculum(
         densities=densities,
         max_recipe_inputs=max_input_resources,
     )
-    if algorithm_config is None:
-        # Use LPParams to configure learning progress algorithm, matching ordered_chains
-        params = LPParams(
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-            ema_timescale=lp_params.ema_timescale,
-            exploration_bonus=lp_params.exploration_bonus,
-            max_memory_tasks=lp_params.max_memory_tasks,
-            max_slice_axes=lp_params.max_slice_axes,
-            progress_smoothing=lp_params.progress_smoothing,
-            num_active_tasks=lp_params.num_active_tasks,
-            rand_task_rate=lp_params.rand_task_rate,
-        )
-        algorithm_config = LearningProgressConfig(**params.__dict__)
+    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
         algorithm_config=algorithm_config,
-    )
-
-
-def small_curriculum():
-    return make_curriculum(
-        num_resources=[2, 3, 4],
-        num_converters=[1, 2],
-        room_sizes=["small"],
-        max_input_resources=[1, 2],
-    )
-
-
-def small_medium_curriculum():
-    return make_curriculum(
-        num_resources=[2, 3, 4],
-        num_converters=[1, 2, 3],
-        room_sizes=["small", "medium"],
-        max_input_resources=[1, 2, 3],
-    )
-
-
-def all_room_sizes_curriculum():
-    return make_curriculum(
-        num_resources=[3, 4, 5],
-        num_converters=[1, 2, 3],
-        room_sizes=["small", "medium", "large"],
-        max_input_resources=[1, 2, 3],
-    )
-
-
-def complex_recipes():
-    return make_curriculum(
-        num_resources=[4, 5, 6],
-        num_converters=[2, 3, 4],
-        room_sizes=["small", "medium", "large"],
-        max_input_resources=[2, 3, 4],
-    )
-
-
-def many_converters():
-    return make_curriculum(
-        num_resources=[4, 5, 6],
-        num_converters=[3, 4, 5],
-        room_sizes=["small", "medium", "large"],
-        max_input_resources=[2, 3, 4, 5],
-    )
-
-
-def terrain():
-    return make_curriculum(
-        num_resources=[3, 4, 5],
-        num_converters=[1, 2, 3],
-        room_sizes=["small", "medium", "large"],
-        obstacle_types=["square", "cross", "L"],
-        densities=["balanced", "sparse", "high"],
-        max_input_resources=[1, 2, 3],
     )
 
 
@@ -378,56 +343,12 @@ def train(
         make_unordered_chain_eval_suite,
     )
 
-    if curriculum is None:
-        curriculum_args = {
-            "small": {
-                "num_resources": [2, 3, 4],
-                "num_converters": [1, 2],
-                "room_sizes": ["small"],
-                "max_input_resources": [1, 2],
-                "lp_params": lp_params,
-            },
-            "small_medium": {
-                "num_resources": [2, 3, 4],
-                "num_converters": [1, 2, 3],
-                "room_sizes": ["small", "medium"],
-                "max_input_resources": [1, 2, 3],
-                "lp_params": lp_params,
-            },
-            "all_room_sizes": {
-                "num_resources": [3, 4, 5],
-                "num_converters": [1, 2, 3],
-                "room_sizes": ["small", "medium", "large"],
-                "max_input_resources": [1, 2, 3],
-                "lp_params": lp_params,
-            },
-            "complex_recipes": {
-                "num_resources": [4, 5, 6],
-                "num_converters": [2, 3, 4],
-                "room_sizes": ["small", "medium", "large"],
-                "max_input_resources": [2, 3, 4],
-                "lp_params": lp_params,
-            },
-            "terrain": {
-                "num_resources": [3, 4, 5],
-                "num_converters": [1, 2, 3],
-                "obstacle_types": ["square", "cross", "L"],
-                "densities": ["", "balanced", "sparse", "high"],
-                "max_input_resources": [1, 2, 3],
-                "lp_params": lp_params,
-                "room_sizes": ["small", "medium", "large"],
-            },
-        }
-        curriculum = make_curriculum(**curriculum_args[curriculum_style])
+    curriculum = make_curriculum(
+        **curriculum_args[curriculum_style], lp_params=lp_params
+    )
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        curriculum=curriculum,
-        evaluation=EvaluationConfig(
-            simulations=make_unordered_chain_eval_suite(),
-            evaluate_remote=True,
-            evaluate_local=False,
-        ),
     )
     # for in context learning, we need episode length to be equal to bptt_horizon
     # which requires a large batch size
@@ -435,7 +356,11 @@ def train(
     trainer_cfg.bptt_horizon = 512
 
     training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
-    return TrainTool(trainer=trainer_cfg, training_env=training_env_cfg)
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=training_env_cfg,
+        evaluator=EvaluatorConfig(simulations=make_unordered_chain_eval_suite()),
+    )
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
@@ -444,6 +369,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
         sim=SimulationConfig(
             env=eval_env,
             name="in_context_unordered_resource_chain",
+            suite="in_context_learning",
         ),
     )
 
@@ -454,6 +380,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
         sim=SimulationConfig(
             env=eval_env,
             name="in_context_unordered_resource_chain",
+            suite="in_context_learning",
         ),
         policy_uri="s3://softmax-public/policies/icl_unordered_chain_all_room_sizes_seed456/icl_unordered_chain_all_room_sizes_seed456:v900.pt",
     )

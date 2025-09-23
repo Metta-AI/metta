@@ -25,7 +25,11 @@ from experiments.evals.in_context_learning.ordered_chains import (
     make_icl_resource_chain_eval_suite,
 )
 
-from experiments.recipes.in_context_learning.icl_resource_chain import ICLTaskGenerator, LPParams, _BuildCfg
+from experiments.recipes.in_context_learning.icl_resource_chain import (
+    ICLTaskGenerator,
+    LPParams,
+    _BuildCfg,
+)
 
 
 curriculum_args = {
@@ -281,7 +285,9 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         numpy_dir: str | None = "icl_ordered_chains",
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
-        resources, num_sinks, room_size, obstacle_type, density, width, height = self._setup_task(rng)
+        resources, num_sinks, room_size, obstacle_type, density, width, height = (
+            self._setup_task(rng)
+        )
 
         max_steps = 512
 
@@ -320,10 +326,10 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
 
 
 def make_mettagrid(curriculum_style: str) -> MettaGridConfig:
-    task_generator_cfg = ConverterChainTaskGenerator.Config(
+    task_generator_cfg = ICLTaskGenerator.Config(
         **curriculum_args[curriculum_style],
     )
-    task_generator = ConverterChainTaskGenerator(task_generator_cfg)
+    task_generator = OrderedChainsTaskGenerator(task_generator_cfg)
 
     env_cfg = task_generator.get_task(0)
 
@@ -334,7 +340,7 @@ def make_curriculum(
     curriculum_style: str,
     lp_params: LPParams = LPParams(),
 ) -> CurriculumConfig:
-    task_generator_cfg = ConverterChainTaskGenerator.Config(
+    task_generator_cfg = ICLTaskGenerator.Config(
         **curriculum_args[curriculum_style],
     )
     algorithm_config = LearningProgressConfig(**lp_params.__dict__)
