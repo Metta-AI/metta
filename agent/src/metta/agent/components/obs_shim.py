@@ -31,7 +31,6 @@ class ObsTokenPadStrip(nn.Module):
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
-        self._cpu_position_cache: Optional[torch.Tensor] = None
 
     def initialize_to_environment(
         self,
@@ -122,11 +121,7 @@ class ObsTokenPadStrip(nn.Module):
         max_flip = row_lengths.max()
 
         # build a 1‐D "positions" row [0,1,2,…,L−1]
-        if self._cpu_position_cache is None or self._cpu_position_cache.numel() < M:
-            # Keep the cache on CPU so CUDAGraph replays never see a persistent GPU tensor
-            # from a prior iteration.
-            self._cpu_position_cache = torch.arange(M, device="cpu")
-        positions = self._cpu_position_cache[:M].to(obs_mask.device)
+        positions = torch.arange(M, device=obs_mask.device)
 
         # make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
