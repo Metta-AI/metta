@@ -1,3 +1,4 @@
+import json
 import logging
 import pickle
 from collections import OrderedDict
@@ -9,9 +10,9 @@ import torch
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.policy_serialization import (
-    SerializedPolicyBundle,
-    load_policy_bundle,
-    save_policy_bundle,
+    PolicyArtifact,
+    load_policy_artifact,
+    save_policy_artifact,
 )
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
@@ -43,7 +44,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
     if parsed.scheme == "file" and parsed.local_path is not None:
         path = parsed.local_path
 
-        if path.suffix == ".pt":
+        if path.suffix in {".pt", ".safetensors"}:
             return _extract_run_and_epoch(path)
 
         if path.is_dir():
@@ -54,7 +55,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
     if parsed.scheme == "s3" and parsed.key:
         key_path = Path(parsed.key)
-        if key_path.suffix == ".pt":
+        if key_path.suffix in {".pt", ".safetensors"}:
             try:
                 return _extract_run_and_epoch(Path(key_path.name))
             except ValueError:
@@ -140,7 +141,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
     return None
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device) -> SerializedPolicyBundle:
+def _load_checkpoint_file(path: str, device: str | torch.device) -> PolicyArtifact:
     """Load a legacy .pt checkpoint file."""
 
     try:
@@ -150,20 +151,20 @@ def _load_checkpoint_file(path: str, device: str | torch.device) -> SerializedPo
     except (pickle.UnpicklingError, RuntimeError, OSError) as err:
         raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
 
-    return SerializedPolicyBundle(policy=policy)
+    return PolicyArtifact(policy=policy)
 
 
-def _load_bundle_from_path(path: Path, device: str | torch.device) -> SerializedPolicyBundle:
+def _load_bundle_from_path(path: Path, device: str | torch.device) -> PolicyArtifact:
     suffix = path.suffix
 
     if suffix == ".pt":
         return _load_checkpoint_file(str(path), device)
 
     if suffix == ".safetensors":
-        return load_policy_bundle(path.with_suffix(""))
+        return load_policy_artifact(path.with_suffix(""))
 
     if suffix == "":
-        return load_policy_bundle(path)
+        return load_policy_artifact(path)
 
     raise ValueError(f"Unsupported checkpoint extension: {path}")
 
@@ -216,7 +217,7 @@ class CheckpointManager:
         self._cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> SerializedPolicyBundle:
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> PolicyArtifact:
         """Load a serialized policy bundle from a URI (file://, s3://, or mock://)."""
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
@@ -238,7 +239,7 @@ class CheckpointManager:
                 return _load_bundle_from_path(Path(local_path), device)
 
         if parsed.scheme == "mock":
-            return SerializedPolicyBundle(policy=MockAgent())
+            return PolicyArtifact(policy=MockAgent())
 
         raise ValueError(f"Invalid URI: {uri}")
 
@@ -310,25 +311,33 @@ class CheckpointManager:
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        suffix = ".pt" if self._checkpoint_format == "pt" else ".safetensors"
-        filename = f"{self.run_name}:v{epoch}{suffix}"
-        checkpoint_path = self.checkpoint_dir / filename
+        base_name = f"{self.run_name}:v{epoch}"
+        metrics_path: Path | None = None
 
         # Check if we're overwriting an existing checkpoint for this epoch
         existing_files = self._find_checkpoint_files(epoch)
 
         if self._checkpoint_format == "pt":
+            filename = f"{base_name}.pt"
+            checkpoint_path = self.checkpoint_dir / filename
             torch.save(agent, checkpoint_path)
-            metrics_path = None
+            metrics_path = self.checkpoint_dir / f"{base_name}.metrics.json"
+            metrics_path.write_text(
+                json.dumps(training_metrics or {}, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
         else:
-            base = checkpoint_path.with_suffix("")
-            save_policy_bundle(
-                base_path=base,
+            if policy_architecture is None:
+                raise ValueError("policy_architecture is required when using safetensors checkpoint format")
+            base_path = self.checkpoint_dir / base_name
+            weights_path, metrics_path = save_policy_artifact(
+                base_path=base_path,
                 policy=agent,
                 policy_architecture=policy_architecture,
                 training_metrics=training_metrics,
             )
-            metrics_path = Path(f"{base}.metrics.json")
+            checkpoint_path = weights_path
+            filename = checkpoint_path.name
 
         remote_uri = None
         if self._remote_prefix:

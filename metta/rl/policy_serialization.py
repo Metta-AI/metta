@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
-class SerializedPolicyBundle:
+class PolicyArtifact:
     """Either a ready-to-use policy or metadata to rebuild one."""
 
     policy: Policy | None = None
@@ -38,13 +38,13 @@ class SerializedPolicyBundle:
         if has_policy:
             if has_architecture or has_state or has_training_metrics:
                 raise ValueError(
-                    "SerializedPolicyBundle must be constructed with either a policy instance or"
+                    "PolicyArtifact must be constructed with either a policy instance or"
                     " a policy_architecture + state_dict pair, not both."
                 )
         else:
             if not (has_architecture and has_state):
                 raise ValueError(
-                    "SerializedPolicyBundle requires a policy instance or both policy_architecture and state_dict."
+                    "PolicyArtifact requires a policy instance or both policy_architecture and state_dict."
                 )
             if self.training_metrics is None:
                 self.training_metrics = {}
@@ -85,7 +85,7 @@ def _load_policy_architecture(class_path: str, payload: dict) -> PolicyArchitect
     return config_class(**payload)
 
 
-def save_policy_bundle(
+def save_policy_artifact(
     *,
     base_path: str | Path,
     policy: Policy,
@@ -117,8 +117,8 @@ def save_policy_bundle(
     return weights_path, metrics_path
 
 
-def load_policy_bundle(base_path: str | Path) -> SerializedPolicyBundle:
-    """Load policy weights and architecture serialized via :func:`save_policy_bundle`."""
+def load_policy_artifact(base_path: str | Path) -> PolicyArtifact:
+    """Load policy weights and metrics serialized via :func:`save_policy_artifact`."""
 
     base = Path(base_path)
     weights_path = Path(f"{base}.safetensors")
@@ -145,7 +145,7 @@ def load_policy_bundle(base_path: str | Path) -> SerializedPolicyBundle:
 
     policy_architecture = _load_policy_architecture(config_class_path, config_data)
 
-    return SerializedPolicyBundle(
+    return PolicyArtifact(
         policy_architecture=policy_architecture,
         state_dict=state_dict,
         training_metrics=training_metrics,

@@ -98,6 +98,7 @@ class TrainTool(Tool):
             run=self.run or "default",
             run_dir=self.run_dir or str(Path(self.system.data_dir)),
             remote_prefix=self.trainer.checkpoint.remote_prefix,
+            checkpoint_format=self.trainer.checkpoint.checkpoint_format,
         )
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)

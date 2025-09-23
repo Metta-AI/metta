@@ -14,7 +14,7 @@ from einops import rearrange
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
-from metta.rl.policy_serialization import SerializedPolicyBundle
+from metta.rl.policy_serialization import PolicyArtifact
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
@@ -48,7 +48,7 @@ class Simulation:
         self,
         name: str,
         cfg: SimulationConfig,
-        policy: Policy | SerializedPolicyBundle,
+        policy: Policy | PolicyArtifact,
         policy_uri: str,
         device: torch.device,
         vectorization: str,
@@ -105,10 +105,10 @@ class Simulation:
         self._max_time_s = cfg.max_time_s
         self._agents_per_env = cfg.env.game.num_agents
 
-        if isinstance(policy, SerializedPolicyBundle):
+        if isinstance(policy, PolicyArtifact):
             self._policy_bundle = policy
         else:
-            self._policy_bundle = SerializedPolicyBundle(policy=policy)
+            self._policy_bundle = PolicyArtifact(policy=policy)
 
         self._policy_uri = policy_uri
 
@@ -167,7 +167,7 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
-    def _instantiate_policy(self, bundle: SerializedPolicyBundle, env_metadata: EnvironmentMetaData) -> Policy:
+    def _instantiate_policy(self, bundle: PolicyArtifact, env_metadata: EnvironmentMetaData) -> Policy:
         return bundle.instantiate(env_metadata)
 
     @classmethod
@@ -185,7 +185,7 @@ class Simulation:
         if policy_uri:
             policy = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
-            policy = SerializedPolicyBundle(policy=MockAgent())
+            policy = PolicyArtifact(policy=MockAgent())
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"

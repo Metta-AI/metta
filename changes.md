@@ -1,7 +1,7 @@
 # Checkpoint Serialization & Loading Refactor
 
 This document outlines the repo changes made when introducing
-`SerializedPolicyBundle`-based checkpoint loading and safetensors
+`PolicyArtifact`-based checkpoint loading and safetensors
 serialization. Follow these steps from a fresh checkout to reproduce the
 work.
 
@@ -9,7 +9,7 @@ work.
 
 Create `metta/rl/policy_serialization.py` containing:
 
-- `SerializedPolicyBundle` dataclass that stores either a ready-to-use
+- `PolicyArtifact` dataclass that stores either a ready-to-use
   `Policy` or a `(PolicyArchitecture, state_dict)` pair. Implement
   validation in `__post_init__`.
 - `instantiate(env_metadata, strict=True)` method that rebuilds the
@@ -17,8 +17,8 @@ Create `metta/rl/policy_serialization.py` containing:
 - Helper functions to serialize/deserialize architectures:
   `_architecture_class_path`, `_dump_policy_architecture`, and
   `_load_policy_architecture` (using `load_symbol`).
-- Functions `save_policy_bundle(base_path, policy, policy_architecture,
-  detach_buffers=True)` and `load_policy_bundle(base_path)` that write/
+- Functions `save_policy_artifact(base_path, policy, policy_architecture,
+  detach_buffers=True)` and `load_policy_artifact(base_path)` that write/
   read `{base}.safetensors` weight files and `{base}.policyarchitecture`
   JSON payloads.
 
@@ -36,22 +36,22 @@ In `metta/rl/training/checkpointer.py`:
 - Update `load_or_create_policy` to use `self._policy_architecture` and
   handle the new bundle API
   (`bundle.policy` fallback → `bundle.instantiate(env_metadata)`).
-- Expose `save_policy_bundle`/`load_policy_bundle` wrappers that forward
+- Expose `save_policy_artifact`/`load_policy_artifact` helpers that forward
   to shared helper functions.
 
 ## 3. CheckpointManager Returns Bundles
 
 In `metta/rl/checkpoint_manager.py`:
 
-- Import `SerializedPolicyBundle` + `load_policy_bundle`.
+- Import `PolicyArtifact` + `load_policy_artifact`.
 - Extend `_find_latest_checkpoint_in_dir` to consider both `.pt` and
   `.safetensors` files.
 - Modify `_load_checkpoint_file` to return a bundle containing the
   torch-loaded policy.
 - Add `_load_bundle_from_path` that selects between `.pt` legacy files
   (using `_load_checkpoint_file`) and safetensor bundles
-  (`load_policy_bundle` on the path without suffix).
-- Change `load_from_uri` to return `SerializedPolicyBundle` everywhere
+  (`load_policy_artifact` on the path without suffix).
+- Change `load_from_uri` to return `PolicyArtifact` everywhere
   (file, directory, s3, mock). For mock URIs return a bundle wrapping a
   `MockAgent`.
 - Remove `load_agent` and its caching logic. Delete
@@ -85,7 +85,7 @@ Update `metta/rl/loss/tl_kickstarter.py` and
 
 In `metta/sim/simulation.py`:
 
-- Accept `policy: Policy | SerializedPolicyBundle` in the constructor
+- Accept `policy: Policy | PolicyArtifact` in the constructor
   and `Simulation.create`.
 - Store bundles (`self._policy_bundle`, `self._npc_policy_bundle`) and
   instantiate policies during initialization once
@@ -151,7 +151,7 @@ work with bundles (`bundle.policy`).
   - `metta/rl/loss/tl_kickstarter.py` and `metta/rl/loss/sl_kickstarter.py`
     (retain legacy fallback only when metadata is unavailable).
   - `metta/sim/simulation.py` `_instantiate_policy` helper.
-- Enhance `SerializedPolicyBundle.instantiate` to store the instantiated
+- Enhance `PolicyArtifact.instantiate` to store the instantiated
   policy back onto the bundle for reuse.
 
 ## 15. Cleanup Dead CheckpointManager Code
@@ -178,7 +178,7 @@ work with bundles (`bundle.policy`).
 
 ## 18. Policy Bundle Metrics & Architecture Manifest
 
-- `SerializedPolicyBundle` now tracks optional `training_metrics` (only
+- `PolicyArtifact` now tracks optional `training_metrics` (only
   for the state-dict branch) and caches instantiated policies.
 - Safetensor bundles persist training metrics to
   `<checkpoint>.metrics.json`; architecture information is sourced from
@@ -187,9 +187,10 @@ work with bundles (`bundle.policy`).
 
 ## 19. Checkpoint Format Options
 
-- `CheckpointManager` now supports `checkpoint_format` (`pt` or
-  `safetensors`). Safetensor saves delegate to
-  `save_policy_bundle`, persisting metrics alongside weights, and loads
+- `CheckpointConfig` gains a `checkpoint_format` field (`pt` or
+  `safetensors`). `TrainTool` passes this through to `CheckpointManager`,
+  which now handles both formats: safetensor saves delegate to
+  `save_policy_artifact`, persist metrics alongside weights, and loads
   inspect the file extension to select the appropriate path.
 
 By executing the steps above in order, a coding agent can reproduce the
