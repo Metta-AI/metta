@@ -1,0 +1,45 @@
+"""Helpers for constructing artifact paths (local or remote)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Iterable, Union
+
+from mettagrid.util.uri import ParsedURI
+
+ArtifactBase = Union[str, Path]
+
+
+def _clean_segments(segments: Iterable[str]) -> list[str]:
+    return [seg.strip("/") for seg in segments if seg and seg.strip("/")]
+
+
+def artifact_path_join(base: ArtifactBase, *segments: str) -> ArtifactBase:
+    """Join *segments* onto *base* handling both local paths and URIs."""
+
+    cleaned = _clean_segments(segments)
+
+    if isinstance(base, Path):
+        return base.joinpath(*cleaned)
+
+    base_str = str(base)
+    parsed = ParsedURI.parse(base_str)
+
+    if parsed.scheme == "file" and parsed.local_path is not None:
+        result_path = parsed.local_path.joinpath(*cleaned)
+        return str(result_path)
+
+    if parsed.scheme == "s3":
+        key_parts = []
+        if parsed.key:
+            key_parts.append(parsed.key.rstrip("/"))
+        key_parts.extend(cleaned)
+        key = "/".join(part for part in key_parts if part)
+        return f"s3://{parsed.bucket}/{key}" if parsed.bucket else f"s3:///{key}"
+
+    if parsed.scheme == "mock":
+        path = "/".join(filter(None, [(parsed.path or "").rstrip("/"), *cleaned]))
+        return f"mock://{path}"
+
+    result_path = Path(base_str).joinpath(*cleaned)
+    return str(result_path)

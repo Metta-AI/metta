@@ -26,6 +26,7 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
+from mettagrid.util.artifact_paths import artifact_path_join
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 
@@ -65,7 +66,7 @@ class Simulation:
         self._episode_tags = episode_tags
         self._policy_uri = policy_uri
 
-        replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
+        replay_dir = artifact_path_join(replay_dir, self._id) if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
@@ -175,7 +176,7 @@ class Simulation:
             policy = MockAgent()
 
         # Create replay directory path with simulation name
-        full_replay_dir = f"{replay_dir}/{sim_config.name}"
+        full_replay_dir = artifact_path_join(replay_dir, sim_config.name)
 
         # Create and return simulation
         return cls(

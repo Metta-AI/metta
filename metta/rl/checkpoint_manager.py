@@ -1,12 +1,13 @@
 import logging
 import pickle
 from collections import OrderedDict
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
 
 import torch
 
 from metta.agent.mocks import MockAgent
+from mettagrid.util.artifact_paths import artifact_path_join
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -170,31 +171,12 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
-        self._remote_bucket: str | None = None
-        self._remote_base_segments: list[str] | None = None
+        self._remote_prefix: str | None = None
         if remote_prefix:
             parsed = ParsedURI.parse(remote_prefix)
-            if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
+            if parsed.scheme != "s3" or not parsed.bucket:
                 raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
-            # Remove trailing slash from prefix for deterministic joins
-            key_prefix = parsed.key.rstrip("/")
-            base_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
-            base_prefix = base_prefix.rstrip("/")
-            remote_base = ParsedURI.parse(base_prefix)
-            segments = [segment for segment in (remote_base.key or "").split("/") if segment]
-
-            relative_dirs = [self.run, "checkpoints"]
-            max_match = min(len(relative_dirs), len(segments))
-            match_len = 0
-            for i in range(max_match, 0, -1):
-                if segments[-i:] == relative_dirs[:i]:
-                    match_len = i
-                    break
-
-            base_segments = segments[:-match_len] if match_len else list(segments)
-
-            self._remote_bucket = remote_base.bucket
-            self._remote_base_segments = base_segments
+            self._remote_prefix = remote_prefix.rstrip("/")
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
@@ -321,9 +303,8 @@ class CheckpointManager:
         torch.save(agent, checkpoint_path)
 
         remote_uri = None
-        if self._remote_bucket is not None and self._remote_base_segments is not None:
-            remote_key = self._build_remote_key(filename)
-            remote_uri = f"s3://{self._remote_bucket}/{remote_key}"
+        if self._remote_prefix is not None:
+            remote_uri = artifact_path_join(self._remote_prefix, self.run, "checkpoints", filename)
             write_file(remote_uri, str(checkpoint_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
@@ -338,6 +319,9 @@ class CheckpointManager:
         if remote_uri:
             return remote_uri
         return f"file://{checkpoint_path.resolve()}"
+
+    def _filename_for_epoch(self, epoch: int) -> str:
+        return f"{self.run_name}:v{epoch}.pt"
 
     def save_trainer_state(
         self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
@@ -359,21 +343,12 @@ class CheckpointManager:
             return []
         checkpoint_files.sort(key=lambda f: _extract_run_and_epoch(f)[1], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
-        if self._remote_bucket is not None and self._remote_base_segments is not None:
-            return [f"s3://{self._remote_bucket}/{self._build_remote_key(path.name)}" for path in selected_files]
+        if self._remote_prefix is not None:
+            return [
+                artifact_path_join(self._remote_prefix, self.run, "checkpoints", path.name)
+                for path in selected_files
+            ]
         return [f"file://{path.resolve()}" for path in selected_files]
-
-    def _filename_for_epoch(self, epoch: int) -> str:
-        return f"{self.run_name}:v{epoch}.pt"
-
-    def _checkpoint_relative_path(self, filename: str) -> PurePosixPath:
-        return PurePosixPath(self.run, "checkpoints", filename)
-
-    def _build_remote_key(self, filename: str) -> str:
-        assert self._remote_base_segments is not None
-        relative = self._checkpoint_relative_path(filename)
-        segments = [*self._remote_base_segments, *relative.parts]
-        return "/".join(segment for segment in segments if segment)
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:
         agent_files = self._find_checkpoint_files()

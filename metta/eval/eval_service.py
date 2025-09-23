@@ -13,6 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from mettagrid.util.artifact_paths import artifact_path_join
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +41,31 @@ def evaluate_policy(
     # Load the policy from URI directly to the correct device
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
 
-    sims = [
-        Simulation(
-            name=sim.name,
-            cfg=sim,
-            policy=policy,
-            policy_uri=checkpoint_uri,
-            device=device,
-            vectorization=vectorization,
-            stats_dir=stats_dir,
-            replay_dir=replay_dir,
-            stats_client=stats_client,
-            stats_epoch_id=stats_epoch_id,
-            eval_task_id=eval_task_id,
+    run_replay_root: str | None = None
+    if replay_dir is not None:
+        metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+        run_replay_root = artifact_path_join(replay_dir, metadata["run_name"])
+        if metadata["epoch"]:
+            run_replay_root = artifact_path_join(run_replay_root, f"v{metadata['epoch']}")
+
+    sims = []
+    for sim_cfg in simulations:
+        sim_replay_dir = artifact_path_join(run_replay_root, sim_cfg.name) if run_replay_root else None
+        sims.append(
+            Simulation(
+                name=sim_cfg.name,
+                cfg=sim_cfg,
+                policy=policy,
+                policy_uri=checkpoint_uri,
+                device=device,
+                vectorization=vectorization,
+                stats_dir=stats_dir,
+                replay_dir=sim_replay_dir,
+                stats_client=stats_client,
+                stats_epoch_id=stats_epoch_id,
+                eval_task_id=eval_task_id,
+            )
         )
-        for sim in simulations
-    ]
     successful_simulations = 0
     replay_urls: dict[str, list[str]] = {}
     merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
