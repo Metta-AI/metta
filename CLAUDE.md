@@ -188,7 +188,7 @@ metta install core                   # Reinstall core dependencies only
 
 ### Key Entry Points
 
-See `tool/README.md` for the runner, aliases, two‑token usage, and recipe inference.
+See `common/src/metta/common/tool/README.md` for the runner, two‑token usage, and recipe inference.
 
 #### Common Workflows
 
