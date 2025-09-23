@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.rl.pufferlib_checkpoint import PufferLibCheckpoint, _is_puffer_state_dict
+from metta.rl.puffer_policy import PufferLibCheckpoint, _is_puffer_state_dict
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
