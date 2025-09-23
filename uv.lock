@@ -2379,7 +2379,6 @@ dev = [
 
 [[package]]
 name = "mettagrid"
-version = "0.2.0.6"
 source = { editable = "packages/mettagrid" }
 dependencies = [
     { name = "boto3" },
