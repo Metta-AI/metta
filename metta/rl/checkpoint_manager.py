@@ -149,7 +149,6 @@ class CheckpointManager:
         self,
         run: str = "default",
         run_dir: str = "./train_dir",
-        checkpoint_dir: str | None = None,
         cache_size: int = 3,
         remote_prefix: str | None = None,
     ):
@@ -168,8 +167,7 @@ class CheckpointManager:
         self.base_dir = provided_path.parent if provided_path.name == self.run else provided_path
         self.run_dir = self.base_dir / self.run
 
-        default_checkpoint_dir = self.run_dir / "checkpoints"
-        self.checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else default_checkpoint_dir
+        self.checkpoint_dir = self.run_dir / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
         self._remote_bucket: str | None = None
