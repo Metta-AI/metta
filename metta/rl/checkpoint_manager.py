@@ -321,11 +321,7 @@ class CheckpointManager:
             filename = f"{base_name}.pt"
             checkpoint_path = self.checkpoint_dir / filename
             torch.save(agent, checkpoint_path)
-            metrics_path = self.checkpoint_dir / f"{base_name}.metrics.json"
-            metrics_path.write_text(
-                json.dumps(training_metrics or {}, indent=2, sort_keys=True),
-                encoding="utf-8",
-            )
+            metrics_path = None
         else:
             if policy_architecture is None:
                 raise ValueError("policy_architecture is required when using safetensors checkpoint format")
