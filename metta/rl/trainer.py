@@ -240,7 +240,10 @@ class Trainer:
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    if component.should_handle_step(current_step=current_step, previous_step=previous_step) and infos:
+                    if (
+                        component.should_handle_step(current_step=current_step, previous_step=previous_step)
+                        and infos is not None
+                    ):
                         component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
                     if component.should_handle_epoch(current_epoch):
