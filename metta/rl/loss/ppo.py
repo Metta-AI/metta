@@ -138,11 +138,16 @@ class PPO(Loss):
 
         with torch.no_grad():
             with context.autocast():
-                self.policy.forward(rollout_td)
+                rollout_td = self.policy.forward(rollout_td)
+            rollout_keys = list(rollout_td.keys(include_nested=False))
+            if "actions" not in rollout_keys:
+                raise RuntimeError(
+                    "Policy.forward did not populate actions during rollout; received keys: "
+                    + str(rollout_keys)
+                )
 
         rollout_td = rollout_td.to(original_device, non_blocking=True)
-        rollout_td_dict = {key: rollout_td.get(key) for key in rollout_td.keys(include_nested=True, leaves_only=True)}
-        td.update_(rollout_td_dict)
+        td.update_(rollout_td)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
@@ -152,8 +157,6 @@ class PPO(Loss):
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
-        if "actions" not in td.keys(include_nested=False):
-            raise RuntimeError(f"PPO rollout missing actions; available keys: {list(td.keys(include_nested=False))}")
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
