@@ -100,24 +100,27 @@ class LSTM(nn.Module):
         else:
             flat_env_ids = torch.arange(B, device=latent.device, dtype=torch.long)
 
-        self._ensure_state_capacity(int(flat_env_ids.max().item()) + 1 if flat_env_ids.numel() else 0, latent)
+        flat_env_ids_cpu = flat_env_ids.to(device="cpu")
+        self._ensure_state_capacity(int(flat_env_ids_cpu.max().item()) + 1 if flat_env_ids_cpu.numel() else 0)
 
-        h_0 = self._h_buffer[:, flat_env_ids].to(latent.dtype)
-        c_0 = self._c_buffer[:, flat_env_ids].to(latent.dtype)
+        h_0 = self._h_buffer[:, flat_env_ids_cpu].to(device=latent.device, dtype=latent.dtype)
+        c_0 = self._c_buffer[:, flat_env_ids_cpu].to(device=latent.device, dtype=latent.dtype)
 
         # reset the hidden state if the episode is done or truncated
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)
         if dones is not None and truncateds is not None:
-            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1).to(device=h_0.device)
             h_0 = h_0.masked_fill(reset_mask, 0)
             c_0 = c_0.masked_fill(reset_mask, 0)
 
         hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
 
         with torch.no_grad():
-            self._h_buffer[:, flat_env_ids] = h_n.detach().to(self._h_buffer.dtype)
-            self._c_buffer[:, flat_env_ids] = c_n.detach().to(self._c_buffer.dtype)
+            h_n_cpu = h_n.detach().to(device="cpu", dtype=self._h_buffer.dtype)
+            c_n_cpu = c_n.detach().to(device="cpu", dtype=self._c_buffer.dtype)
+            self._h_buffer[:, flat_env_ids_cpu] = h_n_cpu
+            self._c_buffer[:, flat_env_ids_cpu] = c_n_cpu
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
@@ -140,18 +143,22 @@ class LSTM(nn.Module):
         self._h_buffer.zero_()
         self._c_buffer.zero_()
 
-    def _ensure_state_capacity(self, capacity: int, reference: torch.Tensor) -> None:
+    def _ensure_state_capacity(self, capacity: int) -> None:
         if capacity <= self._state_capacity:
             return
 
-        device = reference.device
-        dtype = reference.dtype
-        new_h = torch.zeros(self.num_layers, capacity, self.hidden_size, device=device, dtype=dtype)
+        new_h = torch.zeros(
+            self.num_layers,
+            capacity,
+            self.hidden_size,
+            device="cpu",
+            dtype=torch.float32,
+        )
         new_c = torch.zeros_like(new_h)
 
         if self._state_capacity > 0:
-            new_h[:, : self._state_capacity] = self._h_buffer.to(device=device, dtype=dtype)
-            new_c[:, : self._state_capacity] = self._c_buffer.to(device=device, dtype=dtype)
+            new_h[:, : self._state_capacity] = self._h_buffer[:, : self._state_capacity]
+            new_c[:, : self._state_capacity] = self._c_buffer[:, : self._state_capacity]
 
         self._h_buffer = new_h
         self._c_buffer = new_c
