@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from collections import OrderedDict
 
@@ -41,6 +42,7 @@ class PolicyAutoBuilder(nn.Module):
         self.action_probs = self.config.action_probs_config.make_component()
 
         self.network = TensorDictSequential(self.components, inplace=True)
+        self._sdpa_kernel_stack = contextlib.ExitStack()
 
         self._runner = self._run_network
         if getattr(self.config, "compile_policy", False) and hasattr(torch, "compile"):
@@ -78,10 +80,27 @@ class PolicyAutoBuilder(nn.Module):
     ):
         self.to(device)
         device_type = device.type
+        self._sdpa_kernel_stack.close()
+        self._sdpa_kernel_stack = contextlib.ExitStack()
         if device_type == "cuda":
             attention_mod = getattr(torch.nn, "attention", None)
-            if attention_mod is not None and hasattr(attention_mod, "sdpa_kernel"):
-                attention_mod.sdpa_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
+            if (
+                attention_mod is not None
+                and hasattr(attention_mod, "sdpa_kernel")
+                and hasattr(attention_mod, "SDPBackend")
+            ):
+                backends = [
+                    attention_mod.SDPBackend.FLASH_ATTENTION,
+                    attention_mod.SDPBackend.EFFICIENT_ATTENTION,
+                ]
+                try:
+                    self._sdpa_kernel_stack.enter_context(attention_mod.sdpa_kernel(backends=backends))
+                except TypeError:
+                    torch.backends.cuda.sdp_kernel(
+                        enable_flash=True,
+                        enable_mem_efficient=True,
+                        enable_math=False,
+                    )
             else:
                 torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
             torch.set_float32_matmul_precision("high")
