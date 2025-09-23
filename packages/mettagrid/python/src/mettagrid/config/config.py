@@ -149,8 +149,6 @@ class Config(BaseModel):
             return resolved
 
         if isinstance(resolved, Config):
-            if isinstance(resolved, cls):
-                return resolved
             raise TypeError(f"Resolved object {resolved!r} for reference {original!r} is not a {cls.__name__}")
 
         if isinstance(resolved, type) and issubclass(resolved, cls):
