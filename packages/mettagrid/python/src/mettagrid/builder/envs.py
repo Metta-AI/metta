@@ -188,6 +188,7 @@ def make_in_context_chains(
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
+        desync_episodes=False,
         game=GameConfig(
             max_steps=max_steps,
             num_agents=num_agents,
@@ -218,7 +219,7 @@ def make_in_context_chains(
                 default_resource_limit=1,
                 resource_limits={"heart": 15},
             ),
-        )
+        ),
     )
     return cfg
 
@@ -232,6 +233,7 @@ def make_icl_with_numpy(
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
+        desync_episodes=False,
         game=GameConfig(
             max_steps=max_steps,
             num_agents=num_agents * num_instances,
@@ -255,7 +257,7 @@ def make_icl_with_numpy(
                 default_resource_limit=1,
                 resource_limits={"heart": 15},
             ),
-        )
+        ),
     )
 
     return cfg

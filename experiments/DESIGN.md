@@ -131,7 +131,7 @@ For experiments requiring specific hyperparameters:
 ```python
 from metta.rl.trainer_config import (
     TrainerConfig, OptimizerConfig, TorchProfilerConfig
-from metta.rl.training.checkpointer import CheckpointConfig
+from metta.rl.training import CheckpointConfig
 from metta.sim.simulation_config import SimulationConfig
 
 trainer = TrainerConfig(

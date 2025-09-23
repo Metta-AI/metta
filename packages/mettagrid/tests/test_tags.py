@@ -622,3 +622,87 @@ def test_empty_tags_allowed():
     # Verify no tags in mapping
     tag_id_map = cpp_config.tag_id_map
     assert len(tag_id_map) == 0
+
+
+def test_default_agent_tags_preserved():
+    """Test that default agent tags are preserved when agents list is empty."""
+    # This test verifies the fix for the issue where default-agent tags were dropped
+    # when agents list was empty but game_config.agent.tags was set
+
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            num_agents=2,  # Will create 2 default agents
+            max_steps=100,
+            obs_width=3,
+            obs_height=3,
+            num_observation_tokens=NUM_OBS_TOKENS,
+            actions=ActionsConfig(noop=ActionConfig()),
+            agent=AgentConfig(
+                tags=["default_tag1", "default_tag2"]  # Tags for default agents
+            ),
+            agents=[],  # Empty agents list - will use defaults from agent field
+            resource_names=[],
+            map_builder=AsciiMapBuilder.Config(
+                map_data=[
+                    [".", "@", "."],
+                    [".", ".", "."],
+                    [".", "@", "."],
+                ],
+            ),
+        )
+    )
+
+    # Create environment - this will trigger convert_to_cpp_game_config
+    env = MettaGridCore(cfg)
+    obs, _ = env.reset()
+
+    assert obs is not None
+    assert len(obs) == 2  # Two default agents
+
+    # Get tag feature ID from environment
+    tag_feature_id = env.c_env.feature_spec()["tag"]["id"]
+
+    # Check both agents have the default tags
+    for agent_idx in range(2):
+        agent_obs = obs[agent_idx]
+
+        # Find agent locations
+        agent_locations = set()
+        for token in agent_obs:
+            if token[1] == 0 and token[2] == 0:  # TypeId feature with agent value
+                agent_locations.add(token[0])
+
+        # Find tag IDs at agent locations
+        agent_tag_ids = set()
+        for token in agent_obs:
+            if token[0] in agent_locations and token[1] == tag_feature_id:
+                agent_tag_ids.add(token[2])
+
+        # Each default agent should have 2 tags (default_tag1, default_tag2)
+        assert len(agent_tag_ids) == 2, f"Default agent {agent_idx} should have 2 tags, found {len(agent_tag_ids)}"
+        # Tag IDs should be 0 and 1 (alphabetically sorted: default_tag1=0, default_tag2=1)
+        assert agent_tag_ids == {0, 1}, f"Default agent {agent_idx} should have tag IDs {{0, 1}}, got {agent_tag_ids}"
+
+
+def test_default_agent_tags_in_cpp_config():
+    """Test that default agent tags are included in the cpp config tag mapping."""
+    game_config = GameConfig()
+
+    # Set default agent tags but leave agents list empty
+    game_config.agent = AgentConfig(tags=["hero", "player"])
+    game_config.agents = []  # Empty - will create default agents
+    game_config.num_agents = 3  # Will create 3 default agents
+
+    # Convert to cpp config
+    cpp_config = convert_to_cpp_game_config(game_config)
+
+    # Verify tag mapping includes the default agent tags
+    tag_id_map = cpp_config.tag_id_map
+    assert len(tag_id_map) == 2, f"Should have 2 tags in mapping, got {len(tag_id_map)}"
+
+    # Tags should be sorted alphabetically: hero=0, player=1
+    assert tag_id_map[0] == "hero", f"Tag ID 0 should be 'hero', got {tag_id_map[0]}"
+    assert tag_id_map[1] == "player", f"Tag ID 1 should be 'player', got {tag_id_map[1]}"
+
+    # The key requirement is that the tag mapping includes the default agent tags
+    # The actual verification that agents get these tags is already tested in test_default_agent_tags_preserved

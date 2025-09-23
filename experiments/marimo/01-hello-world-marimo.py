@@ -91,8 +91,8 @@ def _():
     from metta.tools.train import TrainTool
     from metta.rl.trainer_config import TrainerConfig
     from metta.rl.training.checkpointer import CheckpointConfig
-    from metta.rl.training.evaluator import EvaluatorConfig
-    from metta.rl.training.training_environment import TrainingEnvironmentConfig
+    from metta.rl.training import EvaluatorConfig
+    from metta.rl.training import TrainingEnvironmentConfig
 
     from metta.cogworks.curriculum import (
         env_curriculum,
@@ -105,7 +105,6 @@ def _():
     from mettagrid.map_builder.ascii import AsciiMapBuilder
     from mettagrid.config.mettagrid_config import (
         AgentRewards,
-        StatsRewards,
     )
     from mettagrid.config import Config
     from mettagrid.test_support.actions import generate_valid_random_actions
@@ -372,7 +371,6 @@ def _():
         CheckpointManager,
         RendererToolConfig,
         SimulationConfig,
-        StatsRewards,
         TensorDict,
         TrainTool,
         TrainerConfig,
@@ -463,7 +461,6 @@ def _(
     make_arena,
     AsciiMapBuilder,
     AgentRewards,
-    StatsRewards,
     pprint,
     textwrap,
 ):
@@ -542,7 +539,6 @@ def _(
     return (
         AgentRewards,
         AsciiMapBuilder,
-        StatsRewards,
         mg_config,
         make_arena,
         renderer_config,
@@ -1273,7 +1269,6 @@ def _(
     AgentRewards,
     AsciiMapBuilder,
     RendererToolConfig,
-    StatsRewards,
     make_arena,
     textwrap,
 ):
@@ -1323,9 +1318,6 @@ def _(
 
     # Use action failure penalty for efficiency (encourages purposeful movement)
     mg_config2.game.agent.action_failure_penalty = 0.01
-
-    # Use proper StatsRewards object to avoid serialization warnings
-    mg_config2.game.agent.rewards.stats = StatsRewards()
 
     renderer_config2 = RendererToolConfig(
         policy_type="opportunistic",
