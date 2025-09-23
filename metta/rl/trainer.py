@@ -5,11 +5,11 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training.als_buffer import AlsBuffer
 from metta.rl.training.component import TrainerCallback, TrainerComponent
 from metta.rl.training.component_context import ComponentContext, TrainerState
 from metta.rl.training.core import CoreTrainingLoop
 from metta.rl.training.distributed_helper import DistributedHelper
-from metta.rl.training.experience import Experience
 from metta.rl.training.optimizer import create_optimizer
 from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.profiling.stopwatch import Stopwatch
@@ -66,18 +66,20 @@ class Trainer:
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
         self._policy.train()
 
-        batch_info = self._env.batch_info
+        # self._experience = Experience.from_losses(
+        #     total_agents=parallel_agents,
+        #     batch_size=self._cfg.batch_size,
+        #     bptt_horizon=self._cfg.bptt_horizon,
+        #     minibatch_size=self._cfg.minibatch_size,
+        #     max_minibatch_size=self._cfg.minibatch_size,
+        #     policy_experience_spec=self._policy.get_agent_experience_spec(),
+        #     losses=losses,
+        #     device=self._device,
+        # )
 
-        parallel_agents = getattr(self._env, "total_parallel_agents", None)
-        if parallel_agents is None:
-            parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
-
-        self._experience = Experience.from_losses(
-            total_agents=parallel_agents,
-            batch_size=self._cfg.batch_size,
-            bptt_horizon=self._cfg.bptt_horizon,
-            minibatch_size=self._cfg.minibatch_size,
-            max_minibatch_size=self._cfg.minibatch_size,
+        self._experience = AlsBuffer.from_losses(
+            trainer_cfg=self._cfg,
+            env=self._env,
             policy_experience_spec=self._policy.get_agent_experience_spec(),
             losses=losses,
             device=self._device,

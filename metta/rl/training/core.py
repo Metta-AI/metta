@@ -119,27 +119,6 @@ class CoreTrainingLoop:
                     "bptt",
                     self._get_constant_tensor("bptt", (batch_elems,), 1, device),
                 )
-            training_env_shape = tuple(int(dim) for dim in td.batch_size)
-            if "training_env_id" not in td.keys():
-                td.set(
-                    "training_env_id",
-                    self._get_constant_tensor(
-                        "training_env_id",
-                        training_env_shape or (batch_elems,),
-                        training_env_id.start,
-                        device,
-                    ),
-                )
-            if "training_env_id_start" not in td.keys():
-                td.set(
-                    "training_env_id_start",
-                    self._get_constant_tensor(
-                        "training_env_id_start",
-                        training_env_shape or (batch_elems,),
-                        training_env_id.start,
-                        device,
-                    ),
-                )
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id

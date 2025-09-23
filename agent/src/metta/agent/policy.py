@@ -46,7 +46,7 @@ class Policy(ABC, nn.Module):
     implement this interface."""
 
     @abstractmethod
-    def forward(self, td: TensorDict) -> TensorDict:
+    def forward(self, td: TensorDict) -> TensorDict:  # av check if we need action
         pass
 
     def get_agent_experience_spec(self) -> Composite:

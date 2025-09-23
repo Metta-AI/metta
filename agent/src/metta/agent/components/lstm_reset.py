@@ -122,6 +122,7 @@ class LSTMReset(nn.Module):
             reset_mask = torch.zeros(1, B, 1, dtype=torch.bool, device=latent.device)
 
         if TT == 1:
+            # we're in rollout
             self.max_num_envs = training_env_ids.max() + 1
             if self.max_num_envs > self.lstm_h.size(1):
                 num_allocated_envs = self.max_num_envs - self.lstm_h.size(1)
