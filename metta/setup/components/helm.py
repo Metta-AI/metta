@@ -1,8 +1,13 @@
+import os
+import platform
 import shutil
+import stat
+import tempfile
+from pathlib import Path
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import info
+from metta.setup.utils import error, info, warning
 
 
 @register_module
@@ -18,6 +23,77 @@ class HelmSetup(SetupModule):
 
     def dependencies(self) -> list[str]:
         return ["system"]  # Ensure helm is installed
+
+    def _install_helm_if_missing(self, non_interactive: bool) -> None:
+        if shutil.which("helm"):
+            return
+
+        info("Helm not found. Installing Helm...")
+
+        if shutil.which("brew"):
+            self.run_command(["brew", "install", "helm"], capture_output=False, non_interactive=non_interactive)
+            return
+
+        if platform.system() == "Linux":
+            self._install_helm_via_script(non_interactive)
+            return
+
+        warning(
+            (
+                "Helm is not installed and automatic installation is unsupported on this platform. "
+                "Please install Helm manually and re-run metta install."
+            )
+        )
+        raise FileNotFoundError("Helm binary not found in PATH")
+
+    def _install_helm_via_script(self, non_interactive: bool) -> None:
+        install_script_url = "https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3"
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = Path(tmp_dir) / "get_helm.sh"
+
+            self.run_command(
+                ["curl", "-fsSL", "-o", str(script_path), install_script_url],
+                capture_output=False,
+                non_interactive=non_interactive,
+            )
+
+            script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
+
+            install_dir = Path.home() / ".local" / "bin"
+            env_overrides = {
+                "USE_SUDO": "0",
+                "HELM_INSTALL_DIR": str(install_dir),
+                "PATH": f"{install_dir}:{os.environ.get('PATH', '')}",
+            }
+
+            install_dir.mkdir(parents=True, exist_ok=True)
+
+            try:
+                self.run_command(
+                    ["bash", str(script_path)],
+                    capture_output=False,
+                    env=env_overrides,
+                    non_interactive=non_interactive,
+                )
+            except FileNotFoundError as exc:
+                error(
+                    (
+                        "Failed to execute Helm install script. Ensure curl and bash are available or install Helm "
+                        "manually."
+                    )
+                )
+                raise exc
+
+        info("Helm installation completed")
+
+        if not shutil.which("helm"):
+            warning(
+                (
+                    "Helm installer completed but the binary is still not on PATH. Add ~/.local/bin to your PATH or "
+                    "install Helm manually."
+                )
+            )
+            raise FileNotFoundError("Helm binary not found in PATH after installation")
 
     def get_installed_plugins(self) -> list[str]:
         plugins_result = self.run_command(["helm", "plugin", "list"])
@@ -37,6 +113,8 @@ class HelmSetup(SetupModule):
         return True
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
+        self._install_helm_if_missing(non_interactive)
+
         info("Setting up helm plugins...")
 
         installed_plugins = self.get_installed_plugins()
