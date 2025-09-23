@@ -34,6 +34,7 @@ class KLPenaltyConfig(Config):
 
     # KL penalty coefficient (replaces clip_coef)
     kl_penalty_coef: float = Field(default=0.01, ge=0)
+    d_target_kl: float = Field(default=0.01, ge=0)
     # Entropy term weight from sweep
     ent_coef: float = Field(default=0.010000, ge=0)
     # GAE lambda tuned via sweep (cf. standard 0.95)
@@ -317,6 +318,7 @@ class KLPenalty(Loss):
         logratio = new_logprob - minibatch["act_log_prob"]
         # Approximate KL divergence: KL ≈ (ratio - 1) - log(ratio)
         approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
+
         pg_loss = pg_loss + self.loss_cfg.kl_penalty_coef * approx_kl
 
         returns = minibatch["returns"]
