@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
+from metta.agent.policy import Policy
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.file import local_copy, write_file
@@ -135,7 +136,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
     return None
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device):
+def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
         return torch.load(path, weights_only=False, map_location=device)
@@ -223,7 +224,7 @@ class CheckpointManager:
         self._cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu"):
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> Policy:
         """Load a policy from a URI (file://, s3://, or mock://)."""
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")

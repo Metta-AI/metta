@@ -12,8 +12,7 @@ import torch.profiler
 import wandb
 
 from metta.common.wandb.context import WandbRun
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext, TrainerComponent
 from metta.rl.utils import should_run
 from mettagrid.util.file import http_url, is_public_uri, write_file
 

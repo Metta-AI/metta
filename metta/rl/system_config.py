@@ -32,7 +32,7 @@ def guess_vectorization() -> Literal["serial", "multiprocessing"]:
 
 def guess_local_data_dir() -> Path:
     if os.environ.get("DATA_DIR"):
-        return os.environ["DATA_DIR"]  # type: ignore
+        return Path(os.environ["DATA_DIR"])
     return Path("./train_dir")
 
 
