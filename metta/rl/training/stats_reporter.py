@@ -32,7 +32,6 @@ class Timer(Protocol):
 def _to_scalar(value: Any) -> Optional[float]:
     """Convert supported numeric types to float, skipping non-scalars."""
 
-    # Check for concrete numeric types that support float()
     if isinstance(value, (int, float, bool)):
         return float(value)
     if isinstance(value, np.ndarray):
@@ -238,8 +237,7 @@ class StatsReporter(TrainerComponent):
         trainer_cfg: Any,
         optimizer: torch.optim.Optimizer,
     ) -> None:
-        """Report statistics for an epoch."""
-        timing_context: ContextManager[Any] = timer("_process_stats") if callable(timer) else nullcontext()
+        timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
         with timing_context:
             payload = self._build_wandb_payload(
@@ -269,11 +267,6 @@ class StatsReporter(TrainerComponent):
             self.clear_grad_stats()
 
     def update_eval_scores(self, scores: EvalRewardSummary) -> None:
-        """Update evaluation scores.
-
-        Args:
-            scores: New evaluation scores
-        """
         self._state.eval_scores = scores
         if self._context is not None:
             self.context.latest_eval_scores = scores
@@ -288,11 +281,6 @@ class StatsReporter(TrainerComponent):
         self._state.grad_stats.clear()
 
     def update_grad_stats(self, grad_stats: dict[str, float]) -> None:
-        """Update gradient statistics.
-
-        Args:
-            grad_stats: New gradient statistics
-        """
         self._state.grad_stats = grad_stats
 
     def create_epoch(
@@ -302,7 +290,6 @@ class StatsReporter(TrainerComponent):
         end_epoch: int,
         attributes: dict[str, Any] | None = None,
     ) -> Optional[UUID]:
-        """Create a new epoch in the stats client."""
         if not self._stats_client or not self._config.report_to_stats_client:
             return None
 

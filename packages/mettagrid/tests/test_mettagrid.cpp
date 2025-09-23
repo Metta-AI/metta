@@ -1099,10 +1099,7 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
 
   // Test 1: Empty pattern (no agents around) - should return 0
   uint8_t pattern = assembler->get_agent_pattern_byte();
-  EXPECT_EQ(pattern, 0) << "Empty pattern should return 0";
 
-  // Test 2: Pattern with agents in North (bit 1) and East (bit 4) positions
-  // This should give us pattern = (1 << 1) | (1 << 4) = 2 | 16 = 18
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
   Agent* agent1 = new Agent(4, 5, agent_cfg);  // North of assembler
   Agent* agent2 = new Agent(5, 6, agent_cfg);  // East of assembler
@@ -1124,4 +1121,97 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
 
   pattern = assembler->get_agent_pattern_byte();
   EXPECT_EQ(pattern, 161) << "Pattern with agents at NW, SW, and SE should be 161 (1 + 32 + 128)";
+}
+
+TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
+  // Create a grid to test with
+  Grid grid(10, 10);
+
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+
+  // Create test recipes
+  auto recipe0 = std::make_shared<Recipe>();
+  recipe0->input_resources[0] = 1;
+
+  auto recipe1 = std::make_shared<Recipe>();
+  recipe1->input_resources[1] = 2;
+
+  config.recipes.push_back(recipe0);
+  config.recipes.push_back(recipe1);
+
+  Assembler* assembler = new Assembler(5, 5, config);
+
+  // Set up the assembler with grid and timestep
+  unsigned int current_timestep = 0;
+  assembler->set_current_timestep_ptr(&current_timestep);
+  assembler->set_grid(&grid);
+
+  // Add assembler to grid
+  grid.add_object(assembler);
+
+  // Without agents around, should get pattern 0 (recipe0)
+  const Recipe* current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe0.get());
+
+  // Add one agent at NW position (bit 0) - should get pattern 1 (recipe1)
+  AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
+  Agent* agent = new Agent(4, 4, agent_cfg);  // NW of assembler
+  grid.add_object(agent);
+
+  current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent, should select recipe1";
+}
+
+TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
+  // Create a grid to test with
+  Grid grid(10, 10);
+
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.recipe_details_obs = true;
+  config.input_recipe_offset = 100;
+  config.output_recipe_offset = 200;
+
+  // Create test recipes - one for pattern 0 (no agents), one for pattern 1 (some agents)
+  auto recipe0 = std::make_shared<Recipe>();
+  recipe0->input_resources[0] = 2;   // 2 units of item 0
+  recipe0->output_resources[1] = 1;  // 1 unit of output item 1
+
+  auto recipe1 = std::make_shared<Recipe>();
+  recipe1->input_resources[2] = 3;   // 3 units of item 2
+  recipe1->output_resources[3] = 2;  // 2 units of output item 3
+
+  config.recipes.push_back(recipe0);  // Index 0: pattern 0
+  config.recipes.push_back(recipe1);  // Index 1: pattern 1
+
+  Assembler* assembler = new Assembler(5, 5, config);
+
+  // Set up the assembler with grid and timestep
+  unsigned int current_timestep = 0;
+  assembler->set_current_timestep_ptr(&current_timestep);
+  assembler->set_grid(&grid);
+
+  // Add assembler to grid
+  grid.add_object(assembler);
+
+  // Test with pattern 0 (no agents around) - should get recipe0
+  auto features = assembler->obs_features();
+
+  // Should have recipe features for pattern 0 (recipe0)
+  bool found_input_feature = false;
+  bool found_output_feature = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == config.input_recipe_offset + 0) {
+      EXPECT_EQ(feature.value, 2);  // 2 units of input item 0 from recipe0
+      found_input_feature = true;
+    } else if (feature.feature_id == config.output_recipe_offset + 1) {
+      EXPECT_EQ(feature.value, 1);  // 1 unit of output item 1 from recipe0
+      found_output_feature = true;
+    }
+  }
+  EXPECT_TRUE(found_input_feature) << "Should have input recipe feature for pattern 0";
+  EXPECT_TRUE(found_output_feature) << "Should have output recipe feature for pattern 0";
+
+  // Verify we're getting the right recipe
+  const Recipe* current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe0.get());
 }

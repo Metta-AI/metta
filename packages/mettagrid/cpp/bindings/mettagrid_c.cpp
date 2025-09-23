@@ -202,7 +202,13 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
       if (assembler_config) {
-        Assembler* assembler = new Assembler(r, c, *assembler_config);
+        // Create a new AssemblerConfig with the recipe offsets from the observation encoder
+        AssemblerConfig config_with_offsets(*assembler_config);
+        config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
+        config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
+        config_with_offsets.recipe_details_obs = _obs_encoder->recipe_details_obs;
+
+        Assembler* assembler = new Assembler(r, c, config_with_offsets);
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
         assembler->stats.set_environment(this);
