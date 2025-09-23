@@ -58,7 +58,7 @@ def launch_training(
     ]
 
     if curriculum:
-        cmd.append(f"trainer.curriculum={curriculum}")
+        cmd.append(f"training_env.curriculum={curriculum}")
     if wandb_tags:
         cmd.append(f"+wandb.tags={json.dumps(wandb_tags)}")
 
