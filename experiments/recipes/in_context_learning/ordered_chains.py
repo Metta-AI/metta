@@ -352,7 +352,12 @@ class ConverterChainTaskGenerator(TaskGenerator):
             else None
         )
 
-        max_steps = self.config.max_steps
+        if len(resources) < 2:
+            max_steps = 100
+        elif len(resources) < 4:
+            max_steps = 200
+        else:
+            max_steps = 512
 
         # estimate average hop for cooldowns
         avg_hop = 7 if room_size == "tiny" else 10 if room_size == "small" else 13
@@ -429,18 +434,15 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        batch_size=batch_size,
-        bptt_horizon=bptt_horizon,
+        # batch_size=batch_size,
+        # bptt_horizon=bptt_horizon,
 
     )
-    # if use_fast_lstm_reset:
-    #     policy_config = FastLSTMResetConfig()
-    # else:
-    #     policy_config = FastConfig()
+    policy_config = FastLSTMResetConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
-        # policy_architecture=policy_config,
+        policy_architecture=policy_config,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
             simulations=make_icl_resource_chain_eval_suite(),
@@ -507,7 +509,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}.512.oldarchitecture.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_resource_chain_{curriculum_style}.diffmaxsteps.newarchitecture.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
