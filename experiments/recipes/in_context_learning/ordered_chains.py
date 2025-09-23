@@ -164,8 +164,8 @@ def get_reward_estimates(
     return int(most_efficient), int(least_efficient)
 
 
-class ConverterChainTaskGenerator(ICLTaskGenerator):
-    def __init__(self, config: "ConverterChainTaskGenerator.Config"):
+class OrderedChainsTaskGenerator(ICLTaskGenerator):
+    def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
 
     def _add_converter(

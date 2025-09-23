@@ -2,8 +2,8 @@ from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from experiments.recipes.in_context_learning.icl_resource_chain import ICLTaskGenerator
-from experiments.recipes.in_context_learning.ordered_chain import (
-    OrderedChainTaskGenerator,
+from experiments.recipes.in_context_learning.ordered_chains import (
+    OrderedChainsTaskGenerator,
 )
 
 
@@ -34,7 +34,7 @@ def make_icl_resource_chain_eval_env(
         obstacle_types=obstacle_types,
         densities=densities,
     )
-    task_generator = OrderedChainTaskGenerator(task_generator_cfg)
+    task_generator = OrderedChainsTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
     return task_generator.get_task(0)
 
