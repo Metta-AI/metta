@@ -119,7 +119,7 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
 
   return institutions.map((institution) => {
     const currentUserMembership = institution.userInstitutions.find(
-      (ui) => ui.userId === session.user.id
+      (ui) => ui.userId === session.user!.id
     );
 
     const papers = institution.papers.map((pi) => pi.paper);
@@ -233,7 +233,7 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
     ).slice(0, 5);
 
     const currentUserMembership = session?.user?.id
-      ? institution.userInstitutions.find((ui) => ui.userId === session.user.id)
+      ? institution.userInstitutions.find((ui) => ui.userId === session.user!.id)
       : null;
 
     const currentUserRole = currentUserMembership?.role || null;
