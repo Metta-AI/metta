@@ -19,6 +19,8 @@ model User {
   comments              Comment[]
   sessions              Session[]
   userPaperInteractions UserPaperInteraction[]
+  userInstitutions      UserInstitution[]
+  createdInstitutions   Institution[]
 
   @@map("user")
 }
@@ -117,7 +119,9 @@ model Author {
   username        String?       @unique // "@username" format
   email           String?
   avatar          String?       // Profile image URL or initials
-  institution     String?
+  institution     String?       // Legacy: will be migrated to institutionId
+  institutionId   String?
+  institutionRef  Institution?  @relation("AuthorInstitution", fields: [institutionId], references: [id])
   department      String?       // Academic department
   title           String?       // Academic title
   expertise       String[]      // Array of expertise tags
@@ -139,7 +143,9 @@ model Paper {
   id                    String                 @id @default(cuid())
   title                 String
   abstract              String?
-  institutions          String[]
+  institutions          String[]               // Legacy: will be migrated to PaperInstitution
+  institutionIds        String[]               @default([]) // References to Institution IDs
+  paperInstitutions     PaperInstitution[]     // Many-to-many relation
   tags                  String[]
   link                  String?
   source                String?
@@ -179,6 +185,62 @@ model UserPaperInteraction {
 
   @@id([userId, paperId], map: "user_paper_interaction_userId_paperId_pk")
   @@map("user_paper_interaction")
+}
+
+model Institution {
+  id               String              @id @default(cuid())
+  name             String              @unique
+  domain           String?             @unique // e.g., "softmax.com"
+  description      String?
+  website          String?
+  location         String?
+  type             InstitutionType     @default(COMPANY)
+  isVerified       Boolean             @default(false)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @default(now()) @updatedAt
+  createdByUserId  String?
+  userInstitutions UserInstitution[]
+  authors          Author[]            @relation("AuthorInstitution") // Authors affiliated with this institution
+  papers           PaperInstitution[]  // Papers from this institution
+  createdBy        User?               @relation(fields: [createdByUserId], references: [id])
+
+  @@map("institution")
+}
+
+model UserInstitution {
+  id            String      @id @default(cuid())
+  userId        String
+  institutionId String
+  role          String?     // e.g., "researcher", "admin", "student"
+  department    String?
+  title         String?
+  isActive      Boolean     @default(true)
+  joinedAt      DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, institutionId])
+  @@map("user_institution")
+}
+
+model PaperInstitution {
+  id            String      @id @default(cuid())
+  paperId       String
+  institutionId String
+  paper         Paper       @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([paperId, institutionId])
+  @@map("paper_institution")
+}
+
+enum InstitutionType {
+  UNIVERSITY
+  COMPANY
+  RESEARCH_LAB
+  NONPROFIT
+  GOVERNMENT
+  OTHER
 }
 
 
