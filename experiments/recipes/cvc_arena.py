@@ -21,7 +21,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building
-from mettagrid.mettagrid_config import AssemblerConfig, MettaGridConfig
+from mettagrid.config import AssemblerConfig, MettaGridConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:

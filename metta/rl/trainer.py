@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import torch
 
@@ -91,6 +91,10 @@ class Trainer:
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
 
         self._state = TrainerState()
+
+        # Extract curriculum from environment if available
+        curriculum = getattr(self._env, "_curriculum", None)
+
         self._context = ComponentContext(
             state=self._state,
             policy=self._policy,
@@ -101,6 +105,7 @@ class Trainer:
             stopwatch=self.timer,
             distributed=self._distributed_helper,
             run_name=self._run_name,
+            curriculum=curriculum,
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
@@ -226,7 +231,7 @@ class Trainer:
         self._components.append(component)
         component.register(self._context)
 
-    def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
+    def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
         """Invoke all registered callbacks of the specified type.
 
         Args:
@@ -240,7 +245,10 @@ class Trainer:
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    if component.should_handle_step(current_step=current_step, previous_step=previous_step):
+                    if (
+                        component.should_handle_step(current_step=current_step, previous_step=previous_step)
+                        and infos is not None
+                    ):
                         component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
                     if component.should_handle_epoch(current_epoch):

@@ -15,10 +15,13 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids
 
+logger = logging.getLogger(__name__)
+
+
+# Avoid circular import: evaluator.py → evaluate.py → evaluator.py
+# EvaluatorConfig is only used as a type hint, never instantiated here
 if TYPE_CHECKING:
     from metta.rl.training.evaluator import EvaluatorConfig
-
-logger = logging.getLogger(__name__)
 
 
 def evaluate_policy_remote_with_checkpoint_manager(
@@ -27,21 +30,9 @@ def evaluate_policy_remote_with_checkpoint_manager(
     stats_epoch_id: uuid.UUID | None,
     stats_client: StatsClient | None,
     wandb_run: WandbRun | None,
-    evaluation_cfg: "EvaluatorConfig" | None,
+    evaluation_cfg: EvaluatorConfig | None,
 ) -> TaskResponse | None:
-    """Create a remote evaluation task using a policy URI.
-
-    Args:
-        policy_uri: Policy URI (s3://, file://, etc.)
-        simulations: List of simulations to run
-        stats_epoch_id: Stats epoch ID for tracking
-        stats_client: Client for stats server communication
-        wandb_run: WandB run context
-        evaluation_cfg: Evaluation configuration
-
-    Returns:
-        TaskResponse if evaluation task created, None otherwise
-    """
+    """Create a remote evaluation task using a policy URI."""
     if not (wandb_run and stats_client and policy_uri):
         logger.warning("Remote evaluation requires wandb_run, stats_client, and policy_uri")
         return None

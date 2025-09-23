@@ -71,6 +71,16 @@ class StatsClient(ABC):
         pass
 
     @abstractmethod
+    def create_policy(
+        self,
+        name: str,
+        description: str | None = None,
+        url: str | None = None,
+        epoch_id: uuid.UUID | None = None,
+    ) -> PolicyResponse:
+        pass
+
+    @abstractmethod
     def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
         pass
 
@@ -173,6 +183,15 @@ class NoopStatsClient(StatsClient):
         thumbnail_url: str | None = None,
     ) -> EpisodeResponse:
         return EpisodeResponse(id=self.id)
+
+    def create_policy(
+        self,
+        name: str,
+        description: str | None = None,
+        url: str | None = None,
+        epoch_id: uuid.UUID | None = None,
+    ) -> PolicyResponse:
+        return PolicyResponse(id=self.id)
 
 
 class HttpStatsClient(StatsClient):

@@ -8,11 +8,11 @@ import torch
 import torch.distributed
 
 from metta.agent.policy import DistributedPolicy, Policy
+from metta.rl.training import TrainingEnvironmentConfig
 from mettagrid.config import Config
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
-    from metta.rl.training import TrainingEnvironmentConfig
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Any, Optional
 
 import pufferlib
@@ -26,7 +27,8 @@ def make_env_func(
     buf: Optional[Any] = None,
     **kwargs,
 ):
-    init_logging(run_dir=run_dir)
+    if run_dir is not None:
+        init_logging(run_dir=Path(run_dir))
 
     env = MettaGridEnv(
         curriculum.get_task().get_env_cfg(),

@@ -1,6 +1,7 @@
 import os
 import platform
 import random
+from pathlib import Path
 from typing import ClassVar, Literal
 
 import numpy as np
@@ -29,10 +30,10 @@ def guess_vectorization() -> Literal["serial", "multiprocessing"]:
     return "multiprocessing"
 
 
-def guess_data_dir() -> str:
+def guess_data_dir() -> Path:
     if os.environ.get("DATA_DIR"):
-        return os.environ["DATA_DIR"]  # type: ignore
-    return "./train_dir"
+        return Path(os.environ["DATA_DIR"])
+    return Path("./train_dir")
 
 
 class SystemConfig(Config):
@@ -40,7 +41,9 @@ class SystemConfig(Config):
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)
-    data_dir: str = Field(default_factory=guess_data_dir)
+    data_dir: Path = Field(default_factory=guess_data_dir)
+    remote_prefix: str | None = Field(default=None)
+    local_only: bool = Field(default=False)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
