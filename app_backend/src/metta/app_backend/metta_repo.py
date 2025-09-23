@@ -85,7 +85,8 @@ class EvalTaskWithPolicyName(BaseModel):
     created_at: datetime
     attributes: dict[str, Any]
     retries: int
-    policy_name: str | None
+    policy_name: str
+    policy_url: str
     user_id: str | None
     updated_at: datetime
 
@@ -106,6 +107,7 @@ class SweepRow(BaseModel):
 class PolicyRow(BaseModel):
     id: uuid.UUID
     name: str
+    url: str | None
 
 
 class LeaderboardRow(BaseModel):
@@ -735,7 +737,7 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT id, name
+                    SELECT id, name, url
                     FROM policies
                     WHERE id = %s
                     """,
@@ -1256,7 +1258,7 @@ class MettaRepo:
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, et.user_id, et.updated_at
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE status = 'unprocessed'
@@ -1299,7 +1301,7 @@ class MettaRepo:
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                                 et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, et.user_id, et.updated_at
+                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
                         WHERE assignee = %s AND status = 'unprocessed'
@@ -1312,7 +1314,7 @@ class MettaRepo:
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                                 et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, et.user_id, et.updated_at
+                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
                         WHERE status = 'unprocessed' AND assignee IS NOT NULL
@@ -1512,7 +1514,7 @@ class MettaRepo:
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, et.user_id, et.updated_at
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
                     WHERE assignee = %s
@@ -1564,7 +1566,7 @@ class MettaRepo:
                     f"""
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                            et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, et.user_id, et.updated_at
+                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
                     FROM eval_tasks et
                     LEFT JOIN policies p ON et.policy_id = p.id
                     WHERE {where_clause}
