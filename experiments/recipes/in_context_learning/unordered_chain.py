@@ -66,6 +66,8 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         def _sample_composition(total: int, parts: int) -> List[int]:
             if parts <= 0:
                 return []
+            if total == 0:
+                return [0] * parts
             # Stars and bars: choose bar positions uniformly to sample a composition
             # over 'parts' non-negative integers summing to 'total'.
             if parts == 1:
