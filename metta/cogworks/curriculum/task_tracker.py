@@ -6,8 +6,8 @@ without mixing in learning progress calculations or bucket analysis.
 """
 
 import time
-from collections import deque
-from typing import Dict, Optional, Tuple
+from collections import defaultdict, deque
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import stats
@@ -112,7 +112,30 @@ class TaskTracker:
             if self._cache_valid:
                 self._cache_valid = False
 
-    def get_global_stats(self) -> Dict[str, float]:
+    def _get_task_label(self, task_id: int, curriculum_algorithm=None) -> str:
+        """Extract task label from curriculum system."""
+        try:
+            if curriculum_algorithm is None:
+                return f"task_{task_id}"
+
+            # Try to access curriculum through the algorithm
+            curriculum = getattr(curriculum_algorithm, "_curriculum", None)
+            if curriculum is None:
+                return f"task_{task_id}"
+
+            # Try to get task from curriculum
+            task_pool = getattr(curriculum, "_task_pool", {})
+            if task_id in task_pool:
+                task = task_pool[task_id]
+                env_cfg = task.get_env_cfg()
+                if hasattr(env_cfg, "label"):
+                    return env_cfg.label
+
+            return f"task_{task_id}"
+        except Exception:
+            return f"task_{task_id}"
+
+    def get_global_stats(self, curriculum_algorithm=None) -> Dict[str, float]:
         """Get global performance statistics."""
         if not self._completion_history:
             return {
@@ -154,7 +177,59 @@ class TaskTracker:
         skew_pool = float(stats.skew(pool_scores_array)) if len(pool_scores_array) > 2 else 0.0
         kurt_pool = float(stats.kurtosis(pool_scores_array)) if len(pool_scores_array) > 3 else 0.0
 
-        return {
+        # Calculate label-aggregated statistics
+        label_scores = defaultdict(list)  # label -> [scores]
+        label_rewards = defaultdict(list)  # label -> [total_rewards]
+        label_counts = defaultdict(int)  # label -> completion_count
+
+        for task_id, (total_score, completion_count, _, _) in self._task_memory.items():
+            if completion_count > 0:
+                task_label = self._get_task_label(task_id, curriculum_algorithm)
+
+                # Aggregate scores (mean score per task)
+                mean_task_score = total_score / completion_count
+                label_scores[task_label].append(mean_task_score)
+
+                # Aggregate rewards (total accumulated rewards)
+                label_rewards[task_label].append(total_score)
+
+                # Aggregate counts (completion counts)
+                label_counts[task_label] += completion_count
+
+        # Calculate statistics across labels
+        def calc_label_stats(data_dict: Dict[str, List[float]], stat_prefix: str) -> Dict[str, float]:
+            """Calculate mean/std/skew/kurt across labels for given data."""
+            if not data_dict:
+                return {
+                    f"mean_{stat_prefix}": 0.0,
+                    f"std_{stat_prefix}": 0.0,
+                    f"skew_{stat_prefix}": 0.0,
+                    f"kurt_{stat_prefix}": 0.0,
+                }
+
+            # Get per-label aggregated values (mean for each label)
+            label_values = [np.mean(values) for values in data_dict.values()]
+            label_array = np.array(label_values)
+
+            return {
+                f"mean_{stat_prefix}": float(np.mean(label_array)),
+                f"std_{stat_prefix}": float(np.std(label_array)) if len(label_array) > 1 else 0.0,
+                f"skew_{stat_prefix}": float(stats.skew(label_array)) if len(label_array) > 2 else 0.0,
+                f"kurt_{stat_prefix}": float(stats.kurtosis(label_array)) if len(label_array) > 3 else 0.0,
+            }
+
+        # Calculate statistics for label-aggregated scores
+        label_score_stats = calc_label_stats(label_scores, "label_aggregated_scores")
+
+        # Calculate statistics for label-aggregated rewards
+        label_reward_stats = calc_label_stats(label_rewards, "label_aggregated_rewards")
+
+        # Calculate statistics for label-aggregated counts
+        label_count_data = {label: [float(count)] for label, count in label_counts.items()}
+        label_count_stats = calc_label_stats(label_count_data, "label_aggregated_counts")
+
+        # Combine all statistics
+        result = {
             "mean_recent_score": mean_recent,
             "std_recent_score": std_recent,
             "skewness_recent_score": skew_recent,
@@ -166,6 +241,13 @@ class TaskTracker:
             "skew_pool_score": skew_pool,
             "kurt_pool_score": kurt_pool,
         }
+
+        # Add label aggregated statistics
+        result.update(label_score_stats)
+        result.update(label_reward_stats)
+        result.update(label_count_stats)
+
+        return result
 
     def _cleanup_old_tasks(self) -> None:
         """Remove oldest tasks when memory limit is exceeded."""

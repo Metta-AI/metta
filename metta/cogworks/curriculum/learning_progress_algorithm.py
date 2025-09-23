@@ -112,7 +112,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         base_stats = {"num_tasks": self.num_tasks, **self.slice_analyzer.get_base_stats()}
 
         # Add task tracker stats with prefix for test compatibility
-        tracker_stats = self.task_tracker.get_global_stats()
+        tracker_stats = self.task_tracker.get_global_stats(curriculum_algorithm=self)
         for key, value in tracker_stats.items():
             base_stats[f"tracker/{key}"] = value
 
