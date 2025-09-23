@@ -9,6 +9,7 @@ from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import (
+    ObsAttrCoordEmbedConfig,
     ObsAttrEmbedFourierConfig,
 )
 from metta.agent.policy import PolicyArchitecture
@@ -67,30 +68,28 @@ class ViTDefaultConfig(ViTSmallConfig):
     _embedding_dim = 16
 
     _token_embed_dim = 8
-    _num_fourier_freqs = 3
-    _latent_dim = 64
+    _latent_dim = 48
     _lstm_latent = 96
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
-        ObsAttrEmbedFourierConfig(
+        ObsAttrCoordEmbedConfig(
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed_fourier",
             attr_embed_dim=_token_embed_dim,
-            num_freqs=_num_fourier_freqs,
         ),
         ObsLatentAttnConfig(
             in_key="obs_attr_embed_fourier",
             out_key="obs_latent_attn",
-            feat_dim=_token_embed_dim + (4 * _num_fourier_freqs) + 1,
+            feat_dim=_token_embed_dim + 1,
             out_dim=_latent_dim,
-            num_query_tokens=4,
-            num_heads=2,
+            num_query_tokens=1,
+            num_heads=1,
             num_layers=1,
             query_token_dim=_latent_dim,
             qk_dim=_latent_dim,
             v_dim=_latent_dim,
-            mlp_ratio=2.0,
+            mlp_ratio=1.5,
             use_cls_token=True,
         ),
         LSTMConfig(
