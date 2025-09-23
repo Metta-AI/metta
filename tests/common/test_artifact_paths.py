@@ -25,3 +25,9 @@ def test_artifact_path_join_path(tmp_path: Path):
     base = tmp_path / "policies"
     joined = artifact_path_join(base, "run_a", "checkpoints")
     assert joined == tmp_path / "policies" / "run_a" / "checkpoints"
+
+
+def test_artifact_path_join_gdrive():
+    base = "gdrive://folder"
+    joined = artifact_path_join(base, "run_a", "episode.json.z")
+    assert joined == "gdrive://folder/run_a/episode.json.z"

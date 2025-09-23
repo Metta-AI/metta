@@ -172,11 +172,19 @@ class CheckpointManager:
         self.cache_size = cache_size
         self._cache = OrderedDict()
         self._remote_prefix: str | None = None
+        self._remote_run_prefix: str | None = None
         if remote_prefix:
             parsed = ParsedURI.parse(remote_prefix)
             if parsed.scheme != "s3" or not parsed.bucket:
                 raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
             self._remote_prefix = remote_prefix.rstrip("/")
+            key_segments = []
+            if parsed.key:
+                key_segments = [segment for segment in parsed.key.split("/") if segment]
+            if key_segments and key_segments[-1] == self.run:
+                self._remote_run_prefix = self._remote_prefix
+            else:
+                self._remote_run_prefix = artifact_path_join(self._remote_prefix, self.run)
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
@@ -303,8 +311,8 @@ class CheckpointManager:
         torch.save(agent, checkpoint_path)
 
         remote_uri = None
-        if self._remote_prefix is not None:
-            remote_uri = artifact_path_join(self._remote_prefix, self.run, "checkpoints", filename)
+        if self._remote_run_prefix is not None:
+            remote_uri = artifact_path_join(self._remote_run_prefix, "checkpoints", filename)
             write_file(remote_uri, str(checkpoint_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
@@ -343,11 +351,8 @@ class CheckpointManager:
             return []
         checkpoint_files.sort(key=lambda f: _extract_run_and_epoch(f)[1], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
-        if self._remote_prefix is not None:
-            return [
-                artifact_path_join(self._remote_prefix, self.run, "checkpoints", path.name)
-                for path in selected_files
-            ]
+        if self._remote_run_prefix is not None:
+            return [artifact_path_join(self._remote_run_prefix, "checkpoints", path.name) for path in selected_files]
         return [f"file://{path.resolve()}" for path in selected_files]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:

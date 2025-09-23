@@ -18,11 +18,19 @@ def artifact_path_join(base: ArtifactBase, *segments: str) -> ArtifactBase:
     """Join *segments* onto *base* handling both local paths and URIs."""
 
     cleaned = _clean_segments(segments)
+    if not cleaned:
+        return base
 
     if isinstance(base, Path):
         return base.joinpath(*cleaned)
 
     base_str = str(base)
+
+    if base_str.startswith("gdrive://"):
+        prefix = base_str[len("gdrive://") :].rstrip("/")
+        joined = "/".join(filter(None, [prefix, *cleaned]))
+        return f"gdrive://{joined}"
+
     parsed = ParsedURI.parse(base_str)
 
     if parsed.scheme == "file" and parsed.local_path is not None:
@@ -40,6 +48,11 @@ def artifact_path_join(base: ArtifactBase, *segments: str) -> ArtifactBase:
     if parsed.scheme == "mock":
         path = "/".join(filter(None, [(parsed.path or "").rstrip("/"), *cleaned]))
         return f"mock://{path}"
+
+    if parsed.scheme in {"http", "https"}:
+        base_http = base_str.rstrip("/")
+        suffix = "/".join(cleaned)
+        return f"{base_http}/{suffix}"
 
     result_path = Path(base_str).joinpath(*cleaned)
     return str(result_path)
