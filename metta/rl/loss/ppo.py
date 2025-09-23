@@ -133,7 +133,7 @@ class PPO(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         original_device = td.device
-        rollout_td = td.to(self.device, non_blocking=True)
+        rollout_td = td if original_device == self.device else td.to(self.device, non_blocking=True)
 
         with torch.no_grad():
             with context.autocast():
@@ -144,9 +144,10 @@ class PPO(Loss):
                     + str(list(rollout_td.keys(include_nested=False)))
                 )
 
-        rollout_td = rollout_td.to(original_device, non_blocking=True)
-        for key in rollout_td.keys(include_nested=False):
-            td[key] = rollout_td[key]
+        if rollout_td is not td:
+            rollout_td = rollout_td.to(original_device, non_blocking=True)
+            for key in rollout_td.keys(include_nested=False):
+                td[key] = rollout_td[key]
 
         if "actions" not in td.keys(include_nested=False):
             rollout_keys = list(rollout_td.keys(include_nested=False))
@@ -395,7 +396,7 @@ class PPO(Loss):
             selected_advantages = advantages[idx]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
 
-        minibatch = minibatch_storage.clone().to(self.device, non_blocking=True)
+        minibatch = minibatch_storage.to(self.device, non_blocking=True)
         with torch.no_grad():
             adv_device = selected_advantages.to(self.device, non_blocking=True)
             minibatch["advantages"] = adv_device

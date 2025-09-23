@@ -204,13 +204,13 @@ class CoreTrainingLoop:
                 total_loss = torch.zeros((), dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
 
-                for _loss_name, loss_obj in self.losses.items():
-                    with context.autocast():
+                with context.autocast():
+                    for _loss_name, loss_obj in self.losses.items():
                         loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
                             shared_loss_mb_data, context, mb_idx
                         )
-                    total_loss = total_loss + loss_val.to(dtype=torch.float32)
-                    stop_update_epoch_mb = stop_update_epoch_mb or loss_requests_stop
+                        total_loss = total_loss + loss_val.to(dtype=torch.float32)
+                        stop_update_epoch_mb = stop_update_epoch_mb or loss_requests_stop
 
                 if stop_update_epoch_mb:
                     stop_update_epoch = True
