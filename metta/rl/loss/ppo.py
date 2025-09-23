@@ -310,7 +310,7 @@ class PPO(Loss):
         newvalue: Tensor,
         importance_sampling_ratio: Tensor,
         adv: Tensor,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         """Compute PPO losses for policy and value functions."""
         # Policy loss
         pg_loss1 = -adv * importance_sampling_ratio
@@ -346,7 +346,10 @@ class PPO(Loss):
             approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
             clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.loss_cfg.clip_coef).float().mean()
 
-        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
+        # KL penalty loss
+        kl_penalty_loss = approx_kl
+
+        return pg_loss, v_loss, entropy_loss, kl_penalty_loss, approx_kl, clipfrac
 
     def _sample_minibatch(
         self,
