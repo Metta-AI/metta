@@ -22,6 +22,10 @@ from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from pydantic import Field
 
+from experiments.evals.in_context_learning.ordered_chains import (
+    make_icl_resource_chain_eval_suite,
+)
+
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
     "mine_blue": empty_converters.mine_blue,
@@ -415,11 +419,6 @@ def train(
     batch_size: int = 4128768,
     bptt_horizon: int = 512,
 ) -> TrainTool:
-    # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.ordered_chains import (
-        make_icl_resource_chain_eval_suite,
-    )
-
     curriculum = make_curriculum(curriculum_style, lp_params)
 
     trainer_cfg = TrainerConfig(
@@ -474,11 +473,6 @@ def replay(
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
-    # Local import to   avoid circular import at module load time
-    from experiments.evals.in_context_learning.ordered_chains import (
-        make_icl_resource_chain_eval_suite,
-    )
-
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
         simulations=simulations,
