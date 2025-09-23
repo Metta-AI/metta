@@ -244,27 +244,30 @@ Minimal example:
 
 ```python
 # experiments/user/my_tasks.py
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from mettagrid.config.envs import make_arena
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig
-from metta.rl.training import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
+from mettagrid.builder.envs import make_arena
 
-def my_train(run: str = "local.me.1") -> TrainTool:
-    trainer = TrainerConfig()
-    evaluator = EvaluatorConfig(
-        simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
+
+def my_train() -> TrainTool:
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(),
+        evaluator=EvaluatorConfig(
+            simulations=[
+                SimulationConfig(
+                    suite="arena", name="arena/basic", env=make_arena(num_agents=6)
+                )
+            ]
+        ),
     )
-    training_env = TrainingEnvironmentConfig()
-    return TrainTool(trainer=trainer, training_env=training_env, evaluator=evaluator, run=run)
 ```
 
 Run your task:
 
 ```bash
-./tools/run.py experiments.user.my_tasks.my_train run=local.me.2 \
-  system.device=cpu wandb.enabled=false
+./tools/run.py experiments.user.my_tasks.my_train run=local.me.1 system.device=cpu wandb.enabled=false
 ```
 
 Notes:

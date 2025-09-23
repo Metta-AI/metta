@@ -6,7 +6,7 @@
 from metta.common.util.log_config import init_logging
 
 if __name__ == "__main__":
-    init_logging(run_dir="./experiments/run_001")  # Optional; only if you want file logging
+    init_logging(run_dir=Path("./train_dir/run_001"))  # Optional; only if you want file logging
 ```
 
 ## Features

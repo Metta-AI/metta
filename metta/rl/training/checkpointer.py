@@ -13,18 +13,10 @@ from mettagrid.config import Config
 logger = logging.getLogger(__name__)
 
 
-class CheckpointConfig(Config):
-    """Persistent checkpoint configuration shared across training components."""
-
-    checkpoint_interval: int = Field(default=30, ge=0)
-    remote_prefix: str | None = Field(default=None)
-
-
 class CheckpointerConfig(Config):
     """Configuration for policy checkpointing."""
 
-    epoch_interval: int = 100
-    """How often to save policy checkpoints (in epochs)."""
+    epoch_interval: int = Field(default=30, ge=0)  # How often to save policy checkpoints (in epochs)
 
 
 class Checkpointer(TrainerComponent):
