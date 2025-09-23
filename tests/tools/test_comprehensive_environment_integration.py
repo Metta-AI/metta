@@ -245,8 +245,9 @@ class TestComprehensiveEnvironmentIntegration:
                 f"Environment {env_name} should have exactly 2 agents, but has {env_config.game.num_agents}"
             )
             # Also check map_builder agent count matches
-            if hasattr(env_config.game.map_builder, "agents"):
-                assert env_config.game.map_builder.agents == 2, f"Map builder for {env_name} should configure 2 agents"
+            map_builder_agents = getattr(env_config.game.map_builder, "agents", None)
+            if map_builder_agents is not None:
+                assert map_builder_agents == 2, f"Map builder for {env_name} should configure 2 agents"
 
     @pytest.mark.slow
     @pytest.mark.parametrize(

@@ -12,8 +12,7 @@ from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.evaluator import EvaluatorConfig
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
