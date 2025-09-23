@@ -477,7 +477,6 @@ export class ServerRepo implements Repo {
 
   async getEvalTasks(search?: string): Promise<EvalTask[]> {
     const params = new URLSearchParams()
-    params.append('limit', '500')
     if (search) {
       params.append('search', search)
     }

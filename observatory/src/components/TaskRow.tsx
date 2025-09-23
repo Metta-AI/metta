@@ -8,7 +8,7 @@ import {
   getWorkerColor,
   truncateWorkerName,
   getGithubUrl,
-} from '../utils/evalTasks'
+} from '../utils/evalTasksUtils'
 
 interface TaskRowProps {
   task: EvalTask

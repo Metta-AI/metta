@@ -1,3 +1,5 @@
+import { Repo } from "../repo"
+
 export type SortField =
   | 'policy_name'
   | 'sim_suite'
@@ -12,7 +14,7 @@ export type SortField =
 export type SortDirection = 'asc' | 'desc'
 
 export interface EvalTasksProps {
-  repo: any // Repo type from repo.ts
+  repo: Repo
 }
 
 export interface SortHeaderProps {

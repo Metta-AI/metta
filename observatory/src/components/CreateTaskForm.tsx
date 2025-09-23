@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { EvalTask } from '../repo'
 import TypeaheadInput from './TypeaheadInput'
-import { getRecentPolicies, getRecentSimSuites } from '../utils/evalTasks'
+import { getRecentPolicies, getRecentSimSuites } from '../utils/evalTasksUtils'
 
 interface CreateTaskFormProps {
   repo: any

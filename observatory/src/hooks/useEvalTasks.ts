@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
-import { EvalTask } from '../repo'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { EvalTask, Repo } from '../repo'
 import { SortField, SortDirection } from '../types/evalTasks'
-import { sortTasks } from '../utils/evalTasks'
+import { sortTasks } from '../utils/evalTasksUtils'
 
-export const useEvalTasks = (repo: any) => {
+export const useEvalTasks = (repo: Repo) => {
   const [tasks, setTasks] = useState<EvalTask[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -13,27 +13,85 @@ export const useEvalTasks = (repo: any) => {
   const [completedSortDirection, setCompletedSortDirection] = useState<SortDirection>('desc')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
+  // Refs for debouncing and cancellation
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
   const loadTasks = useCallback(
     async (search?: string) => {
+      // Cancel previous request if it exists
+      if (abortControllerRef.current) {
+        console.log('Aborting previous request')
+        abortControllerRef.current.abort()
+      }
+
+      // Create new abort controller for this request
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+
       setLoading(true)
       try {
         const tasks = await repo.getEvalTasks(search)
-        setTasks(tasks)
-        setError(null)
+
+        // Only update state if the request wasn't aborted
+        if (!abortController.signal.aborted) {
+          setTasks(tasks)
+          setError(null)
+        }
       } catch (err: any) {
+        // Ignore abort errors (they're expected when cancelling)
+        if (err.name === 'AbortError') {
+          return
+        }
+
         console.error('Failed to load tasks:', err)
-        setError(err.message || 'Failed to load tasks')
+        if (!abortController.signal.aborted) {
+          setError(err.message || 'Failed to load tasks')
+        }
       } finally {
-        setLoading(false)
+        // Only update loading state if not aborted
+        if (!abortController.signal.aborted) {
+          setLoading(false)
+        }
       }
     },
     [repo]
+  )
+
+  // Debounced version of loadTasks
+  const debouncedLoadTasks = useCallback(
+    (search?: string, delay: number = 300) => {
+      // Clear previous debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+
+      // Set new debounce timer
+      debounceTimerRef.current = setTimeout(() => {
+        loadTasks(search)
+      }, delay)
+    },
+    [loadTasks]
   )
 
   // Initial load
   useEffect(() => {
     loadTasks()
   }, [loadTasks])
+
+  // Cleanup: abort any pending requests and clear timers on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        console.log('Aborting request')
+        abortControllerRef.current.abort()
+      }
+      if (debounceTimerRef.current) {
+        console.log('Clearing debounce timer')
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
 
   const handleSort = useCallback((field: SortField, isActive: boolean) => {
     if (isActive) {
@@ -60,6 +118,7 @@ export const useEvalTasks = (repo: any) => {
   // Filter and sort tasks
   const activeTasks = tasks.filter((t) => t.status === 'unprocessed')
   const historyTasks = tasks.filter((t) => t.status !== 'unprocessed')
+
   const sortedActiveTasks = sortTasks(activeTasks, activeSortField, activeSortDirection)
   const sortedHistoryTasks = sortTasks(historyTasks, completedSortField, completedSortDirection)
 
@@ -72,7 +131,7 @@ export const useEvalTasks = (repo: any) => {
     completedSortField,
     completedSortDirection,
     expandedRows,
-    loadTasks,
+    loadTasks: debouncedLoadTasks,
     handleSort,
     toggleRowExpansion,
     activeTasks,

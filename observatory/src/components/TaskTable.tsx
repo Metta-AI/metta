@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { EvalTask } from '../repo'
 import { SortField, SortDirection } from '../types/evalTasks'
 import { SortHeader } from './SortHeader'
@@ -27,6 +27,8 @@ export const TaskTable: React.FC<TaskTableProps> = ({
   completedSortField,
   completedSortDirection,
 }) => {
+  const [isTableExpanded, setIsTableExpanded] = useState(false)
+
   const getSortProps = () => ({
     onSort,
     activeSortField,
@@ -34,6 +36,9 @@ export const TaskTable: React.FC<TaskTableProps> = ({
     completedSortField,
     completedSortDirection,
   })
+
+  const displayTasks = isTableExpanded ? tasks : tasks.slice(0, 5)
+  const hasMoreTasks = tasks.length > 5
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -64,7 +69,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
           </tr>
         </thead>
         <tbody>
-          {tasks.map((task) => (
+          {displayTasks.map((task) => (
             <TaskRow
               key={task.id}
               task={task}
@@ -78,9 +83,57 @@ export const TaskTable: React.FC<TaskTableProps> = ({
           ))}
         </tbody>
       </table>
+
       {tasks.length === 0 && (
         <div style={{ padding: '20px', textAlign: 'center', color: '#6c757d' }}>
           {isActive ? 'No active tasks' : 'No task history'}
+        </div>
+      )}
+
+      {hasMoreTasks && (
+        <div
+          style={{
+            padding: '16px',
+            textAlign: 'center',
+            borderTop: '1px solid #e8e8e8',
+            backgroundColor: '#f8f9fa',
+          }}
+        >
+          <button
+            onClick={() => setIsTableExpanded(!isTableExpanded)}
+            style={{
+              background: 'none',
+              border: '1px solid #007bff',
+              color: '#007bff',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              margin: '0 auto',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#007bff'
+              e.currentTarget.style.color = 'white'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.color = '#007bff'
+            }}
+          >
+            <span
+              style={{
+                transform: isTableExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+              }}
+            >
+              ▼
+            </span>
+            {isTableExpanded ? `Show Less (${tasks.length} total)` : `Show More (${tasks.length - 5} more)`}
+          </button>
         </div>
       )}
     </div>

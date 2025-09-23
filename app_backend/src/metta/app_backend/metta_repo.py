@@ -698,6 +698,15 @@ MIGRATIONS = [
             """CREATE INDEX idx_policies_name_ilike ON policies(name text_pattern_ops)""",
         ],
     ),
+    SqlMigration(
+        version=27,
+        description="Add git_hash search index for eval_tasks",
+        sql_statements=[
+            # Add index for git_hash search in attributes JSONB
+            """CREATE INDEX idx_eval_tasks_git_hash_ilike
+               ON eval_tasks((attributes->>'git_hash') text_pattern_ops)""",
+        ],
+    ),
 ]
 
 logger = logging.getLogger(name="metta_repo")
@@ -1573,17 +1582,18 @@ class MettaRepo:
                 params.extend(sim_suites)
 
             if search:
-                # Search across policy name, sim suite, assignee, and user_id
+                # Search across policy name, sim suite, assignee, user_id, and git_hash
                 search_conditions = [
                     "p.name ILIKE %s",
                     "et.sim_suite ILIKE %s",
                     "et.assignee ILIKE %s",
                     "et.user_id ILIKE %s",
+                    "et.attributes->>'git_hash' ILIKE %s",
                 ]
                 search_pattern = f"%{search}%"
                 search_clause = " OR ".join(search_conditions)
                 where_conditions.append(f"({search_clause})")
-                params.extend([search_pattern] * 4)
+                params.extend([search_pattern] * 5)
 
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"  # TODO: fix this
             params.append(limit)
