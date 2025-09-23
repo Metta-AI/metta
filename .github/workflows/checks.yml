@@ -245,6 +245,9 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
+      - name: Run broken test
+        run: uv run pytest -n0 tests/test_pufferlib_integration.py
+
       - name: Run all package tests
         shell: bash
         run: .github/scripts/run_package_tests.sh
