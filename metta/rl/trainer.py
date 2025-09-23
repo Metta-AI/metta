@@ -141,6 +141,9 @@ class Trainer:
             context=self._context,
         )
 
+        self._losses = losses
+        self._context.losses = losses
+
         for loss in losses.values():
             loss.attach_context(self._context)
 

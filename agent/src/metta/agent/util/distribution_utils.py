@@ -16,59 +16,18 @@ _CURRENT_SAMPLE_IMPL: Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]] 
 _CURRENT_EVAL_IMPL: Callable[[Tensor, Tensor], Tuple[Tensor, Tensor, Tensor]] | None = None
 
 
-def _stable_action_distribution(action_logits: Tensor) -> Tuple[Tensor, Tensor]:
-    """Return numerically-stable action probabilities and log-probabilities."""
+def _action_distribution(action_logits: Tensor) -> Tuple[Tensor, Tensor]:
+    """Return action probabilities and log-probabilities computed from logits."""
 
-    illegal_mask = torch.isneginf(action_logits)
-    non_masked_nonfinite = (~torch.isfinite(action_logits)) & (~illegal_mask)
-
-    safe_logits = torch.where(non_masked_nonfinite, torch.zeros_like(action_logits), action_logits)
-
-    full_log_probs = F.log_softmax(safe_logits, dim=-1)
+    full_log_probs = F.log_softmax(action_logits, dim=-1)
     action_probs = torch.exp(full_log_probs)
-
-    probs_sum = torch.sum(action_probs, dim=-1, keepdim=True)
-    sum_invalid = (~torch.isfinite(probs_sum)) | (probs_sum <= 0)
-
-    if bool(sum_invalid.any()):
-        num_actions = action_probs.shape[-1]
-        valid_mask = ~illegal_mask
-
-        valid_counts = torch.sum(valid_mask, dim=-1, keepdim=True)
-        valid_counts_clamped = torch.clamp(valid_counts, min=1)
-        valid_counts_float = valid_counts_clamped.to(action_probs.dtype)
-
-        fallback_valid = torch.where(
-            valid_mask,
-            1.0 / valid_counts_float,
-            torch.zeros_like(action_probs),
-        )
-
-        uniform_all = action_probs.new_full(action_probs.shape, 1.0 / float(num_actions))
-        has_valid = valid_counts > 0
-
-        fallback_probs = torch.where(has_valid, fallback_valid, uniform_all)
-
-        expanded_sum_invalid = sum_invalid.expand_as(action_probs)
-        action_probs = torch.where(expanded_sum_invalid, fallback_probs, action_probs)
-
-        expanded_has_valid = has_valid.expand_as(action_probs)
-        zero_tensor = torch.zeros_like(action_probs)
-        action_probs = torch.where(expanded_has_valid & illegal_mask, zero_tensor, action_probs)
-
-        row_sum = torch.sum(action_probs, dim=-1, keepdim=True)
-        row_sum = torch.where(row_sum > 0, row_sum, torch.ones_like(row_sum))
-        action_probs = action_probs / row_sum
-
-        full_log_probs = torch.log(action_probs)
-
     return action_probs, full_log_probs
 
 
 def _sample_actions_eager(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Eager-mode implementation of action sampling."""
 
-    action_probs, full_log_probs = _stable_action_distribution(action_logits)
+    action_probs, full_log_probs = _action_distribution(action_logits)
     actions = torch.multinomial(action_probs, num_samples=1).view(-1)
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
     act_log_prob = full_log_probs[batch_indices, actions]
@@ -79,7 +38,7 @@ def _sample_actions_eager(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor
 def _evaluate_actions_eager(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
     """Eager-mode implementation of action likelihood evaluation."""
 
-    action_probs, action_log_probs = _stable_action_distribution(action_logits)
+    action_probs, action_log_probs = _action_distribution(action_logits)
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
     log_probs = action_log_probs[batch_indices, actions]
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)
@@ -89,7 +48,8 @@ def _evaluate_actions_eager(action_logits: Tensor, actions: Tensor) -> Tuple[Ten
 def _resolve_compiled_sampler(
     mode: str,
 ) -> Tuple[
-    Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]], Callable[[Tensor, Tensor], Tuple[Tensor, Tensor, Tensor]]
+    Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]],
+    Callable[[Tensor, Tensor], Tuple[Tensor, Tensor, Tensor]],
 ]:
     """Return (and memoize) compiled sampling implementations for the requested mode."""
 

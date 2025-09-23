@@ -179,14 +179,15 @@ class TestTrainingRunsRoutes:
 
         episode_ids = []
         for policy, epoch, eval_name, metrics, attributes in all_episodes:
+            sim_suite, env_name = eval_name.split("/")
             policy_name = policy_names[policy.id]
             episode = stats_client.record_episode(
                 agent_policies={0: policy.id},
                 agent_metrics={0: metrics},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                sim_name=eval_name,
-                env_label="test_env",
+                sim_suite=sim_suite,
+                env_name=env_name,
                 replay_url=f"https://replay.example.com/{policy_name}/{eval_name.replace('/', '_')}",
                 attributes=attributes,
             )
