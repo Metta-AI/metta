@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
  * Library Sidebar Component
  *
  * This component recreates the left-hand navigation sidebar from the original observatory app.
- * It provides navigation between different views: Feed, Papers, Authors, Institutions, and Me.
+ * It provides navigation between different views: Feed, Papers, Authors, Institutions, Groups, and Me.
  * Uses simplified gray outline icons as per user preferences.
  */
 
@@ -98,6 +98,27 @@ const navigationItems = [
     ),
   },
   {
+    id: "groups",
+    label: "Groups",
+    href: "/groups",
+    icon: (
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        suppressHydrationWarning
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+        />
+      </svg>
+    ),
+  },
+  {
     id: "me",
     label: "Me",
     href: "/me",
@@ -129,6 +150,7 @@ const navigationItems = [
 function getActiveNavFromPath(pathname: string): string {
   if (pathname.includes("/authors")) return "authors";
   if (pathname.includes("/institutions")) return "institutions";
+  if (pathname.includes("/groups")) return "groups";
   if (pathname.includes("/papers")) return "papers";
 
   if (pathname.includes("/me")) return "me";

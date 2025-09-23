@@ -21,6 +21,8 @@ model User {
   userPaperInteractions UserPaperInteraction[]
   userInstitutions      UserInstitution[]
   createdInstitutions   Institution[]
+  userGroups            UserGroup[]
+  createdGroups         Group[]
 
   @@map("user")
 }
@@ -232,6 +234,34 @@ model PaperInstitution {
 
   @@unique([paperId, institutionId])
   @@map("paper_institution")
+}
+
+model Group {
+  id              String      @id @default(cuid())
+  name            String      @unique
+  description     String?
+  isPublic        Boolean     @default(true) // Public groups can be discovered, private are invite-only
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @default(now()) @updatedAt
+  createdByUserId String?
+  userGroups      UserGroup[]
+  createdBy       User?       @relation(fields: [createdByUserId], references: [id])
+
+  @@map("group")
+}
+
+model UserGroup {
+  id       String   @id @default(cuid())
+  userId   String
+  groupId  String
+  role     String?  @default("member") // admin, member
+  joinedAt DateTime @default(now())
+  isActive Boolean  @default(true)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@map("user_group")
 }
 
 enum InstitutionType {
