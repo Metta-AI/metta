@@ -85,7 +85,11 @@ def build_wandb_payload(
 
     _update(overview, prefix="overview/")
     _update(processed_stats.get("losses_stats", {}), prefix="losses/")
-    _update(processed_stats.get("experience_stats", {}), prefix="experience/")
+
+    # Get experience stats and compute area under reward
+    experience_stats = processed_stats.get("experience_stats", {})
+    _update(experience_stats, prefix="experience/")
+
     _update(processed_stats.get("environment_stats", {}))
     _update(parameters, prefix="parameters/")
     _update(hyperparameters, prefix="hyperparameters/")
@@ -126,6 +130,8 @@ class StatsReporterState(Config):
     grad_stats: dict = Field(default_factory=dict)
     eval_scores: EvalRewardSummary = Field(default_factory=EvalRewardSummary)
     stats_run_id: Optional[UUID] = None
+    area_under_reward: float = 0.0
+    """Cumulative area under the reward curve"""
 
 
 class NoOpStatsReporter(TrainerComponent):
@@ -254,6 +260,13 @@ class StatsReporter(TrainerComponent):
                 timer=timer,
                 optimizer=optimizer,
             )
+
+            # Update area under reward curve
+            # Uses the current reward value and accumulates it over time
+            if "experience/rewards" in payload:
+                # Assuming each epoch represents a fixed time interval
+                self._state.area_under_reward += payload["experience/rewards"]
+                payload["experience/area_under_reward"] = self._state.area_under_reward
 
             if self._wandb_run and self._config.report_to_wandb and payload:
                 self._wandb_run.log(payload, step=agent_step)
