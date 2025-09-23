@@ -115,8 +115,7 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
             logger.debug(f"Skipping incompatible parameter: {key}")
 
     if shape_mismatches:
-        truncated = shape_mismatches[:5] + (["..."] if len(shape_mismatches) > 5 else [])
-        logger.warning(f"Found {len(shape_mismatches)} shape mismatches: {truncated}")
+        logger.warning(f"Found mismatches for {len(shape_mismatches)} parameters")
 
     logger.info(f"Loaded {keys_matched}/{len(state_dict)} compatible parameters")
 
