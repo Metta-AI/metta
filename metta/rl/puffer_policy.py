@@ -332,7 +332,7 @@ class PufferLibCompatiblePolicy(Policy):
         actions_tensor = torch.stack(actions, dim=-1)  # [batch_size, num_action_heads]
 
         td["actions"] = actions_tensor
-        # Don't store action_probs as list - just store actions
+        td["action_probs"] = torch.tensor(action_probs)
         td["values"] = value.flatten()
 
         return td
