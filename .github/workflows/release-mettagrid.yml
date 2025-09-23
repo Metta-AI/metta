@@ -101,7 +101,6 @@ jobs:
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
           CI: "true"
-          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ env.METTAGRID_RELEASE_TAG != '' && replace(env.METTAGRID_RELEASE_TAG, 'mettagrid-v', '') || null }}
         with:
           package-dir: packages/mettagrid
           output-dir: wheelhouse
