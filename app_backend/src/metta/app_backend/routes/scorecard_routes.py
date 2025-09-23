@@ -160,7 +160,7 @@ class PolicyEvaluationResult:
 UNIFIED_POLICIES_QUERY = """SELECT * FROM unified_training_runs ORDER BY created_at DESC"""
 
 GET_EVALS_QUERY = """
-    SELECT DISTINCT eval_category || '/' || env_name as eval_name
+    SELECT DISTINCT eval_name
     FROM wide_episodes
     WHERE (
         training_run_id = ANY(%s) OR  -- Policies from selected training runs
@@ -176,7 +176,7 @@ GET_AVAILABLE_METRICS_QUERY = """
         we.training_run_id = ANY(%s) OR  -- Policies from selected training runs
         (we.training_run_id IS NULL AND we.primary_policy_id = ANY(%s))  -- Selected run-free policies
     )
-    AND (we.eval_category || '/' || we.env_name) = ANY(%s)
+    AND we.eval_name = ANY(%s)
     ORDER BY eam.metric
 """
 
@@ -207,7 +207,7 @@ POLICY_SCORECARD_DATA_QUERY = """
         (we.primary_policy_id = ANY(%s))  -- Selected policies
     )
     AND eam.metric = %s
-    AND (we.eval_category || '/' || we.env_name) = ANY(%s)
+    AND we.eval_name = ANY(%s)
     GROUP BY we.primary_policy_id, we.policy_name, we.eval_category, we.env_name, we.training_run_id,
         we.epoch_end_training_epoch
     ORDER BY we.policy_name, we.eval_category, we.env_name

@@ -363,17 +363,39 @@ def make_full_sequence_env() -> MettaGridConfig:
 def make_object_use_eval_suite() -> list[SimulationConfig]:
     """Create the full object use evaluation suite."""
     return [
-        SimulationConfig(name="altar_use_free", env=make_altar_use_free_env()),
-        SimulationConfig(name="armory_use_free", env=make_armory_use_free_env()),
-        SimulationConfig(name="armory_use", env=make_armory_use_env()),
-        SimulationConfig(name="generator_use_free", env=make_generator_use_free_env()),
-        SimulationConfig(name="generator_use", env=make_generator_use_env()),
-        SimulationConfig(name="lasery_use_free", env=make_lasery_use_free_env()),
-        SimulationConfig(name="lasery_use", env=make_lasery_use_env()),
-        SimulationConfig(name="mine_use", env=make_mine_use_env()),
-        SimulationConfig(name="shoot_out", env=make_shoot_out_env()),
-        SimulationConfig(name="swap_in", env=make_swap_in_env()),
-        SimulationConfig(name="swap_out", env=make_swap_out_env()),
-        SimulationConfig(name="temple_use_free", env=make_temple_use_free_env()),
-        SimulationConfig(name="full_sequence", env=make_full_sequence_env()),
+        SimulationConfig(
+            suite="object_use", name="altar_use_free", env=make_altar_use_free_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="armory_use_free", env=make_armory_use_free_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="armory_use", env=make_armory_use_env()
+        ),
+        SimulationConfig(
+            suite="object_use",
+            name="generator_use_free",
+            env=make_generator_use_free_env(),
+        ),
+        SimulationConfig(
+            suite="object_use", name="generator_use", env=make_generator_use_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="lasery_use_free", env=make_lasery_use_free_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="lasery_use", env=make_lasery_use_env()
+        ),
+        SimulationConfig(suite="object_use", name="mine_use", env=make_mine_use_env()),
+        SimulationConfig(
+            suite="object_use", name="shoot_out", env=make_shoot_out_env()
+        ),
+        SimulationConfig(suite="object_use", name="swap_in", env=make_swap_in_env()),
+        SimulationConfig(suite="object_use", name="swap_out", env=make_swap_out_env()),
+        SimulationConfig(
+            suite="object_use", name="temple_use_free", env=make_temple_use_free_env()
+        ),
+        SimulationConfig(
+            suite="object_use", name="full_sequence", env=make_full_sequence_env()
+        ),
     ]
