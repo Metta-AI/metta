@@ -243,7 +243,7 @@ class StatsReporter(TrainerComponent):
         policy: Any,
         timer: Timer | None,
         trainer_cfg: Any,
-        optimizer: torch.optim.Optimizer | None,
+        optimizer: torch.optim.Optimizer,
     ) -> None:
         timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
@@ -400,7 +400,7 @@ class StatsReporter(TrainerComponent):
         agent_step: int,
         epoch: int,
         timer: Any,
-        optimizer: torch.optim.Optimizer | None,
+        optimizer: torch.optim.Optimizer,
     ) -> dict[str, float]:
         """Convert collected stats into a flat wandb payload."""
 

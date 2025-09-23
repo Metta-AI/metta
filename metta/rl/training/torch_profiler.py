@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import tempfile
+from pathlib import Path
 from typing import Any, Optional
 
 import torch.profiler
@@ -27,7 +28,7 @@ class TorchProfileSession:
         master: bool,
         profiler_config: Any,
         wandb_run: WandbRun | None,
-        run_dir: str | None,
+        run_dir: Path | None,
     ) -> None:
         self._master = master
         self._profiler_config = profiler_config
@@ -145,7 +146,7 @@ class TorchProfiler(TrainerComponent):
         *,
         profiler_config: Any,
         wandb_run: Optional[WandbRun] = None,
-        run_dir: Optional[str] = None,
+        run_dir: Optional[Path] = None,
         is_master: bool = True,
     ) -> None:
         interval = getattr(profiler_config, "interval_epochs", 0)
