@@ -14,7 +14,7 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-def _is_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
+def _is_puffer_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
     """Check if object is a PufferLib state_dict."""
     if not isinstance(loaded_obj, dict) or not loaded_obj:
         return False
@@ -169,5 +169,5 @@ class PufferLibCheckpoint:
 
     def is_pufferlib_format(self, checkpoint_data: Any) -> bool:
         """Check if checkpoint data is in PufferLib format."""
-        return _is_state_dict(checkpoint_data)
+        return _is_puffer_state_dict(checkpoint_data)
 

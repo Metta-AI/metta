@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.rl.pufferlib_checkpoint import PufferLibCheckpoint, _is_state_dict
+from metta.rl.pufferlib_checkpoint import PufferLibCheckpoint, _is_puffer_state_dict
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -138,7 +138,7 @@ def _load_checkpoint_file(path: str, device: str | torch.device):
     try:
         checkpoint_data = torch.load(path, weights_only=False, map_location=device)
 
-        if _is_state_dict(checkpoint_data):
+        if _is_puffer_state_dict(checkpoint_data):
             return PufferLibCheckpoint().load_checkpoint(checkpoint_data, device)
 
         return checkpoint_data
