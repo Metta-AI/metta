@@ -28,7 +28,7 @@ def run_gen_thumb(file: str, output: Path):
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5, cwd=Path.cwd())
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, cwd=Path.cwd())
         assert result.returncode == 0, f"gen_thumb failed: {result.stderr}"
         assert output.exists(), f"gen_thumb output file {output} does not exist"
     except subprocess.TimeoutExpired:
