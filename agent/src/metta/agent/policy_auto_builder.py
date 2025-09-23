@@ -31,6 +31,13 @@ class PolicyAutoBuilder(nn.Module):
         super().__init__()
         self.config = config
 
+        if torch.cuda.is_available():
+            try:
+                torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
+                torch.set_float32_matmul_precision("high")
+            except AttributeError:
+                pass
+
         self.components = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
@@ -42,6 +49,17 @@ class PolicyAutoBuilder(nn.Module):
 
         self.network = TensorDictSequential(self.components, inplace=True)
 
+        self._autocast_enabled = getattr(self.config, "enable_autocast", False)
+        self._autocast_dtype = getattr(self.config, "autocast_dtype", torch.bfloat16)
+
+        self._runner = self._run_network
+        if getattr(self.config, "compile_policy", False) and hasattr(torch, "compile"):
+            compile_kwargs = {
+                "mode": getattr(self.config, "compile_mode", "default"),
+                "dynamic": getattr(self.config, "compile_dynamic", True),
+            }
+            self._runner = torch.compile(self._runner, **compile_kwargs)
+
         # PyTorch's nn.Module no longer exposes count_params(); defer to manual
         # aggregation to avoid AttributeError during policy construction.
         self._total_params = sum(
@@ -51,10 +69,28 @@ class PolicyAutoBuilder(nn.Module):
         )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
-        self.network(td)
-        self.action_probs(td, action)
+        try:
+            param_device = next(self.parameters()).device
+        except StopIteration:
+            param_device = torch.device("cpu")
+        device_type = param_device.type
+        if self._autocast_enabled and device_type == "cuda":
+            autocast_dtype = self._autocast_dtype
+            try:
+                with torch.autocast(device_type=device_type, dtype=autocast_dtype):
+                    self._runner(td, action)
+            except RuntimeError as err:
+                logger.warning("Disabling autocast after failure: %s", err)
+                self._autocast_enabled = False
+                self._runner(td, action)
+        else:
+            self._runner(td, action)
         td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td
+
+    def _run_network(self, td: TensorDict, action: torch.Tensor = None) -> None:
+        self.network(td)
+        self.action_probs(td, action)
 
     def initialize_to_environment(
         self,

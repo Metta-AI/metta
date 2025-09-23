@@ -1,5 +1,3 @@
-from typing import Dict
-
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -57,22 +55,25 @@ class LSTM(nn.Module):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
-        self.lstm_h: Dict[int, torch.Tensor] = {}
-        self.lstm_c: Dict[int, torch.Tensor] = {}
+        self._state_capacity = 0
+        self._h_buffer: torch.Tensor
+        self._c_buffer: torch.Tensor
+        self.register_buffer("_h_buffer", torch.zeros(0, dtype=torch.float32), persistent=False)
+        self.register_buffer("_c_buffer", torch.zeros(0, dtype=torch.float32), persistent=False)
 
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
         self.__dict__.update(state)
         # Reset hidden states when loading from checkpoint to avoid batch size mismatch
-        if not hasattr(self, "lstm_h"):
-            self.lstm_h = {}
-        if not hasattr(self, "lstm_c"):
-            self.lstm_c = {}
-        # Clear any existing states to handle batch size mismatches
-        self.lstm_h.clear()
-        self.lstm_c.clear()
+        if not hasattr(self, "_state_capacity"):
+            self._state_capacity = 0
+        if not hasattr(self, "_h_buffer"):
+            self.register_buffer("_h_buffer", torch.zeros(0, dtype=torch.float32), persistent=False)
+        if not hasattr(self, "_c_buffer"):
+            self.register_buffer("_c_buffer", torch.zeros(0, dtype=torch.float32), persistent=False)
+        self._state_capacity = 0
+        self.reset_memory()
 
-    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict):
         latent = td[self.in_key]
 
@@ -95,30 +96,28 @@ class LSTM(nn.Module):
 
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is not None:
-            flat_env_ids = training_env_ids.reshape(-1)
+            flat_env_ids = training_env_ids.reshape(-1).to(torch.long)
         else:
-            flat_env_ids = torch.arange(B, device=latent.device)
+            flat_env_ids = torch.arange(B, device=latent.device, dtype=torch.long)
 
-        training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
+        self._ensure_state_capacity(int(flat_env_ids.max().item()) + 1 if flat_env_ids.numel() else 0, latent)
 
-        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
-            h_0 = self.lstm_h[training_env_id_start]
-            c_0 = self.lstm_c[training_env_id_start]
-            # reset the hidden state if the episode is done or truncated
-            dones = td.get("dones", None)
-            truncateds = td.get("truncateds", None)
-            if dones is not None and truncateds is not None:
-                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
-                h_0 = h_0.masked_fill(reset_mask, 0)
-                c_0 = c_0.masked_fill(reset_mask, 0)
-        else:
-            h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
-            c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
+        h_0 = self._h_buffer[:, flat_env_ids].to(latent.dtype)
+        c_0 = self._c_buffer[:, flat_env_ids].to(latent.dtype)
+
+        # reset the hidden state if the episode is done or truncated
+        dones = td.get("dones", None)
+        truncateds = td.get("truncateds", None)
+        if dones is not None and truncateds is not None:
+            reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+            h_0 = h_0.masked_fill(reset_mask, 0)
+            c_0 = c_0.masked_fill(reset_mask, 0)
 
         hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
 
-        self.lstm_h[training_env_id_start] = h_n.detach()
-        self.lstm_c[training_env_id_start] = c_n.detach()
+        with torch.no_grad():
+            self._h_buffer[:, flat_env_ids] = h_n.detach().to(self._h_buffer.dtype)
+            self._c_buffer[:, flat_env_ids] = c_n.detach().to(self._c_buffer.dtype)
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
@@ -127,12 +126,33 @@ class LSTM(nn.Module):
         return td
 
     def get_memory(self):
-        return self.lstm_h, self.lstm_c
+        return self._h_buffer, self._c_buffer
 
     def set_memory(self, memory):
         """Cannot be called at the MettaAgent level - use policy.component[this_layer_name].set_memory()"""
-        self.lstm_h, self.lstm_c = memory[0], memory[1]
+        self._h_buffer = memory[0]
+        self._c_buffer = memory[1]
+        self._state_capacity = self._h_buffer.shape[1] if self._h_buffer.ndim > 1 else 0
 
     def reset_memory(self):
-        self.lstm_h.clear()
-        self.lstm_c.clear()
+        if self._state_capacity == 0:
+            return
+        self._h_buffer.zero_()
+        self._c_buffer.zero_()
+
+    def _ensure_state_capacity(self, capacity: int, reference: torch.Tensor) -> None:
+        if capacity <= self._state_capacity:
+            return
+
+        device = reference.device
+        dtype = reference.dtype
+        new_h = torch.zeros(self.num_layers, capacity, self.hidden_size, device=device, dtype=dtype)
+        new_c = torch.zeros_like(new_h)
+
+        if self._state_capacity > 0:
+            new_h[:, : self._state_capacity] = self._h_buffer.to(device=device, dtype=dtype)
+            new_c[:, : self._state_capacity] = self._c_buffer.to(device=device, dtype=dtype)
+
+        self._h_buffer = new_h
+        self._c_buffer = new_c
+        self._state_capacity = capacity
