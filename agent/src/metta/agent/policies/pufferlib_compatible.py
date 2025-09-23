@@ -93,16 +93,21 @@ class PufferLibCompatiblePolicy(Policy):
         action_nvec = self.env.single_action_space.nvec
         self.actor = nn.ModuleList(
             [
-                nn.Linear(256, n)
+                nn.Linear(512, n)  # LSTM outputs 512, not 256
                 for n in action_nvec
             ]
         )
-        self.value = nn.Linear(256, 1)
+        self.value = nn.Linear(512, 1)  # LSTM outputs 512, not 256
 
 
 
-        # # LSTM with 512 hidden size to match PufferLib
-        self.lstm = LSTM(config=self.config.lstm_config)
+        # Direct LSTM to match PufferLib exactly (bypass Metta LSTM component)
+        self.lstm = nn.LSTM(
+            input_size=512,  # 256 (self) + 256 (cnn) = 512
+            hidden_size=512,  # Match PufferLib LSTM hidden size
+            num_layers=1,
+            batch_first=True
+        )
 
     def encode_observations(
         self, observations: torch.Tensor, state=None
@@ -155,8 +160,16 @@ class PufferLibCompatiblePolicy(Policy):
         max_vec_device = self.max_vec.to(box_obs.device)
         features = box_obs / (max_vec_device + 1e-8)
 
-        self_features = self.self_encoder(features)
+        # Self encoder processes aggregated per-channel features (sum across spatial dimensions)
+        # Shape: [B, num_layers=24] -> [B, 256]
+        self_input = features.sum(dim=(-2, -1))  # Sum across height and width dimensions
+        self_features = self.self_encoder(self_input)
+
+        # CNN processes spatial features normally
+        # Shape: [B, 24, H, W] -> [B, 256]
         cnn_features = self.network(features)
+
+        # Concatenate self and CNN features: [B, 256] + [B, 256] = [B, 512]
         result = torch.cat([self_features, cnn_features], dim=1)
         return result
     
@@ -171,15 +184,36 @@ class PufferLibCompatiblePolicy(Policy):
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        
+
         observations = td["env_obs"]
         hidden = self.encode_observations(observations)
-        hidden = self.lstm(hidden)
+
+        # Add sequence dimension for LSTM: [B, 512] -> [B, 1, 512]
+        hidden = hidden.unsqueeze(1)
+
+        # Pass through LSTM: [B, 1, 512] -> [B, 1, 512]
+        lstm_out, _ = self.lstm(hidden)
+
+        # Remove sequence dimension: [B, 1, 512] -> [B, 512]
+        hidden = lstm_out.squeeze(1)
+
+        # Decode actions and value
         logits, value = self.decode_actions(hidden)
 
-        td["action_probs"] = logits
+        # Convert logits to actions by sampling from categorical distributions
+        actions = []
+        for logit_tensor in logits:
+            action_probs = torch.softmax(logit_tensor, dim=-1)
+            action = torch.multinomial(action_probs, num_samples=1).squeeze(-1)
+            actions.append(action)
+
+        # Stack all action components into a single tensor
+        actions_tensor = torch.stack(actions, dim=-1)  # [batch_size, num_action_heads]
+
+        td["actions"] = actions_tensor
+        # Don't store action_probs as list - just store actions
         td["values"] = value.flatten()
-        
+
 
         return td
 
@@ -216,6 +250,5 @@ class PufferLibCompatiblePolicy(Policy):
 
     def reset_memory(self):
         """Reset policy memory/state if any."""
-        # Reset LSTM state if it has one
-        if hasattr(self.lstm, "reset_memory"):
-            self.lstm.reset_memory()
+        # PyTorch LSTM doesn't need explicit memory reset (stateless by default)
+        pass
