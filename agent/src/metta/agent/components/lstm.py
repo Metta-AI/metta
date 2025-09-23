@@ -96,13 +96,10 @@ class LSTM(nn.Module):
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is not None:
             flat_env_ids = training_env_ids.reshape(-1)
-            training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
         else:
-            training_env_id = td.get("training_env_id", None)
-            if training_env_id is None:
-                training_env_id_start = 0
-            else:
-                training_env_id_start = training_env_id.reshape(-1)[0].item()  # av remove "start" aspects
+            flat_env_ids = torch.arange(B, device=latent.device)
+
+        training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
 
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]
