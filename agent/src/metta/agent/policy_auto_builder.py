@@ -1,6 +1,5 @@
 import logging
 from collections import OrderedDict
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -43,10 +42,6 @@ class PolicyAutoBuilder(nn.Module):
 
         self.network = TensorDictSequential(self.components, inplace=True)
 
-        self._autocast_enabled = getattr(self.config, "enable_autocast", False)
-        self._autocast_dtype = getattr(self.config, "autocast_dtype", torch.bfloat16)
-        self._device_type: Optional[str] = None
-
         self._runner = self._run_network
         if getattr(self.config, "compile_policy", False) and hasattr(torch, "compile"):
             compile_kwargs = {
@@ -64,16 +59,7 @@ class PolicyAutoBuilder(nn.Module):
         )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
-        device_type = self._device_type
-        if device_type is None:
-            param_device = next(self.parameters()).device
-            device_type = param_device.type
-        if self._autocast_enabled and device_type == "cuda":
-            autocast_dtype = self._autocast_dtype
-            with torch.autocast(device_type=device_type, dtype=autocast_dtype):
-                self._runner(td, action)
-        else:
-            self._runner(td, action)
+        self._runner(td, action)
         td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td
 
@@ -87,8 +73,8 @@ class PolicyAutoBuilder(nn.Module):
         device: torch.device,
     ):
         self.to(device)
-        self._device_type = device.type
-        if self._device_type == "cuda":
+        device_type = device.type
+        if device_type == "cuda":
             torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
             torch.set_float32_matmul_precision("high")
         logs = []

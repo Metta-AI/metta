@@ -1,8 +1,6 @@
 import logging
 from typing import List
 
-import torch
-
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -72,8 +70,6 @@ class ViTDefaultConfig(ViTSmallConfig):
     _lstm_latent = 96
     _critic_hidden = 256
 
-    enable_autocast: bool = True
-    autocast_dtype: torch.dtype = torch.bfloat16
     compile_policy: bool = True
     compile_dynamic: bool = True
     compile_mode: str = "max-autotune"
