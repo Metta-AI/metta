@@ -69,16 +69,6 @@ public:
     return true;
   }
 
-  // Removes an object from the grid and gives ownership of the object to the caller.
-  // Since the caller is now the owner, this can make the raw pointer invalid, if the
-  // returned unique_ptr is destroyed.
-  inline unique_ptr<GridObject> remove_object(GridObject* obj) {
-    this->grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
-    auto obj_ptr = this->objects[obj->id].release();
-    this->objects[obj->id] = nullptr;
-    return std::unique_ptr<GridObject>(obj_ptr);
-  }
-
   inline bool move_object(GridObjectId id, const GridLocation& loc) {
     if (!is_valid_location(loc)) {
       return false;
