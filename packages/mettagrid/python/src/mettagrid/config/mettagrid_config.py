@@ -85,9 +85,6 @@ class GlobalObsConfig(Config):
 
     last_reward: bool = Field(default=True)
 
-    # Controls whether resource rewards are included in observations
-    resource_rewards: bool = Field(default=False)
-
     # Controls whether visitation counts are included in observations
     visitation_counts: bool = Field(default=False)
 

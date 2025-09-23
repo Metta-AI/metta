@@ -237,28 +237,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
   initial_grid_hash = wyhash::hash_string(grid_hash_data);
 
-  // Compute inventory rewards for each agent (1 bit per item, up to 8 items)
-  _resource_rewards.resize(_agents.size(), 0);
-  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    auto& agent = _agents[agent_idx];
-    uint8_t packed = 0;
-
-    // Process up to 8 items (or all available items if fewer)
-    size_t num_items = std::min(resource_names.size(), size_t(8));
-
-    for (size_t i = 0; i < num_items; i++) {
-      // Check if this item has a reward configured
-      auto item = static_cast<InventoryItem>(i);
-      if (agent->resource_rewards.count(item) && agent->resource_rewards[item] > 0) {
-        // Set bit at position (7 - i) to 1
-        // Item 0 goes to bit 7, item 1 to bit 6, etc.
-        packed |= static_cast<uint8_t>(1 << (7 - item));
-      }
-    }
-
-    _resource_rewards[agent_idx] = packed;
-  }
-
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
@@ -351,11 +329,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.last_reward) {
     ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
-  }
-
-  // Add inventory rewards for this agent
-  if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
-    global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
   }
 
   // Add visitation counts for this agent

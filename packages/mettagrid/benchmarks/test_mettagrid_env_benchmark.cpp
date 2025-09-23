@@ -93,7 +93,6 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   global_obs_config.episode_completion_pct = true;
   global_obs_config.last_action = true;
   global_obs_config.last_reward = true;
-  global_obs_config.resource_rewards = true;
 
   return GameConfig(num_agents, 10000, false, 11, 11, resource_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
