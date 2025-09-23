@@ -661,8 +661,9 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     with open(f"{dir}/reward_estimates.json", "w") as f:
         json.dump(reward_estimates, f, indent=2)
 
+    zip_and_cleanup_dir(dir=dir)
 
 if __name__ == "__main__":
     # experiment()
-    save_envs_to_numpy()
-# generate_reward_estimates()
+    # save_envs_to_numpy()
+    generate_reward_estimates()
