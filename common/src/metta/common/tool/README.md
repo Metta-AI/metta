@@ -1,6 +1,6 @@
 # Tool Runner (./tools/run.py)
 
-The tool runner loads a Tool from a recipe module, applies CLI overrides, and invokes it. It supports convenient aliases, recipe inference, and a two-token shorthand form.
+The tool runner loads a Tool from a recipe module, applies CLI overrides, and invokes it. It supports convenient two-token shorthand and recipe inference.
 
 ## Quick Start
 
@@ -22,6 +22,7 @@ The tool runner loads a Tool from a recipe module, applies CLI overrides, and in
 
 - Two-token: `./tools/run.py <tool> <recipe>` is equivalent to `<recipe>.<tool>`.
 - Omit prefix: `arena` maps to `experiments.recipes.arena`.
+
 Examples:
 
 ```bash
@@ -33,9 +34,15 @@ Examples:
 ## Listing Tools
 
 ```bash
-# Show tools available for a recipe module (explicit + inferred names)
+# List explicit tools defined by a recipe module
+./tools/run.py train arena --list-tools
+
+# Equivalent (uses the same module resolution):
 ./tools/run.py arena.train --list-tools
 ```
+
+- Shows tools exported by that recipe (functions/classes returning `Tool`).
+- Inferred tools (constructed from `mettagrid()`/`simulations()`) are not listed here, but they still work when invoked.
 
 ## Dry-Run
 
@@ -79,3 +86,4 @@ When present, the runner can infer common tools even if the module does not expo
 - Strings with spaces should be quoted: `notes="my run"`.
 - Booleans are lowercase: `true`, `false`.
 - If a numeric-looking value should be a string, quote it (e.g., `run="001"`).
+
