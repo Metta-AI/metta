@@ -49,6 +49,7 @@
     "coeff",
     "cogames",
     "cogeval",
+    "cogweb",
     "cogworks",
     "configs",
     "conftest",
@@ -313,5 +314,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }

@@ -9,6 +9,7 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.rl.system_config import SystemConfig
+from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -181,6 +182,37 @@ class CheckpointManager:
             # Remove trailing slash from prefix for deterministic joins
             key_prefix = parsed.key.rstrip("/")
             self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+
+        if self._remote_prefix is None:
+            self._setup_remote_prefix()
+
+    def _setup_remote_prefix(self) -> None:
+        """Determine and set the remote prefix for policy storage if needed."""
+        if self._remote_prefix is None:
+            storage_decision = auto_policy_storage_decision(self.run)
+            if storage_decision.remote_prefix:
+                self._remote_prefix = storage_decision.remote_prefix
+                if storage_decision.reason == "env_override":
+                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
+                else:
+                    logger.info(
+                        "Policies will sync to %s (Softmax AWS profile detected).",
+                        storage_decision.remote_prefix,
+                    )
+            elif storage_decision.reason == "not_connected":
+                logger.info(
+                    "Softmax AWS SSO not detected; policies will remain local. "
+                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' to enable uploads."
+                )
+            elif storage_decision.reason == "aws_not_enabled":
+                logger.info(
+                    "AWS component disabled; policies will remain local. Run 'metta configure aws' to set up S3."
+                )
+            elif storage_decision.reason == "no_base_prefix":
+                logger.info(
+                    "Remote policy prefix unset; policies will remain local. Configure POLICY_REMOTE_PREFIX or run "
+                    "'metta configure aws'."
+                )
 
     def remote_checkpoints_enabled(self):
         return self._remote_prefix is not None

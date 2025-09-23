@@ -44,7 +44,6 @@ from metta.rl.training import (
     WandbLogger,
 )
 from metta.tools.utils.auto_config import (
-    auto_policy_storage_decision,
     auto_run_name,
     auto_stats_server_uri,
     auto_wandb_config,
@@ -103,8 +102,6 @@ class TrainTool(Tool):
         if group_override:
             self.wandb.group = group_override
 
-        self._setup_remote_prefix()
-
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
@@ -148,34 +145,6 @@ class TrainTool(Tool):
             if stats_client and hasattr(stats_client, "close"):
                 stats_client.close()
             distributed_helper.cleanup()
-
-    def _setup_remote_prefix(self) -> None:
-        """Determine and set the remote prefix for policy storage if needed."""
-        if self.remote_prefix is None:
-            storage_decision = auto_policy_storage_decision(self.run)
-            if storage_decision.remote_prefix:
-                self.remote_prefix = storage_decision.remote_prefix
-                if storage_decision.reason == "env_override":
-                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
-                else:
-                    logger.info(
-                        "Policies will sync to %s (Softmax AWS profile detected).",
-                        storage_decision.remote_prefix,
-                    )
-            elif storage_decision.reason == "not_connected":
-                logger.info(
-                    "Softmax AWS SSO not detected; policies will remain local. "
-                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' to enable uploads."
-                )
-            elif storage_decision.reason == "aws_not_enabled":
-                logger.info(
-                    "AWS component disabled; policies will remain local. Run 'metta configure aws' to set up S3."
-                )
-            elif storage_decision.reason == "no_base_prefix":
-                logger.info(
-                    "Remote policy prefix unset; policies will remain local. Configure POLICY_REMOTE_PREFIX or run "
-                    "'metta configure aws'."
-                )
 
     def _load_or_create_policy(
         self,

@@ -25,8 +25,6 @@ from mettagrid.builder.envs import make_arena
 class TestTrainerCheckpointIntegration:
     def setup_method(self) -> None:
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.run_root = Path(self.temp_dir) / "runs"
-        self.run_root.mkdir(parents=True, exist_ok=True)
 
     def teardown_method(self) -> None:
         if os.path.exists(self.temp_dir):
@@ -88,10 +86,14 @@ class TestTrainerCheckpointIntegration:
 
     def test_trainer_checkpoint_save_and_resume(self) -> None:
         run_name = "test_checkpoint_run"
-        expected_run_dir = self.run_root / run_name
         trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
+        expected_run_dir = system_cfg.data_dir / run_name
         checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
+
+        assert expected_run_dir.exists(), "expected_run_dir was not created"
+        expected_checkpoint_dir = expected_run_dir / "checkpoints"
+        assert expected_checkpoint_dir.exists(), "expected_checkpoint_dir was not created"
 
         print("Starting first training run...")
         self._run_training(
