@@ -6,7 +6,7 @@ from pydantic import ConfigDict
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss
+from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from mettagrid.config import Config
 
