@@ -137,7 +137,7 @@ def evaluate(
     policy_uri: str | None = None, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_evals()
-    policy_uris = [policy_uri] if policy_uri is not None else []
+    policy_uris = [policy_uri] if policy_uri is not None else None
 
     return SimTool(
         simulations=simulations,

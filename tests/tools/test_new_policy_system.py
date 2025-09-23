@@ -88,7 +88,7 @@ class TestNewPolicySystem:
         )
 
         # Should have converted run name to S3 policy URI with :latest selector
-        expected_uri = "s3://softmax-public/test_experiment_2024/test_experiment_2024:latest.pt"
+        expected_uri = "s3://softmax-public/policies/test_experiment_2024/test_experiment_2024:latest.pt"
 
         # Need to call invoke to trigger the conversion
         try:
