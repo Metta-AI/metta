@@ -12,6 +12,11 @@ import {
   detectArxivUrl,
 } from "@/lib/arxiv-auto-import";
 import { queueArxivInstitutionProcessing } from "@/lib/background-jobs";
+import { parseMentions } from "@/lib/mentions";
+import {
+  resolveMentions,
+  extractUserIdsFromResolution,
+} from "@/lib/mention-resolution";
 
 const inputSchema = zfd.formData({
   title: zfd.text(z.string().min(1).max(255)),
@@ -21,6 +26,7 @@ const inputSchema = zfd.formData({
   ),
   paperId: zfd.text(z.string().optional()), // Added support for paperId
   images: zfd.text(z.string().optional()), // JSON string of image URLs
+  mentions: zfd.text(z.string().optional()), // JSON string of mention strings
 });
 
 export const createPostAction = actionClient
@@ -40,6 +46,28 @@ export const createPostAction = actionClient
         images = JSON.parse(input.images);
       } catch (error) {
         console.error("Error parsing images:", error);
+      }
+    }
+
+    // Parse and resolve mentions if provided
+    let mentionedUserIds: string[] = [];
+    if (input.mentions) {
+      try {
+        const mentionStrings: string[] = JSON.parse(input.mentions);
+        const resolvedMentions = await resolveMentions(
+          mentionStrings,
+          session.user.id
+        );
+        mentionedUserIds = extractUserIdsFromResolution(
+          resolvedMentions,
+          session.user.id
+        );
+
+        console.log(
+          `📧 Resolved ${mentionStrings.length} mentions to ${mentionedUserIds.length} users`
+        );
+      } catch (error) {
+        console.error("Error parsing or resolving mentions:", error);
       }
     }
 
@@ -84,6 +112,12 @@ export const createPostAction = actionClient
       queueArxivInstitutionProcessing(paperId, arxivUrl).catch((error) => {
         console.error("Failed to queue institution processing:", error);
       });
+    }
+
+    // TODO: Create notifications for mentioned users
+    if (mentionedUserIds.length > 0) {
+      console.log(`📧 Post ${post.id} mentions users:`, mentionedUserIds);
+      // Future: Create notification records in database
     }
 
     revalidatePath("/");
