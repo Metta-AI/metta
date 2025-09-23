@@ -162,8 +162,12 @@ class CheckpointManager:
 
         self.run = run
         self.run_name = run
-        self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
+
+        provided_path = Path(run_dir)
+        self.base_dir = provided_path.parent if provided_path.name == self.run else provided_path
+        self.run_dir = self.base_dir / self.run
+
+        self.checkpoint_dir = self.run_dir / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
         self._remote_prefix = None
