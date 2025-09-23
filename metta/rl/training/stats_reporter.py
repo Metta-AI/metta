@@ -188,6 +188,14 @@ class StatsReporter(TrainerComponent):
         if self._stats_client and self._config.report_to_stats_client:
             self._initialize_stats_run()
 
+    @property
+    def wandb_run(self) -> WandbRun | None:
+        return self._wandb_run
+
+    @wandb_run.setter
+    def wandb_run(self, run: WandbRun | None) -> None:
+        self._wandb_run = run
+
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         context.stats_reporter = self
@@ -235,7 +243,7 @@ class StatsReporter(TrainerComponent):
         policy: Any,
         timer: Timer | None,
         trainer_cfg: Any,
-        optimizer: torch.optim.Optimizer | None,
+        optimizer: torch.optim.Optimizer,
     ) -> None:
         timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
@@ -392,7 +400,7 @@ class StatsReporter(TrainerComponent):
         agent_step: int,
         epoch: int,
         timer: Any,
-        optimizer: torch.optim.Optimizer | None,
+        optimizer: torch.optim.Optimizer,
     ) -> dict[str, float]:
         """Convert collected stats into a flat wandb payload."""
 

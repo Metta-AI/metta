@@ -1,4 +1,5 @@
 import logging
+import os
 import pickle
 from collections import OrderedDict
 from pathlib import Path
@@ -8,6 +9,8 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
+from metta.rl.system_config import SystemConfig
+from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -148,10 +151,9 @@ class CheckpointManager:
 
     def __init__(
         self,
-        run: str = "default",
-        run_dir: str = "./train_dir",
+        run: str,
+        system_cfg: SystemConfig,
         cache_size: int = 3,
-        remote_prefix: str | None = None,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -163,29 +165,67 @@ class CheckpointManager:
 
         self.run = run
         self.run_name = run
-
-        provided_path = Path(run_dir)
-        self.base_dir = provided_path.parent if provided_path.name == self.run else provided_path
-        self.run_dir = self.base_dir / self.run
-
+        self.run_dir = system_cfg.data_dir / self.run
         self.checkpoint_dir = self.run_dir / "checkpoints"
+
+        os.makedirs(system_cfg.data_dir, exist_ok=True)
+        os.makedirs(self.run_dir, exist_ok=True)
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
         self.cache_size = cache_size
         self._cache = OrderedDict()
+
         self._remote_prefix = None
-        if remote_prefix:
-            parsed = ParsedURI.parse(remote_prefix)
-            if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
-                raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
-            # Remove trailing slash from prefix for deterministic joins
-            key_prefix = parsed.key.rstrip("/")
-            self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+        if not system_cfg.local_only:
+            if system_cfg.remote_prefix:
+                parsed = ParsedURI.parse(system_cfg.remote_prefix)
+                if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
+                    raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
+                # Remove trailing slash from prefix for deterministic joins
+                key_prefix = parsed.key.rstrip("/")
+                self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+
+            if self._remote_prefix is None:
+                self._setup_remote_prefix()
+
+    def _setup_remote_prefix(self) -> None:
+        """Determine and set the remote prefix for policy storage if needed."""
+        if self._remote_prefix is None:
+            storage_decision = auto_policy_storage_decision(self.run)
+            if storage_decision.remote_prefix:
+                self._remote_prefix = storage_decision.remote_prefix
+                if storage_decision.reason == "env_override":
+                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
+                else:
+                    logger.info(
+                        "Policies will sync to %s (Softmax AWS profile detected).",
+                        storage_decision.remote_prefix,
+                    )
+            elif storage_decision.reason == "not_connected":
+                logger.info(
+                    "Softmax AWS SSO not detected; policies will remain local. "
+                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' to enable uploads."
+                )
+            elif storage_decision.reason == "aws_not_enabled":
+                logger.info(
+                    "AWS component disabled; policies will remain local. Run 'metta configure aws' to set up S3."
+                )
+            elif storage_decision.reason == "no_base_prefix":
+                logger.info(
+                    "Remote policy prefix unset; policies will remain local. Configure POLICY_REMOTE_PREFIX or run "
+                    "'metta configure aws'."
+                )
+
+    @property
+    def remote_checkpoints_enabled(self) -> bool:
+        return self._remote_prefix is not None
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
         self._cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu"):
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> Policy:
         """Load a policy from a URI (file://, s3://, or mock://)."""
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
