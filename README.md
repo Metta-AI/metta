@@ -166,7 +166,32 @@ The repository contains command-line tools in the `tools/` directory.
 
 ### Quickstart: train, evaluate, play, and replay
 
-`run.py` is a script that kicks off tasks like training, evaluation, and visualization.
+`run.py` is a script that kicks off tasks like training, evaluation, and visualization. The runner looks up the task,
+builds its configuration, and runs it. The current available tasks are:
+
+- **arena.train**: Train on the arena curriculum
+
+  `./tools/run.py arena.train run=my_experiment`
+
+- **navigation.train**: Train on the navigation curriculum
+
+  `./tools/run.py navigation.train run=my_experiment`
+
+- **arena.play**: Play in the browser
+
+  `./tools/run.py arena.play`
+
+- **arena.replay**: Replay a single episode from a saved policy
+
+  `./tools/run.py arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
+
+- **arena.evaluate**: Evaluate a policy on the arena eval suite
+
+  `./tools/run.py arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
+
+### Runner arguments
+
+Use the runner like this:
 
 ```bash
 ./tools/run.py <task_name> [key=value ...] [--verbose]
@@ -174,15 +199,14 @@ The repository contains command-line tools in the `tools/` directory.
 
 Example tasks:
 
-| Task                        | Command                                                                                                                        |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
-| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
-| Train (custom policy)       | `./tools/run.py experiments.recipes.arena.train run=my_experiment policy_architecture.class_path=<POLICY PATH>`                |
-| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
-| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
-| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
-| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
+| Task                        | Command                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Train (arena)               | `./tools/run.py arena.train run=my_experiment`                                                                         |
+| Train (navigation)          | `./tools/run.py navigation.train run=my_experiment`                                                                    |
+| Play (browser)              | `./tools/run.py arena.play`                                                                                            |
+| Replay (policy)             | `./tools/run.py arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`                 |
+| Evaluate (arena)            | `./tools/run.py arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`               |
+| Evaluate (navigation suite) | `./tools/run.py navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`             |
 
 #### Task arguments
 
@@ -195,15 +219,42 @@ Examples:
 
 ```bash
 # The runner automatically identifies 'run' as a function arg and the rest as overrides
-./tools/run.py experiments.recipes.arena.train run=local.alice.1 \
+./tools/run.py arena.train run=local.alice.1 \
   system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
 
 # Evaluate a specific policy URI
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 
 # Use --verbose to see how arguments are classified
-./tools/run.py experiments.recipes.arena.train run=test --verbose
+./tools/run.py arena.train run=test --verbose
 ```
+
+### Recipe Inference and Verb Aliases
+
+Recipes should expose simple functions:
+
+```python
+def mettagrid() -> MettaGridConfig: ...           # basic environment
+def simulations() -> list[SimulationConfig]: ...  # optional curated eval suite
+```
+
+When present, the runner can infer common verbs even if not explicitly defined in the module. If both `simulations()`
+and `mettagrid()` exist, `simulations()` takes precedence for evaluation tools and the evaluator used by inferred
+training tools.
+
+- Inferred verbs: `train`, `play`, `replay`, `evaluate`/`eval`/`sim` (non‑remote), and `evaluate_remote`/`eval_remote`/`sim_remote` (remote)
+- Example:
+  - `./tools/run.py arena.play`
+  - `./tools/run.py arena.sim policy_uris=mock://test` (alias for `arena.evaluate`)
+  - `./tools/run.py arena.eval_remote policy_uri=s3://...`
+
+Shorthands are supported:
+
+- Omit `experiments.recipes.`: `arena.train` == `experiments.recipes.arena.train`
+- Two‑token form: `train arena` == `arena.train`
+
+Note on evaluation tool rename: the evaluation tool is now `EvalTool` (replacing `SimTool`). If you import directly,
+use `from metta.tools.eval import EvalTool`.
 
 Tips:
 
@@ -218,7 +269,7 @@ its `invoke()` method.
 
 What you write:
 
-- A function that returns a Tool, for example `TrainTool`, `SimTool`, `PlayTool`, or `ReplayTool`.
+- A function that returns a Tool, for example `TrainTool`, `EvalTool`, `PlayTool`, or `ReplayTool`.
 - Place it anywhere importable (for personal use, `experiments/user/<your_file>.py` is convenient).
 - The function name becomes part of the task name you run.
 
@@ -271,7 +322,7 @@ For more information, see [./mettascope/README.md](./mettascope/README.md).
 #### Run the interactive simulation
 
 ```bash
-./tools/run.py experiments.recipes.arena.play
+./tools/run.py arena.play
 ```
 
 Optional overrides:
@@ -283,7 +334,7 @@ Optional overrides:
 #### Replay a single episode
 
 ```
-./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 ### Viewing evaluation results while training
@@ -309,7 +360,23 @@ To use WandB with your personal account:
 Now you can run training with your personal WandB config:
 
 ```
-./tools/run.py experiments.recipes.arena.train run=local.yourname.123 wandb.enabled=true wandb.entity=<your_user>
+./tools/run.py arena.train run=local.yourname.123 wandb.enabled=true wandb.entity=<your_user>
+```
+
+### Evaluating a Model
+
+#### Evaluate a policy
+
+Evaluate a policy against the arena eval suite:
+
+```
+./tools/run.py arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+```
+
+Evaluate on the navigation eval suite (provide the policy URI):
+
+```
+./tools/run.py navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 ### Specifying your agent architecture
@@ -328,7 +395,7 @@ To use `MettaAgent` with a non-default architecture config:
   `metta/agent/policies/my_agent.py`).
 - Run with the configuration file of your choice:
   ```bash
-  ./tools/run.py experiments.recipes.arena.train policy_architecture.agent_config=my_agent
+  ./tools/run.py arena.train policy_architecture.agent_config=my_agent
   ```
 
 #### Defining your own PyTorch agent
@@ -341,7 +408,7 @@ We support agent architectures without using the MettaAgent system:
   (e.g., `"my_agent"`).
 - Select it at runtime using the runner and an override on the agent config name:
   ```bash
-  ./tools/run.py experiments.recipes.arena.train policy_architecture.name=pytorch/my_agent
+  ./tools/run.py arena.train policy_architecture.name=pytorch/my_agent
   ```
 
 Further updates to support bringing your own agent are coming soon.
@@ -355,3 +422,16 @@ metta lint
 metta pytest
 pyright metta  # optional, some stubs are missing
 ```
+
+### CLI cheat sheet
+
+| Task                        | Command                                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Train (arena)               | `./tools/run.py arena.train run=my_experiment`                                                                         |
+| Train (navigation)          | `./tools/run.py navigation.train run=my_experiment`                                                                    |
+| Play (browser)              | `./tools/run.py arena.play`                                                                                            |
+| Replay (policy)             | `./tools/run.py arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`                 |
+| Evaluate (arena)            | `./tools/run.py arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`               |
+| Evaluate (navigation suite) | `./tools/run.py navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`             |
+
+Running these commands mirrors our CI configuration and helps keep the codebase consistent.

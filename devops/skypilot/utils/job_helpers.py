@@ -15,6 +15,7 @@ from sky.server.common import RequestId, get_server_url
 
 import gitta as git
 from metta.app_backend.clients.base_client import get_machine_token
+from metta.common.tool.resolve import generate_candidate_paths
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
@@ -68,50 +69,67 @@ def check_git_state(commit_hash: str) -> str | None:
     return None
 
 
-def validate_module_path(module_path: str) -> bool:
+def validate_module_path(
+    module_path: str,
+    *,
+    auto_prefixes: list[str] | None = None,
+    verb_aliases: dict[str, list[str]] | None = None,
+) -> bool:
     """
-    Check that a module path like 'experiments.recipes.arena_basic_easy_shaped.train'
-    points to a valid function.
+    Validate a module path points to a callable function.
+
+    Optionally tries a list of `auto_prefixes` to resolve shorthand names.
+    Example: module_path='arena.train', auto_prefixes=['experiments.recipes']
+             will try 'arena.train' first, then 'experiments.recipes.arena.train'.
+
+    Note: Default behavior performs no auto-prefixing.
     """
     try:
-        # Split module path and function name
-        # e.g., "experiments.recipes.arena_basic_easy_shaped.train"
-        # -> module: "experiments.recipes.arena_basic_easy_shaped", function: "train"
-        parts = module_path.split(".")
-        module_name = ".".join(parts[:-1])
-        function_name = parts[-1]
 
-        # First check if the file exists (for better error messages)
-        module_file_path = module_name.replace(".", "/") + ".py"
-        if not Path(module_file_path).exists():
-            print(red(f"❌ Module file '{module_file_path}' does not exist"))
-            return False
+        def candidates(path: str) -> list[str]:
+            # We only have a single token here (no two-part syntax in Skypilot CLI),
+            # but reuse the same generator for consistency. Also expand alias verbs.
+            return generate_candidate_paths(
+                path,
+                None,
+                auto_prefixes=auto_prefixes or [],
+                short_only=True,
+                verb_aliases=verb_aliases or {},
+            )
 
-        # Try to import the module
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError as e:
-            print(red(f"❌ Failed to import module '{module_name}': {e}"))
-            return False
+        last_error: Exception | None = None
+        for cand in candidates(module_path):
+            parts = cand.split(".")
+            if len(parts) < 2:
+                continue
+            module_name = ".".join(parts[:-1])
+            function_name = parts[-1]
 
-        # Check if the function exists in the module
-        if not hasattr(module, function_name):
-            print(red(f"❌ Function '{function_name}' not found in module '{module_name}'"))
-            # List available functions as suggestions
-            available_funcs = [
-                name for name in dir(module) if not name.startswith("_") and callable(getattr(module, name))
-            ]
-            if available_funcs:
-                print(f"    Available functions: {', '.join(available_funcs[:5])}")
-            return False
+            # Try to import the module directly; file existence check can be misleading with packages
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError as e:
+                last_error = e
+                continue
 
-        # Optionally, verify it's callable
-        func = getattr(module, function_name)
-        if not callable(func):
-            print(red(f"❌ '{function_name}' exists but is not callable"))
-            return False
+            if not hasattr(module, function_name):
+                last_error = ValueError(f"Function '{function_name}' not found in module '{module_name}'")
+                continue
 
-        return True
+            func = getattr(module, function_name)
+            if not callable(func):
+                last_error = TypeError(f"'{function_name}' exists but is not callable")
+                continue
+
+            # Success
+            return True
+
+        # If we get here, all candidates failed
+        if last_error:
+            print(red(f"❌ Failed to validate module path '{module_path}': {last_error}"))
+        else:
+            print(red(f"❌ Invalid module path: '{module_path}'"))
+        return False
 
     except Exception as e:
         print(red(f"❌ Error validating module path '{module_path}': {e}"))

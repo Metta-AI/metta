@@ -11,14 +11,13 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
-from metta.common.wandb.context import WandbContext
-from metta.eval.eval_request_config import EvalResults
+from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from metta.utils.uri import ParsedURI
+from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
@@ -27,33 +26,19 @@ def _determine_run_name(policy_uri: str) -> str:
     parsed = ParsedURI.parse(policy_uri)
     if parsed.scheme == "file" and parsed.local_path is not None:
         return f"eval_{parsed.local_path.stem}"
+    if parsed.scheme == "wandb" and parsed.wandb is not None:
+        artifact_part = parsed.wandb.artifact_path.split("/")[-1]
+        return f"eval_{artifact_part.replace(':', '_')}"
     return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
-class SimTool(Tool):
-    """Tool for running policy evaluations on simulation suites.
-
-    Can evaluate policies specified either by:
-    - run: Training run name (automatically resolves to latest S3 checkpoint)
-    - policy_uris: Explicit list of policy URIs (file://, s3://, etc.)
-
-    Usage examples:
-        # Evaluate latest checkpoint from a training run
-        SimTool(simulations=my_sims, run="my_experiment_2024")
-
-        # Evaluate specific policy URIs
-        SimTool(simulations=my_sims, policy_uris=["s3://bucket/path/policy:v10.pt"])
-
-        # Can also be invoked with run parameter
-        tool.invoke({"run": "my_experiment_2024"})
-    """
-
+class EvalTool(Tool):
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
-    group: str | None = None  # Separate group parameter like in train.py
+    wandb: WandbConfig = auto_wandb_config()
 
     stats_dir: str | None = None  # The (local) directory where stats should be stored
     stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
@@ -61,67 +46,6 @@ class SimTool(Tool):
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
-
-    def _log_to_wandb(self, policy_uri: str, eval_results: EvalResults, stats_client: StatsClient | None):
-        if stats_client is None:
-            logger.info("Stats client is not set, skipping wandb logging")
-            return
-
-        if not self.push_metrics_to_wandb:
-            logger.info("Push metrics to wandb is not set, skipping wandb logging")
-            return
-
-        run_name = CheckpointManager.get_policy_metadata(policy_uri).get("run_name")
-        if run_name is None:
-            logger.info("Could not determine run name, skipping wandb logging")
-            return
-
-        # Resume the existing training run without overriding its group
-        wandb = auto_wandb_config(run_name)
-        if self.group:
-            wandb.group = self.group
-
-        if not wandb.enabled:
-            logger.info("WandB is not enabled, skipping wandb logging")
-            return
-
-        wandb_context = WandbContext(wandb, self)
-        with wandb_context as wandb_run:
-            if not wandb_run:
-                logger.info("Failed to initialize wandb run, skipping wandb logging")
-                return
-
-            logger.info(f"Initialized wandb run: {wandb_run.id}")
-
-            try:
-                (epoch, attributes) = stats_client.sql_query(
-                    f"""SELECT e.end_training_epoch, e.attributes
-                          FROM policies p join epochs e ON p.epoch_id = e.id
-                          WHERE p.url = '{policy_uri}'"""
-                ).rows[0]
-                agent_step = attributes.get("agent_step")
-                if agent_step is None:
-                    logger.info("Agent step is not set, skipping wandb logging")
-                    return
-
-                rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, epoch, agent_step, False)
-            except IndexError:
-                # No rows returned; log with fallback step/epoch
-                logger.info(
-                    "No epoch metadata for %s in stats DB; logging eval metrics to WandB with default step/epoch=0",
-                    policy_uri,
-                )
-                try:
-                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
-                except Exception as e:
-                    logger.error("Fallback WandB logging failed: %s", e)
-            except Exception as e:
-                logger.error(f"Error logging evaluation results to wandb: {e}")
-                # Best-effort fallback logging with default indices
-                try:
-                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, 0, 0, False)
-                except Exception as e2:
-                    logger.error("Fallback WandB logging failed: %s", e2)
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
@@ -142,9 +66,16 @@ class SimTool(Tool):
         if self.stats_server_uri is not None:
             stats_client = HttpStatsClient.create(self.stats_server_uri)
 
-        all_results = {"simulations": [sim.full_name for sim in self.simulations], "policies": []}
+        all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
 
+        wandb_run = None
+        wandb_context = None
+        if self.wandb and self.wandb.enabled:
+            wandb_context = WandbContext(self.wandb, self)
+            wandb_context.__enter__()
+            wandb_run = wandb_context.run
+            logger.info(f"Initialized wandb run: {wandb_run.id if wandb_run else 'None'}")
         # Get eval_task_id from config if provided
         eval_task_id = None
         if self.eval_task_id:
@@ -177,9 +108,11 @@ class SimTool(Tool):
                 stats_client=stats_client,
                 eval_task_id=eval_task_id,
             )
-
-            self._log_to_wandb(normalized_uri, eval_results, stats_client)
-
+            if self.push_metrics_to_wandb:
+                try:
+                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results)
+                except Exception as e:
+                    logger.error(f"Error logging evaluation results to wandb: {e}")
             results["checkpoints"].append(
                 {
                     "name": metadata.get("run_name", "unknown"),
@@ -194,8 +127,9 @@ class SimTool(Tool):
             )
             all_results["policies"].append(results)
 
-        # Output JSON results to stdout
+        # Always output JSON results to stdout
         # Ensure all logging is flushed before printing JSON
+
         sys.stderr.flush()
         sys.stdout.flush()
 

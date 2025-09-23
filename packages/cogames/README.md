@@ -86,74 +86,10 @@ Train a policy on a mission.
 - `--batch-size N`: Batch size (default: 4096)
 - `--num-workers N`: Worker processes (default: CPU count)
 
-### Custom Policy Architectures
-
-To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as SimplePolicy). To
-supply your own, you will want to extend `cogames.policy.Policy`.
-
-```python
-from cogames.policy import Policy
-
-class MyPolicy(Policy):
-    def __init__(self, observation_space, action_space):
-        self.network = MyNetwork(observation_space, action_space)
-
-    def get_action(self, observation, agent_id=None):
-        return self.network(observation)
-
-    def reset(self):
-        pass
-
-    def save(self, path):
-        torch.save(self.network.state_dict(), path)
-
-    @classmethod
-    def load(cls, path, env=None):
-        policy = cls(env.observation_space, env.action_space)
-        policy.network.load_state_dict(torch.load(path))
-        return policy
-```
-
-To train with using your class, supply a path to it with the `--policy`argument, e.g.
-`cogames train training_facility_1 --policy path.to.MyPolicy`.
-
-#### Environment API
-
-The underlying environment follows the Gymnasium API:
-
-```python
-from cogames.game import get_mission
-from mettagrid.envs import MettaGridEnv
-
-# Load a mission configuration
-config, _, __ = game_module.get_mission("assembler_2_complex", "default")
-
-# Create environment
-env = MettaGridEnv(env_cfg=config)
-
-# Reset environment
-obs, info = env.reset()
-
-# Game loop
-for step in range(1000):
-    # Your policy computes actions for all agents
-    actions = policy.get_actions(obs)  # Dict[agent_id, action]
-
-    # Step environment
-    obs, rewards, terminated, truncated, info = env.step(actions)
-
-    if terminated or truncated:
-        obs, info = env.reset()
-```
-
 ### `cogames eval [game] [policies...]`
-
-Evaluate one or more policies.
 
 To specify policies to evaluate, you can either provide `--policy` and `--policy-data` arguments as seen in other `cogames` commands, or can provide a list of policy specs:
 **Policy spec format:** `{class_path}[:data_path][:proportion]`
-
-**Examples:**
 
 ```bash
 # Trained policy
@@ -166,40 +102,17 @@ cogames eval machina_1 simple:train_dir/model.pt
 cogames eval machina_1 simple:train_dir/model.pt:3 random::5
 ```
 
-**Options:**
-
-- `--episodes N`: Number of episodes (default: 10)
-- `--action-timeout-ms N`: Timeout per action (default: 250ms)
-
 When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but
 randomizes their assignments each episode.
 
-### `cogames make-mission [base_mission]`
+### Custom Policy Architectures
 
-Create custom mission configuration.
+To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as SimplePolicy). To
+supply your own, you will want to extend `cogames.policy.Policy`.
 
-**Options:**
+```python
+from cogames.policy import Policy
 
-- `--agents N`: Number of agents (default: 2)
-- `--width W`: Map width (default: 10)
-- `--height H`: Map height (default: 10)
-- `--output PATH`: Save to file
-
-You will be able to provide your specified `--output` path as the `mission` argument to other `cogames` commmands.
-
-### `cogames version`
-
-Show version info for mettagrid, pufferlib-core, and cogames.
-
-## Citation
-
-If you use CoGames in your research, please cite:
-
-```bibtex
-@software{cogames2024,
-  title={CoGames: Multi-Agent Cooperative Game Environments},
-  author={Metta AI},
-  year={2024},
-  url={https://github.com/metta-ai/metta}
-}
-```
+class MyPolicy(Policy):
+    def __init__(self, observation_space, action_space):
+        self.network = MyNetwork(observation_space, action_space)

@@ -1,5 +1,5 @@
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
-# You can run these functions locally with e.g. `./tools/run.py experiments.recipes.scratchpad.alex.train`
+# You can run these functions locally with e.g. `./tools/run.py scratchpad.alex.train`
 # The VSCode "Run and Debug" section supports options to run these functions.
 from typing import List, Optional
 
@@ -20,13 +20,12 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
 
-def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
+def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
     arena_env.game.agent.rewards.inventory = {
@@ -59,7 +58,7 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    arena_env = arena_env or make_mettagrid()
+    arena_env = arena_env or mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
 
@@ -90,8 +89,8 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
-    basic_env = env or make_mettagrid()
+def simulations(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+    basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
     combat_env = basic_env.model_copy()
@@ -112,7 +111,7 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    eval_simulations = make_evals()
+    eval_simulations = simulations()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
     )
@@ -133,23 +132,16 @@ def train(
 
 
 def play() -> PlayTool:
-    env = arena.make_evals()[0].env
+    env = arena.simulations()[0].env
     env.game.max_steps = 100
-    cfg = arena.play(env)
-    return cfg
+    # Use inference from this module's mettagrid()/simulations()
+    return PlayTool(sim=SimulationConfig(suite="alex", name="eval", env=env))
 
 
 def replay() -> ReplayTool:
-    env = arena.make_mettagrid()
+    env = mettagrid()
     env.game.max_steps = 100
-    cfg = arena.replay(env)
-    # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
-    return cfg
+    return ReplayTool(sim=SimulationConfig(suite="alex", name="eval", env=env))
 
 
-def evaluate(run: str = "local.alex.1") -> SimTool:
-    cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
-
-    # If your run doesn't exist, try this:
-    # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
-    return cfg
+"""Evaluate tool inferred via simulations(); use run.py alex.evaluate policy_uris=..."""

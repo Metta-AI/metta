@@ -196,41 +196,41 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
    ```bash
    # Training with arena recipe
-   uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
+   uv run ./tools/run.py arena.train run=my_experiment
 
    # Training with navigation recipe
-   uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
+   uv run ./tools/run.py navigation.train run=my_experiment
    ```
 
 2. **Simulation/Evaluation**: Run evaluation suites on trained policies
 
 ```bash
 # Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
+uv run ./tools/run.py arena.evaluate \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # Using a remote S3 checkpoint
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
+uv run ./tools/run.py arena.evaluate \
   policy_uri=s3://my-bucket/checkpoints/my-training-run/my-training-run:v12.pt
 ```
 
 3. **Analysis**: Analyze evaluation results
 
    ```bash
-   uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval/stats.db
+   uv run ./tools/run.py arena.analyze eval_db_uri=./train_dir/eval/stats.db
    ```
 
 4. **Interactive Play**: Test policies interactively (browser-based)
 
 ```bash
-uv run ./tools/run.py experiments.recipes.arena.play \
+uv run ./tools/run.py arena.play \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 ```
 
 5. **View Replays**: Watch recorded gameplay
 
 ```bash
-uv run ./tools/run.py experiments.recipes.arena.replay \
+uv run ./tools/run.py arena.replay \
   policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
@@ -299,21 +299,21 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 ```bash
 # Training with arena recipe
-uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
+uv run ./tools/run.py arena.train run=my_experiment
 
 # Training with navigation recipe
-uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
+uv run ./tools/run.py navigation.train run=my_experiment
 
 # Play/test a trained policy (interactive browser)
-uv run ./tools/run.py experiments.recipes.arena.play \
+uv run ./tools/run.py arena.play \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
+uv run ./tools/run.py arena.evaluate \
   policy_uri=file://./train_dir/my_experiment/checkpoints/my_experiment:v12.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay \
+uv run ./tools/run.py arena.replay \
   policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
@@ -346,7 +346,7 @@ recipe files:
 
 1. Use smaller batch sizes for debugging
 2. Check wandb logs for metrics anomalies
-3. Use `./tools/run.py experiments.recipes.arena.play` for interactive debugging (Note: Less useful in Claude Code due
+3. Use `./tools/run.py arena.play` for interactive debugging (Note: Less useful in Claude Code due
    to interactive nature)
 
 #### Performance Profiling
