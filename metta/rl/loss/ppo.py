@@ -294,6 +294,7 @@ class PPO(Loss):
         self._track("policy_loss", pg_loss)
         self._track("value_loss", v_loss)
         self._track("entropy", entropy_loss)
+        self._track("kl_penalty_loss", kl_penalty_loss)
         self._track("approx_kl", approx_kl)
         self._track("clipfrac", clipfrac)
         self._track("importance", importance_sampling_ratio.mean())
