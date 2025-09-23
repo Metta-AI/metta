@@ -56,3 +56,29 @@ def artifact_path_join(base: ArtifactBase, *segments: str) -> ArtifactBase:
 
     result_path = Path(base_str).joinpath(*cleaned)
     return str(result_path)
+
+
+def artifact_policy_run_root(
+    base: ArtifactBase | None,
+    *,
+    run_name: str | None,
+    epoch: int | None,
+) -> ArtifactBase | None:
+    """Return the replay root for a policy run under *base*.
+
+    ``base`` can be a filesystem path or URI prefix. ``run_name`` is required for
+    stable directory layouts; if it is falsy the base is returned verbatim. When
+    ``epoch`` is truthy, a ``v{epoch}`` component is appended to produce versioned
+    replay buckets.
+    """
+
+    if base is None or not run_name:
+        return base
+
+    run_root = artifact_path_join(base, run_name)
+    if epoch:
+        return artifact_path_join(run_root, f"v{epoch}")
+    return run_root
+
+
+__all__ = ["artifact_path_join", "artifact_policy_run_root"]

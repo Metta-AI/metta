@@ -13,7 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.artifact_paths import artifact_path_join
+from mettagrid.util.artifact_paths import artifact_path_join, artifact_policy_run_root
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +44,11 @@ def evaluate_policy(
     run_replay_root: str | None = None
     if replay_dir is not None:
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-        run_replay_root = artifact_path_join(replay_dir, metadata["run_name"])
-        if metadata["epoch"]:
-            run_replay_root = artifact_path_join(run_replay_root, f"v{metadata['epoch']}")
+        run_replay_root = artifact_policy_run_root(
+            replay_dir,
+            run_name=metadata.get("run_name"),
+            epoch=metadata.get("epoch"),
+        )
 
     sims = []
     for sim_cfg in simulations:

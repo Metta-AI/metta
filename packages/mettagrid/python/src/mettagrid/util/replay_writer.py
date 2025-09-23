@@ -39,8 +39,9 @@ class ReplayWriter:
         if episode_replay is None:
             raise ValueError(f"Episode {episode_id} not found")
         replay_path = artifact_path_join(self.replay_dir, f"{episode_id}.json.z")
-        episode_replay.write_replay(replay_path)
-        return http_url(replay_path)
+        replay_path_str = str(replay_path)
+        episode_replay.write_replay(replay_path_str)
+        return http_url(replay_path_str)
 
 
 class EpisodeReplay:
