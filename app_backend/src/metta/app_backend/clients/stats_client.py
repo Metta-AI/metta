@@ -58,7 +58,7 @@ class StatsClient(ABC):
         description: str | None = None,
         tags: list[str] | None = None,
     ) -> TrainingRunResponse:
-        return TrainingRunResponse(id=uuid.uuid1())
+        pass
 
     @abstractmethod
     def create_epoch(
@@ -68,7 +68,7 @@ class StatsClient(ABC):
         end_training_epoch: int,
         attributes: dict[str, Any] | None = None,
     ) -> EpochResponse:
-        return EpochResponse(id=uuid.uuid1())
+        pass
 
     @abstractmethod
     def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
@@ -77,18 +77,6 @@ class StatsClient(ABC):
     @abstractmethod
     def create_task(self, request: TaskCreateRequest) -> TaskResponse:
         pass
-
-    @staticmethod
-    def create(stats_server_uri: Optional[str]) -> "StatsClient":
-        if stats_server_uri is None:
-            return NoopStatsClient()
-
-        machine_token = get_machine_token(stats_server_uri)
-        if machine_token is None:
-            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
-        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
-        stats_client._validate_authenticated()
-        return stats_client
 
     @abstractmethod
     def record_episode(
@@ -107,6 +95,18 @@ class StatsClient(ABC):
         thumbnail_url: str | None = None,
     ) -> EpisodeResponse:
         pass
+
+    @staticmethod
+    def create(stats_server_uri: Optional[str]) -> "StatsClient":
+        if stats_server_uri is None:
+            return NoopStatsClient()
+
+        machine_token = get_machine_token(stats_server_uri)
+        if machine_token is None:
+            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
+        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client._validate_authenticated()
+        return stats_client
 
 
 # TODO: REMOVE THIS
