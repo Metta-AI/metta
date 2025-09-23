@@ -125,9 +125,9 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
             logger.info("Successfully loaded PufferLib checkpoint into Metta policy")
         except Exception as e:
             logger.error(f"Failed to load state dict: {e}")
-            logger.warning("Proceeding with random initialization")
+            raise
     else:
-        logger.warning("No compatible parameters found - proceeding with random initialization")
+        raise Exception("No compatible parameters found")
 
     return policy
 
