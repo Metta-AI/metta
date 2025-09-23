@@ -4,9 +4,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.component_context import ComponentContext
-from metta.rl.training.distributed_helper import DistributedHelper
+from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)

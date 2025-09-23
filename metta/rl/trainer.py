@@ -1,17 +1,22 @@
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import torch
 
 from metta.agent.policy import Policy
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.component import TrainerCallback, TrainerComponent
-from metta.rl.training.component_context import ComponentContext, TrainerState
-from metta.rl.training.core import CoreTrainingLoop
-from metta.rl.training.distributed_helper import DistributedHelper
-from metta.rl.training.experience import Experience
+from metta.rl.training import (
+    ComponentContext,
+    ContextCheckpointer,
+    CoreTrainingLoop,
+    DistributedHelper,
+    Experience,
+    TrainerCallback,
+    TrainerComponent,
+    TrainerState,
+    TrainingEnvironment,
+)
 from metta.rl.training.optimizer import create_optimizer
-from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
@@ -226,7 +231,7 @@ class Trainer:
         self._components.append(component)
         component.register(self._context)
 
-    def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
+    def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
         """Invoke all registered callbacks of the specified type.
 
         Args:
@@ -240,7 +245,10 @@ class Trainer:
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    if component.should_handle_step(current_step=current_step, previous_step=previous_step):
+                    if (
+                        component.should_handle_step(current_step=current_step, previous_step=previous_step)
+                        and infos is not None
+                    ):
                         component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
                     if component.should_handle_epoch(current_epoch):
@@ -260,9 +268,6 @@ class Trainer:
 
         This should be called after setup() to restore any saved state.
         """
-        # Find and restore trainer checkpointer state
-        from metta.rl.training.context_checkpointer import ContextCheckpointer
-
         for component in self._components:
             if isinstance(component, ContextCheckpointer):
                 component.restore(self._context)

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
-from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
+from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 from mettagrid.config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -249,7 +249,7 @@ class CurriculumConfig(Config):
     def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
         """Create a CurriculumConfig from a MettaGridConfig."""
         return cls(
-            task_generator=SingleTaskGeneratorConfig(env=mg_config),
+            task_generator=SingleTaskGenerator.Config(env=mg_config),
         )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(

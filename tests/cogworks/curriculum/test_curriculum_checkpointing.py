@@ -13,9 +13,10 @@ import pytest
 
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
+from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
 from metta.cogworks.curriculum.task_tracker import TaskTracker
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.system_config import SystemConfig
 from mettagrid.config import GameConfig, MettaGridConfig
 
 
@@ -26,7 +27,7 @@ class TestCurriculumStateSerialization:
         """Test that curriculum state can be saved and loaded correctly."""
         # Create a curriculum config with learning progress algorithm
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
@@ -78,7 +79,7 @@ class TestCurriculumStateSerialization:
         """Test that curriculum state can be loaded correctly."""
         # Create initial curriculum
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
@@ -132,7 +133,7 @@ class TestCurriculumStateSerialization:
         """Test LearningProgressAlgorithm state serialization."""
         # Create curriculum with learning progress algorithm
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
@@ -211,7 +212,7 @@ class TestCurriculumStateSerialization:
         """Test that checkpoint files don't become too large."""
         # Create curriculum with many tasks
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
@@ -243,7 +244,7 @@ class TestCurriculumStateSerialization:
         """Test handling of config mismatches during restore."""
         # Create initial curriculum
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config1 = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
 
@@ -276,7 +277,7 @@ class TestCurriculumStateSerialization:
     def test_corrupted_state_handling(self):
         """Test handling of corrupted or incomplete state."""
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
 
@@ -296,7 +297,7 @@ class TestCurriculumStateSerialization:
     def test_random_state_preservation(self):
         """Test that random state is preserved correctly."""
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
 
@@ -326,11 +327,12 @@ class TestCheckpointManagerIntegration:
     def test_checkpoint_manager_curriculum_state(self):
         """Test that CheckpointManager can save and load curriculum state."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            checkpoint_manager = CheckpointManager(run="test_curriculum", run_dir=temp_dir)
+            system_config = SystemConfig(data_dir=temp_dir, local_only=True)
+            checkpoint_manager = CheckpointManager(run="test_curriculum", system_cfg=system_config)
 
             # Create curriculum state
             mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-            task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+            task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
             curriculum_config = CurriculumConfig(
                 task_generator=task_generator_config,
@@ -377,7 +379,8 @@ class TestCheckpointManagerIntegration:
     def test_checkpoint_manager_without_curriculum_state(self):
         """Test CheckpointManager works without curriculum state (backward compatibility)."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            checkpoint_manager = CheckpointManager(run="test_backward_compat", run_dir=temp_dir)
+            system_config = SystemConfig(data_dir=temp_dir, local_only=True)
+            checkpoint_manager = CheckpointManager(run="test_backward_compat", system_cfg=system_config)
 
             # Save trainer state without curriculum
             import torch
@@ -401,7 +404,7 @@ class TestTaskRecreation:
     def test_task_recreation_with_env_cfg(self):
         """Test that tasks are recreated with proper env_cfg after loading."""
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=10)
 
@@ -446,7 +449,7 @@ class TestTaskRecreation:
 
         # Create curriculum with many tasks
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=1000)
 
@@ -479,7 +482,7 @@ class TestCurriculumRoundtripBehavior:
     def test_discrete_random_curriculum_roundtrip(self):
         """Test roundtrip for discrete random curriculum (no algorithm)."""
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
@@ -530,7 +533,7 @@ class TestCurriculumRoundtripBehavior:
     def test_learning_progress_curriculum_roundtrip(self):
         """Test roundtrip for learning progress curriculum with bidirectional scoring."""
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
@@ -608,7 +611,7 @@ class TestCurriculumRoundtripBehavior:
     def test_curriculum_deterministic_after_restore(self):
         """Test that curriculum produces deterministic sequences after restore."""
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
@@ -656,7 +659,7 @@ class TestCurriculumRoundtripBehavior:
     def test_task_state_consistency_after_roundtrip(self):
         """Test that task internal state is consistent after save/load."""
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
@@ -729,7 +732,7 @@ class TestCurriculumRoundtripBehavior:
     def test_empty_curriculum_roundtrip(self):
         """Test roundtrip with minimal/empty curriculum state."""
         mg_config = MettaGridConfig(game=GameConfig(num_agents=4))
-        task_generator_config = SingleTaskGeneratorConfig(env=mg_config)
+        task_generator_config = SingleTaskGenerator.Config(env=mg_config)
 
         curriculum_config = CurriculumConfig(task_generator=task_generator_config, num_active_tasks=5)
 

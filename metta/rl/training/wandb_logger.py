@@ -3,7 +3,7 @@
 from typing import Dict
 
 from metta.common.wandb.context import WandbRun
-from metta.rl.training.component import TrainerComponent
+from metta.rl.training import TrainerComponent
 from metta.rl.wandb import log_model_parameters, setup_wandb_metrics
 
 
