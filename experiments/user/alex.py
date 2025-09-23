@@ -1,7 +1,7 @@
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
 # You can run these functions locally with e.g. `./tools/run.py scratchpad.alex.train`
 # The VSCode "Run and Debug" section supports options to run these functions.
-from typing import List, Optional
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -89,7 +89,7 @@ def make_curriculum(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
     basic_env = env or mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 

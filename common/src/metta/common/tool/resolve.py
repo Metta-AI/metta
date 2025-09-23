@@ -35,6 +35,8 @@ def generate_candidate_paths(
 
     bases: list[str] = []
     if second:
+        # Avoid redundant or confusing two-token cases like "train train"
+        # We still produce a candidate, but keep primary-as-is before prefixed variants.
         bases.append(f"{second}.{primary}")
     bases.append(primary)
 
