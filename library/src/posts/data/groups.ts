@@ -9,6 +9,10 @@ export type GroupDTO = {
   createdAt: Date;
   memberCount: number;
   currentUserRole: string | null;
+  institution: {
+    id: string;
+    name: string;
+  };
   members?: Array<{
     id: string;
     user: {
@@ -41,6 +45,12 @@ export async function loadUserGroups(): Promise<GroupDTO[]> {
       },
     },
     include: {
+      institution: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       userGroups: {
         where: { isActive: true },
         include: {
@@ -73,6 +83,7 @@ export async function loadUserGroups(): Promise<GroupDTO[]> {
       createdAt: group.createdAt,
       memberCount: group.userGroups.length,
       currentUserRole: currentUserMembership?.role || null,
+      institution: group.institution,
       members: group.userGroups.map((ug) => ({
         id: ug.id,
         user: ug.user,
@@ -95,6 +106,12 @@ export async function loadAllPublicGroups(): Promise<GroupDTO[]> {
       isPublic: true,
     },
     include: {
+      institution: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       userGroups: {
         where: {
           isActive: true,
@@ -119,6 +136,7 @@ export async function loadAllPublicGroups(): Promise<GroupDTO[]> {
       createdAt: group.createdAt,
       memberCount: group.userGroups.length,
       currentUserRole,
+      institution: group.institution,
     };
   });
 }
@@ -136,6 +154,12 @@ export async function loadGroupById(groupId: string): Promise<GroupDTO | null> {
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: {
+      institution: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       userGroups: {
         where: { isActive: true },
         include: {
@@ -175,6 +199,7 @@ export async function loadGroupById(groupId: string): Promise<GroupDTO | null> {
     createdAt: group.createdAt,
     memberCount: group.userGroups.length,
     currentUserRole: currentUserMembership?.role || null,
+    institution: group.institution,
     members: currentUserMembership
       ? group.userGroups.map((ug) => ({
           id: ug.id,

@@ -10,13 +10,18 @@ import { prisma } from "@/lib/db/prisma";
 
 const inputSchema = zfd.formData({
   name: zfd.text(
-    z.string()
+    z
+      .string()
       .min(1)
       .max(100)
-      .regex(/^[a-zA-Z0-9_-]+$/, "Group name can only contain letters, numbers, hyphens, and underscores (no spaces)")
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        "Group name can only contain letters, numbers, hyphens, and underscores (no spaces)"
+      )
   ),
   description: zfd.text(z.string().optional()),
   isPublic: zfd.checkbox(),
+  institutionId: zfd.text(z.string()),
 });
 
 export const createGroupAction = actionClient
@@ -24,13 +29,32 @@ export const createGroupAction = actionClient
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
 
-    // Check if group with this name already exists
+    // Check if user is a member of the institution
+    const userInstitution = await prisma.userInstitution.findUnique({
+      where: {
+        userId_institutionId: {
+          userId: session.user.id,
+          institutionId: input.institutionId,
+        },
+      },
+    });
+
+    if (!userInstitution || !userInstitution.isActive) {
+      throw new Error("You must be a member of the institution to create groups");
+    }
+
+    // Check if group with this name already exists in this institution
     const existingGroup = await prisma.group.findUnique({
-      where: { name: input.name },
+      where: { 
+        name_institutionId: {
+          name: input.name,
+          institutionId: input.institutionId,
+        }
+      },
     });
 
     if (existingGroup) {
-      throw new Error("A group with this name already exists");
+      throw new Error("A group with this name already exists in this institution");
     }
 
     // Create the group
@@ -40,6 +64,7 @@ export const createGroupAction = actionClient
         description: input.description || null,
         isPublic: input.isPublic ?? true,
         createdByUserId: session.user.id,
+        institutionId: input.institutionId,
       },
       select: {
         id: true,
