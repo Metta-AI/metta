@@ -156,9 +156,6 @@ def make_app(cfg: "PlayTool"):
         logger.info("Received websocket connection!")
         await send_message(type="message", message="Connecting!")
 
-        # Create a simulation that we are going to play.
-        from metta.sim.simulation import Simulation
-
         sim = Simulation.create(
             sim_config=cfg.sim,
             device=cfg.system.device,
