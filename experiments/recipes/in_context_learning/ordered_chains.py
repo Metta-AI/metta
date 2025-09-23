@@ -425,8 +425,6 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        bptt_horizon=512,
-        batch_size=4177920,
     )
     policy_config = FastLSTMResetConfig()
 
@@ -499,7 +497,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}.512.newarchitecture.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_resource_chain_{curriculum_style}.defaults.newarchitecture.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
