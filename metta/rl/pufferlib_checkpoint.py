@@ -102,19 +102,15 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
     shape_mismatches = []
 
     keys_matched = 0
-    matched_keys = []
-    not_matched_keys = []
     for key, value in state_dict.items():
         if key in policy_state:
             policy_param = policy_state[key]
             if policy_param.shape == value.shape:
                 compatible_state[key] = value
                 keys_matched += 1
-                matched_keys.append({"pufferlib": key, "metta": key})
             else:
                 shape_mismatches.append(f"{key}: PufferLib {value.shape} vs Metta {policy_param.shape}")
                 logger.debug(f"Shape mismatch for {key}: PufferLib {value.shape} vs Metta {policy_param.shape}")
-                not_matched_keys.append({"pufferlib": key, "metta": key})
         else:
             logger.debug(f"Skipping incompatible parameter: {key}")
 
