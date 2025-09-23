@@ -425,6 +425,8 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
+        bptt_horizon=512,
+        batch_size=4177920,
     )
     policy_config = FastLSTMResetConfig()
 
