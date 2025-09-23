@@ -30,7 +30,7 @@ def guess_vectorization() -> Literal["serial", "multiprocessing"]:
     return "multiprocessing"
 
 
-def guess_local_data_dir() -> Path:
+def guess_data_dir() -> Path:
     if os.environ.get("DATA_DIR"):
         return Path(os.environ["DATA_DIR"])
     return Path("./train_dir")
@@ -41,7 +41,7 @@ class SystemConfig(Config):
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)
-    data_dir: Path = Field(default_factory=guess_local_data_dir)
+    data_dir: Path = Field(default_factory=guess_data_dir)
     remote_prefix: str | None = Field(default=None)
     local_only: bool = Field(default=False)
 
