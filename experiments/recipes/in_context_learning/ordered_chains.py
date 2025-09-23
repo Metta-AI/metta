@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
+import tqdm
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss.loss_config import LossConfig
@@ -452,7 +453,7 @@ def make_curriculum(
 
 
 def train(
-    curriculum_style: str = "terrain",
+    curriculum_style: str = "tiny",
     lp_params: LPParams = LPParams(),
     use_fast_lstm_reset: bool = True,
 ) -> TrainTool:
@@ -560,31 +561,38 @@ def experiment():
         time.sleep(1)
 
 
-def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 500):
-    curriculum_styles = [
-        "terrain_1",
-        "terrain_2",
-        "terrain_3",
-        "terrain_4",
-        "level_0",
-        "level_1",
-        "level_2",
-        "tiny",
-        "tiny_small",
-        "all_room_sizes",
-        "longer_chains",
-    ]
-    for curriculum_style in curriculum_styles:
-        for i in range(num_envs):
-            print(f"Generating {i}...")
-            task_generator_cfg = ConverterChainTaskGenerator.Config(
-                **curriculum_args[curriculum_style],
-            )
-            task_generator = ConverterChainTaskGenerator(task_generator_cfg)
-            env_cfg = task_generator._generate_task(i, random.Random(i), numpy_dir=None)
-            map_builder = env_cfg.game.map_builder.create()
-            map_builder.build()
-    generate_reward_estimates(dir=dir)
+def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
+    for chain_length in tqdm.tqdm(range(2, 9)):
+        print(f"Generating for {chain_length} chains")
+        for n_sinks in range(0, 3):
+            for room_size in ["tiny", "small", "medium"]:
+                for terrain_type in ["", "terrain"]:
+                    for density in ["", "balanced", "sparse", "high"]:
+                        for i in range(num_envs):
+                            if terrain_type == "terrain":
+                                obstacle_type = random.choice(["square", "cross", "L"])
+                            else:
+                                obstacle_type = ""
+                            print(
+                                f"Generating {i} for {chain_length} chains, {n_sinks} sinks, {room_size}, {obstacle_type}, {density}"
+                            )
+                            task_generator_cfg = ConverterChainTaskGenerator.Config(
+                                chain_lengths=[chain_length],
+                                num_sinks=[n_sinks],
+                                room_sizes=[room_size],
+                                obstacle_types=[obstacle_type],
+                                densities=[density],
+                            )
+                            task_generator = ConverterChainTaskGenerator(
+                                task_generator_cfg
+                            )
+                            env_cfg = task_generator._generate_task(
+                                i, random.Random(i), numpy_dir=None
+                            )
+                            map_builder = env_cfg.game.map_builder.create()
+                            map_builder.build()
+
+        generate_reward_estimates(dir=dir)
 
 
 def generate_reward_estimates(dir="icl_ordered_chains"):
@@ -621,5 +629,5 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
 
 
 if __name__ == "__main__":
-    experiment()
-    # save_envs_to_numpy()
+    # experiment()
+    save_envs_to_numpy()
