@@ -40,7 +40,6 @@ def env_with_visitation():
                 episode_completion_pct=True,
                 last_action=True,
                 last_reward=True,
-                resource_rewards=False,
                 visitation_counts=True,  # Enable visitation counts
             ),
             map_builder=AsciiMapBuilder.Config(
@@ -82,7 +81,6 @@ def env_without_visitation():
                 episode_completion_pct=True,
                 last_action=True,
                 last_reward=True,
-                resource_rewards=False,
                 visitation_counts=False,  # Disable visitation counts
             ),
             map_builder=AsciiMapBuilder.Config(
