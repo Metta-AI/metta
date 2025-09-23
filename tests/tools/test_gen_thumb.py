@@ -14,6 +14,8 @@ MAP_PATH = f"{repo_root}/packages/mettagrid/tests/mapgen/scenes/fixtures/test.ma
 
 def run_gen_thumb(file: str, output: Path):
     cmd = [
+        "uv",
+        "run",
         "python",
         "-m",
         "mettascope.tools.gen_thumb",

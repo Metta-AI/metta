@@ -57,9 +57,10 @@ class TestStopwatch:
         assert stopwatch.get_elapsed("timer1") == pytest.approx(elapsed1, abs=0.1)
         assert stopwatch.get_elapsed("timer2") == pytest.approx(elapsed2, abs=0.1)
 
-    @pytest.mark.skip(reason="Test failing sporadically - temporarily disabled")
-    def test_context_manager(self, stopwatch: Stopwatch, caplog: pytest.LogCaptureFixture):
+    def test_context_manager(self, caplog: pytest.LogCaptureFixture):
         """Test using stopwatch as context manager."""
+        stopwatch = Stopwatch(log_level=logging.INFO)
+
         # Test with time() method
         with stopwatch.time("test_context"):
             time.sleep(0.1)
@@ -68,15 +69,18 @@ class TestStopwatch:
         assert elapsed == pytest.approx(0.1, abs=0.1)
 
         # Test with callable syntax and logging
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger=stopwatch.logger.name):
+            caplog.clear()
+
             with stopwatch("test_callable", log_level=logging.INFO):
                 time.sleep(0.1)
 
             # Check log output
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "INFO"
-            assert "test_callable took" in caplog.records[0].message
-            assert "s" in caplog.records[0].message  # Should show seconds
+            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            assert len(stopwatch_logs) == 1
+            assert stopwatch_logs[0].levelname == "INFO"
+            assert "test_callable took" in stopwatch_logs[0].message
+            assert "s" in stopwatch_logs[0].message  # Should show seconds
 
     def test_checkpoint_functionality(self, stopwatch: Stopwatch):
         """Test checkpoint recording."""
@@ -232,18 +236,23 @@ class TestStopwatch:
 
         stopwatch.stop("estimate_test")
 
-    def test_log_progress(self, stopwatch: Stopwatch, caplog: pytest.LogCaptureFixture):
+    def test_log_progress(self, caplog: pytest.LogCaptureFixture):
         """Test progress logging."""
+        stopwatch = Stopwatch(log_level=logging.INFO)
+
         stopwatch.start("progress_test")
         time.sleep(0.1)
 
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger=stopwatch.logger.name):
+            caplog.clear()
+
             # Log progress
             stopwatch.log_progress(50, 100, "progress_test", "Test Progress")
 
             # Check log output
-            assert len(caplog.records) == 1
-            record = caplog.records[0]
+            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            assert len(stopwatch_logs) == 1
+            record = stopwatch_logs[0]
             assert record.levelname == "INFO"
             assert "Test Progress" in record.message
             assert "[progress_test]" in record.message
@@ -299,15 +308,22 @@ class TestStopwatch:
         all_elapsed_with_global = stopwatch.get_all_elapsed(exclude_global=False)
         assert stopwatch.GLOBAL_TIMER_NAME in all_elapsed_with_global
 
-    def test_edge_cases(self, stopwatch: Stopwatch, caplog: pytest.LogCaptureFixture):
+    def test_edge_cases(self, caplog: pytest.LogCaptureFixture):
         """Test edge cases and error handling."""
-        with caplog.at_level(logging.WARNING):
+        stopwatch = Stopwatch(log_level=logging.INFO)
+
+        with caplog.at_level(logging.WARNING, logger=stopwatch.logger.name):
+            caplog.clear()
+
             # Stop timer that's not running
             elapsed = stopwatch.stop("nonexistent")
             assert elapsed == 0.0
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "WARNING"
-            assert "Timer 'nonexistent' not running" in caplog.records[0].message
+
+            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            assert len(stopwatch_logs) == 1
+            record = stopwatch_logs[0]
+            assert record.levelname == "WARNING"
+            assert "Timer 'nonexistent' not running" in record.message
 
             # Clear for next test
             caplog.clear()
@@ -315,9 +331,12 @@ class TestStopwatch:
             # Start timer that's already running
             stopwatch.start("double_start")
             stopwatch.start("double_start")
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "WARNING"
-            assert "Timer 'double_start' already running" in caplog.records[0].message
+
+            stopwatch_logs = [r for r in caplog.records if r.name == stopwatch.logger.name]
+            assert len(stopwatch_logs) == 1
+            record = stopwatch_logs[0]
+            assert record.levelname == "WARNING"
+            assert "Timer 'double_start' already running" in record.message
 
         # Rate with zero elapsed time
         rate = stopwatch.get_rate(100, "zero_timer")
@@ -364,7 +383,6 @@ class TestStopwatch:
         timer2.references.add(("same.py", 20))
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
-    @pytest.mark.skip(reason="Test failing sporadically - temporarily disabled")
     def test_lap_all_with_running_and_stopped_timers(self, stopwatch: Stopwatch):
         tol = 0.05
 
@@ -568,12 +586,13 @@ class TestStopwatchIntegration:
         assert all_elapsed["process_data"] > all_elapsed["load_data"]
         assert all_elapsed["process_data"] > all_elapsed["save_results"]
 
-    @pytest.mark.skip(reason="Test failing with assert 0 == 5 - temporarily disabled")
     def test_logging_scenarios(self, caplog: pytest.LogCaptureFixture):
         """Test various logging scenarios in integration."""
         sw = Stopwatch(log_level=logging.INFO)
 
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger=sw.logger.name):
+            caplog.clear()
+
             # Test multiple operations with logging
             with sw("operation1", log_level=logging.INFO):
                 time.sleep(0.05)
@@ -589,7 +608,8 @@ class TestStopwatchIntegration:
             sw.stop("batch_process")
 
             # Verify all expected logs
-            info_records = [r for r in caplog.records if r.levelname == "INFO"]
+            info_records = [r for r in caplog.records if r.levelname == "INFO" and r.name == sw.logger.name]
+
             assert len(info_records) == 5  # 2 context managers + 3 progress logs
 
             # Check operation logs
@@ -666,14 +686,18 @@ class TestStopwatchIntegration:
         assert custom_elapsed == pytest.approx(0.02, abs=0.1)
 
         # Test logging functionality
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger=sw.logger.name):
+            caplog.clear()
+
             result = test_obj.logged_method(5, y=15)
             assert result == 20
 
             # Check log output
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "INFO"
-            assert "logged_method took" in caplog.records[0].message
+            instance_timer_logs = [r for r in caplog.records if r.name == test_obj.timer.logger.name]
+
+            assert len(instance_timer_logs) == 1
+            assert instance_timer_logs[0].levelname == "INFO"
+            assert "logged_method took" in instance_timer_logs[0].message
 
         # Test multiple calls accumulate time
         test_obj.external_timed_method(3)
