@@ -158,8 +158,9 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_env()
     return PlayTool(
         sim=SimulationConfig(
+            suite="navigation_sequence",
             env=eval_env,
-            name="navigation_sequence",
+            name="eval",
         ),
     )
 
@@ -168,8 +169,9 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_env()
     return ReplayTool(
         sim=SimulationConfig(
+            suite="navigation_sequence",
             env=eval_env,
-            name="navigation_sequence",
+            name="eval",
         ),
     )
 
