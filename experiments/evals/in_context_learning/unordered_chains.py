@@ -56,6 +56,7 @@ def make_unordered_chain_eval_suite() -> list[SimulationConfig]:
         sim_name = f"unordered/{res_type}_r{num_resources}_c{num_converters}_i{max_inputs}_{room_size}"
         sims.append(
             SimulationConfig(
+                suite="in_context_learning",
                 name=sim_name,
                 env=icl_eval_env(
                     make_unordered_chain_eval_env(
