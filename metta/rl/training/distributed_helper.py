@@ -76,19 +76,15 @@ class DistributedHelper:
 
     @property
     def is_distributed(self) -> bool:
-        """Check if running in distributed mode."""
         return self.config.distributed
 
     def is_master(self) -> bool:
-        """Check if this is the master process."""
         return self.config.is_master
 
     def get_world_size(self) -> int:
-        """Get the number of distributed processes."""
         return self.config.world_size
 
     def get_rank(self) -> int:
-        """Get the rank of this process."""
         return self.config.rank
 
     def scale_batch_config(
@@ -152,14 +148,7 @@ class DistributedHelper:
             torch.distributed.barrier()
 
     def broadcast_from_master(self, obj: Any) -> Any:
-        """Broadcast object from master to all processes.
-
-        Args:
-            obj: Object to broadcast (only needed on master)
-
-        Returns:
-            Broadcasted object (same on all ranks)
-        """
+        """Broadcast object from master to all processes."""
         if not self.is_distributed:
             return obj
 
@@ -180,14 +169,7 @@ class DistributedHelper:
         return self.is_master()
 
     def all_gather(self, tensor: torch.Tensor) -> list[torch.Tensor]:
-        """Gather tensors from all processes.
-
-        Args:
-            tensor: Tensor to gather
-
-        Returns:
-            List of tensors from all processes
-        """
+        """Gather tensors from all processes."""
         if not self.is_distributed:
             return [tensor]
 
