@@ -185,6 +185,7 @@ class Simulation:
             policy_uri or "mock://",
             device=torch.device(device),
             vectorization=vectorization,
+            name=sim_config.name,
             stats_dir=stats_dir,
             replay_dir=full_replay_dir,
         )
