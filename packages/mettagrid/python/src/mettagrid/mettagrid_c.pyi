@@ -63,12 +63,6 @@ class WallConfig(GridObjectConfig):
     type_name: str
     swappable: bool
 
-class BoxConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, returned_resources: dict[int, int]): ...
-    type_id: int
-    type_name: str
-    returned_resources: dict[int, int]
-
 class AgentConfig(GridObjectConfig):
     def __init__(
         self,
