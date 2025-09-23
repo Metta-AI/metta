@@ -25,7 +25,7 @@ def test_experience_uses_storage_device_for_buffers() -> None:
         experience_spec=spec,
         device=compute_device,
         storage_device=storage_device,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
     )
 
     assert experience.buffer.device == storage_device
@@ -35,6 +35,8 @@ def test_experience_uses_storage_device_for_buffers() -> None:
     if torch.cuda.is_available():
         assert experience.pin_memory is True
         assert experience.buffer.is_pinned()
+    else:
+        assert experience.pin_memory is False
 
 
 def test_experience_defaults_to_compute_device_when_no_storage_device() -> None:
