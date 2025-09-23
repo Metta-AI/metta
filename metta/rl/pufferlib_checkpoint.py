@@ -101,6 +101,9 @@ def _map_pufferlib_key_to_metta(key: str) -> str:
         "cell.bias_ih": "lstm.net.bias_ih_l0", 
         "cell.bias_hh": "lstm.net.bias_hh_l0",
 
+        # value
+        "policy.value.weight": "value.weight",
+        "policy.value.bias": "value.bias",
 
     }
 
