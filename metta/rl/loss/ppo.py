@@ -112,6 +112,7 @@ class PPO(Loss):
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
         self.burn_in_steps_iter = 0
+        self.register_state_attr("anneal_beta", "burn_in_steps_iter")
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
