@@ -15,8 +15,8 @@ from metta.rl.training import (
     TrainerComponent,
     TrainerState,
     TrainingEnvironment,
-    create_optimizer,
 )
+from metta.rl.training.optimizer import create_optimizer
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:

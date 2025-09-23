@@ -38,7 +38,7 @@ from experiments.training_job import TrainingJobConfig
 from experiments.training_run_config import TrainingRunConfig
 from experiments.skypilot_job_config import SkypilotJobConfig
 from metta.rl.trainer_config import TrainerConfig, OptimizerConfig, TorchProfilerConfig
-from metta.rl.training import CheckpointConfig
+from metta.rl.training.checkpointer import CheckpointConfig
 from metta.sim.simulation_config import SimulationConfig
 
 class LearningRateABTest(Experiment):

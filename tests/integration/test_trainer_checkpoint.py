@@ -18,12 +18,12 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
-    CheckpointConfig,
     CheckpointerConfig,
     ContextCheckpointerConfig,
     EvaluatorConfig,
     TrainingEnvironmentConfig,
 )
+from metta.rl.training.checkpointer import CheckpointConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 

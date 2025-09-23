@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.training import DistributedHelper, Experience, StatsReporter, TrainingEnvironment
+from metta.rl.training import DistributedHelper, Experience, TrainingEnvironment
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
+
+if TYPE_CHECKING:
+    from metta.rl.training.stats_reporter import StatsReporter
 
 
 @dataclass(slots=True)
