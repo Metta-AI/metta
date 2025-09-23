@@ -55,7 +55,9 @@ class TaskPoolVisualizer:
             tracked_tasks = curriculum_algorithm.task_tracker.get_all_tracked_tasks()
 
             if len(tracked_tasks) < self.min_tasks_for_viz:
-                logger.debug(f"Insufficient tasks ({len(tracked_tasks)}) for visualization")
+                logger.info(
+                    f"Insufficient tasks ({len(tracked_tasks)}) for visualization, need {self.min_tasks_for_viz}"
+                )
                 return {}
 
             # Collect task data
@@ -67,6 +69,9 @@ class TaskPoolVisualizer:
 
             # Generate histograms
             histograms = self._generate_histograms(task_data)
+
+            if histograms:
+                logger.info(f"Generated {len(histograms)} histogram types: {list(histograms.keys())}")
 
             return histograms
 

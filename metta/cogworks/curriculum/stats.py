@@ -266,15 +266,12 @@ class SliceAnalyzer:
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic slice analysis statistics."""
-        total_tracked_slices = len(self._monitored_slices)
         total_tasks_tracked = len(
             set(task_id for slice_tasks in self._slice_tracking.values() for task_id in slice_tasks.keys())
         )
 
         return {
-            "total_tracked_slices": total_tracked_slices,
             "total_tasks_tracked": total_tasks_tracked,
-            "max_slice_axes": self.max_slice_axes,
         }
 
     def get_detailed_stats(self) -> Dict[str, float]:

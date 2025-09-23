@@ -46,7 +46,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     enable_task_pool_visualization: bool = True
     visualization_epoch_interval: int = 1
     visualization_max_bins: int = 50
-    min_tasks_for_viz: int = 5
+    min_tasks_for_viz: int = 2  # Reduced threshold for easier testing
 
     def algorithm_type(self) -> str:
         return "learning_progress"

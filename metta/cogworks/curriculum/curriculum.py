@@ -414,7 +414,17 @@ class Curriculum(StatsLogger):
     def stats(self) -> dict:
         """Return curriculum statistics for logging purposes."""
         # Use the StatsLogger implementation
-        return super().stats()
+        stats = super().stats()
+
+        # Add task pool counts for easier debugging
+        if self._tasks:
+            stats["active_task_count"] = float(len(self._tasks))
+            task_completion_counts = [task._num_completions for task in self._tasks.values()]
+            if task_completion_counts:
+                stats["total_task_completions"] = float(sum(task_completion_counts))
+                stats["avg_completions_per_task"] = float(sum(task_completion_counts) / len(task_completion_counts))
+
+        return stats
 
 
 # Import concrete config classes at the end to avoid circular imports

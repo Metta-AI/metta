@@ -85,9 +85,19 @@ class WandbLogger(TrainerComponent):
                 if driver_env is not None and hasattr(driver_env, "get_latest_viz_data"):
                     viz_data = driver_env.get_latest_viz_data()
                     if viz_data:
+                        import logging
+
+                        logging.getLogger(__name__).info(
+                            f"Logging {len(viz_data)} visualization types to wandb: {list(viz_data.keys())}"
+                        )
                         self._log_histograms(viz_data)
-        except Exception:
-            # Fail silently - visualization is optional
+                    # else:
+                    #     logging.getLogger(__name__).debug("No visualization data available")
+        except Exception as e:
+            # Log exceptions for debugging
+            import logging
+
+            logging.getLogger(__name__).warning(f"Failed to log visualizations: {e}")
             pass
 
     def _log_histograms(self, viz_data: Dict[str, Any]) -> None:

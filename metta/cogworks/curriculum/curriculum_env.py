@@ -67,13 +67,23 @@ class CurriculumEnv(PufferEnv):
 
         # Check for visualization data - store it as an attribute for wandb access
         # We check on each call but only generate when epoch changes
-        viz_data = self._curriculum.get_visualization_data(self._current_epoch)
-        if viz_data:
-            # Store visualization data as an attribute rather than in info dict
-            # to avoid PufferLib trying to average it
-            self._latest_viz_data = viz_data
-        elif not hasattr(self, "_latest_viz_data"):
-            self._latest_viz_data = None
+        try:
+            viz_data = self._curriculum.get_visualization_data(self._current_epoch)
+            if viz_data:
+                # Store visualization data as an attribute rather than in info dict
+                # to avoid PufferLib trying to average it
+                self._latest_viz_data = viz_data
+                # Also log a simple indicator in regular stats for debugging
+                info_dict["_viz_data_available"] = 1.0
+            elif not hasattr(self, "_latest_viz_data"):
+                self._latest_viz_data = None
+        except Exception as e:
+            # Debug logging for visualization issues
+            import logging
+
+            logging.getLogger(__name__).debug(f"Visualization data collection failed: {e}")
+            if not hasattr(self, "_latest_viz_data"):
+                self._latest_viz_data = None
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""

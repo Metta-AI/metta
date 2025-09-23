@@ -9,6 +9,9 @@ import time
 from collections import deque
 from typing import Dict, Optional, Tuple
 
+import numpy as np
+from scipy import stats
+
 
 class TaskTracker:
     """Tracks task metadata, performance history, and completion statistics."""
@@ -114,8 +117,15 @@ class TaskTracker:
         if not self._completion_history:
             return {
                 "mean_recent_score": 0.0,
+                "std_recent_score": 0.0,
+                "skewness_recent_score": 0.0,
+                "kurtosis_recent_score": 0.0,
                 "total_tracked_tasks": 0,
                 "total_completions": 0,
+                "mean_pool_score": 0.0,
+                "std_pool_score": 0.0,
+                "skew_pool_score": 0.0,
+                "kurt_pool_score": 0.0,
             }
 
         # Use cached total completions if valid, otherwise compute
@@ -125,10 +135,36 @@ class TaskTracker:
             )
             self._cache_valid = True
 
+        # Calculate recent score statistics
+        recent_scores = np.array(self._completion_history)
+        mean_recent = float(np.mean(recent_scores))
+        std_recent = float(np.std(recent_scores)) if len(recent_scores) > 1 else 0.0
+        skew_recent = float(stats.skew(recent_scores)) if len(recent_scores) > 2 else 0.0
+        kurt_recent = float(stats.kurtosis(recent_scores)) if len(recent_scores) > 3 else 0.0
+
+        # Calculate pool score statistics (all task mean scores)
+        pool_scores = []
+        for total_score, completion_count, _, _ in self._task_memory.values():
+            if completion_count > 0:
+                pool_scores.append(total_score / completion_count)
+
+        pool_scores_array = np.array(pool_scores) if pool_scores else np.array([0.0])
+        mean_pool = float(np.mean(pool_scores_array))
+        std_pool = float(np.std(pool_scores_array)) if len(pool_scores_array) > 1 else 0.0
+        skew_pool = float(stats.skew(pool_scores_array)) if len(pool_scores_array) > 2 else 0.0
+        kurt_pool = float(stats.kurtosis(pool_scores_array)) if len(pool_scores_array) > 3 else 0.0
+
         return {
-            "mean_recent_score": sum(self._completion_history) / len(self._completion_history),
+            "mean_recent_score": mean_recent,
+            "std_recent_score": std_recent,
+            "skewness_recent_score": skew_recent,
+            "kurtosis_recent_score": kurt_recent,
             "total_tracked_tasks": len(self._task_memory),
             "total_completions": self._cached_total_completions,
+            "mean_pool_score": mean_pool,
+            "std_pool_score": std_pool,
+            "skew_pool_score": skew_pool,
+            "kurt_pool_score": kurt_pool,
         }
 
     def _cleanup_old_tasks(self) -> None:
