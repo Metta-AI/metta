@@ -39,6 +39,19 @@ jobs:
         with:
           python-version: "3.11.7"
       - run: pipx run build --sdist --outdir dist packages/mettagrid
+      - name: Verify sdist version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mettagrid-v')
+        run: |
+          expected="${GITHUB_REF_NAME#mettagrid-v}"
+          sdist=$(ls dist/mettagrid-*.tar.gz)
+          actual=$(basename "$sdist")
+          actual=${actual#mettagrid-}
+          actual=${actual%.tar.gz}
+          actual=${actual%%+*}
+          if [ "$actual" != "$expected" ]; then
+            echo "Expected sdist version $expected but found $actual"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: sdist
@@ -76,6 +89,20 @@ jobs:
         with:
           package-dir: packages/mettagrid
           output-dir: wheelhouse
+      - name: Verify wheel versions
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/mettagrid-v')
+        run: |
+          expected="${GITHUB_REF_NAME#mettagrid-v}"
+          for wheel in wheelhouse/mettagrid-*.whl; do
+            base=$(basename "$wheel")
+            version=${base#mettagrid-}
+            version=${version%%-*}
+            version=${version%%+*}
+            if [ "$version" != "$expected" ]; then
+              echo "Expected wheel version $expected but found $version in $base"
+              exit 1
+            fi
+          done
 
       - uses: actions/upload-artifact@v4
         with:
