@@ -17,6 +17,7 @@ import {
   resolveMentions,
   extractUserIdsFromResolution,
 } from "@/lib/mention-resolution";
+import { createMentionNotifications } from "@/lib/notifications";
 
 const inputSchema = zfd.formData({
   title: zfd.text(z.string().min(1).max(255)),
@@ -51,10 +52,11 @@ export const createPostAction = actionClient
 
     // Parse and resolve mentions if provided
     let mentionedUserIds: string[] = [];
+    let resolvedMentions: any[] = [];
     if (input.mentions) {
       try {
         const mentionStrings: string[] = JSON.parse(input.mentions);
-        const resolvedMentions = await resolveMentions(
+        resolvedMentions = await resolveMentions(
           mentionStrings,
           session.user.id
         );
@@ -114,10 +116,24 @@ export const createPostAction = actionClient
       });
     }
 
-    // TODO: Create notifications for mentioned users
-    if (mentionedUserIds.length > 0) {
-      console.log(`📧 Post ${post.id} mentions users:`, mentionedUserIds);
-      // Future: Create notification records in database
+    // Create notifications for mentioned users
+    if (resolvedMentions.length > 0) {
+      try {
+        const actorName = session.user.name || session.user.email?.split("@")[0] || "Someone";
+        const actionUrl = `/posts/${post.id}`;
+        
+        await createMentionNotifications(
+          resolvedMentions,
+          session.user.id,
+          actorName,
+          "post",
+          post.id,
+          actionUrl
+        );
+      } catch (error) {
+        console.error("Error creating mention notifications:", error);
+        // Don't fail the post creation if notifications fail
+      }
     }
 
     revalidatePath("/");

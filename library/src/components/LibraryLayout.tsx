@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { LibrarySidebar } from "./LibrarySidebar";
+import { TopMenu } from "@/app/TopMenu";
 
 /**
  * Library Layout Component
@@ -16,6 +17,9 @@ interface LibraryLayoutProps {
 export function LibraryLayout({ children }: LibraryLayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Top Navigation Bar */}
+      <TopMenu />
+
       <div className="flex min-h-screen">
         {/* Left Sidebar */}
         <LibrarySidebar />

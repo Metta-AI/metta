@@ -24,6 +24,10 @@ model User {
   userGroups            UserGroup[]
   createdGroups         Group[]
 
+  // Notifications
+  receivedNotifications Notification[]         @relation("NotificationRecipient")
+  triggeredNotifications Notification[]        @relation("NotificationActor")
+
   @@map("user")
 }
 
@@ -93,6 +97,7 @@ model Post {
   author    User       @relation(fields: [authorId], references: [id])
   paper     Paper?     @relation(fields: [paperId], references: [id])
   comments  Comment[]
+  notifications Notification[] // Notifications related to this post
 
   @@map("post")
 }
@@ -111,6 +116,7 @@ model Comment {
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies   Comment[] @relation("CommentReplies")
+  notifications Notification[] // Notifications related to this comment
 
   @@map("comment")
 }
@@ -275,6 +281,48 @@ enum InstitutionType {
   NONPROFIT
   GOVERNMENT
   OTHER
+}
+
+model Notification {
+  id          String            @id @default(cuid())
+  userId      String            // Who receives the notification
+  type        NotificationType
+  isRead      Boolean           @default(false)
+  title       String
+  message     String?
+  actionUrl   String?           // Optional URL to navigate to
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @default(now()) @updatedAt
+
+  // Actor who triggered the notification (optional)
+  actorId     String?
+  actor       User?             @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  // Related content (optional)
+  postId      String?
+  post        Post?             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId   String?
+  comment     Comment?          @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  // Mention-specific data (optional)
+  mentionText String?           // The exact mention used (@username, @/group, etc.)
+
+  // Recipient user
+  user        User              @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
+  @@map("notification")
+}
+
+enum NotificationType {
+  MENTION           // @-mention in post or comment
+  COMMENT           // Comment on user's post
+  REPLY             // Reply to user's comment
+  LIKE              // Like on post/comment (future)
+  FOLLOW            // User followed (future)
+  PAPER_SUGGESTION  // AI paper suggestion (future)
+  SYSTEM            // System announcements (future)
 }
 
 

@@ -24,6 +24,7 @@ interface ThreadedCommentsProps {
   showBackToFeed?: boolean;
   initialComments?: CommentDTO[];
   onCommentCountChange?: (delta: number) => void;
+  highlightedCommentId?: string | null;
 }
 
 // --- Helpers ----------------------------------------------------------------
@@ -146,10 +147,10 @@ function CommentComposer({
   // Handle content changes that also updates mentions
   const handleContentChange = (newContent: string) => {
     onChange(newContent);
-    
+
     // Parse mentions from content
     const parsedMentions = parseMentions(newContent);
-    const mentionValues = parsedMentions.map(m => m.raw);
+    const mentionValues = parsedMentions.map((m) => m.raw);
     setMentions(mentionValues);
     onMentionsChange?.(mentionValues);
   };
@@ -236,6 +237,7 @@ function CommentNode({
   setActiveComposer,
   currentUser,
   onDelete,
+  highlightedCommentId,
 }: {
   c: CommentDTO;
   depth?: number;
@@ -244,13 +246,20 @@ function CommentNode({
   setActiveComposer: (id: string | null) => void;
   currentUser: any;
   onDelete: (commentId: string) => void;
+  highlightedCommentId?: string | null;
 }) {
   const isOpen = activeComposer === c.id;
   const [replyText, setReplyText] = useState("");
+  const isHighlighted = highlightedCommentId === c.id;
 
   return (
     <div className="space-y-2">
-      <div className="group relative">
+      <div
+        id={`comment-${c.id}`}
+        className={`group relative rounded-lg p-3 transition-colors ${
+          isHighlighted ? "border-2 border-blue-200 bg-blue-50" : ""
+        }`}
+      >
         <CommentItem c={c} />
 
         {/* Actions */}
@@ -314,6 +323,7 @@ function CommentNode({
               setActiveComposer={setActiveComposer}
               currentUser={currentUser}
               onDelete={onDelete}
+              highlightedCommentId={highlightedCommentId}
             />
           ))}
         </div>
@@ -329,6 +339,7 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
   showBackToFeed = false,
   initialComments,
   onCommentCountChange,
+  highlightedCommentId,
 }) => {
   const [comments, setComments] = useState<CommentDTO[]>(initialComments || []);
   const [isLoading, setIsLoading] = useState(false);
@@ -450,7 +461,11 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
     }
   }, [postId, executeLoadComments, comments.length, initialComments]);
 
-  function addReply(parentId: string | null, text: string, mentions?: string[]) {
+  function addReply(
+    parentId: string | null,
+    text: string,
+    mentions?: string[]
+  ) {
     if (!currentUser) return;
 
     const formData = new FormData();
@@ -459,12 +474,12 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
     if (parentId) {
       formData.append("parentId", parentId);
     }
-    
+
     // Add mentions to form data
     if (mentions && mentions.length > 0) {
       formData.append("mentions", JSON.stringify(mentions));
     }
-    
+
     executeCreateComment(formData);
   }
 
@@ -490,6 +505,7 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
               setActiveComposer={setActiveComposer}
               currentUser={currentUser}
               onDelete={(commentId) => setCommentToDelete(commentId)}
+              highlightedCommentId={highlightedCommentId}
             />
           ))}
 
