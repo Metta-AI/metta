@@ -50,6 +50,9 @@ fi
 echo -e "\n${YELLOW}📁 Creating test result directories...${NC}"
 mkdir -p test-results coverage-reports
 
+# Determine which package suites should run (defaults to true)
+RUN_APP_BACKEND_TESTS=${RUN_APP_BACKEND_TESTS:-true}
+
 # Define the test runner function
 run_package_tests() {
   local package=$1
@@ -71,6 +74,13 @@ run_package_tests() {
   local raw_output="test-results/${package_name}_raw.log"
 
   echo -e "${color}[${package_name}]${NC} Starting tests..."
+
+  # Skip packages when requested (currently only app_backend is gated)
+  if [[ "$package_name" == "app_backend" && "$RUN_APP_BACKEND_TESTS" != "true" ]]; then
+    echo -e "${color}[${package_name}]${NC} Skipping tests (no app_backend changes detected)"
+    echo 0 > "test-results/${package_name}.exit"
+    return
+  fi
 
   # Run tests and prefix each line with package name and color
   if [ "$package" == "core" ]; then
