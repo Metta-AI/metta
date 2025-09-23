@@ -8,7 +8,39 @@ change.
 """
 
 import importlib
-from typing import Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Tuple
+
+# Type imports only happen during type checking, not at runtime
+if TYPE_CHECKING:
+    from metta.rl.training.checkpointer import Checkpointer, CheckpointerConfig
+    from metta.rl.training.component import TrainerCallback, TrainerComponent
+    from metta.rl.training.component_context import ComponentContext, TrainerState, TrainingEnvWindow
+    from metta.rl.training.context_checkpointer import ContextCheckpointer, ContextCheckpointerConfig
+    from metta.rl.training.core import CoreTrainingLoop, RolloutResult
+    from metta.rl.training.distributed_helper import DistributedHelper
+    from metta.rl.training.evaluator import Evaluator, EvaluatorConfig, NoOpEvaluator
+    from metta.rl.training.experience import Experience
+    from metta.rl.training.gradient_reporter import GradientReporter, GradientReporterConfig
+    from metta.rl.training.heartbeat import Heartbeat, HeartbeatConfig
+    from metta.rl.training.monitor import Monitor
+    from metta.rl.training.progress_logger import ProgressLogger
+    from metta.rl.training.scheduler import HyperparameterSchedulerConfig, Scheduler, SchedulerConfig
+    from metta.rl.training.stats_reporter import (
+        NoOpStatsReporter,
+        StatsReporter,
+        StatsReporterConfig,
+        StatsReporterState,
+    )
+    from metta.rl.training.torch_profiler import TorchProfiler
+    from metta.rl.training.training_environment import (
+        EnvironmentMetaData,
+        TrainingEnvironment,
+        TrainingEnvironmentConfig,
+        VectorizedTrainingEnvironment,
+    )
+    from metta.rl.training.uploader import Uploader, UploaderConfig
+    from metta.rl.training.wandb_aborter import WandbAborter, WandbAborterConfig
+    from metta.rl.training.wandb_logger import WandbLogger
 
 _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "Checkpointer": ("metta.rl.training.checkpointer", "Checkpointer"),
@@ -52,7 +84,48 @@ _EXPORTS: Dict[str, Tuple[str, str | None]] = {
     "WandbLogger": ("metta.rl.training.wandb_logger", "WandbLogger"),
 }
 
-__all__ = list(_EXPORTS.keys())  # type: ignore[reportUnsupportedDunderAll]
+# Explicitly define __all__ to help type checkers
+__all__ = [
+    "Checkpointer",
+    "CheckpointerConfig",
+    "ComponentContext",
+    "ContextCheckpointer",
+    "ContextCheckpointerConfig",
+    "CoreTrainingLoop",
+    "DistributedHelper",
+    "EnvironmentMetaData",
+    "Evaluator",
+    "EvaluatorConfig",
+    "Experience",
+    "GradientReporter",
+    "GradientReporterConfig",
+    "Heartbeat",
+    "HeartbeatConfig",
+    "HyperparameterSchedulerConfig",
+    "Monitor",
+    "NoOpEvaluator",
+    "NoOpStatsReporter",
+    "ProgressLogger",
+    "RolloutResult",
+    "Scheduler",
+    "SchedulerConfig",
+    "StatsReporter",
+    "StatsReporterConfig",
+    "StatsReporterState",
+    "TorchProfiler",
+    "TrainerCallback",
+    "TrainerComponent",
+    "TrainerState",
+    "TrainingEnvironment",
+    "TrainingEnvironmentConfig",
+    "TrainingEnvWindow",
+    "Uploader",
+    "UploaderConfig",
+    "VectorizedTrainingEnvironment",
+    "WandbAborter",
+    "WandbAborterConfig",
+    "WandbLogger",
+]
 
 
 def __getattr__(name: str) -> Any:
