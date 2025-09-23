@@ -60,7 +60,7 @@ class TrainerConfig(Config):
 
     compile: bool = False
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
-    amp: bool = False
+    amp: bool = True
     precision: Literal["float32", "float16", "bfloat16"] = "float32"
     cpu_offload: bool = False
     lr_scheduler: Literal["none", "cosine"] = "none"

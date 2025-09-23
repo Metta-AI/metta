@@ -1,15 +1,17 @@
 import pytest
 import torch
 
-from metta.agent.util.distribution_utils import (
-    configure_sampling_backend,
-    evaluate_actions,
-    reset_sampling_backend,
-    sample_actions,
-)
+from metta.agent.util.distribution_utils import configure_sampling_backend, evaluate_actions, sample_actions
 
 # Global seed for reproducibility
 SEED = 42
+
+
+@pytest.fixture(autouse=True)
+def reset_backend():
+    configure_sampling_backend(False)
+    yield
+    configure_sampling_backend(False)
 
 
 @pytest.fixture
@@ -171,12 +173,6 @@ class TestCompatibility:
 
 
 class TestSamplerBackendConfiguration:
-    def setup_method(self) -> None:
-        reset_sampling_backend()
-
-    def teardown_method(self) -> None:
-        reset_sampling_backend()
-
     def test_eager_backend_is_default(self) -> None:
         logits = torch.randn(4, 6)
         actions, logprob, entropy, norm = sample_actions(logits)

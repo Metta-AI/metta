@@ -63,6 +63,11 @@ def _resolve_compiled_sampler(
     return compiled_sample, compiled_evaluate
 
 
+# Initialize eager backend by default so sampling works out of the box.
+_CURRENT_SAMPLE_IMPL = _sample_actions_eager
+_CURRENT_EVAL_IMPL = _evaluate_actions_eager
+
+
 def configure_sampling_backend(use_compile: bool, mode: str = "reduce-overhead") -> None:
     """Configure action sampling helpers for eager or compiled execution.
 
@@ -90,9 +95,7 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     """Sample actions from logits using the configured backend."""
 
     if _CURRENT_SAMPLE_IMPL is None:
-        raise RuntimeError(
-            "Sampling backend is uninitialized; call configure_sampling_backend or reset_sampling_backend."
-        )
+        configure_sampling_backend(False)
     return _CURRENT_SAMPLE_IMPL(action_logits)
 
 
@@ -100,16 +103,8 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     """Evaluate provided actions under the configured backend."""
 
     if _CURRENT_EVAL_IMPL is None:
-        raise RuntimeError(
-            "Sampling backend is uninitialized; call configure_sampling_backend or reset_sampling_backend."
-        )
+        configure_sampling_backend(False)
     return _CURRENT_EVAL_IMPL(action_logits, actions)
-
-
-def reset_sampling_backend() -> None:
-    """Reset sampling helpers to the eager implementation."""
-
-    configure_sampling_backend(False)
 
 
 def get_from_master(x: Any) -> Any:
@@ -127,6 +122,3 @@ def get_from_master(x: Any) -> Any:
     obj_list = [x] if rank == 0 else [None]
     dist.broadcast_object_list(obj_list, src=0)
     return obj_list[0]
-
-
-reset_sampling_backend()

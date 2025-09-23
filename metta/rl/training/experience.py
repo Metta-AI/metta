@@ -31,11 +31,11 @@ class Experience:
         self.total_agents = total_agents
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
-        self.compute_device = device if isinstance(device, torch.device) else torch.device(device)
+        self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.storage_device = (
             (storage_device if isinstance(storage_device, torch.device) else torch.device(storage_device))
             if storage_device is not None
-            else self.compute_device
+            else self.device
         )
         self.pin_memory = pin_memory and self.storage_device.type == "cpu"
 
@@ -97,12 +97,6 @@ class Experience:
     def ready_for_training(self) -> bool:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
-
-    @property
-    def device(self) -> torch.device:
-        """Alias for the compute device used during training."""
-
-        return self.compute_device
 
     def store(self, data_td: TensorDict, env_id: slice) -> None:
         """Store a batch of experience."""
@@ -185,7 +179,7 @@ class Experience:
         return TensorDict(
             {},
             batch_size=(self.minibatch_segments, self.bptt_horizon),
-            device=self.compute_device,
+            device=self.device,
         )
 
     @staticmethod
