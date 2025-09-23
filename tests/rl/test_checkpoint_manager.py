@@ -14,7 +14,7 @@ from metta.rl.system_config import SystemConfig
 @pytest.fixture
 def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield SystemConfig(data_dir=Path(tmpdir), remote_prefix="s3://bucket/checkpoints")
+        yield SystemConfig(data_dir=Path(tmpdir))
 
 
 @pytest.fixture
@@ -63,10 +63,9 @@ class TestBasicSaveLoad:
 
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent):
         metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
-        manager = CheckpointManager(
-            run="test_run",
-            system_cfg=test_system_cfg,
-        )
+
+        test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
+        manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
         expected_filename = "test_run:v3.pt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"

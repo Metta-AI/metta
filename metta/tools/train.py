@@ -105,13 +105,13 @@ class TrainTool(Tool):
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
-        distributed_helper = DistributedHelper(torch.device(self.system_cfg.device))
+        distributed_helper = DistributedHelper(torch.device(self.system.device))
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 
-        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system_cfg)
+        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
         if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
             raise ValueError("without a remote prefix we cannot use remote evaluation")
@@ -174,7 +174,7 @@ class TrainTool(Tool):
             self.trainer,
             env,
             policy,
-            torch.device(self.system_cfg.device),
+            torch.device(self.system.device),
             distributed_helper=distributed_helper,
             run_name=self.run,
         )
@@ -233,8 +233,8 @@ class TrainTool(Tool):
             components.append(
                 Evaluator(
                     config=self.evaluator,
-                    device=torch.device(self.system_cfg.device),
-                    system_cfg=self.system_cfg,
+                    device=torch.device(self.system.device),
+                    system_cfg=self.system,
                     stats_client=stats_client,
                 )
             )

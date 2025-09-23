@@ -30,7 +30,7 @@ def mock_policy():
 @pytest.fixture
 def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield SystemConfig(data_dir=Path(tmpdir), remote_prefix="s3://bucket/checkpoints")
+        yield SystemConfig(data_dir=Path(tmpdir))
 
 
 class TestFileURIs:

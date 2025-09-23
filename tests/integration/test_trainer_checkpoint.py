@@ -73,7 +73,7 @@ class TestTrainerCheckpointIntegration:
     ) -> None:
         tool = TrainTool(
             run=run_name,
-            system_cfg=system_cfg.model_copy(deep=True),
+            system=system_cfg.model_copy(deep=True),
             trainer=trainer_cfg.model_copy(deep=True),
             training_env=training_env_cfg.model_copy(deep=True),
             policy_architecture=policy_cfg.model_copy(deep=True),

@@ -17,7 +17,7 @@ class Tool(Config):
 
     The function can optionally take arguments."""
 
-    system_cfg: SystemConfig = Field(default_factory=SystemConfig)
+    system: SystemConfig = Field(default_factory=SystemConfig)
 
     # Returns exit code, optionally.
     @abstractmethod
