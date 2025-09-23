@@ -13,11 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.artifact_paths import (
-    ArtifactReference,
-    artifact_policy_run_root,
-    artifact_simulation_root,
-)
+from mettagrid.util.uri import artifact_policy_run_root, artifact_simulation_root
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +25,7 @@ def evaluate_policy(
     device: torch.device,
     vectorization: str,
     stats_dir: str | None = None,
-    replay_dir: ArtifactReference | str | Path | None = None,
+    replay_dir: str | Path | None = None,
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
@@ -54,13 +50,11 @@ def evaluate_policy(
 
     sims = []
     for sim_cfg in simulations:
-        sim_replay_dir: ArtifactReference | None = None
-        if run_replay_root is not None:
-            sim_replay_dir = artifact_simulation_root(
-                run_replay_root,
-                suite=sim_cfg.suite,
-                name=sim_cfg.name,
-            )
+        sim_replay_dir = artifact_simulation_root(
+            run_replay_root,
+            suite=sim_cfg.suite,
+            name=sim_cfg.name,
+        ) if run_replay_root is not None else None
         sims.append(
             Simulation(
                 cfg=sim_cfg,

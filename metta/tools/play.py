@@ -13,7 +13,6 @@ from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.artifact_paths import ArtifactRef
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +21,16 @@ class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    replay_dir: ArtifactRef | None = None
+    replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
     mettascope2: bool = False
 
     @property
-    def effective_replay_ref(self) -> ArtifactRef:
-        """Get the replay directory as an ArtifactRef, defaulting to system.data_dir/replays."""
+    def effective_replay_dir(self) -> str:
         if self.replay_dir is not None:
             return self.replay_dir
-        return ArtifactRef(f"{self.system.data_dir}/replays")
+        return f"{self.system.data_dir}/replays"
 
     @property
     def effective_stats_dir(self) -> str:
@@ -52,7 +50,7 @@ class PlayTool(Tool):
                 device=self.system.device,
                 vectorization=self.system.vectorization,
                 stats_dir=self.effective_stats_dir,
-                replay_dir=self.effective_replay_ref,
+                replay_dir=self.effective_replay_dir(),
                 policy_uri=self.policy_uri,
             )
             sim.start_simulation()

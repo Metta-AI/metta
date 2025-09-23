@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from mettagrid.util.artifact_paths import ArtifactReference, ensure_artifact_reference
 from mettagrid.util.file import http_url, write_data
 from mettagrid.util.grid_object_formatter import format_grid_object
+from mettagrid.util.uri import artifact_join
 
 if TYPE_CHECKING:
     from mettagrid.core import MettaGridCore
@@ -22,8 +22,8 @@ logger = logging.getLogger("ReplayWriter")
 class ReplayWriter:
     """Helper class for generating and uploading replays."""
 
-    def __init__(self, replay_dir: ArtifactReference | str | Path | None = None):
-        self._replay_root = ensure_artifact_reference(replay_dir)
+    def __init__(self, replay_dir: str | Path | None = None):
+        self._replay_root = artifact_join(replay_dir) if replay_dir is not None else None
         self.episodes = {}
 
     def start_episode(self, episode_id: str, env: MettaGridCore):
@@ -39,8 +39,9 @@ class ReplayWriter:
         episode_replay = self.episodes[episode_id]
         if episode_replay is None:
             raise ValueError(f"Episode {episode_id} not found")
-        replay_path_ref = self._replay_root.join(f"{episode_id}.json.z")
-        replay_path_str = replay_path_ref.as_str()
+        replay_path_str = artifact_join(self._replay_root, f"{episode_id}.json.z")
+        if replay_path_str is None:
+            return None
         episode_replay.write_replay(replay_path_str)
         return http_url(replay_path_str)
 

@@ -7,9 +7,8 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from mettagrid.util.artifact_paths import ArtifactReference, ensure_artifact_reference
 from mettagrid.util.file import local_copy, write_file
-from mettagrid.util.uri import ParsedURI
+from mettagrid.util.uri import ParsedURI, artifact_join
 
 logger = logging.getLogger(__name__)
 
@@ -171,21 +170,19 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
-        self._remote_prefix: ArtifactReference | None = None
-        self._remote_run_prefix: ArtifactReference | None = None
+        self._remote_prefix: str | None = None
+        self._remote_run_prefix: str | None = None
         if remote_prefix:
             parsed = ParsedURI.parse(remote_prefix)
             if parsed.scheme != "s3" or not parsed.bucket:
                 raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
             normalized_prefix = remote_prefix.rstrip("/")
-            self._remote_prefix = ensure_artifact_reference(normalized_prefix)
-            if self._remote_prefix is None:
-                raise ValueError("Failed to normalize remote prefix")
+            self._remote_prefix = normalized_prefix
             key_segments = [segment for segment in (parsed.key or "").split("/") if segment]
             if key_segments and key_segments[-1] == self.run:
                 self._remote_run_prefix = self._remote_prefix
             else:
-                self._remote_run_prefix = self._remote_prefix.join(self.run)
+                self._remote_run_prefix = artifact_join(self._remote_prefix, self.run)
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
@@ -315,9 +312,9 @@ class CheckpointManager:
 
         remote_uri = None
         if self._remote_run_prefix is not None:
-            remote_ref = self._remote_run_prefix.join("checkpoints", filename)
-            remote_uri = remote_ref.as_str()
-            write_file(remote_uri, str(checkpoint_path))
+            remote_uri = artifact_join(self._remote_run_prefix, "checkpoints", filename)
+            if remote_uri is not None:
+                write_file(remote_uri, str(checkpoint_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
         if existing_files:
@@ -364,7 +361,7 @@ class CheckpointManager:
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
         if self._remote_run_prefix is not None:
             return [
-                self._remote_run_prefix.join("checkpoints", path.name).as_str()
+                artifact_join(self._remote_run_prefix, "checkpoints", path.name)
                 for path in selected_files
             ]
         return [f"file://{path.resolve()}" for path in selected_files]

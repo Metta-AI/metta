@@ -12,7 +12,6 @@ from metta.common.wandb.context import WandbConfig
 from metta.setup.components.aws import AWSSetup
 from metta.setup.components.observatory_key import ObservatoryKeySetup
 from metta.setup.components.wandb import WandbSetup
-from mettagrid.util.artifact_paths import ArtifactRef
 
 
 class SupportedWandbEnvOverrides(BaseSettings):
@@ -113,16 +112,16 @@ class SupportedAwsEnvOverrides(BaseSettings):
 supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
 
-def auto_replay_dir() -> ArtifactRef:
+def auto_replay_dir() -> str:
     overrides = supported_aws_env_overrides.to_config_settings()
     if isinstance(overrides.get("replay_dir"), str) and overrides["replay_dir"].strip():
-        return ArtifactRef(overrides["replay_dir"])
+        return overrides["replay_dir"].strip()
 
     aws_settings = AWSSetup().to_config_settings()  # type: ignore[arg-type]
     replay_value = aws_settings.get("replay_dir")
     if not isinstance(replay_value, str) or not replay_value.strip():
         raise ValueError("Replay directory is not configured for this environment")
-    return ArtifactRef(replay_value)
+    return replay_value.strip()
 
 
 def _join_prefix(prefix: str, run: str | None) -> str:

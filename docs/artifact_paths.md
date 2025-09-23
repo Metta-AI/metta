@@ -1,51 +1,42 @@
 # Artifact Path Helpers
 
-Metta stores checkpoints, stats, and replays across multiple backends (local disk, S3, mock URIs, Google Drive). All
-code that constructs those paths should go through the helpers in
-`packages/mettagrid/python/src/mettagrid/util/artifact_paths.py` so the layout stays consistent and scheme-specific edge
-cases stay in one place.
+Metta stores checkpoints, stats, and replays across local paths and a couple of URI schemes (today that mostly means
+`s3://` and `gdrive://`). To keep the string fiddling in one place we expose a tiny set of helpers in
+`packages/mettagrid/python/src/mettagrid/util/uri.py`.
 
-## Core API
+## Core helpers
 
 | Helper | Purpose |
 | ------ | ------- |
-| `ensure_artifact_reference(value)` | Wraps a `str`/`Path`/`ArtifactReference` and returns a normalized `ArtifactReference`. Rejects empty strings. |
-| `ArtifactReference.join(*segments)` | Append path components in an environment-aware way (handles `Path`, `s3://`, `gdrive://`, etc.). |
-| `ArtifactReference.with_policy(run_name, epoch)` | Convenience wrapper to nest runs under optional `run_name` and `epoch` (adds `v{epoch}` when provided). |
-| `ArtifactReference.with_simulation(suite, name, simulation_id=None)` | Append simulation metadata using the standard `<suite>/<name>/<id>` layout. |
-| `artifact_policy_run_root(base, run_name, epoch)` | Helper for policy replay roots. Returns an `ArtifactReference` or `None`. |
-| `artifact_simulation_root(base, suite, name, simulation_id=None)` | Helper for simulation replay directories. |
-| `ArtifactRef` | A Pydantic-compatible wrapper that normalizes artifact strings and exposes `.as_reference()` / `.join()`. |
+| `artifact_join(base, *segments)` | Concatenate path segments onto a base path/URI while handling S3/GDrive quirks. |
+| `artifact_policy_run_root(base, run_name, epoch)` | Convenience helper that appends `run_name` and optional `v{epoch}`. |
+| `artifact_simulation_root(base, suite, name, simulation_id=None)` | Builds the standard `<suite>/<name>/<id>` sub-directory used for replays. |
 
 ### Example
 
 ```python
-from mettagrid.util.artifact_paths import ensure_artifact_reference
+from mettagrid.util.uri import artifact_join, artifact_policy_run_root
 
-run_root = ensure_artifact_reference("s3://softmax-public/replays").with_policy("my_run", epoch=5)
-sim_root = run_root.with_simulation("navigation", "maze", simulation_id="abc123")
-print(sim_root.as_str())
-# -> s3://softmax-public/replays/my_run/v5/navigation/maze/abc123
+run_root = artifact_policy_run_root("s3://softmax-public/replays", run_name="my_run", epoch=5)
+sim_root = artifact_join(run_root, "navigation", "maze", "episode123.json.z")
+print(sim_root)
+# -> s3://softmax-public/replays/my_run/v5/navigation/maze/episode123.json.z
 ```
 
-## Usage Guidelines
+## Guidelines
 
-* Always call `ensure_artifact_reference` (or the higher-level helpers) as soon as you ingest a user/configured path.
-  Empty strings now raise immediately, preventing silent fallbacks later in the pipeline.
-* Use `ArtifactReference.join` / `with_policy` / `with_simulation` instead of manual string concatenation to avoid
-  scheme-specific bugs (e.g., trailing slashes on S3 prefixes).
-* When you need a raw string for upload functions (`write_file`, `http_url`, etc.), call `ref.as_str()` on an
-  `ArtifactReference` (or keep using `ArtifactRef`, which is already a string).
-* Configuration utilities (`auto_replay_dir`, CLI validators, etc.) should call `ensure_artifact_reference` once when
-  ingesting overrides so the rest of the pipeline deals with normalized references.
+* Call `artifact_join` instead of manual `f"{prefix}/{suffix}"` string operations—this keeps bucket/key handling and
+  trailing slash stripping consistent.
+* `artifact_policy_run_root` and `artifact_simulation_root` are just thin wrappers around `artifact_join`; use them where
+  they make intent clearer (e.g., when building replay destinations).
+* If you need to support a new URI scheme, extend `artifact_join` so everything continues to flow through the same code
+  path.
 
-## Updated Call Sites
+## Current usage
 
-The helpers are already wired into the main replay stack:
+- `CheckpointManager` uses `artifact_join` when uploading checkpoints to remote storage.
+- `Simulation`, `SimTool`, and `EvalService` rely on `artifact_policy_run_root` / `artifact_simulation_root` for replay
+  directories.
+- `ReplayWriter` calls `artifact_join` when writing individual episodes.
 
-- `CheckpointManager` now builds remote URIs via `ArtifactReference.join`.
-- `Simulation` / `EvalService` / `SimTool` construct replay directories using `artifact_policy_run_root` and
-  `artifact_simulation_root`.
-- `ReplayWriter` accepts `ArtifactReference` objects directly and emits canonical strings via `ref.as_str()`.
-
-If you add new tooling that writes artifacts, reuse these helpers instead of reinventing the path handling.
+If you add new tooling that needs to manipulate artifact paths, prefer these helpers over hand-written string splicing.

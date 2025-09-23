@@ -17,8 +17,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.artifact_paths import ArtifactRef
-from mettagrid.util.uri import ParsedURI
+from mettagrid.util.uri import ParsedURI, artifact_join
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ class SimTool(Tool):
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
-    replay_dir: ArtifactRef = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
+    replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = auto_wandb_config()
 
@@ -98,7 +97,7 @@ class SimTool(Tool):
             eval_run_name = _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
-            replay_root = self.replay_dir.as_reference().join(eval_run_name)
+            replay_root = artifact_join(self.replay_dir, eval_run_name)
 
             eval_results = evaluate_policy(
                 checkpoint_uri=normalized_uri,

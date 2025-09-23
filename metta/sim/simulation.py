@@ -26,9 +26,9 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
-from mettagrid.util.artifact_paths import ArtifactRef, ArtifactReference, ensure_artifact_reference
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
+from mettagrid.util.uri import artifact_join, artifact_simulation_root
 
 SYNTHETIC_EVAL_SUITE = "training"
 
@@ -52,7 +52,7 @@ class Simulation:
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
-        replay_dir: ArtifactReference | None = None,
+        replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
@@ -62,13 +62,13 @@ class Simulation:
         self._eval_task_id = eval_task_id
         self._policy_uri = policy_uri
 
-        replay_ref = replay_dir.join(self._id) if replay_dir is not None else None
+        replay_path = artifact_join(replay_dir, self._id)
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
         self._stats_writer = StatsWriter(sim_stats_dir)
-        self._replay_writer = ReplayWriter(replay_ref)
+        self._replay_writer = ReplayWriter(replay_path)
         self._device = device
 
         self._display_name = f"{cfg.suite}/{cfg.name}"
@@ -163,7 +163,7 @@ class Simulation:
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
-        replay_dir: ArtifactReference | ArtifactRef | str | Path | None = None,
+        replay_dir: str | Path | None = None,
         policy_uri: str | None = None,
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
@@ -173,17 +173,10 @@ class Simulation:
         else:
             policy = MockAgent()
 
-        # Normalize replay directory to an ArtifactReference and append suite/name
-        base_ref: ArtifactReference | None
-        if isinstance(replay_dir, ArtifactReference):
-            base_ref = replay_dir
-        elif isinstance(replay_dir, ArtifactRef):
-            base_ref = replay_dir.as_reference()
-        else:
-            base_ref = ensure_artifact_reference(replay_dir)
-
-        full_replay_dir = (
-            base_ref.with_simulation(sim_config.suite, sim_config.name) if base_ref is not None else None
+        full_replay_dir = artifact_simulation_root(
+            replay_dir,
+            suite=sim_config.suite,
+            name=sim_config.name,
         )
 
         # Create and return simulation

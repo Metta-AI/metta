@@ -21,7 +21,6 @@ from metta.rl.training.component import TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.config import Config
-from mettagrid.util.artifact_paths import ArtifactRef
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ class EvaluatorConfig(Config):
     evaluate_remote: bool = False
     num_training_tasks: int = 2
     simulations: List[SimulationConfig] = Field(default_factory=list)
-    replay_dir: Optional[ArtifactRef] = None
+    replay_dir: Optional[str] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
 

@@ -12,7 +12,6 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.artifact_paths import ArtifactRef
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class ReplayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    replay_dir: ArtifactRef = "./train_dir/replays"
+    replay_dir: str = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
 
