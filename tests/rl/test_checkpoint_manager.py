@@ -50,8 +50,8 @@ class TestBasicSaveLoad:
         assert agent_file.exists()
 
         metadata = CheckpointManager.get_policy_metadata(agent_file.as_uri())
-        assert metadata["run_name"] == "test_run"
-        assert metadata["epoch"] == 5
+        assert "run_name" in metadata and metadata["run_name"] == "test_run"
+        assert "epoch" in metadata and metadata["epoch"] == 5
 
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
         assert loaded_agent is not None

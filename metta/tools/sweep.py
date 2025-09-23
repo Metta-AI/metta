@@ -151,7 +151,7 @@ class SweepTool(Tool):
 
         # Set sweep_dir based on sweep name if not explicitly set
         if self.sweep_dir is None:
-            self.sweep_dir = f"{self.system_cfg.data_dir}/sweeps/{self.sweep_name}"
+            self.sweep_dir = f"{self.system.data_dir}/sweeps/{self.sweep_name}"
 
         # Auto-configure wandb if not set (similar to TrainTool)
         if self.wandb == WandbConfig.Unconfigured():

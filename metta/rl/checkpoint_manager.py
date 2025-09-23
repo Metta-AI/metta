@@ -175,16 +175,17 @@ class CheckpointManager:
         self._cache = OrderedDict()
 
         self._remote_prefix = None
-        if system_cfg.remote_prefix:
-            parsed = ParsedURI.parse(system_cfg.remote_prefix)
-            if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
-                raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
-            # Remove trailing slash from prefix for deterministic joins
-            key_prefix = parsed.key.rstrip("/")
-            self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+        if not system_cfg.local_only:
+            if system_cfg.remote_prefix:
+                parsed = ParsedURI.parse(system_cfg.remote_prefix)
+                if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
+                    raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
+                # Remove trailing slash from prefix for deterministic joins
+                key_prefix = parsed.key.rstrip("/")
+                self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
 
-        if self._remote_prefix is None:
-            self._setup_remote_prefix()
+            if self._remote_prefix is None:
+                self._setup_remote_prefix()
 
     def _setup_remote_prefix(self) -> None:
         """Determine and set the remote prefix for policy storage if needed."""

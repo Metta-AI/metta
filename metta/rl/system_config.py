@@ -43,6 +43,7 @@ class SystemConfig(Config):
     device: str = Field(default_factory=guess_device)
     data_dir: Path = Field(default_factory=guess_local_data_dir)
     remote_prefix: str | None = Field(default=None)
+    local_only: bool = Field(default=False)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
