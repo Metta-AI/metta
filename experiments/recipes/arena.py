@@ -9,6 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
@@ -146,4 +147,14 @@ def evaluate(
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
+    )
+
+
+def evaluate_remote(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> EvalRemoteTool:
+    simulations = simulations or make_evals()
+    return EvalRemoteTool(
+        simulations=simulations,
+        policy_uri=policy_uri,
     )
