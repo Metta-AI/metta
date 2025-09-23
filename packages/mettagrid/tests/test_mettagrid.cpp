@@ -12,6 +12,8 @@
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/assembler.hpp"
+#include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
@@ -944,4 +946,142 @@ TEST_F(MettaGridCppTest, EventManager) {
   // Test that event manager can be initialized
   // (This is a basic test - more complex event testing would require more setup)
   EXPECT_NO_THROW(event_manager.process_events(1));
+}
+
+// Assembler Tests
+TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  auto features = assembler.obs_features();
+
+  // Should have at least TypeId and Tag features
+  EXPECT_GE(features.size(), 3);  // TypeId + 2 tags
+
+  // Find TypeId feature
+  bool found_type_id = false;
+  bool found_tag1 = false;
+  bool found_tag2 = false;
+
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::TypeId) {
+      EXPECT_EQ(feature.value, 1);  // Our test assembler type_id
+      found_type_id = true;
+    } else if (feature.feature_id == ObservationFeature::Tag) {
+      if (feature.value == 1) {
+        found_tag1 = true;
+      } else if (feature.value == 2) {
+        found_tag2 = true;
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_type_id) << "TypeId feature not found";
+  EXPECT_TRUE(found_tag1) << "Tag 1 not found";
+  EXPECT_TRUE(found_tag2) << "Tag 2 not found";
+}
+
+TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Initially no cooldown
+  auto features = assembler.obs_features();
+
+  // Should not have CooldownRemaining feature when not cooling down
+  bool found_cooldown_remaining = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::CooldownRemaining) {
+      found_cooldown_remaining = true;
+      break;
+    }
+  }
+  EXPECT_FALSE(found_cooldown_remaining) << "Should not have CooldownRemaining feature when not cooling down";
+}
+
+TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Test cooldown_remaining() function directly
+
+  // Initially no cooldown
+  EXPECT_EQ(assembler.cooldown_remaining(), 0);
+
+  // Set cooldown end timestep
+  assembler.cooldown_end_timestep = 10;
+  current_timestep = 5;
+
+  // Should have 5 remaining
+  EXPECT_EQ(assembler.cooldown_remaining(), 5);
+
+  // Advance time
+  current_timestep = 8;
+  EXPECT_EQ(assembler.cooldown_remaining(), 2);
+
+  // At end time
+  current_timestep = 10;
+  EXPECT_EQ(assembler.cooldown_remaining(), 0);
+
+  // Past end time
+  current_timestep = 15;
+  EXPECT_EQ(assembler.cooldown_remaining(), 0);
+}
+
+TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Set up cooldown
+  assembler.cooldown_end_timestep = 10;
+  current_timestep = 5;
+
+  auto features = assembler.obs_features();
+
+  // Should have CooldownRemaining feature
+  bool found_cooldown_remaining = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::CooldownRemaining) {
+      EXPECT_EQ(feature.value, 5);  // 10 - 5 = 5 remaining
+      found_cooldown_remaining = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature when cooling down";
+}
+
+TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Set up a very long cooldown
+  assembler.cooldown_end_timestep = 1000;
+  current_timestep = 100;  // 900 remaining, but should be capped at 255
+
+  auto features = assembler.obs_features();
+
+  bool found_cooldown_remaining = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::CooldownRemaining) {
+      EXPECT_EQ(feature.value, 255);  // Should be capped at 255
+      found_cooldown_remaining = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature capped at 255";
 }
