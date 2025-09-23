@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
+from metta.agent.policy import Policy
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -132,7 +133,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
     return None
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device):
+def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
         return torch.load(path, weights_only=False, map_location=device)
@@ -149,7 +150,6 @@ class CheckpointManager:
         self,
         run: str = "default",
         run_dir: str = "./train_dir",
-        checkpoint_dir: str | None = None,
         cache_size: int = 3,
         remote_prefix: str | None = None,
     ):
@@ -168,8 +168,7 @@ class CheckpointManager:
         self.base_dir = provided_path.parent if provided_path.name == self.run else provided_path
         self.run_dir = self.base_dir / self.run
 
-        default_checkpoint_dir = self.run_dir / "checkpoints"
-        self.checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else default_checkpoint_dir
+        self.checkpoint_dir = self.run_dir / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
         self._remote_prefix = None
@@ -289,6 +288,8 @@ class CheckpointManager:
         }
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
+        if "loss_states" in state:
+            result["loss_states"] = state["loss_states"]
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
@@ -324,13 +325,20 @@ class CheckpointManager:
         return f"file://{checkpoint_path.resolve()}"
 
     def save_trainer_state(
-        self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
+        self,
+        optimizer,
+        epoch: int,
+        agent_step: int,
+        stopwatch_state: Optional[Dict[str, Any]] = None,
+        loss_states: Optional[Dict[str, Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
+        if loss_states is not None:
+            state["loss_states"] = loss_states
         torch.save(state, trainer_file)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:

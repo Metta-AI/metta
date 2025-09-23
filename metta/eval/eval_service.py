@@ -42,7 +42,6 @@ def evaluate_policy(
 
     sims = [
         Simulation(
-            name=sim.name,
             cfg=sim,
             policy=policy,
             policy_uri=checkpoint_uri,

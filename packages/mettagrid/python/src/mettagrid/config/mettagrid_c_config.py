@@ -89,7 +89,24 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
+    objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
+
+    # These are the baseline settings for all agents
+    default_agent_config_dict = game_config.agent.model_dump()
+    default_resource_limit = default_agent_config_dict["default_resource_limit"]
+
+    # If no agents specified, create default agents with appropriate team IDs
+    if not game_config.agents:
+        # Create default agents that inherit from game_config.agent
+        base_agent_dict = game_config.agent.model_dump()
+        game_config.agents = []
+        for _ in range(game_config.num_agents):
+            agent_dict = base_agent_dict.copy()
+            agent_dict["team_id"] = 0  # All default agents are on team 0
+            game_config.agents.append(AgentConfig(**agent_dict))
+
     # Build tag mappings - collect all unique tags from all objects
+    # Note: This must happen AFTER default agents are created, so their tags are included
     all_tags = set()
     for obj_config in game_config.objects.values():
         all_tags.update(obj_config.tags)
@@ -107,22 +124,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     tag_name_to_id = {tag: tag_id_offset + i for i, tag in enumerate(sorted_tags)}
     tag_id_to_name = {id: name for name, id in tag_name_to_id.items()}
-
-    objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
-
-    # These are the baseline settings for all agents
-    default_agent_config_dict = game_config.agent.model_dump()
-    default_resource_limit = default_agent_config_dict["default_resource_limit"]
-
-    # If no agents specified, create default agents with appropriate team IDs
-    if not game_config.agents:
-        # Create default agents that inherit from game_config.agent
-        base_agent_dict = game_config.agent.model_dump()
-        game_config.agents = []
-        for _ in range(game_config.num_agents):
-            agent_dict = base_agent_dict.copy()
-            agent_dict["team_id"] = 0  # All default agents are on team 0
-            game_config.agents.append(AgentConfig(**agent_dict))
 
     # Group agents by team_id to create groups
     team_groups = {}

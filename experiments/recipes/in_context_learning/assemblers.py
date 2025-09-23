@@ -347,6 +347,7 @@ def play_eval() -> PlayTool:
         sim=SimulationConfig(
             env=env,
             name="in_context_assemblers",
+            suite="in_context_learning",
         ),
     )
 
@@ -358,10 +359,13 @@ def replay(curriculum_style: str = "single_agent_two_altars") -> ReplayTool:
         "s3://your-bucket/checkpoints/georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19/"
         "georgedeane.operant_conditioning.in_context_learning.all.0.1.08-19:v50.pt"
     )
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_tiny_small.2025-09-22/icl_resource_chain_tiny_small.2025-09-22:v500.pt"
+
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
             name="in_context_assemblers",
+            suite="in_context_learning",
         ),
         policy_uri=default_policy_uri,
     )
