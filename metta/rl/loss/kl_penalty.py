@@ -198,6 +198,13 @@ class KLPenalty(Loss):
             prio_weights=prio_weights,
         )
 
+        avg_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
+        # Update β based on adaptive KL mechanism
+        if avg_kl < self.loss_cfg.d_target_kl / 1.5:
+            self.loss_cfg.kl_penalty_coef /= 2
+        elif avg_kl > self.loss_cfg.d_target_kl * 1.5:
+            self.loss_cfg.kl_penalty_coef *= 2
+
         return loss, shared_loss_data, stop_update_epoch
 
     def on_train_phase_end(self, context: ComponentContext) -> None:
