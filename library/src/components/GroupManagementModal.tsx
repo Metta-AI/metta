@@ -2,7 +2,7 @@
 
 import { FC, useState, useEffect } from "react";
 import { useAction } from "next-safe-action/hooks";
-import { X, Users, UserPlus, Trash2, Globe, Lock } from "lucide-react";
+import { X, Users, UserPlus, Trash2, Globe, Lock, Building } from "lucide-react";
 
 import { manageGroupMembershipAction } from "@/groups/actions/manageGroupMembershipAction";
 
@@ -25,6 +25,10 @@ interface GroupManagementModalProps {
     name: string;
     description: string | null;
     isPublic: boolean;
+    institution: {
+      id: string;
+      name: string;
+    };
     members?: GroupMember[];
   };
   currentUserRole?: string | null;
@@ -126,18 +130,24 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                 <h2 className="text-lg font-semibold text-gray-900">
                   {group.name}
                 </h2>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  {group.isPublic ? (
-                    <>
-                      <Globe className="h-3 w-3" />
-                      Public Group
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="h-3 w-3" />
-                      Private Group
-                    </>
-                  )}
+                <div className="flex items-center gap-4 text-sm text-gray-500">
+                  <div className="flex items-center gap-1">
+                    {group.isPublic ? (
+                      <>
+                        <Globe className="h-3 w-3" />
+                        Public Group
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-3 w-3" />
+                        Private Group
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Building className="h-3 w-3" />
+                    <span>{group.institution.name}</span>
+                  </div>
                 </div>
               </div>
             </div>

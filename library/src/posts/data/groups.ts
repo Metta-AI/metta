@@ -72,7 +72,7 @@ export async function loadUserGroups(): Promise<GroupDTO[]> {
 
   return groups.map((group) => {
     const currentUserMembership = group.userGroups.find(
-      (ug) => ug.userId === session.user.id
+      (ug) => ug.userId === session.user!.id
     );
 
     return {
@@ -96,14 +96,31 @@ export async function loadUserGroups(): Promise<GroupDTO[]> {
 }
 
 /**
- * Load all public groups (for discovery)
+ * Load all discoverable groups (public groups + private groups user is a member of)
  */
-export async function loadAllPublicGroups(): Promise<GroupDTO[]> {
+export async function loadAllDiscoverableGroups(): Promise<GroupDTO[]> {
   const session = await auth();
+
+  if (!session?.user?.id) {
+    return [];
+  }
 
   const groups = await prisma.group.findMany({
     where: {
-      isPublic: true,
+      OR: [
+        // Public groups are discoverable by everyone
+        { isPublic: true },
+        // Private groups are only discoverable if user is a member
+        {
+          isPublic: false,
+          userGroups: {
+            some: {
+              userId: session.user.id,
+              isActive: true,
+            },
+          },
+        },
+      ],
     },
     include: {
       institution: {
@@ -122,9 +139,9 @@ export async function loadAllPublicGroups(): Promise<GroupDTO[]> {
   });
 
   return groups.map((group) => {
-    const currentUserMembership = session?.user?.id
-      ? group.userGroups.find((ug) => ug.userId === session.user.id)
-      : null;
+    const currentUserMembership = group.userGroups.find(
+      (ug) => ug.userId === session.user!.id
+    );
 
     const currentUserRole = currentUserMembership?.role || null;
 
@@ -140,6 +157,9 @@ export async function loadAllPublicGroups(): Promise<GroupDTO[]> {
     };
   });
 }
+
+// Legacy alias for backward compatibility
+export const loadAllPublicGroups = loadAllDiscoverableGroups;
 
 /**
  * Load a specific group with full details (for management)
@@ -184,7 +204,7 @@ export async function loadGroupById(groupId: string): Promise<GroupDTO | null> {
 
   // Check if user is a member or if group is public
   const currentUserMembership = group.userGroups.find(
-    (ug) => ug.userId === session.user.id
+    (ug) => ug.userId === session.user!.id
   );
 
   if (!currentUserMembership && !group.isPublic) {

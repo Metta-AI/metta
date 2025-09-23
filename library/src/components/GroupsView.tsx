@@ -9,23 +9,68 @@ import {
   Globe,
   Lock,
   Calendar,
+  Building,
 } from "lucide-react";
 
 import { GroupCreateForm } from "./GroupCreateForm";
 import { GroupManagementModal } from "./GroupManagementModal";
 import { GroupDTO } from "@/posts/data/groups";
+import { useAction } from "next-safe-action/hooks";
+import { joinGroupAction } from "@/groups/actions/joinGroupAction";
 
 interface GroupsViewProps {
   userGroups: GroupDTO[];
   allGroups: GroupDTO[];
+  userInstitutions: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
-export const GroupsView: FC<GroupsViewProps> = ({ userGroups, allGroups }) => {
+export const GroupsView: FC<GroupsViewProps> = ({
+  userGroups,
+  allGroups,
+  userInstitutions,
+}) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<GroupDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("memberCount");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  // userInstitutions is now passed as a prop
+
+  // Join group action
+  const { execute: joinGroup, isExecuting: isJoining } = useAction(
+    joinGroupAction,
+    {
+      onSuccess: () => {
+        // Groups will be refreshed on next page load
+        // Could add optimistic update here if needed
+      },
+      onError: (error) => {
+        console.error("Error joining group:", error);
+      },
+    }
+  );
+
+  const handleJoinGroup = (groupId: string) => {
+    const formData = new FormData();
+    formData.append("groupId", groupId);
+    joinGroup(formData);
+  };
+
+  // Helper to determine if user can join a group
+  const canJoinGroup = (group: GroupDTO) => {
+    // User must not already be a member
+    if (group.currentUserRole) return false;
+
+    // Group must be public
+    if (!group.isPublic) return false;
+
+    // User must be a member of the same institution
+    return userInstitutions.some((inst) => inst.id === group.institution.id);
+  };
 
   // Helper to get group with full member data
   const getGroupWithMembers = (group: GroupDTO) => {
@@ -127,11 +172,19 @@ export const GroupsView: FC<GroupsViewProps> = ({ userGroups, allGroups }) => {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Groups</h1>
-          <p className="text-gray-600">Interest groups and teams</p>
+          <p className="text-gray-600">
+            Interest groups and teams within institutions
+          </p>
         </div>
         <button
           onClick={() => setShowCreateForm(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          disabled={userInstitutions.length === 0}
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          title={
+            userInstitutions.length === 0
+              ? "Join an institution first to create groups"
+              : "Create a new group"
+          }
         >
           <Plus className="h-4 w-4" />
           Create Group
@@ -164,18 +217,33 @@ export const GroupsView: FC<GroupsViewProps> = ({ userGroups, allGroups }) => {
                       <h3 className="truncate text-base font-semibold text-gray-900">
                         {group.name}
                       </h3>
-                      {group.currentUserRole === "admin" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedGroup(getGroupWithMembers(group));
-                          }}
-                          className="ml-2 rounded-md p-1 text-gray-400 transition-colors hover:bg-blue-100 hover:text-gray-600"
-                          title="Manage group"
-                        >
-                          <Users className="h-4 w-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {group.currentUserRole === "admin" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedGroup(getGroupWithMembers(group));
+                            }}
+                            className="rounded-md p-1 text-gray-400 transition-colors hover:bg-blue-100 hover:text-gray-600"
+                            title="Manage group"
+                          >
+                            <Users className="h-4 w-4" />
+                          </button>
+                        )}
+                        {canJoinGroup(group) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleJoinGroup(group.id);
+                            }}
+                            disabled={isJoining}
+                            className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                            title="Join this group"
+                          >
+                            {isJoining ? "Joining..." : "Join"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       {group.isPublic ? (
@@ -184,6 +252,10 @@ export const GroupsView: FC<GroupsViewProps> = ({ userGroups, allGroups }) => {
                         <Lock className="h-3 w-3" />
                       )}
                       <span>{group.memberCount} members</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Building className="h-3 w-3" />
+                      <span>{group.institution.name}</span>
                     </div>
                   </div>
                 </div>
@@ -290,18 +362,33 @@ export const GroupsView: FC<GroupsViewProps> = ({ userGroups, allGroups }) => {
                       <h3 className="truncate text-base font-semibold text-gray-900">
                         {group.name}
                       </h3>
-                      {group.currentUserRole === "admin" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedGroup(getGroupWithMembers(group));
-                          }}
-                          className="ml-2 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                          title="Manage group"
-                        >
-                          <Users className="h-4 w-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {group.currentUserRole === "admin" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedGroup(getGroupWithMembers(group));
+                            }}
+                            className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                            title="Manage group"
+                          >
+                            <Users className="h-4 w-4" />
+                          </button>
+                        )}
+                        {canJoinGroup(group) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleJoinGroup(group.id);
+                            }}
+                            disabled={isJoining}
+                            className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                            title="Join this group"
+                          >
+                            {isJoining ? "Joining..." : "Join"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       {group.isPublic ? (
@@ -310,6 +397,10 @@ export const GroupsView: FC<GroupsViewProps> = ({ userGroups, allGroups }) => {
                         <Lock className="h-3 w-3" />
                       )}
                       <span>{group.memberCount} members</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Building className="h-3 w-3" />
+                      <span>{group.institution.name}</span>
                     </div>
                   </div>
                 </div>
@@ -357,6 +448,7 @@ export const GroupsView: FC<GroupsViewProps> = ({ userGroups, allGroups }) => {
       <GroupCreateForm
         isOpen={showCreateForm}
         onClose={() => setShowCreateForm(false)}
+        userInstitutions={userInstitutions}
       />
 
       {selectedGroup && (

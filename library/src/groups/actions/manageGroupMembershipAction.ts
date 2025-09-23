@@ -45,10 +45,36 @@ export const manageGroupMembershipAction = actionClient
       throw new Error("User not found");
     }
 
+    // Get the group to check which institution it belongs to
+    const group = await prisma.group.findUnique({
+      where: { id: input.groupId },
+      select: { institutionId: true },
+    });
+
+    if (!group) {
+      throw new Error("Group not found");
+    }
+
     let result: any = {};
 
     switch (input.action) {
       case "add":
+        // Check if target user is a member of the same institution as the group
+        const targetUserInstitution = await prisma.userInstitution.findUnique({
+          where: {
+            userId_institutionId: {
+              userId: targetUser.id,
+              institutionId: group.institutionId,
+            },
+          },
+        });
+
+        if (!targetUserInstitution || !targetUserInstitution.isActive) {
+          throw new Error(
+            "User must be a member of the same institution to join this group"
+          );
+        }
+
         // Check if user is already a member
         const existingMembership = await prisma.userGroup.findUnique({
           where: {

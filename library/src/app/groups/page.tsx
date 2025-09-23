@@ -1,4 +1,5 @@
-import { loadUserGroups, loadAllPublicGroups } from "@/posts/data/groups";
+import { loadUserGroups, loadAllDiscoverableGroups } from "@/posts/data/groups";
+import { loadUserInstitutions } from "@/posts/data/managed-institutions";
 import { GroupsView } from "@/components/GroupsView";
 import {
   OverlayStackProvider,
@@ -12,14 +13,22 @@ import {
  * integrated into a single cohesive view.
  */
 export default async function GroupsPage() {
-  const [userGroups, allGroups] = await Promise.all([
+  const [userGroups, allGroups, userInstitutions] = await Promise.all([
     loadUserGroups(),
-    loadAllPublicGroups(),
+    loadAllDiscoverableGroups(),
+    loadUserInstitutions(),
   ]);
 
   return (
     <OverlayStackProvider>
-      <GroupsView userGroups={userGroups} allGroups={allGroups} />
+      <GroupsView
+        userGroups={userGroups}
+        allGroups={allGroups}
+        userInstitutions={userInstitutions.map((inst) => ({
+          id: inst.id,
+          name: inst.name,
+        }))}
+      />
       <OverlayStackRenderer />
     </OverlayStackProvider>
   );
