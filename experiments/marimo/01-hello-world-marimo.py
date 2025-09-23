@@ -94,8 +94,8 @@ def _():
 
     from metta.cogworks.curriculum import (
         env_curriculum,
-        SingleTaskGeneratorConfig,
         CurriculumConfig,
+        SingleTaskGenerator,
     )
 
     # Additional imports for cells
