@@ -85,6 +85,10 @@ class ICLTaskGenerator(TaskGenerator):
         source_cooldown: int = Field(
             default=25, description="Cooldown for source regeneration"
         )
+        non_reusable_resources: list[str] = Field(
+            default_factory=list,
+            description="List of resource types that are not reusable",
+        )
 
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
