@@ -26,11 +26,7 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
-from mettagrid.util.artifact_paths import (
-    ArtifactReference,
-    artifact_simulation_root,
-    ensure_artifact_reference,
-)
+from mettagrid.util.artifact_paths import ArtifactReference, artifact_simulation_root
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 
@@ -56,7 +52,7 @@ class Simulation:
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
-        replay_dir: ArtifactReference | str | Path | None = None,
+        replay_dir: ArtifactReference | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
@@ -66,9 +62,7 @@ class Simulation:
         self._eval_task_id = eval_task_id
         self._policy_uri = policy_uri
 
-        replay_ref = ensure_artifact_reference(replay_dir)
-        if replay_ref is not None:
-            replay_ref = replay_ref.join(self._id)
+        replay_ref = replay_dir.join(self._id) if replay_dir is not None else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
