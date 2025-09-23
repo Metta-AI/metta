@@ -16,11 +16,11 @@ def train() -> TrainTool:
     cfg = arena.train(
         curriculum=arena.make_curriculum(env),
     )
-    assert cfg.trainer.evaluation is not None
+    assert cfg.evaluator is not None
     # When we're using this file, we training locally on code that's likely not to be checked in, let alone pushed.
     # So remote evaluation probably doesn't make sense.
-    cfg.trainer.evaluation.evaluate_remote = False
-    cfg.trainer.evaluation.evaluate_local = True
+    cfg.evaluator.evaluate_remote = False
+    cfg.evaluator.evaluate_local = True
     return cfg
 
 
