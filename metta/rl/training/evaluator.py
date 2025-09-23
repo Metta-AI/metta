@@ -263,6 +263,10 @@ class Evaluator(TrainerComponent):
             logger.warning("Evaluator: skipping epoch %s because stats_reporter is not available", epoch)
             return
 
+        if not hasattr(stats_reporter, "state") or stats_reporter.state is None:
+            logger.warning("Evaluator: skipping epoch %s because stats_reporter.state is not available", epoch)
+            return
+
         stats_run_id = getattr(stats_reporter.state, "stats_run_id", None)
         if not stats_run_id:
             logger.warning("Evaluator: skipping epoch %s because stats_run_id is not available", epoch)

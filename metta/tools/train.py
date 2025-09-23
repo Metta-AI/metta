@@ -113,7 +113,7 @@ class TrainTool(Tool):
 
         checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
-        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
+        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled():
             raise ValueError("without a remote prefix we cannot use remote evaluation")
 
         init_logging(run_dir=checkpoint_manager.run_dir)
