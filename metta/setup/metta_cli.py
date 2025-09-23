@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+import re
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,12 @@ PYTHON_TEST_FOLDERS = [
     "packages/mettagrid/tests",
     "packages/cogames/tests",
 ]
+
+VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
+PACKAGE_TAG_PREFIXES = {
+    "mettagrid": "mettagrid-v",
+}
+DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
 
 class MettaCLI:
@@ -142,6 +149,46 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     callback=cli._init_all,
 )
+
+
+def _run_git_command(args: list[str], *, capture_output: bool = True) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cli.repo_root,
+        capture_output=capture_output,
+        text=True,
+        check=True,
+    )
+
+
+def _get_git_output(args: list[str]) -> str:
+    return _run_git_command(args).stdout.strip()
+
+
+def _bump_version(version: str) -> str:
+    parts = version.split(".")
+    bumped = parts[:-1] + [str(int(parts[-1]) + 1)]
+    return ".".join(bumped)
+
+
+def _validate_version_format(version: str) -> None:
+    if not VERSION_PATTERN.match(version):
+        error(f"Invalid version '{version}'. Expected numeric segments like '1.2.3' or '1.2.3.4'.")
+        raise typer.Exit(1)
+
+
+def _ensure_tag_unique(package: str, version: str) -> None:
+    prefix = PACKAGE_TAG_PREFIXES[package]
+    tag_name = f"{prefix}{version}"
+    result = subprocess.run(
+        ["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag_name}"],
+        cwd=cli.repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        error(f"Tag '{tag_name}' already exists.")
+        raise typer.Exit(1)
 
 
 @app.command(name="configure", help="Configure Metta settings")
@@ -412,6 +459,93 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
             subprocess.run(cmd, cwd=str(cli.repo_root), check=True)
         except subprocess.CalledProcessError as e:
             warning(f"  Cleanup script failed: {e}")
+
+
+@app.command(name="publish", help="Create and push a release tag for a package")
+def cmd_publish(
+    package: Annotated[str, typer.Argument(help="Package to publish (currently only 'mettagrid')")],
+    version_override: Annotated[
+        Optional[str],
+        typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
+    ] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview actions without tagging")] = False,
+    remote: Annotated[str, typer.Option("--remote", help="Git remote to push the tag to")] = "origin",
+):
+    package = package.lower()
+    if package not in PACKAGE_TAG_PREFIXES:
+        error(f"Unsupported package '{package}'. Supported packages: {', '.join(sorted(PACKAGE_TAG_PREFIXES))}.")
+        raise typer.Exit(1)
+
+    prefix = PACKAGE_TAG_PREFIXES[package]
+
+    try:
+        status_output = _get_git_output(["status", "--porcelain"])
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to read git status: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    if status_output.strip():
+        error("Working tree is not clean. Commit, stash, or clean changes before publishing.")
+        raise typer.Exit(1)
+
+    try:
+        current_branch = _get_git_output(["rev-parse", "--abbrev-ref", "HEAD"])
+        current_commit = _get_git_output(["rev-parse", "HEAD"])
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to determine git state: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    try:
+        tag_list_output = _get_git_output(["tag", "--list", f"{prefix}*", "--sort=-v:refname"])
+    except subprocess.CalledProcessError:
+        tag_list_output = ""
+
+    tags = [line for line in tag_list_output.splitlines() if line.strip()]
+    latest_tag = tags[0] if tags else None
+
+    if version_override is None:
+        if latest_tag:
+            previous_version = latest_tag[len(prefix) :]
+            _validate_version_format(previous_version)
+            target_version = _bump_version(previous_version)
+        else:
+            target_version = DEFAULT_INITIAL_VERSION
+    else:
+        _validate_version_format(version_override)
+        target_version = version_override
+
+    _validate_version_format(target_version)
+    _ensure_tag_unique(package, target_version)
+
+    tag_name = f"{prefix}{target_version}"
+
+    info("Release summary:\n")
+    info(f"  Package: {package}")
+    info(f"  Current branch: {current_branch}")
+    info(f"  Commit: {current_commit}")
+    info(f"  Tag: {tag_name}")
+    if latest_tag:
+        info(f"  Previous tag: {latest_tag}")
+    else:
+        info("  Previous tag: none")
+    info("")
+
+    if dry_run:
+        success("Dry run: no tag created. Run without --dry-run to proceed.")
+        return
+
+    if not typer.confirm("Create and push this tag?", default=True):
+        info("Publishing aborted.")
+        return
+
+    try:
+        _run_git_command(["tag", "-a", tag_name, "-m", f"Release {package} {target_version}"])
+        _run_git_command(["push", remote, tag_name], capture_output=False)
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to publish: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    success(f"Published {tag_name} to {remote}.")
 
 
 @app.command(name="lint", help="Run linting and formatting")
