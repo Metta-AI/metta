@@ -21,7 +21,7 @@ This document outlines the manual process for qualifying a release before taggin
   make format
   ```
 
-### 4. Documentation Verification
+### 3. Documentation Verification
 
 - **Main Repository README**
   - Manually execute all steps in the main repo README
@@ -33,7 +33,7 @@ This document outlines the manual process for qualifying a release before taggin
   - Document any issues or unclear instructions
   - Verify all examples work as expected
 
-### 4 Workflow Tests
+### 4. Workflow Tests
 
 #### 4.1 Launch Training Runs
 
@@ -78,19 +78,19 @@ This document outlines the manual process for qualifying a release before taggin
 
 - Verify CI pipeline has completed successful on the release commit push to main.
 
-### 5 Bug Status Check
+### 5. Bug Status Check
 
 - Open Asana project for bug tracking
 - Verify no active/open bugs marked as blockers
 - Document any known issues that are acceptable for release
 - Update bug statuses as needed in consultation with bug owners
 
-### 6 Performance Benchmarks
+### 6. Performance Benchmarks
 
 - Compare github test run against previous tagged release in W&B
 - Document any performance regressions or improvements
 
-### 6 Final Step
+### 7. Final Step
 
 - Post release process completion to Discord.
 
