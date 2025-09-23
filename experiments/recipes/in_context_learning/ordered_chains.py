@@ -1,8 +1,7 @@
 import random
 import subprocess
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Optional, Sequence
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -20,7 +19,6 @@ from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from pydantic import Field
 import json
 import os
 
@@ -273,6 +271,8 @@ class ConverterChainTaskGenerator(ICLTaskGenerator):
             height=height,
             obstacle_type=obstacle_type,
             density=density,
+            chain_length=len(resources),
+            num_sinks=num_sinks,
         )
 
     def _generate_task(
@@ -375,6 +375,7 @@ def train(
         evaluator=EvaluatorConfig(
             simulations=make_icl_resource_chain_eval_suite(),
         ),
+        stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
 
@@ -426,7 +427,7 @@ def experiment():
         "level_0",
         "level_1",
         "level_2",
-        "tinytiny_small",
+        "tiny_small",
         "all_room_sizes",
         "longer_chains",
         "terrain_1",
@@ -452,30 +453,36 @@ def experiment():
         time.sleep(1)
 
 
-def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 500):
-    curriculum_styles = [
-        "terrain_1",
-        "terrain_2",
-        "terrain_3",
-        "terrain_4",
-        "level_0",
-        "level_1",
-        "level_2",
-        "tiny",
-        "tiny_small",
-        "all_room_sizes",
-        "longer_chains",
-    ]
-    for curriculum_style in curriculum_styles:
-        for i in range(num_envs):
-            print(f"Generating {i}...")
-            task_generator_cfg = ConverterChainTaskGenerator.Config(
-                **curriculum_args[curriculum_style],
-            )
-            task_generator = ConverterChainTaskGenerator(task_generator_cfg)
-            env_cfg = task_generator._generate_task(i, random.Random(i), numpy_dir=None)
-            map_builder = env_cfg.game.map_builder.create()
-            map_builder.build()
+def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
+    for chain_length in range(2, 9):
+        for n_sinks in range(0, 3):
+            for room_size in ["tiny", "small", "medium"]:
+                for terrain_type in ["", "terrain"]:
+                    for density in ["", "balanced", "sparse", "high"]:
+                        for i in range(num_envs):
+                            print(
+                                f"Generating {i} for {chain_length} chains, {n_sinks} sinks, {room_size}, {terrain_type}, {density}"
+                            )
+                            if terrain_type == "terrain":
+                                obstacle_type = random.choice(["square", "cross", "L"])
+                            else:
+                                obstacle_type = ""
+                            task_generator_cfg = ConverterChainTaskGenerator.Config(
+                                chain_lengths=[chain_length],
+                                num_sinks=[n_sinks],
+                                room_sizes=[room_size],
+                                obstacle_types=[obstacle_type],
+                                densities=[density],
+                            )
+                            task_generator = ConverterChainTaskGenerator(
+                                task_generator_cfg
+                            )
+                            env_cfg = task_generator._generate_task(
+                                i, random.Random(i), numpy_dir=None
+                            )
+                            map_builder = env_cfg.game.map_builder.create()
+                            map_builder.build()
+
     generate_reward_estimates(dir=dir)
 
 
@@ -488,9 +495,16 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     import numpy as np
 
     room_sizes = os.listdir(dir)
-
+    for root, dirs, files in os.walk(dir):
+        for file in files:
+            if file == ".DS_Store":
+                try:
+                    os.remove(os.path.join(root, file))
+                except Exception:
+                    pass
     reward_estimates = {}
     for room_size in room_sizes:
+        # Delete all .DS_Store files in the directory tree
         chains = os.listdir(f"{dir}/{room_size}")
         for chain_dir in chains:
             num_resources = int(chain_dir[0])
@@ -513,5 +527,6 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
 
 
 if __name__ == "__main__":
-    experiment()
+    # experiment()
     # save_envs_to_numpy()
+    generate_reward_estimates()

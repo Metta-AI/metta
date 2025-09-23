@@ -320,7 +320,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
                 size = "medium"
 
             terrain = "terrain" if obstacle_type else "simple"
-            density = density if density else ""
+            density = density if obstacle_type else ""
 
             random_number = self._rng.integers(1000000)
 

@@ -52,7 +52,14 @@ class PlayTool(Tool):
         if self.mettascope2:
             import mettagrid.mettascope as mettascope2
 
-            sim = create_simulation(self)
+            sim = Simulation.create(
+                sim_config=self.sim,
+                device=self.system.device,
+                vectorization=self.system.vectorization,
+                stats_dir=self.effective_stats_dir,
+                replay_dir=self.effective_replay_dir,
+                policy_uri=self.policy_uri,
+            )
             sim.start_simulation()
             env = sim.get_env()
             initial_replay = sim.get_replay()
