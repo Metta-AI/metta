@@ -22,6 +22,11 @@ on:
         options:
           - testpypi
           - pypi
+      version:
+        description: "Optional version to build on manual runs (e.g. 0.2.0.10 or mettagrid-v0.2.0.10)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -33,13 +38,27 @@ jobs:
     runs-on: ubuntu-latest
     env:
       METTAGRID_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && github.ref_name || '' }}
+      METTAGRID_MANUAL_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Export release version
-        if: env.METTAGRID_RELEASE_TAG != ''
-        run: echo "SETUPTOOLS_SCM_PRETEND_VERSION=${METTAGRID_RELEASE_TAG#mettagrid-v}" >> "$GITHUB_ENV"
+        if: github.event_name == 'workflow_dispatch' || env.METTAGRID_RELEASE_TAG != '' || env.METTAGRID_MANUAL_VERSION != ''
+        run: |
+          version=""
+          if [[ -n "$METTAGRID_RELEASE_TAG" ]]; then
+            version="${METTAGRID_RELEASE_TAG#mettagrid-v}"
+          elif [[ -n "$METTAGRID_MANUAL_VERSION" ]]; then
+            version="${METTAGRID_MANUAL_VERSION#mettagrid-v}"
+          fi
+          if [[ -z "$version" ]] && [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "Manual dispatch requires a --version input (e.g. 0.2.0.10 or mettagrid-v0.2.0.10)."
+            exit 1
+          fi
+          if [[ -n "$version" ]]; then
+            echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
@@ -55,8 +74,8 @@ jobs:
             echo "Detected fallback sdist version 0.0.0. Aborting."
             exit 1
           fi
-          if [[ "${GITHUB_REF}" == refs/tags/mettagrid-v* ]]; then
-            expected="${GITHUB_REF_NAME#mettagrid-v}"
+          if [ -n "${SETUPTOOLS_SCM_PRETEND_VERSION:-}" ]; then
+            expected="${SETUPTOOLS_SCM_PRETEND_VERSION}"
             if [ "$version" != "$expected" ]; then
               echo "Expected sdist version $expected but found $version"
               exit 1
@@ -75,13 +94,27 @@ jobs:
         os: [ubuntu-latest, macos-13, macos-14]
     env:
       METTAGRID_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && github.ref_name || '' }}
+      METTAGRID_MANUAL_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Export release version
-        if: env.METTAGRID_RELEASE_TAG != ''
-        run: echo "SETUPTOOLS_SCM_PRETEND_VERSION=${METTAGRID_RELEASE_TAG#mettagrid-v}" >> "$GITHUB_ENV"
+        if: github.event_name == 'workflow_dispatch' || env.METTAGRID_RELEASE_TAG != '' || env.METTAGRID_MANUAL_VERSION != ''
+        run: |
+          version=""
+          if [[ -n "$METTAGRID_RELEASE_TAG" ]]; then
+            version="${METTAGRID_RELEASE_TAG#mettagrid-v}"
+          elif [[ -n "$METTAGRID_MANUAL_VERSION" ]]; then
+            version="${METTAGRID_MANUAL_VERSION#mettagrid-v}"
+          fi
+          if [[ -z "$version" ]] && [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "Manual dispatch requires a --version input (e.g. 0.2.0.10 or mettagrid-v0.2.0.10)."
+            exit 1
+          fi
+          if [[ -n "$version" ]]; then
+            echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
@@ -106,10 +139,7 @@ jobs:
           output-dir: wheelhouse
       - name: Verify wheel versions
         run: |
-          expected=""
-          if [[ "${GITHUB_REF}" == refs/tags/mettagrid-v* ]]; then
-            expected="${GITHUB_REF_NAME#mettagrid-v}"
-          fi
+          expected="${SETUPTOOLS_SCM_PRETEND_VERSION:-}" # populated for tags or manual runs
           for wheel in wheelhouse/mettagrid-*.whl; do
             base=$(basename "$wheel")
             version=${base#mettagrid-}
