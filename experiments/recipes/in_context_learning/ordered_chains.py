@@ -375,7 +375,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
         numpy_dir: str | None = "icl_ordered_chains",
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
-        num_resources = rng.choice(self.config.chain_lengths) - 1
+        num_resources = (
+            rng.choice(self.config.chain_lengths) - 1
+        )  # not including the heart
         num_sinks = rng.choice(self.config.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
         room_size = rng.choice(self.config.room_sizes)
