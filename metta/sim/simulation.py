@@ -26,7 +26,7 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
-from mettagrid.util.artifact_paths import ArtifactReference, artifact_simulation_root
+from mettagrid.util.artifact_paths import ArtifactRef, ArtifactReference, ensure_artifact_reference
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 
@@ -163,7 +163,7 @@ class Simulation:
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
-        replay_dir: ArtifactReference | str | Path = "./train_dir/replays",
+        replay_dir: ArtifactReference | ArtifactRef | str | Path | None = None,
         policy_uri: str | None = None,
     ) -> "Simulation":
         """Create a Simulation with sensible defaults."""
@@ -173,11 +173,17 @@ class Simulation:
         else:
             policy = MockAgent()
 
-        # Create replay directory path with simulation name
-        full_replay_dir = artifact_simulation_root(
-            replay_dir,
-            suite=sim_config.suite,
-            name=sim_config.name,
+        # Normalize replay directory to an ArtifactReference and append suite/name
+        base_ref: ArtifactReference | None
+        if isinstance(replay_dir, ArtifactReference):
+            base_ref = replay_dir
+        elif isinstance(replay_dir, ArtifactRef):
+            base_ref = replay_dir.as_reference()
+        else:
+            base_ref = ensure_artifact_reference(replay_dir)
+
+        full_replay_dir = (
+            base_ref.with_simulation(sim_config.suite, sim_config.name) if base_ref is not None else None
         )
 
         # Create and return simulation

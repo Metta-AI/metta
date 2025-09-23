@@ -17,7 +17,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.artifact_paths import ArtifactRef
+from mettagrid.util.artifact_paths import ArtifactRef, PolicyArtifactLayout
 from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,13 @@ class SimTool(Tool):
             eval_run_name = _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
-            replay_root = self.replay_dir.as_reference().join(eval_run_name)
+            base_replay_ref = self.replay_dir.as_reference().join(eval_run_name)
+            layout = PolicyArtifactLayout.build(
+                run_name=metadata.get("run_name"),
+                replay_base=base_replay_ref,
+                epoch=metadata.get("epoch"),
+            )
+            replay_root = layout.replay_root
 
             eval_results = evaluate_policy(
                 checkpoint_uri=normalized_uri,

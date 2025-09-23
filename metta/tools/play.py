@@ -28,11 +28,11 @@ class PlayTool(Tool):
     mettascope2: bool = False
 
     @property
-    def effective_replay_dir(self) -> str:
-        """Get the replay directory, defaulting to system.data_dir/replays if not specified."""
-        if self.replay_dir is None:
-            return f"{self.system.data_dir}/replays"
-        return self.replay_dir
+    def effective_replay_ref(self) -> ArtifactRef:
+        """Get the replay directory as an ArtifactRef, defaulting to system.data_dir/replays."""
+        if self.replay_dir is not None:
+            return self.replay_dir
+        return ArtifactRef(f"{self.system.data_dir}/replays")
 
     @property
     def effective_stats_dir(self) -> str:
@@ -52,7 +52,7 @@ class PlayTool(Tool):
                 device=self.system.device,
                 vectorization=self.system.vectorization,
                 stats_dir=self.effective_stats_dir,
-                replay_dir=self.effective_replay_dir,
+                replay_dir=self.effective_replay_ref,
                 policy_uri=self.policy_uri,
             )
             sim.start_simulation()

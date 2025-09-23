@@ -13,7 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.artifact_paths import ArtifactReference, PolicyArtifactLayout
+from mettagrid.util.artifact_paths import ArtifactRef, ArtifactReference, PolicyArtifactLayout
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def evaluate_policy(
     device: torch.device,
     vectorization: str,
     stats_dir: str | None = None,
-    replay_dir: ArtifactReference | str | Path | None = None,
+    replay_dir: ArtifactReference | ArtifactRef | str | Path | None = None,
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
