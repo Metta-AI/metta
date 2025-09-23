@@ -65,6 +65,7 @@ class SimTool(Tool):
         # Can also be invoked with run parameter
         tool.invoke({"run": "my_experiment_2024"})
     """
+
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate

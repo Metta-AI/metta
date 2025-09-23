@@ -177,7 +177,7 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
     """Resolve :latest for S3 URIs by listing available checkpoints."""
     try:
         import boto3
-        from botocore.exceptions import ClientError
+
         from mettagrid.util.uri import ParsedURI
 
         # Extract base path without the filename
@@ -188,23 +188,20 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
             return 0
 
         # List objects in S3
-        s3_client = boto3.client('s3')
+        s3_client = boto3.client("s3")
         prefix = parsed.key or ""
 
-        response = s3_client.list_objects_v2(
-            Bucket=parsed.bucket,
-            Prefix=prefix
-        )
+        response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
 
-        if 'Contents' not in response:
+        if "Contents" not in response:
             return 0
 
         # Filter for checkpoint files
         checkpoint_files = []
-        for obj in response['Contents']:
-            key = obj['Key']
-            filename = key.split('/')[-1]  # Get just the filename
-            if filename.endswith('.pt') and not filename.endswith('trainer_state.pt'):
+        for obj in response["Contents"]:
+            key = obj["Key"]
+            filename = key.split("/")[-1]  # Get just the filename
+            if filename.endswith(".pt") and not filename.endswith("trainer_state.pt"):
                 checkpoint_files.append(filename)
 
         if not checkpoint_files:

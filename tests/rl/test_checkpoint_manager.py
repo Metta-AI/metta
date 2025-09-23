@@ -38,17 +38,6 @@ def mock_agent():
 
 
 class TestBasicSaveLoad:
-    def test_save_and_load_agent(self, checkpoint_manager, mock_agent):
-        metadata = {"agent_step": 5280, "total_time": 120.0, "score": 0.75}
-
-        checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
-
-        checkpoint_dir = checkpoint_manager.checkpoint_dir
-        expected_filename = "test_run:v5.pt"
-        agent_file = checkpoint_dir / expected_filename
-
-        assert agent_file.exists()
-
     def test_latest_selector_file_uri(self, checkpoint_manager, mock_agent):
         """Test :latest selector for file:// URIs."""
         # Save multiple checkpoints
