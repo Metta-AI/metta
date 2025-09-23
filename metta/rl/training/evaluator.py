@@ -16,8 +16,7 @@ from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
-from metta.rl.training.checkpointer import CheckpointConfig
-from metta.rl.training.component import TrainerComponent
+from metta.rl.training import CheckpointConfig, TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.config import Config

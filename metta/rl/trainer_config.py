@@ -3,9 +3,7 @@ from typing import Any, ClassVar, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.training.checkpointer import CheckpointConfig
-from metta.rl.training.heartbeat import HeartbeatConfig
-from metta.rl.training.scheduler import HyperparameterSchedulerConfig
+from metta.rl.training import CheckpointConfig, HeartbeatConfig, HyperparameterSchedulerConfig
 from mettagrid.config import Config
 
 

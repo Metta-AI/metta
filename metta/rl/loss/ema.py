@@ -9,7 +9,7 @@ from torch.nn import functional as F
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.loss.loss import Loss
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.config import Config
 
