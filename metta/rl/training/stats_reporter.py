@@ -188,6 +188,14 @@ class StatsReporter(TrainerComponent):
         if self._stats_client and self._config.report_to_stats_client:
             self._initialize_stats_run()
 
+    @property
+    def wandb_run(self) -> WandbRun | None:
+        return self._wandb_run
+
+    @wandb_run.setter
+    def wandb_run(self, run: WandbRun | None) -> None:
+        self._wandb_run = run
+
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         context.stats_reporter = self
