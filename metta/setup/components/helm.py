@@ -7,7 +7,7 @@ from pathlib import Path
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import error, info, warning
+from metta.setup.utils import info, warning
 
 
 @register_module
@@ -39,10 +39,8 @@ class HelmSetup(SetupModule):
             return
 
         warning(
-            (
-                "Helm is not installed and automatic installation is unsupported on this platform. "
-                "Please install Helm manually and re-run metta install."
-            )
+            "Helm is not installed and automatic installation is unsupported on this platform. "
+            "Please install Helm manually and re-run metta install."
         )
         raise FileNotFoundError("Helm binary not found in PATH")
 
@@ -60,38 +58,25 @@ class HelmSetup(SetupModule):
             script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
 
             install_dir = Path.home() / ".local" / "bin"
-            env_overrides = {
-                "USE_SUDO": "0",
-                "HELM_INSTALL_DIR": str(install_dir),
-                "PATH": f"{install_dir}:{os.environ.get('PATH', '')}",
-            }
-
             install_dir.mkdir(parents=True, exist_ok=True)
 
-            try:
-                self.run_command(
-                    ["bash", str(script_path)],
-                    capture_output=False,
-                    env=env_overrides,
-                    non_interactive=non_interactive,
-                )
-            except FileNotFoundError as exc:
-                error(
-                    (
-                        "Failed to execute Helm install script. Ensure curl and bash are available or install Helm "
-                        "manually."
-                    )
-                )
-                raise exc
+            env = os.environ.copy()
+            env.update({"USE_SUDO": "0", "HELM_INSTALL_DIR": str(install_dir)})
+            env["PATH"] = f"{install_dir}:{env.get('PATH', '')}"
+
+            self.run_command(
+                ["bash", str(script_path)],
+                capture_output=False,
+                env=env,
+                non_interactive=non_interactive,
+            )
 
         info("Helm installation completed")
 
         if not shutil.which("helm"):
             warning(
-                (
-                    "Helm installer completed but the binary is still not on PATH. Add ~/.local/bin to your PATH or "
-                    "install Helm manually."
-                )
+                "Helm installer completed but the binary is still not on PATH. Add ~/.local/bin to your PATH or "
+                "install Helm manually."
             )
             raise FileNotFoundError("Helm binary not found in PATH after installation")
 
