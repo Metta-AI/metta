@@ -481,7 +481,10 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
             simulations=make_icl_resource_chain_eval_suite(),
+            evaluate_remote=True,
+            evaluate_local=False,
         ),
+        stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
 
@@ -569,7 +572,9 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                 for terrain_type in ["", "terrain"]:
                     for density in ["", "balanced", "sparse", "high"]:
                         for i in range(num_envs):
-                            print(f"Generating {i} for {chain_length} chains, {n_sinks} sinks, {room_size}, {terrain_type}, {density}")
+                            print(
+                                f"Generating {i} for {chain_length} chains, {n_sinks} sinks, {room_size}, {terrain_type}, {density}"
+                            )
                             if terrain_type == "terrain":
                                 obstacle_type = random.choice(["square", "cross", "L"])
                             else:
@@ -593,8 +598,6 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
     generate_reward_estimates(dir=dir)
 
 
-
-
 def generate_reward_estimates(dir="icl_ordered_chains"):
     # TODO: Eventually we want to make the reward estimates more accurate, per actual map and including terrain.
     # For now we just use the average hop distance.
@@ -614,13 +617,13 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     reward_estimates = {}
     for room_size in room_sizes:
         # Delete all .DS_Store files in the directory tree
-        chains = [f for f in os.listdir(f"{dir}/{room_size}") if not "DS_Store" in f]
+        chains = os.listdir(f"{dir}/{room_size}")
         for chain_dir in chains:
             num_resources = int(chain_dir[0])
             num_sinks = int(chain_dir[1:].strip("chains_")[0])
-            for terrain in [f for f in os.listdir(f"{dir}/{room_size}/{chain_dir}") if not "DS_Store" in f]:
+            for terrain in os.listdir(f"{dir}/{room_size}/{chain_dir}"):
                 files = os.listdir(f"{dir}/{room_size}/{chain_dir}/{terrain}")
-                for file in [f for f in files if not "DS_Store" in f]:
+                for file in files:
                     grid = np.load(f"{dir}/{room_size}/{chain_dir}/{terrain}/{file}")
                     avg_hop = (grid.shape[0] + grid.shape[1]) / 2
                     best_case_optimal_reward, worst_case_optimal_reward = (
@@ -637,4 +640,5 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
 
 if __name__ == "__main__":
     # experiment()
-    save_envs_to_numpy()
+    # save_envs_to_numpy()
+    generate_reward_estimates()
