@@ -10,6 +10,7 @@ from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfi
 from metta.agent.components.obs_pool import ObsTokenPoolConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrCoordEmbedConfig, ObsAttrEmbedFourierConfig
+from metta.agent.components.obs_topk import ObsTokenTopKConfig
 from metta.agent.policy import PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -67,12 +68,15 @@ class ViTDefaultConfig(ViTSmallConfig):
 
     _token_embed_dim = 8
     _latent_dim = 48
-    _lstm_latent = 96
+    _lstm_latent = 80
+    _critic_hidden = 256
+    _top_k_tokens = 128
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
+        ObsTokenTopKConfig(in_key="obs_shim_tokens", out_key="obs_tokens_topk", k=_top_k_tokens),
         ObsAttrCoordEmbedConfig(
-            in_key="obs_shim_tokens",
+            in_key="obs_tokens_topk",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
         ),
@@ -96,7 +100,7 @@ class ViTDefaultConfig(ViTSmallConfig):
             name="critic",
             in_features=_lstm_latent,
             out_features=1,
-            hidden_features=[512],
+            hidden_features=[_critic_hidden],
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
         ActorQueryConfig(

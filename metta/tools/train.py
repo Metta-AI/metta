@@ -52,10 +52,14 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
+def _default_trainer_config() -> TrainerConfig:
+    return TrainerConfig(batch_size=262_144, minibatch_size=8_192, bptt_horizon=32)
+
+
 class TrainTool(Tool):
     run: Optional[str] = None
 
-    trainer: TrainerConfig = Field(default_factory=TrainerConfig)
+    trainer: TrainerConfig = Field(default_factory=_default_trainer_config)
     training_env: TrainingEnvironmentConfig
     policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None

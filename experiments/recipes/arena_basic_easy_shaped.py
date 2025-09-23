@@ -110,6 +110,9 @@ def train(
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
+        batch_size=262_144,
+        minibatch_size=8_192,
+        bptt_horizon=32,
     )
 
     if policy_architecture is None:
@@ -117,7 +120,14 @@ def train(
 
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=curriculum,
+            num_workers=4,
+            async_factor=2,
+            auto_workers=False,
+            forward_pass_minibatch_target_size=8_192,
+            vectorization="multiprocessing",
+        ),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
     )
