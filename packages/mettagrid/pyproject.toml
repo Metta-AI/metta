@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "numpy>=1.26.4,<2", "pybind11==2.10.4"]
+requires = ["setuptools>=61.0", "wheel", "numpy>=1.26.4,<2", "pybind11==2.10.4", "setuptools_scm>=8"]
 build-backend = "bazel_build"
 backend-path = ["."]
 
 [project]
 name = "mettagrid" # Do not change! Has to be 'mettagrid' for our PyPi package
-version = "0.2.0.6"
+dynamic = ["version"]
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = ">=3.11,<3.12"
@@ -76,3 +76,9 @@ source = ["mettagrid"]
 
 [project.scripts]
 demo = "mettagrid.demo:main"
+
+[tool.setuptools_scm]
+tag_regex = "^mettagrid-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
+version_scheme = "no-guess-dev"
+local_scheme = "node-and-date"
+fallback_version = "0.0.0"
