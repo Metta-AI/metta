@@ -644,6 +644,45 @@ MIGRATIONS = [
             """,
         ],
     ),
+    SqlMigration(
+        version=26,
+        description="Drop simulation_suite column from episodes table",
+        sql_statements=[
+            """DROP VIEW wide_episodes""",
+            """ALTER TABLE episodes DROP COLUMN simulation_suite""",
+            """CREATE VIEW wide_episodes AS
+            SELECT
+                e.id,
+                e.internal_id,
+                e.created_at,
+                e.primary_policy_id,
+                e.stats_epoch,
+                e.replay_url,
+                e.thumbnail_url,
+                e.eval_name,
+                e.eval_category,
+                e.env_name,
+                e.attributes,
+                e.eval_task_id,
+                p.name as policy_name,
+                p.description as policy_description,
+                p.url as policy_url,
+                ep.start_training_epoch as epoch_start_training_epoch,
+                ep.end_training_epoch as epoch_end_training_epoch,
+                tr.id as training_run_id,
+                tr.name as training_run_name,
+                tr.user_id as training_run_user_id,
+                tr.status as training_run_status,
+                tr.url as training_run_url,
+                tr.description as training_run_description,
+                tr.tags as training_run_tags
+            FROM episodes e
+            LEFT JOIN policies p ON e.primary_policy_id = p.id
+            LEFT JOIN epochs ep ON p.epoch_id = ep.id
+            LEFT JOIN training_runs tr ON ep.run_id = tr.id
+            """,
+        ],
+    ),
 ]
 
 logger = logging.getLogger(name="metta_repo")
@@ -771,7 +810,7 @@ class MettaRepo:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: dict[str, str],
+        attributes: dict[str, Any],
     ) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
@@ -811,10 +850,9 @@ class MettaRepo:
         self,
         agent_policies: dict[int, uuid.UUID],
         agent_metrics: dict[int, dict[str, float]],
+        eval_name: str,
         primary_policy_id: uuid.UUID,
         stats_epoch: uuid.UUID | None,
-        sim_name: str,
-        env_label: str,
         replay_url: str | None,
         attributes: dict[str, Any],
         eval_task_id: uuid.UUID | None = None,
@@ -822,14 +860,11 @@ class MettaRepo:
         thumbnail_url: str | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
-
-            def _get_simulation_suite(sim_name: str) -> str:
-                for delim in ["/", "."]:
-                    if delim in sim_name:
-                        return sim_name.split(delim)[0]
-                return sim_name
-
-            simulation_suite = _get_simulation_suite(sim_name) if sim_name else None
+            # Validate that eval name is in the format of 'eval_category/env_name'
+            parts = eval_name.split("/")
+            if len(parts) != 2:
+                raise ValueError("Eval name must be in the format of 'eval_category/env_name'")
+            eval_category, env_name = parts
 
             # Insert into episodes table
             result = await con.execute(
@@ -837,7 +872,6 @@ class MettaRepo:
                 INSERT INTO episodes (
                     replay_url,
                     eval_name,
-                    simulation_suite,
                     eval_category,
                     env_name,
                     primary_policy_id,
@@ -846,15 +880,14 @@ class MettaRepo:
                     eval_task_id,
                     thumbnail_url
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s
                 ) RETURNING id, internal_id
                 """,
                 (
                     replay_url,
-                    sim_name,
-                    simulation_suite,
-                    simulation_suite,
-                    env_label,
+                    eval_name,
+                    eval_category,
+                    env_name,
                     primary_policy_id,
                     stats_epoch,
                     Jsonb(attributes),
