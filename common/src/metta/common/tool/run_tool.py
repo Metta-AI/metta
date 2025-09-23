@@ -155,11 +155,9 @@ def parse_number(candidate: str) -> int | float:
 
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
-    """Parse CLI arguments in key=value format, keeping dotted keys flat."""
+    """Parse CLI arguments, supporting commander-style flags and key=value tokens."""
     parsed: dict[str, Any] = {}
-    for arg in cli_args:
-        if "=" not in arg:
-            raise ValueError(f"Invalid argument format: {arg}. Expected key=value")
+    for arg in _normalize_tokens(cli_args):
         key, value = arg.split("=", 1)
         parsed[key] = parse_value(value)
     return parsed
@@ -570,8 +568,7 @@ constructor/function vs configuration overrides based on introspection.
 
     # Parse CLI arguments
     try:
-        canonical_args = _normalize_tokens(all_args)
-        cli_args = parse_cli_args(canonical_args)
+        cli_args = parse_cli_args(all_args)
     except ValueError as e:
         output_error(f"{red('Error:')} {e}")
         return 2  # Exit code 2 for usage errors

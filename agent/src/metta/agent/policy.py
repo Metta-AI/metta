@@ -39,8 +39,8 @@ class PolicyArchitecture(Config):
 
     @classmethod
     def register_alias(cls, alias: str, target: str) -> None:
-        cls._ALIASES[alias] = target
-        cls._ALIASES[alias.casefold()] = target
+        alias_key = alias.casefold()
+        cls._ALIASES[alias_key] = target
         cls._CANONICAL_ALIASES[alias] = target
 
     @classmethod
@@ -56,11 +56,7 @@ class PolicyArchitecture(Config):
             return value()
 
         if isinstance(value, str):
-            reference = cls._ALIASES.get(value)
-            if reference is None:
-                reference = cls._ALIASES.get(value.casefold())
-            if reference is None:
-                reference = value
+            reference = cls._ALIASES.get(value.casefold(), value)
 
             try:
                 symbol = load_symbol(reference)
