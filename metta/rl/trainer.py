@@ -118,8 +118,17 @@ class Trainer:
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
 
-        amp_dtype = getattr(torch, self._cfg.precision, torch.float32)
-        amp_enabled = self._cfg.amp and self._device.type == "cuda"
+        amp_dtype_name = self._cfg.precision
+        amp_dtype = getattr(torch, amp_dtype_name, torch.float32)
+        amp_supported = amp_dtype in (torch.float16, torch.bfloat16)
+        amp_requested = self._cfg.amp and self._device.type == "cuda"
+        amp_enabled = amp_requested and amp_supported
+
+        if amp_requested and not amp_supported:
+            logger.warning(
+                "Disabling AMP: precision '%s' is not supported for CUDA autocast (use 'float16' or 'bfloat16').",
+                amp_dtype_name,
+            )
 
         if amp_enabled:
 
@@ -133,7 +142,7 @@ class Trainer:
 
         self._context.set_autocast_factory(make_autocast)
         self._context.amp_enabled = amp_enabled
-        self._context.amp_dtype = amp_dtype
+        self._context.amp_dtype = amp_dtype if amp_enabled else torch.float32
 
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
@@ -213,8 +222,8 @@ class Trainer:
             )
             self._context.advance_epoch(epochs_trained)
             if self._lr_scheduler is not None and epochs_trained > 0:
-                for _ in range(epochs_trained):
-                    self._lr_scheduler.step()
+                # Advance the scheduler once per outer training epoch to align with the configured horizon.
+                self._lr_scheduler.step()
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
