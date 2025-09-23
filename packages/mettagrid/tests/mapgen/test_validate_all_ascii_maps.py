@@ -16,12 +16,16 @@ def find_map_files(root_dir) -> list[Path]:
     Find all .map files.
 
     Args:
-        root_dir: Root directory to search from
+        root_dir: Root directory to search from (relative to packages/mettagrid)
 
     Returns:
         Sorted list of absolute paths for .map files
     """
-    root_path = Path(root_dir).resolve()
+    # Find packages/mettagrid root by navigating from this test file
+    # This file is at packages/mettagrid/tests/mapgen/test_validate_all_ascii_maps.py
+    test_file = Path(__file__).resolve()
+    mettagrid_root = test_file.parent.parent.parent  # Go up from mapgen -> tests -> mettagrid
+    root_path = mettagrid_root / root_dir
 
     # Return empty list if directory doesn't exist
     if not root_path.exists():
@@ -33,7 +37,7 @@ def find_map_files(root_dir) -> list[Path]:
 
 
 def map_files():
-    return find_map_files("packages/mettagrid/configs/maps") + find_map_files("configs/maps")
+    return find_map_files("configs/maps")
 
 
 @pytest.fixture(scope="session")
