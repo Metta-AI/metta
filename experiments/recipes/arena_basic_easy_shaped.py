@@ -1,5 +1,7 @@
 from typing import List, Optional, Sequence
 
+from typer import Option
+
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.fast import FastConfig
@@ -140,6 +142,15 @@ def evaluate(
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
+    )
+
+def evaluate_run(
+    run: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    simulations = simulations or make_evals()
+    return SimTool(
+        simulations=simulations,
+        run=run,
     )
 
 

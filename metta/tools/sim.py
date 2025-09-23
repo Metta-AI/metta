@@ -32,10 +32,43 @@ def _determine_run_name(policy_uri: str) -> str:
     return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
+def _get_s3_policy_uri_for_run(run_name: str) -> str:
+    """Build S3 policy URI for a run name using the :latest selector.
+
+    Args:
+        run_name: Name of the training run
+
+    Returns:
+        S3 URI pointing to the latest checkpoint for the run
+
+    Example:
+        _get_s3_policy_uri_for_run("my_experiment")
+        -> "s3://softmax-public/my_experiment/my_experiment:latest.pt"
+    """
+    return f"{SOFTMAX_S3_BASE}/{run_name}/{run_name}:latest.pt"
+
+
 class SimTool(Tool):
+    """Tool for running policy evaluations on simulation suites.
+
+    Can evaluate policies specified either by:
+    - run: Training run name (automatically resolves to latest S3 checkpoint)
+    - policy_uris: Explicit list of policy URIs (file://, s3://, etc.)
+
+    Usage examples:
+        # Evaluate latest checkpoint from a training run
+        SimTool(simulations=my_sims, run="my_experiment_2024")
+
+        # Evaluate specific policy URIs
+        SimTool(simulations=my_sims, policy_uris=["s3://bucket/path/policy:v10.pt"])
+
+        # Can also be invoked with run parameter
+        tool.invoke({"run": "my_experiment_2024"})
+    """
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
+    run: str | None = None  # run name to evaluate (alternative to policy_uris)
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = auto_wandb_config()
@@ -48,8 +81,22 @@ class SimTool(Tool):
     push_metrics_to_wandb: bool = False
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        if self.policy_uris is None:
-            raise ValueError("policy_uris is required")
+        # Handle run parameter from args
+        if "run" in args:
+            if self.run is not None:
+                raise ValueError("run cannot be set via args if already provided in config")
+            self.run = args["run"]
+
+        # Determine policy URIs: either from run name or explicit URIs
+        if self.run is not None and self.policy_uris is not None:
+            raise ValueError("Cannot specify both 'run' and 'policy_uris' parameters")
+
+        if self.run is not None:
+            # Convert run name to S3 policy URI
+            logger.info(f"Evaluating run '{self.run}' using S3 checkpoint with :latest selector")
+            self.policy_uris = [_get_s3_policy_uri_for_run(self.run)]
+        elif self.policy_uris is None:
+            raise ValueError("Either 'run' or 'policy_uris' is required")
 
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
