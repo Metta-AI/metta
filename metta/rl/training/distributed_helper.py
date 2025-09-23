@@ -47,6 +47,8 @@ class DistributedHelper:
             if world_size > 1:
                 rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
 
+                logger.info(f"world_size: {world_size} rank: {rank}")
+
                 torch.distributed.init_process_group(
                     backend="nccl",
                     timeout=system_cfg.nccl_timeout,
