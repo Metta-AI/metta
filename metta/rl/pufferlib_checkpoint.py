@@ -46,6 +46,7 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
     """Remove PufferLib-specific prefixes from state dict keys and handle key mappings."""
     processed = {}
     print(f"state_dict keys: {state_dict.keys()}")
+    print(f"state_dict keys: {len(state_dict)}")
     for key, value in state_dict.items():
         # Remove common PufferLib-specific prefixes
         if key.startswith("policy."):
@@ -104,6 +105,12 @@ def _map_pufferlib_key_to_metta(key: str) -> str:
         # value
         "policy.value.weight": "value.weight",
         "policy.value.bias": "value.bias",
+        
+        # actor
+        "policy.actor.0.weight": "actor.0.weight",
+        "policy.actor.0.bias": "actor.0.bias",
+        "policy.actor.1.weight": "actor.1.weight",
+        "policy.actor.1.bias": "actor.1.bias",
 
     }
 
@@ -132,6 +139,7 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
     # Create the policy directly
     policy = PufferLibCompatiblePolicy(temp_env, policy_cfg)
     print(f"policy: {policy.state_dict().keys()}")
+    print(f"policy: {len(policy.state_dict())}")
     temp_env.close()
 
     # Move policy to the specified device
@@ -148,15 +156,19 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
     shape_mismatches = []
 
     keys_matched = 0
+    matched_keys = []
+    not_matched_keys = []
     for key, value in state_dict.items():
         if key in policy_state:
             policy_param = policy_state[key]
             if policy_param.shape == value.shape:
                 compatible_state[key] = value
                 keys_matched += 1
+                matched_keys.append({"pufferlib": key, "metta": key})
             else:
                 shape_mismatches.append(f"{key}: PufferLib {value.shape} vs Metta {policy_param.shape}")
                 logger.debug(f"Shape mismatch for {key}: PufferLib {value.shape} vs Metta {policy_param.shape}")
+                not_matched_keys.append({"pufferlib": key, "metta": key})
         else:
             logger.debug(f"Skipping incompatible parameter: {key}")
 
