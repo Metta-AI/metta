@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Tuple
 
 import torch
 from pydantic import ConfigDict
+from tensordict import TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
@@ -100,46 +101,9 @@ class CoreTrainingLoop:
             td["rewards"] = r.to(device=target_device, non_blocking=True)
             td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
             td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
-            env_indices = self._env_index_cache[training_env_id]
-            if env_indices.device != td.device:
-                env_indices = env_indices.to(device=td.device)
-            td["training_env_ids"] = env_indices.unsqueeze(1)
+            td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
 
-            # Ensure metadata fields required by downstream components are populated without
-            # incurring allocations on every step by reusing cached constant tensors.
-            batch_elems = td.batch_size.numel()
-            device = td.device
-            if "batch" not in td.keys():
-                td.set(
-                    "batch",
-                    self._get_constant_tensor("batch", (batch_elems,), batch_elems, device),
-                )
-            if "bptt" not in td.keys():
-                td.set(
-                    "bptt",
-                    self._get_constant_tensor("bptt", (batch_elems,), 1, device),
-                )
-            training_env_shape = tuple(int(dim) for dim in td.batch_size)
-            if "training_env_id" not in td.keys():
-                td.set(
-                    "training_env_id",
-                    self._get_constant_tensor(
-                        "training_env_id",
-                        training_env_shape or (batch_elems,),
-                        training_env_id.start,
-                        device,
-                    ),
-                )
-            if "training_env_id_start" not in td.keys():
-                td.set(
-                    "training_env_id_start",
-                    self._get_constant_tensor(
-                        "training_env_id_start",
-                        training_env_shape or (batch_elems,),
-                        training_env_id.start,
-                        device,
-                    ),
-                )
+            self._ensure_rollout_metadata(td)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
@@ -162,6 +126,22 @@ class CoreTrainingLoop:
 
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
+
+    def _gather_env_indices(self, training_env_id: slice, device: torch.device) -> torch.Tensor:
+        env_indices = self._env_index_cache[training_env_id]
+        if env_indices.device != device:
+            env_indices = env_indices.to(device=device)
+        return env_indices
+
+    def _ensure_rollout_metadata(self, td: TensorDict) -> None:
+        """Populate metadata fields needed downstream while reusing cached tensors."""
+
+        batch_elems = td.batch_size.numel()
+        device = td.device
+        if "batch" not in td.keys():
+            td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
+        if "bptt" not in td.keys():
+            td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
 
     def _get_constant_tensor(
         self,
