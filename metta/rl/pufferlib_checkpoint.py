@@ -68,32 +68,40 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
 def _map_pufferlib_key_to_metta(key: str) -> str:
     """Map PufferLib checkpoint keys to Metta agent keys."""
     # Handle PufferLib Policy -> Metta mappings based on actual checkpoint analysis
+    # Based on the actual keys from policy vs state_dict, we need to map:
+    # - PufferLib checkpoint keys (after policy. prefix removal) to Metta policy keys
+    # - The PufferLibCompatiblePolicy uses direct PyTorch modules, not Metta components
     key_mappings = {
-        # CNN layers mapping (PufferLib -> Metta)
-        "conv1.": "cnn_encoder.cnn1.",
-        "conv2.": "cnn_encoder.cnn2.",
-        "network.0.": "cnn_encoder.fc1.",  # Linear layer after CNN
-        "network.2.": "cnn_encoder.fc1.",  # Another linear layer
-        "network.5.": "cnn_encoder.fc1.",  # Final linear layer before LSTM
-        # LSTM mappings - direct mapping for weight names
+
+        #Conv layers
+        "policy.conv1.weight": "conv1.weight",
+        "policy.conv1.bias": "conv1.bias",
+        "policy.conv2.weight": "conv2.weight",
+        "policy.conv2.bias": "conv2.bias",
+
+        # network param
+        "policy.network.0.weight": "network.0.weight",
+        "policy.network.0.bias": "network.0.bias",
+        "policy.network.2.weight": "network.2.weight",
+        "policy.network.2.bias": "network.2.bias",
+        "policy.network.5.weight": "network.5.weight",
+        "policy.network.5.bias": "network.5.bias",
+
+        # self encoder params
+     
+        # LSTM mappings - PufferLib checkpoint has different structure
         "lstm.weight_ih_l0": "lstm.net.weight_ih_l0",
         "lstm.weight_hh_l0": "lstm.net.weight_hh_l0", 
         "lstm.bias_ih_l0": "lstm.net.bias_ih_l0",
         "lstm.bias_hh_l0": "lstm.net.bias_hh_l0",
-        # Cell mappings (additional LSTM components)
+        
+        # Cell mappings (duplicates in checkpoint) - map to same LSTM targets
         "cell.weight_ih": "lstm.net.weight_ih_l0",
         "cell.weight_hh": "lstm.net.weight_hh_l0",
         "cell.bias_ih": "lstm.net.bias_ih_l0", 
         "cell.bias_hh": "lstm.net.bias_hh_l0",
-        # Actor mappings
-        "actor.0.": "actor_1.module.",
-        "actor.1.": "actor_query.",
-        # Critic mapping
-        "value.": "value_head.module.",
-        # Self encoder mapping
-        "self_encoder.0.": "action_embeddings.net.",
-        # Max vec mapping (observation normalizer)
-        "max_vec": "obs_shim.observation_normalizer.obs_norm",
+
+
     }
 
 
