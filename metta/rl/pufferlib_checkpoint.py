@@ -16,30 +16,11 @@ logger = logging.getLogger(__name__)
 
 def _is_puffer_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
     """Check if object is a PufferLib state_dict."""
-    if not isinstance(loaded_obj, dict) or not loaded_obj:
-        return False
-
-    # Check for obvious Metta agent attributes first
-    if hasattr(loaded_obj, "policy") or "policy" in loaded_obj:
-        return False
-
-    # Check if it looks like a TorchRL agent
-    if any(hasattr(loaded_obj, attr) for attr in ["obs_spec", "action_spec", "reward_spec"]):
-        return False
-
-    # Check if all items are parameter name -> tensor mappings
-    sample_items = list(loaded_obj.items())[:10]  # Check more items for better confidence
-    tensor_count = 0
-    for key, value in sample_items:
-        if not isinstance(key, str):
-            return False
-        if torch.is_tensor(value):
-            tensor_count += 1
-        elif not isinstance(value, (int, float, bool, str)):  # Allow simple types
-            return False
-
-    # Require at least 80% of sampled items to be tensors for state_dict detection
-    return tensor_count >= len(sample_items) * 0.8
+    return (
+        isinstance(loaded_obj, dict)
+        and loaded_obj
+        and any(key.startswith("policy.") for key in loaded_obj.keys())
+    )
 
 
 def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
