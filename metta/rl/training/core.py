@@ -138,23 +138,10 @@ class CoreTrainingLoop:
 
         batch_elems = td.batch_size.numel()
         device = td.device
-        metadata_shape = tuple(int(dim) for dim in td.batch_size) or (batch_elems,)
-
         if "batch" not in td.keys():
             td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
         if "bptt" not in td.keys():
             td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
-        start_index = training_env_id.start
-        if "training_env_id" not in td.keys():
-            td.set(
-                "training_env_id",
-                self._get_constant_tensor("training_env_id", metadata_shape, start_index, device),
-            )
-        if "training_env_id_start" not in td.keys():
-            td.set(
-                "training_env_id_start",
-                self._get_constant_tensor("training_env_id_start", metadata_shape, start_index, device),
-            )
 
     def _get_constant_tensor(
         self,
