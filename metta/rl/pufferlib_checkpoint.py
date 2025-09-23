@@ -47,31 +47,8 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
     processed = {}
     print(f"state_dict keys: {state_dict.keys()}")
     print(f"state_dict keys: {len(state_dict)}")
-    for key, value in state_dict.items():
-        # Remove common PufferLib-specific prefixes
-        if key.startswith("policy."):
-            key = key[len("policy.") :]
-        elif key.startswith("recurrent.policy."):
-            key = key[len("recurrent.policy.") :]
-        elif key.startswith("recurrent."):
-            key = key[len("recurrent.") :]
-
-        # Handle specific PufferLib to Metta key mappings
-        # Map PufferLib Policy structure to Metta structure
-        key = _map_pufferlib_key_to_metta(key)
-
-        processed[key] = value
-
-    logger.info(f"Preprocessed state_dict: {len(state_dict)} -> {len(processed)} parameters")
-    return processed
 
 
-def _map_pufferlib_key_to_metta(key: str) -> str:
-    """Map PufferLib checkpoint keys to Metta agent keys."""
-    # Handle PufferLib Policy -> Metta mappings based on actual checkpoint analysis
-    # Based on the actual keys from policy vs state_dict, we need to map:
-    # - PufferLib checkpoint keys (after policy. prefix removal) to Metta policy keys
-    # - The PufferLibCompatiblePolicy uses direct PyTorch modules, not Metta components
     key_mappings = {
 
         #Conv layers
@@ -114,13 +91,18 @@ def _map_pufferlib_key_to_metta(key: str) -> str:
 
     }
 
+    
+    for key, value in key_mappings.items():
+        puffer_tensor = state_dict[key]
+        processed[value] = puffer_tensor
 
-    for puffer_key, metta_key in key_mappings.items():
-        if puffer_key in key:
-            key = key.replace(puffer_key, metta_key)
-            break
 
-    return key
+    logger.info(f"Preprocessed state_dict: {len(state_dict)} -> {len(processed)} parameters")
+    return processed
+
+
+
+
 
 
 def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
