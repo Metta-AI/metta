@@ -54,6 +54,11 @@ class TrainerConfig(Config):
     require_contiguous_env_ids: bool = False
     verbose: bool = True
 
+    # Feature flags
+    enable_contrastive_loss: bool = Field(
+        default=False, description="Enable contrastive loss for representation learning"
+    )
+
     batch_size: int = Field(default=524288, gt=0)
     minibatch_size: int = Field(default=16384, gt=0)
     bptt_horizon: int = Field(default=64, gt=0)

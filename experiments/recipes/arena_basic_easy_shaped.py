@@ -100,6 +100,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    enable_contrastive_loss: bool = False,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -108,6 +109,7 @@ def train(
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
+        enable_contrastive_loss=enable_contrastive_loss,
     )
 
     if policy_architecture is None:
