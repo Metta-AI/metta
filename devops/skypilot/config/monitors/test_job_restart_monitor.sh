@@ -4,7 +4,6 @@ set -euo pipefail
 # Source shared utilities
 source "$(dirname "$0")/monitor_utils.sh"
 
-
 # Required environment variables
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${MAX_RUNTIME_HOURS:?Missing MAX_RUNTIME_HOURS}"
