@@ -51,6 +51,8 @@ class PPOConfig(Config):
     # L2 regularization defaults to disabled
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
+    # KL penalty coefficient (0 disables KL penalty)
+    kl_penalty_coef: float = Field(default=0, ge=0)
 
     # Normalization and clipping
     # Advantage normalization toggle
