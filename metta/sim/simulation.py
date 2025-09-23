@@ -15,7 +15,7 @@ from einops import rearrange
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
 from metta.agent.utils import obs_to_td
-from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -30,7 +30,7 @@ from mettagrid.util.artifact_paths import artifact_path_join
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 
-SYNTHETIC_EVAL_PREFIX = "eval/"
+SYNTHETIC_EVAL_SUITE = "training"
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,6 @@ class Simulation:
 
     def __init__(
         self,
-        name: str,
         cfg: SimulationConfig,
         policy: Policy,
         policy_uri: str,
@@ -57,13 +56,10 @@ class Simulation:
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
-        episode_tags: list[str] | None = None,
     ):
-        self._name = name
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
-        self._episode_tags = episode_tags
         self._policy_uri = policy_uri
 
         replay_dir = artifact_path_join(replay_dir, self._id) if replay_dir else None
@@ -74,6 +70,8 @@ class Simulation:
         self._stats_writer = StatsWriter(sim_stats_dir)
         self._replay_writer = ReplayWriter(replay_dir)
         self._device = device
+
+        self._display_name = f"{cfg.suite}/{cfg.name}"
 
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
@@ -176,11 +174,10 @@ class Simulation:
             policy = MockAgent()
 
         # Create replay directory path with simulation name
-        full_replay_dir = artifact_path_join(replay_dir, sim_config.name)
+        full_replay_dir = artifact_path_join(replay_dir, sim_config.suite, sim_config.name)
 
         # Create and return simulation
         return cls(
-            sim_config.name,
             sim_config,
             policy,
             policy_uri or "mock://",
@@ -194,7 +191,7 @@ class Simulation:
         """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
-            self._name,
+            self._display_name,
             self._num_envs,
             self._agents_per_env,
             100 * self._policy_agents_per_env / self._agents_per_env,
@@ -296,13 +293,13 @@ class Simulation:
         """Generate thumbnail if this is the first run for this eval_name."""
         try:
             # Skip synthetic evaluation framework simulations
-            if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
-                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._name}")
+            if self._config.suite == SYNTHETIC_EVAL_SUITE:
+                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._display_name}")
                 return None
 
             # Get any replay data from this simulation
             if not self._replay_writer.episodes:
-                logger.warning(f"No replay data available for thumbnail generation: {self._name}")
+                logger.warning(f"No replay data available for thumbnail generation: {self._display_name}")
                 return None
 
             # Use first available episode replay and get its ID
@@ -320,7 +317,7 @@ class Simulation:
                 return None
 
         except Exception as e:
-            logger.error(f"Thumbnail generation failed for {self._name}: {e}")
+            logger.error(f"Thumbnail generation failed for {self._display_name}: {e}")
             return None
 
     def end_simulation(self) -> SimulationResults:
@@ -333,7 +330,7 @@ class Simulation:
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
-            self._name,
+            self._display_name,
             int(self._episode_counters.sum()),
             time.time() - self._t0,
         )
@@ -382,15 +379,15 @@ class Simulation:
             sim_id=self._id,
             dir_with_shards=self._stats_dir,
             agent_map=agent_map,
-            sim_name=self._name,
-            sim_env=self._config.env.label,
+            sim_name=self._config.suite,
+            sim_env=self._config.name,
             policy_uri=self._policy_uri or "",
         )
         return db
 
     def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
-        if self._stats_client is not None:
+        if self._stats_client is not None and isinstance(self._stats_client, HttpStatsClient):
             # Use policy_uri directly
             policy_details: list[tuple[str, str | None]] = []
 
@@ -443,19 +440,17 @@ class Simulation:
                     attributes[attr_name] = attr_value
 
                 # Record the episode remotely
-                episode_tags = self._episode_tags or None
                 try:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
                         primary_policy_id=policy_ids[self._policy_uri],
                         stats_epoch=self._stats_epoch_id,
-                        sim_name=self._name,
-                        env_label=self._config.env.label,
+                        sim_suite=self._config.suite,
+                        env_name=self._config.name,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,
-                        tags=episode_tags,
                         thumbnail_url=thumbnail_url,
                     )
                 except Exception as e:
@@ -471,7 +466,7 @@ class Simulation:
 
     @property
     def name(self) -> str:
-        return self._name
+        return self._display_name
 
     def get_envs(self):
         """Returns a list of all envs in the simulation."""

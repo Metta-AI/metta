@@ -8,7 +8,7 @@ from typing import Sequence
 import torch
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.context import WandbConfig, WandbContext
@@ -65,7 +65,7 @@ class SimTool(Tool):
 
         stats_client: StatsClient | None = None
         if self.stats_server_uri is not None:
-            stats_client = StatsClient.create(self.stats_server_uri)
+            stats_client = HttpStatsClient.create(self.stats_server_uri)
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)

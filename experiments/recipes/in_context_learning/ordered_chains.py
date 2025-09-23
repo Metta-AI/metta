@@ -449,7 +449,8 @@ def play(
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            suite="in_context_learning",
+            name="eval",
         ),
     )
 
@@ -463,7 +464,8 @@ def replay(
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            suite="in_context_learning",
+            name="eval",
         ),
         policy_uri=default_policy_uri,
     )

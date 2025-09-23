@@ -221,7 +221,6 @@ def record_episodes(stats_client: StatsClient):
             elif epochs:
                 epoch_id = epochs[i % len(epochs)].id
             for env_name in env_names:
-                sim_name = f"{eval_category}/{env_name}"
                 metric_key = f"policy_{i}_{env_name}"
                 metric_value = metric_values.get(metric_key, 50.0)
                 use_stats_client.record_episode(
@@ -229,9 +228,9 @@ def record_episodes(stats_client: StatsClient):
                     agent_metrics={0: {"reward": metric_value}},
                     primary_policy_id=policy.id,
                     stats_epoch=epoch_id,
-                    sim_name=sim_name,
-                    env_label=env_name,
-                    replay_url=f"https://example.com/replay/{policy.id}/{sim_name}",
+                    sim_suite=eval_category,
+                    env_name=env_name,
+                    replay_url=f"https://example.com/replay/{policy.id}/{env_name}",
                 )
 
     return _record
