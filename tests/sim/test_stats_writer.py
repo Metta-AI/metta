@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from metta.rl.stats import DuckDBStatsWriter
-from metta.rl.stats.episode_stats_db import EpisodeStatsDB
+from metta.sim.stats import DuckDBStatsWriter
+from metta.sim.stats.episode_stats_db import EpisodeStatsDB
 
 
 @pytest.fixture
