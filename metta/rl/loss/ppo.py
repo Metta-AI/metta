@@ -151,6 +151,15 @@ class PPO(Loss):
         for key in rollout_td.keys(include_nested=False):
             td[key] = rollout_td[key]
 
+        if "actions" not in td.keys(include_nested=False):
+            rollout_keys = list(rollout_td.keys(include_nested=False))
+            current_keys = list(td.keys(include_nested=False))
+            raise RuntimeError(
+                "Rollout TensorDict missing actions after policy forward; rollout keys="
+                f"{rollout_keys}; td keys={current_keys}; batch_meta="
+                f"{td.get('batch')}, bptt={td.get('bptt')}"
+            )
+
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
             return
