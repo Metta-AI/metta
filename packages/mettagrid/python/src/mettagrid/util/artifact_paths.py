@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Union
+from typing import Dict, Iterable, Optional, Tuple, Union
 
 from mettagrid.util.file import http_url
 from mettagrid.util.uri import ParsedURI
@@ -64,15 +64,6 @@ def _join_value(base: ArtifactBase, cleaned: list[str]) -> ArtifactBase:
 
     result_path = Path(base_str).joinpath(*cleaned)
     return str(result_path)
-
-
-def artifact_path_join(base: ArtifactBase | "ArtifactReference", *segments: str) -> ArtifactBase:
-    """Join *segments* onto *base* handling both local paths and URIs."""
-
-    cleaned = _clean_segments(segments)
-    if isinstance(base, ArtifactReference):
-        return base.join(*segments).value
-    return _join_value(base, cleaned)
 
 
 @dataclass(frozen=True)
@@ -193,20 +184,55 @@ def artifact_simulation_root(
     return ref.with_simulation(suite, name, simulation_id=simulation_id)
 
 
-def artifact_to_str(value: ArtifactBase | ArtifactReference) -> str:
-    """Return a canonical string representation for *value*."""
+def build_policy_simulation_roots(
+    base: ArtifactBase | ArtifactReference | None,
+    *,
+    run_name: Optional[str],
+    epoch: Optional[int],
+    simulations: Iterable[Tuple[str, str]],
+) -> Tuple[Optional[ArtifactReference], Dict[Tuple[str, str], ArtifactReference]]:
+    """Return run-level replay root and per-simulation roots."""
 
-    ref = ensure_artifact_reference(value)
-    if ref is None:
-        raise ValueError("Artifact value cannot be None")
-    return ref.as_str()
+    run_root = artifact_policy_run_root(base, run_name=run_name, epoch=epoch)
+    per_sim: Dict[Tuple[str, str], ArtifactReference] = {}
+    if run_root is None:
+        return None, per_sim
+    for suite, name in simulations:
+        per_sim[(suite, name)] = run_root.with_simulation(suite, name)
+    return run_root, per_sim
+
+
+class ArtifactRef(str):
+    """Pydantic-friendly wrapper around canonical artifact strings."""
+
+    def __new__(cls, value: str | Path | ArtifactReference | "ArtifactRef") -> "ArtifactRef":  # type: ignore[override]
+        if isinstance(value, ArtifactRef):
+            return str.__new__(cls, str(value))
+        ref = ensure_artifact_reference(value)
+        if ref is None:
+            raise ValueError("Artifact value cannot be None")
+        return str.__new__(cls, ref.as_str())
+
+    def as_reference(self) -> ArtifactReference:
+        return ArtifactReference(str(self))
+
+    def join(self, *segments: str) -> "ArtifactRef":
+        return ArtifactRef(self.as_reference().join(*segments).as_str())
+
+    @classmethod
+    def __get_validators__(cls):  # pragma: no cover - exercised via Pydantic
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: str | Path | ArtifactReference | "ArtifactRef") -> "ArtifactRef":
+        return cls(value)
 
 
 __all__ = [
     "ArtifactReference",
-    "artifact_path_join",
+    "ArtifactRef",
+    "build_policy_simulation_roots",
     "artifact_policy_run_root",
     "artifact_simulation_root",
-    "artifact_to_str",
     "ensure_artifact_reference",
 ]

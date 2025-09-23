@@ -13,12 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.artifact_paths import (
-    ArtifactReference,
-    artifact_policy_run_root,
-    artifact_simulation_root,
-    ensure_artifact_reference,
-)
+from mettagrid.util.artifact_paths import ArtifactReference, build_policy_simulation_roots
 
 logger = logging.getLogger(__name__)
 
@@ -46,25 +41,17 @@ def evaluate_policy(
     # Load the policy from URI directly to the correct device
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
 
-    run_replay_root: ArtifactReference | None = None
-    replay_ref = ensure_artifact_reference(replay_dir)
-    if replay_ref is not None:
-        metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-        run_replay_root = artifact_policy_run_root(
-            replay_ref,
-            run_name=metadata.get("run_name"),
-            epoch=metadata.get("epoch"),
-        )
+    metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+    run_replay_root, sim_roots = build_policy_simulation_roots(
+        replay_dir,
+        run_name=metadata.get("run_name"),
+        epoch=metadata.get("epoch"),
+        simulations=[(cfg.suite, cfg.name) for cfg in simulations],
+    )
 
     sims = []
     for sim_cfg in simulations:
-        sim_replay_dir: ArtifactReference | None = None
-        if run_replay_root is not None:
-            sim_replay_dir = artifact_simulation_root(
-                run_replay_root,
-                suite=sim_cfg.suite,
-                name=sim_cfg.name,
-            )
+        sim_replay_dir = sim_roots.get((sim_cfg.suite, sim_cfg.name)) if run_replay_root else None
         sims.append(
             Simulation(
                 cfg=sim_cfg,

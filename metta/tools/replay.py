@@ -4,8 +4,6 @@ import logging
 import platform
 from urllib.parse import quote
 
-from pydantic import field_validator
-
 import mettascope.server as server
 from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
@@ -14,7 +12,7 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.artifact_paths import ensure_artifact_reference
+from mettagrid.util.artifact_paths import ArtifactRef
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +26,9 @@ class ReplayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    replay_dir: str = "./train_dir/replays"
+    replay_dir: ArtifactRef = "./train_dir/replays"
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
-
-    @field_validator("replay_dir")
-    @classmethod
-    def _validate_replay_dir(cls, value: str) -> str:
-        ref = ensure_artifact_reference(value)
-        if ref is None:
-            raise ValueError("replay_dir cannot be empty")
-        return str(ref.value)
 
     def invoke(self, args: dict[str, str]) -> int | None:
         # Create simulation using CheckpointManager integration

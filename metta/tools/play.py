@@ -6,7 +6,6 @@ import sys
 
 import numpy as np
 import torch as torch
-from pydantic import field_validator
 
 from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
@@ -14,7 +13,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.artifact_paths import ensure_artifact_reference
+from mettagrid.util.artifact_paths import ArtifactRef
 
 logger = logging.getLogger(__name__)
 
@@ -23,25 +22,17 @@ class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
-    replay_dir: str | None = None
+    replay_dir: ArtifactRef | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
     mettascope2: bool = False
 
-    @field_validator("replay_dir")
-    @classmethod
-    def _validate_replay_dir(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        ref = ensure_artifact_reference(value)
-        if ref is None:
-            raise ValueError("replay_dir cannot be empty")
-        return str(ref.value)
-
     @property
     def effective_replay_dir(self) -> str:
         """Get the replay directory, defaulting to system.data_dir/replays if not specified."""
-        return self.replay_dir if self.replay_dir is not None else f"{self.system.data_dir}/replays"
+        if self.replay_dir is None:
+            return f"{self.system.data_dir}/replays"
+        return self.replay_dir
 
     @property
     def effective_stats_dir(self) -> str:

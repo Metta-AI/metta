@@ -15,7 +15,8 @@ cases stay in one place.
 | `ArtifactReference.with_simulation(suite, name, simulation_id=None)` | Append simulation metadata using the standard `<suite>/<name>/<id>` layout. |
 | `artifact_policy_run_root(base, run_name, epoch)` | Helper for policy replay roots. Returns an `ArtifactReference` or `None`. |
 | `artifact_simulation_root(base, suite, name, simulation_id=None)` | Helper for simulation replay directories. |
-| `artifact_to_str(value)` | Converts an `ArtifactReference` (or plain string/path) back to a canonical string for file uploads. |
+| `build_policy_simulation_roots(base, run_name, epoch, simulations)` | Returns a run-level replay root plus per-simulation roots for `(suite, name)` pairs. |
+| `ArtifactRef` | A Pydantic-compatible wrapper that normalizes artifact strings and exposes `.as_reference()` / `.join()`. |
 
 ### Example
 
@@ -35,8 +36,8 @@ print(sim_root.as_str())
 * Use `ArtifactReference.join` / `with_policy` / `with_simulation` instead of manual string concatenation (e.g.
   `f"{prefix}/{run}/{suite}"`). These helpers normalize trailing slashes and handle scheme-specific quirks such as S3
   bucket roots or Google Drive prefixes.
-* When you need a raw string for upload functions (`write_file`, `http_url`, etc.), call `artifact_to_str` so the
-  conversion logic remains in one place.
+* When you need a raw string for upload functions (`write_file`, `http_url`, etc.), call `ref.as_str()` on an
+  `ArtifactReference` (or keep using `ArtifactRef`, which is already a string) so conversion logic stays centralized.
 * Configuration utilities (`auto_replay_dir`, CLI validators, etc.) should rely on `ensure_artifact_reference` to catch
   invalid overrides early.
 
@@ -47,6 +48,6 @@ The helpers are already wired into the main replay stack:
 - `CheckpointManager` now builds remote URIs via `ArtifactReference.join`.
 - `Simulation` / `EvalService` / `SimTool` construct replay directories with `artifact_policy_run_root` and
   `artifact_simulation_root`.
-- `ReplayWriter` accepts `ArtifactReference` objects directly and emits canonical strings via `artifact_to_str`.
+- `ReplayWriter` accepts `ArtifactReference` objects directly and emits canonical strings via `ref.as_str()`.
 
 If you add new tooling that writes artifacts, reuse these helpers instead of reinventing the path handling.

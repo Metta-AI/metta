@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from mettagrid.util.artifact_paths import ArtifactReference, artifact_to_str, ensure_artifact_reference
+from mettagrid.util.artifact_paths import ArtifactReference, ensure_artifact_reference
 from mettagrid.util.file import http_url, write_data
 from mettagrid.util.grid_object_formatter import format_grid_object
 
@@ -40,7 +40,7 @@ class ReplayWriter:
         if episode_replay is None:
             raise ValueError(f"Episode {episode_id} not found")
         replay_path_ref = self._replay_root.join(f"{episode_id}.json.z")
-        replay_path_str = artifact_to_str(replay_path_ref)
+        replay_path_str = replay_path_ref.as_str()
         episode_replay.write_replay(replay_path_str)
         return http_url(replay_path_str)
 

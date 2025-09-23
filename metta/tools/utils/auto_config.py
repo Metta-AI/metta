@@ -12,7 +12,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.setup.components.aws import AWSSetup
 from metta.setup.components.observatory_key import ObservatoryKeySetup
 from metta.setup.components.wandb import WandbSetup
-from mettagrid.util.artifact_paths import ensure_artifact_reference
+from mettagrid.util.artifact_paths import ArtifactRef, ensure_artifact_reference
 
 
 class SupportedWandbEnvOverrides(BaseSettings):
@@ -113,7 +113,7 @@ class SupportedAwsEnvOverrides(BaseSettings):
 supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
 
-def auto_replay_dir() -> str:
+def auto_replay_dir() -> ArtifactRef:
     aws_setup_module = AWSSetup()
     config = {
         **aws_setup_module.to_config_settings(),  # type: ignore
@@ -124,7 +124,7 @@ def auto_replay_dir() -> str:
     ref = ensure_artifact_reference(config)
     if ref is None:
         raise ValueError("Replay directory cannot be empty")
-    return str(ref.value)
+    return ArtifactRef(ref.as_str())
 
 
 def _join_prefix(prefix: str, run: str | None) -> str:

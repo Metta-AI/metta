@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 from uuid import UUID
 
 import torch
-from pydantic import Field, field_validator
+from pydantic import Field
 
 import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
@@ -21,7 +21,7 @@ from metta.rl.training.component import TrainerComponent
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.config import Config
-from mettagrid.util.artifact_paths import ensure_artifact_reference
+from mettagrid.util.artifact_paths import ArtifactRef
 
 logger = logging.getLogger(__name__)
 
@@ -34,19 +34,9 @@ class EvaluatorConfig(Config):
     evaluate_remote: bool = False
     num_training_tasks: int = 2
     simulations: List[SimulationConfig] = Field(default_factory=list)
-    replay_dir: Optional[str] = None
+    replay_dir: Optional[ArtifactRef] = None
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
-
-    @field_validator("replay_dir")
-    @classmethod
-    def _validate_replay_dir(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        ref = ensure_artifact_reference(value)
-        if ref is None:
-            raise ValueError("replay_dir cannot be empty")
-        return str(ref.value)
 
 
 class NoOpEvaluator(TrainerComponent):
