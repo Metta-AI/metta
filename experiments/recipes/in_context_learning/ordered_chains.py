@@ -73,6 +73,11 @@ class LPParams:
 
 
 curriculum_args = {
+    "level_1": {
+        "chain_lengths": [2, 3],
+        "num_sinks": [0, 1],
+        "room_sizes": ["tiny"],
+    },
     "tiny": {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
@@ -137,9 +142,6 @@ def get_reward_estimates(
     n_converters = num_resources + 1
     total_objects = n_converters + num_sinks
 
-    # Mirror _make_env_cfg’s episode-length extension
-    effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
-
     # Converter cooldown applied uniformly
     cooldown = avg_hop * n_converters
 
@@ -199,7 +201,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
         densities: list[str] = Field(default=[], description="Density to sample from")
         # obstacle_complexity
-        max_steps: int = Field(default=512, description="Episode length")
+        max_steps: int = Field(default=256, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
@@ -264,7 +266,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         density,
         avg_hop,
         rng,
-        max_steps=512,
+        max_steps=256,
         numpy_dir: str | None = "icl_ordered_chains",
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
@@ -488,15 +490,11 @@ def evaluate(
 
 def experiment():
     curriculum_styles = [
-        "tiny",
-        "tiny_small",
-        "all_room_sizes",
-        "longer_chains",
-        "terrain",
+        "level_1"
     ]
 
-    batch_size = 4128768
-    bptt_horizon = 512
+    # batch_size = 4128768
+    # bptt_horizon = 512
 
     bptt_horizon = 256
     batch_size = 2064384
