@@ -7,13 +7,18 @@ import torch
 from metta.agent.policy import Policy
 from metta.agent.util.distribution_utils import configure_sampling_backend
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.component import TrainerCallback, TrainerComponent
-from metta.rl.training.component_context import ComponentContext, TrainerState
-from metta.rl.training.core import CoreTrainingLoop
-from metta.rl.training.distributed_helper import DistributedHelper
-from metta.rl.training.experience import Experience
+from metta.rl.training import (
+    ComponentContext,
+    ContextCheckpointer,
+    CoreTrainingLoop,
+    DistributedHelper,
+    Experience,
+    TrainerCallback,
+    TrainerComponent,
+    TrainerState,
+    TrainingEnvironment,
+)
 from metta.rl.training.optimizer import create_optimizer
-from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
@@ -294,9 +299,6 @@ class Trainer:
 
         This should be called after setup() to restore any saved state.
         """
-        # Find and restore trainer checkpointer state
-        from metta.rl.training.context_checkpointer import ContextCheckpointer
-
         for component in self._components:
             if isinstance(component, ContextCheckpointer):
                 component.restore(self._context)

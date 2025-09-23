@@ -10,7 +10,7 @@ from torchrl.data import Composite, UnboundedContinuous
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.loss.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext
 from mettagrid.config import Config
 
 # Config class
