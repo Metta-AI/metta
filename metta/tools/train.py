@@ -106,7 +106,12 @@ class TrainTool(Tool):
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
-        distributed_helper = DistributedHelper(torch.device(self.system.device))
+        if self.evaluator and self.evaluator.evaluate_local:
+            # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
+            logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
+            self.system.nccl_timeout = timedelta(hours=4)
+
+        distributed_helper = DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
@@ -120,15 +125,6 @@ class TrainTool(Tool):
 
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
-
-        evaluate_local = self.evaluator and self.evaluator.evaluate_local
-        _nccl_timeout = timedelta(minutes=1)
-        if evaluate_local:
-            # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
-            logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
-            # nccl_timeout = timedelta(hours=4)
-
-        # _torch_dist_cfg = setup_torch_distributed(self.system.device, nccl_timeout)
 
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)
