@@ -28,11 +28,6 @@ class ObsTokenPool(nn.Module):
         self.activation = nn.GELU() if self.config.activation else nn.Identity()
 
     def forward(self, td: TensorDict) -> TensorDict:
-        compiler_mod = getattr(torch, "compiler", None)
-        mark_step = getattr(compiler_mod, "cudagraph_mark_step_begin", None)
-        if mark_step is not None:
-            mark_step()
-
         tokens = td[self.config.in_key]
         mask = td.get("obs_mask")
 

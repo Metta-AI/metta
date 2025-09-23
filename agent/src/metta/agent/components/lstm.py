@@ -77,11 +77,6 @@ class LSTM(nn.Module):
     def forward(self, td: TensorDict):
         latent = td[self.in_key]
 
-        compiler_mod = getattr(torch, "compiler", None)
-        mark_step = getattr(compiler_mod, "cudagraph_mark_step_begin", None)
-        if mark_step is not None:
-            mark_step()
-
         if "bptt" not in td.keys():
             raise KeyError("TensorDict is missing required 'bptt' metadata")
 

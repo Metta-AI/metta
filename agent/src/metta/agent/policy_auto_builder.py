@@ -59,6 +59,10 @@ class PolicyAutoBuilder(nn.Module):
         )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
+        compiler_mod = getattr(torch, "compiler", None)
+        mark_step = getattr(compiler_mod, "cudagraph_mark_step_begin", None)
+        if mark_step is not None:
+            mark_step()
         self._runner(td, action)
         td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td
@@ -75,7 +79,11 @@ class PolicyAutoBuilder(nn.Module):
         self.to(device)
         device_type = device.type
         if device_type == "cuda":
-            torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
+            attention_mod = getattr(torch.nn, "attention", None)
+            if attention_mod is not None and hasattr(attention_mod, "sdpa_kernel"):
+                attention_mod.sdpa_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
+            else:
+                torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
             torch.set_float32_matmul_precision("high")
         logs = []
         for _, value in self.components.items():
