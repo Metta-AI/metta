@@ -156,9 +156,9 @@ def get_reward_estimates(
     per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
 
     def hearts_after(first_heart_steps: float) -> float:
-        if first_heart_steps > effective_max_steps:
+        if first_heart_steps > max_steps:
             return 0
-        remaining = effective_max_steps - first_heart_steps
+        remaining = max_steps - first_heart_steps
         return 1 + (remaining // per_heart_cycle)
 
     # ---------- Most efficient ----------
