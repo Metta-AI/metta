@@ -50,6 +50,8 @@ class Simulation:
         policy_uri: str,
         device: torch.device,
         vectorization: str,
+        *,
+        name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
@@ -61,6 +63,9 @@ class Simulation:
         self._eval_task_id = eval_task_id
         self._policy_uri = policy_uri
 
+        # Prefer explicit name when provided, otherwise derive from config for backward compatibility.
+        self._display_name = name or f"{cfg.suite}/{cfg.name}"
+
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
@@ -69,8 +74,6 @@ class Simulation:
         self._stats_writer = StatsWriter(sim_stats_dir)
         self._replay_writer = ReplayWriter(replay_dir)
         self._device = device
-
-        self._display_name = f"{cfg.suite}/{cfg.name}"
 
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
@@ -177,7 +180,6 @@ class Simulation:
 
         # Create and return simulation
         return cls(
-            sim_config.name,
             sim_config,
             policy,
             policy_uri or "mock://",
