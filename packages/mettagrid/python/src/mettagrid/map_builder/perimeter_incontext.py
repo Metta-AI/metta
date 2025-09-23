@@ -328,7 +328,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
             assert len(converter_indices) == self._config.chain_length + self._config.num_sinks
 
-            subdir = f"{size}/{self._config.chain_length - 2}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
+            subdir = f"{size}/{self._config.chain_length}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
             filename = os.path.join(dir, subdir, f"{random_number}.npy")
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             np.save(filename, grid)

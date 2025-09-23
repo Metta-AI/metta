@@ -25,6 +25,26 @@ from pydantic import Field
 import json
 import os
 
+import shutil
+import os
+import zipfile
+
+def zip_and_cleanup_dir(dir: str = "icl_ordered_chains/"):
+    # Remove trailing slash for consistency
+    dir = dir.rstrip("/")
+    zip_filename = f"{dir}.zip"
+    # Create zip archive
+    with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, start=os.path.dirname(dir))
+                zipf.write(file_path, arcname)
+    # Remove the original directory
+    shutil.rmtree(dir)
+    print(f"Zipped {dir} to {zip_filename} and deleted the directory.")
+
+
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
     "mine_blue": empty_converters.mine_blue,
@@ -326,7 +346,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
-            dir = f"{numpy_dir}/{room_size}/{len(resources) - 1}chains_{num_sinks}sinks/{terrain}"
+            dir = f"{numpy_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
             env = make_icl_with_numpy(
                 num_agents=1,
                 num_instances=24,
@@ -598,6 +618,8 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                             map_builder.build()
 
     generate_reward_estimates(dir=dir)
+
+    zip_and_cleanup_dir(dir=dir)
 
 
 def generate_reward_estimates(dir="icl_ordered_chains"):
