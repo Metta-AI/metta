@@ -405,6 +405,12 @@ class Curriculum(StatsLogger):
 
         return base_stats
 
+    def get_visualization_data(self, epoch: int) -> Dict[str, Any]:
+        """Get task pool visualization data for the current epoch."""
+        if self._algorithm is not None and hasattr(self._algorithm, "get_task_pool_visualization_data"):
+            return self._algorithm.get_task_pool_visualization_data(epoch)
+        return {}
+
     def stats(self) -> dict:
         """Return curriculum statistics for logging purposes."""
         # Use the StatsLogger implementation

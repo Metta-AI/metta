@@ -410,7 +410,7 @@ def make_curriculum(
 
 
 def train(
-    curriculum_style: str = "terrain",
+    curriculum_style: str = "tiny",
     lp_params: LPParams = LPParams(),
     batch_size: int = 4128768,
     bptt_horizon: int = 512,
@@ -442,7 +442,7 @@ def train(
 
 
 def play(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain"
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny"
 ) -> PlayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     return PlayTool(
@@ -455,7 +455,7 @@ def play(
 
 
 def replay(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain"
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny"
 ) -> ReplayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     # Default to the research policy if none specified

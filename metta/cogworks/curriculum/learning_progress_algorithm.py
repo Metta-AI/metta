@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+from .task_pool_visualizer import TaskPoolVisualizer
 from .task_tracker import TaskTracker
 
 # Constants for bidirectional learning progress
@@ -40,6 +41,12 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     max_memory_tasks: int = 1000
     max_slice_axes: int = 3  # Updated terminology
     enable_detailed_slice_logging: bool = False  # Updated terminology
+
+    # Task pool visualization settings
+    enable_task_pool_visualization: bool = True
+    visualization_epoch_interval: int = 1
+    visualization_max_bins: int = 50
+    min_tasks_for_viz: int = 5
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -73,6 +80,18 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._init_bidirectional_scoring()
         else:
             self._init_basic_scoring()
+
+        # Initialize task pool visualizer
+        self.task_pool_visualizer = None
+        if hypers.enable_task_pool_visualization:
+            self.task_pool_visualizer = TaskPoolVisualizer(
+                epoch_interval=hypers.visualization_epoch_interval,
+                max_bins=hypers.visualization_max_bins,
+                min_tasks_for_viz=hypers.min_tasks_for_viz,
+            )
+
+        # Store reference to curriculum for visualization access
+        self._curriculum = None
 
         # Cache for expensive statistics computation
         self._stats_cache: Dict[str, Any] = {}
@@ -428,6 +447,28 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             stats[f"lp/{key}"] = value
 
         return stats
+
+    def set_curriculum_reference(self, curriculum) -> None:
+        """Set reference to curriculum for visualization access."""
+        self._curriculum = curriculum
+
+    def get_task_pool_visualization_data(self, epoch: int) -> Dict[str, Any]:
+        """Get task pool visualization data for wandb logging.
+
+        Args:
+            epoch: Current training epoch
+
+        Returns:
+            Dictionary containing visualization data, empty if not enabled or not time to log
+        """
+        if self.task_pool_visualizer is None or not self.task_pool_visualizer.should_log(epoch):
+            return {}
+
+        viz_data = self.task_pool_visualizer.collect_task_pool_distributions(self)
+        if viz_data:
+            self.task_pool_visualizer.mark_logged(epoch)
+
+        return viz_data
 
     def _get_bidirectional_detailed_stats(self) -> Dict[str, float]:
         """Get detailed bidirectional learning progress statistics."""

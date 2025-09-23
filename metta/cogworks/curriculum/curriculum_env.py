@@ -45,6 +45,9 @@ class CurriculumEnv(PufferEnv):
         self._cached_stats = {}
         self._stats_cache_valid = False
 
+        # Track epoch for visualization
+        self._current_epoch = 0
+
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add curriculum statistics to info dictionary for logging.
 
@@ -61,6 +64,12 @@ class CurriculumEnv(PufferEnv):
             for key, value in self._cached_stats.items():
                 info_dict[self._CURRICULUM_STAT_PREFIX + key] = value
             self._stats_update_counter = 0
+
+        # Check for visualization data - pass this through info dict for wandb logging
+        # We check on each call but only generate when epoch changes
+        viz_data = self._curriculum.get_visualization_data(self._current_epoch)
+        if viz_data:
+            info_dict["task_pool_visualizations"] = viz_data
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
@@ -122,6 +131,10 @@ class CurriculumEnv(PufferEnv):
         self._stats_update_counter = self._stats_update_frequency
         self._stats_cache_valid = False
 
+    def set_epoch(self, epoch: int) -> None:
+        """Set the current training epoch for visualization tracking."""
+        self._current_epoch = epoch
+
     def __getattribute__(self, name: str):
         """Intercept all attribute access and delegate to wrapped environment when appropriate.
         This handles the case where PufferEnv defines methods that raise NotImplementedError,
@@ -141,6 +154,8 @@ class CurriculumEnv(PufferEnv):
             "_cached_stats",
             "_stats_cache_valid",
             "_first_reset_done",
+            "_current_epoch",
+            "set_epoch",
         ):
             return object.__getattribute__(self, name)
 

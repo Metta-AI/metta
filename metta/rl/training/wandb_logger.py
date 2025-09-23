@@ -1,6 +1,8 @@
 """Trainer component for logging metrics to wandb."""
 
-from typing import Dict
+from typing import Any, Dict
+
+import wandb
 
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import TrainerComponent
@@ -41,6 +43,12 @@ class WandbLogger(TrainerComponent):
             metric_key = key if "/" in key else f"loss/{key}"
             payload[metric_key] = float(value)
 
+        # Update curriculum environment epoch for visualization
+        self._update_curriculum_epoch(epoch)
+
+        # Check for task pool visualization data in latest rollout info
+        self._log_task_pool_visualizations()
+
         self._wandb_run.log(payload)
 
     def on_training_complete(self) -> None:  # noqa: D401
@@ -51,3 +59,82 @@ class WandbLogger(TrainerComponent):
 
     def _log_status(self, status: str) -> None:
         self._wandb_run.summary["training/status"] = status
+
+    def _update_curriculum_epoch(self, epoch: int) -> None:
+        """Update curriculum environments with current epoch for visualization."""
+        try:
+            # Access the training environment and update curriculum epoch
+            env = getattr(self.context, "env", None)
+            if env is not None:
+                # For vectorized environments, access the driver environment
+                driver_env = getattr(env, "driver_env", None)
+                if driver_env is not None and hasattr(driver_env, "set_epoch"):
+                    driver_env.set_epoch(epoch)
+        except Exception:
+            # Fail silently - visualization is optional
+            pass
+
+    def _log_task_pool_visualizations(self) -> None:
+        """Log task pool visualization histograms to wandb."""
+        try:
+            # Get the most recent info from rollout context
+            latest_infos = getattr(self.context, "latest_infos", [])
+            if not latest_infos:
+                return
+
+            # Look for visualization data in the most recent info
+            for info in reversed(latest_infos):
+                if isinstance(info, dict) and "task_pool_visualizations" in info:
+                    viz_data = info["task_pool_visualizations"]
+                    self._log_histograms(viz_data)
+                    break  # Only log once per epoch
+        except Exception:
+            # Fail silently - visualization is optional
+            pass
+
+    def _log_histograms(self, viz_data: Dict[str, Any]) -> None:
+        """Log histogram data to wandb."""
+        for hist_name, hist_data in viz_data.items():
+            try:
+                if hist_name in ["task_scores", "task_completions"]:
+                    # Simple numpy array histograms
+                    if len(hist_data) > 0:
+                        self._wandb_run.log({f"curriculum_viz/{hist_name}": wandb.Histogram(hist_data)})
+
+                elif hist_name == "label_counts":
+                    # Bar chart for label counts
+                    if "labels" in hist_data and "counts" in hist_data:
+                        labels = hist_data["labels"]
+                        counts = hist_data["counts"]
+                        if len(labels) > 0 and len(counts) > 0:
+                            # Create a simple bar chart data
+                            bar_data = [[label, count] for label, count in zip(labels, counts, strict=False)]
+                            table = wandb.Table(data=bar_data, columns=["label", "count"])
+                            self._wandb_run.log(
+                                {
+                                    f"curriculum_viz/{hist_name}": wandb.plot.bar(
+                                        table, "label", "count", title="Task Label Counts"
+                                    )
+                                }
+                            )
+
+                elif hist_name == "mean_scores_by_label":
+                    # Bar chart for mean scores by label
+                    if "labels" in hist_data and "means" in hist_data:
+                        labels = hist_data["labels"]
+                        means = hist_data["means"]
+                        if len(labels) > 0 and len(means) > 0:
+                            # Create a simple bar chart data
+                            bar_data = [[label, mean] for label, mean in zip(labels, means, strict=False)]
+                            table = wandb.Table(data=bar_data, columns=["label", "mean_score"])
+                            self._wandb_run.log(
+                                {
+                                    f"curriculum_viz/{hist_name}": wandb.plot.bar(
+                                        table, "label", "mean_score", title="Mean Scores by Label"
+                                    )
+                                }
+                            )
+
+            except Exception:
+                # Individual histogram failures shouldn't break training
+                continue
