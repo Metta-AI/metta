@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from mettagrid.util.artifact_paths import PolicyArtifactLayout, ensure_artifact_reference
+from mettagrid.util.artifact_paths import ArtifactReference, ensure_artifact_reference
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -171,22 +171,21 @@ class CheckpointManager:
         self.checkpoint_dir = self.run_dir / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
-        self._remote_layout: PolicyArtifactLayout | None = None
+        self._remote_prefix: ArtifactReference | None = None
+        self._remote_run_prefix: ArtifactReference | None = None
         if remote_prefix:
             parsed = ParsedURI.parse(remote_prefix)
             if parsed.scheme != "s3" or not parsed.bucket:
                 raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
             normalized_prefix = remote_prefix.rstrip("/")
-            prefix_ref = ensure_artifact_reference(normalized_prefix)
-            if prefix_ref is None:
+            self._remote_prefix = ensure_artifact_reference(normalized_prefix)
+            if self._remote_prefix is None:
                 raise ValueError("Failed to normalize remote prefix")
             key_segments = [segment for segment in (parsed.key or "").split("/") if segment]
-            includes_run = bool(key_segments and key_segments[-1] == self.run)
-            self._remote_layout = PolicyArtifactLayout.build(
-                run_name=self.run,
-                checkpoint_base=prefix_ref,
-                checkpoint_includes_run=includes_run,
-            )
+            if key_segments and key_segments[-1] == self.run:
+                self._remote_run_prefix = self._remote_prefix
+            else:
+                self._remote_run_prefix = self._remote_prefix.join(self.run)
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
@@ -315,11 +314,10 @@ class CheckpointManager:
         torch.save(agent, checkpoint_path)
 
         remote_uri = None
-        if self._remote_layout is not None:
-            remote_ref = self._remote_layout.checkpoint_file(filename)
-            if remote_ref is not None:
-                remote_uri = remote_ref.as_str()
-                write_file(remote_uri, str(checkpoint_path))
+        if self._remote_run_prefix is not None:
+            remote_ref = self._remote_run_prefix.join("checkpoints", filename)
+            remote_uri = remote_ref.as_str()
+            write_file(remote_uri, str(checkpoint_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
         if existing_files:
@@ -364,10 +362,11 @@ class CheckpointManager:
             return []
         checkpoint_files.sort(key=lambda f: _extract_run_and_epoch(f)[1], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
-        if self._remote_layout is not None:
-            checkpoints_dir = self._remote_layout.checkpoints_dir()
-            if checkpoints_dir is not None:
-                return [checkpoints_dir.join(path.name).as_str() for path in selected_files]
+        if self._remote_run_prefix is not None:
+            return [
+                self._remote_run_prefix.join("checkpoints", path.name).as_str()
+                for path in selected_files
+            ]
         return [f"file://{path.resolve()}" for path in selected_files]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:

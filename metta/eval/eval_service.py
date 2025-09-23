@@ -13,7 +13,11 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.artifact_paths import ArtifactRef, ArtifactReference, PolicyArtifactLayout
+from mettagrid.util.artifact_paths import (
+    ArtifactReference,
+    artifact_policy_run_root,
+    artifact_simulation_root,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,7 @@ def evaluate_policy(
     device: torch.device,
     vectorization: str,
     stats_dir: str | None = None,
-    replay_dir: ArtifactReference | ArtifactRef | str | Path | None = None,
+    replay_dir: ArtifactReference | str | Path | None = None,
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
@@ -42,17 +46,21 @@ def evaluate_policy(
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
 
     metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-    layout = PolicyArtifactLayout.build(
+    run_replay_root = artifact_policy_run_root(
+        replay_dir,
         run_name=metadata.get("run_name"),
-        replay_base=replay_dir,
         epoch=metadata.get("epoch"),
     )
-    run_replay_root = layout.replay_root
-    sim_roots = layout.simulation_roots((cfg.suite, cfg.name) for cfg in simulations)
 
     sims = []
     for sim_cfg in simulations:
-        sim_replay_dir = sim_roots.get((sim_cfg.suite, sim_cfg.name)) if run_replay_root else None
+        sim_replay_dir: ArtifactReference | None = None
+        if run_replay_root is not None:
+            sim_replay_dir = artifact_simulation_root(
+                run_replay_root,
+                suite=sim_cfg.suite,
+                name=sim_cfg.name,
+            )
         sims.append(
             Simulation(
                 cfg=sim_cfg,

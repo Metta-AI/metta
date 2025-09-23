@@ -4,7 +4,6 @@ import pytest
 
 from mettagrid.util.artifact_paths import (
     ArtifactReference,
-    PolicyArtifactLayout,
     artifact_policy_run_root,
     artifact_simulation_root,
     ensure_artifact_reference,
@@ -115,38 +114,3 @@ def test_ensure_artifact_reference_strips_whitespace():
     ref = ensure_artifact_reference("  s3://bucket/path  ")
     assert isinstance(ref, ArtifactReference)
     assert str(ref.value) == "s3://bucket/path"
-
-
-def test_policy_artifact_layout_replay_and_simulation():
-    layout = PolicyArtifactLayout.build(
-        run_name="run_a",
-        replay_base="s3://bucket/replays",
-        epoch=2,
-    )
-    assert layout.replay_root is not None
-    assert layout.replay_root.as_str() == "s3://bucket/replays/run_a/v2"
-    sim_root = layout.simulation_root("suite", "sim")
-    assert sim_root is not None
-    assert sim_root.as_str() == "s3://bucket/replays/run_a/v2/suite/sim"
-
-
-def test_policy_artifact_layout_checkpoint_handling():
-    layout = PolicyArtifactLayout.build(
-        run_name="run_a",
-        checkpoint_base="s3://bucket/policies",
-        checkpoint_includes_run=False,
-    )
-    checkpoint_file = layout.checkpoint_file("run_a:v5.pt")
-    assert checkpoint_file is not None
-    assert checkpoint_file.as_str() == "s3://bucket/policies/run_a/checkpoints/run_a:v5.pt"
-
-
-def test_policy_artifact_layout_checkpoint_with_run_prefix():
-    layout = PolicyArtifactLayout.build(
-        run_name="run_a",
-        checkpoint_base="s3://bucket/policies/run_a",
-        checkpoint_includes_run=True,
-    )
-    checkpoint_dir = layout.checkpoints_dir()
-    assert checkpoint_dir is not None
-    assert checkpoint_dir.as_str() == "s3://bucket/policies/run_a/checkpoints"

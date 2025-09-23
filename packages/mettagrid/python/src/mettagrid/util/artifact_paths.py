@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional, Union
 
 from mettagrid.util.file import http_url
 from mettagrid.util.uri import ParsedURI
@@ -184,75 +184,6 @@ def artifact_simulation_root(
     return ref.with_simulation(suite, name, simulation_id=simulation_id)
 
 
-@dataclass(frozen=True)
-class PolicyArtifactLayout:
-    """Precomputed layout for policy checkpoints and replays."""
-
-    run_name: Optional[str]
-    checkpoint_root: Optional[ArtifactReference] = None
-    replay_root: Optional[ArtifactReference] = None
-
-    @classmethod
-    def build(
-        cls,
-        *,
-        run_name: Optional[str],
-        checkpoint_base: ArtifactBase | ArtifactReference | None = None,
-        checkpoint_includes_run: bool = False,
-        replay_base: ArtifactBase | ArtifactReference | None = None,
-        epoch: Optional[int] = None,
-    ) -> "PolicyArtifactLayout":
-        checkpoint_root: Optional[ArtifactReference] = None
-        checkpoint_ref = ensure_artifact_reference(checkpoint_base)
-        if checkpoint_ref is not None:
-            if run_name and not checkpoint_includes_run:
-                checkpoint_root = checkpoint_ref.join(run_name)
-            else:
-                checkpoint_root = checkpoint_ref
-
-        replay_root: Optional[ArtifactReference] = None
-        replay_ref = ensure_artifact_reference(replay_base)
-        if replay_ref is not None:
-            if run_name:
-                replay_root = replay_ref.with_policy(run_name, epoch)
-            elif epoch:
-                replay_root = replay_ref.join(f"v{epoch}")
-            else:
-                replay_root = replay_ref
-
-        return cls(run_name=run_name, checkpoint_root=checkpoint_root, replay_root=replay_root)
-
-    def checkpoints_dir(self) -> Optional[ArtifactReference]:
-        if self.checkpoint_root is None:
-            return None
-        return self.checkpoint_root.join("checkpoints")
-
-    def checkpoint_file(self, filename: str) -> Optional[ArtifactReference]:
-        checkpoints = self.checkpoints_dir()
-        if checkpoints is None:
-            return None
-        return checkpoints.join(filename)
-
-    def simulation_root(
-        self,
-        suite: str,
-        name: str,
-        *,
-        simulation_id: Optional[str] = None,
-    ) -> Optional[ArtifactReference]:
-        if self.replay_root is None:
-            return None
-        return self.replay_root.with_simulation(suite, name, simulation_id=simulation_id)
-
-    def simulation_roots(self, simulations: Iterable[Tuple[str, str]]) -> Dict[Tuple[str, str], ArtifactReference]:
-        roots: Dict[Tuple[str, str], ArtifactReference] = {}
-        if self.replay_root is None:
-            return roots
-        for suite, name in simulations:
-            roots[(suite, name)] = self.replay_root.with_simulation(suite, name)
-        return roots
-
-
 class ArtifactRef(str):
     """Pydantic-friendly wrapper around canonical artifact strings."""
 
@@ -282,7 +213,6 @@ class ArtifactRef(str):
 __all__ = [
     "ArtifactReference",
     "ArtifactRef",
-    "PolicyArtifactLayout",
     "artifact_policy_run_root",
     "artifact_simulation_root",
     "ensure_artifact_reference",
