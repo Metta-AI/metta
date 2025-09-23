@@ -10,6 +10,9 @@ import { loadCommentsAction } from "@/posts/actions/loadCommentsAction";
 import { deleteCommentAction } from "@/posts/actions/deleteCommentAction";
 import { createBotResponseAction } from "@/posts/actions/createBotResponseAction";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
+import { MentionInput } from "@/components/MentionInput";
+import { RichTextRenderer } from "@/components/RichTextRenderer";
+import { parseMentions } from "@/lib/mentions";
 
 interface ThreadedCommentsProps {
   postId: string;
@@ -114,7 +117,7 @@ function CommentItem({ c }: { c: CommentDTO }) {
           • {formatRelativeTime(c.createdAt)}
         </div>
         <div className="mt-0.5 text-[14px] leading-[1.55] whitespace-pre-wrap text-neutral-900">
-          {c.content}
+          <RichTextRenderer text={c.content} />
         </div>
       </div>
     </div>
@@ -127,18 +130,33 @@ function CommentComposer({
   onCancel,
   value,
   onChange,
+  onMentionsChange,
   showBotHint = false,
 }: {
   placeholder: string;
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, mentions?: string[]) => void;
   onCancel?: () => void;
   value: string;
   onChange: (value: string) => void;
+  onMentionsChange?: (mentions: string[]) => void;
   showBotHint?: boolean;
 }) {
+  const [mentions, setMentions] = useState<string[]>([]);
+
+  // Handle content changes that also updates mentions
+  const handleContentChange = (newContent: string) => {
+    onChange(newContent);
+    
+    // Parse mentions from content
+    const parsedMentions = parseMentions(newContent);
+    const mentionValues = parsedMentions.map(m => m.raw);
+    setMentions(mentionValues);
+    onMentionsChange?.(mentionValues);
+  };
+
   const handleSubmit = () => {
     if (value.trim()) {
-      onSubmit(value.trim());
+      onSubmit(value.trim(), mentions);
     }
   };
 
@@ -152,7 +170,8 @@ function CommentComposer({
       !containsBotMention(value)
     ) {
       e.preventDefault();
-      onChange(value + "_bot ");
+      const newValue = value + "_bot ";
+      handleContentChange(newValue);
     }
     // Allow Enter to create newlines by not preventing default
   };
@@ -162,12 +181,13 @@ function CommentComposer({
       className="mt-2 rounded-xl border bg-white p-2"
       onClick={(e) => e.stopPropagation()}
     >
-      <textarea
+      <MentionInput
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleContentChange}
+        onMentionsChange={setMentions}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className={`min-h-[64px] w-full resize-none border-0 p-2 text-[14px] leading-[1.5] placeholder-gray-400 focus:ring-0 focus:outline-none ${
+        className={`min-h-[64px] resize-none border-0 p-2 text-[14px] leading-[1.5] placeholder-gray-400 focus:ring-0 focus:outline-none ${
           containsBotMention(value)
             ? "bg-green-50"
             : value.endsWith("@library")
@@ -219,7 +239,7 @@ function CommentNode({
 }: {
   c: CommentDTO;
   depth?: number;
-  onReply: (parentId: string, text: string) => void;
+  onReply: (parentId: string, text: string, mentions?: string[]) => void;
   activeComposer: string | null;
   setActiveComposer: (id: string | null) => void;
   currentUser: any;
@@ -268,8 +288,8 @@ function CommentNode({
             placeholder={`Reply to ${c.author.name || c.author.email?.split("@")[0] || "user"}…`}
             value={replyText}
             onChange={setReplyText}
-            onSubmit={(text) => {
-              onReply(c.id, text);
+            onSubmit={(text, mentions) => {
+              onReply(c.id, text, mentions);
               setActiveComposer(null);
               setReplyText("");
             }}
@@ -430,7 +450,7 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
     }
   }, [postId, executeLoadComments, comments.length, initialComments]);
 
-  function addReply(parentId: string | null, text: string) {
+  function addReply(parentId: string | null, text: string, mentions?: string[]) {
     if (!currentUser) return;
 
     const formData = new FormData();
@@ -439,6 +459,12 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
     if (parentId) {
       formData.append("parentId", parentId);
     }
+    
+    // Add mentions to form data
+    if (mentions && mentions.length > 0) {
+      formData.append("mentions", JSON.stringify(mentions));
+    }
+    
     executeCreateComment(formData);
   }
 
@@ -457,8 +483,8 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
             <CommentNode
               key={c.id}
               c={c}
-              onReply={(parentId: string, text: string) =>
-                addReply(parentId, text)
+              onReply={(parentId: string, text: string, mentions?: string[]) =>
+                addReply(parentId, text, mentions)
               }
               activeComposer={activeComposer}
               setActiveComposer={setActiveComposer}
@@ -498,8 +524,8 @@ export const ThreadedComments: React.FC<ThreadedCommentsProps> = ({
                   }
                   value={rootCommentText}
                   onChange={setRootCommentText}
-                  onSubmit={(text) => {
-                    addReply(null, text);
+                  onSubmit={(text, mentions) => {
+                    addReply(null, text, mentions);
                     setActiveComposer(null);
                   }}
                   onCancel={() => {
