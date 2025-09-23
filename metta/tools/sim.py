@@ -87,9 +87,9 @@ class SimTool(Tool):
 
             # Verify the checkpoint exists
             try:
-                agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
+                bundle = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
                 metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-                del agent
+                del bundle
             except Exception as e:
                 logger.warning(f"Failed to load policy from {policy_uri}: {e}")
                 continue

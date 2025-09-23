@@ -37,6 +37,7 @@ class CheckpointConfig(Config):
     checkpoint_interval: int = Field(default=30, ge=0)
     checkpoint_dir: str | None = Field(default=None)
     remote_prefix: str | None = Field(default=None)
+    checkpoint_format: Literal["pt", "safetensors"] = "pt"
 
 
 class EvaluationConfig(Config):

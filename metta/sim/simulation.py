@@ -14,6 +14,7 @@ from einops import rearrange
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
+from metta.rl.policy_serialization import SerializedPolicyBundle
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
@@ -47,7 +48,7 @@ class Simulation:
         self,
         name: str,
         cfg: SimulationConfig,
-        policy: Policy,
+        policy: Policy | SerializedPolicyBundle,
         policy_uri: str,
         device: torch.device,
         vectorization: str,
@@ -104,15 +105,21 @@ class Simulation:
         self._max_time_s = cfg.max_time_s
         self._agents_per_env = cfg.env.game.num_agents
 
-        self._policy = policy
-        self._policy_uri = policy_uri
-        # Load NPC policy if specified
-        if cfg.npc_policy_uri:
-            self._npc_policy = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+        if isinstance(policy, SerializedPolicyBundle):
+            self._policy_bundle = policy
         else:
-            self._npc_policy = None
+            self._policy_bundle = SerializedPolicyBundle(policy=policy)
+
+        self._policy_uri = policy_uri
+
+        if cfg.npc_policy_uri:
+            self._npc_policy_bundle = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+        else:
+            self._npc_policy_bundle = None
+
         self._npc_policy_uri = cfg.npc_policy_uri
-        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
+        self._policy: Policy | None = None
+        self._npc_policy: Policy | None = None
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -133,20 +140,23 @@ class Simulation:
             feature_normalizations=metta_grid_env.feature_normalizations,
         )
 
-        # Initialize policy to environment
+        self._policy = self._instantiate_policy(self._policy_bundle, env_metadata)
         self._policy.eval()  # Set to evaluation mode for simulation
         self._policy.initialize_to_environment(env_metadata, self._device)
 
-        if self._npc_policy is not None:
-            # Initialize NPC policy to environment
+        if self._npc_policy_bundle is not None:
+            self._npc_policy = self._instantiate_policy(self._npc_policy_bundle, env_metadata)
             self._npc_policy.eval()  # Set to evaluation mode for simulation
             self._npc_policy.initialize_to_environment(env_metadata, self._device)
+        else:
+            self._npc_policy = None
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
-        self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
+        policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
+        self._policy_agents_per_env = max(1, int(self._agents_per_env * policy_agents_pct))
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
 
         self._policy_idxs = idx_matrix[:, : self._policy_agents_per_env].reshape(-1)
@@ -156,6 +166,9 @@ class Simulation:
             else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
+
+    def _instantiate_policy(self, bundle: SerializedPolicyBundle, env_metadata: EnvironmentMetaData) -> Policy:
+        return bundle.instantiate(env_metadata)
 
     @classmethod
     def create(
@@ -172,7 +185,7 @@ class Simulation:
         if policy_uri:
             policy = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
-            policy = MockAgent()
+            policy = SerializedPolicyBundle(policy=MockAgent())
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"

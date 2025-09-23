@@ -60,13 +60,32 @@ class TLKickstarter(Loss):
         # load teacher policy
         from metta.rl.checkpoint_manager import CheckpointManager
 
-        self.teacher_policy: PolicyAgent = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
+        bundle = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
+        env_metadata = getattr(self.env, "meta_data", None)
+        if env_metadata is None:
+            if bundle.policy is None:
+                raise RuntimeError("Environment metadata required to instantiate teacher policy")
+            teacher_policy = bundle.policy
+        else:
+            teacher_policy = bundle.instantiate(env_metadata)
+
+        self.teacher_policy = teacher_policy
         if hasattr(self.teacher_policy, "initialize_to_environment"):
-            driver_env = self.env.driver_env
-            features = driver_env.observation_features
-            self.teacher_policy.initialize_to_environment(
-                features, driver_env.action_names, driver_env.max_action_args, self.device
-            )
+            initialized = False
+            if env_metadata is not None:
+                try:
+                    self.teacher_policy.initialize_to_environment(env_metadata, self.device)
+                    initialized = True
+                except TypeError:
+                    initialized = False
+
+            if not initialized:
+                driver_env = getattr(self.env, "driver_env", None)
+                if driver_env is not None:
+                    features = driver_env.observation_features
+                    self.teacher_policy.initialize_to_environment(
+                        features, driver_env.action_names, driver_env.max_action_args, self.device
+                    )
 
         # Detach gradient
         for param in self.teacher_policy.parameters():

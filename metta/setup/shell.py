@@ -21,8 +21,9 @@ def help_configs() -> None:
     success("# Load configs with overrides:")
     info('cfg = load_cfg("train_job.yaml", ["trainer.curriculum=/env/mettagrid/arena/advanced"])')
     success("# Load checkpoints:")
-    info('policy = CheckpointManager.load_from_uri("file://./train_dir/my_run/checkpoints/my_run:v12.pt")')
-    info('policy = CheckpointManager.load_from_uri("s3://bucket/path/my_run/checkpoints/my_run:v12.pt")')
+    info('bundle = CheckpointManager.load_from_uri("file://./train_dir/my_run/checkpoints/my_run:v12.pt")')
+    info("policy = bundle.policy or bundle.instantiate(env_metadata)")
+    info('bundle = CheckpointManager.load_from_uri("s3://bucket/path/my_run/checkpoints/my_run:v12.pt")')
     success("# Create checkpoint manager:")
     info('cm = CheckpointManager(run="my_run", run_dir="./train_dir")')
 

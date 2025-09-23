@@ -66,9 +66,9 @@ class TestNewPolicySystem:
 
         try:
             # Test with a mock URI that should be fully versioned
-            agent = CheckpointManager.load_from_uri("mock://test_policy")
-            # Mock URIs may return None or raise an exception
-            assert agent is None or isinstance(agent, object)
+            bundle = CheckpointManager.load_from_uri("mock://test_policy")
+            # Mock URIs may return a bundle with or without a concrete policy
+            assert bundle.policy is None or isinstance(bundle.policy, object)
         except Exception as e:
             assert "not found" in str(e).lower() or "invalid" in str(e).lower()
 

@@ -46,8 +46,8 @@ def validate_and_normalize_policy_uri(policy_uri: str) -> str | None:
     """Validate that a policy URI is accessible and return normalized URI with metadata."""
     try:
         normalized_uri = CheckpointManager.normalize_uri(policy_uri)
-        agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
-        del agent
+        bundle = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
+        del bundle
         return normalized_uri
     except Exception as e:
         warning(f"Skipping invalid or inaccessible policy {policy_uri}: {e}")

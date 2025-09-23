@@ -7,6 +7,12 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
+from metta.agent.policy import PolicyArchitecture
+from metta.rl.policy_serialization import (
+    SerializedPolicyBundle,
+    load_policy_bundle,
+    save_policy_bundle,
+)
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -123,7 +129,9 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
             search_dirs.append(checkpoints_subdir)
 
     for search_dir in search_dirs:
-        checkpoint_files = [ckpt for ckpt in search_dir.glob("*.pt") if ckpt.stem]
+        checkpoint_files = [
+            ckpt for pattern in ("*.pt", "*.safetensors") for ckpt in search_dir.glob(pattern) if ckpt.stem
+        ]
         if checkpoint_files:
             try:
                 return max(checkpoint_files, key=lambda p: _extract_run_and_epoch(p)[1])
@@ -132,18 +140,42 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
     return None
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device):
-    """Load a checkpoint file, raising FileNotFoundError on corruption."""
+def _load_checkpoint_file(path: str, device: str | torch.device) -> SerializedPolicyBundle:
+    """Load a legacy .pt checkpoint file."""
+
     try:
-        return torch.load(path, weights_only=False, map_location=device)
+        policy = torch.load(path, weights_only=False, map_location=device)
     except FileNotFoundError:
         raise
     except (pickle.UnpicklingError, RuntimeError, OSError) as err:
         raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
 
+    return SerializedPolicyBundle(policy=policy)
+
+
+def _load_bundle_from_path(path: Path, device: str | torch.device) -> SerializedPolicyBundle:
+    suffix = path.suffix
+
+    if suffix == ".pt":
+        return _load_checkpoint_file(str(path), device)
+
+    if suffix == ".safetensors":
+        return load_policy_bundle(path.with_suffix(""))
+
+    if suffix == "":
+        return load_policy_bundle(path)
+
+    raise ValueError(f"Unsupported checkpoint extension: {path}")
+
 
 class CheckpointManager:
-    """Checkpoint manager with filename-embedded metadata and LRU cache."""
+    """Persistence layer responsible for saving/loading policy artifacts.
+
+    This class knows how to locate checkpoints on disk or remote storage,
+    serialize policies, and manage trainer state metadata. It is agnostic
+    to training schedules or distributed coordination, which are handled
+    by higher-level components such as ``Checkpointer``.
+    """
 
     def __init__(
         self,
@@ -151,6 +183,7 @@ class CheckpointManager:
         run_dir: str = "./train_dir",
         cache_size: int = 3,
         remote_prefix: str | None = None,
+        checkpoint_format: str = "pt",
     ):
         # Validate run name
         if not run or not run.strip():
@@ -160,10 +193,9 @@ class CheckpointManager:
         if "__" in run:
             raise ValueError(f"Run name cannot contain '__' as it's used as a delimiter in checkpoint filenames: {run}")
 
-        self.run = run
         self.run_name = run
         self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
+        self.checkpoint_dir = self.run_dir / run / "checkpoints"
         self.cache_size = cache_size
         self._cache = OrderedDict()
         self._remote_prefix = None
@@ -174,14 +206,18 @@ class CheckpointManager:
             # Remove trailing slash from prefix for deterministic joins
             key_prefix = parsed.key.rstrip("/")
             self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+        checkpoint_format = checkpoint_format.lower()
+        if checkpoint_format not in {"pt", "safetensors"}:
+            raise ValueError("checkpoint_format must be 'pt' or 'safetensors'")
+        self._checkpoint_format = checkpoint_format
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
         self._cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu"):
-        """Load a policy from a URI (file://, s3://, or mock://)."""
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> SerializedPolicyBundle:
+        """Load a serialized policy bundle from a URI (file://, s3://, or mock://)."""
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
         parsed = ParsedURI.parse(uri)
@@ -192,17 +228,17 @@ class CheckpointManager:
                 checkpoint_file = _find_latest_checkpoint_in_dir(path)
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                return _load_checkpoint_file(str(checkpoint_file), device)
+                return _load_bundle_from_path(checkpoint_file, device)
             if not path.exists():
                 raise FileNotFoundError(f"Checkpoint file not found: {path}")
-            return _load_checkpoint_file(str(path), device)
+            return _load_bundle_from_path(path, device)
 
         if parsed.scheme == "s3":
             with local_copy(parsed.canonical) as local_path:
-                return _load_checkpoint_file(str(local_path), device)
+                return _load_bundle_from_path(Path(local_path), device)
 
         if parsed.scheme == "mock":
-            return MockAgent()
+            return SerializedPolicyBundle(policy=MockAgent())
 
         raise ValueError(f"Invalid URI: {uri}")
 
@@ -234,8 +270,12 @@ class CheckpointManager:
             _, version = _extract_run_and_epoch(path)
             return version == epoch
 
+        patterns = ["*.pt", "*.safetensors"]
         candidates = [
-            path for path in self.checkpoint_dir.glob("*.pt") if path.name != "trainer_state.pt" and matches_epoch(path)
+            path
+            for pattern in patterns
+            for path in self.checkpoint_dir.glob(pattern)
+            if path.name != "trainer_state.pt" and matches_epoch(path)
         ]
 
         candidates.sort(
@@ -243,33 +283,6 @@ class CheckpointManager:
             reverse=True,
         )
         return candidates
-
-    def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
-        """Load agent checkpoint from local directory with LRU caching."""
-        files = self._find_checkpoint_files(epoch)
-        if not files:
-            raise FileNotFoundError(f"No checkpoints found for {self.run_name} epoch={epoch}")
-
-        # Select file: first if epoch specified, latest otherwise
-        agent_file = files[0] if epoch else max(files, key=lambda p: _extract_run_and_epoch(p)[1])
-        cache_key = str(agent_file)
-
-        # Check cache
-        if cache_key in self._cache:
-            self._cache.move_to_end(cache_key)
-            return self._cache[cache_key]
-
-        # Load from disk
-        file_uri = f"file://{agent_file.resolve()}"
-        agent = self.load_from_uri(file_uri, device=device or "cpu")
-
-        # Update cache
-        if self.cache_size > 0:
-            if len(self._cache) >= self.cache_size:
-                self._cache.popitem(last=False)  # Evict oldest
-            self._cache[cache_key] = agent
-
-        return agent
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
@@ -285,24 +298,45 @@ class CheckpointManager:
             result["stopwatch_state"] = state["stopwatch_state"]
         return result
 
-    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
+    def save_agent(
+        self,
+        agent,
+        epoch: int,
+        training_metrics: Dict[str, Any],
+        policy_architecture: Optional[PolicyArchitecture] = None,
+    ) -> str:
         """Save agent checkpoint to disk and upload to remote storage if configured.
 
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.run_name}:v{epoch}.pt"
+        suffix = ".pt" if self._checkpoint_format == "pt" else ".safetensors"
+        filename = f"{self.run_name}:v{epoch}{suffix}"
         checkpoint_path = self.checkpoint_dir / filename
 
         # Check if we're overwriting an existing checkpoint for this epoch
         existing_files = self._find_checkpoint_files(epoch)
 
-        torch.save(agent, checkpoint_path)
+        if self._checkpoint_format == "pt":
+            torch.save(agent, checkpoint_path)
+            metrics_path = None
+        else:
+            base = checkpoint_path.with_suffix("")
+            save_policy_bundle(
+                base_path=base,
+                policy=agent,
+                policy_architecture=policy_architecture,
+                training_metrics=training_metrics,
+            )
+            metrics_path = Path(f"{base}.metrics.json")
 
         remote_uri = None
         if self._remote_prefix:
             remote_uri = f"{self._remote_prefix}/{filename}"
             write_file(remote_uri, str(checkpoint_path))
+            if metrics_path and metrics_path.exists():
+                metrics_remote = f"{self._remote_prefix}/{metrics_path.name}"
+                write_file(metrics_remote, str(metrics_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
         if existing_files:

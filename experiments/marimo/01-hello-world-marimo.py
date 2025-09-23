@@ -80,6 +80,7 @@ def _():
         print("⚠️ MettaScope replay viewer not available")
 
     from metta.rl.checkpoint_manager import CheckpointManager
+    from metta.rl.training.training_environment import EnvironmentMetaData
 
     from metta.common.wandb.context import WandbConfig
     import wandb
@@ -1009,11 +1010,27 @@ def _(
             metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
             run_name_from_ckpt = metadata["run_name"]
 
-            trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
+            policy_bundle = CheckpointManager.load_from_uri(checkpoint_uri)
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
                 eval_env = MettaGridEnv(mg_config, render_mode="human")
+
+            env_metadata = EnvironmentMetaData(
+                obs_width=eval_env.obs_width,
+                obs_height=eval_env.obs_height,
+                obs_features=eval_env.observation_features,
+                action_names=eval_env.action_names,
+                max_action_args=eval_env.max_action_args,
+                num_agents=eval_env.num_agents,
+                observation_space=eval_env.observation_space,
+                action_space=eval_env.action_space,
+                feature_normalizations=eval_env.feature_normalizations,
+            )
+
+            trained_policy = policy_bundle.policy or policy_bundle.instantiate(
+                env_metadata
+            )
 
             # Set device to CPU for evaluation
             trained_policy = trained_policy.to(torch.device("cpu"))
@@ -1662,11 +1679,25 @@ def _(
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
-        trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
+        policy_bundle = CheckpointManager.load_from_uri(checkpoint_uri)
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):
             eval_env = MettaGridEnv(mg_config2, render_mode="human")
+
+        env_metadata = EnvironmentMetaData(
+            obs_width=eval_env.obs_width,
+            obs_height=eval_env.obs_height,
+            obs_features=eval_env.observation_features,
+            action_names=eval_env.action_names,
+            max_action_args=eval_env.max_action_args,
+            num_agents=eval_env.num_agents,
+            observation_space=eval_env.observation_space,
+            action_space=eval_env.action_space,
+            feature_normalizations=eval_env.feature_normalizations,
+        )
+
+        trained_policy = policy_bundle.policy or policy_bundle.instantiate(env_metadata)
 
         # Set device to CPU for evaluation
         trained_policy = trained_policy.to(torch.device("cpu"))
