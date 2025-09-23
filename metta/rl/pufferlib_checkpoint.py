@@ -171,26 +171,3 @@ class PufferLibCheckpoint:
         """Check if checkpoint data is in PufferLib format."""
         return _is_state_dict(checkpoint_data)
 
-    def debug_checkpoint_info(self, checkpoint_data: Any) -> Dict[str, Any]:
-        """Debug function to analyze checkpoint structure."""
-        info = {
-            "type": str(type(checkpoint_data)),
-            "is_dict": isinstance(checkpoint_data, dict),
-            "is_state_dict": _is_state_dict(checkpoint_data) if isinstance(checkpoint_data, dict) else False,
-        }
-
-        if isinstance(checkpoint_data, dict):
-            info["keys"] = list(checkpoint_data.keys())[:20]  # Show first 20 keys
-            info["num_keys"] = len(checkpoint_data)
-
-            # Analyze key patterns
-            key_patterns = {}
-            for key in checkpoint_data.keys():
-                if "." in key:
-                    prefix = key.split(".")[0]
-                    key_patterns[prefix] = key_patterns.get(prefix, 0) + 1
-
-            info["key_patterns"] = key_patterns
-            info["tensor_keys"] = [k for k, v in checkpoint_data.items() if torch.is_tensor(v)][:10]
-
-        return info
