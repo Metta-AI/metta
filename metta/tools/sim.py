@@ -32,9 +32,9 @@ def _determine_run_name(policy_uri: str) -> str:
     return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
-class SimTool(Tool[Sequence[SimulationConfig]]):
+class SimTool(Tool):
     # required params:
-    config: Sequence[SimulationConfig]  # list of simulations to run
+    simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uri: str | Sequence[str] | None = None  # policy uri(s) to evaluate
 
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
@@ -48,6 +48,8 @@ class SimTool(Tool[Sequence[SimulationConfig]]):
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
+
+
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uri is None:
             raise ValueError("policy_uri is required")
@@ -58,7 +60,7 @@ class SimTool(Tool[Sequence[SimulationConfig]]):
         if self.stats_server_uri is not None:
             stats_client = StatsClient.create(self.stats_server_uri)
 
-        all_results = {"simulations": [sim.name for sim in self.config], "policies": []}
+        all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
 
         wandb_run = None
@@ -89,9 +91,9 @@ class SimTool(Tool[Sequence[SimulationConfig]]):
             eval_run_name = _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
 
-            eval_results = evaluate_policy(
-                checkpoint_uri=normalized_uri,
-                simulations=list(self.config),
+                eval_results = evaluate_policy(
+                    checkpoint_uri=normalized_uri,
+                    simulations=list(self.simulations),
                 stats_dir=self.stats_dir,
                 replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
                 device=device,
@@ -99,7 +101,7 @@ class SimTool(Tool[Sequence[SimulationConfig]]):
                 export_stats_db_uri=self.stats_db_uri,
                 stats_client=stats_client,
                 eval_task_id=eval_task_id,
-            )
+            )p
             if self.push_metrics_to_wandb:
                 try:
                     process_policy_evaluator_stats(policy_uri, eval_results)

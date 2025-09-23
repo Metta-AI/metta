@@ -40,7 +40,7 @@ class EvaluationSmokeTest(SmokeTest):
             "uv",
             "run",
             "./tools/run.py",
-            "evaluate",
+            "sim",
             "navigation",
             f"policy_uri=wandb://run/{self.policy}",
             "stats_db_uri=wandb://stats/navigation_db",

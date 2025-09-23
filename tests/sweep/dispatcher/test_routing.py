@@ -44,7 +44,7 @@ def eval_job():
     """Sample evaluation job."""
     return JobDefinition(
         run_id="sweep_test_trial_001_eval",
-        cmd="evaluate arena",
+        cmd="sim arena",
         type=JobTypes.LAUNCH_EVAL,
         metadata={"policy_uri": "s3://policies/test/policy.pt"},
     )
@@ -98,7 +98,7 @@ class TestBasicRouting:
         )
 
         # Create an eval job (not in routes)
-        eval_job = JobDefinition(run_id="test_eval", cmd="evaluate arena", type=JobTypes.LAUNCH_EVAL)
+        eval_job = JobDefinition(run_id="test_eval", cmd="sim arena", type=JobTypes.LAUNCH_EVAL)
 
         dispatch_id = router.dispatch(eval_job)
 

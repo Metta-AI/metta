@@ -12,7 +12,4 @@ def eval(policy_uri: str, simulations_json_base64: str) -> SimTool:
     simulations = [
         SimulationConfig.model_validate(sim) for sim in json.loads(simulations_json)
     ]
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri],
-    )
+    return SimTool(simulations=simulations, policy_uri=[policy_uri])

@@ -54,8 +54,7 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
-class TrainTool(Tool[TrainerConfig]):
-    config: TrainerConfig = TrainerConfig()
+class TrainTool(Tool):
     run: Optional[str] = None
     run_dir: Optional[str] = None
     device: str = guess_device()

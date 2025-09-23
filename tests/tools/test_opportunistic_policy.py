@@ -148,13 +148,9 @@ class TestBasicPolicyEnvironment:
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(name="test_arena", env=env_config)
 
-        replay_tool = ReplayTool(
-            config=sim_config,
-            policy_uri=None,
-            open_browser_on_start=False,  # Don't try to open browser in tests
-        )
+        replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
 
-        assert replay_tool.config.name == "test_arena"
+        assert replay_tool.sim.name == "test_arena"
         assert replay_tool.open_browser_on_start is False
 
     def test_play_tool_config(self):
@@ -163,6 +159,6 @@ class TestBasicPolicyEnvironment:
         env_config = eb.make_navigation(num_agents=2)
         sim_config = SimulationConfig(name="test_nav_play", env=env_config)
 
-        play_tool = PlayTool(config=sim_config, policy_uri=None, open_browser_on_start=False)
+        play_tool = PlayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
 
-        assert play_tool.config.name == "test_nav_play"
+        assert play_tool.sim.name == "test_nav_play"

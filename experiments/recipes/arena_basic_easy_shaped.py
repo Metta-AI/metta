@@ -105,7 +105,6 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-<<<<<<< HEAD
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
@@ -122,50 +121,60 @@ def train(
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
     )
-=======
-    return TrainTool(config=trainer_cfg)
->>>>>>> 2bf9e051a (more)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(config=SimulationConfig(env=eval_env, name="arena"))
+    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(config=SimulationConfig(env=eval_env, name="arena"))
+    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
-def sweep_simulations() -> Sequence[SimulationConfig]:
-    """Evaluation simulations optimized for sweep runs.
+def evaluate(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    simulations = simulations or make_evals()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+    )
+
+
+def evaluate_in_sweep(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    """Evaluation function optimized for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
     reliable results quickly during hyperparameter sweeps.
     """
-    # Create sweep-optimized versions of the standard evaluations
-    basic_env = make_mettagrid()
-    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+    if simulations is None:
+        # Create sweep-optimized versions of the standard evaluations
+        basic_env = make_mettagrid()
+        basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
-    combat_env = basic_env.model_copy()
-    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+        combat_env = basic_env.model_copy()
+        combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
-    return [
-        SimulationConfig(
-            name="arena/basic",
-            env=basic_env,
-            num_episodes=10,  # 10 episodes for statistical reliability
-            max_time_s=240,  # 4 minutes max per simulation
-        ),
-        SimulationConfig(
-            name="arena/combat",
-            env=combat_env,
-            num_episodes=10,
-            max_time_s=240,
-        ),
-    ]
+        simulations = [
+            SimulationConfig(
+                name="arena/basic",
+                env=basic_env,
+                num_episodes=10,  # 10 episodes for statistical reliability
+                max_time_s=240,  # 4 minutes max per simulation
+            ),
+            SimulationConfig(
+                name="arena/combat",
+                env=combat_env,
+                num_episodes=10,
+                max_time_s=240,
+            ),
+        ]
 
-
-def sim(policy_uri: str) -> SimTool:
-    """Evaluation recipe for standard sim command."""
-    return SimTool(config=sweep_simulations(), policy_uri=policy_uri)
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+    )

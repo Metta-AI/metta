@@ -3,6 +3,11 @@
 This is meant as a basic testbed for CvC buildings / mechanics, not as a full-fledged recipe.
 """
 
+"""A Cogs vs Clips version of the arena recipe.
+
+This is meant as a basic testbed for CvC buildings / mechanics, not as a full-fledged recipe.
+"""
+
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -20,7 +25,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building
-from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
+from mettagrid.mettagrid_config import AssemblerConfig, MettaGridConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -109,7 +114,7 @@ def train(
         ),
     )
 
-    return TrainTool(config=trainer_cfg)
+    return TrainTool(trainer=trainer_cfg)
 
 
 def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
@@ -151,17 +156,17 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
         ),
     )
 
-    return TrainTool(config=trainer_cfg)
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(config=SimulationConfig(env=eval_env, name="cvc_arena"))
+    return PlayTool(sim=SimulationConfig(env=eval_env, name="cvc_arena"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(config=SimulationConfig(env=eval_env, name="cvc_arena"))
+    return ReplayTool(sim=SimulationConfig(env=eval_env, name="cvc_arena"))
 
 
 def evaluate(

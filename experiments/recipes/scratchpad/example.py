@@ -1,7 +1,8 @@
-from typing import Sequence
 from experiments.recipes import arena
-from metta.rl.trainer_config import TrainerConfig
-from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from metta.tools.sim import SimTool
+from metta.tools.train import TrainTool
 
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
 
@@ -9,60 +10,40 @@ from metta.sim.simulation_config import SimulationConfig
 # The VSCode "Run and Debug" section supports options to run these functions.
 
 
-def trainer() -> TrainerConfig:
-    """Training configuration for local experimentation."""
-    env = arena.env_config()
+def train() -> TrainTool:
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.train(
-        curriculum_cfg=arena.curriculum_config(env),
+        curriculum=arena.make_curriculum(env),
     )
-    assert cfg.evaluation is not None
+    assert cfg.trainer.evaluation is not None
     # When we're using this file, we training locally on code that's likely not to be checked in, let alone pushed.
     # So remote evaluation probably doesn't make sense.
-    cfg.evaluation.evaluate_remote = False
-    cfg.evaluation.evaluate_local = True
+    cfg.trainer.evaluation.evaluate_remote = False
+    cfg.trainer.evaluation.evaluate_local = True
     return cfg
 
 
-def simulation() -> SimulationConfig:
-    """Simulation configuration for play/replay."""
-    env = arena.sim()[0].env
+def play() -> PlayTool:
+    env = arena.make_evals()[0].env
     env.game.max_steps = 100
-    return SimulationConfig(env=env, name="scratchpad")
+    cfg = arena.play(env)
+    return cfg
 
 
-def simulations() -> Sequence[SimulationConfig]:
-    """Evaluation simulations."""
-    return arena.sim()
+def replay() -> ReplayTool:
+    env = arena.make_mettagrid()
+    env.game.max_steps = 100
+    cfg = arena.replay(env)
+    # cfg.policy_uri = "s3://your-bucket/checkpoints/daveey.combat.lpsm.8x4/daveey.combat.lpsm.8x4:v42.pt"
+    return cfg
 
 
-# Aliases for specific tools
-def play_simulation() -> SimulationConfig:
-    """Simulation for play tool."""
-    return simulation()
+def evaluate(
+    policy_uri: str = "s3://your-bucket/checkpoints/local.{{ USER }}.1/local.{{ USER }}.1:v10.pt",
+) -> SimTool:
+    cfg = arena.evaluate(policy_uri=policy_uri)
 
-
-def replay_simulation() -> SimulationConfig:
-    """Simulation for replay tool."""
-    return simulation()
-
-
-# Add recipe shims for standard CLI interface
-def train() -> TrainerConfig:
-    """Alias for trainer() to support standard CLI syntax."""
-    return trainer()
-
-
-def play() -> SimulationConfig:
-    """Alias for play_simulation() to support standard CLI syntax."""
-    return play_simulation()
-
-
-def replay() -> SimulationConfig:
-    """Alias for replay_simulation() to support standard CLI syntax."""
-    return replay_simulation()
-
-
-def sim() -> Sequence[SimulationConfig]:
-    """Alias for simulations() to support standard CLI syntax."""
-    return simulations()
+    # If your run doesn't exist, try this:
+    # cfg = arena.evaluate(policy_uri="s3://your-bucket/checkpoints/daveey.combat.lpsm.8x4/daveey.combat.lpsm.8x4:v42.pt")
+    return cfg

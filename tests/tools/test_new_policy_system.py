@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 import mettagrid.builder.envs as eb
-from experiments.recipes.arena import evaluate, replay, train
+from experiments.recipes.arena import sim as arena_sim, replay as arena_replay, train as arena_train
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation
@@ -52,14 +52,10 @@ class TestNewPolicySystem:
         """Test SimTool with policy URIs."""
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(name="test_arena", env=env_config)
-        sim_tool = SimTool(
-            simulations=[sim_config],
-            policy_uris=["mock://test_policy"],
-            stats_db_uri=None,
-        )
+        sim_tool = SimTool(simulations=[sim_config], policy_uri=["mock://test_policy"], stats_db_uri=None)
 
         assert sim_tool.simulations[0].name == "test_arena"
-        assert sim_tool.policy_uris == ["mock://test_policy"]
+        assert sim_tool.policy_uri == ["mock://test_policy"]
 
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""
@@ -111,7 +107,7 @@ class TestNewPolicySystem:
         tools = [
             ReplayTool(sim=sim_config, policy_uri=None),
             PlayTool(sim=sim_config, policy_uri=None),
-            SimTool(simulations=[sim_config], policy_uris=None),
+            SimTool(simulations=[sim_config], policy_uri=None),
         ]
 
         for tool in tools:
@@ -121,14 +117,13 @@ class TestNewPolicySystem:
     def test_recipe_system_integration(self):
         """Test that recipes work with the new policy system."""
         try:
-            train_tool = train()
+            train_tool = arena_train()
             assert hasattr(train_tool, "trainer")
 
-            # Use a mock policy URI for testing evaluate function
-            eval_tool = evaluate(policy_uri="mock://test_policy")
-            assert hasattr(eval_tool, "simulations")
+            sim_tool = arena_sim()
+            assert hasattr(sim_tool, "simulations")
 
-            replay_tool = replay()
+            replay_tool = arena_replay()
             assert hasattr(replay_tool, "sim")
 
         except ImportError as e:

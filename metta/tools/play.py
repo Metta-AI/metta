@@ -17,14 +17,15 @@ from metta.tools.utils.auto_config import auto_wandb_config
 logger = logging.getLogger(__name__)
 
 
-class PlayTool(Tool[SimulationConfig]):
+class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
-    config: SimulationConfig
+    sim: SimulationConfig
     policy_uri: str | None = None
 
     replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
+
     mettascope2: bool = False
 
     @property

@@ -45,15 +45,8 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
             env=make_icl_resource_chain_eval_env(2, 2, "large"),
         ),
         SimulationConfig(
-<<<<<<< HEAD:experiments/evals/in_context_learning/ordered_chains.py
             name="in_context_learning/2c_2s_medium_terrain",
-            env=make_icl_resource_chain_eval_env(
-                2, 2, "medium", ["square"], ["balanced"]
-            ),
-=======
-            name="in_context_learning/2c_2s_small_terrain",
             env=make_icl_resource_chain_eval_env(2, 2, "medium"),
->>>>>>> 2bf9e051a (more):experiments/evals/icl_resource_chain.py
         ),
         SimulationConfig(
             name="in_context_learning/3c_1s_mediuim",

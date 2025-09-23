@@ -20,17 +20,17 @@ from metta.tools.train import TrainTool
 # it's possible the maps are now different
 
 
-def env_config(num_agents: int = 24) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
     return arena_env
 
 
-def curriculum_config(
+def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    arena_env = arena_env or env_config()
+    arena_env = arena_env or make_mettagrid()
 
     arena_tasks = cc.bucketed(arena_env)
 
@@ -66,8 +66,8 @@ def curriculum_config(
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
-def simulations_config(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
-    basic_env = env or env_config()
+def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
+    basic_env = env or make_mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
     combat_env = basic_env.model_copy()
@@ -83,18 +83,18 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    curriculum = curriculum or curriculum_config(
+    curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=simulations_recipe()),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
     )
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
-    env_cfg = env_config()
+    env_cfg = make_mettagrid()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
 
@@ -123,27 +123,25 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
-        evaluator=EvaluatorConfig(simulations=simulations_config()),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
     )
 
+
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or env_config()
+    eval_env = env or make_mettagrid()
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or env_config()
-    return ReplayTool(config=SimulationConfig(env=eval_env, name="arena"))
+    eval_env = env or make_mettagrid()
+    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
-def sim(
+def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
-    simulations = simulations or simulations_config()
+    simulations = simulations or make_evals()
     return SimTool(
-        config=simulations,
-        policy_uri=policy_uri,
+        simulations=simulations,
+        policy_uris=[policy_uri],
     )
-
-
-# No need for alias - sim is the standard name

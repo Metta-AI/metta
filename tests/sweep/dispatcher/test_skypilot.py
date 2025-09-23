@@ -68,7 +68,7 @@ def basic_eval_job():
     """Basic evaluation job."""
     return JobDefinition(
         run_id="sweep_test_trial_001_eval",
-        cmd="evaluate arena",
+        cmd="sim arena",
         type=JobTypes.LAUNCH_EVAL,
         metadata={"policy_uri": "file://./checkpoints/policy.pt"},
     )
@@ -129,7 +129,7 @@ class TestCommandConstruction:
             get_launch_script_path(),
             "--no-spot",
             "--gpus=1",  # JobDefinition defaults to gpus=1
-            "evaluate",
+            "sim",
             "arena",
             "policy_uri=file://./checkpoints/policy.pt",
         ]

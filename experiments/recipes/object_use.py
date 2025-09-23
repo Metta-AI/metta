@@ -8,6 +8,8 @@ from metta.cogworks.curriculum.task_generator import Span
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building, empty_converters
@@ -50,7 +52,7 @@ def _default_run_name() -> str:
         return f"object_use.{user}.{timestamp}"
 
 
-def mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
+def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConfig:
     """Create a base object use environment for training."""
 
     # Configure objects with their resource chains
@@ -152,7 +154,7 @@ def make_curriculum(
     object_use_env: Optional[MettaGridConfig] = None,
 ) -> CurriculumConfig:
     """Create curriculum for object use training."""
-    object_use_env = object_use_env or mettagrid()
+    object_use_env = object_use_env or make_mettagrid()
 
     # Create training tasks with varying difficulties
     tasks = cc.bucketed(object_use_env)
@@ -205,7 +207,7 @@ def train(
     )
 
     return TrainTool(
-        config=trainer_cfg,
+        trainer=trainer_cfg,
         run=run,
     )
 
@@ -216,6 +218,28 @@ def evaluate(
     """Create an evaluation tool for object use."""
     simulations = simulations or make_object_use_eval_suite()
     return SimTool(
-        config=simulations,
-        policy_uri=policy_uri,
+        simulations=simulations,
+        policy_uris=[policy_uri],
+    )
+
+
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
+    """Create a play tool for object use."""
+    eval_env = env or make_mettagrid()
+    return PlayTool(
+        sim=SimulationConfig(
+            env=eval_env,
+            name="object_use",
+        ),
+    )
+
+
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+    """Create a replay tool for object use."""
+    eval_env = env or make_mettagrid()
+    return ReplayTool(
+        sim=SimulationConfig(
+            env=eval_env,
+            name="object_use",
+        ),
     )

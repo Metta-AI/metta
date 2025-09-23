@@ -69,7 +69,8 @@ Examples:
     print("\n🚀 Step 2: Running simulation...")
     sim_cmd = [
         "./tools/run.py",
-        "experiments.recipes.navigation.eval",
+        "sim",
+        "navigation",
         f"policy_uri={policy_uri}",
         "+eval_db_uri=wandb://stats/navigation_db",
         "+eval_db_uri=wandb://stats/navigation_db",

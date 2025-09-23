@@ -10,7 +10,7 @@ essential functionality for training, evaluation, visualization, and development
 | **Training**      | `run.py experiments.recipes.*.train`    | Train policies with recipe configurations     | ✓            | Optional        |
 |                   | `sweep_init.py`                         | Initialize hyperparameter sweep experiments   | ✗            | ✗               |
 |                   | `sweep_eval.py`                         | Evaluate policies from sweep runs             | ✓            | ✗               |
-| **Evaluation**    | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system      | ✓            | ✓               |
+| **Evaluation**    | `run.py sim <recipe>`                    | Run policy evaluation with recipe system      | ✓            | ✓               |
 |                   | `run.py experiments.recipes.*.analyze`  | Analyze evaluation results with recipes       | ✗            | ✓               |
 | **Visualization** | `run.py experiments.recipes.*.play`     | Interactive gameplay via recipe system        | ✗            | ✗               |
 |                   | `run.py experiments.recipes.*.replay`   | Generate replay files via recipe system       | ✓            | ✗               |
@@ -29,12 +29,12 @@ essential functionality for training, evaluation, visualization, and development
 
 ## Tool Execution
 
-The main entry point is `./tools/run.py` which uses the recipe system for all major operations:
+The main entry point is `./tools/run.py`, with short, verb-first recipe syntax:
 
 ```bash
-./tools/run.py experiments.recipes.arena.train run=my_experiment # Training
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
-./tools/run.py experiments.recipes.arena.play policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Interactive play
+./tools/run.py train arena run=my_experiment                                    # Training
+./tools/run.py sim arena policy_uri=s3://.../checkpoints/<run>/<run>:v20.pt     # Evaluation
+./tools/run.py play arena policy_uri=s3://.../checkpoints/<run>/<run>:v20.pt    # Interactive play
 ```
 
 ## Training Tools
@@ -203,17 +203,17 @@ programmatic processing
 **Usage**:
 
 ```bash
-# Evaluate a single policy
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
+# Evaluate a single policy (navigation suite)
+./tools/run.py sim navigation policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
 # Evaluate with arena recipe
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
+./tools/run.py sim arena policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
 # Evaluate with specific policy from file
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
+./tools/run.py sim arena policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
 # Evaluate using a remote checkpoint stored on S3
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
+./tools/run.py sim navigation policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
 ```
 
 **Key Features**:
@@ -735,13 +735,13 @@ GROUP BY policy_name, episode;
 ./tools/run.py experiments.recipes.navigation.train run=nav_experiment_001
 
 # 2. Evaluate the trained policy
-./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
+./tools/run.py sim navigation policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 
 # 3. Analyze results
 ./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
 
 # 4. Interactive play with trained policy
-./tools/run.py experiments.recipes.navigation.play policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
+./tools/run.py play navigation policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 ```
 
 ### Hyperparameter Sweep Workflow

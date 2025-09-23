@@ -34,7 +34,7 @@ class TestBatchedSyncedOptimizingScheduler:
             max_trials=20,
             recipe_module="experiments.recipes.arena",
             train_entrypoint="train",
-            eval_entrypoint="evaluate",
+            eval_entrypoint="sim",
         )
 
         scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
@@ -64,7 +64,7 @@ class TestBatchedSyncedOptimizingScheduler:
             max_trials=10,
             recipe_module="test.module",
             train_entrypoint="train",
-            eval_entrypoint="evaluate",
+            eval_entrypoint="sim",
             batch_size=2,
         )
 

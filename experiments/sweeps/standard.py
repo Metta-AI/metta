@@ -180,7 +180,7 @@ def quick_test(
         max_trials=5,  # Only 5 trials for quick testing
         recipe_module=recipe,
         train_entrypoint="train_shaped",
-        eval_entrypoint="evaluate",
+        eval_entrypoint="sim",
         monitoring_interval=90,
         max_parallel_jobs=4,
         train_overrides={

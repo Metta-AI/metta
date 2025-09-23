@@ -99,34 +99,24 @@ def train(
         ),
     )
 
-    return TrainTool(config=trainer_cfg)
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="navigation",
-        ),
-    )
+    return PlayTool(sim=SimulationConfig(env=eval_env, name="navigation"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="navigation",
-        ),
-    )
+    return ReplayTool(sim=SimulationConfig(env=eval_env, name="navigation"))
 
 
-def sim(
+def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_navigation_eval_suite()
     return SimTool(
-        config=simulations,
-        policy_uri=policy_uri,
+        simulations=simulations,
+        policy_uris=[policy_uri],
     )

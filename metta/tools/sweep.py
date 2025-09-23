@@ -49,7 +49,7 @@ def orchestrate_sweep(
         optimizer=optimizer,
         dispatcher=dispatcher,
         store=store,
-        protein_config=config.config,
+        protein_config=config.protein_config,
         sweep_status=sweep_status,
         max_parallel_jobs=config.max_parallel_jobs,
         monitoring_interval=config.monitoring_interval,
@@ -68,7 +68,7 @@ class DispatcherType(StrEnum):
     SKYPILOT = "skypilot"  # All jobs run on Skypilot
 
 
-class SweepTool(Tool[ProteinConfig]):
+class SweepTool(Tool):
     """Tool for running hyperparameter sweeps."""
 
     # Sweep identity - optional, will be generated if not provided
@@ -76,7 +76,7 @@ class SweepTool(Tool[ProteinConfig]):
     sweep_dir: Optional[str] = None
 
     # Core sweep configuration - always required with defaults
-    config: ProteinConfig = ProteinConfig(
+    protein_config: ProteinConfig = ProteinConfig(
         metric="evaluator/eval_arena/score",
         goal="maximize",
         parameters={
@@ -94,7 +94,7 @@ class SweepTool(Tool[ProteinConfig]):
     max_trials: int = 10
     recipe_module: str = "experiments.recipes.arena"
     train_entrypoint: str = "train_shaped"
-    eval_entrypoint: str = "evaluate"
+    eval_entrypoint: str = "sim"
 
     # Orchestrator settings
     max_parallel_jobs: int = 1
@@ -177,7 +177,7 @@ class SweepTool(Tool[ProteinConfig]):
             sweep_name=self.sweep_name,
             sweep_server_uri=self.sweep_server_uri,
             wandb=self.wandb,
-            protein_config=self.config,
+            protein_config=self.protein_config,
             max_parallel_jobs=self.max_parallel_jobs,
             monitoring_interval=self.monitoring_interval,
         )
@@ -203,7 +203,7 @@ class SweepTool(Tool[ProteinConfig]):
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 
         # Create optimizer
-        optimizer = ProteinOptimizer(self.config)
+        optimizer = ProteinOptimizer(self.protein_config)
 
         # Create scheduler with configuration
         scheduler_config = BatchedSyncedSchedulerConfig(
@@ -282,7 +282,7 @@ class SweepTool(Tool[ProteinConfig]):
             # Show best result if available
             observations = [run for run in final_runs if run.observation is not None]
             if observations:
-                if self.config.goal == "maximize":
+                if self.protein_config.goal == "maximize":
                     best_run = max(observations, key=lambda r: r.observation.score)
                 else:
                     best_run = min(observations, key=lambda r: r.observation.score)

@@ -31,29 +31,25 @@ affects actions like `attack`.
 ```bash
 # Cardinal Movement (4-way, default)
 uv run ./tools/run.py experiments.recipes.arena.train run=cardinal_test \
-  ++trainer.env_overrides.game.actions.move.enabled=true \
-  ++trainer.env_overrides.game.allow_diagonals=false
+  trainer.env_overrides.game.actions.move.enabled=true \
+  trainer.env_overrides.game.allow_diagonals=false
 
 # 8-Way Movement (with diagonals)
 uv run ./tools/run.py experiments.recipes.arena.train run=8way_test \
-  ++trainer.env_overrides.game.actions.move.enabled=true \
-  ++trainer.env_overrides.game.allow_diagonals=true
+  trainer.env_overrides.game.actions.move.enabled=true \
+  trainer.env_overrides.game.allow_diagonals=true
 ```
 
 ### Evaluation
 
 ```bash
 # Cardinal Movement
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
-  policy_uri=file://./train_dir/cardinal_test/checkpoints/cardinal_test:v12.pt \
-  +replay_job.sim.env_overrides.game.actions.move.enabled=true \
-  +replay_job.sim.env_overrides.game.allow_diagonals=false
+uv run ./tools/run.py sim arena \
+  policy_uri=file://./train_dir/cardinal_test/checkpoints/cardinal_test:v12.pt
 
 # 8-Way Movement
-uv run ./tools/run.py experiments.recipes.arena.evaluate \
-  policy_uri=file://./train_dir/8way_test/checkpoints/8way_test:v12.pt \
-  +replay_job.sim.env_overrides.game.actions.move.enabled=true \
-  +replay_job.sim.env_overrides.game.allow_diagonals=true
+uv run ./tools/run.py sim arena \
+  policy_uri=file://./train_dir/8way_test/checkpoints/8way_test:v12.pt
 ```
 
 ## Performance Trade-offs
@@ -66,7 +62,7 @@ uv run ./tools/run.py experiments.recipes.arena.evaluate \
 ## Important Notes
 
 - **Diagonal Control**: Use `allow_diagonals` flag to control whether `move` supports diagonal directions
-- **Override Syntax**: Use `++` for training (force override), `+` for evaluation (add override)
+- **Override Syntax**: Use plain `key=value` dotted overrides with the runner (no `+`/`++` prefixes)
 - **Compatibility**: Policies must be evaluated with the same movement configuration they were trained with
 - **macOS**: Add `device=cpu` to avoid MPS issues
 - **Migration**: Old `move_8way` and `move_cardinal` actions are deprecated; use `move` with `allow_diagonals`
