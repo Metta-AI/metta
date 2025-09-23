@@ -246,15 +246,17 @@ Minimal example:
 # experiments/user/my_tasks.py
 from mettagrid.config.envs import make_arena
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.evaluator import EvaluatorConfig
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
+from metta.rl.training import EvaluatorConfig
+from metta.rl.training import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
 
 def my_train(run: str = "local.me.1") -> TrainTool:
     trainer = TrainerConfig()
     evaluator = EvaluatorConfig(
-        simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
+        simulations=[
+            SimulationConfig(suite="arena", name="basic", env=make_arena(num_agents=4))
+        ]
     )
     training_env = TrainingEnvironmentConfig()
     return TrainTool(trainer=trainer, training_env=training_env, evaluator=evaluator, run=run)
@@ -401,3 +403,9 @@ pytest
 | Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
+
+### Artifact paths
+
+All replay/checkpoint URIs should flow through the helpers documented in
+[`docs/artifact_paths.md`](docs/artifact_paths.md). These helpers normalize `file://`, `s3://`, and other schemes so new
+tools can reuse the same layout logic without reimplementing path joins.

@@ -13,7 +13,7 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.artifact_paths import artifact_path_join
+from mettagrid.util.uri import artifact_policy_run_root, artifact_simulation_root
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def evaluate_policy(
     device: torch.device,
     vectorization: str,
     stats_dir: str | None = None,
-    replay_dir: str | None = None,
+    replay_dir: str | Path | None = None,
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
     eval_task_id: uuid.UUID | None = None,
@@ -41,19 +41,22 @@ def evaluate_policy(
     # Load the policy from URI directly to the correct device
     policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
 
-    run_replay_root: str | None = None
-    if replay_dir is not None:
-        metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
-        run_replay_root = artifact_path_join(replay_dir, metadata["run_name"])
-        if metadata["epoch"]:
-            run_replay_root = artifact_path_join(run_replay_root, f"v{metadata['epoch']}")
+    metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
+    run_replay_root = artifact_policy_run_root(
+        replay_dir,
+        run_name=metadata.get("run_name"),
+        epoch=metadata.get("epoch"),
+    )
 
     sims = []
     for sim_cfg in simulations:
-        sim_replay_dir = artifact_path_join(run_replay_root, sim_cfg.name) if run_replay_root else None
+        sim_replay_dir = artifact_simulation_root(
+            run_replay_root,
+            suite=sim_cfg.suite,
+            name=sim_cfg.name,
+        ) if run_replay_root is not None else None
         sims.append(
             Simulation(
-                name=sim_cfg.name,
                 cfg=sim_cfg,
                 policy=policy,
                 policy_uri=checkpoint_uri,
@@ -75,7 +78,7 @@ def evaluate_policy(
             logger.info("=== Simulation '%s' ===", sim.name)
             sim_result = sim.simulate()
             record_heartbeat()
-            if replay_dir is not None:
+            if run_replay_root is not None:
                 sim_replay_urls = sim_result.stats_db.get_replay_urls(policy_uri=checkpoint_uri)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls
@@ -116,23 +119,20 @@ def evaluate_policy(
 def extract_scores(
     checkpoint_uri: str, simulations: list[SimulationConfig], stats_db: EvalStatsDB
 ) -> EvalRewardSummary:
-    categories: set[str] = set()
-    for sim_config in simulations:
-        categories.add(sim_config.name.split("/")[0])
+    suites: set[str] = {sim_config.suite for sim_config in simulations}
 
     category_scores: dict[str, float] = {}
-    for category in categories:
-        score = stats_db.get_average_metric("reward", checkpoint_uri, f"sim_name LIKE '%{category}%'")
-        logger.info(f"{category} score: {score}")
+    for suite in suites:
+        score = stats_db.get_average_metric("reward", checkpoint_uri, f"sim_name = '{suite}'")
+        logger.info(f"{suite} score: {score}")
         if score is None:
             continue
-        category_scores[category] = score
+        category_scores[suite] = score
+
     per_sim_scores: dict[tuple[str, str], float] = {}
     all_scores = stats_db.simulation_scores(checkpoint_uri, "reward")
-    for (sim_name, _), score in all_scores.items():
-        category = sim_name.split("/")[0]
-        sim_short_name = sim_name.split("/")[-1]
-        per_sim_scores[(category, sim_short_name)] = score
+    for (suite, env_name), score in all_scores.items():
+        per_sim_scores[(suite, env_name)] = score
 
     return EvalRewardSummary(
         category_scores=category_scores,

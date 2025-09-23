@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 from urllib.parse import unquote, urlparse
 
 
@@ -124,12 +124,17 @@ class ParsedURI:
 
         if value.startswith("s3://"):
             remainder = value[5:]
-            if "/" not in remainder:
-                raise ValueError("Malformed S3 URI. Expected s3://bucket/key")
-            bucket, key = remainder.split("/", 1)
-            if not bucket or not key:
-                raise ValueError("Malformed S3 URI. Bucket and key must be non-empty")
-            return cls(raw=value, scheme="s3", bucket=bucket, key=key, path=key)
+            if not remainder:
+                raise ValueError("Malformed S3 URI. Expected s3://bucket[/key]")
+            if "/" in remainder:
+                bucket, key = remainder.split("/", 1)
+                key = key or None
+            else:
+                bucket, key = remainder, None
+            if not bucket:
+                raise ValueError("Malformed S3 URI. Bucket must be non-empty")
+            path = key if key else None
+            return cls(raw=value, scheme="s3", bucket=bucket, key=key, path=path)
 
         if value.startswith("mock://"):
             path = value[len("mock://") :]
@@ -159,4 +164,74 @@ class ParsedURI:
         return cls(raw=value, scheme="file", local_path=local_path, path=str(local_path))
 
 
-__all__ = ["WandbURI", "ParsedURI"]
+def _clean_segments(segments: Iterable[str]) -> list[str]:
+    return [segment.strip("/") for segment in segments if segment and segment.strip("/")]
+
+
+def artifact_join(base: str | Path | None, *segments: str) -> Optional[str]:
+    if base is None:
+        return None
+
+    base_str = str(base).strip()
+    cleaned = _clean_segments(segments)
+
+    if not cleaned:
+        return base_str
+
+    if base_str.startswith("s3://"):
+        remainder = base_str[5:]
+        if not remainder:
+            raise ValueError("S3 URI must include a bucket name")
+        bucket, sep, key_prefix = remainder.partition("/")
+        key_parts: list[str] = []
+        if sep and key_prefix:
+            key_parts.append(key_prefix.rstrip("/"))
+        key_parts.extend(cleaned)
+        joined = "/".join(part for part in key_parts if part)
+        return f"s3://{bucket}/{joined}" if joined else f"s3://{bucket}"
+
+    if base_str.startswith("gdrive://"):
+        prefix = base_str[len("gdrive://") :].rstrip("/")
+        joined = "/".join(filter(None, [prefix, *cleaned]))
+        return f"gdrive://{joined}" if joined else base_str
+
+    if base_str.startswith(("http://", "https://")):
+        return f"{base_str.rstrip('/')}/{'/'.join(cleaned)}"
+
+    return str(Path(base_str).joinpath(*cleaned))
+
+
+def artifact_policy_run_root(
+    base: str | Path | None,
+    *,
+    run_name: Optional[str],
+    epoch: Optional[int],
+) -> Optional[str]:
+    if base is None or not run_name:
+        return artifact_join(base)
+    root = artifact_join(base, run_name)
+    if epoch:
+        root = artifact_join(root, f"v{epoch}")
+    return root
+
+
+def artifact_simulation_root(
+    base: str | Path | None,
+    *,
+    suite: str,
+    name: str,
+    simulation_id: Optional[str] = None,
+) -> Optional[str]:
+    root = artifact_join(base, suite, name)
+    if simulation_id:
+        root = artifact_join(root, simulation_id)
+    return root
+
+
+__all__ = [
+    "WandbURI",
+    "ParsedURI",
+    "artifact_join",
+    "artifact_policy_run_root",
+    "artifact_simulation_root",
+]

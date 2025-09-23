@@ -7,9 +7,8 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from mettagrid.util.artifact_paths import artifact_path_join
 from mettagrid.util.file import local_copy, write_file
-from mettagrid.util.uri import ParsedURI
+from mettagrid.util.uri import ParsedURI, artifact_join
 
 logger = logging.getLogger(__name__)
 
@@ -177,14 +176,13 @@ class CheckpointManager:
             parsed = ParsedURI.parse(remote_prefix)
             if parsed.scheme != "s3" or not parsed.bucket:
                 raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
-            self._remote_prefix = remote_prefix.rstrip("/")
-            key_segments = []
-            if parsed.key:
-                key_segments = [segment for segment in parsed.key.split("/") if segment]
+            normalized_prefix = remote_prefix.rstrip("/")
+            self._remote_prefix = normalized_prefix
+            key_segments = [segment for segment in (parsed.key or "").split("/") if segment]
             if key_segments and key_segments[-1] == self.run:
                 self._remote_run_prefix = self._remote_prefix
             else:
-                self._remote_run_prefix = artifact_path_join(self._remote_prefix, self.run)
+                self._remote_run_prefix = artifact_join(self._remote_prefix, self.run)
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
@@ -294,6 +292,8 @@ class CheckpointManager:
         }
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
+        if "loss_states" in state:
+            result["loss_states"] = state["loss_states"]
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
@@ -312,8 +312,9 @@ class CheckpointManager:
 
         remote_uri = None
         if self._remote_run_prefix is not None:
-            remote_uri = artifact_path_join(self._remote_run_prefix, "checkpoints", filename)
-            write_file(remote_uri, str(checkpoint_path))
+            remote_uri = artifact_join(self._remote_run_prefix, "checkpoints", filename)
+            if remote_uri is not None:
+                write_file(remote_uri, str(checkpoint_path))
 
         # Only invalidate cache entries if we're overwriting an existing checkpoint
         if existing_files:
@@ -332,13 +333,20 @@ class CheckpointManager:
         return f"{self.run_name}:v{epoch}.pt"
 
     def save_trainer_state(
-        self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
+        self,
+        optimizer,
+        epoch: int,
+        agent_step: int,
+        stopwatch_state: Optional[Dict[str, Any]] = None,
+        loss_states: Optional[Dict[str, Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
+        if loss_states is not None:
+            state["loss_states"] = loss_states
         torch.save(state, trainer_file)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:
@@ -352,7 +360,10 @@ class CheckpointManager:
         checkpoint_files.sort(key=lambda f: _extract_run_and_epoch(f)[1], reverse=True)
         selected_files = checkpoint_files if strategy == "all" else checkpoint_files[:count]
         if self._remote_run_prefix is not None:
-            return [artifact_path_join(self._remote_run_prefix, "checkpoints", path.name) for path in selected_files]
+            return [
+                artifact_join(self._remote_run_prefix, "checkpoints", path.name)
+                for path in selected_files
+            ]
         return [f"file://{path.resolve()}" for path in selected_files]
 
     def cleanup_old_checkpoints(self, keep_last_n: int = 5) -> int:

@@ -28,8 +28,9 @@ class PlayTool(Tool):
 
     @property
     def effective_replay_dir(self) -> str:
-        """Get the replay directory, defaulting to system.data_dir/replays if not specified."""
-        return self.replay_dir if self.replay_dir is not None else f"{self.system.data_dir}/replays"
+        if self.replay_dir is not None:
+            return self.replay_dir
+        return f"{self.system.data_dir}/replays"
 
     @property
     def effective_stats_dir(self) -> str:
@@ -49,7 +50,7 @@ class PlayTool(Tool):
                 device=self.system.device,
                 vectorization=self.system.vectorization,
                 stats_dir=self.effective_stats_dir,
-                replay_dir=self.effective_replay_dir,
+                replay_dir=self.effective_replay_dir(),
                 policy_uri=self.policy_uri,
             )
             sim.start_simulation()

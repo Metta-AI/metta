@@ -113,11 +113,15 @@ supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
 
 def auto_replay_dir() -> str:
-    aws_setup_module = AWSSetup()
-    return {
-        **aws_setup_module.to_config_settings(),  # type: ignore
-        **supported_aws_env_overrides.to_config_settings(),
-    }.get("replay_dir")
+    overrides = supported_aws_env_overrides.to_config_settings()
+    if isinstance(overrides.get("replay_dir"), str) and overrides["replay_dir"].strip():
+        return overrides["replay_dir"].strip()
+
+    aws_settings = AWSSetup().to_config_settings()  # type: ignore[arg-type]
+    replay_value = aws_settings.get("replay_dir")
+    if not isinstance(replay_value, str) or not replay_value.strip():
+        raise ValueError("Replay directory is not configured for this environment")
+    return replay_value.strip()
 
 
 def _join_prefix(prefix: str, run: str | None) -> str:
@@ -147,7 +151,7 @@ class PolicyStorageDecision:
 def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecision:
     overrides = supported_aws_env_overrides.to_config_settings()
     override_prefix = overrides.get("policy_remote_prefix")
-    if isinstance(override_prefix, str) and override_prefix:
+    if isinstance(override_prefix, str) and override_prefix.strip():
         cleaned = override_prefix.rstrip("/")
         remote = _join_prefix(cleaned, run) if run else None
         return PolicyStorageDecision(base_prefix=cleaned, remote_prefix=remote, reason="env_override")
@@ -158,10 +162,10 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
 
     aws_settings = aws_setup_module.to_config_settings()  # type: ignore[arg-type]
     base_prefix = aws_settings.get("policy_remote_prefix")
-    if not isinstance(base_prefix, str) or not base_prefix:
+    if not isinstance(base_prefix, str) or not base_prefix.strip():
         return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="no_base_prefix")
-    cleaned_base = base_prefix.rstrip("/")
 
+    cleaned_base = base_prefix.rstrip("/")
     connected_account = aws_setup_module.check_connected_as()
     if connected_account != METTA_AWS_ACCOUNT_ID:
         return PolicyStorageDecision(base_prefix=cleaned_base, remote_prefix=None, reason="not_connected")

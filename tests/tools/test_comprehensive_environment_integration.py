@@ -218,7 +218,7 @@ class TestComprehensiveEnvironmentIntegration:
 
         for env_name in ["tiny_two_altars", "simple_obstacles"]:
             env_config = self.make_debug_env(env_name)
-            sim_config = SimulationConfig(name=f"sim_{env_name}", env=env_config)
+            sim_config = SimulationConfig(suite="test", name=f"sim_{env_name}", env=env_config)
 
             assert sim_config.name == f"sim_{env_name}"
             assert sim_config.env.game.num_agents == 2
@@ -227,7 +227,7 @@ class TestComprehensiveEnvironmentIntegration:
         """Test that tools can be configured with programmatic environments."""
 
         env_config = self.make_debug_env("resource_collection")
-        sim_config = SimulationConfig(name="test_resource", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_resource", env=env_config)
 
         # Test ReplayTool configuration
         replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)

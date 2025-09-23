@@ -61,18 +61,27 @@ def evaluate_policy_remote_with_checkpoint_manager(
         return None
 
     # Create evaluation task
+    primary_sim = simulations[0]
+
     task = stats_client.create_task(
         TaskCreateRequest(
             policy_id=stats_server_policy_id,
-            sim_suite=simulations[0].name,
+            sim_suite=primary_sim.suite,
             attributes={
                 "git_hash": (evaluation_cfg and evaluation_cfg.git_hash),
                 "simulations": [sim.model_dump() for sim in simulations],
+                "env_name": primary_sim.name,
             },
         )
     )
 
-    logger.info(f"Policy evaluator: created task {task.id} for {normalized_uri} on {simulations[0].name}")
+    logger.info(
+        "Policy evaluator: created task %s for %s on %s/%s",
+        task.id,
+        normalized_uri,
+        primary_sim.suite,
+        primary_sim.name,
+    )
 
     return task
 

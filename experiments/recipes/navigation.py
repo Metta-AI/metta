@@ -11,8 +11,7 @@ from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.evaluator import EvaluatorConfig
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -116,7 +115,8 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="navigation",
+            suite="navigation",
+            name="eval",
         ),
     )
 
@@ -126,7 +126,8 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="navigation",
+            suite="navigation",
+            name="eval",
         ),
     )
 

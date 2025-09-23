@@ -3,8 +3,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
-from metta.rl.training.evaluator import EvaluatorConfig
+
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -12,16 +11,15 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import empty_converters
-from mettagrid.builder.envs import make_in_context_chains
-from mettagrid.builder.envs import make_icl_with_numpy
+from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
-
 from pydantic import Field
 
 CONVERTER_TYPES = {
@@ -449,7 +447,8 @@ def play(
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            suite="in_context_learning",
+            name="eval",
         ),
     )
 
@@ -463,7 +462,8 @@ def replay(
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            suite="in_context_learning",
+            name="eval",
         ),
         policy_uri=default_policy_uri,
     )
@@ -542,9 +542,10 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 1000):
 def generate_reward_estimates(dir="icl_ordered_chains"):
     # TODO: Eventually we want to make the reward estimates more accurate, per actual map and including terrain.
     # For now we just use the average hop distance.
-    import os
-    import numpy as np
     import json
+    import os
+
+    import numpy as np
 
     room_sizes = os.listdir(dir)
 

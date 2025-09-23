@@ -19,7 +19,7 @@ from metta.rl.stats import (
     compute_timing_stats,
     process_training_stats,
 )
-from metta.rl.training.component import TrainerComponent
+from metta.rl.training import TrainerComponent
 from metta.rl.utils import should_run
 from mettagrid.config import Config
 
