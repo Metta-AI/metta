@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.rl.training.evaluator import EvaluatorConfig
 from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_BASIC
-from metta.cogworks.curriculum.curriculum import
+from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
