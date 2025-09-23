@@ -212,25 +212,23 @@ class PufferLibCompatiblePolicy(Policy):
         self.max_vec = torch.tensor(self.max_vec, dtype=torch.float32)
         self.max_vec = torch.maximum(self.max_vec, torch.ones_like(self.max_vec))
         self.max_vec = self.max_vec[None, :, None, None]
-        # self.register_buffer("max_vec", self.max_vec)
 
         action_nvec = self.env.single_action_space.nvec
         self.actor = nn.ModuleList(
             [
-                nn.Linear(512, n)  # LSTM outputs 512, not 256
+                nn.Linear(512, n) 
                 for n in action_nvec
             ]
         )
-        self.value = nn.Linear(512, 1)  # LSTM outputs 512, not 256
+        self.value = nn.Linear(512, 1) 
 
         lstm_config = LSTMConfig(
             in_key="encoded_obs",
             out_key="core",
-            latent_size=512,  # Match PufferLib: 256 (self) + 256 (cnn) = 512
-            hidden_size=512,  # Match PufferLib LSTM: 512 not 128
+            latent_size=512,  
+            hidden_size=512,  
             num_layers=1,
         )
-        # Direct LSTM to match PufferLib exactly (bypass Metta LSTM component)
         self.lstm = LSTM(lstm_config)
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
@@ -326,8 +324,8 @@ class PufferLibCompatiblePolicy(Policy):
             selected_log_probs = log_probs.gather(-1, sampled_action.unsqueeze(-1)).squeeze(-1)
             action_log_probs.append(selected_log_probs)
 
-        # Stack all components
-        actions_tensor = torch.stack(actions, dim=-1)  # [batch_size, num_action_heads]
+
+        actions_tensor = torch.stack(actions, dim=-1)
         entropies_tensor = torch.stack(entropies, dim=-1)
         log_probs_tensor = torch.stack(action_log_probs, dim=-1)
 
@@ -337,7 +335,6 @@ class PufferLibCompatiblePolicy(Policy):
             td["values"] = value.flatten()
             td["entropy"] = entropies_tensor
         else:
-            # When action is provided, we should use the provided action instead
             td["act_log_prob"] = log_probs_tensor
             td["entropy"] = entropies_tensor
             td["full_log_probs"] = log_probs_tensor # TODO: This is not correct (fix this later)
@@ -377,5 +374,4 @@ class PufferLibCompatiblePolicy(Policy):
 
     def reset_memory(self):
         """Reset policy memory/state if any."""
-        # PyTorch LSTM doesn't need explicit memory reset (stateless by default)
         pass
