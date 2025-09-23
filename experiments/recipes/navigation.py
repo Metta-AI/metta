@@ -90,15 +90,18 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
+    resolved_curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
+    )
+
+    evaluator_cfg = EvaluatorConfig(
+        simulations=make_navigation_eval_suite(),
+    )
+
     return TrainTool(
         trainer=TrainerConfig(),
-        training_env=TrainingEnvironmentConfig(
-            curriculum=curriculum
-            or make_curriculum(
-                enable_detailed_slice_logging=enable_detailed_slice_logging
-            )
-        ),
-        evaluator=EvaluatorConfig(simulations=make_navigation_eval_suite()),
+        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        evaluator=evaluator_cfg,
     )
 
 

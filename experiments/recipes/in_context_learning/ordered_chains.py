@@ -422,14 +422,13 @@ def train(
 
     curriculum = make_curriculum(curriculum_style, lp_params)
 
+    trainer_cfg = TrainerConfig()
+    # for in context learning, we need episode length to be equal to bptt_horizon which requires a large batch size
+    trainer_cfg.batch_size = batch_size
+    trainer_cfg.bptt_horizon = bptt_horizon
+
     return TrainTool(
-        trainer=TrainerConfig(
-            batch_size=4128768,
-            bptt_horizon=512,
-            # initial_policy=InitialPolicyConfig(
-            #     uri="s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt",
-            # ),
-        ),
+        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
             simulations=make_icl_resource_chain_eval_suite(),
