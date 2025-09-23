@@ -48,15 +48,12 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
     print(f"state_dict keys: {state_dict.keys()}")
     print(f"state_dict keys: {len(state_dict)}")
 
-
     key_mappings = {
-
-        #Conv layers
+        # Conv layers
         "policy.conv1.weight": "conv1.weight",
         "policy.conv1.bias": "conv1.bias",
         "policy.conv2.weight": "conv2.weight",
         "policy.conv2.bias": "conv2.bias",
-
         # network param
         "policy.network.0.weight": "network.0.weight",
         "policy.network.0.bias": "network.0.bias",
@@ -64,45 +61,33 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
         "policy.network.2.bias": "network.2.bias",
         "policy.network.5.weight": "network.5.weight",
         "policy.network.5.bias": "network.5.bias",
-
         # self encoder params
-     
         # LSTM mappings - PufferLib checkpoint has different structure
         "lstm.weight_ih_l0": "lstm.net.weight_ih_l0",
-        "lstm.weight_hh_l0": "lstm.net.weight_hh_l0", 
+        "lstm.weight_hh_l0": "lstm.net.weight_hh_l0",
         "lstm.bias_ih_l0": "lstm.net.bias_ih_l0",
         "lstm.bias_hh_l0": "lstm.net.bias_hh_l0",
-        
         # Cell mappings (duplicates in checkpoint) - map to same LSTM targets
         "cell.weight_ih": "lstm.net.weight_ih_l0",
         "cell.weight_hh": "lstm.net.weight_hh_l0",
-        "cell.bias_ih": "lstm.net.bias_ih_l0", 
+        "cell.bias_ih": "lstm.net.bias_ih_l0",
         "cell.bias_hh": "lstm.net.bias_hh_l0",
-
         # value
         "policy.value.weight": "value.weight",
         "policy.value.bias": "value.bias",
-        
         # actor
         "policy.actor.0.weight": "actor.0.weight",
         "policy.actor.0.bias": "actor.0.bias",
         "policy.actor.1.weight": "actor.1.weight",
         "policy.actor.1.bias": "actor.1.bias",
-
     }
 
-    
     for key, value in key_mappings.items():
         puffer_tensor = state_dict[key]
         processed[value] = puffer_tensor
 
-
     logger.info(f"Preprocessed state_dict: {len(state_dict)} -> {len(processed)} parameters")
     return processed
-
-
-
-
 
 
 def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
@@ -175,20 +160,12 @@ class PufferLibCheckpoint:
     """Simple checkpoint loader supporting both Metta and PufferLib formats."""
 
     def load_checkpoint(self, checkpoint_data: Any, device: str | torch.device = "cpu") -> Any:
-        """Load checkpoint data and return an agent, auto-detecting format."""
-
         # If it's a PufferLib state_dict, create policy and load weights
-        if _is_state_dict(checkpoint_data):
-            logger.info("Loading PufferLib checkpoint format (state_dict)")
-            logger.debug(f"Checkpoint keys sample: {list(checkpoint_data.keys())[:10]}")
-            policy = _create_metta_agent(device)
-            processed_state_dict = _preprocess_state_dict(checkpoint_data)
-            return _load_state_dict_into_agent(policy, processed_state_dict)
-
-        # Otherwise assume it's a Metta agent and return it directly
-        logger.info("Loading native Metta checkpoint format")
-        logger.debug(f"Checkpoint type: {type(checkpoint_data)}")
-        return checkpoint_data
+        logger.info("Loading PufferLib checkpoint format (state_dict)")
+        logger.debug(f"Checkpoint keys sample: {list(checkpoint_data.keys())[:10]}")
+        policy = _create_metta_agent(device)
+        processed_state_dict = _preprocess_state_dict(checkpoint_data)
+        return _load_state_dict_into_agent(policy, processed_state_dict)
 
     def is_pufferlib_format(self, checkpoint_data: Any) -> bool:
         """Check if checkpoint data is in PufferLib format."""
