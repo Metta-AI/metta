@@ -52,13 +52,13 @@ jobs:
           elif [[ -n "$METTAGRID_MANUAL_VERSION" ]]; then
             version="${METTAGRID_MANUAL_VERSION#mettagrid-v}"
           fi
-          if [[ -z "$version" ]] && [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            echo "Manual dispatch requires a --version input (e.g. 0.2.0.10 or mettagrid-v0.2.0.10)."
+          if [[ -z "$version" ]]; then
+            echo "A version must be supplied when running manually."
+            echo "Provide an input like 0.2.0.10 or mettagrid-v0.2.0.10."
             exit 1
           fi
-          if [[ -n "$version" ]]; then
-            echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
-          fi
+          echo "METTAGRID_BUILD_VERSION=$version" >> "$GITHUB_ENV"
+          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
@@ -74,8 +74,8 @@ jobs:
             echo "Detected fallback sdist version 0.0.0. Aborting."
             exit 1
           fi
-          if [ -n "${SETUPTOOLS_SCM_PRETEND_VERSION:-}" ]; then
-            expected="${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          if [ -n "${METTAGRID_BUILD_VERSION:-}" ]; then
+            expected="${METTAGRID_BUILD_VERSION}"
             if [ "$version" != "$expected" ]; then
               echo "Expected sdist version $expected but found $version"
               exit 1
@@ -108,13 +108,13 @@ jobs:
           elif [[ -n "$METTAGRID_MANUAL_VERSION" ]]; then
             version="${METTAGRID_MANUAL_VERSION#mettagrid-v}"
           fi
-          if [[ -z "$version" ]] && [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            echo "Manual dispatch requires a --version input (e.g. 0.2.0.10 or mettagrid-v0.2.0.10)."
+          if [[ -z "$version" ]]; then
+            echo "A version must be supplied when running manually."
+            echo "Provide an input like 0.2.0.10 or mettagrid-v0.2.0.10."
             exit 1
           fi
-          if [[ -n "$version" ]]; then
-            echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
-          fi
+          echo "METTAGRID_BUILD_VERSION=$version" >> "$GITHUB_ENV"
+          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
@@ -134,12 +134,14 @@ jobs:
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
           CI: "true"
+          CIBW_ENVIRONMENT_PASS_LINUX: SETUPTOOLS_SCM_PRETEND_VERSION
+          CIBW_ENVIRONMENT_PASS_MACOS: SETUPTOOLS_SCM_PRETEND_VERSION
         with:
           package-dir: packages/mettagrid
           output-dir: wheelhouse
       - name: Verify wheel versions
         run: |
-          expected="${SETUPTOOLS_SCM_PRETEND_VERSION:-}" # populated for tags or manual runs
+          expected="${METTAGRID_BUILD_VERSION:-}" # populated for tags or manual runs
           for wheel in wheelhouse/mettagrid-*.whl; do
             base=$(basename "$wheel")
             version=${base#mettagrid-}
