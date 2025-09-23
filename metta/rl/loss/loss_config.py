@@ -1,10 +1,10 @@
-from typing import Any, Dict
+from typing import Any
 
 import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
-from metta.rl.loss import PPOConfig
+from metta.rl.loss.ppo import PPOConfig  # Import directly from the source module to avoid circular import
 from metta.rl.training import TrainingEnvironment
 from mettagrid.config import Config
 
@@ -15,7 +15,7 @@ class LossSchedule(Config):
 
 
 class LossConfig(Config):
-    loss_configs: Dict[str, Any] = Field(
+    loss_configs: dict[str, Any] = Field(
         default={
             "ppo": PPOConfig(),
         }
