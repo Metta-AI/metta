@@ -230,8 +230,12 @@ def try_infer_tool_factory(module: ModuleType, verb: str) -> Optional[Callable[[
     if normalized == "play":
 
         def factory() -> PlayTool:
-            assert mg is not None, "Cannot infer play: mettagrid() is required"
-            sim_cfg = _mettagrid_to_simulation(module, mg)
+            # Prefer simulations()[0] if available; otherwise fall back to mettagrid()
+            if sims is not None and len(sims) > 0:
+                sim_cfg = sims[0]
+            else:
+                assert mg is not None, "Cannot infer play: no simulations() provided and mettagrid() missing"
+                sim_cfg = _mettagrid_to_simulation(module, mg)
             return PlayTool(sim=sim_cfg)
 
         return factory

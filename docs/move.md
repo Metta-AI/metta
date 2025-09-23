@@ -30,12 +30,12 @@ affects actions like `attack`.
 
 ```bash
 # Cardinal Movement (4-way, default)
-uv run ./tools/run.py arena.train run=cardinal_test \
+uv run ./tools/run.py train arena run=cardinal_test \
   ++trainer.env_overrides.game.actions.move.enabled=true \
   ++trainer.env_overrides.game.allow_diagonals=false
 
 # 8-Way Movement (with diagonals)
-uv run ./tools/run.py arena.train run=8way_test \
+uv run ./tools/run.py train arena run=8way_test \
   ++trainer.env_overrides.game.actions.move.enabled=true \
   ++trainer.env_overrides.game.allow_diagonals=true
 ```
@@ -44,13 +44,13 @@ uv run ./tools/run.py arena.train run=8way_test \
 
 ```bash
 # Cardinal Movement
-uv run ./tools/run.py arena.evaluate \
+uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/cardinal_test/checkpoints/cardinal_test:v12.pt \
   +replay_job.sim.env_overrides.game.actions.move.enabled=true \
   +replay_job.sim.env_overrides.game.allow_diagonals=false
 
 # 8-Way Movement
-uv run ./tools/run.py arena.evaluate \
+uv run ./tools/run.py evaluate arena \
   policy_uri=file://./train_dir/8way_test/checkpoints/8way_test:v12.pt \
   +replay_job.sim.env_overrides.game.actions.move.enabled=true \
   +replay_job.sim.env_overrides.game.allow_diagonals=true
