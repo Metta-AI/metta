@@ -97,7 +97,7 @@ curriculum_args = {
         "room_sizes": ["tiny", "small", "medium"],
     },
     "terrain": {
-        "chain_lengths": [2, 3, 4, 5, 6, 7],
+        "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "obstacle_types": ["square", "cross", "L"],
         "densities": ["", "balanced", "sparse", "high"],
@@ -487,8 +487,8 @@ def evaluate(
 
 def experiment():
     curriculum_styles = [
-        "tiny",
-        "tiny_small",
+        # "tiny",
+        # "tiny_small",
         "all_room_sizes",
         "longer_chains",
         "terrain",
@@ -499,7 +499,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}.256.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_resource_chain_{curriculum_style}.512.newarchitecture.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
