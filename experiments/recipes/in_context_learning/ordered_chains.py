@@ -16,10 +16,14 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from pydantic import Field
+import json
+import os
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -72,6 +76,21 @@ class LPParams:
 
 
 curriculum_args = {
+    "level_0": {
+        "chain_lengths": [2],
+        "num_sinks": [0, 1],
+        "room_sizes": ["tiny"],
+    },
+    "level_1": {
+        "chain_lengths": [2, 3],
+        "num_sinks": [0, 1],
+        "room_sizes": ["tiny"],
+    },
+    "level_2": {
+        "chain_lengths": [2, 3, 4],
+        "num_sinks": [0, 1, 2],
+        "room_sizes": ["tiny"],
+    },
     "tiny": {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
@@ -92,7 +111,28 @@ curriculum_args = {
         "num_sinks": [0, 1, 2],
         "room_sizes": ["tiny", "small", "medium"],
     },
-    "terrain": {
+    "terrain_1": {
+        "chain_lengths": [2, 3],
+        "num_sinks": [0, 1],
+        "obstacle_types": ["square"],
+        "densities": ["", "balanced", "sparse"],
+        "room_sizes": ["tiny", "small"],
+    },
+    "terrain_2": {
+        "chain_lengths": [2, 3, 4],
+        "num_sinks": [0, 1, 2],
+        "obstacle_types": ["square", "cross", "L"],
+        "densities": ["", "balanced", "sparse"],
+        "room_sizes": ["tiny", "small"],
+    },
+    "terrain_3": {
+        "chain_lengths": [2, 3, 4, 5],
+        "num_sinks": [0, 1, 2],
+        "obstacle_types": ["square", "cross", "L"],
+        "densities": ["", "balanced", "sparse"],
+        "room_sizes": ["tiny", "small", "medium"],
+    },
+    "terrain_4": {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "obstacle_types": ["square", "cross", "L"],
@@ -289,8 +329,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
             dir = f"{numpy_dir}/{room_size}/{len(resources)}chains_{num_sinks}sinks/{terrain}"
-
-            return make_icl_with_numpy(
+            env = make_icl_with_numpy(
                 num_agents=1,
                 num_instances=24,
                 max_steps=max_steps,
@@ -301,6 +340,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
                     rng=rng,
                 ),
             )
+            if os.path.exists(f"{dir}/reward_estimates.json"):
+                reward_estimates = json.load(open(f"{dir}/reward_estimates.json"))
+                env.game.reward_estimates = reward_estimates[dir]
+            return env
 
         size_range = (
             (8, 12)
@@ -347,12 +390,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             else None
         )
 
-        if len(resources) < 2:
-            max_steps = 100
-        elif len(resources) < 4:
-            max_steps = 200
-        else:
-            max_steps = 512
+        max_steps = 512
 
         # estimate average hop for cooldowns
         avg_hop = 7 if room_size == "tiny" else 10 if room_size == "small" else 13
@@ -416,8 +454,6 @@ def make_curriculum(
 def train(
     curriculum_style: str = "terrain",
     lp_params: LPParams = LPParams(),
-    batch_size: int = 4177920,
-    bptt_horizon: int = 512,
     use_fast_lstm_reset: bool = True,
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
@@ -429,11 +465,13 @@ def train(
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        # batch_size=batch_size,
-        # bptt_horizon=bptt_horizon,
-
     )
-    policy_config = FastLSTMResetConfig()
+    if use_fast_lstm_reset:
+        policy_config = FastLSTMResetConfig()
+    else:
+        policy_config = FastConfig()
+        trainer_cfg.batch_size = 4177920
+        trainer_cfg.bptt_horizon = 512
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -493,38 +531,50 @@ def evaluate(
 
 def experiment():
     curriculum_styles = [
-        # "tiny",
-        "tiny_small",
+        "level_0",
+        "level_1",
+        "level_2",
+        "tinytiny_small",
         "all_room_sizes",
         "longer_chains",
-        "terrain",
+        "terrain_1",
+        "terrain_2",
+        "terrain_3",
+        "terrain_4",
     ]
 
     for curriculum_style in curriculum_styles:
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.ordered_chains.train",
-                f"run=icl_resource_chain_{curriculum_style}.diffmaxsteps.newarchitecture.1gpu.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                "--gpus=1",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
+        for use_fast_lstm_reset in [True, False]:
+            subprocess.run(
+                [
+                    "./devops/skypilot/launch.py",
+                    "experiments.recipes.in_context_learning.ordered_chains.train",
+                    f"run=icl_resource_chain_{curriculum_style}.newarchitecture{use_fast_lstm_reset}.{time.strftime('%Y-%m-%d')}",
+                    f"curriculum_style={curriculum_style}",
+                    f"use_fast_lstm_reset={use_fast_lstm_reset}",
+                    "--gpus=4",
+                    "--heartbeat-timeout=3600",
+                    "--skip-git-check",
+                ]
+            )
         time.sleep(1)
 
 
-def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 1000):
+def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 500):
     curriculum_styles = [
-        "small",
-        "small_medium",
+        "terrain_1",
+        "terrain_2",
+        "terrain_3",
+        "terrain_4",
+        "level_0",
+        "level_1",
+        "level_2",
+        "tiny",
+        "tiny_small",
         "all_room_sizes",
         "longer_chains",
-        "terrain",
     ]
     for curriculum_style in curriculum_styles:
-        print(f"Generating {curriculum_style}...")
         for i in range(num_envs):
             print(f"Generating {i}...")
             task_generator_cfg = ConverterChainTaskGenerator.Config(
@@ -533,7 +583,7 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 1000):
             task_generator = ConverterChainTaskGenerator(task_generator_cfg)
             env_cfg = task_generator._generate_task(i, random.Random(i), numpy_dir=None)
             map_builder = env_cfg.game.map_builder.create()
-            map_builder.build(dir=dir)
+            map_builder.build()
     generate_reward_estimates(dir=dir)
 
 
@@ -566,7 +616,7 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
                         "worst_case_optimal_reward": worst_case_optimal_reward,
                     }
     # Save the reward_estimates dictionary to a JSON file
-    with open("reward_estimates.json", "w") as f:
+    with open(f"{dir}/reward_estimates.json", "w") as f:
         json.dump(reward_estimates, f, indent=2)
 
 

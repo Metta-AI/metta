@@ -219,7 +219,7 @@ def make_in_context_chains(
                 default_resource_limit=1,
                 resource_limits={"heart": 15},
             ),
-        )
+        ),
     )
     return cfg
 
@@ -257,7 +257,7 @@ def make_icl_with_numpy(
                 default_resource_limit=1,
                 resource_limits={"heart": 15},
             ),
-        )
+        ),
     )
 
     return cfg

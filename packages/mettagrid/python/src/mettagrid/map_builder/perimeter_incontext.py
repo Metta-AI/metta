@@ -307,6 +307,8 @@ class PerimeterInContextMapBuilder(MapBuilder):
         center_i, center_j = height // 2, width // 2
         grid[center_i, center_j] = agents[0]
 
+        dir = "icl_ordered_chains"
+
         if dir is not None:
             area = height * width
 
