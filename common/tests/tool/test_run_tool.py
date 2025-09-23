@@ -106,3 +106,28 @@ def test_factory_function_params_and_invoke_args(invoke_run_tool):
     # Runner passes only factory-function args (not overrides) to invoke(), as strings
     assert find_with_whitespace("Args: {'run': 'my_test', 'count': '99'}", out)
     assert find_with_whitespace("Tool value: override", out)
+
+
+def test_two_token_sugar_loads_function(with_extra_imports_root):
+    # Behavior: two-token form 'x y' resolves to 'y.x'
+    # Use dry-run to avoid invoking the tool
+    result = run_tool("make_test_tool", "mypackage.tools", "--dry-run")
+    assert result.returncode == 0
+
+
+def test_infer_eval_with_simulations_alias(with_extra_imports_root):
+    # Behavior: eval/sim alias maps to inferred EvalTool using simulations() if present
+    result = run_tool("mypackage.recipes.demo.sim", "--dry-run")
+    assert result.returncode == 0
+
+
+def test_infer_remote_eval_alias(with_extra_imports_root):
+    # Behavior: remote aliases (eval_remote/sim_remote/evaluate_remote) are accepted for inference
+    result = run_tool("mypackage.recipes.demo.eval_remote", "--dry-run")
+    assert result.returncode == 0
+
+
+def test_infer_eval_with_mettagrid_only(with_extra_imports_root):
+    # Behavior: if only mettagrid() is present, inference still constructs an evaluation tool
+    result = run_tool("mypackage.recipes.onlymg.evaluate", "--dry-run")
+    assert result.returncode == 0

@@ -223,10 +223,10 @@ CoGames is designed to integrate with the Metta RL framework:
 
 ```bash
 # Using Metta's recipe system for advanced training
-uv run ./tools/run.py experiments.recipes.cogames.train scenario=assembler_2_complex
+uv run ./tools/run.py cogames.train scenario=assembler_2_complex
 
 # Distributed training with Metta
-uv run ./tools/run.py experiments.recipes.cogames.distributed_train \
+uv run ./tools/run.py cogames.distributed_train \
     num_workers=4 \
     scenario=machina_2
 ```

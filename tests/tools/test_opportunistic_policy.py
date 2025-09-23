@@ -14,9 +14,9 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvalTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from mettagrid import MettaGridEnv, dtype_observations
 
 
@@ -147,15 +147,15 @@ class TestBasicPolicyEnvironment:
             simulation._vecenv.close()  # type: ignore[attr-defined]
 
     def test_sim_tool_config_with_policy_uri(self):
-        """Test that SimTool accepts policy URIs."""
+        """Test that EvalTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        sim_tool = SimTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
+        eval_tools = EvalTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
 
-        assert sim_tool.simulations[0].name == "test_arena"
-        assert sim_tool.policy_uris == ["mock://test_policy"]
+        assert eval_tools.simulations[0].name == "test_arena"
+        assert eval_tools.policy_uris == ["mock://test_policy"]
 
     def test_play_and_replay_tools_share_run_configuration(self):
         """Ensure basic tool wiring stays aligned with SimulationConfig usage."""

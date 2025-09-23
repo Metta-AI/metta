@@ -24,5 +24,5 @@ cd mettascope2
 ## Running
 
 ```
-./tools/run.py experiments.recipes.arena.play mettascope2=true
+./tools/run.py arena.play mettascope2=true
 ```
