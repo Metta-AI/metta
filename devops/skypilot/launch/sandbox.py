@@ -345,6 +345,12 @@ Common management commands:
 
     args = parser.parse_args()
 
+    # Validate conflicting arguments
+    if args.sweep_controller and args.gpus > 1:
+        print(f"{red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs.")
+        print(f"  Either use --sweep-controller without --gpus, or use regular mode with --gpus {args.gpus}")
+        return 1
+
     # Get git ref - use current branch/commit if not specified
     git_ref = args.git_ref or get_current_git_ref()
 
@@ -514,12 +520,7 @@ Common management commands:
             try:
                 obs_path = os.path.expanduser("~/.metta/observatory_tokens.yaml")
                 if os.path.exists(obs_path):
-                    # Ensure remote directory exists
-                    subprocess.run(
-                        ["ssh", cluster_name, "mkdir", "-p", "~/.metta"],
-                        check=True,
-                        capture_output=True,
-                    )
+
                     subprocess.run(
                         ["scp", "-q", obs_path, f"{cluster_name}:~/.metta/observatory_tokens.yaml"],
                         check=True,
