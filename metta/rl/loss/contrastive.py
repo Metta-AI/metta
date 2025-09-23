@@ -9,7 +9,6 @@ from torchrl.data import Composite
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
 from metta.rl.training.component_context import ComponentContext
-from metta.rl.training.training_environment import TrainingEnvironment
 
 
 class ContrastiveLoss(Loss):
@@ -28,7 +27,7 @@ class ContrastiveLoss(Loss):
         self,
         policy: Policy,
         trainer_cfg: Any,
-        env: TrainingEnvironment,
+        env: Any,
         device: torch.device,
         instance_name: str,
         loss_config: Any,
@@ -98,9 +97,6 @@ class ContrastiveLoss(Loss):
             return policy_td["hidden_state"]
         elif "features" in policy_td:
             return policy_td["features"]
-        elif "core" in policy_td:
-            # FastPolicy outputs 'core' from LSTM - this is a good embedding source
-            return policy_td["core"]
         else:
             # Fallback: use value as embeddings but warn about suboptimal choice
             # This should only happen if policy doesn't provide proper feature representations
@@ -108,10 +104,7 @@ class ContrastiveLoss(Loss):
                 "WARNING: Contrastive loss using value tensor as embeddings - "
                 "this is suboptimal for representation learning"
             )
-            value = policy_td.get("value")
-            if value is None:
-                raise ValueError("No suitable embeddings found in policy output and value tensor is missing")
-            value = value.squeeze(-1)  # Remove last dimension if it's 1
+            value = policy_td["value"].squeeze(-1)  # Remove last dimension if it's 1
 
             if value.dim() == 1:
                 # Don't expand identical values - instead create a learnable linear projection
