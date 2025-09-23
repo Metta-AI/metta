@@ -1,5 +1,3 @@
-"""Configuration module for mettagrid."""
-
 from .config import Config
 from .mettagrid_c_config import from_mettagrid_config
 from .mettagrid_config import (
@@ -15,25 +13,23 @@ from .mettagrid_config import (
     GlobalObsConfig,
     MettaGridConfig,
     RecipeConfig,
-    StatsRewards,
     WallConfig,
 )
 
 __all__ = [
-    "Config",
-    "from_mettagrid_config",
-    "MettaGridConfig",
     "ActionConfig",
     "ActionsConfig",
     "AgentConfig",
     "AgentRewards",
+    "AssemblerConfig",
     "AttackActionConfig",
     "ChangeGlyphActionConfig",
+    "Config",
     "ConverterConfig",
+    "from_mettagrid_config",
     "GameConfig",
     "GlobalObsConfig",
-    "StatsRewards",
-    "WallConfig",
+    "MettaGridConfig",
     "RecipeConfig",
-    "AssemblerConfig",
+    "WallConfig",
 ]
