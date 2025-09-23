@@ -6,9 +6,12 @@ and mean scores by label.
 """
 
 import logging
+import tempfile
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -181,6 +184,120 @@ class TaskPoolVisualizer:
                 histograms["mean_scores_by_label"] = {"labels": labels, "means": np.array(means)}
 
         return histograms
+
+    def generate_artifact_plots(self, histograms: Dict[str, Any], epoch: int) -> List[str]:
+        """Generate plot files for wandb artifacts.
+
+        Args:
+            histograms: Dictionary containing histogram data
+            epoch: Current training epoch
+
+        Returns:
+            List of file paths to generated plots
+        """
+        plot_files = []
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # 1. Task scores histogram
+            if "task_scores" in histograms:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.hist(
+                    histograms["task_scores"],
+                    bins=min(30, len(histograms["task_scores"]) // 2 + 1),
+                    alpha=0.7,
+                    edgecolor="black",
+                )
+                ax.set_xlabel("Task Scores")
+                ax.set_ylabel("Frequency")
+                ax.set_title(f"Task Scores Distribution - Epoch {epoch}")
+                ax.grid(True, alpha=0.3)
+
+                score_file = temp_path / f"task_scores_epoch_{epoch}.png"
+                fig.savefig(score_file, dpi=150, bbox_inches="tight")
+                plot_files.append(str(score_file))
+                plt.close(fig)
+
+            # 2. Task completions histogram
+            if "task_completions" in histograms:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.hist(
+                    histograms["task_completions"],
+                    bins=min(30, len(histograms["task_completions"]) // 2 + 1),
+                    alpha=0.7,
+                    edgecolor="black",
+                    color="orange",
+                )
+                ax.set_xlabel("Task Completions")
+                ax.set_ylabel("Frequency")
+                ax.set_title(f"Task Completions Distribution - Epoch {epoch}")
+                ax.grid(True, alpha=0.3)
+
+                comp_file = temp_path / f"task_completions_epoch_{epoch}.png"
+                fig.savefig(comp_file, dpi=150, bbox_inches="tight")
+                plot_files.append(str(comp_file))
+                plt.close(fig)
+
+            # 3. Label counts bar chart
+            if "label_counts" in histograms:
+                labels = histograms["label_counts"]["labels"]
+                counts = histograms["label_counts"]["counts"]
+
+                fig, ax = plt.subplots(figsize=(12, 6))
+                bars = ax.bar(range(len(labels)), counts, alpha=0.7, color="green")
+                ax.set_xlabel("Task Labels")
+                ax.set_ylabel("Number of Tasks")
+                ax.set_title(f"Task Count by Label - Epoch {epoch}")
+                ax.set_xticks(range(len(labels)))
+                ax.set_xticklabels(labels, rotation=45, ha="right")
+                ax.grid(True, alpha=0.3)
+
+                # Add value labels on bars
+                for bar, count in zip(bars, counts, strict=False):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2.0, height + 0.5, f"{count}", ha="center", va="bottom")
+
+                label_file = temp_path / f"label_counts_epoch_{epoch}.png"
+                fig.savefig(label_file, dpi=150, bbox_inches="tight")
+                plot_files.append(str(label_file))
+                plt.close(fig)
+
+            # 4. Mean scores by label bar chart
+            if "mean_scores_by_label" in histograms:
+                labels = histograms["mean_scores_by_label"]["labels"]
+                means = histograms["mean_scores_by_label"]["means"]
+
+                fig, ax = plt.subplots(figsize=(12, 6))
+                bars = ax.bar(range(len(labels)), means, alpha=0.7, color="purple")
+                ax.set_xlabel("Task Labels")
+                ax.set_ylabel("Mean Score")
+                ax.set_title(f"Mean Scores by Label - Epoch {epoch}")
+                ax.set_xticks(range(len(labels)))
+                ax.set_xticklabels(labels, rotation=45, ha="right")
+                ax.grid(True, alpha=0.3)
+
+                # Add value labels on bars
+                for bar, mean in zip(bars, means, strict=False):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2.0, height + 0.01, f"{mean:.3f}", ha="center", va="bottom")
+
+                mean_file = temp_path / f"mean_scores_by_label_epoch_{epoch}.png"
+                fig.savefig(mean_file, dpi=150, bbox_inches="tight")
+                plot_files.append(str(mean_file))
+                plt.close(fig)
+
+            # Copy files to a persistent location
+            import shutil
+
+            persistent_files = []
+            for file_path in plot_files:
+                filename = Path(file_path).name
+                persistent_path = f"/tmp/curriculum_plots_{filename}"
+                shutil.copy2(file_path, persistent_path)
+                persistent_files.append(persistent_path)
+
+            return persistent_files
 
     def mark_logged(self, epoch: int) -> None:
         """Mark that visualization was logged for this epoch."""

@@ -1,5 +1,6 @@
 """Trainer component for logging metrics to wandb."""
 
+import logging
 from typing import Any, Dict
 
 import wandb
@@ -101,7 +102,8 @@ class WandbLogger(TrainerComponent):
             pass
 
     def _log_histograms(self, viz_data: Dict[str, Any]) -> None:
-        """Log histogram data to wandb."""
+        """Log histogram data to wandb and save as artifacts."""
+        # Log histogram data as usual
         for hist_name, hist_data in viz_data.items():
             try:
                 if hist_name in ["task_scores", "task_completions"]:
@@ -146,3 +148,31 @@ class WandbLogger(TrainerComponent):
             except Exception:
                 # Individual histogram failures shouldn't break training
                 continue
+
+        # Generate and log plot artifacts
+        epoch = self.context.epoch
+        try:
+            # Get visualizer from environment to generate plot files
+            env = getattr(self.context, "env", None)
+            if env is not None:
+                driver_env = getattr(env, "driver_env", None)
+                if driver_env is not None and hasattr(driver_env, "get_latest_viz_data"):
+                    # Try to get the visualizer from the curriculum
+                    curriculum = getattr(driver_env, "_curriculum", None)
+                    if curriculum is not None:
+                        algorithm = getattr(curriculum, "_algorithm", None)
+                        if algorithm is not None and hasattr(algorithm, "task_pool_visualizer"):
+                            visualizer = algorithm.task_pool_visualizer
+                            if visualizer is not None:
+                                plot_files = visualizer.generate_artifact_plots(viz_data, epoch)
+                                if plot_files:
+                                    artifact = wandb.Artifact(f"curriculum_plots_epoch_{epoch}", type="plots")
+                                    for plot_file in plot_files:
+                                        artifact.add_file(plot_file)
+                                    self._wandb_run.log_artifact(artifact)
+                                    logging.getLogger(__name__).info(
+                                        f"Logged {len(plot_files)} curriculum plot artifacts for epoch {epoch}"
+                                    )
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Failed to generate/log plot artifacts: {e}")
+            pass
