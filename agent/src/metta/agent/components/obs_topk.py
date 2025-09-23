@@ -35,9 +35,11 @@ class ObsTokenTopK(nn.Module):
         tokens = td[self.config.in_key]  # (B, M, 3)
         mask = td.get("obs_mask")  # (B, M)
 
-        values = tokens[..., 2].abs()
+        values = tokens[..., 2].to(torch.float32).abs()
+        mask_bool = None
         if mask is not None:
-            values = values.masked_fill(mask, float("-inf"))
+            mask_bool = mask.to(torch.bool)
+            values = values.masked_fill(mask_bool, float("-inf"))
 
         k = min(self.config.k, tokens.size(1))
         topk_vals, indices = torch.topk(values, k=k, dim=1)
@@ -61,8 +63,8 @@ class ObsTokenTopK(nn.Module):
 
         valid = torch.isfinite(topk_vals)
         gathered_mask = ~valid
-        if self.config.keep_pad and mask is not None:
-            gathered_mask = torch.gather(mask, dim=1, index=indices) | gathered_mask
+        if self.config.keep_pad and mask_bool is not None:
+            gathered_mask = torch.gather(mask_bool, dim=1, index=indices) | gathered_mask
 
         if gathered_tokens.size(1) > valid.size(1):
             pad = gathered_tokens.size(1) - valid.size(1)
