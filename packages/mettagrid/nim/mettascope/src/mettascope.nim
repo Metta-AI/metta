@@ -124,6 +124,12 @@ find "/UI/Main":
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
+    envConfigPanel.node.onRenderCallback = proc(thisNode: Node) =
+      bxy.saveTransform()
+      bxy.translate(thisNode.position)
+      drawEnvConfig(envConfigPanel)
+      bxy.restoreTransform()
+
 
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
@@ -161,7 +167,7 @@ when isMainModule:
     windowTitle = "MetaScope V2",
     entryFrame = "UI/Main",
     windowStyle = DecoratedResizable,
-    dataDir = "mettascope2/data"
+    dataDir = "packages/mettagrid/nim/mettascope/data"
   )
 
   when defined(emscripten):
