@@ -1085,3 +1085,43 @@ TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
   }
   EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature capped at 255";
 }
+
+TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
+  // Create a grid to test with
+  std::unique_ptr<Grid> grid = std::make_unique<Grid>(10, 10);
+
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler* assembler = new Assembler(5, 5, config);  // Assembler at position (5,5)
+
+  // Set up the assembler with grid
+  assembler->set_grid(grid.get());
+  grid->add_object(assembler);
+
+  // Test 1: Empty pattern (no agents around) - should return 0
+  uint8_t pattern = assembler->get_agent_pattern_byte();
+  EXPECT_EQ(pattern, 0) << "Empty pattern should return 0";
+
+  // Test 2: Pattern with agents in North (bit 1) and East (bit 4) positions
+  // This should give us pattern = (1 << 1) | (1 << 4) = 2 | 16 = 18
+  AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
+  Agent* agent1 = new Agent(4, 5, agent_cfg);  // North of assembler
+  Agent* agent2 = new Agent(5, 6, agent_cfg);  // East of assembler
+
+  grid->add_object(agent1);
+  grid->add_object(agent2);
+
+  pattern = assembler->get_agent_pattern_byte();
+  EXPECT_EQ(pattern, 18) << "Pattern with agents at N and E should be 18 (2 + 16)";
+
+  // Test 3: Pattern with agents in multiple positions
+  // Move agent1 to NW (bit 0) and agent2 to SW (bit 5), add agent3 at SE (bit 7)
+  // This should give us pattern = (1 << 0) | (1 << 5) | (1 << 7) = 1 | 32 | 128 = 161
+  grid->move_object(agent1->id, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
+  grid->move_object(agent2->id, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
+
+  Agent* agent3 = new Agent(6, 6, agent_cfg);  // SE of assembler
+  grid->add_object(agent3);                    // Add new agent
+
+  pattern = assembler->get_agent_pattern_byte();
+  EXPECT_EQ(pattern, 161) << "Pattern with agents at NW, SW, and SE should be 161 (1 + 32 + 128)";
+}

@@ -38,31 +38,6 @@ private:
     return positions;
   }
 
-  // Helper function to convert surrounding agent positions to byte value
-  // Returns a byte where each bit represents whether an agent is present
-  // in the corresponding position around the assembler
-  // Bit positions: 0=NW, 1=N, 2=NE, 3=W, 4=E, 5=SW, 6=S, 7=SE
-  uint8_t get_agent_pattern_byte() const {
-    if (!grid) return 0;
-
-    uint8_t pattern = 0;
-    std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
-
-    for (size_t i = 0; i < positions.size(); i++) {
-      GridCoord check_r = positions[i].first;
-      GridCoord check_c = positions[i].second;
-
-      if (check_r < grid->height && check_c < grid->width) {
-        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
-        if (obj && dynamic_cast<Agent*>(obj)) {
-          pattern |= static_cast<uint8_t>(1u << i);
-        }
-      }
-    }
-
-    return pattern;
-  }
-
   // Get surrounding agents in a deterministic order (clockwise from NW)
   std::vector<Agent*> get_surrounding_agents() const {
     std::vector<Agent*> agents;
@@ -173,6 +148,31 @@ public:
       return 0;
     }
     return cooldown_end_timestep - *current_timestep_ptr;
+  }
+
+  // Helper function to convert surrounding agent positions to byte value
+  // Returns a byte where each bit represents whether an agent is present
+  // in the corresponding position around the assembler
+  // Bit positions: 0=NW, 1=N, 2=NE, 3=W, 4=E, 5=SW, 6=S, 7=SE
+  uint8_t get_agent_pattern_byte() const {
+    if (!grid) return 0;
+
+    uint8_t pattern = 0;
+    std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
+
+    for (size_t i = 0; i < positions.size(); i++) {
+      GridCoord check_r = positions[i].first;
+      GridCoord check_c = positions[i].second;
+
+      if (check_r < grid->height && check_c < grid->width) {
+        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
+        if (obj && dynamic_cast<Agent*>(obj)) {
+          pattern |= static_cast<uint8_t>(1u << i);
+        }
+      }
+    }
+
+    return pattern;
   }
 
   // Implement pure virtual method from Usable
