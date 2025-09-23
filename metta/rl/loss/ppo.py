@@ -141,8 +141,8 @@ class PPO(Loss):
                 self.policy.forward(rollout_td)
 
         rollout_td = rollout_td.to(original_device, non_blocking=True)
-        for key in rollout_td.keys(include_nested=True, leaves_only=True):
-            td.set(key, rollout_td.get(key))
+        rollout_td_dict = {key: rollout_td.get(key) for key in rollout_td.keys(include_nested=True, leaves_only=True)}
+        td.update_(rollout_td_dict)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
@@ -152,6 +152,8 @@ class PPO(Loss):
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
+        if "actions" not in td.keys(include_nested=False):
+            raise RuntimeError(f"PPO rollout missing actions; available keys: {list(td.keys(include_nested=False))}")
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
