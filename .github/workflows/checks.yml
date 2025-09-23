@@ -246,7 +246,9 @@ jobs:
           mkdir -p $HOME/pufferlib-cache
 
       - name: Run broken test
-        run: uv run pytest -n0 tests/integration/test_trainer_checkpoint.py
+        run: |
+          uv run python -c 'import pufferlib; print(pufferlib.__version__)'
+          uv run pytest -n0 tests/integration/test_trainer_checkpoint.py
 
       - name: Run all package tests
         shell: bash
