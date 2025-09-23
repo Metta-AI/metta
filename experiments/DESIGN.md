@@ -40,6 +40,7 @@ from experiments.skypilot_job_config import SkypilotJobConfig
 from metta.rl.trainer_config import TrainerConfig, OptimizerConfig, TorchProfilerConfig
 from metta.rl.training.checkpointer import CheckpointConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder.envs import make_arena
 
 class LearningRateABTest(Experiment):
     """A/B test comparing two learning rates."""
@@ -51,7 +52,12 @@ class LearningRateABTest(Experiment):
                 num_workers=4,
                 optimizer=OptimizerConfig(learning_rate=lr),
                 checkpoint=CheckpointConfig(),  # checkpoints saved under <run_dir>/<run>/checkpoints
-                simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
+                simulation=SimulationConfig(
+                    suite="arena",
+                    name="basic",
+                    env=make_arena(num_agents=24),
+                    replay_dir="${run_dir}/replays",
+                ),
                 profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
             )
             training = TrainingRunConfig(
@@ -130,9 +136,13 @@ For experiments requiring specific hyperparameters:
 
 ```python
 from metta.rl.trainer_config import (
-    TrainerConfig, OptimizerConfig, TorchProfilerConfig
+    TrainerConfig,
+    OptimizerConfig,
+    TorchProfilerConfig,
+)
 from metta.rl.training.checkpointer import CheckpointConfig
 from metta.sim.simulation_config import SimulationConfig
+from mettagrid.builder.envs import make_arena
 
 trainer = TrainerConfig(
     total_timesteps=50_000_000,
@@ -144,7 +154,12 @@ trainer = TrainerConfig(
         learning_rate=0.001,
     ),
     checkpoint=CheckpointConfig(),  # checkpoints saved under <run_dir>/<run>/checkpoints
-    simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
+    simulation=SimulationConfig(
+        suite="arena",
+        name="basic",
+        env=make_arena(num_agents=24),
+        replay_dir="${run_dir}/replays",
+    ),
     profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
 )
 

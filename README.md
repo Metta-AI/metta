@@ -254,7 +254,9 @@ from metta.tools.train import TrainTool
 def my_train(run: str = "local.me.1") -> TrainTool:
     trainer = TrainerConfig()
     evaluator = EvaluatorConfig(
-        simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
+        simulations=[
+            SimulationConfig(suite="arena", name="basic", env=make_arena(num_agents=4))
+        ]
     )
     training_env = TrainingEnvironmentConfig()
     return TrainTool(trainer=trainer, training_env=training_env, evaluator=evaluator, run=run)
