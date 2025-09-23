@@ -2,7 +2,7 @@ import random
 import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
@@ -109,11 +109,11 @@ curriculum_args = {
 
 @dataclass
 class _BuildCfg:
-    used_objects: List[str] = field(default_factory=list)
-    all_input_resources: List[str] = field(default_factory=list)
-    converters: List[str] = field(default_factory=list)
-    game_objects: Dict[str, Any] = field(default_factory=dict)
-    map_builder_objects: Dict[str, int] = field(default_factory=dict)
+    used_objects: list[str] = field(default_factory=list)
+    all_input_resources: list[str] = field(default_factory=list)
+    converters: list[str] = field(default_factory=list)
+    game_objects: dict[str, Any] = field(default_factory=dict)
+    map_builder_objects: dict[str, int] = field(default_factory=dict)
 
 
 def get_reward_estimates(
@@ -212,7 +212,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         self.converter_types = CONVERTER_TYPES.copy()
 
     def _choose_converter_name(
-        self, pool: Dict[str, Any], used: set[str], rng: random.Random
+        self, pool: dict[str, Any], used: set[str], rng: random.Random
     ) -> str:
         choices = [name for name in pool.keys() if name not in used]
         if not choices:

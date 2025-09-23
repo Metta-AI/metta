@@ -9,12 +9,13 @@ from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.training import DistributedHelper, Experience, TrainingEnvironment
+from metta.rl.training import Experience, TrainingEnvironment
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
+    from metta.rl.training.distributed_helper import DistributedHelper
     from metta.rl.training.stats_reporter import StatsReporter
 
 
@@ -82,7 +83,7 @@ class ComponentContext:
 
         self.timing_baseline = {"agent_step": 0, "wall_time": 0.0}
 
-        self.stats_reporter: "StatsReporter" | None = None
+        self.stats_reporter: StatsReporter | None = None
         self.memory_monitor: MemoryMonitor | None = None
         self.system_monitor: SystemMonitor | None = None
         self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
