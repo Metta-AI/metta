@@ -124,9 +124,7 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
     print(f"policy: {len(policy.state_dict())}")
     temp_env.close()
 
-    # Move policy to the specified device
-    if device != "cpu":
-        policy = policy.to(device)
+    policy = policy.to(device)
 
     return policy
 
