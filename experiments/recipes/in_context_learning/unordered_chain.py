@@ -441,7 +441,7 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            name="in_context_unordered_resource_chain",
         ),
     )
 
@@ -451,9 +451,9 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="in_context_resource_chain",
+            name="in_context_unordered_resource_chain",
         ),
-        policy_uri="s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt",
+        policy_uri="s3://softmax-public/policies/icl_unordered_chain_all_room_sizes_seed456/icl_unordered_chain_all_room_sizes_seed456:v900.pt",
     )
 
 
