@@ -3,13 +3,10 @@
 import logging
 from typing import Optional
 
-import numpy as np
-import pufferlib.pytorch
+import einops
 import torch
 from tensordict import TensorDict
-from tensordict.nn import TensorDictModule as TDM
 from torch import nn
-import einops
 
 from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
@@ -41,6 +38,7 @@ class PufferLibCompatibleConfig(PolicyArchitecture):
 
     # Minimal action_probs_config to satisfy base class requirement
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+
 
 class PufferLibCompatiblePolicy(Policy):
     """Policy that exactly matches PufferLib architecture for seamless checkpoint loading."""
@@ -82,7 +80,7 @@ class PufferLibCompatiblePolicy(Policy):
 
         self.max_vec = [1.0] * 24
         for feature_id, norm_value in self.env.feature_normalizations.items():
-            print(f"feature_id: {feature_id}, norm_value: {norm_value}") 
+            print(f"feature_id: {feature_id}, norm_value: {norm_value}")
             if feature_id < 24:
                 self.max_vec[feature_id] = norm_value if norm_value > 0 else 1.0
         self.max_vec = torch.tensor(self.max_vec, dtype=torch.float32)
@@ -99,7 +97,6 @@ class PufferLibCompatiblePolicy(Policy):
         )
         self.value = nn.Linear(512, 1)  # LSTM outputs 512, not 256
 
-
         lstm_config = LSTMConfig(
             in_key="encoded_obs",
             out_key="core",
@@ -110,9 +107,7 @@ class PufferLibCompatiblePolicy(Policy):
         # Direct LSTM to match PufferLib exactly (bypass Metta LSTM component)
         self.lstm = LSTM(lstm_config)
 
-    def encode_observations(
-        self, observations: torch.Tensor, state=None
-    ) -> torch.Tensor:
+    def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Converts raw observation tokens into a concatenated self + CNN feature vector."""
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
@@ -126,9 +121,7 @@ class PufferLibCompatiblePolicy(Policy):
         # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
         x_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
         y_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
-        atr_indices = observations[
-            ..., 1
-        ].long()  # Shape: [B_TT, M], ready for embedding
+        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
         box_obs = torch.zeros(
@@ -144,12 +137,7 @@ class PufferLibCompatiblePolicy(Policy):
             & (atr_indices < self.num_layers)
         )
 
-
-        batch_idx = (
-            torch.arange(B * TT, device=observations.device)
-            .unsqueeze(-1)
-            .expand_as(atr_values)
-        )
+        batch_idx = torch.arange(B * TT, device=observations.device).unsqueeze(-1).expand_as(atr_values)
         box_obs[
             batch_idx[valid_tokens],
             atr_indices[valid_tokens],
@@ -173,19 +161,15 @@ class PufferLibCompatiblePolicy(Policy):
         # Concatenate self and CNN features: [B, 256] + [B, 256] = [B, 512]
         result = torch.cat([self_features, cnn_features], dim=1)
         return result
-    
 
     def decode_actions(self, hidden):
-        #hidden = self.layer_norm(hidden)
+        # hidden = self.layer_norm(hidden)
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value
 
-
-
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-
         observations = td["env_obs"]
         hidden = self.encode_observations(observations)
 
@@ -194,8 +178,6 @@ class PufferLibCompatiblePolicy(Policy):
         # Pass through LSTM: [B, 512] -> [B, 512]
         self.lstm(td)
         hidden = td["core"]
-
-
         # Decode actions and value
         logits, value = self.decode_actions(hidden)
 
@@ -212,7 +194,6 @@ class PufferLibCompatiblePolicy(Policy):
         td["actions"] = actions_tensor
         # Don't store action_probs as list - just store actions
         td["values"] = value.flatten()
-
 
         return td
 
