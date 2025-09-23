@@ -9,7 +9,12 @@ import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 
 const inputSchema = zfd.formData({
-  name: zfd.text(z.string().min(1).max(100)),
+  name: zfd.text(
+    z.string()
+      .min(1)
+      .max(100)
+      .regex(/^[a-zA-Z0-9_-]+$/, "Group name can only contain letters, numbers, hyphens, and underscores (no spaces)")
+  ),
   description: zfd.text(z.string().optional()),
   isPublic: zfd.checkbox(),
 });

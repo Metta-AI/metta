@@ -21,15 +21,43 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
     isPublic: true,
   });
 
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const validateGroupName = (name: string) => {
+    if (!name) {
+      setNameError(null);
+      return;
+    }
+    
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      setNameError("Group name can only contain letters, numbers, hyphens, and underscores (no spaces)");
+    } else {
+      setNameError(null);
+    }
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setFormData((prev) => ({ ...prev, name: newName }));
+    validateGroupName(newName);
+  };
+
   const { execute, isExecuting, result } = useAction(createGroupAction, {
     onSuccess: () => {
       setFormData({ name: "", description: "", isPublic: true });
+      setNameError(null);
       onClose();
     },
     onError: (error) => {
       console.error("Error creating group:", error);
     },
   });
+
+  const handleClose = () => {
+    setFormData({ name: "", description: "", isPublic: true });
+    setNameError(null);
+    onClose();
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +87,7 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
               </h2>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
@@ -77,14 +105,22 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, name: e.target.value }))
-                }
+                onChange={handleNameChange}
                 required
                 maxLength={100}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                placeholder="e.g., AI Research, Book Club, Project Team"
+                className={`mt-1 block w-full rounded-md border px-3 py-2 text-sm focus:ring-1 focus:outline-none ${
+                  nameError
+                    ? "border-red-300 focus:border-red-500 focus:ring-red-500"
+                    : "border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                }`}
+                placeholder="e.g., ai-research, book-club, project-team"
               />
+              {nameError && (
+                <p className="mt-1 text-xs text-red-600">{nameError}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                Use letters, numbers, hyphens, and underscores only. Perfect for @-tagging!
+              </p>
             </div>
 
             <div>
@@ -178,14 +214,14 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
           <div className="mt-6 flex justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!formData.name.trim() || isExecuting}
+              disabled={!formData.name.trim() || nameError || isExecuting}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
               {isExecuting ? "Creating..." : "Create Group"}
