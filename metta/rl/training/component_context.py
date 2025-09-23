@@ -17,6 +17,7 @@ from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:  # pragma: no cover - import only for type checking
+    from metta.cogworks.curriculum import Curriculum
     from metta.rl.training.stats_reporter import StatsReporter
 
 
@@ -71,6 +72,7 @@ class ComponentContext:
         stopwatch: Stopwatch,
         distributed: DistributedHelper,
         run_name: Optional[str] = None,
+        curriculum: Optional["Curriculum"] = None,
     ) -> None:
         self.state = state or TrainerState()
         self.policy = policy
@@ -81,6 +83,7 @@ class ComponentContext:
         self.stopwatch = stopwatch
         self.distributed = distributed
         self.run_name = run_name
+        self.curriculum = curriculum
 
         self.timing_baseline = {"agent_step": 0, "wall_time": 0.0}
 

@@ -103,9 +103,9 @@ class ContextCheckpointer(TrainerComponent):
 
         curriculum_state = payload.get("curriculum_state")
         context.state.curriculum_state = curriculum_state
-        if curriculum_state:
+        if curriculum_state and context.curriculum is not None:
             try:
-                context.env.curriculum.load_state(curriculum_state)
+                context.curriculum.load_state(curriculum_state)
                 logger.info("Successfully restored curriculum state")
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Failed to restore curriculum state: %s", exc)
@@ -154,7 +154,10 @@ class ContextCheckpointer(TrainerComponent):
 
         # Capture curriculum state
         try:
-            context.state.curriculum_state = context.env.curriculum.get_state()
+            if context.curriculum is not None:
+                context.state.curriculum_state = context.curriculum.get_state()
+            else:
+                context.state.curriculum_state = None
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.debug("Unable to capture curriculum state: %s", exc)
             context.state.curriculum_state = None
