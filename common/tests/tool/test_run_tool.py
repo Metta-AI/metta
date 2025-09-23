@@ -1,11 +1,9 @@
 import os
 import re
-import sys
-from typing import NamedTuple
 
 import pytest
 
-from metta.common.tool import run_tool as run_tool_module
+pytest_plugins = ("metta.tests_support.run_tool_cli",)
 
 
 def find_with_whitespace(target: str, text: str) -> bool:
@@ -26,21 +24,10 @@ def with_extra_imports_root(monkeypatch):
     monkeypatch.syspath_prepend(extra_imports_root)
 
 
-class RunToolResult(NamedTuple):
-    returncode: int
-    stdout: str
-    stderr: str
-
-
 @pytest.fixture
-def invoke_run_tool(monkeypatch, capsys, with_extra_imports_root):  # noqa: ANN001 - pytest fixture
-    def _invoke(*args: str) -> RunToolResult:
-        monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
-        monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
-        monkeypatch.setattr(sys, "argv", ["run_tool.py", *args])
-        returncode = run_tool_module.main()
-        captured = capsys.readouterr()
-        return RunToolResult(returncode, captured.out, captured.err)
+def invoke_run_tool(run_tool_cli, with_extra_imports_root):  # noqa: ANN001 - pytest fixture
+    def _invoke(*args: str):
+        return run_tool_cli(*args, argv0="run_tool.py")
 
     return _invoke
 
