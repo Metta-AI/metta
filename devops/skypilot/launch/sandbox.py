@@ -311,7 +311,7 @@ Examples:
   %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
   %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
-  %(prog)s --new --cheap  # Launch a cheap CPU-only sandbox (t3.medium)
+  %(prog)s --new --sweep-controller  # Launch a cheap CPU-only sandbox (t3.medium)
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
 
@@ -341,9 +341,7 @@ Common management commands:
         default=300,
         help="Timeout in seconds to wait for cluster to reach UP state (default: 300)",
     )
-    parser.add_argument(
-        "--cheap", action="store_true", help="Launch a cheap CPU-only sandbox (t3.medium, ~$0.04/hour)"
-    )
+    parser.add_argument("--sweep-controller", action="store_true", help="Launch a sweep-controller CPU-only sandbox (t3.medium, ~$0.04/hour)")
 
     args = parser.parse_args()
 
@@ -370,8 +368,8 @@ Common management commands:
     # Launch new sandbox
     cluster_name = get_next_sandbox_name(existing_clusters)
 
-    # Determine configuration based on --cheap flag
-    if args.cheap:
+    # Determine configuration based on --sweep-controller flag
+    if args.sweep_controller:
         print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CHEAP MODE')} (CPU-only, t3.medium)")
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
@@ -388,7 +386,7 @@ Common management commands:
     cloud = resources.get("cloud", "aws")
     region = resources.get("region", "us-east-1")
 
-    if args.cheap:
+    if args.sweep_controller:
         # For cheap mode, we know the instance type from config
         instance_type = resources.get("instance_type", "t3.medium")
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
@@ -414,7 +412,7 @@ Common management commands:
         task = sky.Task.from_yaml(config_path)
         set_task_secrets(task)
 
-        if not args.cheap:
+        if not args.sweep_controller:
             # Only override GPU resources for non-cheap mode
             task.set_resources_override({"accelerators": f"{gpu_type}:{args.gpus}"})
 
@@ -489,7 +487,7 @@ Common management commands:
             print(f"Error: {str(e)}")
 
     # For cheap mode, SCP the additional files over
-    if args.cheap:
+    if args.sweep_controller:
         print("\n📤 Transferring additional files to sandbox...")
         scp_success = True
 
