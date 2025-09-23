@@ -639,6 +639,6 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
 
 
 if __name__ == "__main__":
-    # experiment()
-    # save_envs_to_numpy()
-    generate_reward_estimates()
+    experiment()
+# save_envs_to_numpy()
+# generate_reward_estimates()
