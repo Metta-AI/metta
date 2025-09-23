@@ -12,6 +12,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -97,6 +98,10 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+
     evaluator_cfg = EvaluatorConfig(
         simulations=[
             SimulationConfig(
@@ -109,7 +114,7 @@ def train(
     )
 
     return TrainTool(
-        trainer=TrainerConfig(),
+        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
     )
@@ -146,9 +151,15 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
         assert isinstance(altar_config, AssemblerConfig)
         altar_config.recipes[0][1].input_resources["battery_red"] = 1
 
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+
+    curriculum = cc.env_curriculum(env_cfg)
+
     return TrainTool(
-        trainer=TrainerConfig(),
-        training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=make_evals(env_cfg)),
     )
 

@@ -9,6 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -106,13 +107,18 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
+    eval_simulations = make_evals()
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+
     if policy_architecture is None:
         policy_architecture = FastConfig()
 
     return TrainTool(
-        trainer=TrainerConfig(),
+        trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=make_evals()),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
     )
 

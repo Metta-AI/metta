@@ -9,6 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -421,8 +422,11 @@ def train(
 
     curriculum = make_curriculum(curriculum_style, lp_params)
 
-    trainer_cfg = TrainerConfig()
-    # for in context learning, we need episode length to be equal to bptt_horizon which requires a large batch size
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+    # for in context learning, we need episode length to be equal to bptt_horizon
+    # which requires a large batch size
     trainer_cfg.batch_size = batch_size
     trainer_cfg.bptt_horizon = bptt_horizon
 
