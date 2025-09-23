@@ -129,6 +129,7 @@ class TestBasicSaveLoad:
         assert loaded_trainer_state["epoch"] == 5
         assert loaded_trainer_state["agent_step"] == 1000
         assert loaded_trainer_state["stopwatch_state"]["elapsed_time"] == 123.45
+        assert loaded_trainer_state.get("loss_states", {}) == {}
         assert "optimizer_state" in loaded_trainer_state
 
     def test_checkpoint_existence(self, checkpoint_manager, mock_agent):
