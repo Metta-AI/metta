@@ -3,6 +3,7 @@ import pytest
 import mettagrid.builder.envs as eb
 from metta.common.util.fs import get_repo_root
 from metta.sim.simulation_config import SimulationConfig
+from metta.tests_support import run_tool_in_process
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from mettagrid import MettaGridEnv
@@ -16,8 +17,6 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
-
-pytest_plugins = ("metta.tests_support.run_tool_cli",)
 
 
 class TestComprehensiveEnvironmentIntegration:
@@ -250,7 +249,7 @@ class TestComprehensiveEnvironmentIntegration:
     @pytest.mark.parametrize(
         "env_name", ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]
     )
-    def test_recipe_based_training_validation(self, env_name, run_tool_cli):
+    def test_recipe_based_training_validation(self, env_name, monkeypatch, capsys):
         """Test basic training validation with the new recipe-based system."""
         run_name = f"validation_{env_name}"
 
@@ -268,7 +267,12 @@ class TestComprehensiveEnvironmentIntegration:
             "--dry-run",
         ]
 
-        result = run_tool_cli(*args, env_overrides=env_overrides)
+        result = run_tool_in_process(
+            *args,
+            env_overrides=env_overrides,
+            monkeypatch=monkeypatch,
+            capsys=capsys,
+        )
 
         if result.returncode != 0:
             combined_output = result.stdout + result.stderr
@@ -294,7 +298,7 @@ class TestComprehensiveEnvironmentIntegration:
                 )
 
     @pytest.mark.slow
-    def test_simulation_and_replay_integration(self, run_tool_cli):
+    def test_simulation_and_replay_integration(self, monkeypatch, capsys):
         """Test that we can run simulations and create replays with new system."""
         run_name = "sim_replay_test"
 
@@ -312,7 +316,12 @@ class TestComprehensiveEnvironmentIntegration:
         ]
 
         # Run training briefly (allow failures but ensure invocation returns)
-        run_tool_cli(*train_args, env_overrides=env_overrides)
+        run_tool_in_process(
+            *train_args,
+            env_overrides=env_overrides,
+            monkeypatch=monkeypatch,
+            capsys=capsys,
+        )
 
         # Test simulation tool configuration
         sim_args = [
@@ -321,7 +330,12 @@ class TestComprehensiveEnvironmentIntegration:
             "--dry-run",
         ]
 
-        sim_result = run_tool_cli(*sim_args, env_overrides=env_overrides)
+        sim_result = run_tool_in_process(
+            *sim_args,
+            env_overrides=env_overrides,
+            monkeypatch=monkeypatch,
+            capsys=capsys,
+        )
         combined_output = sim_result.stdout + sim_result.stderr
         if "recipe not found" in combined_output:
             pytest.fail("Simulation recipe not found")

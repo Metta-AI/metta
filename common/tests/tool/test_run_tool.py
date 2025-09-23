@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-pytest_plugins = ("metta.tests_support.run_tool_cli",)
+from metta.tests_support import run_tool_in_process
 
 
 def find_with_whitespace(target: str, text: str) -> bool:
@@ -25,9 +25,9 @@ def with_extra_imports_root(monkeypatch):
 
 
 @pytest.fixture
-def invoke_run_tool(run_tool_cli, with_extra_imports_root):  # noqa: ANN001 - pytest fixture
+def invoke_run_tool(monkeypatch, capsys, with_extra_imports_root):  # noqa: ANN001 - pytest fixture
     def _invoke(*args: str):
-        return run_tool_cli(*args, argv0="run_tool.py")
+        return run_tool_in_process(*args, monkeypatch=monkeypatch, capsys=capsys, argv0="run_tool.py")
 
     return _invoke
 

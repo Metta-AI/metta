@@ -5,7 +5,7 @@ import pytest
 from metta.common.test_support import docker_client_fixture
 
 # Load custom pytest plugins
-pytest_plugins = ["pytest_plugins.suppress_gym_warning", "metta.tests_support.run_tool_cli"]
+pytest_plugins = ["pytest_plugins.suppress_gym_warning"]
 
 # Suppress Gym warnings about being unmaintained at test collection time
 warnings.filterwarnings("ignore", message=".*Gym has been unmaintained.*", category=UserWarning)
