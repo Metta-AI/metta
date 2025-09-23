@@ -4,6 +4,8 @@ import { FC, useState, useRef, useCallback } from "react";
 import { Paperclip, X, Image as ImageIcon } from "lucide-react";
 
 import { createPostAction } from "@/posts/actions/createPostAction";
+import { MentionInput } from "@/components/MentionInput";
+import { parseMentions } from "@/lib/mentions";
 
 /**
  * NewPostForm Component
@@ -26,8 +28,23 @@ export const NewPostForm: FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [mentions, setMentions] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Handler for when mentions change
+  const handleMentionsChange = useCallback((newMentions: string[]) => {
+    setMentions(newMentions);
+  }, []);
+
+  // Handler for content changes that also updates mentions
+  const handleContentChange = useCallback((newContent: string) => {
+    setContent(newContent);
+
+    // Parse mentions from content
+    const parsedMentions = parseMentions(newContent);
+    const mentionValues = parsedMentions.map((m) => m.raw);
+    setMentions(mentionValues);
+  }, []);
 
   const { execute, isExecuting } = useAction(createPostAction, {
     onSuccess: () => {
@@ -35,6 +52,7 @@ export const NewPostForm: FC = () => {
       setContent("");
       setError(null);
       setAttachedImages([]);
+      setMentions([]);
       // The feed is paginated, and paginated state is stored on the
       // client side only. So refreshing the entire page is the easiest way to
       // update the list of posts.
@@ -175,6 +193,11 @@ export const NewPostForm: FC = () => {
       );
     }
 
+    // Add mentions to form data
+    if (mentions.length > 0) {
+      formData.append("mentions", JSON.stringify(mentions));
+    }
+
     execute(formData);
   };
 
@@ -182,12 +205,13 @@ export const NewPostForm: FC = () => {
     <div className="border-b border-gray-200 bg-white p-6">
       <div className="flex flex-col gap-3">
         <div className="flex gap-3">
-          <textarea
-            ref={textareaRef}
-            className="max-h-32 min-h-[96px] flex-1 resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-            placeholder={`Share your thoughts about a paper...\nMust include an arXiv URL (e.g., https://arxiv.org/abs/2301.12345)\nLaTeX supported: $x^2 + y^2 = z^2$ for inline, $$\\alpha + \\beta = \\gamma$$ for display\nPaste images or attach files below.`}
+          <MentionInput
+            wrapperClassName="flex-1"
+            className="max-h-32 min-h-[96px] resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+            placeholder={`Share your thoughts about a paper...\nMust include an arXiv URL (e.g., https://arxiv.org/abs/2301.12345)\nLaTeX supported: $x^2 + y^2 = z^2$ for inline, $$\\alpha + \\beta = \\gamma$$ for display\nPaste images or attach files below.\n\nTry @-mentioning: @username for users, @/groupname for your institution's groups, @domain.com/groupname for specific institution groups.`}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={handleContentChange}
+            onMentionsChange={handleMentionsChange}
             onPaste={handlePaste}
             onKeyDown={(e) => {
               // Submit on Command+Enter (Mac) or Ctrl+Enter (Windows/Linux)

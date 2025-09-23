@@ -11,6 +11,9 @@ import { loadCommentsAction } from "@/posts/actions/loadCommentsAction";
 import { deleteCommentAction } from "@/posts/actions/deleteCommentAction";
 import { ThreadedComment } from "@/posts/components/ThreadedComment";
 import { linkifyText } from "@/lib/utils/linkify";
+import { MentionInput } from "@/components/MentionInput";
+import { RichTextRenderer } from "@/components/RichTextRenderer";
+import { parseMentions } from "@/lib/mentions";
 
 interface CommentSidebarProps {
   post: FeedPostDTO | null;
@@ -42,6 +45,7 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
   const [comments, setComments] = useState<CommentDTO[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
+  const [newCommentMentions, setNewCommentMentions] = useState<string[]>([]);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
   // Load comments action
@@ -66,6 +70,7 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
       onSuccess: () => {
         // Clear the input
         setNewComment("");
+        setNewCommentMentions([]);
         // Notify parent about comment addition
         if (onCommentAdded) {
           onCommentAdded();
@@ -150,6 +155,16 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
     return `${diffInMonths}m`;
   };
 
+  // Handle content changes that also updates mentions
+  const handleCommentContentChange = (newContent: string) => {
+    setNewComment(newContent);
+    
+    // Parse mentions from content
+    const parsedMentions = parseMentions(newContent);
+    const mentionValues = parsedMentions.map(m => m.raw);
+    setNewCommentMentions(mentionValues);
+  };
+
   // Handle comment submission
   const handleSubmitComment = async () => {
     if (!newComment.trim() || !post || !currentUser) return;
@@ -157,6 +172,11 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
     const formData = new FormData();
     formData.append("postId", post.id);
     formData.append("content", newComment.trim());
+
+    // Add mentions to form data
+    if (newCommentMentions.length > 0) {
+      formData.append("mentions", JSON.stringify(newCommentMentions));
+    }
 
     executeCreateComment(formData);
   };
@@ -313,12 +333,14 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
                 )}
               </div>
               <div className="flex-1">
-                <textarea
+                <MentionInput
+                  wrapperClassName="w-full"
                   value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
+                  onChange={handleCommentContentChange}
+                  onMentionsChange={setNewCommentMentions}
                   onKeyPress={handleKeyPress}
                   placeholder="Write a comment..."
-                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   rows={3}
                   disabled={isSubmitting}
                 />

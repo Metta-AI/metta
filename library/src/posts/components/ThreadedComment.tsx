@@ -7,6 +7,9 @@ import { createCommentAction } from "@/posts/actions/createCommentAction";
 import { deleteCommentAction } from "@/posts/actions/deleteCommentAction";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { linkifyText } from "@/lib/utils/linkify";
+import { RichTextRenderer } from "@/components/RichTextRenderer";
+import { MentionInput } from "@/components/MentionInput";
+import { parseMentions } from "@/lib/mentions";
 
 interface ThreadedCommentProps {
   comment: CommentDTO;
@@ -37,16 +40,28 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
 }) => {
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
+  const [replyMentions, setReplyMentions] = useState<string[]>([]);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
   const depth = comment.depth || 0;
   const indentLevel = Math.min(depth, maxDepth);
+
+  // Handle content changes that also updates mentions
+  const handleReplyContentChange = (newContent: string) => {
+    setReplyContent(newContent);
+    
+    // Parse mentions from content
+    const parsedMentions = parseMentions(newContent);
+    const mentionValues = parsedMentions.map(m => m.raw);
+    setReplyMentions(mentionValues);
+  };
 
   // Create reply action
   const { execute: executeCreateReply, isExecuting: isSubmittingReply } =
     useAction(createCommentAction, {
       onSuccess: () => {
         setReplyContent("");
+        setReplyMentions([]);
         setIsReplying(false);
         onCommentUpdated();
       },
@@ -113,6 +128,11 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
     formData.append("postId", postId);
     formData.append("parentId", comment.id);
     formData.append("content", replyContent.trim());
+
+    // Add mentions to form data
+    if (replyMentions.length > 0) {
+      formData.append("mentions", JSON.stringify(replyMentions));
+    }
 
     executeCreateReply(formData);
   };
@@ -230,18 +250,20 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
 
             {/* Comment content */}
             <div className="mt-1 text-sm leading-relaxed whitespace-pre-wrap text-gray-900">
-              {linkifyText(comment.content)}
+              <RichTextRenderer text={comment.content} />
             </div>
 
             {/* Reply form */}
             {isReplying && currentUser && (
               <div className="mt-3 space-y-2">
-                <textarea
+                <MentionInput
+                  wrapperClassName="w-full"
                   value={replyContent}
-                  onChange={(e) => setReplyContent(e.target.value)}
+                  onChange={handleReplyContentChange}
+                  onMentionsChange={setReplyMentions}
                   onKeyDown={handleKeyPress}
                   placeholder="Write a reply..."
-                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  className="resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   rows={2}
                   disabled={isSubmittingReply}
                 />

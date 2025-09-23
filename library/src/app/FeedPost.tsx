@@ -9,7 +9,7 @@ import { FeedPostDTO } from "@/posts/data/feed";
 import { PaperCard } from "@/components/PaperCard";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { PhotoViewer } from "@/components/PhotoViewer";
-import { linkifyText } from "@/lib/utils/linkify";
+import { RichTextRenderer } from "@/components/RichTextRenderer";
 import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
@@ -602,7 +602,7 @@ export const FeedPost: FC<{
       {/* Post content with LaTeX support */}
       {post.content && cleanPostContent(post.content).trim() && (
         <div className="px-4 pb-2 text-[14px] leading-[1.55] whitespace-pre-wrap text-neutral-900">
-          {linkifyText(cleanPostContent(post.content))}
+          <RichTextRenderer text={cleanPostContent(post.content)} />
         </div>
       )}
 
