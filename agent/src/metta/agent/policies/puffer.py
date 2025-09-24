@@ -197,8 +197,10 @@ class PufferPolicy(Policy):
         # Pass through LSTM: [1, B, 512] -> [1, B, 512]
         lstm_input = encoded_obs.unsqueeze(0)
         lstm_output, _ = self.lstm(lstm_input)
+        
         # Remove sequence dimension: [1, B, 512] -> [B, 512]
         core_features = lstm_output.squeeze(0)
+        td["core"] = core_features
 
         # Decode actions - returns separate logits per action type
         logits, value = self.decode_actions(core_features)
