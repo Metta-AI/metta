@@ -172,7 +172,7 @@ def test_successful_init_params(monkeypatch):
     assert kwargs["notes"] == "Test notes"
     assert "custom" in kwargs["tags"]
     assert "user:alice" in kwargs["tags"]
-    assert kwargs["resume"] is True
+    assert kwargs["resume"] == "allow"
     assert kwargs["settings"].init_timeout == 15
 
     # Verify save calls for log/yaml/json files
