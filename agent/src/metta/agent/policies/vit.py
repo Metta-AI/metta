@@ -68,6 +68,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     _embedding_dim = 16
 
     _token_embed_dim = 8
+    _fourier_freqs = 6
     _latent_dim = 48
     _lstm_latent = 96
     _critic_hidden = 128
@@ -78,7 +79,7 @@ class ViTDefaultConfig(PolicyArchitecture):
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
-            num_freqs=6,
+            num_freqs=_fourier_freqs,
         ),
         ObsTokenTrimConfig(
             in_key="obs_attr_embed",
@@ -88,7 +89,7 @@ class ViTDefaultConfig(PolicyArchitecture):
         ObsLatentAttnConfig(
             in_key="obs_attr_trimmed",
             out_key="obs_latent_attn",
-            feat_dim=_token_embed_dim + 1,
+            feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
             out_dim=_latent_dim,
             num_query_tokens=6,
             num_heads=4,
