@@ -321,7 +321,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
 
         # estimate average hop for cooldowns
         avg_hop = calculate_avg_hop(room_size)
-        max_steps = calculate_max_steps(avg_hop, len(resources) + 1, num_sinks)
+        max_steps = calculate_max_steps(avg_hop, len(resources), num_sinks)
         icl_env = self._make_env_cfg(
             resources,
             num_sinks,
