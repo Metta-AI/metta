@@ -2304,6 +2304,8 @@ dev = [
 name = "mettagrid"
 source = { editable = "packages/mettagrid" }
 dependencies = [
+    { name = "boto3" },
+    { name = "botocore" },
     { name = "gymnasium" },
     { name = "pettingzoo" },
     { name = "pufferlib-core" },
@@ -2320,6 +2322,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "boto3", specifier = ">=1.38.32" },
+    { name = "botocore", specifier = ">=1.38.29" },
     { name = "gymnasium", specifier = "==0.29.1" },
     { name = "pettingzoo", specifier = ">=1.24.1,<1.25" },
     { name = "pufferlib-core", specifier = ">=3.0.10,<3.1.0" },
