@@ -1,8 +1,15 @@
 import std/[random],
-  common, windy
+  windy, fidget2,
+  common, replays
 
 # var
 #   actionsArray*: array[MapAgents, array[2, uint8]]
+type
+  Orientation* = enum
+    N = 0
+    S = 1
+    W = 2
+    E = 3
 
 proc simStep*() =
   # Random actions
@@ -11,7 +18,7 @@ proc simStep*() =
   #   if selection != agent:
   #     var action = rand(0 .. 9)
   #     var argument = 0
-  #     if action == 1: # move
+  #     if action == 1: # mov
   #       argument = rand(0 .. 1)
   #     elif action == 2: # rotate
   #       argument = rand(0 .. 3)
@@ -21,37 +28,39 @@ proc simStep*() =
   #     actionsArray[j] = [action.uint8, argument.uint8]
   # env.nextStep(addr actionsArray)
 
+proc sendAction*(agentId, actionId, argument: int) =
+  echo replay.actionNames
+  echo "Sending action: ", agentId, " ", actionId, " ", argument
+  requestAction = true
+  requestActionAgentId = agentId
+  requestActionActionId = actionId
+  requestActionArgument = argument
+  requestPython = true
+
 proc agentControls*() =
   ## Controls for the selected agent.
-  discard
-  # if selection != nil and selection.kind == Agent:
-  #   let agent = selection
 
-  #   # Rotate
-  #   if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
-  #     if agent.orientation == N:
-  #       actionsArray[agent.agentId] = [1, 1]
-  #     else:
-  #       actionsArray[agent.agentId] = [2, 0]
-  #     simStep()
-  #   elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
-  #     if agent.orientation == S:
-  #       actionsArray[agent.agentId] = [1, 1]
-  #     else:
-  #       actionsArray[agent.agentId] = [2, 1]
-  #     simStep()
-  #   elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
-  #     if agent.orientation == Orientation.E:
-  #       actionsArray[agent.agentId] = [1, 1]
-  #     else:
-  #       actionsArray[agent.agentId] = [2, 3]
-  #     simStep()
-  #   elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
-  #     if agent.orientation == W:
-  #       actionsArray[agent.agentId] = [1, 1]
-  #     else:
-  #       actionsArray[agent.agentId] = [2, 2]
-  #     simStep()
+  let noopId = replay.actionNames.find("noop")
+  let moveId = replay.actionNames.find("move")
+  let putItemsId = replay.actionNames.find("put_items")
+  let getItemsId = replay.actionNames.find("get_items")
+  let attackId = replay.actionNames.find("attack")
+
+  if selection != nil and selection.isAgent:
+    let agent = selection
+
+    # Move
+    if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
+      sendAction(agent.agentId, moveId, N.int)
+
+    elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
+      sendAction(agent.agentId, moveId, S.int)
+
+    elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
+      sendAction(agent.agentId, moveId, E.int)
+
+    elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
+      sendAction(agent.agentId, moveId, W.int)
 
   #   # Move
   #   if window.buttonPressed[KeyE]:
