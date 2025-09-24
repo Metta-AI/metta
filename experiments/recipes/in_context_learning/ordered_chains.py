@@ -29,6 +29,7 @@ import shutil
 import os
 import zipfile
 
+
 def zip_and_cleanup_dir(dir: str = "icl_ordered_chains/"):
     # Remove trailing slash for consistency
     dir = dir.rstrip("/")
@@ -40,9 +41,7 @@ def zip_and_cleanup_dir(dir: str = "icl_ordered_chains/"):
                 file_path = os.path.join(root, file)
                 arcname = os.path.relpath(file_path, start=os.path.dirname(dir))
                 zipf.write(file_path, arcname)
-    # Remove the original directory
-    shutil.rmtree(dir)
-    print(f"Zipped {dir} to {zip_filename} and deleted the directory.")
+    print(f"Zipped {dir} to {zip_filename}")
 
 
 CONVERTER_TYPES = {
@@ -662,6 +661,7 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
         json.dump(reward_estimates, f, indent=2)
 
     zip_and_cleanup_dir(dir=dir)
+
 
 if __name__ == "__main__":
     # experiment()
