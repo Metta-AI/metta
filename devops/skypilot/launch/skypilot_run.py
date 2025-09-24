@@ -20,7 +20,7 @@ from devops.skypilot.utils.runtime_monitors import ForceRestartTestMonitor, Hear
 from devops.skypilot.utils.subprocess_helpers import terminate_process_group
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.context import WandbConfig, WandbContext
-from metta.common.wandb.utils import log_to_wandb
+from metta.common.wandb.utils import log_to_wandb_summary
 from mettagrid.config import Config
 
 logger = getRankAwareLogger(__name__)
@@ -177,7 +177,7 @@ def main() -> int:
                     run_id=job_config.metta_run_id,
                 )
                 with WandbContext(wandb_cfg, Config(**job_config.to_safe_dict())):
-                    log_to_wandb(metrics)
+                    log_to_wandb_summary(metrics)
 
         termination_reason = ""
 
