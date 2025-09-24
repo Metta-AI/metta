@@ -9,7 +9,6 @@ from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsPerceiverLatentConfig, ObsSelfAttnConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
-from metta.agent.components.obs_trim import ObsTokenTrimConfig
 from metta.agent.policy import PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -82,13 +81,8 @@ class ViTDefaultConfig(PolicyArchitecture):
             attr_embed_dim=_token_embed_dim,
             num_freqs=_fourier_freqs,
         ),
-        ObsTokenTrimConfig(
-            in_key="obs_attr_embed",
-            out_key="obs_attr_trimmed",
-            max_tokens=48,
-        ),
         ObsPerceiverLatentConfig(
-            in_key="obs_attr_trimmed",
+            in_key="obs_attr_embed",
             out_key="obs_latent_attn",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
             latent_dim=_latent_dim,
