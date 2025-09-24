@@ -1,14 +1,15 @@
-from typing import Optional
+from typing import List, Optional
 
+import einops
 import torch
 import torch.nn as nn
-import einops
 from tensordict import TensorDict
-from metta.agent.policy import Policy
-from metta.agent.policies.puffer_lib_compatible import PufferLibCompatibleConfig
-from metta.agent.policy import PolicyArchitecture
+from tensordict.nn import TensorDictModule as TDM
+from torchrl.data import Composite, UnboundedDiscrete
+
+from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
-from metta.agent.components.actor import ActionProbsConfig
+from metta.agent.policy import Policy, PolicyArchitecture
 
 
 class PufferPolicyConfig(PolicyArchitecture):
