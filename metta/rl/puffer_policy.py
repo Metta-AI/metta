@@ -26,6 +26,8 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
     processed = {}
 
     key_mappings = {
+        # Max vec (normalization buffer)
+        "policy.max_vec": "max_vec",
         # Convolution layers
         "policy.conv1.weight": "conv1.weight",
         "policy.conv1.bias": "conv1.bias",
@@ -38,6 +40,9 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
         "policy.network.2.bias": "network.2.bias",
         "policy.network.5.weight": "network.5.weight",
         "policy.network.5.bias": "network.5.bias",
+        # Self encoder
+        "policy.self_encoder.0.weight": "self_encoder.0.weight",
+        "policy.self_encoder.0.bias": "self_encoder.0.bias",
         # LSTM mappings (different structure in PufferLib)
         "lstm.weight_ih_l0": "lstm.net.weight_ih_l0",
         "lstm.weight_hh_l0": "lstm.net.weight_hh_l0",
@@ -51,7 +56,8 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
         # Value head
         "policy.value.weight": "value.weight",
         "policy.value.bias": "value.bias",
-        # Actor head
+        # Actor head - note: checkpoint has different action dimensions
+        # We'll load what we can, but there will be shape mismatches
         "policy.actor.0.weight": "actor.0.weight",
         "policy.actor.0.bias": "actor.0.bias",
         "policy.actor.1.weight": "actor.1.weight",
@@ -65,6 +71,7 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
             logger.debug(f"Missing expected key in checkpoint: {src_key}")
 
     logger.info(f"Preprocessed checkpoint: {len(state_dict)} -> {len(processed)} parameters")
+    print("Processed keys:", sorted(processed.keys()))
     return processed
 
 
@@ -80,6 +87,7 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
 
     policy_cfg = PufferPolicyConfig()
     policy = PufferPolicy(temp_env, policy_cfg).to(device)
+    print("Policy keys:", sorted(policy.state_dict().keys()))
 
     temp_env.close()
     return policy
@@ -90,6 +98,7 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
     policy_state = policy.state_dict()
     compatible_state = {}
     shape_mismatches = []
+    missing_keys = []
 
     keys_matched = 0
     for key, value in state_dict.items():
@@ -98,14 +107,24 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
             if target_param.shape == value.shape:
                 compatible_state[key] = value
                 keys_matched += 1
+                print(f"✓ Loaded: {key} {value.shape}")
             else:
                 shape_mismatches.append(f"{key}: checkpoint {value.shape} vs policy {target_param.shape}")
-                logger.debug(f"Shape mismatch for {key}: checkpoint {value.shape} vs policy {target_param.shape}")
+                print(f"✗ Shape mismatch: {key} checkpoint {value.shape} vs policy {target_param.shape}")
         else:
-            logger.debug(f"Skipping unmatched parameter: {key}")
+            missing_keys.append(key)
+            print(f"✗ Missing in policy: {key}")
 
     if shape_mismatches:
         logger.warning(f"Shape mismatches found for {len(shape_mismatches)} parameters")
+
+    if missing_keys:
+        print(f"Missing keys in policy: {missing_keys}")
+
+    # Show which policy keys weren't loaded
+    policy_keys_not_loaded = set(policy_state.keys()) - set(compatible_state.keys())
+    if policy_keys_not_loaded:
+        print(f"Policy parameters not loaded: {sorted(policy_keys_not_loaded)}")
 
     logger.info(f"Loaded {keys_matched}/{len(state_dict)} compatible parameters")
 

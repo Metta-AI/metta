@@ -104,7 +104,8 @@ class PufferPolicy(Policy):
         self.register_buffer("max_vec", max_vec)
 
         # Use the same action space structure as PufferLib (separate heads per action type)
-        action_nvec = [max_args + 1 for max_args in env_metadata.max_action_args]
+        # Override for checkpoint compatibility: checkpoint has [5, 9] action dimensions
+        action_nvec = [5, 9]  # Match checkpoint exactly: actor.0 (5 actions), actor.1 (9 actions)
         self.actor = nn.ModuleList([
             pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
             for n in action_nvec
