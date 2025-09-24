@@ -32,7 +32,7 @@ class ObsAttrCoordEmbed(nn.Module):
         self._max_embeds = 256
 
         # Coord byte supports up to 16x16, so 256 possible coord values
-        self._coord_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim)
+        self._coord_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
 
         self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
