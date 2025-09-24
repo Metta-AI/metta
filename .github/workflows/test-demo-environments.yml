@@ -29,8 +29,6 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
-        env:
-          SETUPTOOLS_SCM_PRETEND_VERSION: "0.2.0.9-dev"
 
       - name: Test ${{ matrix.demo }}
         run: |
