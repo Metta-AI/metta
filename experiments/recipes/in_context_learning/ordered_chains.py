@@ -290,14 +290,8 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
                 env.game.reward_estimates = reward_estimates[dir]
             return env
 
-        size_range = size_ranges[room_size]
-
-        width, height = (
-            rng.randint(size_range[0], size_range[1]),
-            rng.randint(size_range[0], size_range[1]),
-        )
         return make_in_context_chains(
-            num_agents=1,
+            num_agents=24,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
@@ -321,7 +315,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
 
         # estimate average hop for cooldowns
         avg_hop = calculate_avg_hop(room_size)
-        max_steps = calculate_max_steps(avg_hop, len(resources), num_sinks)
+        max_steps = calculate_max_steps(avg_hop, len(resources) + 1, num_sinks)
         icl_env = self._make_env_cfg(
             resources,
             num_sinks,
