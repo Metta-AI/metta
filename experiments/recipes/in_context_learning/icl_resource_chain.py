@@ -61,16 +61,13 @@ class ICLTaskGenerator(TaskGenerator):
     class Config(TaskGeneratorConfig["ICLTaskGenerator"]):
         """Configuration for ICLTaskGenerator matching ordered_chains refactor."""
 
-        chain_lengths: list[int] = Field(
-            default_factory=list, description="Chain lengths to sample from"
+        num_resources: list[int] = Field(
+            default_factory=list,
+            description="Number of resources in a chain",
         )
         num_converters: list[int] = Field(
             default_factory=list,
-            description="Number of converters to sample from (unordered chains)",
-        )
-        num_sinks: list[int] = Field(
-            default_factory=list,
-            description="Number of sinks to sample from (ordered chains only)",
+            description="Number of converters, which are sinks for ordered chains",
         )
         room_sizes: list[str] = Field(
             default=["small"], description="Room size to sample from"
@@ -84,11 +81,6 @@ class ICLTaskGenerator(TaskGenerator):
         map_dir: str | None = Field(
             default=None,
             description="Directory to load environments from",
-        )
-        # Unordered chain specific parameters
-        num_resources: list[int] = Field(
-            default_factory=list,
-            description="Number of resource sources for unordered chains",
         )
         max_recipe_inputs: Optional[list[int]] = Field(
             default=None,
@@ -129,24 +121,10 @@ class ICLTaskGenerator(TaskGenerator):
     def _setup_task(self, rng: random.Random):
         cfg = self.config
         # Safely determine counts for both ordered and unordered chains
-        if len(cfg.chain_lengths) > 0:
-            num_resources = rng.choice(cfg.chain_lengths) - 1
-        elif len(cfg.num_resources) > 0:
-            # Unordered chains primarily use num_resources
-            num_resources = rng.choice(cfg.num_resources)
-        else:
-            # Conservative default to avoid empty choices
-            num_resources = 1
-
-        if len(cfg.num_sinks) > 0:
-            num_sinks = rng.choice(cfg.num_sinks)
-        else:
-            # Unordered chains do not use sinks
-            num_sinks = 0
-
+        num_resources = rng.choice(cfg.num_resources)
+        num_converters = rng.choice(cfg.num_converters)
         # Clamp to available resource types to avoid ValueError in sampling
-        sample_size = max(0, min(num_resources, len(self.resource_types)))
-        resources = rng.sample(self.resource_types, sample_size)
+        resources = rng.sample(self.resource_types, num_resources)
         room_size = rng.choice(cfg.room_sizes)
         obstacle_type = (
             rng.choice(cfg.obstacle_types) if len(cfg.obstacle_types) > 0 else None
@@ -160,9 +138,20 @@ class ICLTaskGenerator(TaskGenerator):
             rng.randint(size_range[0], size_range[1]),
         )
 
-        return resources, num_sinks, room_size, obstacle_type, density, width, height
+        max_recipe_inputs = (
+            rng.choice(cfg.max_recipe_inputs) if cfg.max_recipe_inputs else None
+        )
 
-    # Reward estimation intentionally kept in ordered_chain_remote.py
+        return (
+            resources,
+            num_converters,
+            room_size,
+            obstacle_type,
+            density,
+            width,
+            height,
+            max_recipe_inputs,
+        )
 
 
 class LPParams:
