@@ -12,7 +12,7 @@ from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 
 
-class BasicConfig (PolicyArchitecture):
+class BasicConfig(PolicyArchitecture):
     """A Basic policy without any memory."""
 
     class_path: str = "metta.agent.policies.basic.BasicPolicy"
@@ -32,7 +32,6 @@ class BasicPolicy(Policy):
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        """Forward pass - minimal TensorDict wrapper around PufferLib."""
         observations = td["env_obs"]
 
         # Call PufferLib policy directly
@@ -89,10 +88,8 @@ class PufferLibPolicy(nn.Module):
         self.out_width = env_metadata.obs_width
         self.out_height = env_metadata.obs_height
 
-        # Use dynamic layer calculation
         self.num_layers = max(env_metadata.feature_normalizations.keys()) + 1
 
-        # Define CNN layers separately to calculate output size
         self.conv1 = pufferlib.pytorch.layer_init(
             nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3), std=1.0
         )
@@ -100,7 +97,6 @@ class PufferLibPolicy(nn.Module):
             nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1), std=1.0
         )
 
-        # Calculate actual CNN output size dynamically
         test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
         with torch.no_grad():
             test_output = self.conv2(torch.relu(self.conv1(test_input)))
@@ -125,7 +121,7 @@ class PufferLibPolicy(nn.Module):
             nn.ReLU(),
         )
 
-        # Build normalization vector from environment
+        # Build normalization vector
         max_values = [1.0] * self.num_layers
         for feature_id, norm_value in env_metadata.feature_normalizations.items():
             if feature_id < self.num_layers:
@@ -136,7 +132,6 @@ class PufferLibPolicy(nn.Module):
         max_vec = max_vec[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
-        # Action heads - use max_action_args instead of single_action_space.nvec
         action_nvec = [max_args + 1 for max_args in env_metadata.max_action_args]
         self.actor = nn.ModuleList([
             pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
@@ -189,19 +184,16 @@ class PufferLibPolicy(nn.Module):
         # Normalize features
         features = box_obs / (self.max_vec + 1e-8)
 
-        # PufferLib uses center pixel for self features
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         result = torch.cat([self_features, cnn_features], dim=1)
         return result
 
     def decode_actions(self, hidden):
-        """PufferLib action decoding."""
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value
 
     def forward(self, observations: torch.Tensor, state=None):
-        """PufferLib forward pass - returns logits and values directly."""
         encoded = self.encode_observations(observations)
         return self.decode_actions(encoded)
