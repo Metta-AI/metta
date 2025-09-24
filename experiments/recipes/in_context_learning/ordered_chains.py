@@ -565,7 +565,6 @@ def evaluate(
 
 def experiment():
     curriculum_styles = [
-        "level_0",
         "level_1",
         "level_2",
         "tiny_small",
@@ -578,19 +577,17 @@ def experiment():
     ]
 
     for curriculum_style in curriculum_styles:
-        for use_fast_lstm_reset in [True, False]:
-            subprocess.run(
-                [
-                    "./devops/skypilot/launch.py",
-                    "experiments.recipes.in_context_learning.ordered_chains.train",
-                    f"run=icl_resource_chain_{curriculum_style}.newarchitecture{use_fast_lstm_reset}.{time.strftime('%Y-%m-%d')}",
-                    f"curriculum_style={curriculum_style}",
-                    f"use_fast_lstm_reset={use_fast_lstm_reset}",
-                    "--gpus=4",
-                    "--heartbeat-timeout=3600",
-                    "--skip-git-check",
-                ]
-            )
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.in_context_learning.ordered_chains.train",
+                f"run=icl_resource_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
         time.sleep(1)
 
 
