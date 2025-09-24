@@ -1,10 +1,10 @@
 from typing import Optional
 
 import einops
+import pufferlib.pytorch
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
-from tensordict.nn import TensorDictModule as TDM
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
@@ -32,8 +32,7 @@ class PufferPolicyConfig(PolicyArchitecture):
         hidden_size=512,  # Match PufferLib LSTM: 512 not 128
         num_layers=1,
     )
-
-    # Minimal action_probs_config to satisfy base class requirement
+    
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
@@ -56,9 +55,22 @@ class PufferPolicy(Policy):
         self.out_height = env_metadata.obs_height
 
         self.num_layers = max(env_metadata.feature_normalizations.keys()) + 1
+        hidden_size = 512
+        cnn_channels = 128
 
-        self.conv1 = nn.Conv2d(self.num_layers, 128, kernel_size=5, stride=3)
-        self.conv2 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
+        # Define CNN layers separately to calculate output size (matching PufferLib)
+        self.conv1 = pufferlib.pytorch.layer_init(
+            nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3), std=1.0
+        )
+        self.conv2 = pufferlib.pytorch.layer_init(
+            nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1), std=1.0
+        )
+
+        # Calculate actual CNN output size dynamically (matching PufferLib)
+        test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
+        with torch.no_grad():
+            test_output = self.conv2(torch.relu(self.conv1(test_input)))
+            self.cnn_flattened_size = test_output.numel() // test_output.shape[0]
 
         self.network = nn.Sequential(
             self.conv1,
@@ -66,37 +78,41 @@ class PufferPolicy(Policy):
             self.conv2,
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(128, 256),
+            pufferlib.pytorch.layer_init(
+                nn.Linear(self.cnn_flattened_size, hidden_size // 2), std=1.0
+            ),
             nn.ReLU(),
         )
 
         self.self_encoder = nn.Sequential(
-            nn.Linear(self.num_layers, 256),
+            pufferlib.pytorch.layer_init(
+                nn.Linear(self.num_layers, hidden_size // 2), std=1.0
+            ),
             nn.ReLU(),
         )
 
-        # Initialize max_vec based on actual number of features
-        max_feature_id = max(env_metadata.feature_normalizations.keys()) + 1
-        self.max_vec = [1.0] * max_feature_id
+        # Build normalization vector dynamically from environment feature_normalizations (matching PufferLib)
+        max_values = [1.0] * self.num_layers  # Default to 1.0
         for feature_id, norm_value in env_metadata.feature_normalizations.items():
-            print(f"feature_id: {feature_id}, norm_value: {norm_value}")
-            if feature_id < max_feature_id:
-                self.max_vec[feature_id] = norm_value if norm_value > 0 else 1.0
-        self.max_vec = torch.tensor(self.max_vec, dtype=torch.float32)
-        self.max_vec = torch.maximum(self.max_vec, torch.ones_like(self.max_vec))
-        self.max_vec = self.max_vec[None, :, None, None]
+            if feature_id < self.num_layers:
+                max_values[feature_id] = norm_value if norm_value > 0 else 1.0
 
-        # Calculate total number of (action_type, action_param) combinations
-        # This matches how ActionEmbedding creates action names like "move_0", "attack_0", "attack_1", etc.
-        total_actions = sum(max_args + 1 for max_args in env_metadata.max_action_args)
-        self.actor = nn.Linear(512, total_actions)
-        self.value = nn.Linear(512, 1)
+        max_vec = torch.tensor(max_values, dtype=torch.float32)
+        # Clamp minimum value to 1.0 to avoid near-zero divisions
+        max_vec = torch.maximum(max_vec, torch.ones_like(max_vec))
+        max_vec = max_vec[None, :, None, None]
+        self.register_buffer("max_vec", max_vec)
+
+        # Use the same action space structure as PufferLib (separate heads per action type)
+        action_nvec = [max_args + 1 for max_args in env_metadata.max_action_args]
+        self.actor = nn.ModuleList([
+            pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
+            for n in action_nvec
+        ])
+        self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
         # Use LSTM from config
         self.lstm = LSTM(config=self.config.lstm_config)
-
-        # Value head as TensorDictModule
-        self.value_head = TDM(self.value, in_keys=["core"], out_keys=["values"])
 
         # Action probabilities component
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
@@ -143,10 +159,9 @@ class PufferPolicy(Policy):
         max_vec_device = self.max_vec.to(box_obs.device)
         features = box_obs / (max_vec_device + 1e-8)
 
-        # Self encoder processes aggregated per-channel features (sum across spatial dimensions)
-        # Shape: [B, num_layers=24] -> [B, 256]
-        self_input = features.sum(dim=(-2, -1))  # Sum across height and width dimensions
-        self_features = self.self_encoder(self_input)
+        # Self encoder processes center pixel features (matching PufferLib exactly)
+        # Shape: [B, num_layers] -> [B, 256]
+        self_features = self.self_encoder(features[:, :, 5, 5])
 
         # CNN processes spatial features normally
         # Shape: [B, 24, H, W] -> [B, 256]
@@ -157,8 +172,10 @@ class PufferPolicy(Policy):
         return result
 
     def decode_actions(self, hidden):
-        """Decode hidden state into action logits."""
-        return self.actor(hidden)
+        """Decode hidden state into action logits (matching PufferLib exactly)."""
+        logits = [dec(hidden) for dec in self.actor]
+        value = self.value(hidden)
+        return logits, value
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
@@ -172,11 +189,15 @@ class PufferPolicy(Policy):
         # Pass through LSTM: [B, 512] -> [B, 512]
         self.lstm(td)
 
-        # Decode actions - now returns a single tensor with all action-param combinations
-        td["logits"] = self.decode_actions(td["core"])
+        # Decode actions - returns separate logits per action type (matching PufferLib)
+        logits, value = self.decode_actions(td["core"])
 
-        # Get value
-        self.value_head(td)
+        # For ActionProbs compatibility, we need to flatten logits into single tensor
+        # This matches how ActionEmbedding creates action names like "move_0", "attack_0", "attack_1", etc.
+        td["logits"] = torch.cat(logits, dim=-1)
+
+        # Set value directly (not using TensorDictModule to match PufferLib)
+        td["values"] = value.flatten()
 
         # Process action probabilities using Metta's ActionProbs component
         self.action_probs(td, action)
