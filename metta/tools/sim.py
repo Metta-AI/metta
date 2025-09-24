@@ -100,8 +100,9 @@ class SimTool(Tool):
             raise ValueError("Either 'run' or 'policy_uris' is required")
 
         # Configure wandb using run name if unconfigured, preserving existing settings
-        if self.wandb == WandbConfig.Unconfigured() and self.run:
+        if self.run:
             self.wandb = auto_wandb_config(self.run)
+
         elif self.run and self.wandb.enabled:
             # Override auto config with existing wandb settings
             auto_config = auto_wandb_config(self.run)
