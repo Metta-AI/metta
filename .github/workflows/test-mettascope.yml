@@ -85,14 +85,14 @@ jobs:
         run: |
           echo "::group::Training job"
           echo "Starting training job..."
-          uv run --no-sync tools/run.py experiments.recipes.scratchpad.ci.train
+          uv run --no-sync tools/run.py ci.train
           echo "::endgroup::"
 
       - name: Generate replay
         run: |
           echo "::group::Replay generation"
           echo "Generating replay..."
-          uv run --no-sync tools/run.py experiments.recipes.scratchpad.ci.replay
+          uv run --no-sync tools/run.py ci.replay
           echo "Replay generation completed"
           echo "::endgroup::"
 
@@ -105,7 +105,7 @@ jobs:
 
           # Start the backend with proper logging
           echo "Starting backend server..."
-          uv run --no-sync tools/run.py experiments.recipes.scratchpad.ci.play > "$BACKEND_LOG" 2>&1 &
+          uv run --no-sync tools/run.py ci.play > "$BACKEND_LOG" 2>&1 &
           BACKEND_PID=$!
           echo "Backend started with PID: $BACKEND_PID"
 
@@ -193,7 +193,7 @@ jobs:
 
           BACKEND_LOG_NULL="mettascope_backend_null_policy.log"
           echo "Starting backend server with null policy..."
-          uv run --no-sync tools/run.py experiments.recipes.scratchpad.ci.play_null > "$BACKEND_LOG_NULL" 2>&1 &
+          uv run --no-sync tools/run.py ci.play_null > "$BACKEND_LOG_NULL" 2>&1 &
           BACKEND_PID=$!
           echo "Backend (null policy) started with PID: $BACKEND_PID"
 

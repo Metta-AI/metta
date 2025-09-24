@@ -5,6 +5,7 @@ invokes the function, and then runs the tool defined by the config."""
 import argparse
 import copy
 import functools
+import importlib
 import inspect
 import json
 import logging
@@ -21,6 +22,13 @@ from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
+from metta.common.tool.discover import (
+    generate_candidate_paths,
+    get_available_tools,
+    get_tool_name_map,
+    list_recipes_supporting_tool,
+    try_infer_tool_factory,
+)
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
@@ -397,17 +405,29 @@ def main():
         allow_abbrev=True,
         epilog="""
 Examples:
-  %(prog)s experiments.recipes.arena.train run=test_123 trainer.total_timesteps=100000
-  %(prog)s experiments.recipes.arena.play \
+  %(prog)s arena.train run=test_123                      # Shorthand (recommended)
+  %(prog)s experiments.recipes.arena.train run=test_123  # Full path (still works)
+  %(prog)s train arena run=test_123                      # Two-token syntax
+  %(prog)s arena.play \
     policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt --verbose
-  %(prog)s experiments.recipes.arena.train optim='{"lr":1e-3,"beta1":0.9}'
+  %(prog)s arena.train optim='{"lr":1e-3,"beta1":0.9}'
 
-Rules:
-  - Dotted keys (a.b.c) are configuration paths and will be nested and validated.
-  - Exact parameter names are function arguments for factory functions.
-  - Values: true/false, null/none, JSON containers {...}/[...], or int/float/string.
-  - Tool args are plain key=value tokens. If you need to pass flags to the runner, use them
-    before `--`. Put tool args after `--` if there is any ambiguity.
+Common tools:
+  train           - Train a new policy
+  play            - Interactive browser-based gameplay
+  replay          - View recorded gameplay
+  evaluate        - Run evaluation suite (aliases: eval, sim)
+  evaluate_remote - Remote evaluation (aliases: eval_remote, sim_remote)
+
+Recipe requirements:
+  - Define mettagrid() -> MettaGridConfig for basic functionality
+  - Define simulations() -> list[SimulationConfig] for custom evaluations
+  - Or define explicit tool functions for full control
+
+Advanced:
+  %(prog)s arena.train -h                           # List all arguments
+  %(prog)s arena.train --dry-run                    # Validate without running
+  %(prog)s arena.train run=test trainer.lr=0.001    # Override nested config
 
 This script automatically determines which arguments are meant for the tool
 constructor/function vs configuration overrides based on introspection.
@@ -417,11 +437,20 @@ constructor/function vs configuration overrides based on introspection.
     parser.add_argument(
         "make_tool_cfg_path",
         nargs="?",
-        help="Path to the function or Tool class (e.g., experiments.recipes.arena.train)",
+        help=(
+            "Path or shorthand to the function or Tool class. Examples: "
+            "'experiments.recipes.arena.train', 'arena.train', or two-part "
+            "'train arena' (equivalent to 'arena.train')."
+        ),
     )
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
     parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List tools defined by the resolved recipe module and exit",
+    )
     parser.add_argument(
         "-h", "--help", action="store_true", help="Show help and list all available arguments for the tool"
     )
@@ -434,15 +463,17 @@ constructor/function vs configuration overrides based on introspection.
     if known_args.help and not known_args.make_tool_cfg_path:
         console.print("[bold]Tool Runner[/bold]\n")
         console.print("Usage: ./tools/run.py <tool_path> [arguments]\n")
-        console.print("  tool_path: Path to the function or Tool class (e.g., experiments.recipes.arena.train)")
+        console.print(
+            "  tool_path: Path to the function or Tool class (e.g., arena.train or experiments.recipes.arena.train)"
+        )
         console.print("  arguments: Arguments in key=value format\n")
         console.print("Options:")
         console.print("  -h, --help     Show help and list all available arguments for the tool")
         console.print("  -v, --verbose  Show detailed argument classification")
         console.print("  --dry-run      Validate the args and exit\n")
         console.print("Examples:")
-        console.print("  ./tools/run.py experiments.recipes.arena.train -h")
-        console.print("  ./tools/run.py experiments.recipes.arena.train run=test trainer.batch_size=1024")
+        console.print("  ./tools/run.py arena.train -h")
+        console.print("  ./tools/run.py arena.train run=test trainer.batch_size=1024")
         return 0
 
     # Initialize logging and environment
@@ -460,10 +491,142 @@ constructor/function vs configuration overrides based on introspection.
             + f"  {os.path.basename(sys.argv[0])} {known_args.make_tool_cfg_path} -- trainer.total_timesteps=100000"
         )
         return 2
-    all_args = (known_args.args or []) + unknown_args
+    # Support shorthand syntax for tool path:
+    #  - Allow omitting 'experiments.recipes.' prefix, e.g. 'arena.train'
+    #  - Allow two-part form 'x y' as sugar for 'y.x', e.g. 'train arena'
+    raw_positional_args: list[str] = list(known_args.args or [])
+
+    # Peek at potential two-part token (do not consume yet; only consume if that candidate is chosen)
+    two_part_second: str | None = None
+    if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
+        two_part_second = raw_positional_args[0]
 
     # Exit on ctrl+c with proper exit code
     signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))  # 130 = interrupted by Ctrl-C
+
+    # Check if this is a bare tool name (e.g., 'train', 'evaluate', 'sweep')
+    tool_path = known_args.make_tool_cfg_path  # The first positional arg (e.g., 'train' or 'arena.train')
+    # It's a bare tool if it's just a known tool type name (canonical or alias) with no module path
+    is_bare_tool = tool_path in get_tool_name_map()
+
+    # Handle special case: bare tool name with --help (show available options)
+    if known_args.help and is_bare_tool:
+        supported = list_recipes_supporting_tool(tool_path)
+        if supported:
+            console.print(f"\n[bold]Available '{tool_path}' implementations:[/bold]\n")
+            for item in supported:
+                # Show short form if possible
+                short = item.replace("experiments.recipes.", "")
+                console.print(f"  {short}")
+            console.print("\n[dim]To see arguments for a specific implementation:[/dim]")
+            console.print(f"  ./tools/run.py {supported[0].replace('experiments.recipes.', '')} --help")
+        else:
+            console.print(f"\n[yellow]No implementations found for tool '{tool_path}'[/yellow]")
+            console.print("This might not be a valid tool type.")
+        return 0
+
+    # Determine the tool path and adjust remaining args accordingly
+    # Warn on ambiguous two-token like 'train train'
+    if two_part_second and known_args.make_tool_cfg_path == two_part_second:
+        output_info(yellow("Hint: two-token form looks ambiguous (e.g., 'train train')."))
+
+    candidate_paths = generate_candidate_paths(
+        known_args.make_tool_cfg_path,
+        two_part_second,
+        auto_prefixes=["experiments.recipes"],
+        short_only=True,
+    )
+    resolved_path: str | None = None
+    make_tool_cfg = None
+    load_errors: list[tuple[str, Exception]] = []
+
+    if not candidate_paths:
+        output_error(f"{red('Error:')} Missing tool path. See -h for usage.")
+        return 2
+
+    # Handle special case: bare tool name with --list (same as --help for bare tools)
+    if known_args.list and is_bare_tool:
+        supported = list_recipes_supporting_tool(tool_path)
+        if supported:
+            console.print(f"\n[bold]Available '{tool_path}' implementations:[/bold]\n")
+            for item in supported:
+                # Show short form if possible
+                short = item.replace("experiments.recipes.", "")
+                console.print(f"  {short}")
+        else:
+            console.print(f"\n[yellow]No implementations found for tool '{tool_path}'[/yellow]")
+        return 0
+
+    # If listing is requested for a module path
+    if known_args.list and tool_path:
+        # If it looks like a module path, try to list its tools
+        module_candidates: list[str] = [tool_path]
+        if not tool_path.startswith("experiments.recipes."):
+            module_candidates.append(f"experiments.recipes.{tool_path}")
+
+        # Try to import the first valid module and list its tools
+        for mod_name in module_candidates:
+            try:
+                mod = importlib.import_module(mod_name)
+            except Exception:
+                continue
+            # Start with explicit tools
+            tools = dict(get_available_tools(mod))
+            names = set(tools.keys())
+            # Add inferred tools (canonical) when supported and inferable
+            for canonical in set(get_tool_name_map().values()):
+                try:
+                    if canonical not in names and try_infer_tool_factory(mod, canonical):
+                        names.add(canonical)
+                except Exception:
+                    # Ignore inference errors during listing
+                    pass
+
+            console.print(f"\n[bold]Available tools in {mod_name}:[/bold]\n")
+            for name in sorted(names):
+                # Show short form
+                short_mod = mod_name.replace("experiments.recipes.", "")
+                console.print(f"  {short_mod}.{name}")
+            return 0
+        # If module import failed, fall back to full resolution flow below
+
+    # Try to load the symbol using the candidates in order (already alias-expanded)
+    for cand in candidate_paths:
+        try:
+            make_tool_cfg = load_symbol(cand)
+            resolved_path = cand
+            break
+        except Exception as e:
+            load_errors.append((cand, e))
+
+    # If not found, attempt to infer a tool factory from a recipe module's mettagrid
+    if make_tool_cfg is None:
+        for cand in candidate_paths:
+            if "." not in cand:
+                continue
+            module_name, verb = cand.rsplit(".", 1)
+            try:
+                mod = importlib.import_module(module_name)
+            except Exception as e:
+                load_errors.append((cand, e))
+                continue
+            factory = try_infer_tool_factory(mod, verb)
+            if factory is not None:
+                make_tool_cfg = factory
+                resolved_path = cand
+                break
+
+    # If we selected a two-part mapping, consume that second token from args; otherwise keep args untouched
+    if resolved_path is not None and two_part_second is not None:
+        # Two-part mapping yields either 'second.first' or 'experiments.recipes.second.first'
+        expected_a = f"{two_part_second}.{known_args.make_tool_cfg_path}"
+        expected_b = f"experiments.recipes.{two_part_second}.{known_args.make_tool_cfg_path}"
+        if resolved_path in (expected_a, expected_b):
+            # Now it's safe to consume the token
+            raw_positional_args.pop(0)
+
+    # Rebuild the arg list to parse
+    all_args = raw_positional_args + unknown_args
 
     # Parse CLI arguments
     try:
@@ -475,18 +638,60 @@ constructor/function vs configuration overrides based on introspection.
     # Build nested payload from dotted paths for Pydantic validation
     nested_cli = nestify(cli_args)
 
-    output_info(f"\n{bold(cyan('Loading tool:'))} {known_args.make_tool_cfg_path}")
+    if resolved_path is None or make_tool_cfg is None:
+        output_error(f"{red('Error:')} Could not find tool '{known_args.make_tool_cfg_path}'")
 
-    # Load the tool configuration function/class
-    try:
-        make_tool_cfg = load_symbol(known_args.make_tool_cfg_path)
-    except Exception as e:
-        output_exception(f"{red('Error loading')} {known_args.make_tool_cfg_path}: {e}")
+        # Check if it's a recipe that might need inference and suggest verbs
+
+        module_cache: dict[str, object] = {}
+        for cand in candidate_paths:
+            if "." in cand:
+                module_name, verb = cand.rsplit(".", 1)
+                try:
+                    mod = module_cache.get(module_name) or importlib.import_module(module_name)
+                    module_cache[module_name] = mod
+                except Exception:
+                    continue
+                if hasattr(mod, "mettagrid") or hasattr(mod, "simulations"):
+                    output_info(f"\n{yellow('Hint:')} Recipe '{module_name}' exists but doesn't define '{verb}'.")
+                    output_info(
+                        "Available inferred tools: train, play, replay, "
+                        "evaluate (or eval/sim), evaluate_remote (or eval_remote/sim_remote)"
+                    )
+                    break
+
+        # Show what was tried (first 3 attempts)
+        if load_errors:
+            output_info(f"\n{yellow('Searched in:')}")
+            for i, (target, err) in enumerate(load_errors[:3]):
+                output_info(f"  {i + 1}. {target}: {str(err)[:80]}...")
+
         return 1
+
+    output_info(f"\n{bold(cyan('Loading tool:'))} {resolved_path}")
 
     # If help flag is set, list arguments and exit
     if known_args.help:
         list_tool_arguments(make_tool_cfg, console)
+        return 0
+
+    # List tools for the resolved recipe module
+    if known_args.list and resolved_path:
+        module_name = resolved_path.rsplit(".", 1)[0]
+        try:
+            mod = importlib.import_module(module_name)
+            tools = get_available_tools(mod)
+            console.print(f"\n[bold]Tools defined by recipe module {module_name}:[/bold]\n")
+            for name, _ in tools:
+                console.print(f"  {module_name}.{name}")
+        except Exception as e:
+            output_exception(f"{red('Error listing tools for')} {module_name}: {e}")
+            return 1
+        return 0
+
+    # Short-circuit for dry-run: verify resolution only, skip construction/validation
+    if known_args.dry_run:
+        output_info(f"\n{bold(green('✅ Resolution successful (dry run)'))}")
         return 0
 
     # ----------------------------------------------------------------------------------
@@ -632,7 +837,7 @@ constructor/function vs configuration overrides based on introspection.
         output_info(f"\n{bold(green('✅ Configuration validation successful'))}")
         if known_args.verbose:
             output_info(f"Tool type: {type(tool_cfg).__name__}")
-            output_info(f"Module: {known_args.make_tool_cfg_path}")
+            output_info(f"Module: {resolved_path}")
         return 0
 
     # ----------------------------------------------------------------------------------

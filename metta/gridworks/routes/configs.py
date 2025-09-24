@@ -6,9 +6,9 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.gridworks.common import ErrorResult, dump_config_with_implicit_info
 from metta.gridworks.configs.registry import ConfigMaker, ConfigMakerKind, ConfigMakerRegistry
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval import EvalTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.config import Config, MettaGridConfig
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
@@ -45,7 +45,7 @@ def make_configs_router() -> APIRouter:
         )
 
     def config_to_map_builder_by_name(cfg: Config | list[Config], name: str) -> AnyMapBuilderConfig:
-        if isinstance(cfg, SimTool):
+        if isinstance(cfg, EvalTool):
             return config_to_map_builder_by_name(list(cfg.simulations), name)
 
         if isinstance(cfg, ReplayTool) or isinstance(cfg, PlayTool):

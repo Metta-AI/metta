@@ -16,9 +16,6 @@ from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -65,6 +62,15 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
         ),
     )
     return nav
+
+
+def mettagrid() -> MettaGridConfig:
+    """Default MettaGridConfig used for inference-based tools."""
+    return make_env()
+
+
+def simulations() -> list[SimulationConfig]:
+    return list(make_navigation_sequence_eval_suite())
 
 
 def make_curriculum(
@@ -153,29 +159,3 @@ def train(
         evaluator=evaluator_cfg,
         run=run,
     )
-
-
-def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
-    return PlayTool(
-        sim=SimulationConfig(
-            suite="navigation_sequence",
-            env=eval_env,
-            name="eval",
-        ),
-    )
-
-
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_env()
-    return ReplayTool(
-        sim=SimulationConfig(
-            suite="navigation_sequence",
-            env=eval_env,
-            name="eval",
-        ),
-    )
-
-
-def eval() -> SimTool:
-    return SimTool(simulations=make_navigation_sequence_eval_suite())

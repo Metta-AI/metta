@@ -3,6 +3,7 @@
 import logging
 import os
 import platform
+from typing import ClassVar
 from urllib.parse import quote
 
 import mettascope.server as server
@@ -18,10 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 class ReplayTool(Tool):
+    tool_name: ClassVar[str] = "replay"
     """Tool for generating and viewing replay files in MettaScope.
     Creates a simulation specifically to generate replay files and automatically
     opens them in a browser for visualization. This tool focuses on replay viewing
-    and browser integration, unlike SimTool which focuses on policy evaluation."""
+    and browser integration, unlike EvalTool which focuses on policy evaluation."""
 
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig

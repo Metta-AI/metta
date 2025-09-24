@@ -146,7 +146,7 @@ class Trainer:
         """
         cmd_parts = [
             "uv run ./tools/run.py",
-            "experiments.recipes.arena.train",
+            "arena.train",
             f"game={self.game_name}",
             f"scenario={self.scenario_name}",
             f"algorithm={self.config.algorithm}",

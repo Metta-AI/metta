@@ -4,15 +4,18 @@ from pathlib import Path
 import pytest
 
 import mettagrid.builder.envs as eb
-from experiments.recipes.arena import evaluate, replay, train
+from experiments.recipes.arena import mettagrid
 from metta.agent.mocks import MockAgent
+from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.tools.eval import EvalTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
+from metta.tools.train import TrainTool
 
 
 class TestNewPolicySystem:
@@ -48,18 +51,18 @@ class TestNewPolicySystem:
         assert sim is not None
         assert sim.name == "sim_suite/test"
 
-    def test_sim_tool_with_policy_uris(self):
-        """Test SimTool with policy URIs."""
+    def test_eval_tool_with_policy_uris(self):
+        """Test EvalTool with policy URIs."""
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
-        sim_tool = SimTool(
+        eval_tools = EvalTool(
             simulations=[sim_config],
             policy_uris=["mock://test_policy"],
             stats_db_uri=None,
         )
 
-        assert sim_tool.simulations[0].name == "test_arena"
-        assert sim_tool.policy_uris == ["mock://test_policy"]
+        assert eval_tools.simulations[0].name == "test_arena"
+        assert eval_tools.policy_uris == ["mock://test_policy"]
 
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""
@@ -105,7 +108,7 @@ class TestNewPolicySystem:
         tools = [
             ReplayTool(sim=sim_config, policy_uri=None),
             PlayTool(sim=sim_config, policy_uri=None),
-            SimTool(simulations=[sim_config], policy_uris=None),
+            EvalTool(simulations=[sim_config], policy_uris=None),
         ]
 
         for tool in tools:
@@ -113,20 +116,21 @@ class TestNewPolicySystem:
 
     @pytest.mark.slow
     def test_recipe_system_integration(self):
-        """Test that recipes work with the new policy system."""
-        try:
-            train_tool = train()
-            assert hasattr(train_tool, "trainer")
+        """Smoke-test that minimal tools can be built from a recipe mettagrid()."""
+        env_cfg = mettagrid()
 
-            # Use a mock policy URI for testing evaluate function
-            eval_tool = evaluate(policy_uri="mock://test_policy")
-            assert hasattr(eval_tool, "simulations")
+        # Build a basic training tool using env_curriculum
+        train_tool = TrainTool(training_env=TrainingEnvironmentConfig(curriculum=env_curriculum(env_cfg)))
+        assert hasattr(train_tool, "trainer")
 
-            replay_tool = replay()
-            assert hasattr(replay_tool, "sim")
+        # Build a simple eval tool around the same env
+        sim_cfg = SimulationConfig(suite="arena", name="eval", env=env_cfg)
+        eval_tool = EvalTool(simulations=[sim_cfg], policy_uris=["mock://test_policy"])
+        assert hasattr(eval_tool, "simulations")
 
-        except ImportError as e:
-            pytest.skip(f"Recipe import failed: {e}")
+        # Replay tool constructed from same sim
+        replay_tool = ReplayTool(sim=sim_cfg)
+        assert hasattr(replay_tool, "sim")
 
     def test_mock_agent_fallback(self):
         """Test that mock agents are used when policies can't be loaded."""
