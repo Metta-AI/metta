@@ -62,6 +62,12 @@ class PolicyAutoBuilder(nn.Module):
         device: torch.device,
     ):
         self.to(device)
+        if device.type == "cuda":
+            try:
+                torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
+            except AttributeError:
+                pass
+            torch.set_float32_matmul_precision("high")
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
