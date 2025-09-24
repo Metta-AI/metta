@@ -19,7 +19,6 @@ class TransformerConfig(Config):
     dropout: float = 0.0
     in_key: str = "encoded_obs"
     out_key: str = "hidden"
-    use_flash_attention: bool = True
 
 
 class TransformerBlock(nn.Module):
@@ -29,12 +28,9 @@ class TransformerBlock(nn.Module):
         nhead: int,
         ff_mult: int,
         dropout: float,
-        *,
-        use_flash_attention: bool = True,
     ) -> None:
         super().__init__()
-        supports_flash = hasattr(F, "scaled_dot_product_attention")
-        self._use_flash_attention = use_flash_attention and supports_flash
+        self._use_flash_attention = hasattr(F, "scaled_dot_product_attention")
         if not self._use_flash_attention:
             self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=False)
         else:
@@ -163,7 +159,6 @@ class Transformer(nn.Module):
                     self.nhead,
                     self.ff_mult,
                     self.dropout_p,
-                    use_flash_attention=self.config.use_flash_attention,
                 )
                 for _ in range(self.num_layers)
             ]

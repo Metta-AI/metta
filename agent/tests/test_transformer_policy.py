@@ -78,22 +78,6 @@ def test_transformer_policy_initialization_sets_action_metadata():
     assert policy.cum_action_max_params is policy.action_probs.cum_action_max_params
 
 
-@pytest.mark.parametrize("use_flash", [True, False])
-def test_transformer_flash_attention_toggle(use_flash):
-    env_metadata = _build_env_metadata()
-    config = TransformerPolicyConfig(use_flash_attention=use_flash)
-    policy = config.make_policy(env_metadata)
-    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
-    policy.eval()
-
-    td = _build_token_observations(batch_size=2, num_tokens=4)
-    ensure_sequence_metadata(td, batch_size=2, time_steps=1)
-    output_td = policy(td.clone())
-
-    assert output_td["actions"].shape == (2, 2)
-    assert output_td["values"].shape == (2,)
-
-
 def test_padding_tokens_do_not_zero_valid_entries():
     env_metadata = _build_env_metadata()
     policy = TransformerPolicyConfig().make_policy(env_metadata)

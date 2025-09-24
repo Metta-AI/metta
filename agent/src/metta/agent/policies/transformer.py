@@ -72,7 +72,6 @@ class TransformerPolicyConfig(PolicyArchitecture):
     transformer_attn_dropout: float = 0.1
     transformer_clamp_len: int = -1
     transformer_module_cls: Type[nn.Module] = TransformerModule
-    use_flash_attention: bool = True
 
     # Actor / critic head dimensions
     critic_hidden_dim: int = 1024
@@ -211,7 +210,7 @@ class TransformerPolicy(Policy):
         if clamp_len < 0 and module_cls is NvidiaTransformerModule:
             clamp_len = self.config.transformer_max_seq_len
 
-        module_kwargs = dict(
+        self.transformer_module = module_cls(
             d_model=self.hidden_size,
             n_heads=self.config.transformer_num_heads,
             n_layers=self.config.transformer_num_layers,
@@ -224,11 +223,6 @@ class TransformerPolicy(Policy):
             clamp_len=clamp_len,
             attn_type=0,
         )
-
-        if module_cls is TransformerModule:
-            module_kwargs["use_flash_attention"] = self.config.use_flash_attention
-
-        self.transformer_module = module_cls(**module_kwargs)
 
     # ------------------------------------------------------------------
     # Forward path
