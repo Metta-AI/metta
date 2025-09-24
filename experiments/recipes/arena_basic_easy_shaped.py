@@ -1,8 +1,9 @@
-from typing import List, Optional, Sequence
+from typing import List, Literal, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.smollm2 import SmolLM2Config
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -19,6 +20,18 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
+
+PolicyChoice = Literal["fast", "smollm2"]
+
+
+def _resolve_policy_architecture(
+    policy: PolicyChoice, freeze_llm: bool
+) -> PolicyArchitecture:
+    if policy == "fast":
+        return FastConfig()
+    if policy == "smollm2":
+        return SmolLM2Config(freeze_llm=freeze_llm)
+    raise ValueError(f"Unsupported policy selection: {policy}")
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -101,6 +114,9 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    *,
+    policy: PolicyChoice = "fast",
+    freeze_llm: bool = True,
     policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
@@ -113,7 +129,7 @@ def train(
     )
 
     if policy_architecture is None:
-        policy_architecture = FastConfig()
+        policy_architecture = _resolve_policy_architecture(policy, freeze_llm)
 
     return TrainTool(
         trainer=trainer_cfg,
