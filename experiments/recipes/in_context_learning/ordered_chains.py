@@ -25,25 +25,6 @@ from pydantic import Field
 import json
 import os
 
-import shutil
-import os
-import zipfile
-
-
-def zip_and_cleanup_dir(dir: str = "icl_ordered_chains/"):
-    # Remove trailing slash for consistency
-    dir = dir.rstrip("/")
-    zip_filename = f"{dir}.zip"
-    # Create zip archive
-    with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for root, _, files in os.walk(dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, start=os.path.dirname(dir))
-                zipf.write(file_path, arcname)
-    print(f"Zipped {dir} to {zip_filename}")
-
-
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
     "mine_blue": empty_converters.mine_blue,
@@ -618,8 +599,6 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
 
     generate_reward_estimates(dir=dir)
 
-    zip_and_cleanup_dir(dir=dir)
-
 
 def generate_reward_estimates(dir="icl_ordered_chains"):
     # TODO: Eventually we want to make the reward estimates more accurate, per actual map and including terrain.
@@ -659,8 +638,6 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     # Save the reward_estimates dictionary to a JSON file
     with open(f"{dir}/reward_estimates.json", "w") as f:
         json.dump(reward_estimates, f, indent=2)
-
-    zip_and_cleanup_dir(dir=dir)
 
 
 if __name__ == "__main__":
