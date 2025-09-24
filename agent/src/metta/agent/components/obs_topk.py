@@ -41,37 +41,45 @@ class ObsTokenTopK(nn.Module):
             mask_bool = mask.to(torch.bool)
             values = values.masked_fill(mask_bool, float("-inf"))
 
-        k = min(self.config.k, tokens.size(1))
-        topk_vals, indices = torch.topk(values, k=k, dim=1)
+        target_k = self.config.k
+        seq_len = tokens.size(1)
 
-        gathered_tokens = torch.gather(
+        if target_k >= seq_len:
+            gathered_tokens = tokens
+            if mask_bool is None:
+                gathered_mask = torch.zeros(tokens.size(0), seq_len, device=tokens.device, dtype=torch.bool)
+            else:
+                gathered_mask = mask_bool
+
+            if target_k > seq_len:
+                pad_size = target_k - seq_len
+                pad_tokens = torch.zeros(
+                    tokens.size(0),
+                    pad_size,
+                    tokens.size(-1),
+                    device=tokens.device,
+                    dtype=tokens.dtype,
+                )
+                gathered_tokens = torch.cat([gathered_tokens, pad_tokens], dim=1)
+                pad_mask = torch.ones(tokens.size(0), pad_size, device=tokens.device, dtype=torch.bool)
+                gathered_mask = torch.cat([gathered_mask, pad_mask], dim=1)
+
+            td[self.config.out_key] = gathered_tokens
+            td["obs_mask"] = gathered_mask
+            return td
+
+        topk_vals, indices = torch.topk(values, k=target_k, dim=1)
+
+        gathered_tokens = torch.take_along_dim(
             tokens,
+            indices.unsqueeze(-1).expand(-1, -1, tokens.size(-1)),
             dim=1,
-            index=indices.unsqueeze(-1).expand(-1, -1, tokens.size(-1)),
         )
-
-        if k < self.config.k:
-            pad_size = self.config.k - k
-            pad_tokens = torch.zeros(
-                tokens.size(0),
-                pad_size,
-                tokens.size(-1),
-                device=tokens.device,
-                dtype=tokens.dtype,
-            )
-            gathered_tokens = torch.cat([gathered_tokens, pad_tokens], dim=1)
 
         valid = torch.isfinite(topk_vals)
         gathered_mask = ~valid
         if self.config.keep_pad and mask_bool is not None:
             gathered_mask = torch.gather(mask_bool, dim=1, index=indices) | gathered_mask
-
-        if gathered_tokens.size(1) > valid.size(1):
-            pad = gathered_tokens.size(1) - valid.size(1)
-            gathered_mask = torch.cat(
-                [gathered_mask, torch.ones(tokens.size(0), pad, device=tokens.device, dtype=torch.bool)],
-                dim=1,
-            )
 
         td[self.config.out_key] = gathered_tokens
         td["obs_mask"] = gathered_mask

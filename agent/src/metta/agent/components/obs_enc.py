@@ -181,7 +181,7 @@ class ObsLatentAttn(nn.Module):
             q_p = layer["q_proj"](queries_norm)
             q_p = einops.rearrange(q_p, "b q (h d) -> b h q d", h=self._num_heads)
 
-            attn_output = F.scaled_dot_product_attention(q_p, k_p, v_p, attn_mask=attn_mask)
+        attn_output = F.scaled_dot_product_attention(q_p, k_p, v_p, attn_mask=attn_mask)
             attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
             attn_output = layer["attn_out_proj"](attn_output)
 
@@ -271,13 +271,14 @@ class ObsSelfAttn(nn.Module):
 
         attn_mask = None
         if self._use_mask:
-            key_mask = td["obs_mask"].to(torch.bool)  # True for elements to be masked
+            key_mask = td["obs_mask"].to(torch.bool)
             if self._use_cls_token:
                 cls_pad = torch.zeros(key_mask.shape[0], 1, device=key_mask.device, dtype=torch.bool)
                 key_mask = torch.cat([cls_pad, key_mask], dim=1)
             attn_mask = key_mask.unsqueeze(1).unsqueeze(1)
 
         x = x_features
+
         for i in range(self._num_layers):
             x_res = x
             x_norm = self.layer_norms_1[i](x)
