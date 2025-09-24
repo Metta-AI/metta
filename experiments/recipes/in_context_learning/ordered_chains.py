@@ -609,13 +609,6 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     import numpy as np
 
     room_sizes = os.listdir(dir)
-    for root, dirs, files in os.walk(dir):
-        for file in files:
-            if file == ".DS_Store":
-                try:
-                    os.remove(os.path.join(root, file))
-                except Exception:
-                    pass
     reward_estimates = {}
     for room_size in room_sizes:
         # Delete all .DS_Store files in the directory tree
