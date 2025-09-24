@@ -23,6 +23,7 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
     location: "",
     type: "COMPANY",
   });
+  const [error, setError] = useState<string | null>(null);
 
   const { execute, isExecuting } = useAction(createInstitutionAction, {
     onSuccess: () => {
@@ -34,10 +35,33 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
         location: "",
         type: "COMPANY",
       });
+      setError(null);
       onClose();
     },
     onError: (error) => {
       console.error("Error creating institution:", error);
+
+      // Extract error message from the error object (similar to NewPostForm)
+      const serverError = error.error?.serverError;
+      const validationErrors = error.error?.validationErrors;
+
+      const errorMessage =
+        (typeof serverError === "string" ? serverError : null) ||
+        (typeof serverError === "object" &&
+        serverError !== null &&
+        "message" in serverError
+          ? (serverError as any).message
+          : null) ||
+        (Array.isArray(validationErrors) &&
+        validationErrors.length > 0 &&
+        typeof validationErrors[0] === "object" &&
+        validationErrors[0] !== null &&
+        "message" in validationErrors[0]
+          ? (validationErrors[0] as any).message
+          : null) ||
+        "Failed to create institution. Please try again.";
+
+      setError(errorMessage);
     },
   });
 
@@ -59,6 +83,11 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Clear error when user starts typing in the name field
+    if (name === "name" && error) {
+      setError(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -182,6 +211,13 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
               placeholder="e.g., San Francisco, CA"
             />
           </div>
+
+          {/* Error Display */}
+          {error && (
+            <div className="rounded-md bg-red-50 p-3">
+              <div className="text-sm text-red-700">{error}</div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4">

@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { validateGroupName } from "@/lib/name-validation";
 
 const inputSchema = zfd.formData({
   groupId: zfd.text(z.string()),
@@ -67,6 +68,9 @@ export const updateGroupAction = actionClient
           "A group with this name already exists in this institution"
         );
       }
+
+      // Validate name uniqueness across all entity types (excluding current group)
+      await validateGroupName(input.name, input.groupId);
     }
 
     // Update the group

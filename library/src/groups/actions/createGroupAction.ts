@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { validateGroupName } from "@/lib/name-validation";
 
 const inputSchema = zfd.formData({
   name: zfd.text(
@@ -60,6 +61,9 @@ export const createGroupAction = actionClient
         "A group with this name already exists in this institution"
       );
     }
+
+    // Validate name uniqueness across all entity types (for mentions)
+    await validateGroupName(input.name);
 
     // Create the group
     const group = await prisma.group.create({

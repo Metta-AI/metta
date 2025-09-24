@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { zfd } from "zod-form-data";
 import { z } from "zod/v4";
 
-import { actionClient } from "@/lib/actionClient";
+import { actionClient, ActionError } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { validateInstitutionName } from "@/lib/name-validation";
 
 const inputSchema = zfd.formData({
   name: zfd.text(z.string().min(1).max(255)),
@@ -31,14 +32,8 @@ export const createInstitutionAction = actionClient
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
 
-    // Check if institution with this name already exists
-    const existingInstitution = await prisma.institution.findUnique({
-      where: { name: input.name },
-    });
-
-    if (existingInstitution) {
-      throw new Error("An institution with this name already exists");
-    }
+    // Validate name uniqueness across all entity types
+    await validateInstitutionName(input.name);
 
     // Check domain uniqueness if provided
     if (input.domain) {
@@ -47,7 +42,7 @@ export const createInstitutionAction = actionClient
       });
 
       if (existingDomain) {
-        throw new Error("An institution with this domain already exists");
+        throw new ActionError("An institution with this domain already exists");
       }
     }
 

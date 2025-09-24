@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { validateInstitutionName } from "@/lib/name-validation";
 
 const inputSchema = zfd.formData({
   institutionId: zfd.text(z.string()),
@@ -46,18 +47,9 @@ export const updateInstitutionAction = actionClient
       throw new Error("You don't have permission to edit this institution");
     }
 
-    // Check if institution with this name already exists (excluding current institution)
+    // Validate name uniqueness across all entity types (excluding current institution)
     if (input.name) {
-      const existingInstitution = await prisma.institution.findFirst({
-        where: {
-          name: input.name,
-          id: { not: input.institutionId },
-        },
-      });
-
-      if (existingInstitution) {
-        throw new Error("An institution with this name already exists");
-      }
+      await validateInstitutionName(input.name, input.institutionId);
     }
 
     // Check domain uniqueness if provided (excluding current institution)
