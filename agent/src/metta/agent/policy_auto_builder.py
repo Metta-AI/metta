@@ -1,6 +1,7 @@
 import logging
 from collections import OrderedDict
 from contextlib import ExitStack
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -106,6 +107,16 @@ class PolicyAutoBuilder(nn.Module):
         for log in logs:
             if log is not None:
                 log_on_master(log)
+
+    def __getstate__(self) -> dict[str, Any]:
+        state = self.__dict__.copy()
+        # ExitStack captures contextmanager generators that cannot be pickled.
+        state["_sdpa_context"] = None
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        self._sdpa_context = ExitStack()
 
     def reset_memory(self):
         for _, value in self.components.items():
