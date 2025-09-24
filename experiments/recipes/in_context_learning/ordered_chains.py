@@ -469,15 +469,15 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                                 obstacle_type = random.choice(["square", "cross", "L"])
                             else:
                                 obstacle_type = ""
-                            task_generator_cfg = ConverterChainTaskGenerator.Config(
+                            task_generator_cfg = ICLTaskGenerator.Config(
                                 chain_lengths=[chain_length],
                                 num_sinks=[n_sinks],
                                 room_sizes=[room_size],
                                 obstacle_types=[obstacle_type],
                                 densities=[density],
                             )
-                            task_generator = ConverterChainTaskGenerator(
-                                task_generator_cfg
+                            task_generator = OrderedChainsTaskGenerator(
+                                config=task_generator_cfg
                             )
                             env_cfg = task_generator._generate_task(
                                 i, random.Random(i), numpy_dir=None
