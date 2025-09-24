@@ -280,7 +280,6 @@ export function EvalTasks({ repo }: EvalTasksProps) {
       </div>
 
       {/* Tab Navigation */}
-      <div style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end' }}>
           <TabButton
             isActive={currentView === 'active'}
@@ -297,7 +296,6 @@ export function EvalTasks({ repo }: EvalTasksProps) {
             History
           </TabButton>
         </div>
-      </div>
 
       {/* Current View Section */}
       <div
