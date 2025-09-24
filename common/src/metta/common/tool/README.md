@@ -34,15 +34,16 @@ Examples:
 ## Listing Tools
 
 ```bash
-# List explicit tools defined by a recipe module
-./tools/run.py train arena --list-tools
+# List tools for a recipe module (explicit + inferred)
+./tools/run.py arena --list
 
-# Equivalent (uses the same module resolution):
-./tools/run.py arena.train --list-tools
+# Equivalent (explicit tool given; same module resolution):
+./tools/run.py train arena --list
+./tools/run.py arena.train --list
 ```
 
-- Shows tools exported by that recipe (functions/classes returning `Tool`).
-- Inferred tools (constructed from `mettagrid()`/`simulations()`) are not listed here, but they still work when invoked.
+- Shows explicit tools exported by that recipe (functions/classes returning `Tool`).
+- Also includes inferred tool names when the recipe provides `mettagrid()`/`simulations()`.
 
 ## Dry-Run
 
@@ -86,4 +87,3 @@ When present, the runner can infer common tools even if the module does not expo
 - Strings with spaces should be quoted: `notes="my run"`.
 - Booleans are lowercase: `true`, `false`.
 - If a numeric-looking value should be a string, quote it (e.g., `run="001"`).
-

@@ -98,8 +98,8 @@ def get_available_tools(module: ModuleType) -> list[tuple[str, Callable[[], obje
     """Return explicit tools (name, maker) defined in the module.
 
     - Includes Tool subclasses exported by the module and functions whose return
-      annotation is a Tool subclass. The displayed name prefers the Tool class's
-      `tool_name` if set; otherwise the attribute name is used.
+      annotation is a Tool subclass. Display names use the attribute/function
+      name (e.g., `train_shaped`) for clarity.
     - Does NOT include inferred tools; inference is only used at execution time.
     """
     tools: dict[str, Callable[[], object]] = {}
@@ -114,18 +114,21 @@ def get_available_tools(module: ModuleType) -> list[tuple[str, Callable[[], obje
         maker = getattr(module, name, None)
         if not callable(maker):
             continue
-        # Class-based tool
-        if inspect.isclass(maker) and issubclass(maker, Tool) and maker is not Tool:
-            declared_name = getattr(maker, "tool_name", None)
-            register((declared_name or name), maker)  # type: ignore[arg-type]
+        # Class-based tool (list as attribute name) only if defined in this module
+        if (
+            inspect.isclass(maker)
+            and issubclass(maker, Tool)
+            and maker is not Tool
+            and getattr(maker, "__module__", None) == module.__name__
+        ):
+            register(name, maker)  # type: ignore[arg-type]
             continue
         # Function with return annotation of a Tool subclass
         if inspect.isfunction(maker):
             ret = inspect.signature(maker).return_annotation
             try:
                 if inspect.isclass(ret) and issubclass(ret, Tool) and ret is not Tool:
-                    declared_name = getattr(ret, "tool_name", None)
-                    register((declared_name or name), maker)
+                    register(name, maker)
                     continue
             except Exception:
                 pass
