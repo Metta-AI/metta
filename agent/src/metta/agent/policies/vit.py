@@ -7,7 +7,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.lstm import LSTMConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
-from metta.agent.components.obs_shim import ObsShimTokensConfig
+from metta.agent.components.obs_shim import ObsShimTokensTempConfig
 from metta.agent.components.obs_tokenizers import (
     ObsAttrEmbedFourierConfig,
 )
@@ -23,7 +23,8 @@ class ViTSmallConfig(PolicyArchitecture):
     _embedding_dim = 16
 
     components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
+        # ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
+        ObsShimTokensTempConfig(in_key="env_obs", out_key="obs_shim_tokens"),
         ObsAttrEmbedFourierConfig(in_key="obs_shim_tokens", out_key="obs_attr_embed_fourier"),
         ObsLatentAttnConfig(in_key="obs_attr_embed_fourier", out_key="obs_latent_attn", feat_dim=37, out_dim=48),
         ObsSelfAttnConfig(in_key="obs_latent_attn", out_key="obs_self_attn", feat_dim=48, out_dim=_hidden_size),

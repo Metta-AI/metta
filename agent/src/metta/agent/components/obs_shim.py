@@ -38,6 +38,7 @@ class ObsTokenPadStrip(nn.Module):
         device,
     ) -> str:
         # Build feature mappings
+        self.env = env
         features = env.obs_features
         self.feature_id_to_name = {props.id: name for name, props in features.items()}
         self.feature_normalizations = {
@@ -182,6 +183,35 @@ class ObsAttrValNorm(nn.Module):
         observations[..., 2] = observations[..., 2] / norm_factors
 
         td[self.out_key] = observations
+        return td
+
+
+class ObsShimTokensTempConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    name: str = "obs_shim_tokens_temp"
+
+    def make_component(self, env):
+        return ObsShimTokensTemp(env, config=self)
+
+
+class ObsShimTokensTemp(nn.Module):
+    def __init__(self, env, config: ObsShimTokensTempConfig) -> None:
+        super().__init__()
+        self.in_key = config.in_key
+        self.out_key = config.out_key
+        self.token_pad_striper = ObsTokenPadStrip(env, in_key=self.in_key, out_key=self.out_key)
+
+    def initialize_to_environment(
+        self,
+        env,
+        device,
+    ) -> str:
+        log = self.token_pad_striper.initialize_to_environment(env, device)
+        return log
+
+    def forward(self, td: TensorDict) -> TensorDict:
+        td = self.token_pad_striper(td)
         return td
 
 
