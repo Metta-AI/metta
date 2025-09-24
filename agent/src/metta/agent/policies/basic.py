@@ -24,14 +24,10 @@ class BasicConfig (PolicyArchitecture):
 class BasicPolicy(Policy):
     """Direct PufferLib policy with minimal Metta integration."""
 
-    def __init__(self, env_metadata, config: Optional[PufferSimpleConfig] = None):
+    def __init__(self, env_metadata, config: Optional[BasicConfig] = None):
         super().__init__()
-        self.config = config or PufferSimpleConfig()
+        self.config = config or BasicConfig()
         self.env_metadata = env_metadata
-
-        # Create the core PufferLib policy directly
-        self.policy = PufferLibPolicy(env_metadata)
-
         # Only ActionProbs component needed for Metta compatibility
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
