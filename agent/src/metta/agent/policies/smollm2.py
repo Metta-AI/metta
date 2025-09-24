@@ -158,11 +158,13 @@ class SmolLM2Policy(Policy):
         coords_byte = observations[..., 0]
         valid_mask = coords_byte != 255
 
-        compressed = torch.zeros(
+        compressed = torch.full(
             (batch, self.max_sequence_length, channels),
+            fill_value=255,
             device=observations.device,
             dtype=observations.dtype,
         )
+        # Preserve padding semantics: coord/value 255 means unused slot.
 
         for idx in range(batch):
             valid_indices = torch.where(valid_mask[idx])[0]
