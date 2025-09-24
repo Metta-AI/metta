@@ -26,6 +26,11 @@ def _build_components(
     dropout: float,
     kernel: AGaLiTeKernelConfig | None = None,
 ) -> List[ComponentConfig]:
+    kernel_cfg = kernel or AGaLiTeKernelConfig()
+    eta_value = eta
+    if kernel_cfg.name in {"pp_relu", "pp_eluplus1", "dpfp"}:
+        eta_value = max(kernel_cfg.nu, 1)
+
     return [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_box"),
         CNNEncoderConfig(
@@ -43,11 +48,11 @@ def _build_components(
             n_layers=n_layers,
             n_heads=n_heads,
             feedforward_size=feedforward_size,
-            eta=eta,
+            eta=eta_value,
             r=r,
             mode=mode,
             dropout=dropout,
-            kernel=kernel or AGaLiTeKernelConfig(),
+            kernel=kernel_cfg,
         ),
         MLPConfig(
             in_key="core",

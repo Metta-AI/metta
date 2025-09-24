@@ -17,7 +17,7 @@ def _elu_plus_one(x: torch.Tensor) -> torch.Tensor:
 class AGaLiTeKernelConfig(Config):
     """Configures feature map activations for AGaLiTe attention."""
 
-    name: Literal["relu", "eluplus1", "dpfp"] = "relu"
+    name: Literal["relu", "eluplus1", "dpfp", "pp_relu", "pp_eluplus1"] = "relu"
     nu: int = 4
 
     def feature_activation(self) -> Callable[[torch.Tensor], torch.Tensor]:
@@ -25,6 +25,10 @@ class AGaLiTeKernelConfig(Config):
         if self.name == "relu":
             return F.relu
         if self.name == "eluplus1":
+            return _elu_plus_one
+        if self.name == "pp_relu":
+            return F.relu
+        if self.name == "pp_eluplus1":
             return _elu_plus_one
         raise ValueError(f"Unsupported AGaLiTe kernel '{self.name}'.")
 
