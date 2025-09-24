@@ -94,6 +94,10 @@ class ICLTaskGenerator(TaskGenerator):
             default_factory=list,
             description="List of resource types that are not reusable",
         )
+        map_dir: str | None = Field(
+            default=None,
+            description="Directory to load environments from",
+        )
 
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
