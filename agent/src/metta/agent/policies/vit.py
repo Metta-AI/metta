@@ -70,7 +70,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _latent_dim = 64
-    _lstm_latent = 64
+    _lstm_latent = 32
     _actor_hidden = 256
     _critic_hidden = 512
 
@@ -101,7 +101,7 @@ class ViTDefaultConfig(PolicyArchitecture):
             out_key="core",
             latent_size=_latent_dim,
             hidden_size=_lstm_latent,
-            num_layers=2,
+            num_layers=1,
         ),
         MLPConfig(
             in_key="core",
