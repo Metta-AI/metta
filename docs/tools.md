@@ -5,36 +5,36 @@ essential functionality for training, evaluation, visualization, and development
 
 ## Quick Reference Table
 
-| Category          | Tool                              | Purpose                                         | GPU Required | Database Access |
-| ----------------- | --------------------------------- | ----------------------------------------------- | ------------ | --------------- |
-| **Training**      | `run.py experiments.recipes.*.train` | Train policies with recipe configurations     | ✓            | Optional        |
-|                   | `sweep_init.py`                   | Initialize hyperparameter sweep experiments     | ✗            | ✗               |
-|                   | `sweep_eval.py`                   | Evaluate policies from sweep runs               | ✓            | ✗               |
-| **Evaluation**    | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system     | ✓            | ✓               |
-|                   | `run.py experiments.recipes.*.analyze`  | Analyze evaluation results with recipes      | ✗            | ✓               |
-| **Visualization** | `run.py experiments.recipes.*.play`   | Interactive gameplay via recipe system        | ✗            | ✗               |
-|                   | `run.py experiments.recipes.*.replay` | Generate replay files via recipe system       | ✓            | ✗               |
-|                   | `renderer.py`                     | Real-time ASCII/Miniscope rendering (legacy)    | ✓            | ✗               |
-|                   | `dashboard.py`                    | Generate dashboard data for web visualization   | ✗            | ✓               |
-| **Map Tools**     | `map/gen.py`                      | Generate maps from configuration files          | ✗            | ✗               |
-|                   | `map/gen_scene.py`                | Generate maps from scene templates              | ✗            | ✗               |
-|                   | `map/view.py`                     | View stored maps in various formats             | ✗            | ✗               |
-|                   | `map/normalize_ascii_map.py`      | Normalize ASCII map characters                  | ✗            | ✗               |
-|                   | `map/normalize_scene_patterns.py` | Normalize WFC/ConvChain patterns                | ✗            | ✗               |
-| **Utilities**     | `validate_config.py`              | Validate and print Hydra configurations         | ✗            | ✗               |
-|                   | `stats_duckdb_cli.py`             | Interactive DuckDB CLI for stats analysis       | ✗            | ✓               |
-|                   | `upload_map_imgs.py`              | Upload map images to S3                         | ✗            | ✗               |
-|                   | `dump_src.py`                     | Dump source files for LLM context               | ✗            | ✗               |
-|                   | `autotune.py`                     | Auto-tune vectorization parameters              | ✗            | ✗               |
+| Category          | Tool                                    | Purpose                                       | GPU Required | Database Access |
+| ----------------- | --------------------------------------- | --------------------------------------------- | ------------ | --------------- |
+| **Training**      | `run.py experiments.recipes.*.train`    | Train policies with recipe configurations     | ✓            | Optional        |
+|                   | `sweep_init.py`                         | Initialize hyperparameter sweep experiments   | ✗            | ✗               |
+|                   | `sweep_eval.py`                         | Evaluate policies from sweep runs             | ✓            | ✗               |
+| **Evaluation**    | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system      | ✓            | ✓               |
+|                   | `run.py experiments.recipes.*.analyze`  | Analyze evaluation results with recipes       | ✗            | ✓               |
+| **Visualization** | `run.py experiments.recipes.*.play`     | Interactive gameplay via recipe system        | ✗            | ✗               |
+|                   | `run.py experiments.recipes.*.replay`   | Generate replay files via recipe system       | ✓            | ✗               |
+|                   | `renderer.py`                           | Real-time ASCII/Miniscope rendering (legacy)  | ✓            | ✗               |
+|                   | `dashboard.py`                          | Generate dashboard data for web visualization | ✗            | ✓               |
+| **Map Tools**     | `map/gen.py`                            | Generate maps from configuration files        | ✗            | ✗               |
+|                   | `map/gen_scene.py`                      | Generate maps from scene templates            | ✗            | ✗               |
+|                   | `map/view.py`                           | View stored maps in various formats           | ✗            | ✗               |
+|                   | `map/normalize_ascii_map.py`            | Normalize ASCII map characters                | ✗            | ✗               |
+|                   | `map/normalize_scene_patterns.py`       | Normalize WFC/ConvChain patterns              | ✗            | ✗               |
+| **Utilities**     | `validate_config.py`                    | Validate and print Hydra configurations       | ✗            | ✗               |
+|                   | `stats_duckdb_cli.py`                   | Interactive DuckDB CLI for stats analysis     | ✗            | ✓               |
+|                   | `upload_map_imgs.py`                    | Upload map images to S3                       | ✗            | ✗               |
+|                   | `dump_src.py`                           | Dump source files for LLM context             | ✗            | ✗               |
+|                   | `autotune.py`                           | Auto-tune vectorization parameters            | ✗            | ✗               |
 
 ## Tool Execution
 
 The main entry point is `./tools/run.py` which uses the recipe system for all major operations:
 
 ```bash
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment  # Training
-./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/my_experiment  # Evaluation
-./tools/run.py experiments.recipes.arena.play --args policy_uri=wandb://run/my_experiment  # Interactive play
+./tools/run.py experiments.recipes.arena.train run=my_experiment # Training
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Evaluation
+./tools/run.py experiments.recipes.arena.play policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt # Interactive play
 ```
 
 ## Training Tools
@@ -53,7 +53,7 @@ This is the primary training tool in the Metta ecosystem, supporting:
 
 The tool integrates with:
 
-- PolicyStore: For saving and versioning trained policies
+- CheckpointManager: For saving and managing trained policy checkpoints
 - StatsClient: For metrics logging and analysis
 - WandbContext: For experiment tracking and visualization
 - SimulationSuite: For periodic evaluation during training
@@ -62,16 +62,16 @@ The tool integrates with:
 
 ```bash
 # Basic arena training
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment
+./tools/run.py experiments.recipes.arena.train run=my_experiment
 
 # Navigation training
-./tools/run.py experiments.recipes.navigation.train --args run=my_experiment
+./tools/run.py experiments.recipes.navigation.train run=my_experiment
 
 # Training with custom parameters
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides trainer.total_timesteps=1000000
+./tools/run.py experiments.recipes.arena.train run=my_experiment trainer.total_timesteps=1000000
 
 # Training with specific device and wandb settings
-./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides system.device=cpu wandb.enabled=false
+./tools/run.py experiments.recipes.arena.train run=my_experiment system.device=cpu wandb.enabled=false
 ```
 
 **Key Features**:
@@ -173,7 +173,7 @@ NODE_INDEX=1 ./tools/sweep_init.py sweep_name=distributed_exp
 
 - Requires completed training run
 - GPU for policy evaluation
-- Access to PolicyStore
+- Access to saved checkpoints
 
 ## Evaluation Tools
 
@@ -195,7 +195,7 @@ programmatic processing
 
 **Integration points**:
 
-- PolicyStore: For loading trained policies
+- CheckpointManager: For loading trained policies
 - SimulationSuite: For running evaluation scenarios
 - StatsDB: For storing and exporting metrics
 - StatsClient: For real-time metrics streaming
@@ -204,16 +204,16 @@ programmatic processing
 
 ```bash
 # Evaluate a single policy
-./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://run/experiment_001
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
 # Evaluate with arena recipe
-./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/experiment_001
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/experiment_001/experiment_001:v12.pt
 
 # Evaluate with specific policy from file
-./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=file://./train_dir/my_run/checkpoints
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 
-# Evaluate with wandb artifact
-./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://team/project/model:v0
+# Evaluate using a remote checkpoint stored on S3
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://team-checkpoints/project/my_run/checkpoints/my_run:v0.pt
 ```
 
 **Key Features**:
@@ -231,11 +231,11 @@ programmatic processing
   "simulation_suite": "navigation",
   "policies": [
     {
-      "policy_uri": "wandb://run/abc123",
+      "policy_uri": "s3://my-bucket/checkpoints/abc123/abc123:v5.pt",
       "checkpoints": [
         {
           "name": "checkpoint_1000",
-          "uri": "wandb://...",
+          "uri": "s3://my-bucket/checkpoints/abc123/abc123:v5.pt",
           "metrics": {
             "reward_avg": 15.3
           }
@@ -260,11 +260,11 @@ performance metrics, and learning progress.
 - Behavior pattern detection and visualization
 - Comparative analysis between checkpoints
 - Export to multiple formats (HTML, JSON, PDF)
-- Integration with PolicyStore for policy metadata
+- Integration with CheckpointManager for policy metadata
 
 **The analysis pipeline**:
 
-1. Load policy from PolicyStore using specified selector
+1. Load policy from checkpoints using specified selector
 2. Retrieve evaluation statistics from connected databases
 3. Generate statistical summaries and visualizations
 4. Export analysis results to specified output path
@@ -273,20 +273,20 @@ performance metrics, and learning progress.
 
 ```bash
 # Analyze arena evaluation results
-./tools/run.py experiments.recipes.arena.analyze --args eval_db_uri=./train_dir/eval_experiment/stats.db
+./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval_experiment/stats.db
 
 # Analyze navigation evaluation results
-./tools/run.py experiments.recipes.navigation.analyze --args eval_db_uri=./train_dir/eval_experiment/stats.db
+./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_experiment/stats.db
 
 # Analyze with specific evaluation database
-./tools/run.py experiments.recipes.arena.analyze --args eval_db_uri=wandb://artifacts/navigation_db
+./tools/run.py experiments.recipes.arena.analyze eval_db_uri=wandb://artifacts/navigation_db
 ```
 
 **Dependencies**:
 
 - Requires completed evaluation data
 - Access to stats database
-- PolicyStore for loading policies
+- CheckpointManager for loading policies
 
 ## Visualization Tools
 
@@ -310,7 +310,7 @@ environments with support for multiple rendering backends.
 
 - `random`: Generates valid random actions for baseline comparison
 - `simple`: Heuristic policy with movement preferences (60% cardinal, 20% diagonal, etc.)
-- `trained`: Loads policies from PolicyStore with automatic action validation
+- `trained`: Loads policies from checkpoints with automatic action validation
 
 **Rendering modes**:
 
@@ -325,7 +325,7 @@ environments with support for multiple rendering backends.
 ./tools/renderer.py renderer_job.policy_type=random
 
 # Visualize trained policy
-./tools/renderer.py renderer_job.policy_type=trained policy_uri="wandb://run/experiment"
+./tools/renderer.py renderer_job.policy_type=trained policy_uri="s3://my-bucket/checkpoints/experiment/experiment:v20.pt"
 
 # Custom environment with multiple agents
 ./tools/renderer.py env=mettagrid/multiagent renderer_job.num_agents=4
@@ -345,13 +345,13 @@ environments with support for multiple rendering backends.
 
 ```bash
 # Generate replay for a policy
-./tools/run.py experiments.recipes.arena.replay --args policy_uri=wandb://run/abc123
+./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
 
 # Generate replay with navigation environment
-./tools/run.py experiments.recipes.navigation.replay --args policy_uri=wandb://run/abc123
+./tools/run.py experiments.recipes.navigation.replay policy_uri=s3://my-bucket/checkpoints/abc123/abc123:v5.pt
 
 # Generate replay from local checkpoint
-./tools/run.py experiments.recipes.arena.replay --args policy_uri=file://./train_dir/my_run/checkpoints
+./tools/run.py experiments.recipes.arena.replay policy_uri=file://./train_dir/my_run/checkpoints/my_run:v12.pt
 ```
 
 **Key Features**:
@@ -372,10 +372,10 @@ environments with support for multiple rendering backends.
 ./tools/run.py experiments.recipes.arena.play
 
 # Interactive play with specific policy
-./tools/run.py experiments.recipes.arena.play --args policy_uri=wandb://run/my_experiment
+./tools/run.py experiments.recipes.arena.play policy_uri=s3://my-bucket/checkpoints/my_experiment/my_experiment:v20.pt
 
 # Interactive navigation environment
-./tools/run.py experiments.recipes.navigation.play --args policy_uri=file://./checkpoints
+./tools/run.py experiments.recipes.navigation.play policy_uri=file://./train_dir/nav_experiment/checkpoints/nav_experiment:v8.pt
 ```
 
 **Key Features**:
@@ -460,20 +460,20 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # Generate and display a single map
-./tools/map/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
+  ./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
 
 # Save map to file
-./tools/map/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/wfc_dungeon.yaml --output-uri=./dungeon.yaml
 
 # Generate 100 maps to S3
-./tools/map/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/random.yaml --output-uri=s3://bucket/maps/ --count=100
 
 # Override generation parameters
-./tools/map/gen.py configs/env/mettagrid/maps/base.yaml --overrides "width=50 height=50 density=0.7"
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/base.yaml "width=50 height=50 density=0.7"
 
 # Different display modes
-./tools/map/gen.py map_config.yaml --show-mode=ascii  # Terminal display
-./tools/map/gen.py map_config.yaml --show-mode=PIL    # Image popup
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=ascii # Terminal display
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py map_config.yaml --show-mode=PIL  # Image popup
 ```
 
 ### map/gen_scene.py
@@ -484,13 +484,13 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # Generate from scene
-./tools/map/gen_scene.py scenes/wfc/blob.yaml 32 32
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/wfc/blob.yaml 32 32
 
 # With overrides
-./tools/map/gen_scene.py scenes/convchain/maze.yaml 64 64 --overrides "seed=42"
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/convchain/maze.yaml 64 64 "seed=42"
 
 # Different display mode
-./tools/map/gen_scene.py scenes/test/grid.yaml 16 16 --show-mode=ascii
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen_scene.py scenes/test/grid.yaml 16 16 --show-mode=ascii
 ```
 
 **Key Features**:
@@ -507,10 +507,10 @@ This tool creates game maps using different generation algorithms including:
 
 ```bash
 # View a specific map
-./tools/map/view.py ./my_map.yaml
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py ./my_map.yaml
 
 # View random map from directory
-./tools/map/view.py s3://bucket/maps/
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/view.py s3://bucket/maps/
 
 # ASCII display
 ./tools/map/view.py ./map.yaml --show-mode=ascii
@@ -732,16 +732,16 @@ GROUP BY policy_name, episode;
 
 ```bash
 # 1. Train a policy
-./tools/run.py experiments.recipes.navigation.train --args run=nav_experiment_001
+./tools/run.py experiments.recipes.navigation.train run=nav_experiment_001
 
 # 2. Evaluate the trained policy
-./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://run/nav_experiment_001
+./tools/run.py experiments.recipes.navigation.evaluate policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 
 # 3. Analyze results
-./tools/run.py experiments.recipes.navigation.analyze --args eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
+./tools/run.py experiments.recipes.navigation.analyze eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
 
 # 4. Interactive play with trained policy
-./tools/run.py experiments.recipes.navigation.play --args policy_uri=wandb://run/nav_experiment_001
+./tools/run.py experiments.recipes.navigation.play policy_uri=s3://my-bucket/checkpoints/nav_experiment_001/nav_experiment_001:v8.pt
 ```
 
 ### Hyperparameter Sweep Workflow
@@ -749,7 +749,7 @@ GROUP BY policy_name, episode;
 ```bash
 # 1. Initialize sweep
 ./tools/sweep_init.py sweep_name=hyperparam_search_001 \
-    sweep_params=configs/sweep/navigation_sweep.yaml
+  sweep_params=configs/sweep/navigation_sweep.yaml
 
 # 2. Training happens automatically via recipe system
 
@@ -758,15 +758,15 @@ GROUP BY policy_name, episode;
 
 # 4. Interactive play with best policy
 ./tools/run.py experiments.recipes.arena.play \
-    --args policy_uri="wandb://sweep/hyperparam_search_001:best"
+   policy_uri="s3://my-bucket/checkpoints/sweeps/hyperparam_search_001/hyperparam_search_001:v42.pt"
 ```
 
 ### Map Development Workflow
 
 ```bash
 # 1. Generate a new map
-./tools/map/gen.py configs/env/mettagrid/maps/template.yaml \
-    --output-uri=./my_map.yaml --overrides "seed=42"
+./packages/mettagrid/python/src/mettagrid/mapgen/tools/gen.py configs/env/mettagrid/maps/template.yaml \
+  --output-uri=./my_map.yaml "seed=42"
 
 # 2. View and iterate
 ./tools/map/view.py ./my_map.yaml
@@ -795,17 +795,17 @@ Key environment variables used by tools:
 
 ```bash
 # Use CPU for testing
-./tools/run.py experiments.recipes.arena.train --args run=cpu_test --overrides system.device=cpu
+./tools/run.py experiments.recipes.arena.train run=cpu_test system.device=cpu
 
 # Reduce training time for quick testing
-./tools/run.py experiments.recipes.arena.train --args run=quick_test --overrides trainer.total_timesteps=10000
+./tools/run.py experiments.recipes.arena.train run=quick_test trainer.total_timesteps=10000
 ```
 
 ### Database Access
 
 ```bash
 # For local testing without external services
-./tools/run.py experiments.recipes.arena.train --args run=local_test --overrides wandb.enabled=false system.device=cpu
+./tools/run.py experiments.recipes.arena.train run=local_test wandb.enabled=false system.device=cpu
 ```
 
 ## Best Practices

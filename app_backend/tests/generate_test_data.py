@@ -30,6 +30,7 @@ from metta.app_backend.routes.stats_routes import (
     PolicyResponse,
     TrainingRunResponse,
 )
+from metta.common.util.log_config import init_logging
 
 
 class EpochConfig(TypedDict):
@@ -445,6 +446,7 @@ def generate_test_data():
 
 
 if __name__ == "__main__":
+    init_logging()
     try:
         generate_test_data()
     except Exception as e:

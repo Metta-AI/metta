@@ -7,7 +7,7 @@ from pathlib import Path
 from metta.common.util.fs import get_file_hash
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import error, green, info, prompt_choice, success
+from metta.setup.utils import colorize, error, info, prompt_choice, success
 
 
 class CommitHookMode(Enum):
@@ -125,7 +125,7 @@ class GitHooksSetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Install git hooks by symlinking from devops/git-hooks to .git/hooks"""
         # Check if we're in a worktree
         if self._is_in_worktree():
@@ -153,7 +153,7 @@ class GitHooksSetup(SetupModule):
             hook_count += 1
             info(f"  Installed: {hook_file.name}")
 
-        success(f"Successfully installed {green(str(hook_count))} git hooks")
+        success(f"Successfully installed {colorize(str(hook_count), 'green')} git hooks")
 
     def get_configuration_options(self) -> dict[str, tuple[str, str]]:
         return {
@@ -193,9 +193,9 @@ class GitHooksSetup(SetupModule):
         if commit_mode.value == CommitHookMode.CHECK.value:
             info("Using default mode: check only")
         else:
-            print(f"Commit hook mode set to: {green(commit_mode.get_description())}")
+            info(f"Commit hook mode set to: {colorize(commit_mode.get_description(), 'green')}")
 
-        print(f"Gitleaks mode set to: {green(gitleaks_mode.get_description())}")
+        info(f"Gitleaks mode set to: {colorize(gitleaks_mode.get_description(), 'green')}")
 
     def _check_gitleaks_installed(self) -> bool:
         try:

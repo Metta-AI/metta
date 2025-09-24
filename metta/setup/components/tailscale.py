@@ -1,4 +1,5 @@
 import json
+import os
 import platform
 import subprocess
 
@@ -27,6 +28,10 @@ class TailscaleSetup(SetupModule):
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return False
+
     def check_connected_as(self) -> str | None:
         if not self.check_installed():
             return None
@@ -53,8 +58,13 @@ class TailscaleSetup(SetupModule):
         except Exception:
             return None
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up Tailscale...")
+
+        # In test/CI environments or non-interactive mode, skip interactive setup
+        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+            info("Skipping Tailscale installation in non-interactive/test/CI environment.")
+            return
 
         if self.check_installed():
             success("Tailscale already installed")

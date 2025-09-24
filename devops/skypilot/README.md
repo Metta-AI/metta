@@ -122,7 +122,7 @@ Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
 ------------------------------------------------------------
 Command: train
 Task Arguments:
-1. trainer.curriculum=env/mettagrid/curriculum/navigation
+1. training_env.curriculum=env/mettagrid/curriculum/navigation
 2. trainer.optimizer.learning_rate=0.001
 ============================================================
 Should we launch this task? (Y/n):
@@ -197,7 +197,7 @@ source ./devops/skypilot/setup_shell.sh
 
 To add them permanently, add the source command to your shell profile:
 
-````bash
+```bash
 # For bash users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.bashrc
 
@@ -206,7 +206,7 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.zshrc
 
 # For fish users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/fish/config.fish
-
+```
 
 ### Available Aliases
 
@@ -232,46 +232,110 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/
 - `lt run=<NAME>` - Quick launch training jobs
   ```bash
   lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
-````
+  ```
 
 ## Sandboxes
 
-Sandboxes provide persistent development environments for experimentation.
+Sandboxes provide persistent GPU development environments for experimentation and debugging. Unlike training jobs that
+terminate after completion, sandboxes remain running until you stop them.
 
-### Creating a Sandbox
+### Quick Start
 
 ```bash
 # Create sandbox with main branch
 ./devops/skypilot/sandbox.py
 
-# Create sandbox with specific commit/branch
-./devops/skypilot/sandbox.py --git-ref feature/my-branch
+# Check if you have any existing sandboxes
+./devops/skypilot/sandbox.py --check
 
 # Force create new sandbox (even if one exists)
 ./devops/skypilot/sandbox.py --new
+
+# Connect to your sandbox
+ssh <sandbox-name>
 ```
 
-### Connecting to Sandbox
+### Creating a Sandbox
 
 ```bash
-# SSH into sandbox (cluster name shown after creation)
-ssh <cluster_name>
+# Show existing sandboxes and management commands
+./devops/skypilot/sandbox.py
+
+# Launch a new sandbox with 1 GPU (default)
+./devops/skypilot/sandbox.py --new
+
+# Launch with multiple GPUs
+./devops/skypilot/sandbox.py --new --gpus 4
+
+# Launch with specific git branch
+./devops/skypilot/sandbox.py --new --git-ref feature/my-branch
+
+# Increase wait timeout for cluster initialization
+./devops/skypilot/sandbox.py --new --wait-timeout 600
+```
+
+### Checking Sandbox Status
+
+The `--check` mode provides a quick overview of your sandboxes without creating a new sandbox if none exist:
+
+```bash
+./devops/skypilot/sandbox.py --check
+```
+
+Example output:
+
+```
+Found 2 sandbox(es) for user alice:
+  • alice-sandbox-1 (running) [L4:1]
+  • alice-sandbox-2 (stopped) [L4:4]
+
+Summary:
+  1 running
+  1 stopped
+
+📦 Manage sandboxes:
+  Launch new:     ./devops/skypilot/sandbox.py --new
+  Connect:        ssh alice-sandbox-1
+  Restart:        sky start alice-sandbox-2
+  Stop:           sky stop alice-sandbox-1
+  Delete:         sky down alice-sandbox-1
 ```
 
 ### Managing Sandboxes
 
 ```bash
-# List all clusters (including sandboxes)
-sky status
+# Connect to a running sandbox
+ssh <sandbox-name>
 
-# Stop sandbox (keeps data, saves costs)
-sky stop <cluster_name>
+# Stop sandbox (preserves data, saves costs)
+sky stop <sandbox-name>
 
-# Restart stopped sandbox
-sky start <cluster_name>
+# Restart a stopped sandbox
+sky start <sandbox-name>
 
 # Delete sandbox completely
-sky down <cluster_name>
+sky down <sandbox-name>
+
+# Check logs if sandbox is stuck in INIT
+sky logs <sandbox-name>
+
+# Retry launch for stuck clusters
+sky launch -c <sandbox-name> --no-setup
+```
+
+### Cost Management
+
+- Sandboxes automatically stop after **48 hours** to prevent runaway costs
+- L4 GPU instances cost approximately:
+  - 1 GPU: ~$0.70-0.90/hour
+  - 2 GPUs: ~$1.40-1.80/hour
+  - 4 GPUs: ~$2.80-3.60/hour
+  - 8 GPUs: ~$5.60-7.20/hour
+
+To disable auto-stop:
+
+```bash
+sky autostop --cancel <sandbox-name>
 ```
 
 ## Configuration
@@ -322,6 +386,8 @@ sky jobs queue -a
 4. **Monitor actively**: Check job status regularly, especially for long-running jobs
 
 5. **Clean up resources**: Cancel failed jobs and shut down unused sandboxes
+
+6. **Use sandboxes wisely**: Stop sandboxes when not in use to save costs, and delete old sandboxes you no longer need
 
 ## Additional Resources
 

@@ -2,7 +2,7 @@ import importlib
 
 import pytest
 
-from metta.common.util.module import load_symbol
+from mettagrid.util.module import load_symbol
 
 
 def test_load_symbol_with_builtin() -> None:
@@ -27,11 +27,11 @@ def test_load_symbol_missing_module_raises_module_not_found_error() -> None:
 
 
 def test_load_self() -> None:
-    result = load_symbol("metta.common.util.module.load_symbol")
+    result = load_symbol("mettagrid.util.module.load_symbol")
     assert callable(result)
 
 
 def test_load_config() -> None:
-    result = load_symbol("metta.common.config.config.Config")
+    result = load_symbol("mettagrid.config.Config")
     assert isinstance(result, type)
     assert result.__name__ == "Config"

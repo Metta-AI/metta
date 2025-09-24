@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# Default values
-username="mettaai" # replace with your Docker Hub username
-dockerfile=""      # Dockerfile to use
+# Default values - now using ECR
+registry="751442549699.dkr.ecr.us-east-1.amazonaws.com" # ECR registry URL
+username=""                                             # Not used for ECR, kept for compatibility
+dockerfile=""                                           # Dockerfile to use
 image="metta"
 tag="latest"
 name="metta"
@@ -21,13 +22,16 @@ build() {
     docker stop ${name}
     docker rm ${name}
   fi
-  echo "Building Docker image ${username}/${image}:${tag} with Dockerfile ${dockerfile}..."
-  docker build -t ${username}/${image}:${tag} -f ${dockerfile} .
+  echo "Building Docker image ${registry}/${image}:${tag} with Dockerfile ${dockerfile}..."
+  docker build -t ${registry}/${image}:${tag} -f ${dockerfile} .
 }
 
 # Function for testing Docker image
 # Need this on ubuntu for x11: xhost +local:docker
 test() {
+  # Note: AWS ECR credentials should be provided externally before running this script
+  # Example: aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${registry}
+
   # Check if a Docker container with the same name already exists
   if [ "$(docker ps -aq -f name=^/${name})" ]; then
     # If the container exists and is stopped, start it
@@ -35,7 +39,7 @@ test() {
     docker start ${name}
   else
     # If the container does not exist, run a new one
-    echo "Running Docker image ${username}/${image}:${tag} and executing shell..."
+    echo "Running Docker image ${registry}/${image}:${tag} and executing shell..."
     docker run -it \
       --name ${name} \
       --network host \
@@ -56,7 +60,7 @@ test() {
       -e METTA_HOST=$(hostname) \
       -e METTA_USER=$SSH_USER \
       -e WANDB_API_KEY=$WANDB_API_KEY \
-      ${username}/${image}:${tag} bash -c "tmux"
+      ${registry}/${image}:${tag} bash -c "tmux"
   fi
   # Attach to the running container
   docker exec -it -e METTA_HOST=$(hostname) -e METTA_USER=$SSH_USER -e WANDB_API_KEY=$WANDB_API_KEY ${name} bash -c "tmux attach || tmux"
@@ -64,17 +68,18 @@ test() {
 
 # Function for pushing Docker image
 push() {
-  echo "Pushing Docker image ${username}/${name}:${tag}..."
-  docker push ${username}/${name}:${tag}
+  echo "Pushing Docker image ${registry}/${image}:${tag}..."
+  docker push ${registry}/${image}:${tag}
 }
 
 # Function for displaying usage instructions
 usage() {
-  echo "Usage: $0 command [-d dockerfile] [-n name] [-i image] [-t tag] [-u username]"
+  echo "Usage: $0 command [-d dockerfile] [-n name] [-i image] [-t tag] [-r registry]"
   echo "Commands:"
   echo "  build"
   echo "  test"
   echo "  push"
+  echo "Note: Using ECR registry at ${registry}"
 }
 
 # Main script
@@ -86,13 +91,13 @@ fi
 command=$1
 shift
 
-# Parse command-line arguments for Dockerfile, name, tag, and username
-while getopts n:i:t:u:d: flag; do
+# Parse command-line arguments for Dockerfile, name, tag, and registry
+while getopts n:i:t:r:d: flag; do
   case "${flag}" in
     n) name=${OPTARG} ;;
     i) image=${OPTARG} ;;
     t) tag=${OPTARG} ;;
-    u) username=${OPTARG} ;;
+    r) registry=${OPTARG} ;; # Changed from username to registry
     d) dockerfile=${OPTARG} ;;
   esac
 done

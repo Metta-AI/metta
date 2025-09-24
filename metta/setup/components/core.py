@@ -21,6 +21,6 @@ class CoreSetup(SetupModule):
             error("  curl -LsSf https://astral.sh/uv/install.sh | sh")
             sys.exit(1)
 
-    def install(self) -> None:
-        self.run_command(["uv", "sync"])
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
+        self.run_command(["uv", "sync"], non_interactive=non_interactive)
         success("Core dependencies installed")

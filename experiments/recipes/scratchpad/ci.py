@@ -7,7 +7,7 @@ from metta.tools.train import TrainTool
 
 
 def train() -> TrainTool:
-    cfg = arena.train(curriculum=arena.make_curriculum(arena.make_env()))
+    cfg = arena.train(curriculum=arena.make_curriculum(arena.make_mettagrid()))
 
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
@@ -15,18 +15,18 @@ def train() -> TrainTool:
     cfg.trainer.minibatch_size = 8
     cfg.trainer.batch_size = 1536
     cfg.trainer.bptt_horizon = 8
-    cfg.trainer.forward_pass_minibatch_target_size = 192
-    cfg.trainer.checkpoint.checkpoint_interval = 0
-    cfg.trainer.checkpoint.wandb_checkpoint_interval = 0
-    if cfg.trainer.evaluation is not None:
-        cfg.trainer.evaluation.evaluate_interval = 0
+    cfg.training_env.forward_pass_minibatch_target_size = 192
+    cfg.checkpointer.epoch_interval = 0
+
+    if cfg.evaluator is not None:
+        cfg.evaluator.epoch_interval = 0
 
     cfg.run = "smoke_test"
     return cfg
 
 
 def replay() -> ReplayTool:
-    env = arena.make_env()
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.replay(env)
     cfg.wandb.enabled = False
@@ -43,7 +43,7 @@ def replay_null() -> ReplayTool:
 
 
 def play() -> PlayTool:
-    env = arena.make_env()
+    env = arena.make_mettagrid()
     env.game.max_steps = 100
     cfg = arena.play(env)
     cfg.wandb.enabled = False

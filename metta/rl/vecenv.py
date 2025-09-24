@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Any, Optional
 
 import pufferlib
@@ -7,10 +8,10 @@ from pufferlib.pufferlib import set_buffers
 from pydantic import validate_call
 
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
-from metta.common.util.logging import init_logging
-from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
+from metta.common.util.log_config import init_logging
+from mettagrid import MettaGridEnv
+from mettagrid.util.replay_writer import ReplayWriter
+from mettagrid.util.stats_writer import StatsWriter
 
 logger = logging.getLogger("vecenv")
 
@@ -22,14 +23,12 @@ def make_env_func(
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
     is_training: bool = False,
-    is_serial: bool = False,
     run_dir: str | None = None,
     buf: Optional[Any] = None,
     **kwargs,
 ):
-    if not is_serial:
-        # Running in a new process, so we need to reinitialize logging
-        init_logging(run_dir=run_dir)
+    if run_dir is not None:
+        init_logging(run_dir=Path(run_dir))
 
     env = MettaGridEnv(
         curriculum.get_task().get_env_cfg(),
@@ -78,7 +77,6 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "is_training": is_training,
-        "is_serial": is_serial,
         "run_dir": run_dir,
     }
 

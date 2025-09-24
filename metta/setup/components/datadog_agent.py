@@ -2,7 +2,7 @@ import os
 import platform
 import subprocess
 
-import boto3
+from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
@@ -43,28 +43,19 @@ class DatadogAgentSetup(SetupModule):
             # systemctl not available
             return False
 
-    def _get_dd_api_key(self) -> str:
-        api_key = os.environ.get("DD_API_KEY")
-        if api_key:
-            return api_key
+    def _get_dd_api_key(self) -> str | None:
+        return os.environ.get("DD_API_KEY") or get_secretsmanager_secret("datadog/api-key", require_exists=False)
 
-        client = boto3.client("secretsmanager", region_name="us-east-1")
-        try:
-            secret_json = client.get_secret_value(SecretId="datadog/api-key")
-        except client.exceptions.ResourceNotFoundException as e:
-            raise Exception("Datadog API key not found in AWS Secrets Manager.") from e
-
-        if not (secret := secret_json.get("SecretString")):
-            raise Exception("Datadog API key not found in datadog/api-key secret.")
-        return secret
-
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Getting Datadog API key...")
         try:
             api_key = self._get_dd_api_key()
         except Exception as e:
             warning(f"Could not get Datadog API key: {e}")
             warning("Skipping Datadog agent installation.")
+            return
+        if not api_key:
+            warning("No Datadog API key found. Skipping Datadog agent installation.")
             return
 
         # Set environment variables for the install script

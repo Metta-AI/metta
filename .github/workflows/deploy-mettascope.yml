@@ -5,6 +5,7 @@ on:
       - main
     paths:
       - "mettascope/**"
+      - "mettascope2/**"
       - "observatory/**"
       - ".github/workflows/**"
   workflow_dispatch: {}
@@ -40,8 +41,8 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           install-mode: "minimal"
 
@@ -76,14 +77,21 @@ jobs:
           cd mettascope
           uv run tools/gen_atlas.py
 
+      - name: Build mettascope2
+        uses: ./.github/actions/build-mettascope2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Create deployment directory
         run: |
           mkdir -p deploy/observatory
+          mkdir -p deploy/mettascope2
           cp -r mettascope/* deploy/
           cp -r observatory/dist/* deploy/observatory/
+          cp -r mettascope2/dist/* deploy/mettascope2/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

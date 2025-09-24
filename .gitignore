@@ -22,6 +22,8 @@ resources
 coverage.xml
 htmlcov/
 .venv/
+coverage-reports/
+test-results/
 
 # CMake FetchContent cache
 .deps/
@@ -33,6 +35,12 @@ build_debug/
 build-release/
 build-debug/
 build-coverage/
+
+# Bazel build artifacts
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-mettagrid
 
 # Node.js / Frontend
 node_modules/
@@ -96,3 +104,17 @@ LUNARVIM_CHEATSHEET.md
 metta/sweep/experiments/README.md
 metta/sweep/experiments/README_*.md
 identified-figures/
+
+# Cursor MCP configuration (may contain credentials)
+.cursor-mcp/
+
+# TODO - remove after troubleshooting stability and re-add to keys in .github/workflows/checks.yml
+mettagrid/MODULE.bazel.lock
+
+# skypilot testing
+recipe_test_jobs.json
+cluster_test_jobs.json
+
+# MetaScope
+packages/mettagrid/nim/mettascope/dist/
+packages/mettagrid/nim/mettascope/bindings/generated/

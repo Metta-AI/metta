@@ -56,11 +56,11 @@ class NotebookWidgetsSetup(SetupModule):
                 return False
         return True
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up Metta's custom Python notebook widgets...")
         try:
             for widget in self._widgets:
-                if self.should_install_widget(widget):
+                if self.should_install_widget(widget) or force:
                     print(f"Installing dependencies and building {widget}...")
                     subprocess.run(
                         [
@@ -72,7 +72,7 @@ class NotebookWidgetsSetup(SetupModule):
                         cwd=self.widget_root / widget,
                     )
                     continue
-                if self.should_build_widget(widget):
+                if self.should_build_widget(widget) or force:
                     print(f"Building {widget} (cache miss)...")
                     subprocess.run(
                         [
@@ -83,10 +83,6 @@ class NotebookWidgetsSetup(SetupModule):
                         check=True,
                         cwd=self.widget_root / widget,
                     )
-                else:
-                    # print(f"Skipping {widget} (cache hit - no changes detected)")
-                    continue
-
             info(
                 "The notebook widgets are now compiled. Check out "
                 "./experiments/notebooks/*_example.ipynb "

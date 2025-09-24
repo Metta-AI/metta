@@ -4,7 +4,7 @@ from typing import Any, Dict, Literal
 
 from pydantic import Field
 
-from metta.common.config import Config
+from mettagrid.config import Config
 
 
 class ParameterConfig(Config):
@@ -45,10 +45,6 @@ class ProteinSettings(Config):
         default=False, description="Whether to randomize acquisition function parameters for diversity"
     )
 
-    # Genetic algorithm specific settings
-    bias_cost: bool = Field(default=True, description="Whether to bias selection based on cost (for genetic method)")
-    log_bias: bool = Field(default=False, description="Whether to use log-scale for cost bias (for genetic method)")
-
 
 class ProteinConfig(Config):
     """Configuration for Protein hyperparameter optimization."""
@@ -58,7 +54,7 @@ class ProteinConfig(Config):
     goal: Literal["maximize", "minimize"] = Field(
         default="maximize", description="Whether to maximize or minimize the metric"
     )
-    method: Literal["bayes", "random", "genetic"] = Field(default="bayes", description="Optimization method")
+    method: Literal["bayes"] = Field(default="bayes", description="Optimization method")
 
     # Parameters to optimize - nested dict structure
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Nested dict of parameters to optimize")

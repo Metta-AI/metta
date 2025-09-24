@@ -49,7 +49,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": False},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
-            "notebookwidgets": {"enabled": True},
+            "notebookwidgets": {"enabled": False},
             "experiments": {"enabled": True},
         }
     },
@@ -90,6 +90,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "system": {"enabled": True},
             "core": {"enabled": True},
             "codeclip": {"enabled": True},
+            "apps": {"enabled": True},
             "nodejs": {"enabled": True},
             "githooks": {"enabled": True},
             "mettascope": {"enabled": True},
@@ -98,8 +99,9 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
-            "notebookwidgets": {"enabled": True},
+            "notebookwidgets": {"enabled": False},
             "experiments": {"enabled": True},
+            "helm": {"enabled": True},
         }
     },
 }

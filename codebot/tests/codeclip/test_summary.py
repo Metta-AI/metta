@@ -1,13 +1,14 @@
 """Test the summary output functionality of codeclip."""
 
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
-from click.testing import CliRunner
+from typer.testing import CliRunner
 
-from codebot.codeclip.cli import cli
+from codebot.codeclip.cli import app
 
 
 class TestCodeclipSummary(unittest.TestCase):
@@ -24,8 +25,6 @@ class TestCodeclipSummary(unittest.TestCase):
     def tearDown(self):
         """Clean up test environment."""
         os.chdir(self.original_dir)
-        import shutil
-
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_stdout_flag_outputs_to_stdout(self):
@@ -35,7 +34,7 @@ class TestCodeclipSummary(unittest.TestCase):
         Path("test2.py").write_text("# Test file 2\nprint('world')")
 
         # Run with stdout flag
-        result = self.runner.invoke(cli, [".", "-s"])
+        result = self.runner.invoke(app, [".", "-s"])
         self.assertEqual(result.exit_code, 0)
 
         # Should see the document output
@@ -52,7 +51,7 @@ class TestCodeclipSummary(unittest.TestCase):
         Path("style.css").write_text("/* CSS file */")
 
         # Test with Python files only
-        result = self.runner.invoke(cli, [".", "-s", "-e", "py"])
+        result = self.runner.invoke(app, [".", "-s", "-e", "py"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("code.py", result.output)
         self.assertNotIn("doc.md", result.output)
@@ -68,7 +67,7 @@ class TestCodeclipSummary(unittest.TestCase):
         Path("subdir/more_code.py").write_text("# More code")
 
         # Test with readmes only
-        result = self.runner.invoke(cli, [".", "-s", "--readmes"])
+        result = self.runner.invoke(app, [".", "-s", "--readmes"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("README.md", result.output)
         self.assertIn("subdir/README.md", result.output)
@@ -77,10 +76,10 @@ class TestCodeclipSummary(unittest.TestCase):
 
     def test_help_flag_shows_help(self):
         """Test that --help flag shows help text."""
-        result = self.runner.invoke(cli, ["--help"])
+        result = self.runner.invoke(app, ["--help"])
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Usage:", result.output)
-        self.assertIn("Options:", result.output)
+        self.assertIn("Options", result.output)  # Typer uses "Options" in a box, not "Options:"
 
 
 if __name__ == "__main__":

@@ -61,7 +61,7 @@ flags:
 
   mettagrid:
     paths:
-      - mettagrid/
+      - packages/mettagrid/
     carryforward: true
 
   mettagrid_cpp:
@@ -97,8 +97,10 @@ ignore:
   - "**/fixtures/"
   - "**/mocks/"
   - "**/build/" # C++ build directories
-  - "**/cmake-build-*/" # CLion/CMake build directories
-  - "**/CMakeFiles/" # CMake generated files
+  - "**/bazel-*/" # Bazel build directories
+  - "**/bazel-bin/"
+  - "**/bazel-out/"
+  - "**/bazel-testlogs/"
   - "**/*.o" # Object files
   - "**/*.a" # Static libraries
   - "**/*.so" # Shared libraries

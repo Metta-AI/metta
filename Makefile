@@ -29,7 +29,7 @@ test: install
 		agent/tests \
 		app_backend/tests \
 		common/tests \
-		mettagrid/tests \
+		packages/mettagrid/tests \
 		--cov=metta \
 		--cov-report=term-missing \
 		--durations=10 \
@@ -43,7 +43,7 @@ pytest: install
 		agent/tests \
 		app_backend/tests \
 		common/tests \
-		mettagrid/tests \
+		packages/mettagrid/tests \
 		--benchmark-disable -n auto
 
 # Run linting checks only (no modifications)
@@ -52,7 +52,7 @@ lint: install
 	uv run ruff check .
 	uv run ruff format --check .
 	@echo "Running mettagrid lint..."
-	cd mettagrid && make lint
+	cd packages/mettagrid && make lint
 
 # Format all file types
 format: install
@@ -69,7 +69,7 @@ format: install
 	@echo "Formatting YAML files..."
 	@bash devops/tools/format_yml.sh
 	@echo "Running mettagrid format..."
-	cd mettagrid && make format
+	cd packages/mettagrid && make format-fix
 
 # Clean build artifacts
 clean:

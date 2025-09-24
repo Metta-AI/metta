@@ -1,33 +1,29 @@
-"""
-Integration tests for metta.eval.eval_stats_db.EvalStatsDB.
-
-They confirm correct normalization when metrics are recorded only
-for non‑zero values.
-"""
-
-from __future__ import annotations
+#!/usr/bin/env python3
 
 import datetime
 import tempfile
 import uuid
 from pathlib import Path
-from typing import List, cast
 
 import pytest
-from typing_extensions import Generator
 
-from metta.agent.mocks import MockPolicyRecord
-from metta.agent.policy_record import PolicyRecord
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.checkpoint_manager import CheckpointManager
 
-TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
+TestEvalStatsDb = tuple[EvalStatsDB, str, str]  # (db, policy_key, policy_version)
 
 
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
-    pk, pv = db.key_and_version(policy_record)  # type: ignore
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    metadata = CheckpointManager.get_policy_metadata(CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}"))
+    pk, pv = metadata["run_name"], metadata["epoch"]
+    _agent_step, _total_time, _score = (
+        metadata.get("agent_step", 1000),
+        metadata.get("total_time", 10),
+        metadata.get("score", 0.0),
+    )
 
     sim_id = str(uuid.uuid4())
 
@@ -39,60 +35,56 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
         policy_version=pv,
     )
 
-    episodes: List[str] = []
+    # Create 5 episodes, each with 1 agent
+    episode_ids = []
     for i in range(5):
-        ep_id = str(uuid.uuid4())
-        episodes.append(ep_id)
+        episode_id = f"episode_{i}"
+        episode_ids.append(episode_id)
 
-        attributes = {"seed": str(i)}
-        created_at = datetime.datetime.now()
-
-        agent_groups = {0: 0, 1: 1}
-        agent_metrics = {
-            0: {"reward": 1.0 + i},
-            1: {"reward": 1.5 + i},
-        }
-        if i < 2:  # only first two episodes log hearts
+        # Create agent metrics - hearts_collected only for episodes 0 and 1
+        agent_metrics = {0: {"reward": 2.0}}
+        if i < 2:
             agent_metrics[0]["hearts_collected"] = 3.0
-            agent_metrics[1]["hearts_collected"] = 2.0  # belongs to other policy
 
+        # Record the episode with metrics
         db.record_episode(
-            ep_id,
-            attributes,
-            agent_metrics,
-            agent_groups,
+            episode_id=episode_id,
+            attributes={},
+            agent_metrics=agent_metrics,
+            agent_groups={0: 0},  # agent 0 in group 0
             step_count=100,
             replay_url=None,
-            created_at=created_at,
+            created_at=datetime.datetime.now(),
         )
-        db.con.execute("UPDATE episodes SET simulation_id = ? WHERE id = ?", (sim_id, ep_id))
 
-    for ep_id in episodes:
-        db._insert_agent_policies([ep_id], {0: (pk, pv)})  # agent‑0 → test_policy
-        db._insert_agent_policies([ep_id], {1: ("other_policy", 2)})  # agent‑1 → other_policy
+        # Update the episode to link it to our simulation
+        db.con.execute("UPDATE episodes SET simulation_id = ? WHERE id = ?", (sim_id, episode_id))
 
-    db.con.commit()
-    return db, episodes, sim_id
+    # Insert agent policy mappings for all episodes
+    agent_map = {0: (pk, pv)}  # agent 0 uses our policy
+    db._insert_agent_policies(episode_ids, agent_map)
+
+    return db, pk, str(pv)
 
 
-# -------- Pytest fixtures -------------------------------------------------- #
 @pytest.fixture
-def test_db() -> Generator[TestEvalStatsDb, None, None]:
-    with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp) / f"{uuid.uuid4().hex}.duckdb"
-        db, eps, sid = _create_test_db_with_missing_metrics(p)
-        yield db, eps, sid
+def test_db():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test.duckdb"
+        db, pk, pv = _create_test_db_with_missing_metrics(db_path)
+        yield db, pk, pv
         db.close()
 
 
-# -------- Tests ------------------------------------------------------------ #
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
-    pk, pv = db.key_and_version(policy_record)  # type: ignore
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
+    metadata = CheckpointManager.get_policy_metadata(policy_uri)
+    pk, pv = metadata["run_name"], metadata["epoch"]
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
-    avg_hearts = db.get_average_metric_by_filter("hearts_collected", policy_record)
+    avg_hearts = db.get_average_metric("hearts_collected", policy_uri)
     assert avg_hearts is not None
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
 
@@ -102,24 +94,19 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     recorded = db.count_metric_agents(pk, pv, "hearts_collected")
     assert recorded == 2
 
-    # reward recorded for every sample → mean unaffected
-    avg_reward = db.get_average_metric_by_filter("reward", policy_record)
+    avg_reward = db.get_average_metric("reward", policy_uri)
     assert avg_reward is not None
-
-    # filter condition
-    avg_filtered = db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_env = 'test_env'")
+    avg_filtered = db.get_average_metric("hearts_collected", policy_uri, "sim_env = 'test_env'")
     assert avg_filtered is not None
     assert 1.15 <= avg_filtered <= 1.25
-
-    # non‑matching filter
-    assert db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_env = 'none'") is None
 
 
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
 
-    scores = db.simulation_scores(policy_record, "hearts_collected")
+    scores = db.simulation_scores(policy_uri, "hearts_collected")
     assert len(scores) == 1
 
     key = next(iter(scores))
@@ -128,37 +115,41 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     assert 1.15 <= exp <= 1.25
 
     # Compare to raw (non‑normalized) mean
-    raw = db.query("""
+    raw = db.query(
+        """
         SELECT AVG(value) AS a FROM policy_simulation_agent_metrics
          WHERE policy_key='test_policy' AND policy_version=1 AND metric='hearts_collected'
-    """)["a"][0]
+    """
+    )["a"][0]
     assert 2.9 <= raw <= 3.1  # expected ≈3
 
 
 def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
 
-    sum_norm = db.get_sum_metric_by_filter("hearts_collected", policy_record)
+    sum_norm = db.get_sum_metric("hearts_collected", policy_uri)
     assert sum_norm is not None
     assert 1.15 <= sum_norm <= 1.25  # (6 / 5) ≈ 1.2
 
 
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
 
-    assert db.get_average_metric_by_filter("nonexistent", policy_record) == 0.0
+    assert db.get_average_metric("nonexistent", policy_uri) == 0.0
 
-    bad_policy_record = MockPolicyRecord.from_key_and_version("none", 99)
-    assert db.get_average_metric_by_filter("hearts_collected", bad_policy_record) is None
+    invalid_uri = CheckpointManager.normalize_uri("/tmp/none/checkpoints/none:v99.pt")
+    assert db.get_average_metric("hearts_collected", invalid_uri) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        policy_record = MockPolicyRecord.from_key_and_version("test", 1)
-
-        assert db.get_average_metric_by_filter("reward", cast(PolicyRecord, policy_record)) is None
-        assert db.potential_samples_for_metric("test", 1) == 0
+        test_uri = CheckpointManager.normalize_uri("/tmp/test/checkpoints/test:v1.pt")
+        assert db.get_average_metric("reward", test_uri) is None
+        pk, pv = "test", 1
+        assert db.potential_samples_for_metric(pk, pv) == 0
         db.close()

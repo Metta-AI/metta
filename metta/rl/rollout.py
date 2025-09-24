@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from metta.common.profiling.stopwatch import Stopwatch
+from mettagrid.profiling.stopwatch import Stopwatch
 
 logger = logging.getLogger(__name__)
 

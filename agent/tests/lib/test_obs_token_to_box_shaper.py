@@ -1,26 +1,25 @@
+from types import SimpleNamespace
+
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.obs_token_to_box_shaper import ObsTokenToBoxShaper
+from metta.agent.components.obs_shim import ObsTokenToBoxShim
 
 
 def test_obs_token_to_box_shaper_forward():
     # Test parameters
-    obs_shape = (128, 3)  # 128 tokens, 3 bytes each
     obs_width = 11
     obs_height = 11
     feature_normalizations = {0: 1, 1: 2, 2: 3}  # 3 layers
     batch_size = 2
 
-    # Create the shaper
-    shaper = ObsTokenToBoxShaper(
-        obs_shape=obs_shape,
+    env_meta = SimpleNamespace(
         obs_width=obs_width,
         obs_height=obs_height,
         feature_normalizations=feature_normalizations,
     )
 
-    shaper._name = "test_obs_token_to_box_shaper"
+    shaper = ObsTokenToBoxShim(env_meta)
 
     # Create test input - we need exactly 128 tokens as specified in obs_shape
     # Format: [batch, tokens, channels] where channels are [coord_byte, atr_index, atr_value]
@@ -51,11 +50,9 @@ def test_obs_token_to_box_shaper_forward():
     # Create input TensorDict with proper batch_size
     td = TensorDict({"env_obs": input_tokens}, batch_size=[batch_size])
 
-    # Run forward pass
-    output_td = shaper._forward(td)
+    shaper(td)
 
-    # Get the output box observation
-    box_obs = output_td[shaper._name]
+    box_obs = td["box_obs"]
 
     # Verify output shape
     assert box_obs.shape == (batch_size, len(feature_normalizations), obs_width, obs_height)

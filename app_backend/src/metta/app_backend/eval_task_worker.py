@@ -13,6 +13,7 @@ import base64
 import json
 import logging
 import os
+import shutil
 import subprocess
 import uuid
 from abc import ABC, abstractmethod
@@ -24,7 +25,7 @@ import boto3
 from devops.observatory_login import CLIAuthenticator
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
-    TaskResponse,
+    EvalTaskResponse,
     TaskStatus,
     TaskStatusUpdate,
     TaskUpdateRequest,
@@ -33,7 +34,8 @@ from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git_repo import REPO_URL
-from metta.common.util.logging import init_logging
+from metta.common.util.log_config import init_logging
+from metta.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ class TaskResult:
 
 class AbstractTaskExecutor(ABC):
     @abstractmethod
-    async def execute_task(self, task: TaskResponse) -> TaskResult:
+    async def execute_task(self, task: EvalTaskResponse) -> TaskResult:
         pass
 
 
@@ -102,78 +104,82 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_hash: str) -> None:
-        self._versioned_path = f"/tmp/metta-versioned/{git_hash}"
-        if os.path.exists(self._versioned_path):
-            logger.info(f"Versioned checkout already exists at {self._versioned_path}")
-            return
+        try:
+            self._versioned_path = f"/tmp/metta-versioned/{git_hash}"
+            if os.path.exists(self._versioned_path):
+                logger.info(f"Versioned checkout already exists at {self._versioned_path}")
+                return
 
-        logger.info(f"Setting up versioned checkout at {self._versioned_path}")
+            logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
-        os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
+            os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
-        result = subprocess.run(
-            ["git", "clone", REPO_URL, self._versioned_path],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+            result = subprocess.run(
+                ["git", "clone", REPO_URL, self._versioned_path],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to clone repository: {result.stderr}")
 
-        # Checkout the specific commit
-        result = subprocess.run(
-            ["git", "checkout", git_hash],
-            cwd=self._versioned_path,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
+            # Checkout the specific commit
+            result = subprocess.run(
+                ["git", "checkout", git_hash],
+                cwd=self._versioned_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to checkout git hash {git_hash}: {result.stderr}")
 
-        # Install dependencies in the versioned checkout
-        logger.info("Installing dependencies in versioned checkout...")
-        self._run_cmd_from_versioned_checkout(
-            ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
-            capture_output=True,
-        )
-        self._run_cmd_from_versioned_checkout(
-            ["uv", "run", "metta", "install"],
-        )
+            # Install dependencies in the versioned checkout
+            logger.info("Installing dependencies in versioned checkout...")
+            self._run_cmd_from_versioned_checkout(
+                ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
+                capture_output=True,
+            )
+            self._run_cmd_from_versioned_checkout(
+                ["uv", "run", "metta", "install"],
+            )
 
-        logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
+            logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
+        except Exception as e:
+            logger.error(f"Failed to set up versioned checkout: {e}", exc_info=True)
+            if os.path.exists(self._versioned_path):
+                shutil.rmtree(self._versioned_path)
+            raise
 
     @trace("worker.execute_task")
     async def execute_task(
         self,
-        task: TaskResponse,
+        task: EvalTaskResponse,
     ) -> TaskResult:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
 
         self._setup_versioned_checkout(task.git_hash)
 
-        policy_name = task.policy_name
-        if not policy_name:
-            raise RuntimeError(f"Policy name not found for task {task.id}")
-
         # Convert simulations list to a base64-encoded JSON string to avoid parsing issues
         simulations = task.attributes.get("simulations", [])
         simulations_json = json.dumps(simulations)
         simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
+
+        normalized = CheckpointManager.normalize_uri(task.policy_uri)
 
         cmd = [
             "uv",
             "run",
             "tools/run.py",
             "experiments.evals.run.eval",
-            "--args",
-            f"policy_uri=wandb://run/{policy_name}",
+            f"policy_uri={normalized}",
             f"simulations_json_base64={simulations_base64}",
-            "--overrides",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "push_metrics_to_wandb=true",
         ]
-        logger.info(f"Running command: {' '.join(cmd)}")
+        # exclude simulation_json_base64 from logging, since it's too large and undescriptive
+        logged_cmd = [arg for arg in cmd if not arg.startswith("simulations_json_base64")]
+        logger.info(f"Running command: {' '.join(logged_cmd)}")
 
         result = self._run_cmd_from_versioned_checkout(cmd)
 
@@ -244,7 +250,7 @@ class EvalTaskWorker:
                 claimed_tasks = await self._client.get_claimed_tasks(assignee=self._assignee)
 
                 if claimed_tasks.tasks:
-                    task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
+                    task: EvalTaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
                     logger.info(f"Processing task {task.id}")
                     try:
                         task_result = await self._task_executor.execute_task(task)

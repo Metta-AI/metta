@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
@@ -28,7 +29,17 @@ class WandbSetup(SetupModule):
 
         return False
 
-    def install(self) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
+        """Set up Weights & Biases authentication and configuration.
+
+        Handles different user types:
+        - SOFTMAX: Uses internal W&B setup
+        - SOFTMAX_DOCKER: Expects W&B access via environment variables
+        - Others: Provides guidance for manual setup
+
+        Args:
+            non_interactive: If True, skip interactive authentication prompts
+        """
         info("Setting up Weights & Biases...")
 
         if self.check_installed():
@@ -46,15 +57,16 @@ class WandbSetup(SetupModule):
         elif saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("Weights & Biases access should be provided via environment variables.")
             info("Skipping W&B setup.")
+            return
         else:
             info("""
                 To use Weights & Biases, you'll need an account.
                 Visit https://wandb.ai/authorize to get your API key.
             """)
 
-        # In test/CI environments, avoid interactive prompts entirely
-        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-            info("Skipping W&B interactive setup in test/CI environment.")
+        # In test/CI environments or non-interactive mode, avoid interactive prompts entirely
+        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI") or non_interactive:
+            info("Skipping W&B interactive setup in non-interactive/test/CI environment.")
             return
 
         use_wandb = input("\nDo you have your API key ready? (y/n): ").strip().lower()
@@ -74,14 +86,16 @@ class WandbSetup(SetupModule):
             # W&B outputs login status to stderr, not stdout
             output = result.stderr if result.stderr else result.stdout
             if result.returncode == 0 and "Currently logged in as:" in output:
-                import re
-
                 match = re.search(r"Currently logged in as: (\S+) \(([^)]+)\)", output)
                 if match:
                     return match.group(2)
             return None
         except Exception:
             return None
+
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return True
 
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()

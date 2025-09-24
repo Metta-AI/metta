@@ -1,214 +1,329 @@
-import logging
+import contextlib
 import os
 import platform
 from typing import Optional
 
 import torch
+from pydantic import Field, model_validator
 
-import gitta as git
-from metta.agent.agent_config import AgentConfig
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.config.tool import Tool
-from metta.common.util.git_repo import REPO_SLUG
+from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.logging import get_node_rank, init_logging
-from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
-from metta.core.distributed import TorchDistributedConfig, cleanup_distributed, setup_torch_distributed
-from metta.rl.trainer import train
-from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_replay_dir, auto_run_name, auto_stats_server_uri, auto_wandb_config
+from metta.common.util.log_config import getRankAwareLogger, init_logging
+from metta.common.wandb.context import WandbConfig, WandbContext
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.trainer import Trainer
+from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from metta.rl.training import (
+    Checkpointer,
+    CheckpointerConfig,
+    ContextCheckpointer,
+    ContextCheckpointerConfig,
+    DistributedHelper,
+    Evaluator,
+    EvaluatorConfig,
+    GradientReporter,
+    GradientReporterConfig,
+    Heartbeat,
+    Monitor,
+    ProgressLogger,
+    Scheduler,
+    SchedulerConfig,
+    StatsReporter,
+    StatsReporterConfig,
+    TorchProfiler,
+    TrainerComponent,
+    TrainingEnvironmentConfig,
+    Uploader,
+    UploaderConfig,
+    VectorizedTrainingEnvironment,
+    WandbAborter,
+    WandbAborterConfig,
+    WandbLogger,
+)
+from metta.tools.utils.auto_config import (
+    auto_run_name,
+    auto_stats_server_uri,
+    auto_wandb_config,
+)
 
-logger = logging.getLogger(__name__)
-
-
-def log_master(message: str, **kwargs) -> None:
-    if get_node_rank() not in ("0", None):
-        return
-    logger.info(message, **kwargs)
+logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
-    trainer: TrainerConfig = TrainerConfig()
-    wandb: WandbConfig = WandbConfig.Unconfigured()
-    policy_architecture: Optional[AgentConfig] = None
     run: Optional[str] = None
-    run_dir: Optional[str] = None
+
+    trainer: TrainerConfig = Field(default_factory=TrainerConfig)
+    training_env: TrainingEnvironmentConfig
+    policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
+    initial_policy_uri: Optional[str] = None
+    uploader: UploaderConfig = Field(default_factory=UploaderConfig)
+    checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
+    gradient_reporter: GradientReporterConfig = Field(default_factory=GradientReporterConfig)
+
     stats_server_uri: Optional[str] = auto_stats_server_uri()
+    wandb: WandbConfig = WandbConfig.Unconfigured()
+    evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
+    torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
-    # Policy configuration
-    policy_uri: Optional[str] = None
+    context_checkpointer: ContextCheckpointerConfig = Field(default_factory=ContextCheckpointerConfig)
+    stats_reporter: StatsReporterConfig = Field(default_factory=StatsReporterConfig)
+    wandb_aborter: WandbAborterConfig = Field(default_factory=WandbAborterConfig)
 
-    # Optional configurations
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    consumed_args: list[str] = ["run", "group"]
+    @model_validator(mode="after")
+    def validate_fields(self) -> "TrainTool":
+        if self.evaluator.epoch_interval != 0:
+            if self.evaluator.epoch_interval < self.checkpointer.epoch_interval:
+                raise ValueError(
+                    "evaluator.epoch_interval must be at least as large as checkpointer.epoch_interval "
+                    "to ensure policies are saved before evaluation"
+                )
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        # Handle run_id being passed via cmd line
+        return self
+
+    def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
-            assert self.run is None, "run cannot be set via args and config"
+            assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
             self.run = args["run"]
 
         if self.run is None:
             self.run = auto_run_name(prefix="local")
+
         group_override = args.get("group")
-
-        # Set run_dir based on run name if not explicitly set
-        if self.run_dir is None:
-            self.run_dir = f"{self.system.data_dir}/{self.run}"
-
-        # Set policy_uri if not set
-        if not self.policy_uri:
-            self.policy_uri = f"file://{self.run_dir}/checkpoints"
-
-        # Set up checkpoint and replay directories
-        if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
-
-        # Initialize policy_architecture if not provided
-        if self.policy_architecture is None:
-            self.policy_architecture = AgentConfig()
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
-        # Override group if provided via args (for sweep support)
         if group_override:
             self.wandb.group = group_override
 
-        os.makedirs(self.run_dir, exist_ok=True)
+        if platform.system() == "Darwin" and not self.disable_macbook_optimize:
+            self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
+        distributed_helper = DistributedHelper(torch.device(self.system.device))
+        distributed_helper.scale_batch_config(self.trainer, self.training_env)
+
+        self.training_env.seed += distributed_helper.get_rank()
+        env = VectorizedTrainingEnvironment(self.training_env)
+
+        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
+
+        # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
+        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
+            raise ValueError("without a remote prefix we cannot use remote evaluation")
+
+        init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
 
-        init_logging(run_dir=self.run_dir)
+        policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
+        trainer = self._initialize_trainer(env, policy, distributed_helper)
 
-        torch_dist_cfg = setup_torch_distributed(self.system.device)
+        self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
-        if not self.trainer.checkpoint.checkpoint_dir:
-            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+        stats_client = self._maybe_create_stats_client(distributed_helper)
+        wandb_manager = self._build_wandb_manager(distributed_helper)
 
-        log_master(
-            f"Training {self.run} on "
-            + f"{os.environ.get('NODE_INDEX', '0')}: "
-            + f"{os.environ.get('LOCAL_RANK', '0')} ({self.system.device})",
+        try:
+            with wandb_manager as wandb_run:
+                self._register_components(
+                    trainer=trainer,
+                    distributed_helper=distributed_helper,
+                    checkpoint_manager=checkpoint_manager,
+                    stats_client=stats_client,
+                    policy_checkpointer=policy_checkpointer,
+                    wandb_run=wandb_run,
+                )
+
+                trainer.restore()
+                trainer.train()
+        finally:
+            env.close()
+            if stats_client and hasattr(stats_client, "close"):
+                stats_client.close()
+            distributed_helper.cleanup()
+
+    def _load_or_create_policy(
+        self,
+        checkpoint_manager: CheckpointManager,
+        distributed_helper: DistributedHelper,
+        env: VectorizedTrainingEnvironment,
+    ) -> tuple[Checkpointer, Policy]:
+        policy_checkpointer = Checkpointer(
+            config=self.checkpointer,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+        )
+        policy = policy_checkpointer.load_or_create_policy(
+            env.meta_data,
+            self.policy_architecture,
+            policy_uri=self.initial_policy_uri,
+        )
+        return policy_checkpointer, policy
+
+    def _initialize_trainer(
+        self,
+        env: VectorizedTrainingEnvironment,
+        policy: Policy,
+        distributed_helper: DistributedHelper,
+    ) -> Trainer:
+        trainer = Trainer(
+            self.trainer,
+            env,
+            policy,
+            torch.device(self.system.device),
+            distributed_helper=distributed_helper,
+            run_name=self.run,
         )
 
-        log_master(
-            f"Training {self.run} on {self.system.device}",
-        )
-        if torch_dist_cfg.is_master:
-            with WandbContext(self.wandb, self) as wandb_run:
-                handle_train(self, torch_dist_cfg, wandb_run)
+        if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
+            self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
+
+        return trainer
+
+    def _register_components(
+        self,
+        *,
+        trainer: Trainer,
+        distributed_helper: DistributedHelper,
+        checkpoint_manager: CheckpointManager,
+        stats_client: Optional[StatsClient],
+        policy_checkpointer: Checkpointer,
+        wandb_run,
+    ) -> None:
+        components: list[TrainerComponent] = []
+
+        heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
+        if heartbeat_cfg is not None:
+            components.append(Heartbeat(epoch_interval=heartbeat_cfg.epoch_interval))
+
+        # Ensure learning-rate schedules stay in sync across ranks
+        hyper_cfg = getattr(self.trainer, "hyperparameter_scheduler", None)
+        if hyper_cfg and getattr(hyper_cfg, "enabled", False):
+            interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
+            hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
+            components.append(hyper_component)
+
+        stats_component: TrainerComponent | None = None
+
+        if distributed_helper.is_master():
+            stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
+            reporting_enabled = (
+                stats_config.report_to_wandb or stats_config.report_to_stats_client or stats_config.report_to_console
+            )
+
+            if self.gradient_reporter.epoch_interval:
+                components.append(GradientReporter(self.gradient_reporter))
+
+            stats_component = StatsReporter.from_config(
+                stats_config,
+                stats_client=stats_client,
+                wandb_run=wandb_run,
+            )
+
+            if stats_component is not None:
+                components.append(stats_component)
+
+            components.append(policy_checkpointer)
+
+            self.evaluator = self.evaluator.model_copy(deep=True)
+            components.append(
+                Evaluator(
+                    config=self.evaluator,
+                    device=torch.device(self.system.device),
+                    system_cfg=self.system,
+                    stats_client=stats_client,
+                )
+            )
+
+            components.append(
+                Uploader(
+                    config=self.uploader,
+                    checkpoint_manager=checkpoint_manager,
+                    distributed_helper=distributed_helper,
+                    wandb_run=wandb_run,
+                )
+            )
+
+            components.append(Monitor(enabled=reporting_enabled))
+            components.append(ProgressLogger())
         else:
-            handle_train(self, torch_dist_cfg, None)
+            components.append(policy_checkpointer)
 
-        cleanup_distributed()
+        trainer_checkpointer = ContextCheckpointer(
+            config=self.context_checkpointer,
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+        )
+        components.append(trainer_checkpointer)
 
-        return 0
+        components.append(WandbAborter(wandb_run=wandb_run, config=self.wandb_aborter))
 
-
-def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None) -> None:
-    assert cfg.run_dir is not None
-    assert cfg.run is not None
-    run_dir = cfg.run_dir
-
-    _configure_vecenv_settings(cfg)
-
-    stats_client = _configure_evaluation_settings(cfg)
-
-    # Handle distributed training batch scaling
-    if torch_dist_cfg.distributed:
-        if cfg.trainer.scale_batches_by_world_size:
-            cfg.trainer.forward_pass_minibatch_target_size = (
-                cfg.trainer.forward_pass_minibatch_target_size // torch_dist_cfg.world_size
+        if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
+            components.append(
+                TorchProfiler(
+                    profiler_config=self.torch_profiler,
+                    wandb_run=wandb_run,
+                    run_dir=checkpoint_manager.run_dir,
+                    is_master=True,
+                )
             )
-            cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    policy_store = PolicyStore.create(
-        device=cfg.system.device,
-        data_dir=cfg.system.data_dir,
-        wandb_config=cfg.wandb,
-        wandb_run=wandb_run,
-    )
+        for component in components:
+            if component is None:
+                continue
+            trainer.register(component)
 
-    if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
-        cfg = _minimize_config_for_debugging(cfg)
+        if wandb_run is not None and distributed_helper.is_master():
+            trainer.register(WandbLogger(wandb_run))
 
-    # Save configuration
-    if torch_dist_cfg.is_master:
-        with open(os.path.join(run_dir, "config.json"), "w") as f:
-            f.write(cfg.model_dump_json(indent=2))
-            log_master(f"Config saved to {os.path.join(run_dir, 'config.json')}")
+    def _log_run_configuration(
+        self,
+        distributed_helper: DistributedHelper,
+        checkpoint_manager: CheckpointManager,
+        env: VectorizedTrainingEnvironment,
+    ) -> None:
+        if not distributed_helper.is_master():
+            return
 
-    # Use the functional train interface directly
-    train(
-        run=cfg.run,
-        run_dir=run_dir,
-        system_cfg=cfg.system,
-        agent_cfg=cfg.policy_architecture,
-        device=torch.device(cfg.system.device),
-        trainer_cfg=cfg.trainer,
-        wandb_run=wandb_run,
-        policy_store=policy_store,
-        stats_client=stats_client,
-        torch_dist_cfg=torch_dist_cfg,
-    )
+        if not checkpoint_manager.run_dir:
+            raise ValueError("cannot _log_run_configuration without a valid run_dir")
 
+        logger.info(f"Training environment: {env}")
+        config_path = os.path.join(checkpoint_manager.run_dir, "config.json")
+        with open(config_path, "w") as config_file:
+            config_file.write(self.model_dump_json(indent=2))
+        logger.info(f"Config saved to {config_path}")
 
-def _configure_vecenv_settings(cfg: TrainTool) -> None:
-    """Calculate default number of workers based on hardware."""
-    if cfg.system.vectorization == "serial":
-        cfg.trainer.rollout_workers = 1
-        cfg.trainer.async_factor = 1
-        return
+    def _maybe_create_stats_client(self, distributed_helper: DistributedHelper) -> Optional[StatsClient]:
+        if not (distributed_helper.is_master() and self.stats_server_uri):
+            return None
+        try:
+            return StatsClient.create(stats_server_uri=self.stats_server_uri)
 
-    ideal_workers = (os.cpu_count() // 2) // torch.cuda.device_count()
-    cfg.trainer.rollout_workers = max(1, ideal_workers)
+        except Exception as exc:
+            logger.warning("Failed to initialize stats client: %s", exc)
+            return None
 
+    def _build_wandb_manager(self, distributed_helper: DistributedHelper):
+        if distributed_helper.is_master() and self.wandb.enabled:
+            return WandbContext(self.wandb, self)
+        return contextlib.nullcontext(None)
 
-def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
-    if cfg.trainer.evaluation is None:
-        return None
+    def _minimize_config_for_debugging(self) -> None:
+        self.trainer.minibatch_size = min(self.trainer.minibatch_size, 1024)
+        self.trainer.batch_size = min(self.trainer.batch_size, 1024)
+        self.trainer.bptt_horizon = min(self.trainer.bptt_horizon, 8)
 
-    if cfg.trainer.evaluation.replay_dir is None:
-        cfg.trainer.evaluation.replay_dir = auto_replay_dir()
-        log_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
-
-    stats_client: StatsClient | None = None
-    if cfg.stats_server_uri is not None:
-        stats_client = StatsClient.create(cfg.stats_server_uri)
-
-    # Determine git hash for remote simulations
-    if cfg.trainer.evaluation.evaluate_remote:
-        if not stats_client:
-            cfg.trainer.evaluation.evaluate_remote = False
-            log_master("Not connected to stats server, disabling remote evaluations")
-        elif not cfg.trainer.evaluation.evaluate_interval:
-            cfg.trainer.evaluation.evaluate_remote = False
-            log_master("Evaluate interval set to 0, disabling remote evaluations")
-        elif not cfg.trainer.evaluation.git_hash:
-            cfg.trainer.evaluation.git_hash = git.get_git_hash_for_remote_task(
-                target_repo=REPO_SLUG,
-                skip_git_check=cfg.trainer.evaluation.skip_git_check,
-                skip_cmd="trainer.evaluation.skip_git_check=true",
-            )
-            if cfg.trainer.evaluation.git_hash:
-                log_master(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
-            else:
-                log_master("No git hash available for remote evaluations")
-    return stats_client
-
-
-def _minimize_config_for_debugging(cfg: TrainTool) -> TrainTool:
-    cfg.trainer.minibatch_size = min(cfg.trainer.minibatch_size, 1024)
-    cfg.trainer.batch_size = min(cfg.trainer.batch_size, 1024)
-    cfg.trainer.async_factor = 1
-    cfg.trainer.forward_pass_minibatch_target_size = min(cfg.trainer.forward_pass_minibatch_target_size, 4)
-    cfg.trainer.checkpoint.checkpoint_interval = min(cfg.trainer.checkpoint.checkpoint_interval, 10)
-    cfg.trainer.checkpoint.wandb_checkpoint_interval = min(cfg.trainer.checkpoint.wandb_checkpoint_interval, 10)
-    cfg.trainer.bptt_horizon = min(cfg.trainer.bptt_horizon, 8)
-    if cfg.trainer.evaluation:
-        cfg.trainer.evaluation.evaluate_interval = min(cfg.trainer.evaluation.evaluate_interval, 10)
-    return cfg
+        self.training_env.async_factor = 1
+        self.training_env.forward_pass_minibatch_target_size = min(
+            self.training_env.forward_pass_minibatch_target_size, 4
+        )
+        self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
+        self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
+        self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
+        self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
