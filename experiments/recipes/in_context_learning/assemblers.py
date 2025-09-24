@@ -711,6 +711,10 @@ class ForagingTaskGenerator(ICLTaskGenerator):
                 ["E", "W"],
             ]
         )
+        directional_recipes: bool = Field(default=True)
+        direction_recipes: list[list[Position]] = Field(
+            default=[["N"], ["S"], ["E"], ["W"]]
+        )
 
     def __init__(self, config: "ForagingTaskGenerator.Config"):
         super().__init__(config)
@@ -774,21 +778,38 @@ class ForagingTaskGenerator(ICLTaskGenerator):
             # replacing the recipe's cooldown if needed.
             game_objects[mine_key] = mine_cfg
 
-        required = chosen_resources[
-            : max(1, min(recipe_complexity, len(chosen_resources)))
-        ]
         altar = building.assembler_altar.model_copy(deep=True)
-        positions: list[Position] = rng.choice(self.config.altar_patterns)
-        altar.recipes = [
-            (
-                positions,
-                RecipeConfig(
-                    input_resources={r: 1 for r in required},
-                    output_resources={"heart": 1},
-                    cooldown=cooldown,
-                ),
-            )
-        ]
+        if self.config.directional_recipes:
+            recipes: list[tuple[list[Position], RecipeConfig]] = []
+            for patt in self.config.direction_recipes:
+                k = max(1, min(recipe_complexity, len(chosen_resources)))
+                inputs = rng.sample(chosen_resources, k=k)
+                recipes.append(
+                    (
+                        patt,
+                        RecipeConfig(
+                            input_resources={r: 1 for r in inputs},
+                            output_resources={"heart": 1},
+                            cooldown=cooldown,
+                        ),
+                    )
+                )
+            altar.recipes = recipes
+        else:
+            required = chosen_resources[
+                : max(1, min(recipe_complexity, len(chosen_resources)))
+            ]
+            positions: list[Position] = rng.choice(self.config.altar_patterns)
+            altar.recipes = [
+                (
+                    positions,
+                    RecipeConfig(
+                        input_resources={r: 1 for r in required},
+                        output_resources={"heart": 1},
+                        cooldown=cooldown,
+                    ),
+                )
+            ]
         game_objects["altar"] = altar
 
         env_cfg = MettaGridConfig(
@@ -839,3 +860,156 @@ def make_foraging_mettagrid() -> MettaGridConfig:
     )
     gen = ForagingTaskGenerator(cfg)
     return gen.get_task(0)
+
+
+# -------- Directional multi-recipe maps --------
+
+
+def make_foraging_directional_env(
+    num_agents: int = 1,
+    width: int = 12,
+    height: int = 12,
+    num_assemblers: int = 1,
+    cluster_distance: int = 4,
+    cluster_size: int = 3,
+    low_cooldown: int = 10,
+    high_cooldown: int = 80,
+) -> MettaGridConfig:
+    """Create a map where the altar has different recipes on N/S/E/W.
+
+    - N: sink recipe (consume item, produce nothing)
+    - S: expensive, low cooldown -> heart
+    - E: cheap, high cooldown -> heart
+    - W: expensive, high cooldown -> heart
+    """
+
+    if 24 % num_agents != 0:
+        raise ValueError(f"Number of agents ({num_agents}) must be a divisor of 24.")
+    num_instances = 24 // num_agents
+
+    chosen_resources = ["ore_red", "ore_blue", "ore_green"]
+
+    def resource_to_mine(resource: str) -> str:
+        color = resource.split("_")[-1]
+        return f"mine_{color}"
+
+    # Mines with assembler semantics
+    game_objects: Dict[str, Any] = {"wall": empty_converters.wall}
+    for res in chosen_resources:
+        mine_key = resource_to_mine(res)
+        mine_cfg = CONVERTER_TYPES[mine_key].model_copy(deep=True)
+        game_objects[mine_key] = mine_cfg
+
+    # Clusters for each resource
+    cluster_specs: list[dict] = []
+    for res in chosen_resources:
+        cluster_specs.append(
+            {
+                "name": resource_to_mine(res),
+                "count": int(cluster_size),
+                "distance": int(cluster_distance),
+                "radius": 1,
+            }
+        )
+
+    # Altar with four directional recipes
+    altar = building.assembler_altar.model_copy(deep=True)
+    # Pick concrete inputs per category
+    sink_input = {chosen_resources[0]: 1}
+    cheap_inputs = {chosen_resources[1]: 1}
+    expensive_inputs_low = {chosen_resources[0]: 2, chosen_resources[1]: 2}
+    expensive_inputs_high = {chosen_resources[0]: 2, chosen_resources[2]: 2}
+
+    altar.recipes = [
+        (  # North: sink (no output)
+            ["N"],
+            RecipeConfig(
+                input_resources=sink_input, output_resources={}, cooldown=low_cooldown
+            ),
+        ),
+        (  # South: expensive, low cooldown
+            ["S"],
+            RecipeConfig(
+                input_resources=expensive_inputs_low,
+                output_resources={"heart": 1},
+                cooldown=low_cooldown,
+            ),
+        ),
+        (  # East: cheap, high cooldown
+            ["E"],
+            RecipeConfig(
+                input_resources=cheap_inputs,
+                output_resources={"heart": 1},
+                cooldown=high_cooldown,
+            ),
+        ),
+        (  # West: expensive, high cooldown
+            ["W"],
+            RecipeConfig(
+                input_resources=expensive_inputs_high,
+                output_resources={"heart": 1},
+                cooldown=high_cooldown,
+            ),
+        ),
+    ]
+    game_objects["altar"] = altar
+
+    return MettaGridConfig(
+        game=GameConfig(
+            max_steps=512,
+            num_agents=num_agents * num_instances,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_instances,
+                instance_map=ForagingMapBuilder.Config(
+                    agents=num_agents,
+                    width=width,
+                    height=height,
+                    num_assemblers=num_assemblers,
+                    clusters=cluster_specs,
+                ),
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(enabled=False),
+                get_items=ActionConfig(enabled=False),
+                put_items=ActionConfig(enabled=False),
+                change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(inventory={"heart": 1}),
+                default_resource_limit=2,
+                resource_limits={"heart": 15},
+            ),
+        )
+    )
+
+
+def make_foraging_directional_suite() -> list[SimulationConfig]:
+    return [
+        SimulationConfig(
+            env=make_foraging_directional_env(
+                width=10, height=10, low_cooldown=8, high_cooldown=80
+            ),
+            name="foraging_directional_small",
+            suite="in_context_learning",
+        ),
+        SimulationConfig(
+            env=make_foraging_directional_env(
+                width=12, height=12, low_cooldown=10, high_cooldown=100
+            ),
+            name="foraging_directional_medium",
+            suite="in_context_learning",
+        ),
+    ]
+
+
+def play_foraging_directional() -> PlayTool:
+    env = make_foraging_directional_env()
+    return PlayTool(
+        sim=SimulationConfig(
+            env=env,
+            name="icl_foraging_directional",
+            suite="in_context_learning",
+        ),
+    )
