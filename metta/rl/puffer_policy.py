@@ -23,14 +23,11 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
     from mettagrid import MettaGridEnv
     from mettagrid.builder.envs import make_arena
 
-    # Minimal environment for initialization
     env_cfg = make_arena(num_agents=60)
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
     policy_cfg = PufferPolicyConfig()
     policy = PufferPolicy(temp_env, policy_cfg).to(device)
-    print("Policy keys:", sorted(policy.state_dict().keys()))
-
     temp_env.close()
     return policy
 
@@ -40,12 +37,9 @@ def load_pufferlib_checkpoint(checkpoint_data: Any, device: str | torch.device =
     logger.info("Loading checkpoint in PufferLib state_dict format")
     if not isinstance(checkpoint_data, dict):
         raise TypeError("Expected checkpoint_data to be a dict (state_dict format)")
-
-    logger.debug(f"Checkpoint sample keys: {list(checkpoint_data.keys())[:10]}")
     policy = _create_metta_agent(device)
 
-    # Load directly - policy structure now matches checkpoint exactly
     policy.load_state_dict(checkpoint_data, strict=False)
-    logger.info("Successfully loaded checkpoint into Metta policy")
+    logger.info("Successfully loaded PufferLib checkpoint into Metta policy")
 
     return policy
