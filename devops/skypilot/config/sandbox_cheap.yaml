@@ -1,7 +1,7 @@
 resources:
   cloud: aws
   region: us-east-1
-  instance_type: t3.medium  # 2 vCPUs, 4GB RAM - very cheap (~$0.04/hour on-demand)
+  instance_type: t3.medium # 2 vCPUs, 4GB RAM - very cheap (~$0.04/hour on-demand)
   cpus: 2+
   memory: 4+
   image_id: docker:metta:latest

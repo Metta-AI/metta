@@ -1,6 +1,7 @@
 import contextlib
 import os
 import platform
+from datetime import timedelta
 from typing import Optional
 
 import torch
@@ -109,7 +110,12 @@ class TrainTool(Tool):
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
-        distributed_helper = DistributedHelper(torch.device(self.system.device))
+        if self.evaluator and self.evaluator.evaluate_local:
+            # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
+            logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
+            self.system.nccl_timeout = timedelta(hours=4)
+
+        distributed_helper = DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
