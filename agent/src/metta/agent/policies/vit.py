@@ -9,6 +9,7 @@ from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrCoordEmbedConfig, ObsAttrEmbedFourierConfig
+from metta.agent.components.obs_trim import ObsTokenTrimConfig
 from metta.agent.policy import PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -76,8 +77,13 @@ class ViTDefaultConfig(ViTSmallConfig):
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
         ),
-        ObsLatentAttnConfig(
+        ObsTokenTrimConfig(
             in_key="obs_attr_embed",
+            out_key="obs_attr_trimmed",
+            max_tokens=None,
+        ),
+        ObsLatentAttnConfig(
+            in_key="obs_attr_trimmed",
             out_key="obs_latent_attn",
             feat_dim=_token_embed_dim + 1,
             out_dim=_latent_dim,
