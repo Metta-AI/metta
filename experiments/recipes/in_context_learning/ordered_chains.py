@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.rl.training.evaluator import EvaluatorConfig
-from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_BASIC
+from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -569,12 +569,12 @@ def replay(
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: Optional[str] = None, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
         simulations=simulations,
-        policy_uris=[policy_uri],
+        policy_uris=[policy_uri] if policy_uri else None,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
@@ -678,7 +678,7 @@ def sweep(
     total_timesteps: int = 1000000,
 ) -> SweepTool:
     lp_protein_config = make_custom_protein_config(
-        base_config=PPO_BASIC,
+        base_config=PPO_CORE,
         parameters={
             "lp_params.progress_smoothing": ParameterConfig(
                 distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
@@ -718,7 +718,7 @@ def sweep(
         },
     )
 
-    lp_protein_config.metric = "evaluator/eval_in_context_learning/score"
+    lp_protein_config.metric = "evaluator/eval_in_context_learning/in_context_learning"
 
     return SweepTool(
         protein_config=lp_protein_config,

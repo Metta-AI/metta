@@ -58,6 +58,33 @@ def make_custom_protein_config(
         settings=base_config.settings,
     )
 
+PPO_CORE = ProteinConfig (
+    parameters= {
+        # 1. Learning rate - log scale from 1e-5 to 1e-2
+        "trainer.optimizer.learning_rate": ParameterConfig(
+            min=1e-5,
+            max=1e-2,
+            distribution="log_normal",
+            mean=0.001153637,  # Geometric mean
+            scale="auto",
+        ),
+        # 3. Entropy coefficient - log scale from 0.0001 to 0.01
+        "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
+            min=0.0001,
+            max=0.03,
+            distribution="log_normal",
+            mean=0.01,  # Geometric mean
+            scale="auto",
+        ),
+    }
+    settings=ProteinSettings(
+        num_random_samples=0,
+        max_suggestion_cost=3600 * 6,
+        resample_frequency=10,
+        random_suggestions=15,
+        suggestions_per_pareto=128,
+    ),
+)
 
 # 8 Parameters
 PPO_BASIC = ProteinConfig(
