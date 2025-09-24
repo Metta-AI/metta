@@ -398,7 +398,6 @@ def replay(
 ) -> ReplayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     # Default to the research policy if none specified
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_tiny_small.2025-09-22/icl_resource_chain_tiny_small.2025-09-22:v500.pt"
     # default_policy_uri = "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
     return ReplayTool(
         sim=SimulationConfig(
