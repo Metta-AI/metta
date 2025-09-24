@@ -23,13 +23,8 @@ from metta.rl.training import EnvironmentMetaData
 from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
 
-POLICY_PRESETS: Dict[str, Any] = {
+POLICY_PRESETS: Dict[str, str] = {
     "fast": "metta.agent.policies.fast.FastConfig",
-    "fast_lstm_reset": "metta.agent.policies.fast_lstm_reset.FastLSTMResetConfig",
-    "fast_dynamics": "metta.agent.policies.fast_dynamics.FastDynamicsConfig",
-    "cnn_trans": "metta.agent.policies.cnn_trans.CNNTransConfig",
-    "vit_small": "metta.agent.policies.vit.ViTSmallConfig",
-    # Backwards compatibility alias for existing docs/CLI usage.
     "vit": "metta.agent.policies.vit.ViTSmallConfig",
 }
 
@@ -50,13 +45,17 @@ class PolicyArchitecture(Config):
             return value
 
         if isinstance(value, str):
-            preset = POLICY_PRESETS.get(value.lower(), value)
-            value = load_symbol(preset) if isinstance(preset, str) else preset
+            reference = POLICY_PRESETS.get(value.lower(), value)
+            resolved = load_symbol(reference)
+            if isinstance(resolved, type) and issubclass(resolved, cls):
+                return resolved()
+            if isinstance(resolved, cls):
+                return resolved
 
         if isinstance(value, type) and issubclass(value, cls):
             return value()
 
-        raise TypeError(f"Unable to resolve value {value!r} into an instance of {cls.__name__}")
+        raise TypeError(f"Unable to resolve value {value!r} into a {cls.__name__}")
 
     def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""

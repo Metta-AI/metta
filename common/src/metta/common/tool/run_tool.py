@@ -84,164 +84,121 @@ def output_exception(message: str) -> None:
 
 
 def parse_value(value_str: str) -> Any:
-    """Parse a CLI value into an appropriate Python type."""
-    raw = value_str.strip()
+    """Parse a string value into appropriate Python type (minimal heuristics)."""
+    lower = value_str.lower()
 
-    if raw == "":
-        return ""
-
-    lower = raw.lower()
     if lower in {"true", "false"}:
         return lower == "true"
     if lower in {"none", "null"}:
         return None
 
-    if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
-        inner = raw[1:-1]
+    # Try to parse JSON containers
+    if (value_str.startswith("{") and value_str.endswith("}")) or (
+        value_str.startswith("[") and value_str.endswith("]")
+    ):
+        if len(value_str) > 1_000_000:  # 1MB limit
+            logger.warning(f"Skipping JSON parsing for oversized value ({len(value_str)} chars)")
+            return value_str
         try:
-            if raw.startswith('"'):
-                return json.loads(raw)
-            return bytes(inner, "utf-8").decode("unicode_escape")
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            return inner
+            return json.loads(value_str)
+        except json.JSONDecodeError:
+            pass
 
-    if (raw.startswith("{") and raw.endswith("}")) or (raw.startswith("[") and raw.endswith("]")):
-        if len(raw) > 1_000_000:
-            logger.warning(f"Skipping JSON parsing for oversized value ({len(raw)} chars)")
-        else:
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                pass
-
-    if is_number(raw):
-        return parse_number(raw)
-
-    return raw
-
-
-def is_number(candidate: str) -> bool:
-    """Return True if the string can be parsed as int or float."""
-    if candidate in {"+", "-", "."}:
-        return False
-    if not candidate:
-        return False
-    work = candidate
-    if work[0] in "+-":
-        work = work[1:]
-        if not work:
-            return False
-    if not any(ch.isdigit() for ch in work):
-        return False
+    # Try numeric
     try:
-        float(candidate)
+        return int(value_str)
     except ValueError:
-        return False
-    return True
-
-
-def parse_number(candidate: str) -> int | float:
-    """Parse a numeric string as int when possible, otherwise float."""
+        pass
     try:
-        if any(sep in candidate.lower() for sep in (".", "e")):
-            return float(candidate)
-        return int(candidate)
-    except ValueError as exc:
-        raise ValueError(f"Invalid number format: {candidate}") from exc
+        return float(value_str)
+    except ValueError:
+        pass
 
-
-def _format_default_markup(default: Any, required: bool, *, callable_label: str = "<factory>") -> str:
-    if required:
-        return " [red](required)[/red]"
-
-    if default is None:
-        return ""
-
-    if callable(default):
-        return f" [green](default: {callable_label})[/green]"
-
-    if isinstance(default, BaseModel):
-        return f" [green](default: {type(default).__name__})[/green]"
-
-    if isinstance(default, str):
-        if default.startswith("<") and default.endswith(">"):
-            return ""
-        display = default if len(default) <= 100 else f"{default[:100]}..."
-        return f" [green](default: {display})[/green]"
-
-    display = str(default)
-    if len(display) > 100:
-        display = f"{display[:100]}..."
-    return f" [green](default: {display})[/green]"
+    return value_str
 
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
-    """Parse CLI arguments, supporting commander-style flags and key=value tokens."""
+    """Parse CLI arguments supporting key=value and commander-style flags."""
     parsed: dict[str, Any] = {}
-    for arg in _normalize_tokens(cli_args):
-        key, value = arg.split("=", 1)
-        parsed[key] = parse_value(value)
+    for key, raw_value in _iter_cli_pairs(cli_args):
+        parsed[key] = parse_value(raw_value)
     return parsed
 
 
-def _normalize_tokens(cli_args: list[str]) -> list[str]:
-    normalized: list[str] = []
+def _iter_cli_pairs(cli_args: list[str]) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
     i = 0
+    stop_processing = False
+
     while i < len(cli_args):
         token = cli_args[i]
 
         if token == "--":
+            stop_processing = True
             i += 1
             continue
 
-        key: str
-        value: str
+        # Allow explicit key=value tokens regardless of flag prefix
+        if "=" in token or ":" in token:
+            key, value = _split_inline_token(token)
+            pairs.append((key, value))
+            i += 1
+            continue
 
-        if _has_separator(token):
-            key_part, value = _split_token(token)
-            key = _strip_flag_prefix(key_part)
-            if not key:
-                raise ValueError(f"Invalid argument format: {token}. Expected non-empty key")
-        else:
-            if not token.startswith("-"):
-                raise ValueError(f"Invalid argument format: {token}. Expected key=value or --key value")
+        key_token = token if stop_processing else token.lstrip("-")
 
-            key = _strip_flag_prefix(token)
-            if not key:
-                raise ValueError(f"Invalid flag: {token}")
-            next_value: str | None = None
-            if i + 1 < len(cli_args):
-                candidate = cli_args[i + 1]
-                if candidate != "--" and (not candidate.startswith("-") or is_number(candidate)):
-                    next_value = candidate
-                    i += 1
+        if not key_token:
+            raise ValueError("Empty CLI argument detected")
 
-            value = "true" if next_value is None else next_value
+        value = "true"
+        if i + 1 < len(cli_args):
+            next_token = cli_args[i + 1]
+            if _should_treat_as_value(next_token, stop_processing):
+                value = next_token
+                i += 1
 
-        normalized.append(f"{key}={value}")
+        pairs.append((key_token, value))
         i += 1
 
-    return normalized
+    return pairs
 
 
-def _has_separator(token: str) -> bool:
-    return "=" in token or ":" in token
+def _should_treat_as_value(token: str, stop_processing: bool) -> bool:
+    if token == "--":
+        return False
+    if not stop_processing and token.startswith("--"):
+        return False
+    if "=" in token or ":" in token:
+        return stop_processing or not token.startswith("-")
+    if not stop_processing and token.startswith("-"):
+        # Allow negative numbers as values
+        if len(token) > 1 and (token[1].isdigit() or token[1] == "."):
+            return True
+        try:
+            float(token)
+            return True
+        except ValueError:
+            return False
+    return True
 
 
-def _split_token(token: str) -> tuple[str, str]:
+def _split_inline_token(token: str) -> tuple[str, str]:
     if "=" in token:
-        return token.split("=", 1)
-    if ":" in token:
-        return token.split(":", 1)
-    raise ValueError(f"Argument {token} does not contain a separator")
+        key, value = token.split("=", 1)
+    elif ":" in token:
+        key, value = token.split(":", 1)
+    else:
+        raise ValueError(f"Invalid inline token: {token}")
 
+    if key.startswith("--"):
+        key = key[2:]
+    elif key.startswith("-"):
+        key = key[1:]
 
-def _strip_flag_prefix(token: str) -> str:
-    if token.startswith("--"):
-        return token[2:]
-    if token.startswith("-"):
-        return token[1:]
-    return token
+    if not key:
+        raise ValueError(f"Empty key in token: {token}")
+
+    return key, value
 
 
 def deep_merge(dst: dict, src: dict) -> dict:
@@ -397,21 +354,24 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
                     console.print(f"{indent}{field_name}", end="")
 
                 console.print(f": [dim]{type_str}[/dim]", end="")
-                markup = _format_default_markup(default, required)
-                if markup:
-                    console.print(markup, end="")
+                if not required and default is not None:
+                    if callable(default):
+                        console.print(" [green](default: <factory>)[/green]", end="")
+                    elif isinstance(default, BaseModel):
+                        console.print(f" [green](default: <{type(default).__name__}>)[/green]", end="")
+                    elif isinstance(default, str) and (default.startswith("<") and default.endswith(">")):
+                        pass
+                    elif isinstance(default, str) and len(str(default)) > 100:
+                        console.print(f" [green](default: {str(default)[:100]}...)[/green]", end="")
+                    else:
+                        console.print(f" [green](default: {default})[/green]", end="")
+                elif required:
+                    console.print(" [red](required)[/red]", end="")
 
                 console.print()
 
             if top_level != list(grouped.keys())[-1]:
                 console.print()
-
-        presets_provider = getattr(make_tool_cfg, "policy_presets", None)
-        if callable(presets_provider):
-            alias_map = presets_provider()
-            if alias_map:
-                alias_str = ", ".join(sorted(alias_map))
-                console.print(f"\n[dim]Policy presets: {alias_str}[/dim]")
 
     else:
         console.print("[yellow]Function Parameters:[/yellow]\n")
@@ -423,12 +383,15 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
             if param.annotation is not inspect._empty:
                 ann_str = str(param.annotation).replace("typing.", "")
                 console.print(f": [dim]{ann_str}[/dim]", end="")
-
-            required = param.default is inspect._empty
-            default_val = None if required else param.default
-            markup = _format_default_markup(default_val, required, callable_label="<function>")
-            if markup:
-                console.print(markup, end="")
+            if param.default is not inspect._empty:
+                if isinstance(param.default, BaseModel):
+                    console.print(f" [green](default: {type(param.default).__name__})[/green]", end="")
+                elif callable(param.default):
+                    console.print(" [green](default: <function>)[/green]", end="")
+                else:
+                    console.print(f" [green](default: {param.default})[/green]", end="")
+            else:
+                console.print(" [red](required)[/red]", end="")
 
             console.print()
 
@@ -442,9 +405,11 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
                                 indent = "    " * (depth + 1)
                                 field_name = path.split(".")[-1]
                                 console.print(f"{indent}{field_name}: [dim]{type_str}[/dim]", end="")
-                                markup = _format_default_markup(default, required)
-                                if markup:
-                                    console.print(markup, end="")
+                                if not required and default is not None:
+                                    if callable(default):
+                                        console.print(" [green](default: <factory>)[/green]", end="")
+                                    else:
+                                        console.print(f" [green](default: {default})[/green]", end="")
                                 console.print()
                 except (TypeError, AttributeError):
                     pass
@@ -474,9 +439,11 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
                         indent = "    " * depth
                         field_name = path.split(".")[-1] if "." in path else path
                         console.print(f"{indent}{field_name}: [dim]{type_str}[/dim]", end="")
-                        markup = _format_default_markup(default, required)
-                        if markup:
-                            console.print(markup, end="")
+                        if not required and default is not None:
+                            if callable(default):
+                                console.print(" [green](default: <factory>)[/green]", end="")
+                            else:
+                                console.print(f" [green](default: {default})[/green]", end="")
                         console.print()
         except Exception:
             console.print("  [dim]Unable to determine Tool fields (function requires runtime values)[/dim]")

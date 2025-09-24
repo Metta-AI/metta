@@ -56,17 +56,16 @@ logger = getRankAwareLogger(__name__)
 class TrainTool(Tool):
     @classmethod
     def policy_presets(cls) -> dict[str, str]:
-        return {
-            alias: target if isinstance(target, str) else f"{target.__module__}.{target.__qualname__}"
-            for alias, target in POLICY_PRESETS.items()
-        }
+        return dict(POLICY_PRESETS)
 
     @field_validator("policy_architecture", mode="before")
     @classmethod
-    def _normalize_policy_architecture(cls, value: Any) -> Any:
+    def _coerce_policy_architecture(cls, value: Any) -> Any:
         if value is None:
-            return value
-        return PolicyArchitecture.resolve(value)
+            return None
+        if isinstance(value, (str, type, PolicyArchitecture)):
+            return PolicyArchitecture.resolve(value)
+        return value
 
     run: Optional[str] = None
 
