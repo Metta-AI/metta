@@ -31,25 +31,27 @@ class ObsTokenPool(nn.Module):
         tokens = td[self.config.in_key]
         mask = td.get("obs_mask")
 
-        hidden = self.activation(self.linear(tokens))
-
-        if mask is None:
-            if self.config.pool == "max":
+        if self.config.pool == "max":
+            hidden = self.activation(self.linear(tokens))
+            if mask is None:
                 pooled = hidden.max(dim=1).values
             else:
-                pooled = hidden.mean(dim=1)
-        else:
-            mask_expanded = mask.unsqueeze(-1)
-            valid = ~mask_expanded
-
-            if self.config.pool == "max":
+                mask_expanded = mask.unsqueeze(-1)
+                valid = ~mask_expanded
                 masked_hidden = hidden.masked_fill(~valid, float("-inf"))
                 pooled = masked_hidden.max(dim=1).values
                 pooled = torch.nan_to_num(pooled, nan=0.0, neginf=0.0)
+        else:  # mean pooling path
+            if mask is None:
+                pooled_tokens = tokens.mean(dim=1)
             else:
-                masked_hidden = hidden.masked_fill(~valid, 0.0)
+                mask_expanded = mask.unsqueeze(-1)
+                valid = ~mask_expanded
+                masked_tokens = tokens.masked_fill(~valid, 0.0)
                 counts = valid.sum(dim=1).clamp(min=1)
-                pooled = masked_hidden.sum(dim=1) / counts
+                pooled_tokens = masked_tokens.sum(dim=1) / counts
+            hidden = self.linear(pooled_tokens)
+            pooled = self.activation(hidden)
 
         td[self.config.out_key] = pooled
         return td
