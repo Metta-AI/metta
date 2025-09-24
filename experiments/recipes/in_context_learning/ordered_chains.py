@@ -286,11 +286,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
             description="Directory to load environments from",
         )
 
-        map_dir: str | None = Field(
-            default="icl_ordered_chains",
-            description="Directory to load environments from",
-        )
-
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
