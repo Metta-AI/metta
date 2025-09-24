@@ -13,7 +13,7 @@ class DiscordNotifier(NotificationBase):
 
     def _validate_config(self, job_config: JobConfig) -> str | None:
         if not job_config.discord_webhook_url:
-            return "webhook_url not provided"
+            return "Missing required field: webhook_url"
         return None
 
     def _make_payload(self, notification: NotificationConfig, job_config: JobConfig) -> dict[str, Any]:

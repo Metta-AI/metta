@@ -11,14 +11,14 @@ class GitHubNotifier(NotificationBase):
 
     def _validate_config(self, job_config: JobConfig) -> str | None:
         if not job_config.github_pat:
-            return "GitHub PAT not provided"
+            return "Missing required field: github_pat"
         if not job_config.github_repository:
-            return "repository not set"
+            return "Missing required field: github_repository"
 
         # Validate SHA format
         commit_sha = job_config.metta_git_ref or ""
         if not commit_sha:
-            return "metta_git_ref not set"
+            return "Missing required field: metta_git_ref"
         if len(commit_sha) != 40:
             return f"GitHub requires full length commit hash (40 chars), got {len(commit_sha)} chars"
 
