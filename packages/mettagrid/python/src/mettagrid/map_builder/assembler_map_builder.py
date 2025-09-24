@@ -52,9 +52,7 @@ class AssemblerMapBuilder(MapBuilder):
         if isinstance(self._config.agents, int):
             agent_symbols = ["agent.agent"] * self._config.agents
         elif isinstance(self._config.agents, dict):
-            agent_symbols = [
-                "agent." + agent for agent, na in self._config.agents.items() for _ in range(na)
-            ]
+            agent_symbols = ["agent." + agent for agent, na in self._config.agents.items() for _ in range(na)]
         else:
             raise ValueError(f"Invalid agents configuration: {self._config.agents}")
 
@@ -120,5 +118,3 @@ class AssemblerMapBuilder(MapBuilder):
                     grid[i, j] = agent_symbols[k]
 
         return GameMap(grid)
-
-
