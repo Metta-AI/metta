@@ -4,6 +4,7 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from experiments.recipes.in_context_learning.icl_resource_chain import ICLTaskGenerator
 from experiments.recipes.in_context_learning.ordered_chains import (
     OrderedChainsTaskGenerator,
+    make_task_generator_cfg,
 )
 
 
@@ -27,7 +28,7 @@ def make_icl_resource_chain_eval_env(
     obstacle_types: list[str] = [],
     densities: list[str] = [],
 ) -> MettaGridConfig:
-    task_generator_cfg = ICLTaskGenerator.Config(
+    task_generator_cfg = make_task_generator_cfg(
         chain_lengths=[chain_length],
         num_sinks=[num_sinks],
         room_sizes=[room_size],

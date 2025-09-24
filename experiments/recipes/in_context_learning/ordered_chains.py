@@ -103,10 +103,15 @@ curriculum_args = {
 
 
 def make_task_generator_cfg(
-    chain_lengths, num_sinks, obstacle_types, densities, room_sizes, map_dir
+    chain_lengths,
+    num_sinks,
+    room_sizes,
+    map_dir,
+    obstacle_types=[],
+    densities=[],
 ):
     return ICLTaskGenerator.Config(
-        num_resources=chain_lengths - 1,
+        num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
         obstacle_types=obstacle_types,
         densities=densities,
