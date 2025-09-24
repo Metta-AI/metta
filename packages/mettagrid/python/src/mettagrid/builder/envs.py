@@ -12,9 +12,9 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
+from mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
-from mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 

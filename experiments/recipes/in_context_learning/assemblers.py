@@ -20,7 +20,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
-import numpy as np
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import (
     TaskGenerator,
@@ -346,17 +345,6 @@ def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-    )
-
-
-def play(curriculum_style: str = "single_agent_two_altars") -> PlayTool:
-    eval_env = make_mettagrid(curriculum_style)
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="in_context_assemblers",
-            suite="in_context_learning",
-        ),
     )
 
 
