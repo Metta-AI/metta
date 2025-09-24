@@ -19,15 +19,15 @@ from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import EnvironmentMetaData
+from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.sim.stats import DuckDBStatsWriter
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
 from mettagrid.util.replay_writer import ReplayWriter
-from mettagrid.util.stats_writer import StatsWriter
 
 SYNTHETIC_EVAL_SUITE = "training"
 
@@ -66,7 +66,7 @@ class Simulation:
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
-        self._stats_writer = StatsWriter(sim_stats_dir)
+        self._stats_writer = DuckDBStatsWriter(sim_stats_dir)
         self._replay_writer = ReplayWriter(replay_dir)
         self._device = device
 

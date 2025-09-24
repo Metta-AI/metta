@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -uo pipefail
 
 cd /workspace/metta
 
@@ -137,22 +137,14 @@ shutdown() {
 
   echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
 
-  # Read and preserve the termination reason if it exists
-  local termination_reason="$(cat "$TERMINATION_REASON_FILE" 2> /dev/null || true)"
+  # Get termination reason
+  local termination_reason=$(cat "$TERMINATION_REASON_FILE" 2> /dev/null \
+    || cat "$CLUSTER_STOP_FILE" 2> /dev/null \
+    || echo "cluster_stop")
+  echo "$termination_reason" > "$TERMINATION_REASON_FILE"
 
-  # If no termination reason was set, check cluster stop file
-  if [[ -z "$termination_reason" ]]; then
-    if [[ -f "$CLUSTER_STOP_FILE" ]]; then
-      termination_reason="$(cat "$CLUSTER_STOP_FILE" 2> /dev/null || echo "cluster_stop")"
-    else
-      termination_reason="cluster_stop"
-    fi
-    # Write it to the termination reason file for cleanup handler
-    echo "$termination_reason" > "$TERMINATION_REASON_FILE"
-  fi
-
-  # Kill the entire process tree gracefully
-  if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
+  # Kill the entire process tree
+  if [ -n "${CMD_PGID:-}" ]; then
     echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
     # Only master coordinates multi-node shutdown
@@ -164,7 +156,7 @@ shutdown() {
       echo "[SHUTDOWN] Waiting for worker nodes to begin shutdown..."
       sleep 20
 
-    elif [[ "$IS_MASTER" != "true" ]]; then
+    else
       # Worker waits for cluster-wide shutdown signal
       echo "[SHUTDOWN] Worker node checking for cluster-wide shutdown signal..."
       count=0
@@ -185,34 +177,9 @@ shutdown() {
       fi
     fi
 
-    # Now proceed with local process termination
-    # Send SIGTERM to the local process group
     kill -TERM -"${CMD_PGID}" 2> /dev/null || true
-
-    # Wait for graceful shutdown
-    count=0
-    max_wait=30
-    while kill -0 "$CMD_PID" 2> /dev/null && [ $count -lt $max_wait ]; do
-      sleep 1
-      ((count++))
-      if [ $((count % 5)) -eq 0 ]; then
-        echo "[SHUTDOWN] Waiting for graceful shutdown... ${count}/${max_wait}s"
-      fi
-    done
-
-    # If still alive, use SIGKILL
-    if kill -0 "$CMD_PID" 2> /dev/null; then
-      echo "[SHUTDOWN] Process didn't terminate gracefully after ${max_wait}s, using SIGKILL"
-      kill -KILL -"${CMD_PGID}" 2> /dev/null || true
-    fi
-
-    # Wait for the process to actually exit
-    if kill -0 "$CMD_PID" 2> /dev/null; then
-      echo "[SHUTDOWN] Waiting for process $CMD_PID to exit..."
-      wait "$CMD_PID" 2> /dev/null || true
-    else
-      echo "[SHUTDOWN] Process $CMD_PID already exited"
-    fi
+    sleep 20
+    kill -KILL -"${CMD_PGID}" 2> /dev/null || true
   fi
 
   # shutdown now calls the cleanup_handler
@@ -280,8 +247,6 @@ run_cmd() {
   local END_TIME=$(date +%s)
   local DURATION=$((END_TIME - START_TIME))
   echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
-
-  return $CMD_EXIT
 }
 
 source ./devops/skypilot/config/lifecycle/cleanup_handler.sh
@@ -314,3 +279,4 @@ else
 fi
 
 run_cmd
+shutdown

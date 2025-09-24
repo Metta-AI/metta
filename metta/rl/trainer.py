@@ -91,6 +91,10 @@ class Trainer:
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
 
         self._state = TrainerState()
+
+        # Extract curriculum from environment if available
+        curriculum = getattr(self._env, "_curriculum", None)
+
         self._context = ComponentContext(
             state=self._state,
             policy=self._policy,
@@ -101,6 +105,7 @@ class Trainer:
             stopwatch=self.timer,
             distributed=self._distributed_helper,
             run_name=self._run_name,
+            curriculum=curriculum,
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
