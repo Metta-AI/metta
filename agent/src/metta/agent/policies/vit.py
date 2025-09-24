@@ -65,10 +65,10 @@ class ViTDefaultConfig(ViTSmallConfig):
     _hidden_size = 128
     _embedding_dim = 16
 
-    _token_embed_dim = 8
-    _latent_dim = 48
-    _lstm_latent = 96
-    _critic_hidden = 128
+    _token_embed_dim = 16
+    _latent_dim = 64
+    _lstm_latent = 128
+    _critic_hidden = 256
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
@@ -77,15 +77,20 @@ class ViTDefaultConfig(ViTSmallConfig):
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
         ),
-        ObsTokenPoolConfig(
+        ObsLatentAttnConfig(
             in_key="obs_attr_embed",
-            out_key="obs_token_pooled",
+            out_key="obs_latent_attn",
             feat_dim=_token_embed_dim + 1,
-            hidden_dim=_latent_dim,
-            pool="mean",
+            out_dim=_latent_dim,
+        ),
+        ObsSelfAttnConfig(
+            in_key="obs_latent_attn",
+            out_key="obs_self_attn",
+            feat_dim=_latent_dim,
+            out_dim=_latent_dim,
         ),
         LSTMConfig(
-            in_key="obs_token_pooled",
+            in_key="obs_self_attn",
             out_key="core",
             latent_size=_latent_dim,
             hidden_size=_lstm_latent,
