@@ -373,6 +373,8 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
             simulations=make_icl_resource_chain_eval_suite(),
+            evaluate_remote=True,
+            evaluate_local=False,
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
