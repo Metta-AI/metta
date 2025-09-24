@@ -102,6 +102,10 @@ curriculum_args = {
 }
 
 
+def calculate_avg_hop(room_size: str) -> float:
+    return (size_ranges[room_size][0] + size_ranges[room_size][1]) / 2
+
+
 def get_reward_estimates(
     num_resources: int,
     num_sinks: int,
@@ -167,10 +171,33 @@ def get_reward_estimates(
     return int(most_efficient), int(least_efficient)
 
 
+def calculate_max_steps(avg_hop: float, chain_length: int, num_sinks: int) -> int:
+    """
+    Calculate maximum steps for an episode based on environment parameters.
+
+    This calculation ensures enough time for:
+    1. Finding all sinks through exploration
+    2. Completing the chain at least 10 times
+
+    Formula breakdown:
+    - steps_per_attempt = 2 * avg_hop (movement to object + interaction costs)
+    - Finding sinks: steps_per_attempt * num_sinks
+    - Chain completion: steps_per_attempt * chain_length (traverse full chain once)
+    - Target: Complete chain 10 times minimum
+
+    Total = sink_exploration + 5 * chain_completion
+    """
+    steps_per_attempt = 2 * avg_hop
+    sink_exploration_cost = steps_per_attempt * num_sinks
+    chain_completion_cost = steps_per_attempt * chain_length
+    target_completions = 10
+
+    return int(sink_exploration_cost + target_completions * chain_completion_cost)
+
+
 class OrderedChainsTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
-        # Add map_dir support from main
         self.map_dir = getattr(config, "map_dir", "icl_ordered_chains")
 
     def _add_converter(
@@ -223,8 +250,8 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         obstacle_type,
         density,
         avg_hop,
+        max_steps,
         rng,
-        max_steps=512,
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
@@ -263,6 +290,12 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
                 env.game.reward_estimates = reward_estimates[dir]
             return env
 
+        size_range = size_ranges[room_size]
+
+        width, height = (
+            rng.randint(size_range[0], size_range[1]),
+            rng.randint(size_range[0], size_range[1]),
+        )
         return make_in_context_chains(
             num_agents=1,
             max_steps=max_steps,
@@ -286,11 +319,9 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             self._setup_task(rng)
         )
 
-        max_steps = self.config.max_steps
-
         # estimate average hop for cooldowns
-        avg_hop = 7 if room_size == "tiny" else 10 if room_size == "small" else 13
-
+        avg_hop = calculate_avg_hop(room_size)
+        max_steps = calculate_max_steps(avg_hop, len(resources) + 1, num_sinks)
         icl_env = self._make_env_cfg(
             resources,
             num_sinks,
@@ -300,6 +331,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             obstacle_type=obstacle_type,
             density=density,
             avg_hop=avg_hop,
+            max_steps=max_steps,
             rng=rng,
         )
 
@@ -391,9 +423,9 @@ def train(
 
 
 def play(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny"
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny", map_dir=None
 ) -> PlayTool:
-    eval_env = env or make_mettagrid(curriculum_style)
+    eval_env = env or make_mettagrid(curriculum_style, map_dir)
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -404,9 +436,11 @@ def play(
 
 
 def replay(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "hard_eval"
+    env: Optional[MettaGridConfig] = None,
+    curriculum_style: str = "hard_eval",
+    map_dir=None,
 ) -> ReplayTool:
-    eval_env = env or make_mettagrid(curriculum_style)
+    eval_env = env or make_mettagrid(curriculum_style, map_dir)
     # Default to the research policy if none specified
     default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23:v900.pt"
     return ReplayTool(
@@ -437,7 +471,6 @@ def evaluate(
 
 def experiment():
     curriculum_styles = [
-        "level_0",
         "level_1",
         "level_2",
         "tiny_small",
@@ -450,19 +483,17 @@ def experiment():
     ]
 
     for curriculum_style in curriculum_styles:
-        for use_fast_lstm_reset in [True, False]:
-            subprocess.run(
-                [
-                    "./devops/skypilot/launch.py",
-                    "experiments.recipes.in_context_learning.ordered_chains.train",
-                    f"run=icl_resource_chain_{curriculum_style}.newarchitecture{use_fast_lstm_reset}.{time.strftime('%Y-%m-%d')}",
-                    f"curriculum_style={curriculum_style}",
-                    f"use_fast_lstm_reset={use_fast_lstm_reset}",
-                    "--gpus=4",
-                    "--heartbeat-timeout=3600",
-                    "--skip-git-check",
-                ]
-            )
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.in_context_learning.ordered_chains.train",
+                f"run=icl_resource_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
         time.sleep(1)
 
 
@@ -534,6 +565,5 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
 
 
 if __name__ == "__main__":
-    # experiment()
+    experiment()
     # save_envs_to_numpy()
-    generate_reward_estimates()

@@ -33,6 +33,13 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
+size_ranges: dict[str, tuple[int, int]] = {
+    "tiny": (5, 8),
+    "small": (8, 12),
+    "medium": (12, 16),
+    "large": (16, 25),
+}
+
 
 @dataclass
 class _BuildCfg:
@@ -143,13 +150,7 @@ class ICLTaskGenerator(TaskGenerator):
         )
         density = rng.choice(cfg.densities) if len(cfg.densities) > 0 else None
 
-        size_range = (
-            (8, 12)
-            if room_size == "medium"
-            else (12, 15)
-            if room_size == "large"
-            else (5, 8)
-        )
+        size_range = size_ranges[room_size]
 
         width, height = (
             rng.randint(size_range[0], size_range[1]),
