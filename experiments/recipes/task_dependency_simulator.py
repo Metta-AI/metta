@@ -17,6 +17,7 @@ import torch
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.tool import Tool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
@@ -375,31 +376,31 @@ def simulate_task_dependencies(
     return results
 
 
-# Convenience functions for different experiment configurations
+# Convenience functions for programmatic use (return dictionaries)
 
 
-def simulate_small_chain(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
-    """Simulate a small task chain (5 tasks)."""
+def run_small_chain_simulation(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
+    """Programmatically run a small task chain simulation (5 tasks)."""
     return simulate_task_dependencies(
         num_tasks=5,
-        num_epochs=50,
+        num_epochs=500,
         samples_per_epoch=25,
         wandb_run_name=wandb_run_name,
     )
 
 
-def simulate_large_chain(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
-    """Simulate a large task chain (20 tasks)."""
+def run_large_chain_simulation(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
+    """Programmatically run a large task chain simulation (20 tasks)."""
     return simulate_task_dependencies(
         num_tasks=20,
-        num_epochs=200,
+        num_epochs=2000,
         samples_per_epoch=100,
         wandb_run_name=wandb_run_name,
     )
 
 
-def simulate_high_gamma(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
-    """Simulate with high parent contribution (gamma=0.3)."""
+def run_high_gamma_simulation(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
+    """Programmatically run simulation with high parent contribution (gamma=0.3)."""
     return simulate_task_dependencies(
         gamma=0.3,  # High parent contribution
         lambda_forget=0.05,  # Lower forgetting
@@ -407,9 +408,116 @@ def simulate_high_gamma(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
     )
 
 
-def simulate_high_forgetting(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
-    """Simulate with high forgetting rate."""
+def run_high_forgetting_simulation(
+    wandb_run_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Programmatically run simulation with high forgetting rate."""
     return simulate_task_dependencies(
+        gamma=0.05,  # Low parent contribution
+        lambda_forget=0.2,  # High forgetting
+        wandb_run_name=wandb_run_name,
+    )
+
+
+# Tool implementations for the recipe system
+
+
+class TaskDependencySimulationTool(Tool):
+    """
+    Tool for running task dependency simulations.
+
+    This tool runs pure curriculum learning simulations without agents or policies,
+    focusing on task dependency dynamics and learning progress analysis.
+    """
+
+    # Simulation parameters
+    num_tasks: int = 10
+    num_epochs: int = 100
+    samples_per_epoch: int = 50
+    gamma: float = 0.1
+    lambda_forget: float = 0.1
+    performance_threshold: float = 0.9
+    task_seed: Optional[int] = None
+    enable_detailed_slice_logging: bool = False
+
+    # Wandb parameters
+    wandb_project: str = "task_dependency_simulator"
+    wandb_run_name: Optional[str] = None
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        """Run the task dependency simulation."""
+        logger.info("Starting task dependency simulation...")
+
+        try:
+            results = simulate_task_dependencies(
+                num_tasks=self.num_tasks,
+                num_epochs=self.num_epochs,
+                samples_per_epoch=self.samples_per_epoch,
+                gamma=self.gamma,
+                lambda_forget=self.lambda_forget,
+                performance_threshold=self.performance_threshold,
+                task_seed=self.task_seed,
+                enable_detailed_slice_logging=self.enable_detailed_slice_logging,
+                wandb_project=self.wandb_project,
+                wandb_run_name=self.wandb_run_name,
+            )
+
+            logger.info("✅ Simulation completed successfully!")
+            logger.info(
+                f"Final mean performance: {results['final_mean_performance']:.3f}"
+            )
+            logger.info(f"Tasks above threshold: {results['tasks_above_threshold']}")
+
+            return 0
+
+        except Exception as e:
+            logger.error(f"❌ Simulation failed: {e}")
+            return 1
+
+
+# Recipe functions that return Tool instances
+
+
+def simulate_small_chain(
+    wandb_run_name: Optional[str] = None,
+) -> TaskDependencySimulationTool:
+    """Simulate a small task chain (5 tasks)."""
+    return TaskDependencySimulationTool(
+        num_tasks=5,
+        num_epochs=500,
+        samples_per_epoch=25,
+        wandb_run_name=wandb_run_name,
+    )
+
+
+def simulate_large_chain(
+    wandb_run_name: Optional[str] = None,
+) -> TaskDependencySimulationTool:
+    """Simulate a large task chain (20 tasks)."""
+    return TaskDependencySimulationTool(
+        num_tasks=20,
+        num_epochs=2000,
+        samples_per_epoch=100,
+        wandb_run_name=wandb_run_name,
+    )
+
+
+def simulate_high_gamma(
+    wandb_run_name: Optional[str] = None,
+) -> TaskDependencySimulationTool:
+    """Simulate with high parent contribution (gamma=0.3)."""
+    return TaskDependencySimulationTool(
+        gamma=0.3,  # High parent contribution
+        lambda_forget=0.05,  # Lower forgetting
+        wandb_run_name=wandb_run_name,
+    )
+
+
+def simulate_high_forgetting(
+    wandb_run_name: Optional[str] = None,
+) -> TaskDependencySimulationTool:
+    """Simulate with high forgetting rate."""
+    return TaskDependencySimulationTool(
         gamma=0.05,  # Low parent contribution
         lambda_forget=0.2,  # High forgetting
         wandb_run_name=wandb_run_name,
