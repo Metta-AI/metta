@@ -12,7 +12,7 @@ from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 
 
-class PufferSimpleConfig(PolicyArchitecture):
+class BasicConfig (PolicyArchitecture):
     """Simple PufferLib policy configuration."""
 
     class_path: str = "metta.agent.policies.puffer_simple.PufferSimplePolicy"
@@ -21,7 +21,7 @@ class PufferSimpleConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
-class PufferSimplePolicy(Policy):
+class BasicPolicy(Policy):
     """Direct PufferLib policy with minimal Metta integration."""
 
     def __init__(self, env_metadata, config: Optional[PufferSimpleConfig] = None):
