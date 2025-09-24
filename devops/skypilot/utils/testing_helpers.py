@@ -69,7 +69,11 @@ class SkyPilotTestLauncher:
         """Generate a descriptive run name with timestamp."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = f"_{extra_suffix}" if extra_suffix else ""
-        return f"{self.base_name}_{test_name}{suffix}_{timestamp}"
+
+        # Replace slashes with underscores for Sky compatibility
+        safe_test_name = test_name.replace("/", "_")
+
+        return f"{self.base_name}_{safe_test_name}{suffix}_{timestamp}"
 
     def check_git_state(self) -> bool:
         """Check if git state is clean. Returns True if clean or check is skipped."""
