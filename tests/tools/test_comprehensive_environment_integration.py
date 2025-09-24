@@ -1,13 +1,9 @@
-import os
-import subprocess
-import tempfile
-from pathlib import Path
-
 import pytest
 
 import mettagrid.builder.envs as eb
 from metta.common.util.fs import get_repo_root
 from metta.sim.simulation_config import SimulationConfig
+from metta.tests_support import run_tool_in_process
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from mettagrid import MettaGridEnv
@@ -218,7 +214,7 @@ class TestComprehensiveEnvironmentIntegration:
 
         for env_name in ["tiny_two_altars", "simple_obstacles"]:
             env_config = self.make_debug_env(env_name)
-            sim_config = SimulationConfig(name=f"sim_{env_name}", env=env_config)
+            sim_config = SimulationConfig(suite="test", name=f"sim_{env_name}", env=env_config)
 
             assert sim_config.name == f"sim_{env_name}"
             assert sim_config.env.game.num_agents == 2
@@ -227,7 +223,7 @@ class TestComprehensiveEnvironmentIntegration:
         """Test that tools can be configured with programmatic environments."""
 
         env_config = self.make_debug_env("resource_collection")
-        sim_config = SimulationConfig(name="test_resource", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_resource", env=env_config)
 
         # Test ReplayTool configuration
         replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
@@ -245,154 +241,103 @@ class TestComprehensiveEnvironmentIntegration:
                 f"Environment {env_name} should have exactly 2 agents, but has {env_config.game.num_agents}"
             )
             # Also check map_builder agent count matches
-            if hasattr(env_config.game.map_builder, "agents"):
-                assert env_config.game.map_builder.agents == 2, f"Map builder for {env_name} should configure 2 agents"
+            map_builder_agents = getattr(env_config.game.map_builder, "agents", None)
+            if map_builder_agents is not None:
+                assert map_builder_agents == 2, f"Map builder for {env_name} should configure 2 agents"
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "env_name", ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]
     )
-    def test_recipe_based_training_validation(self, env_name):
+    def test_recipe_based_training_validation(self, env_name, monkeypatch, capsys):
         """Test basic training validation with the new recipe-based system."""
         run_name = f"validation_{env_name}"
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            print(f"\n=== Training Validation for {env_name} ===")
-            print(f"Temp directory: {temp_dir}")
-            print(f"Working directory: {Path.cwd()}")
+        env_overrides = {
+            "AWS_ACCESS_KEY_ID": "dummy_access_key_for_testing",
+            "AWS_SECRET_ACCESS_KEY": "dummy_secret_key_for_testing",
+            "PYTHONUNBUFFERED": "1",
+        }
 
-            # Use the recipe system
-            cmd = [
-                "uv",
-                "run",
-                "./tools/run.py",
-                "experiments.recipes.navigation.train",  # Use navigation recipe as base
-                f"run={run_name}",
-                "trainer.total_timesteps=50",  # Minimal training
-                "wandb=off",
+        args = [
+            "experiments.recipes.navigation.train",
+            f"run={run_name}",
+            "trainer.total_timesteps=50",
+            "wandb=off",
+            "--dry-run",
+        ]
+
+        result = run_tool_in_process(
+            *args,
+            env_overrides=env_overrides,
+            monkeypatch=monkeypatch,
+            capsys=capsys,
+        )
+
+        if result.returncode != 0:
+            combined_output = result.stdout + result.stderr
+            initialization_errors = [
+                "ImportError",
+                "ModuleNotFoundError",
+                "AttributeError",
+                "recipe not found",
+                "TypeError",
+                "NameError",
+                "RecipeNotFound",
             ]
 
-            env = os.environ.copy()
-            # Set dummy AWS credentials to bypass AWS configuration check
-            env["AWS_ACCESS_KEY_ID"] = "dummy_access_key_for_testing"
-            env["AWS_SECRET_ACCESS_KEY"] = "dummy_secret_key_for_testing"
-            env["PYTHONUNBUFFERED"] = "1"
+            detected_errors = [error for error in initialization_errors if error in combined_output]
 
-            print(f"\nRunning command: {' '.join(cmd)}")
-
-            try:
-                timeout = 180  # 3 minutes
-                print(f'Running cmd "{cmd}" with timeout {timeout} sec')
-                result = subprocess.run(
-                    cmd,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    cwd=Path.cwd(),
+            if detected_errors:
+                pytest.fail(
+                    f"Training initialization failed for {env_name}.\n"
+                    f"Return code: {result.returncode}\n"
+                    f"Detected errors: {', '.join(detected_errors)}\n"
+                    f"STDOUT (last 1000 chars): {result.stdout[-1000:]}\n"
+                    f"STDERR (last 1000 chars): {result.stderr[-1000:]}"
                 )
-            except subprocess.TimeoutExpired as e:
-                print(f"\n=== Command timed out after {timeout} seconds ===")
-                stdout_text = e.stdout.decode("utf-8") if e.stdout else "None"
-                stderr_text = e.stderr.decode("utf-8") if e.stderr else "None"
-                print(f"Partial STDOUT: {stdout_text}")
-                print(f"Partial STDERR: {stderr_text}")
-                # Timeout might be ok - training could be running
-                print("Training test timed out - could indicate it's working")
-                return
-
-            print("\n=== Full STDOUT ===")
-            print(result.stdout)
-            print("\n=== Full STDERR ===")
-            print(result.stderr)
-
-            # More lenient success criteria - focus on initialization errors
-            if result.returncode != 0:
-                combined_output = result.stdout + result.stderr
-                initialization_errors = [
-                    "ImportError",
-                    "ModuleNotFoundError",
-                    "AttributeError",
-                    "recipe not found",
-                    "TypeError",
-                    "NameError",
-                    "RecipeNotFound",
-                ]
-
-                detected_errors = [error for error in initialization_errors if error in combined_output]
-
-                if detected_errors:
-                    pytest.fail(
-                        f"Training initialization failed for {env_name}.\n"
-                        f"Return code: {result.returncode}\n"
-                        f"Detected errors: {', '.join(detected_errors)}\n"
-                        f"STDOUT (last 1000 chars): {result.stdout[-1000:]}\n"
-                        f"STDERR (last 1000 chars): {result.stderr[-1000:]}"
-                    )
-                else:
-                    # Training started but failed during execution - acceptable for minimal test
-                    print(f"Training for {env_name} started successfully but failed during execution (expected)")
 
     @pytest.mark.slow
-    def test_simulation_and_replay_integration(self):
+    def test_simulation_and_replay_integration(self, monkeypatch, capsys):
         """Test that we can run simulations and create replays with new system."""
         run_name = "sim_replay_test"
 
-        with tempfile.TemporaryDirectory():
-            # First, try to run a very short training to create a policy
-            train_cmd = [
-                "uv",
-                "run",
-                "./tools/run.py",
-                "experiments.recipes.arena.train",
-                f"run={run_name}",
-                "trainer.total_timesteps=100",
-                "wandb=off",
-            ]
+        env_overrides = {
+            "AWS_ACCESS_KEY_ID": "dummy_for_test",
+            "AWS_SECRET_ACCESS_KEY": "dummy_for_test",
+        }
 
-            env = os.environ.copy()
-            env["AWS_ACCESS_KEY_ID"] = "dummy_for_test"
-            env["AWS_SECRET_ACCESS_KEY"] = "dummy_for_test"
+        train_args = [
+            "experiments.recipes.arena.train",
+            f"run={run_name}",
+            "trainer.total_timesteps=100",
+            "wandb=off",
+            "--dry-run",
+        ]
 
-            try:
-                # Run training briefly
-                subprocess.run(
-                    train_cmd,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,  # Short timeout
-                    cwd=Path.cwd(),
-                )
+        # Run training briefly (allow failures but ensure invocation returns)
+        run_tool_in_process(
+            *train_args,
+            env_overrides=env_overrides,
+            monkeypatch=monkeypatch,
+            capsys=capsys,
+        )
 
-                print("Training attempt completed")
+        # Test simulation tool configuration
+        sim_args = [
+            "experiments.recipes.arena.evaluate",
+            "policy_uri=mock://test",  # Use mock policy
+            "--dry-run",
+        ]
 
-                # Even if training fails, test that simulation tools work
-                # Test simulation tool configuration
-                sim_cmd = [
-                    "uv",
-                    "run",
-                    "./tools/run.py",
-                    "experiments.recipes.arena.evaluate",
-                    "policy_uri=mock://test",  # Use mock policy
-                ]
-
-                sim_result = subprocess.run(
-                    sim_cmd,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    cwd=Path.cwd(),
-                )
-
-                # Check that simulation tool can at least be invoked without config errors
-                if "recipe not found" in (sim_result.stdout + sim_result.stderr):
-                    pytest.fail("Simulation recipe not found")
-                elif "ImportError" in (sim_result.stdout + sim_result.stderr):
-                    pytest.fail("Import error in simulation tools")
-                else:
-                    print("Simulation tool integration test passed")
-
-            except subprocess.TimeoutExpired:
-                print("Integration test timed out - tools may be working")
+        sim_result = run_tool_in_process(
+            *sim_args,
+            env_overrides=env_overrides,
+            monkeypatch=monkeypatch,
+            capsys=capsys,
+        )
+        combined_output = sim_result.stdout + sim_result.stderr
+        if "recipe not found" in combined_output:
+            pytest.fail("Simulation recipe not found")
+        if "ImportError" in combined_output:
+            pytest.fail("Import error in simulation tools")

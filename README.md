@@ -244,25 +244,30 @@ Minimal example:
 
 ```python
 # experiments/user/my_tasks.py
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from mettagrid.config.envs import make_arena
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
+from mettagrid.builder.envs import make_arena
 
-def my_train(run: str = "local.me.1") -> TrainTool:
-    trainer = TrainerConfig(
-        evaluation=EvaluationConfig(
-            simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
-        )
+
+def my_train() -> TrainTool:
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(),
+        evaluator=EvaluatorConfig(
+            simulations=[
+                SimulationConfig(
+                    suite="arena", name="arena/basic", env=make_arena(num_agents=6)
+                )
+            ]
+        ),
     )
-    return TrainTool(trainer=trainer, run=run)
 ```
 
 Run your task:
 
 ```bash
-./tools/run.py experiments.user.my_tasks.my_train run=local.me.2 \
-  system.device=cpu wandb.enabled=false
+./tools/run.py experiments.user.my_tasks.my_train run=local.me.1 system.device=cpu wandb.enabled=false
 ```
 
 Notes:
@@ -389,13 +394,13 @@ pytest
 
 ### CLI cheat sheet
 
-| Task                        | Command                                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                              |
-| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                         |
-| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |
+| Task                        | Command                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
+| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
+| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
 | Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
-| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`        |
+| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
 | Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

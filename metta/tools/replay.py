@@ -1,6 +1,7 @@
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
 import logging
+import os
 import platform
 from urllib.parse import quote
 
@@ -52,12 +53,25 @@ class ReplayTool(Tool):
         return 0
 
 
+def get_clean_path(replay_url: str) -> str:
+    path = replay_url
+    if replay_url.startswith("file://"):
+        path = replay_url.removeprefix("file://")
+
+    if path.startswith("./"):
+        return path.removeprefix("./")
+    else:
+        # If the path url is fully qualified, we want to remove the cwd prefix
+        current_dir = os.getcwd()
+        return path.removeprefix(current_dir)
+
+
 def open_browser(replay_url: str, cfg: ReplayTool) -> None:
     # Only on macos open a browser to the replay
     if platform.system() == "Darwin":
         if not replay_url.startswith("http"):
             # Remove ./ prefix if it exists
-            clean_path = replay_url.removeprefix("./")
+            clean_path = get_clean_path(replay_url)
             local_url = f"{DEV_METTASCOPE_FRONTEND_URL}/local/{clean_path}"
             full_url = f"/?replayUrl={quote(local_url)}"
 

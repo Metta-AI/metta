@@ -1,13 +1,13 @@
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import torch
 from pydantic import Field
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.loss.contrastive_config import ContrastiveConfig
-from metta.rl.loss.ppo_config import PPOConfig
+from metta.agent.policy import Policy
 from mettagrid.config import Config
+
+if TYPE_CHECKING:
+    from metta.rl.training import TrainingEnvironment
 
 
 class LossSchedule(Config):
@@ -16,22 +16,32 @@ class LossSchedule(Config):
 
 
 class LossConfig(Config):
-    loss_configs: Dict[str, Any] = Field(default_factory=lambda: {"ppo": PPOConfig()})
+    loss_configs: Dict[str, Any] = Field(default_factory=dict)
     enable_contrastive: bool = Field(default=False, description="Whether to enable contrastive loss")
 
-    def __post_init__(self):
-        """Add contrastive config only if enabled to avoid inconsistent behavior."""
-        super().__post_init__()
+    def model_post_init(self, __context: Any) -> None:
+        """Called after the model is initialized."""
+        super().model_post_init(__context)
+
+        # If loss_configs is empty, add default PPO config
+        if not self.loss_configs:
+            # Import here to avoid circular dependency
+            from metta.rl.loss.ppo import PPOConfig
+
+            self.loss_configs = {"ppo": PPOConfig()}
+
+        # Add contrastive config only if enabled to avoid inconsistent behavior
         if self.enable_contrastive and "contrastive" not in self.loss_configs:
+            # Import here to avoid circular dependency
+            from metta.rl.loss.contrastive_config import ContrastiveConfig
             self.loss_configs["contrastive"] = ContrastiveConfig()
 
     def init_losses(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         trainer_cfg: Any,
-        vec_env: Any,
+        env: "TrainingEnvironment",
         device: torch.device,
-        checkpoint_manager: CheckpointManager,
     ):
         losses = {}
         for loss_name, loss_config in self.loss_configs.items():
@@ -46,7 +56,5 @@ class LossConfig(Config):
                 else:
                     print("Initializing contrastive loss (enable_contrastive=True)")
 
-            losses[loss_name] = loss_config.init_loss(
-                policy, trainer_cfg, vec_env, device, checkpoint_manager, loss_name, loss_config
-            )
+            losses[loss_name] = loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
         return losses

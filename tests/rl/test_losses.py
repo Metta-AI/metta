@@ -1,120 +1,74 @@
-import pytest
+"""Unit tests for the new loss infrastructure."""
 
-from metta.rl.losses import Losses
+from types import SimpleNamespace
+
+import torch
+from tensordict import TensorDict
+from torchrl.data import Composite, UnboundedDiscrete
+
+from metta.agent.policy import Policy
+from metta.rl.loss import Loss
 
 
-class TestLosses:
-    """Test suite for the Losses class."""
+class DummyPolicy(Policy):
+    """Minimal policy implementation for exercising loss utilities."""
 
-    def test_initialization(self):
-        """Test that a new Losses instance is properly initialized with zeros."""
-        losses = Losses()
+    def __init__(self) -> None:
+        super().__init__()
+        self._linear = torch.nn.Linear(1, 1)
 
-        # Check that all loss values are initialized to zero
-        assert losses.policy_loss_sum == 0.0
-        assert losses.value_loss_sum == 0.0
-        assert losses.entropy_sum == 0.0
-        assert losses.approx_kl_sum == 0.0
-        assert losses.clipfrac_sum == 0.0
-        assert losses.l2_reg_loss_sum == 0.0
-        assert losses.l2_init_loss_sum == 0.0
-        assert losses.ks_action_loss_sum == 0.0
-        assert losses.ks_value_loss_sum == 0.0
-        assert losses.importance_sum == 0.0
-        assert losses.explained_variance == 0.0
-        assert losses.minibatches_processed == 0
+    def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
+        td = td.clone(False)
+        td["values"] = torch.zeros(td.batch_size.numel(), dtype=torch.float32)
+        return td
 
-    def test_zero_method(self):
-        """Test that the zero method resets all loss values."""
-        losses = Losses()
+    def get_agent_experience_spec(self) -> Composite:  # noqa: D401
+        return Composite(values=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32))
 
-        # Set some non-zero values
-        losses.policy_loss_sum = 1.0
-        losses.value_loss_sum = 2.0
-        losses.entropy_sum = 3.0
-        losses.minibatches_processed = 5
+    def initialize_to_environment(self, env_metadata, device: torch.device) -> None:  # noqa: D401
+        return None
 
-        # Reset values
-        losses.zero()
+    @property
+    def device(self) -> torch.device:  # noqa: D401
+        return torch.device("cpu")
 
-        # Check that all values are reset to zero
-        assert losses.policy_loss_sum == 0.0
-        assert losses.value_loss_sum == 0.0
-        assert losses.entropy_sum == 0.0
-        assert losses.minibatches_processed == 0
+    @property
+    def total_params(self) -> int:  # noqa: D401
+        return sum(param.numel() for param in self.parameters())
 
-    def test_stats_with_no_minibatches(self):
-        """Test stats method when no minibatches have been processed."""
-        losses = Losses()
+    def reset_memory(self) -> None:  # noqa: D401
+        return None
 
-        # Set some non-zero values
-        losses.policy_loss_sum = 10.0
-        losses.value_loss_sum = 20.0
-        losses.entropy_sum = 5.0
+    def clip_weights(self) -> None:
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0, error_if_nonfinite=False)
 
-        # Get stats
-        stats = losses.stats()
 
-        # Since minibatches_processed is 0, it should use n=1 for division
-        assert stats["policy_loss"] == 10.0
-        assert stats["value_loss"] == 20.0
-        assert stats["entropy"] == 5.0
+class DummyLoss(Loss):
+    """Loss subclass exposing the base-class helpers for testing."""
 
-    def test_stats_with_minibatches(self):
-        """Test stats method when multiple minibatches have been processed."""
-        losses = Losses()
+    def __init__(self) -> None:
+        policy = DummyPolicy()
+        trainer_cfg = SimpleNamespace()
+        env = SimpleNamespace()
+        loss_cfg = SimpleNamespace()
+        super().__init__(policy, trainer_cfg, env, torch.device("cpu"), "dummy", loss_cfg)
 
-        # Set some non-zero values
-        losses.policy_loss_sum = 10.0
-        losses.value_loss_sum = 20.0
-        losses.entropy_sum = 5.0
-        losses.approx_kl_sum = 2.0
-        losses.clipfrac_sum = 0.5
-        losses.l2_reg_loss_sum = 1.0
-        losses.l2_init_loss_sum = 0.3
-        losses.ks_action_loss_sum = 0.7
-        losses.ks_value_loss_sum = 0.9
-        losses.importance_sum = 1.5
-        losses.explained_variance = 0.8
-        losses.minibatches_processed = 5
 
-        # Get stats
-        stats = losses.stats()
+def test_loss_stats_average_values() -> None:
+    loss = DummyLoss()
+    loss.loss_tracker["policy_loss"].extend([1.0, 3.0])
+    loss.loss_tracker["value_loss"].extend([2.0, 4.0, 6.0])
 
-        # Check that values are properly averaged
-        assert stats["policy_loss"] == pytest.approx(2.0)  # 10.0 / 5
-        assert stats["value_loss"] == pytest.approx(4.0)  # 20.0 / 5
-        assert stats["entropy"] == pytest.approx(1.0)  # 5.0 / 5
-        assert stats["approx_kl"] == pytest.approx(0.4)  # 2.0 / 5
-        assert stats["clipfrac"] == pytest.approx(0.1)  # 0.5 / 5
-        assert stats["l2_reg_loss"] == pytest.approx(0.2)  # 1.0 / 5
-        assert stats["l2_init_loss"] == pytest.approx(0.06)  # 0.3 / 5
-        assert stats["ks_action_loss"] == pytest.approx(0.14)  # 0.7 / 5
-        assert stats["ks_value_loss"] == pytest.approx(0.18)  # 0.9 / 5
-        assert stats["importance"] == pytest.approx(0.3)  # 1.5 / 5
-        assert stats["explained_variance"] == pytest.approx(0.8)  # Not averaged
+    stats = loss.stats()
 
-    def test_stats_return_type(self):
-        """Test that stats method returns a dictionary with the correct keys."""
-        losses = Losses()
-        stats = losses.stats()
+    assert stats["policy_loss"] == 2.0
+    assert stats["value_loss"] == 4.0
 
-        # Check that the return value is a dictionary
-        assert isinstance(stats, dict)
 
-        # Check that all expected keys are present
-        expected_keys = [
-            "policy_loss",
-            "value_loss",
-            "entropy",
-            "approx_kl",
-            "clipfrac",
-            "l2_reg_loss",
-            "l2_init_loss",
-            "ks_action_loss",
-            "ks_value_loss",
-            "importance",
-            "explained_variance",
-        ]
-        for key in expected_keys:
-            assert key in stats
+def test_zero_loss_tracker_clears_values() -> None:
+    loss = DummyLoss()
+    loss.loss_tracker["entropy"].extend([0.1, 0.2])
+
+    loss.zero_loss_tracker()
+
+    assert all(len(values) == 0 for values in loss.loss_tracker.values())

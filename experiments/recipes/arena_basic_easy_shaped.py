@@ -2,19 +2,23 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid import MettaGridConfig
+from mettagrid.config import ConverterConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -38,7 +42,9 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     }
 
     # Easy converter: 1 battery_red to 1 heart (instead of 3 to 1)
-    arena_env.game.objects["altar"].input_resources = {"battery_red": 1}
+    altar = arena_env.game.objects.get("altar")
+    if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+        altar.input_resources["battery_red"] = 1
 
     return arena_env
 
@@ -87,8 +93,8 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=combat_env),
+        SimulationConfig(suite="arena", name="basic", env=basic_env),
+        SimulationConfig(suite="arena", name="combat", env=combat_env),
     ]
 
 
@@ -96,34 +102,36 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     enable_contrastive: bool = True,
+    policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(enable_contrastive=enable_contrastive),
-        curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
-        evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-                ),
-                SimulationConfig(
-                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-                ),
-            ],
-        ),
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    eval_simulations = make_evals()
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(enable_contrastive=enable_contrastive),
+    )
+
+    if policy_architecture is None:
+        policy_architecture = FastConfig()
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=policy_architecture,
+    )
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return PlayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def evaluate(
@@ -154,13 +162,15 @@ def evaluate_in_sweep(
 
         simulations = [
             SimulationConfig(
-                name="arena/basic",
+                suite="arena",
+                name="basic",
                 env=basic_env,
                 num_episodes=10,  # 10 episodes for statistical reliability
                 max_time_s=240,  # 4 minutes max per simulation
             ),
             SimulationConfig(
-                name="arena/combat",
+                suite="arena",
+                name="combat",
                 env=combat_env,
                 num_episodes=10,
                 max_time_s=240,
