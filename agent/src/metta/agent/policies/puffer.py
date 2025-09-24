@@ -54,7 +54,7 @@ class PufferPolicy(Policy):
         self.out_width = env_metadata.obs_width
         self.out_height = env_metadata.obs_height
 
-        self.num_layers = max(env_metadata.feature_normalizations.keys()) + 1
+        self.num_layers = 24
         hidden_size = 512
         cnn_channels = 128
 
