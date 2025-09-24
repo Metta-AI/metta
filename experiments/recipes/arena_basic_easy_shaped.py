@@ -111,7 +111,7 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         batch_size=4_194_304,
-        minibatch_size=32_768,
+        minibatch_size=1_048_576,
     )
 
     if policy_architecture is None:
