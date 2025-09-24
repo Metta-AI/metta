@@ -147,11 +147,6 @@ class Trainer:
 
         try:
             while self._state.agent_step < self._cfg.total_timesteps:
-                if self._state.agent_step % max(1, self._cfg.batch_size) == 0:
-                    from metta.agent.util.profile import PROFILER
-
-                    logger.info(PROFILER.summary(include_memory=True))
-                    PROFILER.reset()
                 self._train_epoch_callable()
 
         except Exception:
@@ -204,6 +199,11 @@ class Trainer:
         # only run on the master process must set `_master_only` so they aren't
         # registered on other ranks.
         self._invoke_callback(TrainerCallback.EPOCH_END)
+
+        from metta.agent.util.profile import PROFILER
+
+        logger.info(PROFILER.summary(include_memory=True))
+        PROFILER.reset()
 
         # Progress logging handled by ProgressLogger component
 
