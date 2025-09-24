@@ -44,21 +44,20 @@ class PufferPolicy(Policy):
         super().__init__()
         self.config = config or PufferPolicyConfig()
         self.env_metadata = env_metadata
-        self.env = env_metadata.env
         self.is_continuous = False
-        self.action_space = self.env.action_space
+        self.action_space = env_metadata.action_space
 
         self.active_action_names = []
         self.num_active_actions = 100  # Default
         self.action_index_tensor = None
         self.cum_action_max_params = None
 
-        self.out_width = self.env.obs_width
-        self.out_height = self.env.obs_height
+        self.out_width = env_metadata.obs_width
+        self.out_height = env_metadata.obs_height
 
-        self.num_layers = max(self.env.feature_normalizations.keys())
+        self.num_layers = max(env_metadata.feature_normalizations.keys()) + 1
 
-        self.conv1 = nn.Conv2d(24, 128, kernel_size=5, stride=3)
+        self.conv1 = nn.Conv2d(self.num_layers, 128, kernel_size=5, stride=3)
         self.conv2 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
 
         self.network = nn.Sequential(
@@ -72,21 +71,24 @@ class PufferPolicy(Policy):
         )
 
         self.self_encoder = nn.Sequential(
-            nn.Linear(24, 256),
+            nn.Linear(self.num_layers, 256),
             nn.ReLU(),
         )
 
-        self.max_vec = [1.0] * 24
-        for feature_id, norm_value in self.env.feature_normalizations.items():
+        # Initialize max_vec based on actual number of features
+        max_feature_id = max(env_metadata.feature_normalizations.keys()) + 1
+        self.max_vec = [1.0] * max_feature_id
+        for feature_id, norm_value in env_metadata.feature_normalizations.items():
             print(f"feature_id: {feature_id}, norm_value: {norm_value}")
-            if feature_id < 24:
+            if feature_id < max_feature_id:
                 self.max_vec[feature_id] = norm_value if norm_value > 0 else 1.0
         self.max_vec = torch.tensor(self.max_vec, dtype=torch.float32)
         self.max_vec = torch.maximum(self.max_vec, torch.ones_like(self.max_vec))
         self.max_vec = self.max_vec[None, :, None, None]
 
-        action_nvec = self.env.single_action_space.nvec
-        self.actor = nn.ModuleList([nn.Linear(512, n) for n in action_nvec])
+        # Create actor heads for each action: one for action type, and one for each action's max args + 1
+        action_dims = [len(env_metadata.action_names)] + [max_args + 1 for max_args in env_metadata.max_action_args]
+        self.actor = nn.ModuleList([nn.Linear(512, n) for n in action_dims])
         self.value = nn.Linear(512, 1)
 
         # Use LSTM from config
@@ -174,8 +176,8 @@ class PufferPolicy(Policy):
         # Decode actions
         logits = self.decode_actions(td["core"])
 
-        # Stack logits for action_probs component
-        td["logits"] = torch.stack(logits, dim=-1)
+        # Concatenate logits for action_probs component (they have different sizes)
+        td["logits"] = torch.cat(logits, dim=-1)
 
         # Get value
         self.value_head(td)
@@ -213,9 +215,9 @@ class PufferPolicy(Policy):
     @property
     def action_names(self) -> list[str]:
         """Return list of action names."""
-        return getattr(self.env, "action_names", [])
+        return self.env_metadata.action_names
 
     @property
     def observation_space(self):
         """Return observation space."""
-        return self.env.observation_space
+        return self.env_metadata.observation_space
