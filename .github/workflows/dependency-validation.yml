@@ -50,9 +50,9 @@ jobs:
           try:
               # Test imports of all workspace packages
               import metta.agent
-              import metta.mettagrid
               import metta.common
               import metta.app_backend
+              import mettagrid
               import codebot
               import gitta
               print('✅ All workspace packages can be imported successfully')
