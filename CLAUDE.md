@@ -211,8 +211,8 @@ uv run ./tools/run.py analyze arena eval_db_uri=./train_dir/eval/stats.db
 uv run ./tools/run.py play arena policy_uri=... 
 uv run ./tools/run.py replay arena policy_uri=...
 
-# List tools for a recipe (explicit + inferred)
-uv run ./tools/run.py arena.train --list-tools
+# List explicit tools for a recipe module (recommended)
+uv run ./tools/run.py arena --list
 
 # Dry run (resolve only; does not construct or run the tool)
 uv run ./tools/run.py eval arena --dry-run

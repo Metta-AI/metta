@@ -131,3 +131,27 @@ def test_infer_eval_with_mettagrid_only(with_extra_imports_root):
     # Behavior: if only mettagrid() is present, inference still constructs an evaluation tool
     result = run_tool("mypackage.recipes.onlymg.evaluate", "--dry-run")
     assert result.returncode == 0
+
+
+def test_list_recipe_tools_includes_inferred_demo(with_extra_imports_root):
+    # Behavior: --list on a recipe module lists explicit + inferred tool names
+    result = run_tool("mypackage.recipes.demo", "--list")
+    assert result.returncode == 0
+    out = result.stdout + result.stderr
+    # Should include the header and some canonical inferred tools
+    assert find_with_whitespace("Tools for recipe module mypackage.recipes.demo", out)
+    assert find_with_whitespace("mypackage.recipes.demo.evaluate", out)
+    assert find_with_whitespace("mypackage.recipes.demo.play", out)
+    assert find_with_whitespace("mypackage.recipes.demo.replay", out)
+    # And include function-returning Tool explicitly by function name
+    assert find_with_whitespace("mypackage.recipes.demo.train_shaped", out)
+
+
+def test_list_recipe_tools_includes_inferred_onlymg(with_extra_imports_root):
+    # Behavior: --list works for recipes with only mettagrid(), showing inferred tools
+    result = run_tool("mypackage.recipes.onlymg", "--list")
+    assert result.returncode == 0
+    out = result.stdout + result.stderr
+    assert find_with_whitespace("Tools for recipe module mypackage.recipes.onlymg", out)
+    assert find_with_whitespace("mypackage.recipes.onlymg.train", out)
+    assert find_with_whitespace("mypackage.recipes.onlymg.evaluate", out)
