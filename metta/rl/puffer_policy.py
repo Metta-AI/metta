@@ -22,22 +22,17 @@ def _is_puffer_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]
 
 
 def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    """Preprocess PufferLib state dict - handle LSTM key mapping only."""
+    """Preprocess PufferLib state dict - now minimal processing needed."""
     processed = {}
 
-    # Most keys can be passed through directly now that policy has 'policy.' prefix
-    # Only need to handle LSTM keys which have different structure
+    # Now that policy structure matches exactly, we can pass through almost everything
     for key, value in state_dict.items():
-        if key.startswith("lstm."):
-            # Map LSTM keys: lstm.* -> lstm.net.*
-            new_key = key.replace("lstm.", "lstm.net.")
-            processed[new_key] = value
-        elif key.startswith("cell."):
+        if key.startswith("cell."):
             # Skip cell keys - they're duplicates of lstm keys
             # cell.weight_ih is same as lstm.weight_ih_l0, etc.
             continue
         else:
-            # Pass through all other keys unchanged (including policy.*)
+            # Pass through all keys unchanged (including policy.* and lstm.*)
             processed[key] = value
 
     logger.info(f"Preprocessed checkpoint: {len(state_dict)} -> {len(processed)} parameters")
@@ -101,12 +96,8 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
     if not compatible_state:
         raise RuntimeError("No compatible parameters found in checkpoint")
 
-    try:
-        policy.load_state_dict(compatible_state, strict=False)
-        logger.info("Successfully loaded checkpoint into Metta policy")
-    except Exception as e:
-        logger.error(f"Failed to load checkpoint: {e}")
-        raise
+    policy.load_state_dict(state_dict, strict=False)
+    logger.info("Successfully loaded checkpoint into Metta policy")
 
     return policy
 

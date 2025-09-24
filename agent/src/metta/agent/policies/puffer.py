@@ -115,8 +115,16 @@ class PufferPolicy(Policy):
         ])
         self.policy.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
-        # Use LSTM from config
-        self.lstm = LSTM(config=self.config.lstm_config)
+        # Use direct nn.LSTM to match checkpoint structure exactly
+        # Instead of LSTM wrapper which creates lstm.net.*, use direct LSTM
+        self.lstm = nn.LSTM(input_size=512, hidden_size=512, num_layers=1)
+
+        # Initialize LSTM weights to match PufferLib initialization
+        for name, param in self.lstm.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1)
 
         # Action probabilities component
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
@@ -191,10 +199,15 @@ class PufferPolicy(Policy):
         td["encoded_obs"] = encoded_obs
 
         # Pass through LSTM: [B, 512] -> [B, 512]
-        self.lstm(td)
+        # For direct nn.LSTM, we need to handle the sequence dimension
+        # Expand to sequence length 1: [B, 512] -> [1, B, 512]
+        lstm_input = encoded_obs.unsqueeze(0)
+        lstm_output, _ = self.lstm(lstm_input)
+        # Remove sequence dimension: [1, B, 512] -> [B, 512]
+        core_features = lstm_output.squeeze(0)
 
         # Decode actions - returns separate logits per action type (matching PufferLib)
-        logits, value = self.decode_actions(td["core"])
+        logits, value = self.decode_actions(core_features)
 
         # For ActionProbs compatibility, we need to flatten logits into single tensor
         # This matches how ActionEmbedding creates action names like "move_0", "attack_0", "attack_1", etc.
@@ -217,8 +230,10 @@ class PufferPolicy(Policy):
         self.action_probs.initialize_to_environment(env_metadata, device)
 
     def reset_memory(self):
-        """Reset LSTM memory."""
-        self.lstm.reset_memory()
+        """Reset LSTM memory - nn.LSTM doesn't need explicit memory reset."""
+        # Direct nn.LSTM doesn't maintain persistent state like our LSTM wrapper
+        # Memory is handled automatically through the forward pass
+        pass
 
     def get_agent_experience_spec(self) -> Composite:
         """Get the experience specification for this agent."""
