@@ -119,20 +119,27 @@ curriculum_args = {
         "generator_positions": [["Any"]],
         "altar_positions": [["Any"]],
     },
-    # "three_agents_two_altars": {
-    #     "num_agents": [3],
-    #     "num_altars": [2],
-    #     "num_converters": [0],
-    #     "widths": [4, 6, 8, 10],
-    #     "heights": [4, 6, 8, 10],
-    #     "generator_positions": [["Any"]],
-    #     "altar_positions": [
-    #         ["Any"],
-    #         ["N", "S"], ["E", "W"],
-    #         ["N", "E"], ["N", "W"], ["S", "E"], ["S", "W"],
-    #         ["N"], ["S"], ["E"], ["W"],
-    #     ],
-    # },
+    "three_agents_two_altars": {
+        "num_agents": [3],
+        "num_altars": [2],
+        "num_converters": [0],
+        "widths": [4, 6, 8, 10],
+        "heights": [4, 6, 8, 10],
+        "generator_positions": [["Any"]],
+        "altar_positions": [
+            ["Any"],
+            ["N", "S"],
+            ["E", "W"],
+            ["N", "E"],
+            ["N", "W"],
+            ["S", "E"],
+            ["S", "W"],
+            ["N"],
+            ["S"],
+            ["E"],
+            ["W"],
+        ],
+    },
 }
 
 
@@ -176,19 +183,20 @@ class AssemblerTaskGenerator(TaskGenerator):
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
-        # # ensure the positions are the same length as the number of agents and altars
-        # if len(converter_positions) > num_agents:
-        #     converter_positions = converter_positions[:num_agents]
-        # if len(altar_positions) > num_agents:
-        #     altar_positions = altar_positions[:num_agents]
+        # ensure the positions are the same length as the number of agents and altars
+        if len(converter_positions) > num_agents:
+            converter_positions = converter_positions[:num_agents]
+        if len(altar_positions) > num_agents:
+            altar_positions = altar_positions[:num_agents]
 
-        # if len(converter_positions) < num_agents:
-        #     converter_positions = converter_positions + [converter_positions[0]] * (num_agents - len(converter_positions))
-        # if len(altar_positions) < num_agents:
-        #     altar_positions = altar_positions + [altar_positions[0]] * (num_agents - len(altar_positions))
-
-        # print(f"converter_positions: {converter_positions}")
-        # print(f"altar_positions: {altar_positions}")
+        if len(converter_positions) < num_agents:
+            converter_positions = converter_positions + [converter_positions[0]] * (
+                num_agents - len(converter_positions)
+            )
+        if len(altar_positions) < num_agents:
+            altar_positions = altar_positions + [altar_positions[0]] * (
+                num_agents - len(altar_positions)
+            )
 
         # sample num_converters converters - TODO i want this with replacement
         converter_names = rng.sample(list(self.converter_types.keys()), num_converters)
@@ -207,9 +215,6 @@ class AssemblerTaskGenerator(TaskGenerator):
             converter.recipes = [recipe]
             cfg.game_objects[converter_name] = converter
 
-        # NOTE: This is a hack to support multiple altars with different recipes.
-        # The map builder expects unique names for game objects with different properties.
-        # Here we create unique altar names and configurations.
         cfg.map_builder_objects["altar"] = num_altars
 
         altar = building.assembler_altar.copy()
@@ -344,14 +349,15 @@ def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
     )
 
 
-# def play(curriculum_style: str = "single_agent_two_altars") -> PlayTool:
-#     eval_env = make_mettagrid(curriculum_style)
-#     return PlayTool(
-#         sim=SimulationConfig(
-#             env=eval_env,
-#             name="in_context_assemblers",
-#         ),
-#     )
+def play(curriculum_style: str = "single_agent_two_altars") -> PlayTool:
+    eval_env = make_mettagrid(curriculum_style)
+    return PlayTool(
+        sim=SimulationConfig(
+            env=eval_env,
+            name="in_context_assemblers",
+            suite="in_context_learning",
+        ),
+    )
 
 
 def play_eval() -> PlayTool:
