@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import uuid
+from typing import Any
 
 import sky
 import yaml
@@ -313,13 +314,13 @@ Examples:
         sys.exit(0)
 
     # Launch the task(s)
-    def prepare_task(base_task: sky.Task, env_updates, run_id, copy_number):
+    def prepare_task(base_task: sky.Task, env_updates: dict[str, Any], run_id: str):
         task = copy.deepcopy(base_task).update_envs(env_updates)
-        task.name = run_id + uuid.uuid4().hex[:6] if copy_number > 0 else ""
+        task.name = f"{run_id}_{uuid.uuid4().hex[:6]}"
         task.validate_name()
         return task
 
-    request_ids = [launch_task(prepare_task(task, env_updates, run_id, i)) for i in range(args.copies)]
+    request_ids = [launch_task(prepare_task(task, env_updates, run_id)) for _ in range(args.copies)]
 
     if args.job_log:
         open_job_log_from_request_id(request_ids[0])
