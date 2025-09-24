@@ -194,44 +194,37 @@ class PufferPolicy(Policy):
         """Forward pass through the policy."""
         observations = td["env_obs"]
 
-        # Encode observations: [B, obs] -> [B, 512]
+        print(self._hidden_state, self._cell_state)
+
+        # [B, obs] -> [B, 512]
         encoded_obs = self.encode_observations(observations)
         td["encoded_obs"] = encoded_obs
 
-        # Pass through LSTM with persistent state: [1, B, 512] -> [1, B, 512]
+        # Pass through LSTM: [1, B, 512] -> [1, B, 512]
         lstm_input = encoded_obs.unsqueeze(0)
         batch_size = encoded_obs.shape[0]
 
-        # Initialize state if None or if batch size changed
+        # Initialize state if None
         if (self._hidden_state is None or self._cell_state is None or
             self._hidden_state.shape[1] != batch_size):
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
 
-        # Use stored state and update it
         lstm_output, (self._hidden_state, self._cell_state) = self.lstm(
             lstm_input, (self._hidden_state, self._cell_state)
         )
         
-        # Remove sequence dimension: [1, B, 512] -> [B, 512]
+        # [1, B, 512] -> [B, 512]
         core_features = lstm_output.squeeze(0)
-
-        # Decode actions - returns separate logits per action type
+        # returns separate logits per action type
         logits, value = self.decode_actions(core_features)
 
         # For ActionProbs compatibility, we need to flatten logits into single tensor
         # This matches how ActionEmbedding creates action names like "move_0", "attack_0", "attack_1", etc.
         td["logits"] = torch.cat(logits, dim=-1)
-
-        # Set value directly (not using TensorDictModule to match PufferLib)
         td["values"] = value.flatten()
-
-        # Process action probabilities using Metta's ActionProbs component
         self.action_probs(td, action)
-
-        # Flatten values as expected by training
-        td["values"] = td["values"].flatten()
 
         return td
 
