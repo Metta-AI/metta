@@ -252,7 +252,11 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
             num_resources = rng.choice(cfg.chain_lengths) if cfg.chain_lengths else 3
             resources = rng.sample(self.resource_types, num_resources)
 
-        num_converters = rng.choice(cfg.num_sinks) if cfg.num_sinks else 1
+        # Prefer explicit num_converters; fallback to legacy field for backward compatibility
+        if getattr(cfg, "num_converters", None):
+            num_converters = rng.choice(cfg.num_converters)
+        else:
+            num_converters = rng.choice(cfg.num_sinks) if cfg.num_sinks else 1
 
         max_input_resources = (
             rng.choice(cfg.max_recipe_inputs) if cfg.max_recipe_inputs else None
@@ -286,7 +290,7 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
 def make_mettagrid() -> MettaGridConfig:
     task_generator_cfg = ICLTaskGenerator.Config(
         num_resources=[4],
-        num_sinks=[2],  # num_converters
+        num_converters=[2],
         room_sizes=["large"],
         obstacle_types=["cross"],
         densities=["high"],
@@ -307,7 +311,7 @@ def make_curriculum(
 ) -> CurriculumConfig:
     task_generator_cfg = ICLTaskGenerator.Config(
         num_resources=num_resources,
-        num_sinks=num_converters,  # num_sinks used as num_converters
+        num_converters=num_converters,
         room_sizes=room_sizes,
         obstacle_types=obstacle_types,
         densities=densities,
@@ -408,7 +412,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.unordered_chain.train",
+                "experiments.recipes.in_context_learning.unordered_chains.train",
                 f"run=icl_unordered_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
@@ -420,7 +424,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.unordered_chain.train",
+                "experiments.recipes.in_context_learning.unordered_chains.train",
                 f"run=icl_unordered_chain_{curriculum_style}_pretrained.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 f"trainer.initial_policy.uri={pretrained_policy_uri}",

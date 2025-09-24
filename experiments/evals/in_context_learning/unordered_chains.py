@@ -21,10 +21,10 @@ def make_unordered_chain_eval_env(
     max_recipe_inputs: int | None = None,
     singleton_resources: bool = False,
 ) -> MettaGridConfig:
-    # Unordered chain uses ICLTaskGenerator.Config; `num_sinks` acts as converter count
+    # Unordered chain uses explicit converter count
     task_generator_cfg = ICLTaskGenerator.Config(
         num_resources=[num_resources],
-        num_sinks=[num_converters],
+        num_converters=[num_converters],
         room_sizes=[room_size],
         max_recipe_inputs=[max_recipe_inputs]
         if max_recipe_inputs is not None

@@ -1,7 +1,12 @@
+import json
+import os
 import random
 import subprocess
 import time
 from typing import Optional, Sequence
+
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -14,23 +19,14 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
-import json
-import os
-
-from experiments.evals.in_context_learning.ordered_chains import (
-    make_icl_resource_chain_eval_suite,
-)
 
 from experiments.recipes.in_context_learning.icl_resource_chain import (
     ICLTaskGenerator,
     LPParams,
     _BuildCfg,
 )
-
 
 curriculum_args = {
     "level_0": {
@@ -260,7 +256,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             return env
 
         return make_in_context_chains(
-            num_agents=24,
+            num_agents=1,
             max_steps=max_steps,
             game_objects=cfg.game_objects,
             map_builder_objects=cfg.map_builder_objects,
@@ -412,7 +408,10 @@ def replay(
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
-    # Local import to   avoid circular import at module load time
+    # Local import to avoid circular import at module load time
+    from experiments.evals.in_context_learning.ordered_chains import (
+        make_icl_resource_chain_eval_suite,
+    )
 
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(

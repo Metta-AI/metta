@@ -53,8 +53,13 @@ class ICLTaskGenerator(TaskGenerator):
         chain_lengths: list[int] = Field(
             default_factory=list, description="Chain lengths to sample from"
         )
+        num_converters: list[int] = Field(
+            default_factory=list,
+            description="Number of converters to sample from (unordered chains)",
+        )
         num_sinks: list[int] = Field(
-            default_factory=list, description="Number of sinks to sample from"
+            default_factory=list,
+            description="Number of sinks to sample from (ordered chains only)",
         )
         room_sizes: list[str] = Field(
             default=["small"], description="Room size to sample from"
@@ -109,9 +114,25 @@ class ICLTaskGenerator(TaskGenerator):
 
     def _setup_task(self, rng: random.Random):
         cfg = self.config
-        num_resources = rng.choice(cfg.chain_lengths) - 1
-        num_sinks = rng.choice(cfg.num_sinks)
-        resources = rng.sample(self.resource_types, num_resources)
+        # Safely determine counts for both ordered and unordered chains
+        if len(cfg.chain_lengths) > 0:
+            num_resources = rng.choice(cfg.chain_lengths) - 1
+        elif len(cfg.num_resources) > 0:
+            # Unordered chains primarily use num_resources
+            num_resources = rng.choice(cfg.num_resources)
+        else:
+            # Conservative default to avoid empty choices
+            num_resources = 1
+
+        if len(cfg.num_sinks) > 0:
+            num_sinks = rng.choice(cfg.num_sinks)
+        else:
+            # Unordered chains do not use sinks
+            num_sinks = 0
+
+        # Clamp to available resource types to avoid ValueError in sampling
+        sample_size = max(0, min(num_resources, len(self.resource_types)))
+        resources = rng.sample(self.resource_types, sample_size)
         room_size = rng.choice(cfg.room_sizes)
         obstacle_type = (
             rng.choice(cfg.obstacle_types) if len(cfg.obstacle_types) > 0 else None
