@@ -22,7 +22,7 @@ class BasicConfig(PolicyArchitecture):
 
 
 class BasicPolicy(Policy):
-    """Direct PufferLib policy with minimal Metta integration."""
+    """A Basic policy without any memory."""
 
     def __init__(self, env_metadata, config: Optional[BasicConfig] = None):
         super().__init__()
