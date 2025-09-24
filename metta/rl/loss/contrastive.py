@@ -39,6 +39,8 @@ class ContrastiveLoss(Loss):
         self.contrastive_coef = self.loss_cfg.contrastive_coef
         self.embedding_dim = self.loss_cfg.embedding_dim
 
+        print(f"[Contrastive Loss] Initialized with instance_name='{instance_name}', temperature={self.temperature}, coef={self.contrastive_coef}")
+
         # Add projection head if needed
         if self.loss_cfg.use_projection_head:
             # We'll determine input_dim dynamically during first forward pass
@@ -58,6 +60,9 @@ class ContrastiveLoss(Loss):
 
     def run_train(self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
         """Compute contrastive loss."""
+        if mb_idx == 0:  # Only log on first minibatch to avoid spam
+            print(f"[Contrastive Loss] run_train called at step {context.step}, mb_idx {mb_idx}")
+        
         policy_td = shared_loss_data["policy_td"]
         minibatch = shared_loss_data["sampled_mb"]
 
