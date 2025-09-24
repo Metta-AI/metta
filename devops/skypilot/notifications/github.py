@@ -19,8 +19,8 @@ class GitHubNotifier(NotificationBase):
         commit_sha = job_config.metta_git_ref or ""
         if not commit_sha:
             return "metta_git_ref not set"
-        if len(commit_sha) < 40:
-            return f"GitHub requires full length commit hash, got {len(commit_sha)} chars"
+        if len(commit_sha) != 40:
+            return f"GitHub requires full length commit hash (40 chars), got {len(commit_sha)} chars"
 
         return None
 
