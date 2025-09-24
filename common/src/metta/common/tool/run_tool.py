@@ -26,6 +26,7 @@ from metta.common.tool.discover import (
     generate_candidate_paths,
     get_available_tools,
     get_tool_name_map,
+    list_recipes_supporting_tool,
     try_infer_tool_factory,
 )
 from metta.common.util.log_config import init_logging
@@ -503,6 +504,27 @@ constructor/function vs configuration overrides based on introspection.
     # Exit on ctrl+c with proper exit code
     signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))  # 130 = interrupted by Ctrl-C
 
+    # Check if this is a bare tool name (e.g., 'train', 'evaluate', 'sweep')
+    tool_path = known_args.make_tool_cfg_path  # The first positional arg (e.g., 'train' or 'arena.train')
+    # It's a bare tool if it's just a known tool type name (canonical or alias) with no module path
+    is_bare_tool = tool_path in get_tool_name_map()
+
+    # Handle special case: bare tool name with --help (show available options)
+    if known_args.help and is_bare_tool:
+        supported = list_recipes_supporting_tool(tool_path)
+        if supported:
+            console.print(f"\n[bold]Available '{tool_path}' implementations:[/bold]\n")
+            for item in supported:
+                # Show short form if possible
+                short = item.replace("experiments.recipes.", "")
+                console.print(f"  {short}")
+            console.print("\n[dim]To see arguments for a specific implementation:[/dim]")
+            console.print(f"  ./tools/run.py {supported[0].replace('experiments.recipes.', '')} --help")
+        else:
+            console.print(f"\n[yellow]No implementations found for tool '{tool_path}'[/yellow]")
+            console.print("This might not be a valid tool type.")
+        return 0
+
     # Determine the tool path and adjust remaining args accordingly
     # Warn on ambiguous two-token like 'train train'
     if two_part_second and known_args.make_tool_cfg_path == two_part_second:
@@ -522,15 +544,25 @@ constructor/function vs configuration overrides based on introspection.
         output_error(f"{red('Error:')} Missing tool path. See -h for usage.")
         return 2
 
-    # If listing is requested with just a module path (e.g., 'arena'), import the module and list its tools
-    list_requested = known_args.list
-    if list_requested and known_args.make_tool_cfg_path:
-        module_candidates: list[str] = []
-        base = known_args.make_tool_cfg_path
-        # If base looks like a module path already
-        module_candidates.append(base)
-        if not base.startswith("experiments.recipes."):
-            module_candidates.append(f"experiments.recipes.{base}")
+    # Handle special case: bare tool name with --list (same as --help for bare tools)
+    if known_args.list and is_bare_tool:
+        supported = list_recipes_supporting_tool(tool_path)
+        if supported:
+            console.print(f"\n[bold]Available '{tool_path}' implementations:[/bold]\n")
+            for item in supported:
+                # Show short form if possible
+                short = item.replace("experiments.recipes.", "")
+                console.print(f"  {short}")
+        else:
+            console.print(f"\n[yellow]No implementations found for tool '{tool_path}'[/yellow]")
+        return 0
+
+    # If listing is requested for a module path
+    if known_args.list and tool_path:
+        # If it looks like a module path, try to list its tools
+        module_candidates: list[str] = [tool_path]
+        if not tool_path.startswith("experiments.recipes."):
+            module_candidates.append(f"experiments.recipes.{tool_path}")
 
         # Try to import the first valid module and list its tools
         for mod_name in module_candidates:
@@ -550,9 +582,11 @@ constructor/function vs configuration overrides based on introspection.
                     # Ignore inference errors during listing
                     pass
 
-            console.print(f"\n[bold]Tools for recipe module {mod_name} (explicit + inferred):[/bold]\n")
+            console.print(f"\n[bold]Available tools in {mod_name}:[/bold]\n")
             for name in sorted(names):
-                console.print(f"  {mod_name}.{name}")
+                # Show short form
+                short_mod = mod_name.replace("experiments.recipes.", "")
+                console.print(f"  {short_mod}.{name}")
             return 0
         # If module import failed, fall back to full resolution flow below
 

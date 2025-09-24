@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib
 import inspect
+import pkgutil
 from functools import lru_cache
 from types import ModuleType
 from typing import Callable, Optional
@@ -10,12 +12,23 @@ from metta.common.tool import Tool
 from metta.rl.training import EvaluatorConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.analyze import AnalysisTool
 from metta.tools.eval import EvalTool
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+
+# -----------------------------------------------------------------------------
+# Constants and Tool Class Registry
+# -----------------------------------------------------------------------------
+
+# These tools can be automatically inferred from a recipe's `mettagrid` or `simulations` functions
+FACTORY_TOOL_CLASSES = (TrainTool, PlayTool, ReplayTool, EvalTool, EvalRemoteTool)
+# This prefix can be omitted from the tool name in the CLI
+DEFAULT_RECIPE_PREFIX = "experiments.recipes"
 
 # -----------------------------------------------------------------------------
 # Alias expansion (CLI-level) and candidate resolution helpers
@@ -28,7 +41,7 @@ def get_tool_aliases() -> dict[str, list[str]]:
     Only includes tools that declare aliases via Tool.tool_aliases.
     """
     mapping: dict[str, list[str]] = {}
-    for cls in (EvalTool, EvalRemoteTool, TrainTool, PlayTool, ReplayTool):
+    for cls in FACTORY_TOOL_CLASSES:
         name = getattr(cls, "tool_name", None)
         aliases = getattr(cls, "tool_aliases", [])
         if name and aliases:
@@ -54,39 +67,42 @@ def generate_candidate_paths(
     if not primary:
         return []
 
+    # Build base paths from primary and optional second token
     bases: list[str] = []
     if second:
-        # Avoid redundant two-token cases like "train train"
         bases.append(f"{second}.{primary}")
     bases.append(primary)
 
-    prefixes = auto_prefixes or []
+    # Expand with aliases and prefixes
     candidates: list[str] = []
+    alias_map = verb_aliases or get_tool_aliases()
+    prefixes = auto_prefixes or []
+
     for base in bases:
+        # Start with base and expand with verb aliases if present
         expanded: list[str] = [base]
-        # Expand aliases if any; keep the canonical base first
         if "." in base:
             module_name, verb = base.rsplit(".", 1)
-            alias_map = verb_aliases or get_tool_aliases()
-            aliases = alias_map.get(verb, [])
-            for v in aliases:
-                expanded.append(f"{module_name}.{v}")
+            for alias in alias_map.get(verb, []):
+                expanded.append(f"{module_name}.{alias}")
+
+        # Add each expansion with optional prefixes
         for item in expanded:
             candidates.append(item)
-            # Optionally try prefixed variants
+            # Apply prefixes for short forms
             if (not short_only) or (item.count(".") <= 1):
                 for pref in prefixes:
                     if not item.startswith(pref + "."):
                         candidates.append(f"{pref}.{item}")
 
     # Deduplicate preserving order
-    ordered: list[str] = []
     seen: set[str] = set()
+    result: list[str] = []
     for c in candidates:
         if c not in seen:
             seen.add(c)
-            ordered.append(c)
-    return ordered
+            result.append(c)
+    return result
 
 
 # -----------------------------------------------------------------------------
@@ -104,102 +120,196 @@ def get_available_tools(module: ModuleType) -> list[tuple[str, Callable[[], obje
     """
     tools: dict[str, Callable[[], object]] = {}
 
-    def register(name: str, maker: Callable[[], object]) -> None:
-        if name not in tools:
-            tools[name] = maker
-
     for name in dir(module):
         if name.startswith("_"):
             continue
+
         maker = getattr(module, name, None)
         if not callable(maker):
             continue
-        # Class-based tool (list as attribute name) only if defined in this module
+
+        # Check if it's a Tool class defined in this module
         if (
             inspect.isclass(maker)
             and issubclass(maker, Tool)
             and maker is not Tool
             and getattr(maker, "__module__", None) == module.__name__
         ):
-            register(name, maker)  # type: ignore[arg-type]
+            if name not in tools:
+                tools[name] = maker  # type: ignore[assignment]
             continue
-        # Function with return annotation of a Tool subclass
+
+        # Check if it's a function returning a Tool
         if inspect.isfunction(maker):
-            ret = inspect.signature(maker).return_annotation
             try:
+                ret = inspect.signature(maker).return_annotation
                 if inspect.isclass(ret) and issubclass(ret, Tool) and ret is not Tool:
-                    register(name, maker)
-                    continue
+                    if name not in tools:
+                        tools[name] = maker
             except Exception:
                 pass
-            # Skip unannotated functions to avoid guessing; they remain runnable via CLI
 
     return sorted(tools.items(), key=lambda kv: kv[0])
 
 
+# -----------------------------------------------------------------------------
+# Recipe Module Helpers
+# -----------------------------------------------------------------------------
+
+
 def _resolve_mettagrid(module: ModuleType) -> MettaGridConfig | None:
+    """Safely call module.mettagrid() if it exists."""
     mg_fn = getattr(module, "mettagrid", None)
-    if mg_fn is None or not callable(mg_fn):
+    if not callable(mg_fn):
         return None
-    mg = mg_fn()
-    if isinstance(mg, MettaGridConfig):
-        return mg
+
+    try:
+        mg = mg_fn()
+        return mg if isinstance(mg, MettaGridConfig) else None
+    except Exception:
+        return None
+
+
+def _resolve_simulations(module: ModuleType) -> list[SimulationConfig] | None:
+    """Safely call module.simulations() if it exists."""
+    fn = getattr(module, "simulations", None)
+    if not callable(fn):
+        return None
+
+    try:
+        result = fn()
+        if isinstance(result, (list, tuple)):
+            if not result:
+                return []
+            if isinstance(result[0], SimulationConfig):
+                return list(result)
+    except Exception:
+        pass
     return None
 
 
 def _make_default_names(module: ModuleType) -> tuple[str, str]:
+    """Generate default suite and name for a module."""
     base = module.__name__.split(".")[-1]
     return base, "eval"
 
 
 def _mettagrid_to_simulation(module: ModuleType, mg: MettaGridConfig) -> SimulationConfig:
+    """Convert a MettaGridConfig to a SimulationConfig."""
     suite, name = _make_default_names(module)
     return SimulationConfig(suite=suite, name=name, env=mg)
 
 
 def _mettagrid_to_training_env(mg: MettaGridConfig) -> TrainingEnvironmentConfig:
+    """Convert a MettaGridConfig to a TrainingEnvironmentConfig."""
     return TrainingEnvironmentConfig(curriculum=env_curriculum(mg))
-
-
-def _resolve_simulations(module: ModuleType) -> list[SimulationConfig] | None:
-    fn = getattr(module, "simulations", None)
-    if fn is None or not callable(fn):
-        return None
-    try:
-        result = fn()
-    except Exception:
-        return None
-    if isinstance(result, (list, tuple)) and result and isinstance(result[0], SimulationConfig):
-        return list(result)
-    if isinstance(result, (list, tuple)) and not result:
-        return []
-    return None
-
-
-def _supported_tool_classes() -> list[type[Tool]]:
-    return [TrainTool, PlayTool, ReplayTool, EvalTool, EvalRemoteTool]
 
 
 @lru_cache(maxsize=1)
 def get_tool_name_map() -> dict[str, str]:
     """Map of every supported tool name and alias -> canonical name.
 
-    Built from Tool.tool_name and Tool.tool_aliases on supported tool classes.
+    Built from Tool.tool_name and Tool.tool_aliases on ALL Tool subclasses.
     Cached since this never changes at runtime.
     """
     mapping: dict[str, str] = {}
-    for cls in _supported_tool_classes():
+    # Include factory tools that can be inferred
+    for cls in FACTORY_TOOL_CLASSES:
         tool_name = getattr(cls, "tool_name", None)
         if not tool_name:
             continue
         mapping[tool_name] = tool_name
         for alias in getattr(cls, "tool_aliases", []) or []:
             mapping[alias] = tool_name
+
+    # Also include other known tool types (could be extended)
+    # These might not be in FACTORY_TOOL_CLASSES but still have tool_name
+    for cls in (AnalysisTool, SweepTool):
+        tool_name = getattr(cls, "tool_name", None)
+        if tool_name and tool_name not in mapping:
+            mapping[tool_name] = tool_name
+            for alias in getattr(cls, "tool_aliases", []) or []:
+                mapping[alias] = tool_name
+
     return mapping
 
 
-def _resolve_canonical_tool_name(name: str) -> str | None:
-    return get_tool_name_map().get(name)
+def _function_returns_tool_type(func_maker: Callable, tool_type_name: str) -> bool:
+    """Check if a function returns a specific Tool type.
+
+    Args:
+        func_maker: The function to check
+        tool_type_name: The canonical tool name (e.g., 'evaluate', 'sweep')
+    """
+    if not inspect.isfunction(func_maker):
+        return False
+
+    try:
+        sig = inspect.signature(func_maker)
+        ret_annotation = sig.return_annotation
+
+        # Check if return type is a Tool subclass
+        if inspect.isclass(ret_annotation) and issubclass(ret_annotation, Tool):
+            # Check if this Tool class has the matching tool_name
+            return getattr(ret_annotation, "tool_name", None) == tool_type_name
+    except Exception:
+        pass
+
+    return False
+
+
+def list_recipes_supporting_tool(tool_name: str) -> list[str]:
+    """Find all recipe modules that support a given tool.
+
+    Returns a sorted list of full paths like 'experiments.recipes.arena.train'.
+    Handles both inferred tools and explicitly defined tools.
+    """
+    # Normalize the tool name to canonical form if it's a known alias
+    canonical = get_tool_name_map().get(tool_name, tool_name)
+
+    supported: list[str] = []
+
+    try:
+        recipes_pkg = importlib.import_module("experiments.recipes")
+    except Exception:
+        return []
+
+    if not hasattr(recipes_pkg, "__path__"):
+        return []
+
+    # Walk all recipe modules
+    for _, module_name, _ in pkgutil.walk_packages(recipes_pkg.__path__, recipes_pkg.__name__ + "."):
+        try:
+            mod = importlib.import_module(module_name)
+        except Exception:
+            continue
+
+        # Get all explicitly defined tools in this module
+        explicit_tools = get_available_tools(mod)
+
+        # Check explicit tools - look for both exact name matches AND tools that return the requested type
+        for func_name, func_maker in explicit_tools:
+            # Direct name match (e.g., 'sweep' matches 'sweep')
+            if func_name == canonical:
+                supported.append(f"{module_name}.{func_name}")
+                continue
+
+            # Check if this function returns the requested tool type
+            # e.g., 'evaluate_in_sweep' might return an EvalTool
+            if _function_returns_tool_type(func_maker, canonical):
+                supported.append(f"{module_name}.{func_name}")
+
+        # Also check if it can be inferred (for factory tools like train, play, etc.)
+        # But only if we haven't already found it explicitly
+        already_found = any(f"{module_name}.{canonical}" in s for s in supported)
+        if not already_found:
+            try:
+                if try_infer_tool_factory(mod, canonical):
+                    supported.append(f"{module_name}.{canonical}")
+            except Exception:
+                pass
+
+    return sorted(set(supported))
 
 
 def try_infer_tool_factory(module: ModuleType, verb: str) -> Optional[Callable[[], object]]:
@@ -208,73 +318,79 @@ def try_infer_tool_factory(module: ModuleType, verb: str) -> Optional[Callable[[
     - Supports known tool classes and their aliases via `tool_name`/`tool_aliases`.
     - Returns None if inference is not possible for the requested tool.
     """
-    normalized = _resolve_canonical_tool_name(verb) or verb
+    # Normalize tool name to canonical form
+    normalized = get_tool_name_map().get(verb, verb)
     inferable = set(get_tool_name_map().values())
     if normalized not in inferable:
         return None
 
+    # Try to get recipe configurations
     sims = _resolve_simulations(module)
     mg = _resolve_mettagrid(module)
     if sims is None and mg is None:
         return None
 
+    # Build factory based on tool type
     if normalized == "train":
         if mg is None:
             return None
 
-        def factory() -> TrainTool:
+        def train_factory() -> TrainTool:
             kwargs = {}
             if sims is not None:
                 kwargs["evaluator"] = EvaluatorConfig(simulations=sims)
             return TrainTool(training_env=_mettagrid_to_training_env(mg), **kwargs)
 
-        return factory
+        return train_factory
 
     if normalized == "play":
 
-        def factory() -> PlayTool:
+        def play_factory() -> PlayTool:
             # Prefer simulations()[0] if available; otherwise fall back to mettagrid()
-            if sims is not None and len(sims) > 0:
+            if sims and len(sims) > 0:
                 sim_cfg = sims[0]
-            else:
-                assert mg is not None, "Cannot infer play: no simulations() provided and mettagrid() missing"
+            elif mg is not None:
                 sim_cfg = _mettagrid_to_simulation(module, mg)
+            else:
+                raise ValueError("Cannot infer play: no simulations() provided and mettagrid() missing")
             return PlayTool(sim=sim_cfg)
 
-        return factory
+        return play_factory
 
     if normalized == "replay":
 
-        def factory() -> ReplayTool:
-            if sims is not None and len(sims) > 0:
+        def replay_factory() -> ReplayTool:
+            # Prefer simulations()[0] if available; otherwise fall back to mettagrid()
+            if sims and len(sims) > 0:
                 sim_cfg = sims[0]
-            else:
-                assert mg is not None, "Cannot infer replay: no simulations() provided and mettagrid() missing"
+            elif mg is not None:
                 sim_cfg = _mettagrid_to_simulation(module, mg)
+            else:
+                raise ValueError("Cannot infer replay: no simulations() provided and mettagrid() missing")
             return ReplayTool(sim=sim_cfg)
 
-        return factory
+        return replay_factory
 
     if normalized == "evaluate":
 
-        def factory() -> EvalTool:
+        def eval_factory() -> EvalTool:
             if sims is not None:
                 return EvalTool(simulations=sims)
-            assert mg is not None
+            assert mg is not None, "Cannot infer evaluate: mettagrid() missing"
             sim_cfg = _mettagrid_to_simulation(module, mg)
             return EvalTool(simulations=[sim_cfg])
 
-        return factory
+        return eval_factory
 
     if normalized == "evaluate_remote":
 
-        def factory() -> EvalRemoteTool:
+        def eval_remote_factory() -> EvalRemoteTool:
             if sims is not None:
                 return EvalRemoteTool(simulations=sims)
-            assert mg is not None
+            assert mg is not None, "Cannot infer evaluate_remote: mettagrid() missing"
             sim_cfg = _mettagrid_to_simulation(module, mg)
             return EvalRemoteTool(simulations=[sim_cfg])
 
-        return factory
+        return eval_remote_factory
 
     return None
