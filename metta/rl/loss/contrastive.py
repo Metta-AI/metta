@@ -61,7 +61,7 @@ class ContrastiveLoss(Loss):
     def run_train(self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
         """Compute contrastive loss."""
         if mb_idx == 0:  # Only log on first minibatch to avoid spam
-            print(f"[Contrastive Loss] run_train called at step {context.step}, mb_idx {mb_idx}")
+            print(f"[Contrastive Loss] run_train called at epoch {context.epoch}, agent_step {context.agent_step}, mb_idx {mb_idx}")
         
         policy_td = shared_loss_data["policy_td"]
         minibatch = shared_loss_data["sampled_mb"]
@@ -93,8 +93,8 @@ class ContrastiveLoss(Loss):
             self.loss_tracker[key].append(value)
 
         # Console logging for similarities
-        if self.loss_cfg.log_similarities and context.step % self.loss_cfg.log_frequency == 0:
-            print(f"[Contrastive Loss] Step {context.step}: "
+        if self.loss_cfg.log_similarities and context.epoch % self.loss_cfg.log_frequency == 0:
+            print(f"[Contrastive Loss] Epoch {context.epoch}: "
                   f"Positive sim: {metrics['positive_sim_mean']:.4f}±{metrics['positive_sim_std']:.4f}, "
                   f"Negative sim: {metrics['negative_sim_mean']:.4f}±{metrics['negative_sim_std']:.4f}, "
                   f"Pairs: {metrics['num_pairs']}, "
