@@ -213,19 +213,3 @@ class PufferLibPolicy(nn.Module):
         """PufferLib forward pass - returns logits and values directly."""
         encoded = self.encode_observations(observations)
         return self.decode_actions(encoded)
-
-
-class PufferRecurrent(pufferlib.models.LSTMWrapper):
-    """PufferLib LSTM wrapper - for recurrent version."""
-
-    def __init__(self, env_metadata, policy=None, input_size=512, hidden_size=512, cnn_channels=128, **kwargs):
-        if policy is None:
-            policy = PufferLibPolicy(
-                env_metadata,
-                cnn_channels=cnn_channels,
-                hidden_size=hidden_size,
-                input_size=input_size,
-            )
-        # Note: PufferLib LSTMWrapper expects a different env interface
-        # We'll need to create a minimal env adapter
-        super().__init__(env_metadata, policy, input_size, hidden_size)
