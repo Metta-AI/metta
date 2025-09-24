@@ -27,8 +27,8 @@ RECIPES = {
         "module": "experiments.recipes.arena.train",
         "description": "Standard arena recipe",
     },
-    "icl_resource_chain": {
-        "module": "experiments.recipes.icl_resource_chain.train",
+    "in_context_learning/ordered_chains": {
+        "module": "experiments.recipes.in_context_learning.ordered_chains.train",
         "description": "In-context learning resource chain",
     },
     "navigation": {

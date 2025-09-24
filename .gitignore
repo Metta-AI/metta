@@ -116,6 +116,5 @@ recipe_test_jobs.json
 cluster_test_jobs.json
 
 # MetaScope
-mettascope2/dist/
-mettascope2/data/fidget/
-mettascope2/bindings/generated/
+packages/mettagrid/nim/mettascope/dist/
+packages/mettagrid/nim/mettascope/bindings/generated/

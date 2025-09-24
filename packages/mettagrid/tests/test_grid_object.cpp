@@ -61,7 +61,8 @@ protected:
 // Test init with GridLocation
 TEST_F(GridObjectTest, InitWithLocation) {
   GridLocation loc(5, 10, 2);
-  obj.init(1, "object", loc);
+  std::vector<int> tags;  // Empty tags vector
+  obj.init(1, "object", loc, tags);
 
   EXPECT_EQ(1, obj.type_id);
   EXPECT_EQ("object", obj.type_name);

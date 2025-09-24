@@ -19,7 +19,7 @@ def help_configs() -> None:
     info('cfg = load_cfg("sim_job.yaml")')
     info('cfg = load_cfg("trainer/trainer.yaml")')
     success("# Load configs with overrides:")
-    info('cfg = load_cfg("train_job.yaml", ["trainer.curriculum=/env/mettagrid/arena/advanced"])')
+    info('cfg = load_cfg("train_job.yaml", ["training_env.curriculum=/env/mettagrid/arena/advanced"])')
     success("# Load checkpoints:")
     info('policy = CheckpointManager.load_from_uri("file://./train_dir/my_run/checkpoints/my_run:v12.pt")')
     info('policy = CheckpointManager.load_from_uri("s3://bucket/path/my_run/checkpoints/my_run:v12.pt")')

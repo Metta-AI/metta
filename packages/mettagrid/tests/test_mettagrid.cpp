@@ -12,6 +12,8 @@
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/assembler.hpp"
+#include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
@@ -944,4 +946,272 @@ TEST_F(MettaGridCppTest, EventManager) {
   // Test that event manager can be initialized
   // (This is a basic test - more complex event testing would require more setup)
   EXPECT_NO_THROW(event_manager.process_events(1));
+}
+
+// Assembler Tests
+TEST_F(MettaGridCppTest, AssemblerBasicObservationFeatures) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  auto features = assembler.obs_features();
+
+  // Should have at least TypeId and Tag features
+  EXPECT_GE(features.size(), 3);  // TypeId + 2 tags
+
+  // Find TypeId feature
+  bool found_type_id = false;
+  bool found_tag1 = false;
+  bool found_tag2 = false;
+
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::TypeId) {
+      EXPECT_EQ(feature.value, 1);  // Our test assembler type_id
+      found_type_id = true;
+    } else if (feature.feature_id == ObservationFeature::Tag) {
+      if (feature.value == 1) {
+        found_tag1 = true;
+      } else if (feature.value == 2) {
+        found_tag2 = true;
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_type_id) << "TypeId feature not found";
+  EXPECT_TRUE(found_tag1) << "Tag 1 not found";
+  EXPECT_TRUE(found_tag2) << "Tag 2 not found";
+}
+
+TEST_F(MettaGridCppTest, AssemblerNoCooldownObservation) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Initially no cooldown
+  auto features = assembler.obs_features();
+
+  // Should not have CooldownRemaining feature when not cooling down
+  bool found_cooldown_remaining = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::CooldownRemaining) {
+      found_cooldown_remaining = true;
+      break;
+    }
+  }
+  EXPECT_FALSE(found_cooldown_remaining) << "Should not have CooldownRemaining feature when not cooling down";
+}
+
+TEST_F(MettaGridCppTest, AssemblerCooldownRemainingCalculation) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Test cooldown_remaining() function directly
+
+  // Initially no cooldown
+  EXPECT_EQ(assembler.cooldown_remaining(), 0);
+
+  // Set cooldown end timestep
+  assembler.cooldown_end_timestep = 10;
+  current_timestep = 5;
+
+  // Should have 5 remaining
+  EXPECT_EQ(assembler.cooldown_remaining(), 5);
+
+  // Advance time
+  current_timestep = 8;
+  EXPECT_EQ(assembler.cooldown_remaining(), 2);
+
+  // At end time
+  current_timestep = 10;
+  EXPECT_EQ(assembler.cooldown_remaining(), 0);
+
+  // Past end time
+  current_timestep = 15;
+  EXPECT_EQ(assembler.cooldown_remaining(), 0);
+}
+
+TEST_F(MettaGridCppTest, AssemblerCooldownObservationWithRemainingTime) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Set up cooldown
+  assembler.cooldown_end_timestep = 10;
+  current_timestep = 5;
+
+  auto features = assembler.obs_features();
+
+  // Should have CooldownRemaining feature
+  bool found_cooldown_remaining = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::CooldownRemaining) {
+      EXPECT_EQ(feature.value, 5);  // 10 - 5 = 5 remaining
+      found_cooldown_remaining = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature when cooling down";
+}
+
+TEST_F(MettaGridCppTest, AssemblerCooldownObservationCappedAt255) {
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler assembler(5, 5, config);
+
+  unsigned int current_timestep = 0;
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Set up a very long cooldown
+  assembler.cooldown_end_timestep = 1000;
+  current_timestep = 100;  // 900 remaining, but should be capped at 255
+
+  auto features = assembler.obs_features();
+
+  bool found_cooldown_remaining = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::CooldownRemaining) {
+      EXPECT_EQ(feature.value, 255);  // Should be capped at 255
+      found_cooldown_remaining = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_cooldown_remaining) << "Should have CooldownRemaining feature capped at 255";
+}
+
+TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
+  // Create a grid to test with
+  std::unique_ptr<Grid> grid = std::make_unique<Grid>(10, 10);
+
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  Assembler* assembler = new Assembler(5, 5, config);  // Assembler at position (5,5)
+
+  // Set up the assembler with grid
+  assembler->set_grid(grid.get());
+  grid->add_object(assembler);
+
+  // Test 1: Empty pattern (no agents around) - should return 0
+  uint8_t pattern = assembler->get_agent_pattern_byte();
+
+  AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
+  Agent* agent1 = new Agent(4, 5, agent_cfg);  // North of assembler
+  Agent* agent2 = new Agent(5, 6, agent_cfg);  // East of assembler
+
+  grid->add_object(agent1);
+  grid->add_object(agent2);
+
+  pattern = assembler->get_agent_pattern_byte();
+  EXPECT_EQ(pattern, 18) << "Pattern with agents at N and E should be 18 (2 + 16)";
+
+  // Test 3: Pattern with agents in multiple positions
+  // Move agent1 to NW (bit 0) and agent2 to SW (bit 5), add agent3 at SE (bit 7)
+  // This should give us pattern = (1 << 0) | (1 << 5) | (1 << 7) = 1 | 32 | 128 = 161
+  grid->move_object(agent1->id, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
+  grid->move_object(agent2->id, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
+
+  Agent* agent3 = new Agent(6, 6, agent_cfg);  // SE of assembler
+  grid->add_object(agent3);                    // Add new agent
+
+  pattern = assembler->get_agent_pattern_byte();
+  EXPECT_EQ(pattern, 161) << "Pattern with agents at NW, SW, and SE should be 161 (1 + 32 + 128)";
+}
+
+TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
+  // Create a grid to test with
+  Grid grid(10, 10);
+
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+
+  // Create test recipes
+  auto recipe0 = std::make_shared<Recipe>();
+  recipe0->input_resources[0] = 1;
+
+  auto recipe1 = std::make_shared<Recipe>();
+  recipe1->input_resources[1] = 2;
+
+  config.recipes.push_back(recipe0);
+  config.recipes.push_back(recipe1);
+
+  Assembler* assembler = new Assembler(5, 5, config);
+
+  // Set up the assembler with grid and timestep
+  unsigned int current_timestep = 0;
+  assembler->set_current_timestep_ptr(&current_timestep);
+  assembler->set_grid(&grid);
+
+  // Add assembler to grid
+  grid.add_object(assembler);
+
+  // Without agents around, should get pattern 0 (recipe0)
+  const Recipe* current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe0.get());
+
+  // Add one agent at NW position (bit 0) - should get pattern 1 (recipe1)
+  AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
+  Agent* agent = new Agent(4, 4, agent_cfg);  // NW of assembler
+  grid.add_object(agent);
+
+  current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe1.get()) << "With one agent, should select recipe1";
+}
+
+TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
+  // Create a grid to test with
+  Grid grid(10, 10);
+
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.recipe_details_obs = true;
+  config.input_recipe_offset = 100;
+  config.output_recipe_offset = 200;
+
+  // Create test recipes - one for pattern 0 (no agents), one for pattern 1 (some agents)
+  auto recipe0 = std::make_shared<Recipe>();
+  recipe0->input_resources[0] = 2;   // 2 units of item 0
+  recipe0->output_resources[1] = 1;  // 1 unit of output item 1
+
+  auto recipe1 = std::make_shared<Recipe>();
+  recipe1->input_resources[2] = 3;   // 3 units of item 2
+  recipe1->output_resources[3] = 2;  // 2 units of output item 3
+
+  config.recipes.push_back(recipe0);  // Index 0: pattern 0
+  config.recipes.push_back(recipe1);  // Index 1: pattern 1
+
+  Assembler* assembler = new Assembler(5, 5, config);
+
+  // Set up the assembler with grid and timestep
+  unsigned int current_timestep = 0;
+  assembler->set_current_timestep_ptr(&current_timestep);
+  assembler->set_grid(&grid);
+
+  // Add assembler to grid
+  grid.add_object(assembler);
+
+  // Test with pattern 0 (no agents around) - should get recipe0
+  auto features = assembler->obs_features();
+
+  // Should have recipe features for pattern 0 (recipe0)
+  bool found_input_feature = false;
+  bool found_output_feature = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == config.input_recipe_offset + 0) {
+      EXPECT_EQ(feature.value, 2);  // 2 units of input item 0 from recipe0
+      found_input_feature = true;
+    } else if (feature.feature_id == config.output_recipe_offset + 1) {
+      EXPECT_EQ(feature.value, 1);  // 1 unit of output item 1 from recipe0
+      found_output_feature = true;
+    }
+  }
+  EXPECT_TRUE(found_input_feature) << "Should have input recipe feature for pattern 0";
+  EXPECT_TRUE(found_output_feature) << "Should have output recipe feature for pattern 0";
+
+  // Verify we're getting the right recipe
+  const Recipe* current_recipe = assembler->get_current_recipe();
+  EXPECT_EQ(current_recipe, recipe0.get());
 }

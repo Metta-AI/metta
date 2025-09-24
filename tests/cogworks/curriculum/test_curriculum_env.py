@@ -5,12 +5,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from metta.cogworks.curriculum import (
-    Curriculum,
-    CurriculumConfig,
-    CurriculumTask,
-    SingleTaskGeneratorConfig,
-)
+from metta.cogworks.curriculum import Curriculum, CurriculumConfig, CurriculumTask, SingleTaskGenerator
 from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -22,7 +17,7 @@ class TestCurriculumEnv:
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
+        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5)
         return Curriculum(config, seed=0)
 
@@ -150,7 +145,7 @@ class TestCurriculumEnv:
         mock_env.get_episode_rewards.return_value = rewards
         mock_env.set_mg_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
+        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -281,7 +276,7 @@ class TestCurriculumEnv:
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.0, 0.0]))
         mock_env.set_mg_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
+        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -309,7 +304,7 @@ class TestCurriculumEnv:
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
         mock_env.set_mg_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
+        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -336,7 +331,7 @@ class TestCurriculumEnv:
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
         mock_env.set_mg_config = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env=MettaGridConfig())
+        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
         curriculum = Curriculum(config, seed=0)
         wrapper = CurriculumEnv(mock_env, curriculum)

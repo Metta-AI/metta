@@ -37,6 +37,12 @@ from mettagrid.mettagrid_c import (
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 
+# Import mettascope submodule (optional, for visualization)
+try:
+    from mettagrid import mettascope
+except ImportError:
+    mettascope = None
+
 __all__ = [
     # Config
     "MettaGridConfig",
@@ -59,4 +65,6 @@ __all__ = [
     "GameMap",
     "ReplayWriter",
     "StatsWriter",
+    # Optional visualization module
+    "mettascope",
 ]

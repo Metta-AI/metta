@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import logging
 import random
 from abc import ABC
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
@@ -13,9 +14,11 @@ if TYPE_CHECKING:
 from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
-from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
+from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 from mettagrid.config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
+
+logger = logging.getLogger(__name__)
 
 
 def get_algorithm_hypers_discriminator(v):
@@ -120,6 +123,14 @@ class CurriculumAlgorithm(StatsLogger, ABC):
     @abc.abstractmethod
     def update_task_performance(self, task_id: int, score: float):
         """Update task performance. Override in subclasses that track performance."""
+        pass
+
+    def get_state(self) -> Dict[str, Any]:
+        """Get algorithm state for checkpointing. Override in subclasses that have state."""
+        return {"type": self.hypers.algorithm_type()}
+
+    def load_state(self, state: Dict[str, Any]) -> None:
+        """Load algorithm state from checkpoint. Override in subclasses that have state."""
         pass
 
     def on_task_created(self, task: "CurriculumTask") -> None:
@@ -238,7 +249,7 @@ class CurriculumConfig(Config):
     def from_mg(cls, mg_config: MettaGridConfig) -> "CurriculumConfig":
         """Create a CurriculumConfig from a MettaGridConfig."""
         return cls(
-            task_generator=SingleTaskGeneratorConfig(env=mg_config),
+            task_generator=SingleTaskGenerator.Config(env=mg_config),
         )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -409,6 +420,67 @@ class Curriculum(StatsLogger):
         """Return curriculum statistics for logging purposes."""
         # Use the StatsLogger implementation
         return super().stats()
+
+    def get_state(self) -> Dict[str, Any]:
+        """Get curriculum state for checkpointing."""
+        state = {
+            "config": self._config.model_dump(),  # Save config for validation
+            "seed": self._rng.getstate(),
+            "num_created": self._num_created,
+            "num_evicted": self._num_evicted,
+            "tasks": {},
+        }
+
+        # Serialize task data (without env_cfg to save space)
+        for task_id, task in self._tasks.items():
+            state["tasks"][task_id] = {
+                "num_completions": task._num_completions,
+                "total_score": task._total_score,
+                "mean_score": task._mean_score,
+                "num_scheduled": task._num_scheduled,
+                "slice_values": task._slice_values,
+            }
+
+        # Save algorithm state if present
+        if self._algorithm is not None:
+            state["algorithm_state"] = self._algorithm.get_state()
+
+        return state
+
+    def load_state(self, state: Dict[str, Any]) -> None:
+        """Load curriculum state from checkpoint."""
+        # Validate config matches
+        if state["config"] != self._config.model_dump():
+            logger.warning("Curriculum config mismatch during restore")
+
+        # Restore counters
+        self._num_created = state["num_created"]
+        self._num_evicted = state["num_evicted"]
+
+        # Restore random state
+        self._rng.setstate(state["seed"])
+
+        # Clear existing tasks
+        self._tasks.clear()
+        self._task_ids.clear()
+
+        # Restore tasks
+        for task_id_str, task_data in state["tasks"].items():
+            # Recreate env_cfg using task_id
+            task_id = int(task_id_str)
+            env_cfg = self._task_generator.get_task(task_id)
+            task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
+            task._num_completions = task_data["num_completions"]
+            task._total_score = task_data["total_score"]
+            task._mean_score = task_data["mean_score"]
+            task._num_scheduled = task_data["num_scheduled"]
+
+            self._tasks[task_id] = task
+            self._task_ids.add(task_id)
+
+        # Restore algorithm state
+        if self._algorithm is not None and "algorithm_state" in state:
+            self._algorithm.load_state(state["algorithm_state"])
 
 
 # Import concrete config classes at the end to avoid circular imports

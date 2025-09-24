@@ -1,4 +1,5 @@
 import logging
+import os
 import pickle
 from collections import OrderedDict
 from pathlib import Path
@@ -7,6 +8,9 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
+from metta.agent.policy import Policy
+from metta.rl.system_config import SystemConfig
+from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri import ParsedURI
 
@@ -132,7 +136,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
     return None
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device):
+def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
         return torch.load(path, weights_only=False, map_location=device)
@@ -147,10 +151,9 @@ class CheckpointManager:
 
     def __init__(
         self,
-        run: str = "default",
-        run_dir: str = "./train_dir",
+        run: str,
+        system_cfg: SystemConfig,
         cache_size: int = 3,
-        remote_prefix: str | None = None,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -162,25 +165,67 @@ class CheckpointManager:
 
         self.run = run
         self.run_name = run
-        self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
+        self.run_dir = system_cfg.data_dir / self.run
+        self.checkpoint_dir = self.run_dir / "checkpoints"
+
+        os.makedirs(system_cfg.data_dir, exist_ok=True)
+        os.makedirs(self.run_dir, exist_ok=True)
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
         self.cache_size = cache_size
         self._cache = OrderedDict()
+
         self._remote_prefix = None
-        if remote_prefix:
-            parsed = ParsedURI.parse(remote_prefix)
-            if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
-                raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
-            # Remove trailing slash from prefix for deterministic joins
-            key_prefix = parsed.key.rstrip("/")
-            self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+        if not system_cfg.local_only:
+            if system_cfg.remote_prefix:
+                parsed = ParsedURI.parse(system_cfg.remote_prefix)
+                if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
+                    raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
+                # Remove trailing slash from prefix for deterministic joins
+                key_prefix = parsed.key.rstrip("/")
+                self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+
+            if self._remote_prefix is None:
+                self._setup_remote_prefix()
+
+    def _setup_remote_prefix(self) -> None:
+        """Determine and set the remote prefix for policy storage if needed."""
+        if self._remote_prefix is None:
+            storage_decision = auto_policy_storage_decision(self.run)
+            if storage_decision.remote_prefix:
+                self._remote_prefix = storage_decision.remote_prefix
+                if storage_decision.reason == "env_override":
+                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
+                else:
+                    logger.info(
+                        "Policies will sync to %s (Softmax AWS profile detected).",
+                        storage_decision.remote_prefix,
+                    )
+            elif storage_decision.reason == "not_connected":
+                logger.info(
+                    "Softmax AWS SSO not detected; policies will remain local. "
+                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' to enable uploads."
+                )
+            elif storage_decision.reason == "aws_not_enabled":
+                logger.info(
+                    "AWS component disabled; policies will remain local. Run 'metta configure aws' to set up S3."
+                )
+            elif storage_decision.reason == "no_base_prefix":
+                logger.info(
+                    "Remote policy prefix unset; policies will remain local. Configure POLICY_REMOTE_PREFIX or run "
+                    "'metta configure aws'."
+                )
+
+    @property
+    def remote_checkpoints_enabled(self) -> bool:
+        return self._remote_prefix is not None
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
         self._cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu"):
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> Policy:
         """Load a policy from a URI (file://, s3://, or mock://)."""
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
@@ -283,6 +328,10 @@ class CheckpointManager:
         }
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
+        if "curriculum_state" in state:
+            result["curriculum_state"] = state["curriculum_state"]
+        if "loss_states" in state:
+            result["loss_states"] = state["loss_states"]
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
@@ -318,13 +367,23 @@ class CheckpointManager:
         return f"file://{checkpoint_path.resolve()}"
 
     def save_trainer_state(
-        self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
+        self,
+        optimizer,
+        epoch: int,
+        agent_step: int,
+        stopwatch_state: Optional[Dict[str, Any]] = None,
+        curriculum_state: Optional[Dict[str, Any]] = None,
+        loss_states: Optional[Dict[str, Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
+        if curriculum_state:
+            state["curriculum_state"] = curriculum_state
+        if loss_states is not None:
+            state["loss_states"] = loss_states
         torch.save(state, trainer_file)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:

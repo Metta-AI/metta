@@ -1,6 +1,7 @@
-from collections import defaultdict
-from dataclasses import dataclass
-from typing import Any
+import copy
+from collections import OrderedDict, defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Mapping
 
 import torch
 from tensordict import TensorDict
@@ -8,9 +9,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.training.component_context import ComponentContext
-from metta.rl.training.experience import Experience
-from metta.rl.training.training_environment import TrainingEnvironment
+from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 
 
 @dataclass(slots=True)
@@ -38,11 +37,13 @@ class Loss:
     rollout_active_in_cycle: list[int] | None = None
     train_cycle_length: int | None = None
     train_active_in_cycle: list[int] | None = None
+    _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
         self.loss_tracker = defaultdict(list)
         self._zero_tensor = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        self.register_state_attr("loss_tracker")
         self._configure_schedule()
 
     def attach_context(self, context: ComponentContext) -> None:
@@ -181,3 +182,79 @@ class Loss:
         self.replay = experience
 
     # End utility helpers
+
+    # ------------------------------------------------------------------
+    # State dict helpers (mirrors torch.nn.Module semantics)
+    # ------------------------------------------------------------------
+    def register_state_attr(self, *names: str) -> None:
+        """Register attributes that should be persisted in the loss state."""
+
+        for name in names:
+            if not hasattr(self, name):
+                raise AttributeError(f"Loss has no attribute '{name}' to register for state tracking")
+            self._state_attrs.add(name)
+
+    def state_dict(self) -> OrderedDict[str, Any]:
+        """Return a CPU-friendly snapshot of registered attributes."""
+
+        state = OrderedDict()
+        for name in sorted(self._state_attrs):
+            value = getattr(self, name)
+            state[name] = self._clone_state_value(value)
+        return state
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], *, strict: bool = True) -> tuple[list[str], list[str]]:
+        """Restore registered attributes from a state dictionary."""
+
+        missing_keys: list[str] = [name for name in self._state_attrs if name not in state_dict]
+        unexpected_keys: list[str] = [name for name in state_dict.keys() if name not in self._state_attrs]
+
+        for name in self._state_attrs - set(missing_keys):
+            self._restore_state_value(name, state_dict[name])
+
+        if strict and (missing_keys or unexpected_keys):
+            missing_msg = f"Missing keys: {missing_keys}" if missing_keys else ""
+            unexpected_msg = f"Unexpected keys: {unexpected_keys}" if unexpected_keys else ""
+            separator = "; " if missing_msg and unexpected_msg else ""
+            raise RuntimeError(f"Error loading loss state dict: {missing_msg}{separator}{unexpected_msg}")
+
+        return missing_keys, unexpected_keys
+
+    # ------------------------------------------------------------------
+    # Internal helpers for state cloning/restoration
+    # ------------------------------------------------------------------
+    def _clone_state_value(self, value: Any) -> Any:
+        if isinstance(value, Tensor):
+            return value.detach().clone().cpu()
+        if isinstance(value, Mapping):
+            return {k: self._clone_state_value(v) for k, v in value.items()}
+        if isinstance(value, defaultdict):
+            return {k: copy.deepcopy(v) for k, v in value.items()}
+        if hasattr(value, "clone") and callable(value.clone):
+            return value.clone()
+        return copy.deepcopy(value)
+
+    def _restore_state_value(self, name: str, stored_value: Any) -> None:
+        current = getattr(self, name, None)
+
+        if isinstance(current, Tensor):
+            tensor = stored_value if isinstance(stored_value, Tensor) else torch.as_tensor(stored_value)
+            setattr(self, name, tensor.to(device=current.device, dtype=current.dtype))
+            return
+
+        if isinstance(current, defaultdict):
+            rebuilt = defaultdict(current.default_factory)
+            for key, value in (stored_value or {}).items():
+                rebuilt[key] = copy.deepcopy(value)
+            setattr(self, name, rebuilt)
+            return
+
+        if isinstance(current, dict):
+            setattr(self, name, {k: copy.deepcopy(v) for k, v in (stored_value or {}).items()})
+            return
+
+        if isinstance(stored_value, Tensor):
+            setattr(self, name, stored_value.to(device=self.device))
+            return
+
+        setattr(self, name, copy.deepcopy(stored_value))

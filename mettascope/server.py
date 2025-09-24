@@ -156,10 +156,14 @@ def make_app(cfg: "PlayTool"):
         logger.info("Received websocket connection!")
         await send_message(type="message", message="Connecting!")
 
-        # Create a simulation that we are going to play.
-        from metta.tools.play import create_simulation
-
-        sim = create_simulation(cfg)
+        sim = Simulation.create(
+            sim_config=cfg.sim,
+            device=cfg.system.device,
+            vectorization=cfg.system.vectorization,
+            stats_dir=cfg.effective_stats_dir,
+            replay_dir=cfg.effective_replay_dir,
+            policy_uri=cfg.policy_uri,
+        )
         sim.start_simulation()
         env = sim.get_env()
         replay = sim.get_replay()

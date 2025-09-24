@@ -4,6 +4,7 @@ import logging
 import os
 import uuid
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Optional
 
 from cogweb.cogweb_client import CogwebClient
@@ -160,7 +161,7 @@ class SweepTool(Tool):
         os.makedirs(self.sweep_dir, exist_ok=True)
 
         # Initialize logging
-        init_logging(run_dir=self.sweep_dir)
+        init_logging(run_dir=Path(self.sweep_dir))
 
         logger.info("[SweepOrchestrator] " + "=" * 60)
         logger.info(f"[SweepOrchestrator] Starting sweep: {self.sweep_name}")
@@ -283,14 +284,16 @@ class SweepTool(Tool):
             observations = [run for run in final_runs if run.observation is not None]
             if observations:
                 if self.protein_config.goal == "maximize":
-                    best_run = max(observations, key=lambda r: r.observation.score)
+                    best_run = max(observations, key=lambda r: r.observation.score if r.observation else 0.0)
                 else:
-                    best_run = min(observations, key=lambda r: r.observation.score)
+                    best_run = min(observations, key=lambda r: r.observation.score if r.observation else 0.0)
 
                 logger.info("[SweepOrchestrator] Best result:")
                 logger.info(f"[SweepOrchestrator]    Run: {best_run.run_id}")
-                logger.info(f"[SweepOrchestrator]    Score: {best_run.observation.score:.4f}")
-                if best_run.observation.suggestion:
+                logger.info(
+                    f"[SweepOrchestrator]    Score: {(best_run.observation.score if best_run.observation else 0.0):.4f}"
+                )
+                if best_run.observation and best_run.observation.suggestion:
                     logger.info(f"[SweepOrchestrator]    Config: {best_run.observation.suggestion}")
 
             logger.info("[SweepOrchestrator] " + "=" * 60)

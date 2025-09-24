@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.stats import process_training_stats
+from metta.rl import stats as rl_stats
 from metta.rl.training.stats_reporter import build_wandb_payload
 
 
@@ -123,7 +123,7 @@ class TestMetricsFormattingMain:
         trainer_config.ppo.l2_reg_loss_coef = 0
         trainer_config.ppo.l2_init_loss_coef = 0
 
-        result = process_training_stats(raw_stats, losses, experience, trainer_config)
+        result = rl_stats.process_training_stats(raw_stats, losses, experience, trainer_config)
 
         assert result["mean_stats"]["reward"] == 2.0
         assert result["mean_stats"]["episode_length"] == 20

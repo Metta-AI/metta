@@ -63,12 +63,6 @@ class WallConfig(GridObjectConfig):
     type_name: str
     swappable: bool
 
-class BoxConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, returned_resources: dict[int, int]): ...
-    type_id: int
-    type_name: str
-    returned_resources: dict[int, int]
-
 class AgentConfig(GridObjectConfig):
     def __init__(
         self,
@@ -160,13 +154,11 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        resource_rewards: bool = False,
         visitation_counts: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    resource_rewards: bool
     visitation_counts: bool
 
 class GameConfig:

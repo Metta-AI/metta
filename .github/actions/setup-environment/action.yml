@@ -34,17 +34,61 @@ runs:
           uv.lock
           **/pyproject.toml
 
-    - name: Install Bazel
+    - name: Get week number for cache key
       if: inputs.install-mode != 'minimal'
+      id: get-week
       shell: bash
       run: |
-        curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o bazel
+        # Get year and week number for weekly cache invalidation
+        echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Bazel binary
+      if: inputs.install-mode != 'minimal'
+      id: cache-bazel
+      uses: actions/cache@v4
+      with:
+        path: /usr/local/bin/bazel
+        key: bazel-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        restore-keys: |
+          bazel-binary-${{ runner.os }}-
+
+    - name: Install Bazel
+      if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        # Download bazel with retry logic
+        MAX_RETRIES=5
+        RETRY_DELAY=10
+
+        for i in $(seq 1 $MAX_RETRIES); do
+          echo "Attempt $i of $MAX_RETRIES to download bazel..."
+          
+          if curl -L --connect-timeout 30 --max-time 120 \
+               https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
+               -o bazel; then
+            echo "Successfully downloaded bazel"
+            break
+          else
+            if [ $i -eq $MAX_RETRIES ]; then
+              echo "Failed to download bazel after $MAX_RETRIES attempts"
+              exit 1
+            fi
+            echo "Download failed, retrying in $RETRY_DELAY seconds..."
+            sleep $RETRY_DELAY
+          fi
+        done
+
         chmod +x bazel
         if command -v sudo &> /dev/null; then
           sudo mv bazel /usr/local/bin/bazel
         else
           mv bazel /usr/local/bin/bazel
         fi
+
+    - name: Verify Bazel installation
+      if: inputs.install-mode != 'minimal'
+      shell: bash
+      run: |
         bazel --version
 
     - name: Create virtual environment with uv

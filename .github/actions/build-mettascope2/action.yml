@@ -14,7 +14,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.nimble
-        key: ${{ runner.os }}-nimble-${{ hashFiles('mettascope2/mettascope.nimble') }}
+        key: ${{ runner.os }}-nimble-${{ hashFiles('packages/mettagrid/nim/mettascope/mettascope.nimble') }}
         restore-keys: |
           ${{ runner.os }}-nimble-
 
@@ -28,26 +28,23 @@ runs:
 
     - name: Install dependencies
       run: |
-        cd mettascope2
+        cd packages/mettagrid/nim/mettascope
 
         # relying on installation based on the nimble file was resulting in the wrong
         # version of pixie being installed
-
-        nimble install pixie@#head -y
-        nimble install fidget2@#head -y
 
         nimble install -y
       shell: bash
 
     - name: Build mettascope2 (release)
       run: |
-        cd mettascope2
+        cd packages/mettagrid/nim/mettascope
         nim c -d:release --out:mettascope src/mettascope.nim
       shell: bash
 
     - name: Build mettascope2 (browser)
       run: |
-        cd mettascope2
+        cd packages/mettagrid/nim/mettascope
 
         # The ERROR_ON_UNDEFINED_SYMBOLS=0 flag is needed because the Nim OpenGL bindings
         # include desktop OpenGL functions like glGetTexImage that don't exist in WebGL.

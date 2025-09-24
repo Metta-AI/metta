@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "core/event.hpp"
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
@@ -37,31 +36,6 @@ private:
       }
     }
     return positions;
-  }
-
-  // Helper function to convert surrounding agent positions to byte value
-  // Returns a byte where each bit represents whether an agent is present
-  // in the corresponding position around the assembler
-  // Bit positions: 0=NW, 1=N, 2=NE, 3=W, 4=E, 5=SW, 6=S, 7=SE
-  uint8_t get_agent_pattern_byte() const {
-    if (!grid) return 0;
-
-    uint8_t pattern = 0;
-    std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
-
-    for (size_t i = 0; i < positions.size(); i++) {
-      GridCoord check_r = positions[i].first;
-      GridCoord check_c = positions[i].second;
-
-      if (check_r < grid->height && check_c < grid->width) {
-        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
-        if (obj && dynamic_cast<Agent*>(obj)) {
-          pattern |= static_cast<uint8_t>(1u << i);
-        }
-      }
-    }
-
-    return pattern;
   }
 
   // Get surrounding agents in a deterministic order (clockwise from NW)
@@ -141,11 +115,7 @@ public:
   std::vector<std::shared_ptr<Recipe>> recipes;
 
   // Current cooldown state
-  bool cooling_down;
-  unsigned short cooldown_remaining;
-
-  // Event manager for scheduling cooldown events
-  class EventManager* event_manager;
+  unsigned int cooldown_end_timestep;
 
   // Stats tracking
   class StatsTracker stats;
@@ -153,33 +123,87 @@ public:
   // Grid access for finding surrounding agents
   class Grid* grid;
 
+  // Pointer to current timestep from environment
+  unsigned int* current_timestep_ptr;
+
+  // Recipe observation configuration
+  bool recipe_details_obs;
+  ObservationType input_recipe_offset;
+  ObservationType output_recipe_offset;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
-      : recipes(cfg.recipes), cooling_down(false), cooldown_remaining(0), event_manager(nullptr), grid(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
+      : recipes(cfg.recipes),
+        cooldown_end_timestep(0),
+        grid(nullptr),
+        current_timestep_ptr(nullptr),
+        recipe_details_obs(cfg.recipe_details_obs),
+        input_recipe_offset(cfg.input_recipe_offset),
+        output_recipe_offset(cfg.output_recipe_offset) {
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
-
-  // Set event manager for cooldown scheduling
-  void set_event_manager(class EventManager* event_manager_ptr) {
-    this->event_manager = event_manager_ptr;
-  }
 
   // Set grid access
   void set_grid(class Grid* grid_ptr) {
     this->grid = grid_ptr;
   }
 
+  // Set current timestep pointer
+  void set_current_timestep_ptr(unsigned int* timestep_ptr) {
+    this->current_timestep_ptr = timestep_ptr;
+  }
+
+  // Calculate remaining cooldown time
+  unsigned int cooldown_remaining() const {
+    if (!current_timestep_ptr || cooldown_end_timestep <= *current_timestep_ptr) {
+      return 0;
+    }
+    return cooldown_end_timestep - *current_timestep_ptr;
+  }
+
+  // Helper function to convert surrounding agent positions to byte value
+  // Returns a byte where each bit represents whether an agent is present
+  // in the corresponding position around the assembler
+  // Bit positions: 0=NW, 1=N, 2=NE, 3=W, 4=E, 5=SW, 6=S, 7=SE
+  uint8_t get_agent_pattern_byte() const {
+    if (!grid) return 0;
+
+    uint8_t pattern = 0;
+    std::vector<std::pair<GridCoord, GridCoord>> positions = get_surrounding_positions();
+
+    for (size_t i = 0; i < positions.size(); i++) {
+      GridCoord check_r = positions[i].first;
+      GridCoord check_c = positions[i].second;
+
+      if (check_r < grid->height && check_c < grid->width) {
+        GridObject* obj = grid->object_at(GridLocation(check_r, check_c, GridLayer::AgentLayer));
+        if (obj && dynamic_cast<Agent*>(obj)) {
+          pattern |= static_cast<uint8_t>(1u << i);
+        }
+      }
+    }
+
+    return pattern;
+  }
+
+  // Get current recipe based on surrounding agent pattern
+  const Recipe* get_current_recipe() const {
+    if (!grid) return nullptr;
+    uint8_t pattern = get_agent_pattern_byte();
+    if (pattern >= recipes.size()) return nullptr;
+    return recipes[pattern].get();
+  }
+
   // Implement pure virtual method from Usable
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
-    if (!grid || !event_manager) {
+    if (!grid || !current_timestep_ptr) {
       return false;
     }
-    if (cooling_down) {
+    if (cooldown_remaining() > 0) {
       stats.incr("assembler.blocked.cooldown");
       return false;
     }
-    uint8_t pattern = get_agent_pattern_byte();
-    Recipe* recipe = recipes[pattern].get();
+    const Recipe* recipe = get_current_recipe();
     if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
       stats.incr("assembler.blocked.no_recipe");
       return false;
@@ -192,11 +216,8 @@ public:
     consume_resources_for_recipe(*recipe, surrounding_agents);
     give_output_to_agent(*recipe, actor);
     stats.incr("assembler.recipes_executed");
-    stats.incr("assembler.recipe_pattern_" + std::to_string(pattern));
     if (recipe->cooldown > 0) {
-      cooling_down = true;
-      cooldown_remaining = recipe->cooldown;
-      event_manager->schedule_event(EventType::CoolDown, recipe->cooldown, id, 0);
+      cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
       stats.incr("assembler.cooldown_started");
     }
     return true;
@@ -205,17 +226,45 @@ public:
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
-    features.push_back({ObservationFeature::ConvertingOrCoolingDown, static_cast<ObservationType>(this->cooling_down)});
-    // features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->cooldown_remaining)});
-    // uint8_t pattern = get_agent_pattern_byte();
-    // features.push_back({ObservationFeature::Group, static_cast<ObservationType>(pattern)});
+
+    unsigned int remaining = std::min(cooldown_remaining(), 255u);
+    if (remaining > 0) {
+      features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
+    }
+
+    // Add recipe details if configured to do so
+    if (this->recipe_details_obs) {
+      const Recipe* current_recipe = get_current_recipe();
+      if (current_recipe) {
+        // Add recipe inputs (input:resource) - only non-zero values
+        for (const auto& [item, amount] : current_recipe->input_resources) {
+          if (amount > 0) {
+            features.push_back(
+                {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
+          }
+        }
+
+        // Add recipe outputs (output:resource) - only non-zero values
+        for (const auto& [item, amount] : current_recipe->output_resources) {
+          if (amount > 0) {
+            features.push_back(
+                {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+          }
+        }
+      }
+    }
+
+    // Emit tag features
+    for (int tag_id : this->tag_ids) {
+      features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
+    }
+
     return features;
   }
 
   // Handle cooldown completion
   void finish_cooldown() {
-    this->cooling_down = false;
-    this->cooldown_remaining = 0;
+    this->cooldown_end_timestep = 0;
     stats.incr("assembler.cooldown_completed");
   }
 };

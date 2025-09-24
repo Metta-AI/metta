@@ -5,7 +5,7 @@ import logging
 import torch
 from pydantic import Field
 
-from metta.rl.training.component import TrainerComponent
+from metta.rl.training import TrainerComponent
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)

@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import rich.traceback
 from rich.logging import RichHandler
@@ -209,7 +210,7 @@ def _init_console_logging() -> None:
 
 
 # Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
-def init_logging(run_dir: str | None = None) -> None:
+def init_logging(run_dir: Path | None = None) -> None:
     _init_console_logging()
     if run_dir:
         _add_file_logging(run_dir)
