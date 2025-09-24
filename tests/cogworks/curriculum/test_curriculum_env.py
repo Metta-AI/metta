@@ -146,7 +146,11 @@ class TestCurriculumEnv:
         mock_env.set_mg_config = Mock()
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config)
+        config = CurriculumConfig(
+            task_generator=task_gen_config,
+            num_active_tasks=2,
+            max_task_id=2,
+        )
         curriculum = Curriculum(config, seed=0)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
