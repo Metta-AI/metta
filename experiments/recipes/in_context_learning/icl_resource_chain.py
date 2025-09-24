@@ -109,7 +109,7 @@ class ICLTaskGenerator(TaskGenerator):
 
     def _setup_task(self, rng: random.Random):
         cfg = self.config
-        num_resources = rng.choice(cfg.chain_lengths)
+        num_resources = rng.choice(cfg.chain_lengths) - 1
         num_sinks = rng.choice(cfg.num_sinks)
         resources = rng.sample(self.resource_types, num_resources)
         room_size = rng.choice(cfg.room_sizes)
