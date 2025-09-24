@@ -58,6 +58,16 @@ class CurriculumEnv(PufferEnv):
         if self._stats_update_counter >= self._stats_update_frequency:
             if not self._stats_cache_valid:
                 self._cached_stats = self._curriculum.stats()
+
+                # Add numerical stability monitoring stats from the algorithm
+                if self._curriculum._algorithm is not None and hasattr(
+                    self._curriculum._algorithm, "get_numerical_stability_stats"
+                ):
+                    stability_stats = self._curriculum._algorithm.get_numerical_stability_stats()
+                    # Add pool_ prefix to distinguish these monitoring stats
+                    for key, value in stability_stats.items():
+                        self._cached_stats[f"pool_{key}"] = value
+
                 self._stats_cache_valid = True
 
             # Use pre-computed prefix for better performance

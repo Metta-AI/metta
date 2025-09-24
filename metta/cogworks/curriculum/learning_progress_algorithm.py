@@ -539,6 +539,74 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             "mean_learning_progress": float(np.mean(learning_progress_scores)) if learning_progress_scores else 0.0,
         }
 
+    def get_numerical_stability_stats(self) -> Dict[str, float]:
+        """Get numerical stability monitoring stats for curriculum environment logging."""
+        stats = {}
+
+        # EMA range monitoring
+        if self._p_fast is not None and len(self._p_fast) > 0:
+            stats["max_abs_p_fast"] = float(np.max(np.abs(self._p_fast)))
+        else:
+            stats["max_abs_p_fast"] = 0.0
+
+        if self._p_slow is not None and len(self._p_slow) > 0:
+            stats["max_abs_p_slow"] = float(np.max(np.abs(self._p_slow)))
+        else:
+            stats["max_abs_p_slow"] = 0.0
+
+        # Task success rate analysis
+        if len(self._task_success_rate) > 0:
+            stats["task_success_rate_variance"] = float(np.var(self._task_success_rate))
+            stats["task_success_rate_std"] = float(np.std(self._task_success_rate))
+            stats["min_task_success_rate"] = float(np.min(self._task_success_rate))
+            stats["max_task_success_rate"] = float(np.max(self._task_success_rate))
+        else:
+            stats["task_success_rate_variance"] = 0.0
+            stats["task_success_rate_std"] = 0.0
+            stats["min_task_success_rate"] = 0.0
+            stats["max_task_success_rate"] = 0.0
+
+        # Learning progress distribution
+        if self.hypers.use_bidirectional and self._task_dist is not None and len(self._task_dist) > 0:
+            learning_progress = self._learning_progress()
+            if len(learning_progress) > 0:
+                stats["max_learning_progress"] = float(np.max(learning_progress))
+                stats["min_learning_progress"] = float(np.min(learning_progress))
+                stats["std_learning_progress"] = float(np.std(learning_progress))
+            else:
+                stats["max_learning_progress"] = 0.0
+                stats["min_learning_progress"] = 0.0
+                stats["std_learning_progress"] = 0.0
+        else:
+            stats["max_learning_progress"] = 0.0
+            stats["min_learning_progress"] = 0.0
+            stats["std_learning_progress"] = 0.0
+
+        return stats
+
+    def _check_numerical_stability(self) -> None:
+        """Check for numerical stability issues and log warnings if detected."""
+        import logging
+
+        if self._p_fast is not None and len(self._p_fast) > 0:
+            max_fast = np.max(np.abs(self._p_fast))
+            if max_fast > 100:
+                logging.warning(f"Large p_fast values detected: max_abs = {max_fast}")
+            if np.any(np.isnan(self._p_fast)) or np.any(np.isinf(self._p_fast)):
+                logging.error("NaN or Inf detected in p_fast")
+
+        if self._p_slow is not None and len(self._p_slow) > 0:
+            max_slow = np.max(np.abs(self._p_slow))
+            if max_slow > 100:
+                logging.warning(f"Large p_slow values detected: max_abs = {max_slow}")
+            if np.any(np.isnan(self._p_slow)) or np.any(np.isinf(self._p_slow)):
+                logging.error("NaN or Inf detected in p_slow")
+
+        if len(self._task_success_rate) > 0:
+            variance = np.var(self._task_success_rate)
+            if variance > 0.25:  # Very high variance for success rates in [0,1]
+                logging.warning(f"High task success rate variance detected: {variance}")
+
     # Bidirectional learning progress implementation (integrated from modules)
 
     def _update_bidirectional_progress(self):
@@ -586,6 +654,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             task_success_rates[self._update_mask] - self._random_baseline[self._update_mask]
         ) / denominator
 
+        # Clamp normalized rates to prevent extreme values
+        normalized_task_success_rates = np.clip(normalized_task_success_rates, -10.0, 10.0)
+
         # Initialize or update fast and slow EMAs
         if self._p_fast is None or len(self._p_fast) != num_tasks:
             self._p_fast = np.zeros(num_tasks)
@@ -632,6 +703,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     self._update_mask
                 ] * self.hypers.ema_timescale + self._p_true[self._update_mask] * (1.0 - self.hypers.ema_timescale)
 
+                # Clamp EMA values to prevent numerical instability
+                self._p_fast = np.clip(self._p_fast, -1e3, 1e3)
+                self._p_slow = np.clip(self._p_slow, -1e3, 1e3)
+                self._p_true = np.clip(self._p_true, 0.0, 1.0)  # Success rates should stay in [0,1]
+
+                # Log warning if values are getting extreme
+                self._check_numerical_stability()
+
         self._task_success_rate = task_success_rates
         self._stale_dist = True
 
@@ -658,9 +737,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         numerator = probs * (1.0 - self.hypers.progress_smoothing)
         denominator = probs + self.hypers.progress_smoothing * (1.0 - 2.0 * probs)
 
-        # Handle division by zero
-        denominator = np.where(denominator <= 0, 1.0, denominator)
+        # Handle numerical instabilities more robustly
+        # Clamp denominator to prevent extreme values
+        denominator = np.clip(denominator, 1e-8, 1e8)
         result = numerator / denominator
+
+        # Clamp result to prevent extreme values (but allow reasonable range for algorithm behavior)
+        result = np.clip(result, -1e8, 1e8)
         return result
 
     def _sigmoid(self, x: np.ndarray) -> np.ndarray:
@@ -712,7 +795,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             task_dist = np.zeros(len(learning_progress))
             task_dist[posidxs] = subprobs
         else:
-            task_dist = subprobs
+            # No tasks have positive learning progress - fall back to uniform distribution
+            task_dist = np.ones(len(learning_progress)) / len(learning_progress)
 
         self._task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
