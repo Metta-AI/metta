@@ -12,9 +12,9 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
+from mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
-from mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 
@@ -228,6 +228,7 @@ def make_in_context_chains(
     )
     return cfg
 
+
 def make_icl_assembler(
     num_agents: int,
     num_instances: int,
@@ -236,16 +237,16 @@ def make_icl_assembler(
     map_builder_objects: dict,
     width: int = 6,
     height: int = 6,
-    ) -> MettaGridConfig:
+) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
+        desync_episodes=False,
         game=GameConfig(
             max_steps=max_steps,
             num_agents=num_agents * num_instances,
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_instances,
-                # TODO GEORGE: implement AssemblerMapBuilder, where all objects are surrounded by empty space
                 instance_map=AssemblerMapBuilder.Config(
                     agents=num_agents,
                     width=width,
@@ -265,12 +266,12 @@ def make_icl_assembler(
                     },
                 ),
                 default_resource_limit=1,
-                # TODO GEORGE: think about resource limits
                 resource_limits={"heart": 15},
             ),
-        )
+        ),
     )
     return cfg
+
 
 def make_icl_with_numpy(
     num_agents: int,
