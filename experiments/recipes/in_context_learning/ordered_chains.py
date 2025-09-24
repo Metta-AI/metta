@@ -392,7 +392,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
             else None
         )
 
-        max_steps = 512
+        max_steps = self.config.max_steps
 
         # estimate average hop for cooldowns
         avg_hop = 7 if room_size == "tiny" else 10 if room_size == "small" else 13
