@@ -22,7 +22,7 @@ export const manageUserMembershipAction = actionClient
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
 
-    // Check if current user has admin rights for this institution
+    // Check if current user has admin or owner rights for this institution
     const userInstitution = await prisma.userInstitution.findUnique({
       where: {
         userId_institutionId: {
@@ -104,15 +104,6 @@ export const manageUserMembershipAction = actionClient
         break;
 
       case "remove":
-        // Prevent removing the last admin
-        const adminCount = await prisma.userInstitution.count({
-          where: {
-            institutionId: input.institutionId,
-            role: "admin",
-            isActive: true,
-          },
-        });
-
         const targetMembership = await prisma.userInstitution.findUnique({
           where: {
             userId_institutionId: {
@@ -122,8 +113,19 @@ export const manageUserMembershipAction = actionClient
           },
         });
 
-        if (targetMembership?.role === "admin" && adminCount <= 1) {
-          throw new Error("Cannot remove the last admin of the institution");
+        // Prevent removing the last admin
+        if (targetMembership?.role === "admin") {
+          const adminCount = await prisma.userInstitution.count({
+            where: {
+              institutionId: input.institutionId,
+              role: "admin",
+              isActive: true,
+            },
+          });
+
+          if (adminCount <= 1) {
+            throw new Error("Cannot remove the last admin of the institution");
+          }
         }
 
         await prisma.userInstitution.delete({
@@ -146,4 +148,3 @@ export const manageUserMembershipAction = actionClient
       message: `User ${input.action === "add" ? "added to" : input.action === "update" ? "updated in" : "removed from"} institution successfully`,
     };
   });
-

@@ -205,4 +205,3 @@ export const InstitutionCreateForm: FC<InstitutionCreateFormProps> = ({
     </div>
   );
 };
-

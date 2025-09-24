@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 
 import { getSessionOrRedirect } from "@/lib/auth";
-import { getUserNotifications, getNotificationCounts } from "@/lib/notifications";
+import {
+  getUserNotifications,
+  getNotificationCounts,
+} from "@/lib/notifications";
 
 const querySchema = z.object({
   limit: z.coerce.number().min(1).max(50).default(20),
@@ -13,7 +16,7 @@ const querySchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionOrRedirect();
-    
+
     const { searchParams } = new URL(request.url);
     const params = querySchema.parse({
       limit: searchParams.get("limit"),
@@ -36,7 +39,6 @@ export async function GET(request: NextRequest) {
         hasMore: notifications.length === params.limit,
       },
     });
-
   } catch (error) {
     console.error("Error loading notifications:", error);
     return NextResponse.json(

@@ -10,6 +10,7 @@ export type UnifiedInstitutionDTO = {
   location: string | null;
   type: string;
   isVerified: boolean;
+  requiresApproval?: boolean;
   createdAt: Date;
   memberCount: number;
   paperCount: number;
@@ -19,6 +20,7 @@ export type UnifiedInstitutionDTO = {
   recentActivity: Date | null;
   topCategories: string[];
   currentUserRole: string | null;
+  currentUserStatus: string | null; // APPROVED, PENDING, REJECTED, or null
   members?: Array<{
     id: string;
     user: {
@@ -64,13 +66,14 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
       userInstitutions: {
         some: {
           userId: session.user.id,
+          status: "APPROVED",
           isActive: true,
         },
       },
     },
     include: {
       userInstitutions: {
-        where: { isActive: true },
+        where: { status: "APPROVED", isActive: true },
         include: {
           user: {
             select: {
@@ -139,6 +142,7 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
       location: institution.location,
       type: institution.type,
       isVerified: institution.isVerified,
+      requiresApproval: institution.requiresApproval,
       createdAt: institution.createdAt,
       memberCount: institution.userInstitutions.length,
       paperCount: institution.papers.length,
@@ -147,7 +151,11 @@ export async function loadUserInstitutions(): Promise<UnifiedInstitutionDTO[]> {
       avgStars,
       recentActivity,
       topCategories,
-      currentUserRole: currentUserMembership?.role || null,
+      currentUserRole:
+        currentUserMembership?.status === "APPROVED"
+          ? currentUserMembership?.role || null
+          : null,
+      currentUserStatus: currentUserMembership?.status || null,
       members: institution.userInstitutions.map((ui) => ({
         id: ui.id,
         user: ui.user,
@@ -187,7 +195,22 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
     include: {
       userInstitutions: {
         where: {
-          isActive: true,
+          OR: [
+            // Include all approved active memberships
+            {
+              status: "APPROVED",
+              isActive: true,
+            },
+            // Include current user's pending requests so they can see their status
+            ...(session?.user?.id
+              ? [
+                  {
+                    userId: session.user.id,
+                    status: "PENDING",
+                  },
+                ]
+              : []),
+          ],
         },
       },
       papers: {
@@ -233,10 +256,16 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
     ).slice(0, 5);
 
     const currentUserMembership = session?.user?.id
-      ? institution.userInstitutions.find((ui) => ui.userId === session.user!.id)
+      ? institution.userInstitutions.find(
+          (ui) => ui.userId === session.user!.id
+        )
       : null;
 
-    const currentUserRole = currentUserMembership?.role || null;
+    const currentUserRole =
+      currentUserMembership?.status === "APPROVED"
+        ? currentUserMembership?.role || null
+        : null;
+    const currentUserStatus = currentUserMembership?.status || null;
 
     return {
       id: institution.id,
@@ -247,8 +276,11 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
       location: institution.location,
       type: institution.type,
       isVerified: institution.isVerified,
+      requiresApproval: institution.requiresApproval,
       createdAt: institution.createdAt,
-      memberCount: institution.userInstitutions.length,
+      memberCount: institution.userInstitutions.filter(
+        (ui) => ui.status === "APPROVED" && ui.isActive
+      ).length,
       paperCount: institution.papers.length,
       authorCount: institution.authors.length,
       totalStars,
@@ -256,6 +288,7 @@ export async function loadAllInstitutions(): Promise<UnifiedInstitutionDTO[]> {
       recentActivity,
       topCategories,
       currentUserRole,
+      currentUserStatus,
       recentPapers: papers.map((paper) => ({
         id: paper.id,
         title: paper.title,

@@ -202,4 +202,3 @@ export function replaceMentionsInText(
 
   return result;
 }
-

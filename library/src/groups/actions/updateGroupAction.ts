@@ -63,7 +63,9 @@ export const updateGroupAction = actionClient
       });
 
       if (existingGroup) {
-        throw new Error("A group with this name already exists in this institution");
+        throw new Error(
+          "A group with this name already exists in this institution"
+        );
       }
     }
 

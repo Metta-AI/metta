@@ -219,4 +219,3 @@ export function extractUserIdsFromResolution(
 
   return Array.from(userIds);
 }
-

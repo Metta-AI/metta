@@ -33,4 +33,3 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({
   // but we lose link detection. TODO: Combine both features
   return <MentionText text={text} className={className} />;
 };
-

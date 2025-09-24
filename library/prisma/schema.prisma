@@ -204,6 +204,7 @@ model Institution {
   location         String?
   type             InstitutionType     @default(COMPANY)
   isVerified       Boolean             @default(false)
+  requiresApproval Boolean             @default(false) // Whether joining requires admin approval
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @default(now()) @updatedAt
   createdByUserId  String?
@@ -217,16 +218,17 @@ model Institution {
 }
 
 model UserInstitution {
-  id            String      @id @default(cuid())
+  id            String                     @id @default(cuid())
   userId        String
   institutionId String
-  role          String?     // e.g., "researcher", "admin", "student"
+  role          String?                    // e.g., "researcher", "admin", "student"
   department    String?
   title         String?
-  isActive      Boolean     @default(true)
-  joinedAt      DateTime    @default(now())
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  status        UserInstitutionStatus      @default(APPROVED) // approval status
+  isActive      Boolean                    @default(true)
+  joinedAt      DateTime                   @default(now())
+  user          User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution   Institution                @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 
   @@unique([userId, institutionId])
   @@map("user_institution")
@@ -281,6 +283,12 @@ enum InstitutionType {
   NONPROFIT
   GOVERNMENT
   OTHER
+}
+
+enum UserInstitutionStatus {
+  PENDING   // Awaiting admin approval
+  APPROVED  // Approved and active
+  REJECTED  // Rejected by admin
 }
 
 model Notification {

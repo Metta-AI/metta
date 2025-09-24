@@ -116,4 +116,3 @@ const MentionSpan: React.FC<MentionSpanProps> = ({ mention }) => {
     </span>
   );
 };
-

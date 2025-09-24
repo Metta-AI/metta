@@ -2,7 +2,15 @@
 
 import { FC, useState, useEffect } from "react";
 import { useAction } from "next-safe-action/hooks";
-import { X, Users, UserPlus, Trash2, Globe, Lock, Building } from "lucide-react";
+import {
+  X,
+  Users,
+  UserPlus,
+  Trash2,
+  Globe,
+  Lock,
+  Building,
+} from "lucide-react";
 
 import { manageGroupMembershipAction } from "@/groups/actions/manageGroupMembershipAction";
 

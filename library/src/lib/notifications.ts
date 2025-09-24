@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
 import { ResolvedMention } from "./mention-resolution";
 
-export type NotificationType = 
+export type NotificationType =
   | "MENTION"
-  | "COMMENT" 
+  | "COMMENT"
   | "REPLY"
   | "LIKE"
   | "FOLLOW"
@@ -44,7 +44,9 @@ export async function createNotification(params: CreateNotificationParams) {
 /**
  * Create multiple notifications in batch
  */
-export async function createNotifications(notifications: CreateNotificationParams[]) {
+export async function createNotifications(
+  notifications: CreateNotificationParams[]
+) {
   if (notifications.length === 0) return [];
 
   return await prisma.notification.createMany({
@@ -66,9 +68,10 @@ export async function createMentionNotifications(
   const notifications: CreateNotificationParams[] = [];
 
   for (const mention of resolvedMentions) {
-    const baseTitle = contentType === "post" 
-      ? `${actorName} mentioned you in a post`
-      : `${actorName} mentioned you in a comment`;
+    const baseTitle =
+      contentType === "post"
+        ? `${actorName} mentioned you in a post`
+        : `${actorName} mentioned you in a comment`;
 
     if (mention.type === "user") {
       // Individual user mention
@@ -87,18 +90,19 @@ export async function createMentionNotifications(
       }
     } else if (mention.type === "group") {
       // Group mention
-      const groupInfo = mention.institutionName 
+      const groupInfo = mention.institutionName
         ? `${mention.groupName} (${mention.institutionName})`
         : mention.groupName;
 
-      const groupTitle = contentType === "post"
-        ? `${actorName} mentioned ${groupInfo} in a post`
-        : `${actorName} mentioned ${groupInfo} in a comment`;
+      const groupTitle =
+        contentType === "post"
+          ? `${actorName} mentioned ${groupInfo} in a post`
+          : `${actorName} mentioned ${groupInfo} in a comment`;
 
       for (const userId of mention.userIds) {
         notifications.push({
           userId,
-          type: "MENTION", 
+          type: "MENTION",
           title: groupTitle,
           message: `Your group was mentioned: "${mention.originalMention}"`,
           actionUrl,
