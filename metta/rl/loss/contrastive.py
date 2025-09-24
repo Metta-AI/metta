@@ -7,13 +7,12 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.loss.base_loss import BaseLoss
-from metta.rl.trainer_state import TrainerState
+from metta.agent.policy import Policy
+from metta.rl.loss import Loss
+from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 
 
-class ContrastiveLoss(BaseLoss):
+class ContrastiveLoss(Loss):
     """Contrastive loss for representation learning."""
 
     __slots__ = (
@@ -27,15 +26,14 @@ class ContrastiveLoss(BaseLoss):
 
     def __init__(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         trainer_cfg: Any,
-        vec_env: Any,
+        env: TrainingEnvironment,
         device: torch.device,
-        checkpoint_manager: CheckpointManager,
         instance_name: str,
         loss_config: Any,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, checkpoint_manager, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
 
         self.temperature = self.loss_cfg.temperature
         self.contrastive_coef = self.loss_cfg.contrastive_coef
@@ -58,7 +56,7 @@ class ContrastiveLoss(BaseLoss):
             # e.g., positive/negative pairs, augmentations, etc.
         )
 
-    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+    def run_train(self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
         """Compute contrastive loss."""
         policy_td = shared_loss_data["policy_td"]
         minibatch = shared_loss_data["sampled_mb"]
@@ -78,12 +76,26 @@ class ContrastiveLoss(BaseLoss):
             embeddings = self.projection_head(embeddings)
 
         # Compute InfoNCE contrastive loss (normalization handled internally)
-        contrastive_loss = self._compute_contrastive_loss(embeddings, minibatch)
+        contrastive_loss, metrics = self._compute_contrastive_loss(embeddings, minibatch)
 
         # Track metrics
         self.loss_tracker["contrastive_loss"].append(float(contrastive_loss.item()))
+        
+        # Track additional metrics for wandb logging
+        for key, value in metrics.items():
+            if key not in self.loss_tracker:
+                self.loss_tracker[key] = []
+            self.loss_tracker[key].append(value)
 
-        return contrastive_loss, shared_loss_data
+        # Console logging for similarities
+        if self.loss_cfg.log_similarities and context.step % self.loss_cfg.log_frequency == 0:
+            print(f"[Contrastive Loss] Step {context.step}: "
+                  f"Positive sim: {metrics['positive_sim_mean']:.4f}±{metrics['positive_sim_std']:.4f}, "
+                  f"Negative sim: {metrics['negative_sim_mean']:.4f}±{metrics['negative_sim_std']:.4f}, "
+                  f"Pairs: {metrics['num_pairs']}, "
+                  f"Loss: {contrastive_loss.item():.6f}")
+
+        return contrastive_loss, shared_loss_data, False
 
     def _get_embeddings(self, policy_td: TensorDict) -> Tensor:
         """Extract embeddings from policy output."""
@@ -118,7 +130,7 @@ class ContrastiveLoss(BaseLoss):
 
             return value
 
-    def _compute_contrastive_loss(self, embeddings: Tensor, minibatch: TensorDict) -> Tensor:
+    def _compute_contrastive_loss(self, embeddings: Tensor, minibatch: TensorDict) -> tuple[Tensor, dict]:
         """Compute InfoNCE contrastive loss following standard implementations."""
         batch_size = embeddings.shape[0]
 
@@ -129,7 +141,7 @@ class ContrastiveLoss(BaseLoss):
             batch_size = B * T
 
         if batch_size < 4:  # Need minimum samples for contrastive learning
-            return torch.tensor(0.0, device=self.device)
+            return torch.tensor(0.0, device=self.device), {"positive_sim_mean": 0.0, "negative_sim_mean": 0.0, "num_pairs": 0}
 
         # L2 normalize embeddings to unit vectors (critical for InfoNCE)
         embeddings = F.normalize(embeddings, p=2, dim=-1)
@@ -143,7 +155,7 @@ class ContrastiveLoss(BaseLoss):
         num_pairs = len(anchor_embeddings)
 
         if num_pairs < 2:
-            return torch.tensor(0.0, device=self.device)
+            return torch.tensor(0.0, device=self.device), {"positive_sim_mean": 0.0, "negative_sim_mean": 0.0, "num_pairs": 0}
 
         # Compute positive similarities: [N-1]
         positive_sim = torch.sum(anchor_embeddings * positive_embeddings, dim=-1)
@@ -175,4 +187,18 @@ class ContrastiveLoss(BaseLoss):
         # InfoNCE = CrossEntropy(logits, labels) where positive is at index 0
         infonce_loss = F.cross_entropy(logits, labels, reduction="mean")
 
-        return infonce_loss * self.contrastive_coef
+        # Compute metrics for logging
+        positive_sim_mean = positive_sim.mean().item()
+        # For negative similarities, exclude the masked values (-inf)
+        valid_negative_sim = negative_sim[~mask]
+        negative_sim_mean = valid_negative_sim.mean().item()
+
+        metrics = {
+            "positive_sim_mean": positive_sim_mean,
+            "negative_sim_mean": negative_sim_mean,
+            "num_pairs": num_pairs,
+            "positive_sim_std": positive_sim.std().item(),
+            "negative_sim_std": valid_negative_sim.std().item(),
+        }
+
+        return infonce_loss * self.contrastive_coef, metrics
