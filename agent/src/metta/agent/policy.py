@@ -146,3 +146,6 @@ class ExternalPolicyWrapper(Policy):
 
 
 PolicyArchitecture.register_alias("fast", "metta.agent.policies.fast.FastConfig")
+PolicyArchitecture.register_alias("transformer", "metta.agent.policies.transformer.TransformerPolicyConfig")
+PolicyArchitecture.register_alias("transformer_improved", "metta.agent.policies.transformer.TransformerImprovedConfig")
+PolicyArchitecture.register_alias("transformer_nvidia", "metta.agent.policies.transformer.TransformerNvidiaConfig")
