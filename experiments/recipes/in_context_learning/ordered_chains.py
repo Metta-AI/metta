@@ -442,9 +442,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
         return icl_env
 
 
-def make_mettagrid(curriculum_style: str) -> MettaGridConfig:
+def make_mettagrid(curriculum_style: str, map_dir=None) -> MettaGridConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         **curriculum_args[curriculum_style],
+        map_dir=map_dir,  # for play and replay, generate the environments
     )
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
 
