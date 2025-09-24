@@ -32,14 +32,25 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from mettagrid.builder import building
+from mettagrid.builder import building, empty_converters
 from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AgentRewards,
+    ChangeGlyphActionConfig,
+    GameConfig,
     MettaGridConfig,
     Position,
     RecipeConfig,
 )
+from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
+from mettagrid.map_builder.utils import draw_border
+from mettagrid.mapgen.mapgen import MapGen
 from pydantic import Field
+
+from experiments.recipes.in_context_learning.icl_resource_chain import ICLTaskGenerator
 
 """
 curriculum 1: single agent, two altars in cooldown, different positions — all the way from any, to adjacent, to a particular square.
@@ -430,3 +441,401 @@ def play(
 
 if __name__ == "__main__":
     experiment()
+
+
+class ForagingMapBuilder(MapBuilder):
+    class Config(MapBuilderConfig["ForagingMapBuilder"]):
+        seed: Optional[int] = None
+        width: int = 12
+        height: int = 12
+        agents: int | dict[str, int] = 1
+        border_width: int = 0
+        border_object: str = "wall"
+        # Number of assemblers to place (all use key name "altar")
+        num_assemblers: int = 1
+        # Cluster specifications: list of dicts with keys
+        #   name: object key to place (e.g., "mine_red")
+        #   count: number of objects in this cluster
+        #   distance: ring distance from assembler center
+        #   radius: local cluster radius (default 1)
+        clusters: list[dict] = []
+
+    def __init__(self, config: "ForagingMapBuilder.Config"):
+        # Mirror pattern used by other builders (e.g., AssemblerMapBuilder)
+        self._config: ForagingMapBuilder.Config = config
+        import numpy as _np
+
+        self._rng = _np.random.default_rng(self._config.seed)
+
+    def build(self) -> GameMap:
+        import numpy as _np
+
+        # Reset RNG if seed is provided to keep builds deterministic across calls
+        if getattr(self._config, "seed", None) is not None:
+            self._rng = _np.random.default_rng(self._config.seed)
+        rng = self._rng
+
+        h, w = self._config.height, self._config.width
+        grid = _np.full((h, w), "empty", dtype="<U50")
+
+        if self._config.border_width > 0:
+            draw_border(grid, self._config.border_width, self._config.border_object)
+
+        def in_bounds(i: int, j: int) -> bool:
+            return 0 <= i < h and 0 <= j < w
+
+        reserved = _np.zeros((h, w), dtype=bool)
+
+        def reserve_3x3(i: int, j: int):
+            for di in (-1, 0, 1):
+                for dj in (-1, 0, 1):
+                    ii, jj = i + di, j + dj
+                    if in_bounds(ii, jj):
+                        reserved[ii, jj] = True
+
+        # Place assemblers (altars). Start from center and then spread on a coarse grid.
+        centers: list[tuple[int, int]] = []
+        cx, cy = h // 2, w // 2
+        centers.append((cx, cy))
+        grid[cx, cy] = "altar"
+        reserve_3x3(cx, cy)
+
+        # Additional assemblers, if requested
+        extra = self._config.num_assemblers - 1
+        if extra > 0:
+            # Sample positions around the central one with minimum spacing
+            attempts = 0
+            while extra > 0 and attempts < 1000:
+                attempts += 1
+                ang = rng.uniform(0, 2 * _np.pi)
+                dist = rng.integers(low=3, high=max(4, min(h, w) // 3))
+                i = int(cx + dist * _np.sin(ang))
+                j = int(cy + dist * _np.cos(ang))
+                if not in_bounds(i, j):
+                    continue
+                if reserved[
+                    max(0, i - 1) : min(h, i + 2), max(0, j - 1) : min(w, j + 2)
+                ].any():
+                    continue
+                grid[i, j] = "altar"
+                reserve_3x3(i, j)
+                centers.append((i, j))
+                extra -= 1
+
+        # Place clusters around each assembler center.
+        clusters = list(self._config.clusters)
+        if clusters:
+            # Assign clusters evenly to assembler centers
+            for idx, cluster in enumerate(clusters):
+                name = str(cluster.get("name"))
+                count = int(cluster.get("count", 2))
+                distance = int(cluster.get("distance", 4))
+                radius = int(cluster.get("radius", 1))
+
+                base_i, base_j = centers[idx % len(centers)]
+                # Choose an angle for this cluster around its base assembler
+                theta = rng.uniform(0, 2 * _np.pi)
+                ci = int(base_i + distance * _np.sin(theta))
+                cj = int(base_j + distance * _np.cos(theta))
+
+                # Clamp within bounds (keeping 1 cell margin)
+                ci = max(1, min(h - 2, ci))
+                cj = max(1, min(w - 2, cj))
+
+                # Try to place 'count' objects near (ci, cj)
+                placed = 0
+                for _ in range(count * 6):  # a few attempts per item
+                    if placed >= count:
+                        break
+                    oi = ci + rng.integers(-radius, radius + 1)
+                    oj = cj + rng.integers(-radius, radius + 1)
+                    if not in_bounds(oi, oj):
+                        continue
+                    if reserved[
+                        max(0, oi - 1) : min(h, oi + 2), max(0, oj - 1) : min(w, oj + 2)
+                    ].any():
+                        continue
+                    grid[oi, oj] = name
+                    reserve_3x3(oi, oj)
+                    placed += 1
+
+        # Place agents randomly in remaining cells
+        if isinstance(self._config.agents, int):
+            num_agents = self._config.agents
+        else:
+            num_agents = sum(self._config.agents.values())
+
+        empties = _np.argwhere((grid == "empty") & (~reserved))
+        rng.shuffle(empties)
+        for k in range(min(num_agents, len(empties))):
+            i, j = map(int, empties[k])
+            grid[i, j] = "agent.agent"
+
+        return GameMap(grid)
+
+
+def make_foraging_assembler_env(
+    num_agents: int = 1,
+    num_assemblers: int = 1,
+    num_unique_resources: int = 2,
+    cluster_distance: int = 4,
+    cluster_size: int = 3,
+    recipe_complexity: int = 2,
+    width: int = 12,
+    height: int = 12,
+    cooldown: int = 60,
+    agent_pattern: list[Position] | None = None,
+) -> MettaGridConfig:
+    """Create a foraging-style assembler environment with clustered resources.
+
+    - Clusters of resource converters are placed at a fixed distance from the assembler(s).
+    - The assembler recipe requires a configurable number of unique resources.
+    - Agents have an inventory limit of 2 per item to encourage trips.
+    """
+
+    rng = random.Random(0)
+
+    # Choose unique resources needed for clusters/recipes
+    # For foraging, require directly-gatherable items only (no intermediate generators).
+    # Keep recipes restricted to ores so clusters can be single-step gather → assemble.
+    available_resources = [
+        "ore_red",
+        "ore_blue",
+        "ore_green",
+    ]
+    chosen_resources = rng.sample(available_resources, k=max(1, num_unique_resources))
+
+    # Map each resource to a converter object name. Use mines for foraging flavor.
+    color_map = {"red": "red", "blue": "blue", "green": "green"}
+
+    def resource_to_mine(resource: str) -> str:
+        # resource like "ore_red" or "battery_blue"
+        color = resource.split("_")[-1]
+        return f"mine_{color_map[color]}"
+
+    cluster_specs: list[dict] = []
+    for res in chosen_resources:
+        cluster_specs.append(
+            {
+                "name": resource_to_mine(res),
+                "count": int(cluster_size),
+                "distance": int(cluster_distance),
+                "radius": 1,
+            }
+        )
+
+    # Build game_objects (types) and their recipes
+    game_objects: Dict[str, Any] = {"wall": empty_converters.wall}
+
+    # Converters for resources: direct mines (ConverterConfig). Faster cooldown for gameplay feel.
+    for res in chosen_resources:
+        mine_key = resource_to_mine(res)
+        mine_cfg = getattr(building, mine_key).model_copy(deep=True)
+        mine_cfg.cooldown = 10
+        game_objects[mine_key] = mine_cfg
+
+    # Assembler (altar) with a long cooldown requiring 'recipe_complexity' unique inputs
+    # Use ConverterConfig altar to avoid positional/glyph semantics; deposit ores then get heart.
+    altar = building.altar.model_copy(deep=True)
+    required = chosen_resources[: max(1, min(recipe_complexity, len(chosen_resources)))]
+    input_resources = {r: 1 for r in required}
+    altar.input_resources = input_resources
+    altar.cooldown = cooldown
+    game_objects["altar"] = altar
+
+    # Construct the env config directly (similar to make_icl_assembler but with our builder)
+    if 24 % num_agents != 0:
+        raise ValueError(f"Number of agents ({num_agents}) must be a divisor of 24.")
+    num_instances = 24 // num_agents
+
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            max_steps=512,
+            num_agents=num_agents * num_instances,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_instances,
+                instance_map=ForagingMapBuilder.Config(
+                    agents=num_agents,
+                    width=width,
+                    height=height,
+                    num_assemblers=num_assemblers,
+                    clusters=cluster_specs,
+                ),
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(enabled=False),
+                get_items=ActionConfig(),
+                put_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(inventory={"heart": 1}),
+                # Limit each inventory item to 2 (encourages foraging trips)
+                default_resource_limit=2,
+                resource_limits={"heart": 15},
+            ),
+        )
+    )
+    return cfg
+
+
+def play_foraging() -> PlayTool:
+    env = make_foraging_mettagrid()
+    return PlayTool(
+        sim=SimulationConfig(
+            env=env,
+            name="icl_foraging_assemblers",
+            suite="in_context_learning",
+        ),
+    )
+
+
+class ForagingTaskGenerator(ICLTaskGenerator):
+    class Config(ICLTaskGenerator.Config):
+        num_agents: list[int] = Field(default=[1])
+        widths: list[int] = Field(default=[12])
+        heights: list[int] = Field(default=[12])
+        num_assemblers: list[int] = Field(default=[1])
+        cluster_distances: list[int] = Field(default=[4])
+        cluster_sizes: list[int] = Field(default=[3])
+        altar_cooldowns: list[int] = Field(default=[60])
+        altar_patterns: list[list[Position]] = Field(
+            default=[
+                ["Any"],
+                ["N"],
+                ["S"],
+                ["E"],
+                ["W"],
+                ["N", "S"],
+                ["E", "W"],
+            ]
+        )
+
+    def __init__(self, config: "ForagingTaskGenerator.Config"):
+        super().__init__(config)
+        self.config = config
+
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+        # Sample knobs
+        num_agents = rng.choice(self.config.num_agents)
+        if 24 % num_agents != 0:
+            raise ValueError(
+                f"Number of agents ({num_agents}) must be a divisor of 24."
+            )
+        num_instances = 24 // num_agents
+
+        width = rng.choice(self.config.widths)
+        height = rng.choice(self.config.heights)
+        num_assemblers = rng.choice(self.config.num_assemblers)
+        cluster_distance = rng.choice(self.config.cluster_distances)
+        cluster_size = rng.choice(self.config.cluster_sizes)
+        cooldown = rng.choice(self.config.altar_cooldowns)
+
+        # Sampling: unique resource types (ores only)
+        available_resources = ["ore_red", "ore_blue", "ore_green"]
+        # Use num_resources from ICLTaskGenerator.Config
+        n_res = max(
+            1, rng.choice(self.config.num_resources) if self.config.num_resources else 2
+        )
+        chosen_resources = rng.sample(
+            available_resources, k=min(n_res, len(available_resources))
+        )
+
+        # Complexity: number of unique inputs required at altar
+        if self.config.max_recipe_inputs:
+            recipe_complexity = rng.choice(self.config.max_recipe_inputs)
+        else:
+            recipe_complexity = min(2, len(chosen_resources))
+
+        color_map = {"red": "red", "blue": "blue", "green": "green"}
+
+        def resource_to_mine(resource: str) -> str:
+            color = resource.split("_")[-1]
+            return f"mine_{color_map[color]}"
+
+        cluster_specs: list[dict] = []
+        for res in chosen_resources:
+            cluster_specs.append(
+                {
+                    "name": resource_to_mine(res),
+                    "count": int(cluster_size),
+                    "distance": int(cluster_distance),
+                    "radius": 1,
+                }
+            )
+
+        # Objects: use AssemblerConfig semantics (spatial recipes)
+        game_objects: Dict[str, Any] = {"wall": empty_converters.wall}
+        for res in chosen_resources:
+            mine_key = resource_to_mine(res)
+            mine_cfg = CONVERTER_TYPES[mine_key].model_copy(deep=True)
+            # Keep default spatial recipe from template (outputs ore); optional cooldown tuning could be done by
+            # replacing the recipe's cooldown if needed.
+            game_objects[mine_key] = mine_cfg
+
+        required = chosen_resources[
+            : max(1, min(recipe_complexity, len(chosen_resources)))
+        ]
+        altar = building.assembler_altar.model_copy(deep=True)
+        positions: list[Position] = rng.choice(self.config.altar_patterns)
+        altar.recipes = [
+            (
+                positions,
+                RecipeConfig(
+                    input_resources={r: 1 for r in required},
+                    output_resources={"heart": 1},
+                    cooldown=cooldown,
+                ),
+            )
+        ]
+        game_objects["altar"] = altar
+
+        env_cfg = MettaGridConfig(
+            game=GameConfig(
+                max_steps=self.config.max_steps,
+                num_agents=num_agents * num_instances,
+                objects=game_objects,
+                map_builder=MapGen.Config(
+                    instances=num_instances,
+                    instance_map=ForagingMapBuilder.Config(
+                        agents=num_agents,
+                        width=width,
+                        height=height,
+                        num_assemblers=num_assemblers,
+                        clusters=cluster_specs,
+                    ),
+                ),
+                actions=ActionsConfig(
+                    move=ActionConfig(),
+                    rotate=ActionConfig(enabled=False),
+                    get_items=ActionConfig(enabled=False),
+                    put_items=ActionConfig(enabled=False),
+                    change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
+                ),
+                agent=AgentConfig(
+                    rewards=AgentRewards(inventory={"heart": 1}),
+                    default_resource_limit=2,
+                    resource_limits={"heart": 15},
+                ),
+            )
+        )
+
+        env_cfg.label = f"foraging_{len(chosen_resources)}res_{num_assemblers}assemblers_{width}x{height}"
+        return env_cfg
+
+
+def make_foraging_mettagrid() -> MettaGridConfig:
+    cfg = ForagingTaskGenerator.Config(
+        num_resources=[2, 3],
+        max_recipe_inputs=[1, 2, 3],
+        num_agents=[1],
+        widths=[12],
+        heights=[12],
+        num_assemblers=[1],
+        cluster_distances=[4],
+        cluster_sizes=[3],
+        altar_cooldowns=[60],
+    )
+    gen = ForagingTaskGenerator(cfg)
+    return gen.get_task(0)
