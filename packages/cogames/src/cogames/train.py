@@ -20,7 +20,6 @@ logger = logging.getLogger("cogames.pufferlib")
 def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
     env = MettaGridEnv(env_cfg=cfg)
     set_buffers(env, buf)
-    # xcxc handle seed
     return env
 
 

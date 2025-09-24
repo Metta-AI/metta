@@ -2,8 +2,6 @@
 
 from typing import Any, Optional
 
-import numpy as np
-
 from cogames.policy import Policy
 from mettagrid import MettaGridEnv
 
@@ -21,17 +19,18 @@ class RandomPolicy(Policy):
         self.env = env
         self.action_space = env.single_action_space
 
-    def step(self, observations: list[Any]) -> np.ndarray:
-        """Get random actions for given observations.
+    def step(self, agent_id: int, agent_obs: Any) -> Any:
+        """Get random action for a single agent.
 
         Args:
-            observations: The current observations from the environment
+            agent_id: The ID of the agent (unused for random policy)
+            agent_obs: The observation for this specific agent (unused for random policy)
 
         Returns:
-            Random actions sampled from the action space
+            A random action sampled from the action space
         """
-        # Return a list of actions, one for each observation
-        return np.array([self.action_space.sample() for _ in observations])
+        # Return a single random action for this agent
+        return self.action_space.sample()
 
     def reset(self) -> None:
         """Reset the policy state (no-op for random policy)."""

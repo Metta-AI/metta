@@ -51,12 +51,35 @@ class SimplePolicy(TrainablePolicy):
         super().__init__()
         self._net = SimplePolicyNet(env).to(device)
         self._device = device
+        self.action_nvec = tuple(env.single_action_space.nvec)
 
     def network(self) -> nn.Module:
         return self._net
 
-    def step(self, observation: Any) -> Any:
-        return self._net(observation)
+    def step(self, agent_id: int, agent_obs: Any) -> Any:
+        """Get action for a single agent given its observation.
+
+        Args:
+            agent_id: The ID of the agent (unused in this policy)
+            agent_obs: The observation for this specific agent
+
+        Returns:
+            The action for this agent to take
+        """
+        # Convert single observation to batch of 1 for network forward pass
+        obs_tensor = torch.tensor(agent_obs, device=self._device).unsqueeze(0).float()
+
+        with torch.no_grad():
+            self._net.eval()
+            logits, _ = self._net.forward_eval(obs_tensor)
+
+            # Sample action from the logits
+            actions = []
+            for logit in logits:
+                dist = torch.distributions.Categorical(logits=logit)
+                actions.append(dist.sample().item())
+
+            return np.array(actions, dtype=np.int32)
 
     def reset(self) -> None:
         pass

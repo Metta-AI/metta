@@ -10,14 +10,15 @@ class Policy(ABC):
     """Abstract base class for policies."""
 
     @abstractmethod
-    def step(self, observations: list[Any]) -> list[Any]:
-        """Get actions for given observations for all agents.
+    def step(self, agent_id: int, agent_obs: Any) -> Any:
+        """Get action for a single agent given its observation.
 
         Args:
-            observations: The current observations from the environment
+            agent_id: The ID of the agent
+            agent_obs: The observation for this specific agent
 
         Returns:
-            The actions to take
+            The action for this agent to take
         """
         pass
 

@@ -3,6 +3,7 @@
 import logging
 from typing import Optional
 
+import numpy as np
 import torch
 from rich.console import Console
 
@@ -49,9 +50,20 @@ def play(
 
     # Run episode
     step_count = 0
+    num_agents = env_cfg.game.num_agents
 
     while max_steps is None or step_count < max_steps:
-        actions = policy.step([obs])
+        # Call policy once per agent to get actions
+        actions = []
+        for agent_id in range(num_agents):
+            # Get action for this specific agent
+            agent_obs = obs[agent_id]
+            agent_action = policy.step(agent_id, agent_obs)
+            actions.append(agent_action)
+
+        # Convert list of actions to numpy array for environment
+        actions = np.array(actions)
+
         obs, rewards, dones, truncated, info = env.step(actions)
         env.render()
 
