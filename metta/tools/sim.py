@@ -113,6 +113,7 @@ class SimTool(Tool):
             if self.wandb.data_dir:
                 auto_config.data_dir = self.wandb.data_dir
             self.wandb = auto_config
+            print("WANDB CONFIG:", self.wandb)
 
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
