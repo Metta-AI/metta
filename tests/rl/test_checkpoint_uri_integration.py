@@ -30,7 +30,7 @@ def mock_policy():
 @pytest.fixture
 def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield SystemConfig(data_dir=Path(tmpdir))
+        yield SystemConfig(data_dir=Path(tmpdir), local_only=True)
 
 
 class TestFileURIs:
@@ -77,7 +77,6 @@ class TestS3URIs:
 
 class TestCheckpointManagerOperations:
     def test_save_agent_returns_uri(self, test_system_cfg, mock_policy):
-        test_system_cfg.local_only = True
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
         uri = manager.save_agent(mock_policy, epoch=1, metadata={})
         assert uri.startswith("file://")
