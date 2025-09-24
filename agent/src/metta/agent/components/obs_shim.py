@@ -6,6 +6,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.util.profile import PROFILER
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
@@ -189,11 +190,12 @@ class ObsAttrValNorm(nn.Module):
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
-        observations = td[self.in_key]
-        attr_indices = observations[..., 1].long()
-        norm_factors = self._norm_factors[attr_indices]
-        observations = observations.to(torch.float32)
-        observations[..., 2] = observations[..., 2] / norm_factors
+        with PROFILER.section("obs_attr_val_norm"):
+            observations = td[self.in_key]
+            attr_indices = observations[..., 1].long()
+            norm_factors = self._norm_factors[attr_indices]
+            observations = observations.to(torch.float32)
+            observations[..., 2] = observations[..., 2] / norm_factors
 
         td[self.out_key] = observations
 
