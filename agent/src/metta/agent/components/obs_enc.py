@@ -3,7 +3,6 @@ from typing import Optional
 import einops
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
@@ -119,6 +118,8 @@ class ObsLatentAttn(nn.Module):
                 f"equal v_dim ({self._v_dim}) for residual connections."
             )
 
+        self._scale = (self._qk_dim // self._num_heads) ** -0.5
+
         self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
         nn.init.trunc_normal_(self._q_token, std=0.02)
 
@@ -169,17 +170,6 @@ class ObsLatentAttn(nn.Module):
         k_p = einops.rearrange(k_p, "b m (h d) -> b h m d", h=self._num_heads)
         v_p = einops.rearrange(v_p, "b m (h d) -> b h m d", h=self._num_heads)
 
-        if key_mask is not None:
-            attn_bias = torch.zeros(
-                (*key_mask.shape[:1], 1, 1, key_mask.shape[-1]),
-                dtype=queries.dtype,
-                device=queries.device,
-            )
-            inf_fill = torch.finfo(queries.dtype).min
-            attn_bias = attn_bias.masked_fill(key_mask.unsqueeze(1).unsqueeze(1), inf_fill)
-        else:
-            attn_bias = None
-
         for layer in self.layers:
             # Attention block
             queries_res = queries
@@ -187,7 +177,15 @@ class ObsLatentAttn(nn.Module):
             q_p = layer["q_proj"](queries_norm)
             q_p = einops.rearrange(q_p, "b q (h d) -> b h q d", h=self._num_heads)
 
-            attn_output = F.scaled_dot_product_attention(q_p, k_p, v_p, attn_mask=attn_bias)
+            attn_scores = torch.einsum("bhqd,bhkd->bhqk", q_p, k_p) * self._scale
+
+            if key_mask is not None:
+                mask_value = -torch.finfo(attn_scores.dtype).max
+                # key_mask: [B_TT, M] -> [B_TT, 1, 1, M] for broadcasting
+                attn_scores = attn_scores + key_mask.unsqueeze(1).unsqueeze(1).to(attn_scores.dtype) * mask_value
+
+            attn_weights = torch.softmax(attn_scores, dim=-1)
+            attn_output = torch.einsum("bhqk,bhkd->bhqd", attn_weights, v_p)
             attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
             attn_output = layer["attn_out_proj"](attn_output)
 
@@ -244,6 +242,8 @@ class ObsSelfAttn(nn.Module):
         if self._feat_dim % self._num_heads != 0:
             raise ValueError(f"feat_dim ({self._feat_dim}) must be divisible by num_heads ({self._num_heads})")
 
+        self._scale = (self._feat_dim // self._num_heads) ** -0.5
+
         self._out_tensor_shape = [0, self._out_dim]
         if self._use_cls_token:
             self._out_tensor_shape = [self._out_dim]
@@ -279,22 +279,9 @@ class ObsSelfAttn(nn.Module):
         if self._use_mask:
             key_mask = td["obs_mask"]  # True for elements to be masked
             if self._use_cls_token:
-                key_mask = torch.cat(
-                    [torch.zeros(key_mask.shape[0], 1, device=key_mask.device, dtype=key_mask.dtype), key_mask],
-                    dim=1,
-                )
+                key_mask = torch.cat([torch.zeros(key_mask.shape[0], 1, device=key_mask.device), key_mask], dim=1)
 
         x = x_features
-        attn_bias = None
-        if key_mask is not None:
-            attn_bias = torch.zeros(
-                (*key_mask.shape[:1], 1, 1, key_mask.shape[-1]),
-                dtype=x.dtype,
-                device=x.device,
-            )
-            inf_fill = torch.finfo(x.dtype).min
-            attn_bias = attn_bias.masked_fill(key_mask.unsqueeze(1).unsqueeze(1), inf_fill)
-
         for i in range(self._num_layers):
             x_res = x
             x_norm = self.layer_norms_1[i](x)
@@ -309,7 +296,17 @@ class ObsSelfAttn(nn.Module):
             v = einops.rearrange(v, "b m (h d) -> b h m d", h=self._num_heads)
 
             # Attention scores: [B, num_heads, M, M]
-            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
+            attn_scores = torch.einsum("bhmd,bhnd->bhmn", q, k) * self._scale
+
+            if key_mask is not None:
+                # key_mask: [B, M] -> [B, 1, 1, M] for broadcasting
+                mask_value = -torch.finfo(attn_scores.dtype).max
+                attn_scores = attn_scores + key_mask.unsqueeze(1).unsqueeze(1).to(attn_scores.dtype) * mask_value
+
+            attn_weights = torch.softmax(attn_scores, dim=-1)  # [B, num_heads, M, M]
+
+            # Weighted sum of V: [B, num_heads, M, head_dim]
+            attn_output = torch.einsum("bhmn,bhnd->bhmd", attn_weights, v)
 
             # Combine heads: [B, M, feat_dim]
             attn_output = einops.rearrange(attn_output, "b h m d -> b m (h d)")

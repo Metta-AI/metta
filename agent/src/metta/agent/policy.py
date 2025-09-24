@@ -4,11 +4,10 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import ABC, abstractmethod
-from typing import ClassVar, List
+from typing import List
 
 import torch
 import torch.nn as nn
-from pydantic import ConfigDict
 from tensordict import TensorDict
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -29,8 +28,6 @@ class PolicyArchitecture(Config):
     """Policy architecture configuration."""
 
     class_path: str
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
     components: List[ComponentConfig] = []
 
