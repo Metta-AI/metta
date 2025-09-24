@@ -42,9 +42,9 @@ class PufferPolicyConfig(PolicyArchitecture):
 class PufferPolicy(Policy):
     """Policy that exactly matches PufferLib architecture for seamless checkpoint loading."""
 
-    def __init__(self, env, config: Optional[PufferLibCompatibleConfig] = None):
+    def __init__(self, env, config: Optional[PufferPolicyConfig] = None):
         super().__init__()
-        self.config = config or PufferLibCompatibleConfig()
+        self.config = config or PufferPolicyConfig()
         self.env = env
         self.is_continuous = False
         self.action_space = env.action_space
