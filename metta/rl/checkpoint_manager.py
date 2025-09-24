@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.rl.puffer_policy import load_pufferlib_checkpoint, _is_puffer_state_dict
 from metta.agent.policy import Policy
+from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.file import local_copy, write_file

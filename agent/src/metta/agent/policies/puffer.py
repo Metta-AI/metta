@@ -50,12 +50,8 @@ class PufferPolicy(Policy):
         hidden_size = 512
         cnn_channels = 128
 
-        self.policy.conv1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3), std=1.0
-        )
-        self.policy.conv2 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1), std=1.0
-        )
+        self.policy.conv1 = pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3), std=1.0)
+        self.policy.conv2 = pufferlib.pytorch.layer_init(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1), std=1.0)
 
         test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
         with torch.no_grad():
@@ -68,16 +64,12 @@ class PufferPolicy(Policy):
             self.policy.conv2,
             nn.ReLU(),
             nn.Flatten(),
-            pufferlib.pytorch.layer_init(
-                nn.Linear(self.cnn_flattened_size, hidden_size // 2), std=1.0
-            ),
+            pufferlib.pytorch.layer_init(nn.Linear(self.cnn_flattened_size, hidden_size // 2), std=1.0),
             nn.ReLU(),
         )
 
         self.policy.self_encoder = nn.Sequential(
-            pufferlib.pytorch.layer_init(
-                nn.Linear(self.num_layers, hidden_size // 2), std=1.0
-            ),
+            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, hidden_size // 2), std=1.0),
             nn.ReLU(),
         )
 
@@ -93,10 +85,9 @@ class PufferPolicy(Policy):
         self.policy.register_buffer("max_vec", max_vec)
 
         action_nvec = [5, 9]  # Match checkpoint exactly: actor.0 (5 actions), actor.1 (9 actions)
-        self.policy.actor = nn.ModuleList([
-            pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
-            for n in action_nvec
-        ])
+        self.policy.actor = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in action_nvec]
+        )
         self.policy.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
         self.lstm = nn.LSTM(input_size=512, hidden_size=512, num_layers=1)
@@ -185,8 +176,7 @@ class PufferPolicy(Policy):
         batch_size = encoded_obs.shape[0]
 
         # Initialize state if None
-        if (self._hidden_state is None or self._cell_state is None or
-            self._hidden_state.shape[1] != batch_size):
+        if self._hidden_state is None or self._cell_state is None or self._hidden_state.shape[1] != batch_size:
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
@@ -194,7 +184,7 @@ class PufferPolicy(Policy):
         lstm_output, (self._hidden_state, self._cell_state) = self.lstm(
             lstm_input, (self._hidden_state, self._cell_state)
         )
-        
+
         # [1, B, 512] -> [B, 512]
         core_features = lstm_output.squeeze(0)
         # returns separate logits per action type
