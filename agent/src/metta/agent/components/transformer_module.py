@@ -222,6 +222,7 @@ class TransformerModule(nn.Module):
         clamp_len: int = -1,
         ext_len: int = 0,
         attn_type: int = 0,
+        use_flash_attention: bool = False,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -240,6 +241,7 @@ class TransformerModule(nn.Module):
         self.clamp_len = clamp_len
         self.ext_len = ext_len
         self.attn_type = attn_type
+        self.use_flash_attention = use_flash_attention
 
         d_head = d_model // n_heads
 

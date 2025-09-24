@@ -2,6 +2,7 @@ from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from einops import rearrange
 from tensordict import TensorDict
 
@@ -18,12 +19,26 @@ class TransformerConfig(Config):
     dropout: float = 0.0
     in_key: str = "encoded_obs"
     out_key: str = "hidden"
+    use_flash_attention: bool = True
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, d_model: int, nhead: int, ff_mult: int, dropout: float) -> None:
+    def __init__(
+        self,
+        d_model: int,
+        nhead: int,
+        ff_mult: int,
+        dropout: float,
+        *,
+        use_flash_attention: bool = True,
+    ) -> None:
         super().__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=False)
+        supports_flash = hasattr(F, "scaled_dot_product_attention")
+        self._use_flash_attention = use_flash_attention and supports_flash
+        if not self._use_flash_attention:
+            self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=False)
+        else:
+            self.self_attn = _FlashSelfAttention(d_model, nhead, dropout)
         self.ff = nn.Sequential(
             nn.Linear(d_model, ff_mult * d_model),
             nn.GELU(),
@@ -40,20 +55,74 @@ class TransformerBlock(nn.Module):
         key_padding_mask: Optional[torch.Tensor] = None,  # [B, T] True for PAD
     ) -> torch.Tensor:
         residual = src
-        attn_out, _ = self.self_attn(
-            src,
-            src,
-            src,
-            attn_mask=attn_mask,
-            key_padding_mask=key_padding_mask,
-            need_weights=False,
-        )
+        if self._use_flash_attention:
+            attn_out = self.self_attn(src, key_padding_mask=key_padding_mask)
+        else:
+            attn_out, _ = self.self_attn(
+                src,
+                src,
+                src,
+                attn_mask=attn_mask,
+                key_padding_mask=key_padding_mask,
+                need_weights=False,
+            )
         src = self.norm1(residual + self.dropout(attn_out))
 
         residual = src
         ff_out = self.ff(src)
         src = self.norm2(residual + self.dropout(ff_out))
         return src
+
+
+class _FlashSelfAttention(nn.Module):
+    """Causal self-attention block backed by scaled dot-product attention."""
+
+    def __init__(self, d_model: int, nhead: int, dropout: float) -> None:
+        super().__init__()
+        if d_model % nhead != 0:
+            raise ValueError("d_model must be divisible by number of heads")
+        self.num_heads = nhead
+        self.head_dim = d_model // nhead
+        self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model, bias=False)
+        self.dropout_p = dropout
+        self.out_dropout = nn.Dropout(dropout)
+
+    def forward(self, src: torch.Tensor, *, key_padding_mask: Optional[torch.Tensor]) -> torch.Tensor:
+        # src: [T, B, D]
+        if src.dim() != 3:
+            raise ValueError(f"Expected src with shape (T, B, D); got {tuple(src.shape)}")
+
+        seq_len, batch_size, embed_dim = src.shape
+        x = src.transpose(0, 1)  # [B, T, D]
+        qkv = self.qkv_proj(x)
+        q, k, v = qkv.chunk(3, dim=-1)
+
+        q = q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        attn_mask = None
+        if key_padding_mask is not None:
+            if key_padding_mask.shape != (batch_size, seq_len):
+                raise ValueError("key_padding_mask must have shape (B, T)")
+            # True entries are padding positions; broadcast across heads and query positions
+            attn_mask = key_padding_mask[:, None, None, :]
+
+        attn_output = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=attn_mask,
+            dropout_p=self.dropout_p if self.training else 0.0,
+            is_causal=True,
+        )
+
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, embed_dim)
+        attn_output = self.out_proj(attn_output)
+        attn_output = self.out_dropout(attn_output)
+
+        return attn_output.transpose(0, 1)  # [T, B, D]
 
 
 class Transformer(nn.Module):
@@ -89,7 +158,13 @@ class Transformer(nn.Module):
         self.pos_embedding = nn.Embedding(self.max_seq_len, self.hidden_size)
         self.layers = nn.ModuleList(
             [
-                TransformerBlock(self.hidden_size, self.nhead, self.ff_mult, self.dropout_p)
+                TransformerBlock(
+                    self.hidden_size,
+                    self.nhead,
+                    self.ff_mult,
+                    self.dropout_p,
+                    use_flash_attention=self.config.use_flash_attention,
+                )
                 for _ in range(self.num_layers)
             ]
         )

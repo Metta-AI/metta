@@ -72,6 +72,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     transformer_attn_dropout: float = 0.1
     transformer_clamp_len: int = -1
     transformer_module_cls: Type[nn.Module] = TransformerModule
+    use_flash_attention: bool = True
 
     # Actor / critic head dimensions
     critic_hidden_dim: int = 1024
@@ -210,7 +211,7 @@ class TransformerPolicy(Policy):
         if clamp_len < 0 and module_cls is NvidiaTransformerModule:
             clamp_len = self.config.transformer_max_seq_len
 
-        self.transformer_module = module_cls(
+        module_kwargs = dict(
             d_model=self.hidden_size,
             n_heads=self.config.transformer_num_heads,
             n_layers=self.config.transformer_num_layers,
@@ -223,6 +224,11 @@ class TransformerPolicy(Policy):
             clamp_len=clamp_len,
             attn_type=0,
         )
+
+        if module_cls is TransformerModule:
+            module_kwargs["use_flash_attention"] = self.config.use_flash_attention
+
+        self.transformer_module = module_cls(**module_kwargs)
 
     # ------------------------------------------------------------------
     # Forward path
@@ -393,9 +399,7 @@ class TransformerPolicy(Policy):
                 observations = td["env_obs"]
             original_shape = torch.Size([batch_size, tt]) if tt > 1 else None
             if self._diag_enabled and self._diag_counter < self._diag_limit:
-                logger.info(
-                    "[TRANSFORMER_DIAG] prepare_obs meta batch=%s tt=%s", batch_size, tt
-                )
+                logger.info("[TRANSFORMER_DIAG] prepare_obs meta batch=%s tt=%s", batch_size, tt)
         elif observations.dim() == 4:
             batch_size, tt = observations.shape[:2]
             total_batch = batch_size * tt
@@ -409,9 +413,7 @@ class TransformerPolicy(Policy):
                 td.set("batch", torch.full((total_batch,), batch_size, device=device, dtype=torch.long))
             original_shape: Optional[torch.Size] = torch.Size([batch_size, tt])
             if self._diag_enabled and self._diag_counter < self._diag_limit:
-                logger.info(
-                    "[TRANSFORMER_DIAG] prepare_obs sequence batch=%s tt=%s", batch_size, tt
-                )
+                logger.info("[TRANSFORMER_DIAG] prepare_obs sequence batch=%s tt=%s", batch_size, tt)
         else:
             batch_size = observations.shape[0]
             tt = 1
@@ -509,7 +511,10 @@ class TransformerPolicy(Policy):
             if self._diag_enabled and self._diag_counter < self._diag_limit:
                 env_ids = training_env_ids.reshape(-1)
                 logger.info(
-                    "[TRANSFORMER_DIAG] env_ids start=%s min=%s max=%s", env_start, int(env_ids.min()), int(env_ids.max())
+                    "[TRANSFORMER_DIAG] env_ids start=%s min=%s max=%s",
+                    env_start,
+                    int(env_ids.min()),
+                    int(env_ids.max()),
                 )
             return env_start
         training_env_id = td.get("training_env_id", None)

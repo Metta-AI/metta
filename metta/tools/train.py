@@ -137,6 +137,8 @@ class TrainTool(Tool):
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 
+        self._configure_torch_backends()
+
         checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
         # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
@@ -353,3 +355,16 @@ class TrainTool(Tool):
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
+
+    def _configure_torch_backends(self) -> None:
+        if not torch.cuda.is_available():
+            return
+
+        try:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            sdp_kernel = getattr(torch.backends.cuda, "sdp_kernel", None)
+            if sdp_kernel is not None:
+                sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=True)
+        except Exception as exc:  # pragma: no cover - backend feature gating
+            logger.debug("Skipping CUDA backend configuration: %s", exc)
