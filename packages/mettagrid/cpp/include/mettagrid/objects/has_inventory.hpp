@@ -6,9 +6,8 @@
 #include <string>
 
 #include "objects/constants.hpp"
-#include "core/grid_object.hpp"
 
-class HasInventory : public GridObject {
+class HasInventory {
 public:
   std::map<InventoryItem, InventoryQuantity> inventory;
 

@@ -19,11 +19,12 @@
 #include <string>
 #include <vector>
 
-#include "core/grid_object.hpp"
 #include "config/mettagrid_config.hpp"
-#include "objects/assembler.hpp"
-#include "systems/packed_coordinate.hpp"
+#include "core/grid_object.hpp"
 #include "core/types.hpp"
+#include "objects/assembler.hpp"
+#include "objects/chest.hpp"
+#include "systems/packed_coordinate.hpp"
 
 // Forward declarations of existing C++ classes
 class Grid;
@@ -37,8 +38,8 @@ class GridObject;
 struct GridObjectConfig;
 struct ConverterConfig;
 struct AssemblerConfig;
+struct ChestConfig;
 struct WallConfig;
-struct BoxConfig;
 struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
@@ -175,7 +176,6 @@ private:
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
-  BoxConfig _create_box_config(const py::dict& box_cfg_py);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

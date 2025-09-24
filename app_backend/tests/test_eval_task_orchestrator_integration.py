@@ -75,6 +75,7 @@ class TestEvalTaskOrchestratorIntegration:
             name=f"test_integration_policy_{uuid.uuid4().hex[:8]}",
             description="Test policy for integration tests",
             epoch_id=epoch.id,
+            url="s3://example/policy.pt",
         )
 
         return policy.id

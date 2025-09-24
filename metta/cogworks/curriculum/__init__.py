@@ -7,14 +7,11 @@ from .stats import SliceAnalyzer, StatsLogger
 from .task_generator import (
     AnyTaskGeneratorConfig,
     BucketedTaskGenerator,
-    BucketedTaskGeneratorConfig,
     SingleTaskGenerator,
-    SingleTaskGeneratorConfig,
     Span,
     TaskGenerator,
     TaskGeneratorConfig,
     TaskGeneratorSet,
-    TaskGeneratorSetConfig,
 )
 from .task_tracker import TaskTracker
 
@@ -31,11 +28,8 @@ __all__ = [
     "TaskGeneratorConfig",
     "AnyTaskGeneratorConfig",
     "SingleTaskGenerator",
-    "SingleTaskGeneratorConfig",
     "TaskGeneratorSet",
-    "TaskGeneratorSetConfig",
     "BucketedTaskGenerator",
-    "BucketedTaskGeneratorConfig",
     "Span",
     "bucketed",
     "multi_task",
@@ -46,19 +40,19 @@ __all__ = [
 ]
 
 
-def single_task(mg_config: MettaGridConfig) -> SingleTaskGeneratorConfig:
-    """Create a SingleTaskGeneratorConfig from an MettaGridConfig."""
-    return SingleTaskGeneratorConfig(env=mg_config.model_copy(deep=True))
+def single_task(mg_config: MettaGridConfig) -> SingleTaskGenerator.Config:
+    """Create a `SingleTaskGenerator.Config` from a `MettaGridConfig`."""
+    return SingleTaskGenerator.Config(env=mg_config.model_copy(deep=True))
 
 
-def bucketed(mg_config: MettaGridConfig) -> BucketedTaskGeneratorConfig:
-    """Create a BucketedTaskGeneratorConfig from an MettaGridConfig."""
-    return BucketedTaskGeneratorConfig.from_mg(mg_config.model_copy(deep=True))
+def bucketed(mg_config: MettaGridConfig) -> BucketedTaskGenerator.Config:
+    """Create a `BucketedTaskGenerator.Config` from a `MettaGridConfig`."""
+    return BucketedTaskGenerator.Config.from_mg(mg_config.model_copy(deep=True))
 
 
-def multi_task(mg_config: MettaGridConfig) -> TaskGeneratorSetConfig:
-    """Create a TaskGeneratorSetConfig from an MettaGridConfig."""
-    return TaskGeneratorSetConfig(
+def multi_task(mg_config: MettaGridConfig) -> TaskGeneratorSet.Config:
+    """Create a `TaskGeneratorSet.Config` from a `MettaGridConfig`."""
+    return TaskGeneratorSet.Config(
         task_generators=[
             single_task(mg_config),
         ],
@@ -66,11 +60,11 @@ def multi_task(mg_config: MettaGridConfig) -> TaskGeneratorSetConfig:
     )
 
 
-def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGeneratorSetConfig:
-    """Merge a list of TaskGeneratorConfigs into a TaskGeneratorSetConfig."""
-    return TaskGeneratorSetConfig(task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs))
+def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGeneratorSet.Config:
+    """Merge configs into a `TaskGeneratorSet.Config`."""
+    return TaskGeneratorSet.Config(task_generators=task_generator_configs, weights=[1.0] * len(task_generator_configs))
 
 
 def env_curriculum(mg_config: MettaGridConfig) -> CurriculumConfig:
     """Create a curriculum configuration from an MettaGridConfig."""
-    return CurriculumConfig(task_generator=SingleTaskGeneratorConfig(env=mg_config))
+    return CurriculumConfig(task_generator=SingleTaskGenerator.Config(env=mg_config))
