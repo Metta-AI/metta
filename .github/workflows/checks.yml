@@ -380,11 +380,11 @@ jobs:
           PYTEST_BENCHMARK_ARGS="-n 0 --timeout=100 --timeout-method=thread  --benchmark-only -v"
 
           # Main benchmarks
-          pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=main_benchmark_results.json
+          uv run pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd packages/mettagrid
-          pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=../mettagrid_benchmark_results.json
+          uv run pytest $PYTEST_BENCHMARK_ARGS --benchmark-json=../mettagrid_benchmark_results.json
 
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
