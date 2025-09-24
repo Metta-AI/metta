@@ -530,6 +530,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "agent_id" in obj:
       replay.agents.add(entity)
 
+  # compute gain maps for static replays.
+  computeGainMap(replay)
+
   return replay
 
 proc loadReplay*(data: string, fileName: string): Replay =
