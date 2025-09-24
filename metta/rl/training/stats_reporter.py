@@ -28,7 +28,7 @@ class Timer(Protocol):
 def _to_scalar(value: Any) -> Optional[float]:
     """Convert supported numeric types to float, skipping non-scalars."""
 
-    if isinstance(value, (int, float, bool)):
+    if isinstance(value, (int, float, bool, np.number)):
         return float(value)
     if isinstance(value, np.ndarray):
         if value.size == 1:
