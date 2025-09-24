@@ -24,6 +24,14 @@ model User {
   userGroups            UserGroup[]
   createdGroups         Group[]
 
+  // Ban information
+  isBanned              Boolean                @default(false)
+  bannedAt              DateTime?
+  banReason             String?
+  bannedByUserId        String?
+  bannedBy              User?                  @relation("UserBannedBy", fields: [bannedByUserId], references: [id])
+  bannedUsers           User[]                 @relation("UserBannedBy")
+
   // Notifications
   receivedNotifications Notification[]         @relation("NotificationRecipient")
   triggeredNotifications Notification[]        @relation("NotificationActor")
