@@ -84,6 +84,13 @@ def get_notification_config(termination_reason: str, job_config: JobConfig) -> N
             # Routine completion - skip Discord
             send_discord=False,
         ),
+        "force_restart_test": NotificationConfig(
+            title="🔧 SkyPilot Job Restarted",
+            description="Job restarted to test automatic recovery.",
+            github_state="pending",
+            send_discord=False,
+            send_wandb=False,
+        ),
     }
 
     return notification_map.get(termination_reason)
