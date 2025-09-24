@@ -9,8 +9,8 @@ description = "Multi-agent cooperative games"
 readme = "README.md"
 requires-python = ">=3.11.7"
 dependencies = [
-  "mettagrid>=0.2.0.6",
-  "pufferlib>=3.0.0",
+  "mettagrid>=0.2.0.8",
+  "pufferlib-core>=3.0.10,<3.1.0",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
   "scipy>=1.15.3",
