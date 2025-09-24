@@ -1,6 +1,5 @@
 import hashlib
 import logging
-import re
 import secrets
 import uuid
 from collections import defaultdict
@@ -1572,59 +1571,55 @@ class MettaRepo:
         sim_suites: list[str] | None = None,
         search: str | None = None,
         limit: int = 500,
+        offset: int = 0,
     ) -> tuple[sql.Composed, list]:
-        """Build the SQL query and parameters for get_all_tasks."""
+        """Build the SQL query and parameters for get_all_tasks with pagination support."""
         where_conditions = []
         params = []
-    
+
         if statuses:
             placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(statuses))
             where_conditions.append(sql.SQL("et.status IN ({})").format(placeholders))
             params.extend(statuses)
-    
+
         if git_hash:
             where_conditions.append(sql.SQL("et.attributes->>'git_hash' = {}").format(sql.Placeholder()))
             params.append(git_hash)
-    
+
         if policy_ids:
             placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(policy_ids))
             where_conditions.append(sql.SQL("et.policy_id IN ({})").format(placeholders))
             params.extend(policy_ids)
-    
+
         if sim_suites:
             placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(sim_suites))
             where_conditions.append(sql.SQL("et.sim_suite IN ({})").format(placeholders))
             params.extend(sim_suites)
-    
+
         if search:
             search_conditions = [
-                # Text field searches (have indexes)
                 sql.SQL("p.name ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.sim_suite ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.assignee ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.user_id ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.attributes->>'git_hash' ILIKE {}").format(sql.Placeholder()),
-                # UUID searches (have indexes)
                 sql.SQL("et.id::text ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.policy_id::text ILIKE {}").format(sql.Placeholder()),
-                # Status search (has index)
                 sql.SQL("et.status ILIKE {}").format(sql.Placeholder()),
-                # Numeric search (has index)
                 sql.SQL("et.retries::text ILIKE {}").format(sql.Placeholder()),
-                # Full JSON search (has index)
                 sql.SQL("et.attributes::text ILIKE {}").format(sql.Placeholder()),
             ]
-    
+
             search_pattern = f"%{search}%"
             search_clause = sql.SQL(" OR ").join(search_conditions)
             where_conditions.append(sql.SQL("({})").format(search_clause))
-            
-            # Add search pattern params for all search conditions
             params.extend([search_pattern] * len(search_conditions))
-    
+
         where_clause = sql.SQL(" AND ").join(where_conditions) if where_conditions else sql.SQL("1=1")
+
         params.append(limit)
-    
+        params.append(offset)
+
         query = sql.SQL("""
             SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                 et.assignee, et.created_at, et.attributes, et.retries,
@@ -1634,19 +1629,24 @@ class MettaRepo:
             WHERE {where_clause}
             ORDER BY et.created_at DESC
             LIMIT {limit_placeholder}
-        """).format(where_clause=where_clause, limit_placeholder=sql.Placeholder())
-    
+            OFFSET {offset_placeholder}
+        """).format(
+            where_clause=where_clause, limit_placeholder=sql.Placeholder(), offset_placeholder=sql.Placeholder()
+        )
+
         return query, params
 
     async def get_all_tasks(
         self,
         limit: int = 500,
+        offset: int = 0,
         statuses: list[TaskStatus] | None = None,
         git_hash: str | None = None,
         policy_ids: list[uuid.UUID] | None = None,
         sim_suites: list[str] | None = None,
         search: str | None = None,
     ) -> list[EvalTaskWithPolicyName]:
+        """Get all tasks with pagination support."""
         async with self.connect() as con:
             query, params = self.build_get_all_tasks_query(
                 statuses=statuses,
@@ -1655,11 +1655,76 @@ class MettaRepo:
                 sim_suites=sim_suites,
                 search=search,
                 limit=limit,
+                offset=offset,
             )
 
             async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
                 await cur.execute(query, params)
                 return await cur.fetchall()
+
+    async def get_all_tasks_count(
+        self,
+        statuses: list[TaskStatus] | None = None,
+        git_hash: str | None = None,
+        policy_ids: list[uuid.UUID] | None = None,
+        sim_suites: list[str] | None = None,
+        search: str | None = None,
+    ) -> int:
+        """Get total count of tasks matching the filters (for pagination metadata)."""
+        where_conditions = []
+        params = []
+
+        if statuses:
+            placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(statuses))
+            where_conditions.append(sql.SQL("et.status IN ({})").format(placeholders))
+            params.extend(statuses)
+
+        if git_hash:
+            where_conditions.append(sql.SQL("et.attributes->>'git_hash' = {}").format(sql.Placeholder()))
+            params.append(git_hash)
+
+        if policy_ids:
+            placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(policy_ids))
+            where_conditions.append(sql.SQL("et.policy_id IN ({})").format(placeholders))
+            params.extend(policy_ids)
+
+        if sim_suites:
+            placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(sim_suites))
+            where_conditions.append(sql.SQL("et.sim_suite IN ({})").format(placeholders))
+            params.extend(sim_suites)
+
+        if search:
+            search_conditions = [
+                sql.SQL("p.name ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.sim_suite ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.assignee ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.user_id ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.attributes->>'git_hash' ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.id::text ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.policy_id::text ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.status ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.retries::text ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.attributes::text ILIKE {}").format(sql.Placeholder()),
+            ]
+
+            search_pattern = f"%{search}%"
+            search_clause = sql.SQL(" OR ").join(search_conditions)
+            where_conditions.append(sql.SQL("({})").format(search_clause))
+            params.extend([search_pattern] * len(search_conditions))
+
+        where_clause = sql.SQL(" AND ").join(where_conditions) if where_conditions else sql.SQL("1=1")
+
+        query = sql.SQL("""
+            SELECT COUNT(*)
+            FROM eval_tasks et
+            LEFT JOIN policies p ON et.policy_id = p.id
+            WHERE {where_clause}
+        """).format(where_clause=where_clause)
+
+        async with self.connect() as con:
+            result = await con.execute(query, params)
+            row = await result.fetchone()
+            return row[0] if row else 0
 
     async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
         async with self.connect() as con:

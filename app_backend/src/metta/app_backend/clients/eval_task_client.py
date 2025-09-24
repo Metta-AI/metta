@@ -6,6 +6,7 @@ from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.eval_task_routes import (
     GitHashesRequest,
     GitHashesResponse,
+    PaginatedTasksResponse,
     TaskAvgRuntimeResponse,
     TaskClaimRequest,
     TaskClaimResponse,
@@ -49,11 +50,12 @@ class EvalTaskClient(BaseAppBackendClient):
     async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse | None:
         return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"assignee": assignee})
 
-    async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
+    async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> PaginatedTasksResponse:
+        """Get all tasks with pagination support."""
         if filters is None:
             filters = TaskFilterParams()
         return await self._make_request(
-            TasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
+            PaginatedTasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
         )
 
     async def count_tasks(self, where_clause: str) -> TaskCountResponse:

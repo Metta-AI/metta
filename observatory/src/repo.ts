@@ -261,6 +261,19 @@ export type AIQueryResponse = {
   query: string
 }
 
+export type PaginationParams = {
+  page: number
+  page_size: number
+}
+
+export type PaginatedEvalTasksResponse = {
+  tasks: EvalTask[]
+  total_count: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
 /**
  * Interface for data fetching.
  *
@@ -299,7 +312,7 @@ export interface Repo {
 
   // Eval task methods
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
-  getEvalTasks(search?: string): Promise<EvalTask[]>
+  getEvalTasks(search?: string, pagination?: PaginationParams): Promise<PaginatedEvalTasksResponse>
 
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
@@ -475,13 +488,17 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBody<EvalTask>('/tasks', request)
   }
 
-  async getEvalTasks(search?: string): Promise<EvalTask[]> {
+ async getEvalTasks(search?: string, pagination?: PaginationParams): Promise<PaginatedEvalTasksResponse> {
     const params = new URLSearchParams()
     if (search) {
       params.append('search', search)
     }
-    const response = await this.apiCall<EvalTasksResponse>(`/tasks/all?${params}`)
-    return response.tasks
+    if (pagination) {
+      const offset = (pagination.page - 1) * pagination.page_size
+      params.append('limit', pagination.page_size.toString())
+      params.append('offset', offset.toString())
+    }
+    return this.apiCall<PaginatedEvalTasksResponse>(`/tasks/all?${params}`)
   }
 
   async getPolicyIds(policyNames: string[]): Promise<Record<string, string>> {

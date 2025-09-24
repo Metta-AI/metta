@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import datetime
 from typing import Any, TypeVar
@@ -40,7 +39,8 @@ class TaskUpdateRequest(BaseModel):
 
 
 class TaskFilterParams(BaseModel):
-    limit: int = Field(default=500, ge=1, le=1000)
+    limit: int = Field(default=100, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
     statuses: list[str] | None = None
     git_hash: str | None = None
     policy_ids: list[uuid.UUID] | None = None
@@ -128,6 +128,14 @@ class TaskUpdateResponse(BaseModel):
 
 class TasksResponse(BaseModel):
     tasks: list[EvalTaskResponse]
+
+
+class PaginatedTasksResponse(BaseModel):
+    tasks: list[TaskResponse]
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class GitHashesRequest(BaseModel):
@@ -218,26 +226,45 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         git_hashes = await stats_repo.get_git_hashes_for_workers(assignees=request.assignees)
         return GitHashesResponse(git_hashes=git_hashes)
 
-    @router.get("/all", response_model=TasksResponse)
+    @router.get("/all", response_model=PaginatedTasksResponse)
     @timed_http_handler
     async def get_all_tasks(
-        limit: int = Query(default=500, ge=1, le=1000),
+        limit: int = Query(default=100, ge=1, le=1000),
+        offset: int = Query(default=0, ge=0),
         statuses: list[TaskStatus] | None = Query(default=None),
         git_hash: str | None = Query(default=None),
         policy_ids: list[uuid.UUID] | None = Query(default=None),
         sim_suites: list[str] | None = Query(default=None),
         search: str | None = Query(default=None),
-    ) -> TasksResponse:
+    ) -> PaginatedTasksResponse:
+        # Get tasks with pagination
         tasks = await stats_repo.get_all_tasks(
             limit=limit,
+            offset=offset,
             statuses=statuses,
             git_hash=git_hash,
             policy_ids=policy_ids,
             sim_suites=sim_suites,
             search=search,
         )
+
+        # Get total count with same filters (excluding limit/offset)
+        total_count = await stats_repo.get_all_tasks_count(
+            statuses=statuses,
+            git_hash=git_hash,
+            policy_ids=policy_ids,
+            sim_suites=sim_suites,
+            search=search,
+        )
+
+        # Calculate pagination metadata
+        page = (offset // limit) + 1 if limit > 0 else 1
+        total_pages = (total_count + limit - 1) // limit if limit > 0 else 1
+
         task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
-        return TasksResponse(tasks=task_responses)
+        return PaginatedTasksResponse(
+            tasks=task_responses, total_count=total_count, page=page, page_size=limit, total_pages=total_pages
+        )
 
     @router.post("/claimed/update")
     @timed_http_handler
