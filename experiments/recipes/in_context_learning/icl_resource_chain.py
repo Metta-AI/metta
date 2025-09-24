@@ -63,7 +63,7 @@ class ICLTaskGenerator(TaskGenerator):
 
         num_resources: list[int] = Field(
             default_factory=list,
-            description="Number of resources in a chain",
+            description="Number of resources",
         )
         num_converters: list[int] = Field(
             default_factory=list,
