@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 import einops
 import torch
@@ -122,7 +122,6 @@ class PufferPolicy(Policy):
             dtype=atr_values.dtype,
             device=observations.device,
         )
-        
 
         valid_tokens = (
             (coords_byte != 0xFF)
