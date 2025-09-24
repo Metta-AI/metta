@@ -11,7 +11,7 @@ from typing import Any, Dict, TypeGuard
 
 import torch
 
-from metta.agent.policies.puffer_simple import PufferSimpleConfig, PufferSimplePolicy
+from metta.agent.policies.puffer import PufferPolicyConfig, PufferPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,6 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
             logger.debug(f"Missing expected key in checkpoint: {src_key}")
 
     logger.info(f"Preprocessed checkpoint: {len(state_dict)} -> {len(processed)} parameters")
-    print("Preprocessed state dict keys:", list(processed.keys()))
     return processed
 
 
@@ -92,8 +91,8 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
     env_cfg = make_arena(num_agents=60)
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
-    policy_cfg = PufferSimpleConfig()
-    policy = PufferSimplePolicy(temp_env, policy_cfg).to(device)
+    policy_cfg = PufferPolicyConfig()
+    policy = PufferPolicy(temp_env, policy_cfg).to(device)
     print("policy keys", policy.state_dict().keys())
 
     temp_env.close()
