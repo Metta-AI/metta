@@ -8,7 +8,7 @@ change.
 """
 
 import importlib
-from typing import TYPE_CHECKING, Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any
 
 # Type imports only happen during type checking, not at runtime
 if TYPE_CHECKING:
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from metta.rl.training.wandb_aborter import WandbAborter, WandbAborterConfig
     from metta.rl.training.wandb_logger import WandbLogger
 
-_EXPORTS: Dict[str, Tuple[str, str | None]] = {
+_EXPORTS: dict[str, tuple[str, str | None]] = {
     "Checkpointer": ("metta.rl.training.checkpointer", "Checkpointer"),
     "CheckpointerConfig": ("metta.rl.training.checkpointer", "CheckpointerConfig"),
     "ComponentContext": ("metta.rl.training.component_context", "ComponentContext"),
