@@ -19,7 +19,9 @@ from devops.skypilot.utils.nccl_tests import launch_nccl_tests
 from devops.skypilot.utils.runtime_monitors import HeartbeatMonitor, TimeoutMonitor
 from devops.skypilot.utils.subprocess_helpers import terminate_process_group
 from metta.common.util.log_config import getRankAwareLogger
+from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.common.wandb.utils import log_to_wandb
+from mettagrid.config import Config
 
 logger = getRankAwareLogger(__name__)
 
@@ -61,18 +63,19 @@ def create_job_config_from_environment() -> JobConfig:
         accumulated_runtime_file=accumulated_runtime_file_path or None,
         accumulated_runtime_sec=accumulated_runtime_sec,
         job_metadata_dir=os.environ.get("JOB_METADATA_DIR"),
-        # Notification settings
+        # Discord
         discord_webhook_url=os.environ.get("DISCORD_WEBHOOK_URL", "").strip() or None,
-        enable_github_status=os.environ.get("ENABLE_GITHUB_STATUS", "false").lower() == "true",
-        enable_wandb_notification=os.environ.get("ENABLE_WANDB_ALERTS", "true").lower() == "true",
-        # Git/GitHub configuration
+        enable_discord_notification=bool(os.environ.get("DISCORD_WEBHOOK_URL", "").strip()),
+        # GitHub
         github_repository=os.environ.get("GITHUB_REPOSITORY"),
         metta_git_ref=os.environ.get("METTA_GIT_REF"),
         github_pat=os.environ.get("GITHUB_PAT"),
         github_status_context=os.environ.get("GITHUB_STATUS_CONTEXT", "Skypilot/E2E"),
-        # W&B configuration
+        enable_github_status=bool(os.environ.get("GITHUB_PAT", "").strip()),
+        # W&B
         wandb_project=os.environ.get("WANDB_PROJECT"),
         wandb_entity=os.environ.get("WANDB_ENTITY"),
+        enable_wandb_notification=os.environ.get("ENABLE_WANDB_ALERTS", "true").lower() == "true",
     )
 
 
@@ -142,51 +145,82 @@ def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> s
 
 
 def main() -> int:
-    job_config = create_job_config_from_environment()
-    log_job_config(job_config)
-
-    if job_config.is_master:
-        latency_sec = calculate_queue_latency()
-        logger.info_master(f"SkyPilot queue latency: {latency_sec:.1f}s")
-
-        cost_info = get_cost_info()
-        total_hourly_cost = cost_info["total_hourly_cost"]
-        logger.info_master(f"Total hourly cost: ${total_hourly_cost:.4f}")
-        os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)  # used in system monitor
-
-        metrics = {
-            "skypilot/latency_collection_time": datetime.now(timezone.utc).isoformat(),
-            "skypilot/task_id": job_config.skypilot_task_id,
-            "skypilot/hourly_cost": total_hourly_cost,
-            "skypilot/queue_latency_s": latency_sec,
-        }
-
-        log_to_wandb(metrics)
-
     termination_reason = ""
+    job_config = None
 
-    if job_config.test_nccl and job_config.restart_count == 0:
-        if not launch_nccl_tests(logger, job_config.is_master):
-            termination_reason = "nccl_tests_failed"
+    try:
+        job_config = create_job_config_from_environment()
+        log_job_config(job_config)
 
-    # If we've restarted 3+ times and average runtime is less than 3 minutes,
-    if job_config.restart_count >= 3 and job_config.accumulated_runtime_sec is not None:
-        average_runtime_minutes = (job_config.accumulated_runtime_sec / job_config.restart_count) / 60
-        if average_runtime_minutes < 3:
-            termination_reason = "rapid_restarts"
+        if job_config.is_master:
+            latency_sec = calculate_queue_latency()
+            logger.info_master(f"SkyPilot queue latency: {latency_sec:.1f}s")
 
-    if not termination_reason:
-        subprocess = run_job_in_background()
-        termination_reason = monitor_until_termination(job_config, subprocess)
+            cost_info = get_cost_info()
+            total_hourly_cost = cost_info["total_hourly_cost"]
+            logger.info_master(f"Total hourly cost: ${total_hourly_cost:.4f}")
+            os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)
 
-    logger.info("========= Job Summary =========")
-    logger.info(f"{'Metta Run ID:':<20} {job_config.metta_run_id or 'N/A'}")
-    logger.info(f"{'Skypilot Task ID:':<20} {job_config.skypilot_task_id or 'N/A'}")
-    logger.info(f"{'Restart Count:':<20} {'N/A' if job_config.restart_count is None else job_config.restart_count}")
-    logger.info(f"{'Termination Reason:':<20} {termination_reason or 'unknown'}")
-    logger.info("==============================")
+            metrics = {
+                "skypilot/latency_collection_time": datetime.now(timezone.utc).isoformat(),
+                "skypilot/task_id": job_config.skypilot_task_id,
+                "skypilot/hourly_cost": total_hourly_cost,
+                "skypilot/queue_latency_s": latency_sec,
+            }
 
-    send_notifications(termination_reason, job_config)
+            if job_config.wandb_project and job_config.wandb_entity:
+                wandb_cfg = WandbConfig(
+                    enabled=True,
+                    project=job_config.wandb_project,
+                    entity=job_config.wandb_entity,
+                    run_id=job_config.metta_run_id,
+                )
+                with WandbContext(wandb_cfg, Config(**job_config.to_safe_dict())):
+                    log_to_wandb(metrics)
+
+        termination_reason = ""
+
+        if job_config.test_nccl and job_config.restart_count == 0:
+            if not launch_nccl_tests(logger, job_config.is_master):
+                termination_reason = "nccl_tests_failed"
+
+        # If we've restarted 3+ times and average runtime is less than 3 minutes,
+        if job_config.restart_count >= 3 and job_config.accumulated_runtime_sec is not None:
+            average_runtime_minutes = (job_config.accumulated_runtime_sec / job_config.restart_count) / 60
+            if average_runtime_minutes < 3:
+                termination_reason = "rapid_restarts"
+
+        if not termination_reason:
+            subprocess = run_job_in_background()
+            termination_reason = monitor_until_termination(job_config, subprocess)
+
+    except BaseException as e:
+        exit_code = getattr(e, "code", 1) if isinstance(e, SystemExit) else 1
+        if isinstance(e, SystemExit) and e.code is None:
+            exit_code = 1
+
+        termination_reason = f"job_failed_{exit_code}"
+        logger.error(f"Unexpected error in main: {type(e).__name__}: {str(e)}")
+
+    finally:
+        try:
+            # Only log summary if we have job_config
+            if job_config:
+                logger.info("========= Job Summary =========")
+                logger.info(f"{'Metta Run ID:':<20} {job_config.metta_run_id or 'N/A'}")
+                logger.info(f"{'Skypilot Task ID:':<20} {job_config.skypilot_task_id or 'N/A'}")
+                logger.info(
+                    f"{'Restart Count:':<20} {'N/A' if job_config.restart_count is None else job_config.restart_count}"
+                )
+                logger.info(f"{'Termination Reason:':<20} {termination_reason or 'unknown'}")
+                logger.info("==============================")
+
+                send_notifications(termination_reason, job_config)
+        except Exception as e:
+            # if logging or notifications throw, we still want to exit cleanly
+            logger.error(f"Error in finally block: {e}")
+
+    # Always return EXIT_AND_STOP
     return EXIT_AND_STOP
 
 

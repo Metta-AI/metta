@@ -239,9 +239,10 @@ Examples:
         METTA_ARGS=" ".join(filtered_args),
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
-        GITHUB_PAT=args.github_pat,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
-        DISCORD_WEBHOOK_URL=args.discord_webhook_url,
+        DISCORD_WEBHOOK_URL=args.discord_webhook_url,  # enables discord notification
+        GITHUB_PAT=args.github_pat,  # enables github status update
+        ENABLE_WANDB_ALERTS="false" if args.run_ci_tests else "true",  # enables wandb alerts
         TEST_NCCL="true" if args.run_ci_tests else "false",
     )
 

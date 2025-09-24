@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-
-
-from dataclasses import dataclass, fields
-from typing import Optional
+from dataclasses import asdict, dataclass
+from typing import Any, Optional
 
 from metta.common.util.log_config import getRankAwareLogger
 
@@ -52,9 +50,24 @@ class JobConfig:
     wandb_entity: Optional[str] = None
     enable_wandb_notification: bool = True
 
+    def to_safe_dict(self) -> dict[str, Any]:
+        """Convert to dictionary with sensitive fields redacted."""
+        redacted_fields = {
+            "discord_webhook_url",
+            "github_pat",
+        }
+
+        result = asdict(self)
+        for field_name in result:
+            if field_name in redacted_fields and result[field_name] is not None:
+                result[field_name] = "REDACTED"
+            elif result[field_name] is None:
+                result[field_name] = "None"
+        return result
+
 
 def log_job_config(jc: JobConfig):
+    """Log job configuration with sensitive values redacted."""
     logger.info("Run Configuration:")
-    for field in fields(jc):
-        value = getattr(jc, field.name)
-        logger.info(f"  - {field.name}: {value}")
+    for field_name, value in jc.to_safe_dict().items():  # Need .items() here
+        logger.info(f"  - {field_name}: {value}")
