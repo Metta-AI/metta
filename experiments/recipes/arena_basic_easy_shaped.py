@@ -134,12 +134,15 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: str | None = None,
+    simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     simulations = simulations or make_evals()
+    policy_uris = [policy_uri] if policy_uri is not None else None
+
     return SimTool(
         simulations=simulations,
-        policy_uris=[policy_uri],
+        policy_uris=policy_uris,
     )
 
 
