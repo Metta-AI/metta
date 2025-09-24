@@ -26,11 +26,15 @@ interface MentionSuggestion {
 }
 
 interface MentionInputProps
-  extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange"> {
+  extends Omit<
+    TextareaHTMLAttributes<HTMLTextAreaElement>,
+    "onChange" | "onKeyDown"
+  > {
   value: string;
   onChange: (value: string) => void;
   onMentionsChange?: (mentions: string[]) => void;
   wrapperClassName?: string; // For layout classes like flex-1
+  onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void; // External keydown handler
 }
 
 export const MentionInput: React.FC<MentionInputProps> = ({
@@ -39,6 +43,7 @@ export const MentionInput: React.FC<MentionInputProps> = ({
   onMentionsChange,
   className = "",
   wrapperClassName = "",
+  onKeyDown: externalOnKeyDown,
   ...textareaProps
 }) => {
   const [suggestions, setSuggestions] = useState<MentionSuggestion[]>([]);
@@ -129,37 +134,62 @@ export const MentionInput: React.FC<MentionInputProps> = ({
 
   // Handle keyboard navigation in suggestions
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!showSuggestions || suggestions.length === 0) {
-      return;
-    }
 
-    switch (e.key) {
-      case "ArrowDown":
+    // Handle Enter key - check if we're in a mention context
+    if (e.key === "Enter") {
+      // If suggestions are showing, complete the selected suggestion
+      if (showSuggestions && suggestions.length > 0) {
         e.preventDefault();
-        setSelectedIndex((prev) =>
-          prev < suggestions.length - 1 ? prev + 1 : 0
-        );
-        break;
-
-      case "ArrowUp":
-        e.preventDefault();
-        setSelectedIndex((prev) =>
-          prev > 0 ? prev - 1 : suggestions.length - 1
-        );
-        break;
-
-      case "Enter":
-      case "Tab":
         if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
-          e.preventDefault();
           selectSuggestion(suggestions[selectedIndex]);
         }
-        break;
+        return; // Don't call external handler
+      }
 
-      case "Escape":
-        setShowSuggestions(false);
-        setSuggestions([]);
-        break;
+      // If we're in a mention but suggestions haven't loaded yet, prevent default
+      // and wait for suggestions to load
+      if (currentMention && currentMention.match.startsWith("@")) {
+        e.preventDefault();
+        return; // Don't call external handler
+      }
+    }
+
+    // Handle Tab key for mention completion
+    if (e.key === "Tab" && showSuggestions && suggestions.length > 0) {
+      e.preventDefault();
+      if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+        selectSuggestion(suggestions[selectedIndex]);
+      }
+      return; // Don't call external handler
+    }
+
+    // Handle navigation keys when suggestions are showing
+    if (showSuggestions && suggestions.length > 0) {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex((prev) =>
+            prev < suggestions.length - 1 ? prev + 1 : 0
+          );
+          return; // Don't call external handler
+
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex((prev) =>
+            prev > 0 ? prev - 1 : suggestions.length - 1
+          );
+          return; // Don't call external handler
+
+        case "Escape":
+          setShowSuggestions(false);
+          setSuggestions([]);
+          return; // Don't call external handler
+      }
+    }
+
+    // For all other keys, call the external handler if it exists
+    if (externalOnKeyDown) {
+      externalOnKeyDown(e);
     }
   };
 
