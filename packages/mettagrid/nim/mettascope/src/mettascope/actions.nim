@@ -20,41 +20,35 @@ proc sendAction*(agentId, actionId, argument: int) =
 proc agentControls*() =
   ## Controls for the selected agent.
 
-  let noopId = replay.actionNames.find("noop")
-  let moveId = replay.actionNames.find("move")
-  let putItemsId = replay.actionNames.find("put_items")
-  let getItemsId = replay.actionNames.find("get_items")
-  let attackId = replay.actionNames.find("attack")
-
   if selection != nil and selection.isAgent:
     let agent = selection
 
     # Move
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
-      sendAction(agent.agentId, moveId, N.int)
+      sendAction(agent.agentId, replay.moveActionId, N.int)
 
     elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
-      sendAction(agent.agentId, moveId, S.int)
+      sendAction(agent.agentId, replay.moveActionId, S.int)
 
     elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
-      sendAction(agent.agentId, moveId, E.int)
+      sendAction(agent.agentId, replay.moveActionId, E.int)
 
     elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
-      sendAction(agent.agentId, moveId, W.int)
+      sendAction(agent.agentId, replay.moveActionId, W.int)
 
     # Put items
     if window.buttonPressed[KeyQ]:
-      sendAction(agent.agentId, putItemsId, 0)
+      sendAction(agent.agentId, replay.putItemsActionId, 0)
 
     # Get items
     if window.buttonPressed[KeyE]:
-      sendAction(agent.agentId, getItemsId, 0)
+      sendAction(agent.agentId, replay.getItemsActionId, 0)
 
     # Attack
     if window.buttonPressed[KeyZ]:
       # TODO: Get implementation attack selection ui.
-      sendAction(agent.agentId, attackId, 0)
+      sendAction(agent.agentId, replay.attackActionId, 0)
 
     # Noop
     if window.buttonPressed[KeyX]:
-      sendAction(agent.agentId, noopId, 0)
+      sendAction(agent.agentId, replay.noopActionId, 0)
