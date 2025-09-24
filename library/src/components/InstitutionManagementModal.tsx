@@ -5,6 +5,7 @@ import { useAction } from "next-safe-action/hooks";
 import { X, Users, Mail, UserPlus, Edit2, Trash2 } from "lucide-react";
 
 import { manageUserMembershipAction } from "@/institutions/actions/manageUserMembershipAction";
+import { toggleApprovalRequirementAction } from "@/institutions/actions/toggleApprovalRequirementAction";
 
 interface InstitutionMember {
   id: string;
@@ -25,6 +26,7 @@ interface InstitutionManagementModalProps {
   institution: {
     id: string;
     name: string;
+    requiresApproval?: boolean;
     members?: InstitutionMember[];
   };
   currentUserRole?: string | null;
@@ -33,7 +35,9 @@ interface InstitutionManagementModalProps {
 export const InstitutionManagementModal: FC<
   InstitutionManagementModalProps
 > = ({ isOpen, onClose, institution, currentUserRole }) => {
-  const [activeTab, setActiveTab] = useState<"members" | "add">("members");
+  const [activeTab, setActiveTab] = useState<"members" | "add" | "settings">(
+    "members"
+  );
   const [localMembers, setLocalMembers] = useState<InstitutionMember[]>(
     institution.members || []
   );
@@ -84,6 +88,26 @@ export const InstitutionManagementModal: FC<
       },
     }
   );
+
+  // Toggle approval requirement action
+  const { execute: toggleApproval, isExecuting: isTogglingApproval } =
+    useAction(toggleApprovalRequirementAction, {
+      onSuccess: () => {
+        // The parent component will refresh to show updated data
+        console.log("Approval setting updated");
+      },
+      onError: (error) => {
+        console.error("Error toggling approval:", error);
+        alert("Failed to update approval setting");
+      },
+    });
+
+  const handleApprovalToggle = (requiresApproval: boolean) => {
+    const formData = new FormData();
+    formData.append("institutionId", institution.id);
+    formData.append("requiresApproval", requiresApproval.toString());
+    toggleApproval(formData);
+  };
 
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +184,16 @@ export const InstitutionManagementModal: FC<
                 }`}
               >
                 Add Member
+              </button>
+              <button
+                onClick={() => setActiveTab("settings")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  activeTab === "settings"
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                Settings
               </button>
             </div>
           )}
@@ -328,6 +362,42 @@ export const InstitutionManagementModal: FC<
                 </button>
               </div>
             </form>
+          )}
+
+          {activeTab === "settings" && isAdmin && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="mb-4 text-lg font-medium text-gray-900">
+                  Institution Settings
+                </h3>
+
+                {/* Approval Settings */}
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900">
+                        Membership Approval
+                      </h4>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {institution.requiresApproval
+                          ? "New members require admin approval before they can join"
+                          : "Users can join this institution automatically"}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        className="peer sr-only"
+                        checked={institution.requiresApproval || false}
+                        onChange={(e) => handleApprovalToggle(e.target.checked)}
+                        disabled={isTogglingApproval}
+                      />
+                      <div className="peer h-6 w-11 rounded-full bg-gray-200 peer-checked:bg-blue-600 peer-focus:ring-4 peer-focus:ring-blue-300 peer-focus:outline-none peer-disabled:opacity-50 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -99,9 +99,10 @@ export const createCommentAction = actionClient
     // Create notifications for mentioned users
     if (resolvedMentions.length > 0) {
       try {
-        const actorName = session.user.name || session.user.email?.split("@")[0] || "Someone";
+        const actorName =
+          session.user.name || session.user.email?.split("@")[0] || "Someone";
         const actionUrl = `/posts/${input.postId}#comment-${comment.id}`;
-        
+
         await createMentionNotifications(
           resolvedMentions,
           session.user.id,

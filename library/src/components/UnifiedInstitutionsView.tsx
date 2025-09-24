@@ -9,12 +9,15 @@ import {
   Star,
   Calendar,
   ExternalLink,
+  UserPlus,
 } from "lucide-react";
+import { useAction } from "next-safe-action/hooks";
 
 import { InstitutionCreateForm } from "./InstitutionCreateForm";
 import { InstitutionManagementModal } from "./InstitutionManagementModal";
 import { UnifiedInstitutionDTO } from "@/posts/data/managed-institutions";
 import { useOverlayNavigation } from "./OverlayStack";
+import { joinInstitutionAction } from "@/institutions/actions/joinInstitutionAction";
 
 interface UnifiedInstitutionsViewProps {
   userInstitutions: UnifiedInstitutionDTO[];
@@ -33,6 +36,33 @@ export const UnifiedInstitutionsView: FC<UnifiedInstitutionsViewProps> = ({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const filterInputRef = useRef<HTMLInputElement>(null);
   const { openInstitution } = useOverlayNavigation();
+
+  // Join institution action
+  const { execute: joinInstitution, isExecuting: isJoining } = useAction(
+    joinInstitutionAction,
+    {
+      onSuccess: (result) => {
+        // Institutions will be refreshed on next page load
+        console.log(result.data?.message);
+      },
+      onError: (error) => {
+        console.error("Error joining institution:", error);
+      },
+    }
+  );
+
+  // Helper to determine if user can join an institution
+  const canJoinInstitution = (institution: UnifiedInstitutionDTO) => {
+    // User must not already be a member or have a pending/rejected request
+    return !institution.currentUserRole && !institution.currentUserStatus;
+  };
+
+  // Handle join institution
+  const handleJoinInstitution = (institutionId: string) => {
+    const formData = new FormData();
+    formData.append("institutionId", institutionId);
+    joinInstitution(formData);
+  };
 
   // Combine all institutions for the main view
   const allInstitutionsForView = allInstitutions;
@@ -278,20 +308,55 @@ export const UnifiedInstitutionsView: FC<UnifiedInstitutionsViewProps> = ({
                   <h3 className="truncate text-lg font-semibold text-gray-900">
                     {institution.name}
                   </h3>
-                  {institution.currentUserRole === "admin" && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedInstitution(
-                          getInstitutionWithMembers(institution)
-                        );
-                      }}
-                      className="ml-2 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                      title="Manage institution"
-                    >
-                      <Users className="h-4 w-4" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {/* Join button for non-members */}
+                    {canJoinInstitution(institution) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleJoinInstitution(institution.id);
+                        }}
+                        disabled={isJoining}
+                        className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-green-50 hover:text-green-600 disabled:opacity-50"
+                        title="Join institution"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                      </button>
+                    )}
+                    {/* Pending status indicator */}
+                    {institution.currentUserStatus === "PENDING" && (
+                      <div
+                        className="rounded-md p-1.5 text-orange-500"
+                        title="Membership request pending approval"
+                      >
+                        ⏳
+                      </div>
+                    )}
+                    {/* Rejected status indicator */}
+                    {institution.currentUserStatus === "REJECTED" && (
+                      <div
+                        className="rounded-md p-1.5 text-red-500"
+                        title="Membership request was rejected"
+                      >
+                        ❌
+                      </div>
+                    )}
+                    {/* Manage button for admins */}
+                    {institution.currentUserRole === "admin" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedInstitution(
+                            getInstitutionWithMembers(institution)
+                          );
+                        }}
+                        className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                        title="Manage institution"
+                      >
+                        <Users className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm text-gray-600">
                   {institution.authorCount} authors • {institution.paperCount}{" "}
@@ -343,12 +408,32 @@ export const UnifiedInstitutionsView: FC<UnifiedInstitutionsViewProps> = ({
             )}
 
             {/* User Info (if applicable) */}
-            {institution.currentUserRole && (
+            {(institution.currentUserRole || institution.currentUserStatus) && (
               <div className="mb-4">
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="rounded bg-blue-100 px-2 py-1 font-medium text-blue-700">
-                    {institution.currentUserRole}
-                  </span>
+                  {institution.currentUserRole && (
+                    <span
+                      className={`rounded px-2 py-1 font-medium ${
+                        institution.currentUserRole === "admin"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {institution.currentUserRole === "admin"
+                        ? "🛡️ Admin"
+                        : institution.currentUserRole}
+                    </span>
+                  )}
+                  {institution.currentUserStatus === "PENDING" && (
+                    <span className="rounded bg-orange-100 px-2 py-1 font-medium text-orange-700">
+                      ⏳ Pending Approval
+                    </span>
+                  )}
+                  {institution.currentUserStatus === "REJECTED" && (
+                    <span className="rounded bg-red-100 px-2 py-1 font-medium text-red-700">
+                      ❌ Request Rejected
+                    </span>
+                  )}
                   {institution.memberCount > 0 && (
                     <span className="text-gray-500">
                       {institution.memberCount} member

@@ -86,4 +86,3 @@ export const createInstitutionAction = actionClient
       message: "Institution created successfully",
     };
   });
-

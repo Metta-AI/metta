@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 
 import { getSessionOrRedirect } from "@/lib/auth";
-import { markNotificationsRead, markAllNotificationsRead } from "@/lib/notifications";
+import {
+  markNotificationsRead,
+  markAllNotificationsRead,
+} from "@/lib/notifications";
 
 const markReadSchema = z.object({
   notificationIds: z.array(z.string()).optional(),
@@ -30,14 +33,13 @@ export async function POST(request: NextRequest) {
         select: { id: true },
       });
 
-      const verifiedIds = userNotifications.map(n => n.id);
+      const verifiedIds = userNotifications.map((n) => n.id);
       if (verifiedIds.length > 0) {
         await markNotificationsRead(verifiedIds);
       }
     }
 
     return NextResponse.json({ success: true });
-
   } catch (error) {
     console.error("Error marking notifications as read:", error);
     return NextResponse.json(

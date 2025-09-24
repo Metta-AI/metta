@@ -32,7 +32,7 @@ export const updateInstitutionAction = actionClient
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
 
-    // Check if user has admin rights for this institution
+    // Check if user has admin or owner rights for this institution
     const userInstitution = await prisma.userInstitution.findUnique({
       where: {
         userId_institutionId: {
@@ -99,4 +99,3 @@ export const updateInstitutionAction = actionClient
       message: "Institution updated successfully",
     };
   });
-

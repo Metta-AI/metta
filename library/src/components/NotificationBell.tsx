@@ -41,21 +41,24 @@ interface NotificationBellProps {
   className?: string;
 }
 
-export const NotificationBell: React.FC<NotificationBellProps> = ({ 
-  className = "" 
+export const NotificationBell: React.FC<NotificationBellProps> = ({
+  className = "",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [counts, setCounts] = useState<NotificationCounts>({ total: 0, unread: 0 });
+  const [counts, setCounts] = useState<NotificationCounts>({
+    total: 0,
+    unread: 0,
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
-  
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Load notification counts on mount and periodically
   useEffect(() => {
     loadCounts();
-    
+
     // Poll for new notifications every 30 seconds
     const interval = setInterval(loadCounts, 30000);
     return () => clearInterval(interval);
@@ -71,7 +74,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -95,7 +101,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const loadNotifications = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/notifications?limit=20&includeRead=true");
+      const response = await fetch(
+        "/api/notifications?limit=20&includeRead=true"
+      );
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications);
@@ -119,14 +127,14 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
       if (response.ok) {
         // Update local state
-        setNotifications(prev =>
-          prev.map(n =>
+        setNotifications((prev) =>
+          prev.map((n) =>
             notificationIds.includes(n.id) ? { ...n, isRead: true } : n
           )
         );
-        
+
         // Update counts
-        setCounts(prev => ({
+        setCounts((prev) => ({
           ...prev,
           unread: Math.max(0, prev.unread - notificationIds.length),
         }));
@@ -146,10 +154,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
       if (response.ok) {
         // Update local state
-        setNotifications(prev =>
-          prev.map(n => ({ ...n, isRead: true }))
-        );
-        setCounts(prev => ({ ...prev, unread: 0 }));
+        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+        setCounts((prev) => ({ ...prev, unread: 0 }));
       }
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
@@ -203,7 +209,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     <div className={`relative ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative flex items-center justify-center rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+        className="relative flex items-center justify-center rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
@@ -217,7 +223,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute right-0 top-full z-50 mt-2 w-96 max-h-96 overflow-hidden rounded-lg bg-white shadow-lg border border-gray-200"
+          className="absolute top-full right-0 z-50 mt-2 max-h-96 w-96 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
         >
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <h3 className="font-semibold text-gray-900">Notifications</h3>
@@ -244,11 +250,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           <div className="max-h-80 overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
               </div>
             ) : notifications.length === 0 ? (
               <div className="px-4 py-8 text-center text-gray-500">
-                <Bell className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+                <Bell className="mx-auto mb-2 h-8 w-8 text-gray-300" />
                 <p>No notifications yet</p>
               </div>
             ) : (
@@ -294,13 +300,14 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   formatTimeAgo,
   getNotificationIcon,
 }) => {
-  const actorName = notification.actor?.name || 
-                   notification.actor?.email?.split("@")[0] || 
-                   "Someone";
+  const actorName =
+    notification.actor?.name ||
+    notification.actor?.email?.split("@")[0] ||
+    "Someone";
 
   const content = (
     <div
-      className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${
+      className={`flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-gray-50 ${
         !notification.isRead ? "bg-blue-50" : ""
       }`}
       onClick={() => onNotificationClick(notification)}
@@ -308,42 +315,40 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
       <div className="flex-shrink-0 text-lg">
         {getNotificationIcon(notification.type)}
       </div>
-      
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm ${!notification.isRead ? "font-semibold" : ""} text-gray-900`}>
+
+      <div className="min-w-0 flex-1">
+        <p
+          className={`text-sm ${!notification.isRead ? "font-semibold" : ""} text-gray-900`}
+        >
           {notification.title}
         </p>
-        
+
         {notification.message && (
-          <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+          <p className="mt-1 line-clamp-2 text-xs text-gray-600">
             {notification.message}
           </p>
         )}
-        
+
         {notification.mentionText && (
-          <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+          <span className="mt-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
             {notification.mentionText}
           </span>
         )}
       </div>
-      
+
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">
           {formatTimeAgo(notification.createdAt)}
         </span>
         {!notification.isRead && (
-          <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+          <div className="h-2 w-2 rounded-full bg-blue-600"></div>
         )}
       </div>
     </div>
   );
 
   if (notification.actionUrl) {
-    return (
-      <Link href={notification.actionUrl}>
-        {content}
-      </Link>
-    );
+    return <Link href={notification.actionUrl}>{content}</Link>;
   }
 
   return content;
