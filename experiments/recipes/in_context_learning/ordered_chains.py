@@ -325,7 +325,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg = _BuildCfg()
 
         resource_chain = ["nothing"] + list(resources) + ["heart"]
-        print(f"Resource chain: {resource_chain}")
 
         for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
