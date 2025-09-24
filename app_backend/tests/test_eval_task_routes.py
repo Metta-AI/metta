@@ -755,3 +755,30 @@ class TestEvalTaskRoutes:
         )
         response = await eval_task_client.get_all_tasks(filters=filters)
         # Should return results since empty list is treated as no filter in our implementation
+
+    @pytest.mark.asyncio
+    async def test_sql_injection_safety_query_inspection(self, stats_repo: MettaRepo):
+        """Test that search parameters don't result in unsafe SQL by inspecting query construction."""
+
+        unsafe_inputs = [
+            "'; DROP TABLE eval_tasks; --",
+            "' UNION SELECT 1,1,1,1,1,1,1,1,1,1,1,1 --",
+            "admin' OR '1'='1",
+            "test'; DELETE FROM eval_tasks; --",
+        ]
+
+        for unsafe_input in unsafe_inputs:
+            query, params = stats_repo.build_get_all_tasks_query(search=unsafe_input)
+
+            # Convert to string for inspection
+            query_str = query.as_string(None)  # None means no connection context needed
+
+            # Verify query structure is safe
+            assert "DROP" not in query_str.upper(), f"Query contains unsafe SQL: {query_str}"
+            assert "DELETE" not in query_str.upper(), f"Query contains unsafe SQL: {query_str}"
+            assert "UNION" not in query_str.upper(), f"Query contains unsafe SQL: {query_str}"
+
+            # Verify unsafe input is in params, not query
+            assert any(unsafe_input in str(p) for p in params), f"Input not properly parameterized: {params}"
+
+            print(f"✅ Safe query for '{unsafe_input}': placeholders used correctly")

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-from psycopg import AsyncConnection, Connection
+from psycopg import AsyncConnection, Connection, sql
 from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
@@ -1548,6 +1548,64 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
+    @staticmethod
+    def build_get_all_tasks_query(
+        statuses: list[TaskStatus] | None = None,
+        git_hash: str | None = None,
+        policy_ids: list[uuid.UUID] | None = None,
+        sim_suites: list[str] | None = None,
+        search: str | None = None,
+        limit: int = 500,
+    ) -> tuple[sql.Composed, list]:
+        # MIGHT_DO: possibly add this to a query builder class in the future
+        """Build the SQL query and parameters for get_all_tasks."""
+        where_conditions = []
+        params = []
+
+        if statuses:
+            placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(statuses))
+            where_conditions.append(sql.SQL("et.status IN ({})").format(placeholders))
+            params.extend(statuses)
+        if git_hash:
+            where_conditions.append(sql.SQL("et.attributes->>'git_hash' = {}").format(sql.Placeholder()))
+            params.append(git_hash)
+        if policy_ids:
+            placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(policy_ids))
+            where_conditions.append(sql.SQL("et.policy_id IN ({})").format(placeholders))
+            params.extend(policy_ids)
+        if sim_suites:
+            placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(sim_suites))
+            where_conditions.append(sql.SQL("et.sim_suite IN ({})").format(placeholders))
+            params.extend(sim_suites)
+        if search:
+            search_conditions = [
+                sql.SQL("p.name ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.sim_suite ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.assignee ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.user_id ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.attributes->>'git_hash' ILIKE {}").format(sql.Placeholder()),
+            ]
+            search_pattern = f"%{search}%"
+            search_clause = sql.SQL(" OR ").join(search_conditions)
+            where_conditions.append(sql.SQL("({})").format(search_clause))
+            params.extend([search_pattern] * 5)
+
+        where_clause = sql.SQL(" AND ").join(where_conditions) if where_conditions else sql.SQL("1=1")
+        params.append(limit)
+
+        query = sql.SQL("""
+            SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                et.assignee, et.created_at, et.attributes, et.retries,
+                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
+            FROM eval_tasks et
+            LEFT JOIN policies p ON et.policy_id = p.id
+            WHERE {where_clause}
+            ORDER BY et.created_at DESC
+            LIMIT {limit_placeholder}
+        """).format(where_clause=where_clause, limit_placeholder=sql.Placeholder())
+
+        return query, params
+
     async def get_all_tasks(
         self,
         limit: int = 500,
@@ -1558,60 +1616,17 @@ class MettaRepo:
         search: str | None = None,
     ) -> list[EvalTaskWithPolicyName]:
         async with self.connect() as con:
-            # Build the WHERE clause dynamically
-            where_conditions = []
-            params = []
-
-            if statuses:
-                placeholders = ", ".join(["%s"] * len(statuses))
-                where_conditions.append(f"et.status IN ({placeholders})")
-                params.extend(statuses)
-
-            if git_hash:
-                where_conditions.append("et.attributes->>'git_hash' = %s")
-                params.append(git_hash)
-
-            if policy_ids:
-                placeholders = ", ".join(["%s"] * len(policy_ids))
-                where_conditions.append(f"et.policy_id IN ({placeholders})")
-                params.extend(policy_ids)
-
-            if sim_suites:
-                placeholders = ", ".join(["%s"] * len(sim_suites))
-                where_conditions.append(f"et.sim_suite IN ({placeholders})")
-                params.extend(sim_suites)
-
-            if search:
-                # Search across policy name, sim suite, assignee, user_id, and git_hash
-                search_conditions = [
-                    "p.name ILIKE %s",
-                    "et.sim_suite ILIKE %s",
-                    "et.assignee ILIKE %s",
-                    "et.user_id ILIKE %s",
-                    "et.attributes->>'git_hash' ILIKE %s",
-                ]
-                search_pattern = f"%{search}%"
-                search_clause = " OR ".join(search_conditions)
-                where_conditions.append(f"({search_clause})")
-                params.extend([search_pattern] * 5)
-
-            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"  # TODO: fix this
-            params.append(limit)
+            query, params = self.build_get_all_tasks_query(
+                statuses=statuses,
+                git_hash=git_hash,
+                policy_ids=policy_ids,
+                sim_suites=sim_suites,
+                search=search,
+                limit=limit,
+            )
 
             async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
-                await cur.execute(
-                    f"""
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    LEFT JOIN policies p ON et.policy_id = p.id
-                    WHERE {where_clause}
-                    ORDER BY et.created_at DESC
-                    LIMIT %s
-                    """,
-                    params,
-                )
+                await cur.execute(query, params)
                 return await cur.fetchall()
 
     async def get_git_hashes_for_workers(self, assignees: list[str]) -> dict[str, list[str]]:
