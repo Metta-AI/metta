@@ -175,7 +175,7 @@ def main() -> int:
                     entity=job_config.wandb_entity,
                     run_id=job_config.metta_run_id,
                 )
-                with WandbContext(wandb_cfg, extra_cfg=job_config.to_safe_dict()):
+                with WandbContext(wandb_cfg, extra_cfg=job_config.to_filtered_dict()):
                     log_to_wandb_summary(metrics)
 
         termination_reason = ""
