@@ -174,10 +174,6 @@ def get_reward_estimates(
 
     # Number of converters in the chain (nothing->r1, ..., r_k->heart)
     n_converters = num_resources + 1
-    total_objects = n_converters + num_sinks
-
-    # Mirror _make_env_cfg’s episode-length extension
-    effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
 
     # Converter cooldown applied uniformly
     cooldown = avg_hop * n_converters
@@ -193,9 +189,9 @@ def get_reward_estimates(
     per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
 
     def hearts_after(first_heart_steps: float) -> float:
-        if first_heart_steps > effective_max_steps:
+        if first_heart_steps > max_steps:
             return 0
-        remaining = effective_max_steps - first_heart_steps
+        remaining = max_steps - first_heart_steps
         return 1 + (remaining // per_heart_cycle)
 
     # ---------- Most efficient ----------
@@ -238,7 +234,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
         densities: list[str] = Field(default=[], description="Density to sample from")
         # obstacle_complexity
-        max_steps: int = Field(default=512, description="Episode length")
+        max_steps: int = Field(default=800, description="Episode length")
 
     def __init__(self, config: "ConverterChainTaskGenerator.Config"):
         super().__init__(config)
@@ -303,7 +299,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         density,
         avg_hop,
         rng,
-        max_steps=512,
+        max_steps=800,
         numpy_dir: str | None = "icl_ordered_chains",
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
@@ -391,7 +387,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
             if len(self.config.densities) > 0
             else None
         )
-
         max_steps = self.config.max_steps
 
         # estimate average hop for cooldowns
