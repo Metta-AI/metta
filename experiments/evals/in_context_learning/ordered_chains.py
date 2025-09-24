@@ -33,6 +33,7 @@ def make_icl_resource_chain_eval_env(
         room_sizes=[room_size],
         obstacle_types=obstacle_types,
         densities=densities,
+        map_dir=None,  # for evals, generate the environments algorithmically
     )
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
