@@ -85,7 +85,7 @@ class ViTDefaultConfig(PolicyArchitecture):
         ObsTokenTrimConfig(
             in_key="obs_attr_embed",
             out_key="obs_attr_trimmed",
-            max_tokens=None,
+            max_tokens=48,
         ),
         ObsPerceiverLatentConfig(
             in_key="obs_attr_trimmed",
