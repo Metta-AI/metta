@@ -302,3 +302,9 @@ class MettaGridEnv(MettaGridPufferBase):
     def emulated(self) -> bool:
         """Native envs do not use emulation (PufferLib compatibility)."""
         return False
+
+    def close(self) -> None:
+        """Close the environment."""
+        super().close()
+        if self._stats_writer:
+            self._stats_writer.close()
