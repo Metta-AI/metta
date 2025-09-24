@@ -1,9 +1,5 @@
 """
-PufferLib checkpoint loading and conversion utilities.
-
-This module provides integration between PufferLib checkpoints (state_dict format)
-and Metta agents. It detects checkpoint formats, preprocesses state dictionaries,
-and loads them into compatible Metta agents.
+PufferLib checkpoint loading utilities.
 """
 
 import logging
