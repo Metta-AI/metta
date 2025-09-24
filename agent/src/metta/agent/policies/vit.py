@@ -69,10 +69,10 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     _token_embed_dim = 6
     _fourier_freqs = 3
-    _latent_dim = 48
-    _lstm_latent = 40
-    _actor_hidden = 160
-    _critic_hidden = 320
+    _latent_dim = 40
+    _lstm_latent = 32
+    _actor_hidden = 128
+    _critic_hidden = 256
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
@@ -85,17 +85,17 @@ class ViTDefaultConfig(PolicyArchitecture):
         ObsTokenTrimConfig(
             in_key="obs_attr_embed",
             out_key="obs_attr_trimmed",
-            max_tokens=40,
+            max_tokens=36,
         ),
         ObsPerceiverLatentConfig(
             in_key="obs_attr_trimmed",
             out_key="obs_latent_attn",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
             latent_dim=_latent_dim,
-            num_latents=10,
+            num_latents=9,
             num_heads=3,
             num_layers=2,
-            mlp_ratio=2.5,
+            mlp_ratio=2.0,
         ),
         LSTMConfig(
             in_key="obs_latent_attn",
