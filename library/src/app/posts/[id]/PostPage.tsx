@@ -173,20 +173,27 @@ export const PostPage: FC<{
   }, [targetPost, selectedPostForPaper]);
 
   // Extract highlighted comment ID from URL hash
-  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
-  
+  const [highlightedCommentId, setHighlightedCommentId] = useState<
+    string | null
+  >(null);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const hash = window.location.hash;
       if (hash.startsWith("#comment-")) {
         const commentId = hash.replace("#comment-", "");
         setHighlightedCommentId(commentId);
-        
+
         // Scroll to the comment after a short delay to let the page render
         setTimeout(() => {
-          const commentElement = document.getElementById(`comment-${commentId}`);
+          const commentElement = document.getElementById(
+            `comment-${commentId}`
+          );
           if (commentElement) {
-            commentElement.scrollIntoView({ behavior: "smooth", block: "center" });
+            commentElement.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
           }
         }, 1000);
       }
@@ -230,7 +237,9 @@ export const PostPage: FC<{
                         onCommentToggle={() => handleCommentToggle(post.id)}
                         onPostSelect={() => handlePostSelect(post)}
                         isSelected={selectedPostForPaper?.id === post.id}
-                        highlightedCommentId={isTargetPost ? highlightedCommentId : null}
+                        highlightedCommentId={
+                          isTargetPost ? highlightedCommentId : null
+                        }
                       />
                     </div>
                   );

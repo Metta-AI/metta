@@ -19,7 +19,7 @@ interface Props {
 
 export default async function SinglePostPage({ params }: Props) {
   const { id } = await params;
-  
+
   // Verify the post exists first
   const post = await prisma.post.findUnique({
     where: { id },
@@ -62,10 +62,10 @@ export async function generateMetadata({ params }: Props) {
   const { id } = await params;
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { 
-      title: true, 
+    select: {
+      title: true,
       content: true,
-      author: { select: { name: true, email: true } }
+      author: { select: { name: true, email: true } },
     },
   });
 
@@ -75,8 +75,9 @@ export async function generateMetadata({ params }: Props) {
     };
   }
 
-  const authorName = post.author.name || post.author.email?.split("@")[0] || "Unknown";
-  const preview = post.content 
+  const authorName =
+    post.author.name || post.author.email?.split("@")[0] || "Unknown";
+  const preview = post.content
     ? post.content.slice(0, 150) + (post.content.length > 150 ? "..." : "")
     : post.title;
 

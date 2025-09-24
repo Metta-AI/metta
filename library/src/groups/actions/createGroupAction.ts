@@ -40,21 +40,25 @@ export const createGroupAction = actionClient
     });
 
     if (!userInstitution || !userInstitution.isActive) {
-      throw new Error("You must be a member of the institution to create groups");
+      throw new Error(
+        "You must be a member of the institution to create groups"
+      );
     }
 
     // Check if group with this name already exists in this institution
     const existingGroup = await prisma.group.findUnique({
-      where: { 
+      where: {
         name_institutionId: {
           name: input.name,
           institutionId: input.institutionId,
-        }
+        },
       },
     });
 
     if (existingGroup) {
-      throw new Error("A group with this name already exists in this institution");
+      throw new Error(
+        "A group with this name already exists in this institution"
+      );
     }
 
     // Create the group
