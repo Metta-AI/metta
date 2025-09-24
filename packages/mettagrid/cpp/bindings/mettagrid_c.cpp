@@ -859,6 +859,13 @@ py::list MettaGrid::resource_names_py() {
   return py::cast(resource_names);
 }
 
+py::none MettaGrid::set_inventory(GridObjectId agent_id, const std::map<InventoryItem, InventoryQuantity>& inventory) {
+  if (agent_id < num_agents()) {
+    this->_agents[agent_id]->set_inventory(inventory);
+  }
+  return py::none();
+}
+
 // StatsTracker implementation that needs complete MettaGrid definition
 unsigned int StatsTracker::get_current_step() const {
   if (!_env) return 0;
@@ -908,7 +915,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("resource_names", &MettaGrid::resource_names_py)
-      .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
+      .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash)
+      .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
   // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
