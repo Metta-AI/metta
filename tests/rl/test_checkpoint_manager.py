@@ -14,7 +14,7 @@ from metta.rl.system_config import SystemConfig
 @pytest.fixture
 def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield SystemConfig(data_dir=Path(tmpdir))
+        yield SystemConfig(data_dir=Path(tmpdir), local_only=True)
 
 
 @pytest.fixture
@@ -38,6 +38,39 @@ def mock_agent():
 
 
 class TestBasicSaveLoad:
+    def test_latest_selector_file_uri(self, checkpoint_manager, mock_agent):
+        """Test :latest selector for file:// URIs."""
+        # Save multiple checkpoints
+        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=5, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=3, metadata={})
+
+        # Test :latest resolution
+        from metta.rl.checkpoint_manager import key_and_version
+
+        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
+        run_name, epoch = key_and_version(latest_uri)
+
+        assert run_name == "test_run"
+        assert epoch == 5  # Should resolve to highest epoch
+
+    def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent):
+        """Test loading policy with :latest selector."""
+        # Save multiple checkpoints
+        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=7, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=3, metadata={})
+
+        # Load using :latest selector
+        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
+        loaded_agent = CheckpointManager.load_from_uri(latest_uri)
+
+        assert loaded_agent is not None
+        # Verify it loaded the correct checkpoint by checking metadata
+        metadata = CheckpointManager.get_policy_metadata(latest_uri)
+        assert metadata["run_name"] == "test_run"
+        assert metadata["epoch"] == 7  # Should be the highest epoch
+
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent):
         metadata = {"agent_step": 5280, "total_time": 120.0, "score": 0.75}
 
@@ -64,6 +97,7 @@ class TestBasicSaveLoad:
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent):
         metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
 
+        test_system_cfg.local_only = False
         test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
         manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 

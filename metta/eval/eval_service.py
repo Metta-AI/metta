@@ -65,7 +65,7 @@ def evaluate_policy(
             sim_result = sim.simulate()
             record_heartbeat()
             if replay_dir is not None:
-                sim_replay_urls = sim_result.stats_db.get_replay_urls(policy_uri=checkpoint_uri)
+                sim_replay_urls = sim_result.stats_db.get_replay_urls(policy_uri=checkpoint_uri, env=sim.name)
                 if sim_replay_urls:
                     replay_urls[sim.name] = sim_replay_urls
                     logger.info(f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{sim.name}'")
