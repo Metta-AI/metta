@@ -3,13 +3,13 @@ PufferLib checkpoint loading utilities.
 """
 
 import logging
-from typing import Any, Dict, TypeGuard
+from typing import Dict, TypeGuard
 
 import torch
 
 from metta.agent.policies.puffer import PufferPolicy, PufferPolicyConfig
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("puffer_policy")
 
 
 def _is_puffer_state_dict(loaded_obj) -> TypeGuard[Dict[str, torch.Tensor]]:
