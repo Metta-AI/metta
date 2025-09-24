@@ -6,7 +6,7 @@ from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, Acto
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.lstm import LSTMConfig
 from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
+from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsPerceiverLatentConfig, ObsSelfAttnConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.components.obs_trim import ObsTokenTrimConfig
@@ -86,26 +86,17 @@ class ViTDefaultConfig(PolicyArchitecture):
             out_key="obs_attr_trimmed",
             max_tokens=None,
         ),
-        ObsLatentAttnConfig(
+        ObsPerceiverLatentConfig(
             in_key="obs_attr_trimmed",
             out_key="obs_latent_attn",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
-            out_dim=_latent_dim,
-            num_query_tokens=6,
+            latent_dim=_latent_dim,
+            num_latents=16,
             num_heads=4,
             num_layers=2,
-            query_token_dim=_latent_dim,
-        ),
-        ObsSelfAttnConfig(
-            in_key="obs_latent_attn",
-            out_key="obs_self_attn",
-            feat_dim=_latent_dim,
-            out_dim=_latent_dim,
-            num_layers=2,
-            num_heads=4,
         ),
         LSTMConfig(
-            in_key="obs_self_attn",
+            in_key="obs_latent_attn",
             out_key="core",
             latent_size=_latent_dim,
             hidden_size=_lstm_latent,
