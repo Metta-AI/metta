@@ -34,10 +34,8 @@ class BasicPolicy(Policy):
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         observations = td["env_obs"]
 
-        # Call PufferLib policy directly
         logits, value = self.policy(observations)
 
-        # Convert back to TensorDict format expected by Metta
         td["logits"] = torch.cat(logits, dim=-1)  # Flatten for ActionProbs
         td["values"] = value.flatten()
 
@@ -47,17 +45,14 @@ class BasicPolicy(Policy):
         return td
 
     def initialize_to_environment(self, env_metadata, device: torch.device):
-        """Initialize to environment."""
         self.to(device)
         self.action_probs.initialize_to_environment(env_metadata, device)
 
     def reset_memory(self):
-        """Reset LSTM memory."""
         if hasattr(self.policy, 'reset_memory'):
             self.policy.reset_memory()
 
     def get_agent_experience_spec(self) -> Composite:
-        """Get experience spec."""
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
