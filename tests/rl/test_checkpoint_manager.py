@@ -8,27 +8,28 @@ from tensordict import TensorDict
 
 from metta.agent.mocks import MockAgent
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.system_config import SystemConfig
 
 
 @pytest.fixture
-def temp_run_dir():
+def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield tmpdir
+        yield SystemConfig(data_dir=Path(tmpdir), local_only=True)
 
 
 @pytest.fixture
-def checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run="test_run", run_dir=temp_run_dir)
+def checkpoint_manager(test_system_cfg):
+    return CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
 
 @pytest.fixture
-def cached_checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run="test_run", run_dir=temp_run_dir, cache_size=3)
+def cached_checkpoint_manager(test_system_cfg):
+    return CheckpointManager(run="test_run", system_cfg=test_system_cfg, cache_size=3)
 
 
 @pytest.fixture
-def no_cache_checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run="test_run", run_dir=temp_run_dir, cache_size=0)
+def no_cache_checkpoint_manager(test_system_cfg):
+    return CheckpointManager(run="test_run", system_cfg=test_system_cfg, cache_size=0)
 
 
 @pytest.fixture
@@ -49,8 +50,8 @@ class TestBasicSaveLoad:
         assert agent_file.exists()
 
         metadata = CheckpointManager.get_policy_metadata(agent_file.as_uri())
-        assert metadata["run_name"] == "test_run"
-        assert metadata["epoch"] == 5
+        assert "run_name" in metadata and metadata["run_name"] == "test_run"
+        assert "epoch" in metadata and metadata["epoch"] == 5
 
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
         assert loaded_agent is not None
@@ -60,9 +61,12 @@ class TestBasicSaveLoad:
         assert "actions" in output
         assert output["actions"].shape[0] == 1
 
-    def test_remote_prefix_upload(self, temp_run_dir, mock_agent):
+    def test_remote_prefix_upload(self, test_system_cfg, mock_agent):
         metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
-        manager = CheckpointManager(run="test_run", run_dir=temp_run_dir, remote_prefix="s3://bucket/checkpoints")
+
+        test_system_cfg.local_only = False
+        test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
+        manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
         expected_filename = "test_run:v3.pt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
@@ -239,9 +243,9 @@ class TestErrorHandling:
         checkpoints = checkpoint_manager.select_checkpoints()
         assert checkpoints == []
 
-    def test_invalid_run_name(self, temp_run_dir):
+    def test_invalid_run_name(self, test_system_cfg):
         invalid_names = ["", "name with spaces", "name/with/slash", "name*with*asterisk"]
 
         for invalid_name in invalid_names:
             with pytest.raises(ValueError):
-                CheckpointManager(run=invalid_name, run_dir=temp_run_dir)
+                CheckpointManager(run=invalid_name, system_cfg=test_system_cfg)

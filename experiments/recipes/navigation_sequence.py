@@ -12,6 +12,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import TerrainFromNumpy
+from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -128,6 +129,7 @@ def train(
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
+
     resolved_curriculum = curriculum or make_curriculum(
         algorithm_config=LearningProgressConfig(
             use_bidirectional=True,  # Default: bidirectional learning progress
@@ -139,11 +141,11 @@ def train(
         )
     )
 
-    trainer_cfg = TrainerConfig()
-
-    evaluator_cfg = EvaluatorConfig(
-        simulations=make_navigation_sequence_eval_suite(),
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
     )
+
+    evaluator_cfg = EvaluatorConfig(simulations=make_navigation_sequence_eval_suite())
 
     return TrainTool(
         trainer=trainer_cfg,

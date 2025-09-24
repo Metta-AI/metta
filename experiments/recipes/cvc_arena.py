@@ -12,7 +12,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -21,7 +21,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building
-from mettagrid.mettagrid_config import AssemblerConfig, MettaGridConfig
+from mettagrid.config import AssemblerConfig, MettaGridConfig
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:

@@ -164,16 +164,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         }
 
         # Process stats rewards
-        stat_rewards = {}
-        stat_reward_max = {}
-        stats_rewards_dict = rewards_config.get("stats", {}) if rewards_config else {}
-
-        for k, v in stats_rewards_dict.items():
-            if v is not None and not k.endswith("_max"):
-                stat_rewards[k] = v
-            elif k.endswith("_max") and v is not None:
-                stat_name = k[:-4]
-                stat_reward_max[stat_name] = v
+        stat_rewards = rewards_config.get("stats", {})
+        stat_reward_max = rewards_config.get("stats_max", {})
 
         # Process potential initial inventory
         initial_inventory = {}
@@ -331,7 +323,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         episode_completion_pct=global_obs_config.episode_completion_pct,
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
-        resource_rewards=global_obs_config.resource_rewards,
         visitation_counts=global_obs_config.visitation_counts,
     )
     game_cpp_params["global_obs"] = global_obs_cpp

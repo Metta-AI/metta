@@ -5,7 +5,7 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import Span
-from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -44,7 +44,7 @@ def _default_run_name() -> str:
 
     # Try to get git hash (7 chars like CI) for better tracking
     try:
-        from metta.common.util.git import get_current_commit
+        from gitta import get_current_commit
 
         git_hash = get_current_commit()[:7]
         return f"object_use.{user}.{timestamp}.{git_hash}"
@@ -199,6 +199,7 @@ def train(
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
+
     resolved_curriculum = curriculum or make_curriculum()
 
     trainer_cfg = TrainerConfig(

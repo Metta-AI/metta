@@ -2,9 +2,8 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss import LossConfig
 from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
-from metta.rl.training.checkpointer import CheckpointConfig
 from mettagrid.config import Config
 
 
@@ -66,7 +65,6 @@ class TrainerConfig(Config):
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
-    checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -81,5 +79,4 @@ class TrainerConfig(Config):
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
-
         return self
