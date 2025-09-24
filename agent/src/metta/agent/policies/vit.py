@@ -68,7 +68,7 @@ class ViTDefaultConfig(ViTSmallConfig):
     _token_embed_dim = 8
     _latent_dim = 48
     _lstm_latent = 96
-    _critic_hidden = 256
+    _critic_hidden = 128
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
@@ -89,7 +89,7 @@ class ViTDefaultConfig(ViTSmallConfig):
             out_key="core",
             latent_size=_latent_dim,
             hidden_size=_lstm_latent,
-            num_layers=2,
+            num_layers=1,
         ),
         MLPConfig(
             in_key="core",
