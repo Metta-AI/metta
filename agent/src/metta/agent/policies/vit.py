@@ -9,6 +9,7 @@ from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsPerceiverLatentConfig, ObsSelfAttnConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
+from metta.agent.components.obs_trim import ObsTokenTrimConfig
 from metta.agent.policy import PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -66,12 +67,12 @@ class ViTDefaultConfig(PolicyArchitecture):
     _hidden_size = 128
     _embedding_dim = 16
 
-    _token_embed_dim = 8
-    _fourier_freqs = 3
-    _latent_dim = 64
-    _lstm_latent = 32
-    _actor_hidden = 256
-    _critic_hidden = 512
+    _token_embed_dim = 4
+    _fourier_freqs = 2
+    _latent_dim = 32
+    _lstm_latent = 24
+    _actor_hidden = 96
+    _critic_hidden = 192
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
@@ -81,14 +82,20 @@ class ViTDefaultConfig(PolicyArchitecture):
             attr_embed_dim=_token_embed_dim,
             num_freqs=_fourier_freqs,
         ),
-        ObsPerceiverLatentConfig(
+        ObsTokenTrimConfig(
             in_key="obs_attr_embed",
+            out_key="obs_attr_trimmed",
+            max_tokens=32,
+        ),
+        ObsPerceiverLatentConfig(
+            in_key="obs_attr_trimmed",
             out_key="obs_latent_attn",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
             latent_dim=_latent_dim,
-            num_latents=12,
-            num_heads=4,
-            num_layers=2,
+            num_latents=8,
+            num_heads=2,
+            num_layers=1,
+            mlp_ratio=2.0,
         ),
         LSTMConfig(
             in_key="obs_latent_attn",
