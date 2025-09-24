@@ -164,3 +164,4 @@ class ExternalPolicyWrapper(Policy):
 
 PolicyArchitecture.register_alias("fast", "metta.agent.policies.fast.FastConfig")
 PolicyArchitecture.register_alias("agalite", "metta.agent.policies.agalite.AGaLiTeConfig")
+PolicyArchitecture.register_alias("agalite_improved", "metta.agent.policies.agalite.AGaLiTeImprovedConfig")

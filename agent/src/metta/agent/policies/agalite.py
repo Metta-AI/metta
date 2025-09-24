@@ -1,5 +1,7 @@
 from typing import List
 
+from pydantic import Field
+
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.agalite_transformer import AGaLiTeTransformerConfig
@@ -10,13 +12,19 @@ from metta.agent.components.obs_shim import ObsShimBoxConfig
 from metta.agent.policy import PolicyArchitecture
 
 
-class AGaLiTeConfig(PolicyArchitecture):
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-
-    _hidden_size = 192
-    _embedding_dim = 16
-
-    components: List[ComponentConfig] = [
+def _build_components(
+    *,
+    hidden_size: int,
+    embedding_dim: int,
+    n_layers: int,
+    n_heads: int,
+    feedforward_size: int,
+    eta: int,
+    r: int,
+    mode: str,
+    dropout: float,
+) -> List[ComponentConfig]:
+    return [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_box"),
         CNNEncoderConfig(
             in_key="obs_box",
@@ -24,43 +32,87 @@ class AGaLiTeConfig(PolicyArchitecture):
             cnn1_cfg={"out_channels": 64, "kernel_size": 5, "stride": 3},
             cnn2_cfg={"out_channels": 64, "kernel_size": 3, "stride": 1},
             fc1_cfg={"out_features": 128},
-            encoded_obs_cfg={"out_features": _hidden_size},
+            encoded_obs_cfg={"out_features": hidden_size},
         ),
         AGaLiTeTransformerConfig(
             in_key="encoded_obs",
             out_key="core",
-            hidden_size=_hidden_size,
-            n_layers=2,
-            n_heads=4,
-            feedforward_size=4 * _hidden_size,
-            eta=4,
-            r=8,
-            mode="agalite",
-            dropout=0.0,
+            hidden_size=hidden_size,
+            n_layers=n_layers,
+            n_heads=n_heads,
+            feedforward_size=feedforward_size,
+            eta=eta,
+            r=r,
+            mode=mode,
+            dropout=dropout,
         ),
         MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
-            in_features=_hidden_size,
+            in_features=hidden_size,
             hidden_features=[1024],
             out_features=1,
             nonlinearity="ReLU",
             output_nonlinearity=None,
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=embedding_dim),
         ActorQueryConfig(
             in_key="core",
             out_key="actor_query",
-            hidden_size=_hidden_size,
-            embed_dim=_embedding_dim,
+            hidden_size=hidden_size,
+            embed_dim=embedding_dim,
         ),
         ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
-            embed_dim=_embedding_dim,
+            embed_dim=embedding_dim,
         ),
     ]
+
+
+class AGaLiTeConfig(PolicyArchitecture):
+    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+
+    _hidden_size = 192
+    _embedding_dim = 16
+
+    components: List[ComponentConfig] = Field(
+        default_factory=lambda: _build_components(
+            hidden_size=AGaLiTeConfig._hidden_size,
+            embedding_dim=AGaLiTeConfig._embedding_dim,
+            n_layers=2,
+            n_heads=4,
+            feedforward_size=4 * AGaLiTeConfig._hidden_size,
+            eta=4,
+            r=8,
+            mode="agalite",
+            dropout=0.0,
+        )
+    )
+
+    action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+
+
+class AGaLiTeImprovedConfig(PolicyArchitecture):
+    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+
+    _hidden_size = 256
+    _embedding_dim = 16
+
+    components: List[ComponentConfig] = Field(
+        default_factory=lambda: _build_components(
+            hidden_size=AGaLiTeImprovedConfig._hidden_size,
+            embedding_dim=AGaLiTeImprovedConfig._embedding_dim,
+            n_layers=4,
+            n_heads=8,
+            feedforward_size=4 * AGaLiTeImprovedConfig._hidden_size,
+            eta=4,
+            r=16,
+            mode="agalite",
+            dropout=0.1,
+        )
+    )
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
