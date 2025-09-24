@@ -80,7 +80,7 @@ class ViTDefaultConfig(ViTSmallConfig):
         ObsTokenCompactConfig(
             in_key="obs_attr_embed",
             out_key="obs_tokens_compact",
-            max_tokens=64,
+            max_tokens=48,
         ),
         ObsLatentAttnConfig(
             in_key="obs_tokens_compact",
