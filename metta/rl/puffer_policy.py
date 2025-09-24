@@ -14,7 +14,12 @@ logger = logging.getLogger("puffer_policy")
 
 def _is_puffer_state_dict(loaded_obj) -> TypeGuard[Dict[str, torch.Tensor]]:
     """Return True if the object appears to be a PufferLib state_dict."""
-    return isinstance(loaded_obj, dict) and bool(loaded_obj) and any(key.startswith("policy.") for key in loaded_obj)
+    if not isinstance(loaded_obj, dict) or not loaded_obj:
+        return False
+
+    keys = loaded_obj.keys()
+    puffer_keys = ["policy.conv1.weight", "lstm.weight_ih_l0", "policy.actor.0.weight"]
+    return all(key in keys for key in puffer_keys)
 
 
 def _create_metta_agent(device: str | torch.device = "cpu"):
