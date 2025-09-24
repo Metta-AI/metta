@@ -354,13 +354,15 @@ Evaluate on the navigation eval suite (provide the policy URI):
 #### Configuring a MettaAgent
 
 This repo implements a `MettaAgent` policy class. By default we now build policies using the ViT-based
-`ViTSmallConfig` from `metta.agent.policies.vit`. See `configs/agent/reference_design.yaml` for an explanation of the
-config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture) for further
-documentation.
+`ViTDefaultConfig` (defined in `metta.agent.policies.vit`). Policy architectures are now expressed as Python configs in
+`metta.agent.policies`, replacing the legacy `configs/agent/*.yaml` files referenced in older docs. See
+[`metta.agent.policies.vit`](agent/src/metta/agent/policies/vit.py) for a concrete example and consult the
+[agent-architecture wiki](https://deepwiki.com/Metta-AI/metta/6-agent-architecture) for conceptual documentation.
 
 To use `MettaAgent` with a non-default architecture config:
 
-- (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
+- (Optional): Implement your own `PolicyArchitecture` subclass (for example by copying `ViTDefaultConfig` into
+  `metta/agent/policies/my_agent.py`).
 - Run with the configuration file of your choice:
   ```bash
   ./tools/run.py experiments.recipes.arena.train policy_architecture.agent_config=my_agent
