@@ -221,9 +221,28 @@ class AGaLiTeTransformer(nn.Module):
         snapshots_data = td.get("segment_memory_snapshots")
         if snapshots_data is None:
             return None
+
         if isinstance(snapshots_data, NonTensorData):
-            return snapshots_data._data  # type: ignore[attr-defined]
-        return snapshots_data
+            data = snapshots_data.data
+        else:
+            data = snapshots_data
+
+        if data is None:
+            return None
+
+        if isinstance(data, list):
+            return data
+
+        if isinstance(data, tuple):
+            return list(data)
+
+        if hasattr(data, "__iter__") and not isinstance(data, (str, bytes)):
+            return list(data)
+
+        raise TypeError(
+            "segment_memory_snapshots must be a sequence of snapshot dicts; "
+            f"received {type(data)!r}"
+        )
 
     def _record_segment_memory(
         self,

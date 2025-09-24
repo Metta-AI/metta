@@ -134,7 +134,7 @@ def train(
         if agent is not None:
             policy_architecture = _policy_from_name(agent)
         else:
-            policy_architecture = FastConfig()
+            policy_architecture = AGaLiTeConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
