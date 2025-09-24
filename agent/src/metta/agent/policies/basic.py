@@ -15,7 +15,7 @@ from metta.agent.policy import Policy, PolicyArchitecture
 class BasicConfig (PolicyArchitecture):
     """Simple PufferLib policy configuration."""
 
-    class_path: str = "metta.agent.policies.puffer_simple.PufferSimplePolicy"
+    class_path: str = "metta.agent.policies.basic.BasicPolicy"
 
     # Only ActionProbs needed for compatibility
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
