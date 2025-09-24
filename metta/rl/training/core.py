@@ -4,13 +4,11 @@ from typing import Any, Dict, List, Tuple
 
 import torch
 from pydantic import ConfigDict
+from tensordict import TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
-from metta.rl.training.component_context import ComponentContext
-from metta.rl.training.experience import Experience
-from metta.rl.training.training_environment import TrainingEnvironment
-from metta.rl.utils import ensure_sequence_metadata
+from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
@@ -102,45 +100,9 @@ class CoreTrainingLoop:
             td["rewards"] = r.to(device=target_device, non_blocking=True)
             td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
             td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
-            env_indices = self._env_index_cache[training_env_id]
-            if env_indices.device != td.device:
-                env_indices = env_indices.to(device=td.device)
-            td["training_env_ids"] = env_indices.unsqueeze(1)
+            td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
 
-            # Ensure metadata fields required by downstream components are populated without
-            # incurring allocations on every step by reusing cached constant tensors.
-            batch_elems = td.batch_size.numel()
-            device = td.device
-            diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
-            if "batch" not in td.keys() or "bptt" not in td.keys():
-                ensure_sequence_metadata(td, batch_size=batch_elems, time_steps=1)
-            elif diag_enabled:
-                logger.info(
-                    "[TRANSFORMER_DIAG] rollout metadata batch=%s bptt=%s",
-                    td.get("batch")[0].item() if td.get("batch") is not None else None,
-                    td.get("bptt")[0].item() if td.get("bptt").numel() else None,
-                )
-            training_env_shape = tuple(int(dim) for dim in td.batch_size)
-            if "training_env_id" not in td.keys():
-                td.set(
-                    "training_env_id",
-                    self._get_constant_tensor(
-                        "training_env_id",
-                        training_env_shape or (batch_elems,),
-                        training_env_id.start,
-                        device,
-                    ),
-                )
-            if "training_env_id_start" not in td.keys():
-                td.set(
-                    "training_env_id_start",
-                    self._get_constant_tensor(
-                        "training_env_id_start",
-                        training_env_shape or (batch_elems,),
-                        training_env_id.start,
-                        device,
-                    ),
-                )
+            self._ensure_rollout_metadata(td, training_env_id)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
@@ -163,6 +125,47 @@ class CoreTrainingLoop:
 
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
+
+    def _gather_env_indices(self, training_env_id: slice, device: torch.device) -> torch.Tensor:
+        env_indices = self._env_index_cache[training_env_id]
+        if env_indices.device != device:
+            env_indices = env_indices.to(device=device)
+        return env_indices
+
+    def _ensure_rollout_metadata(self, td: TensorDict, training_env_id: slice) -> None:
+        """Populate metadata fields needed downstream while reusing cached tensors."""
+
+        batch_elems = td.batch_size.numel()
+        device = td.device
+        diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
+
+        if "batch" not in td.keys():
+            td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
+        if "bptt" not in td.keys():
+            td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
+
+        if diag_enabled:
+            batch_tensor = td.get("batch")
+            bptt_tensor = td.get("bptt")
+            logger.info(
+                "[TRANSFORMER_DIAG] rollout metadata batch=%s bptt=%s",
+                batch_tensor[0].item() if batch_tensor is not None and batch_tensor.numel() else None,
+                bptt_tensor[0].item() if bptt_tensor is not None and bptt_tensor.numel() else None,
+            )
+
+        training_env_shape = tuple(int(dim) for dim in td.batch_size) or (batch_elems,)
+        env_start = training_env_id.start if training_env_id.start is not None else 0
+
+        if "training_env_id" not in td.keys():
+            td.set(
+                "training_env_id",
+                self._get_constant_tensor("training_env_id", training_env_shape, env_start, device),
+            )
+        if "training_env_id_start" not in td.keys():
+            td.set(
+                "training_env_id_start",
+                self._get_constant_tensor("training_env_id_start", training_env_shape, env_start, device),
+            )
 
     def _get_constant_tensor(
         self,

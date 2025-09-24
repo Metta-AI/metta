@@ -12,8 +12,7 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss
-from metta.rl.training.component_context import ComponentContext
-from metta.rl.training.training_environment import TrainingEnvironment
+from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.utils.batch import calculate_prioritized_sampling_params
 from mettagrid.config import Config
 
@@ -61,9 +60,6 @@ class PPOConfig(Config):
     clip_vloss: bool = True
     # Target KL for early stopping (None disables)
     target_kl: float | None = None
-
-    # Discarded rollout steps before saving experience (temporary placement)
-    burn_in_steps: int = Field(default=0, ge=0)
 
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
@@ -114,9 +110,12 @@ class PPO(Loss):
         super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
-        self.burn_in_steps = self.loss_cfg.burn_in_steps
+        self.burn_in_steps = 0
+        if hasattr(self.policy, "burn_in_steps"):
+            self.burn_in_steps = self.policy.burn_in_steps
         self.burn_in_steps_iter = 0
         self._diag_batch_logged = False
+        self.register_state_attr("anneal_beta", "burn_in_steps_iter")
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
@@ -201,7 +200,8 @@ class PPO(Loss):
             values_tensor = minibatch["values"].float()
             ratio_tensor = minibatch.get("ratio", torch.ones_like(values_tensor)).float()
             logger.info(
-                "[TRANSFORMER_DIAG] PPO rollout stats: values_mean=%s values_std=%s advantages_mean=%s advantages_std=%s ratio_mean=%s ratio_std=%s",
+                "[TRANSFORMER_DIAG] PPO rollout stats: values_mean=%s values_std=%s "
+                "advantages_mean=%s advantages_std=%s ratio_mean=%s ratio_std=%s",
                 float(values_tensor.mean().item()),
                 float(values_tensor.std().item()),
                 float(adv.float().mean().item()),
