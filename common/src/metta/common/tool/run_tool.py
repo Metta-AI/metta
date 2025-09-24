@@ -36,10 +36,6 @@ logger = logging.getLogger(__name__)
 
 def init_mettagrid_system_environment() -> None:
     """Initialize environment variables for headless operation."""
-    # Set CUDA launch blocking for better error messages in development
-    # TODO (use env for prod/dev?)
-    os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "1")
-
     os.environ.setdefault("GLFW_PLATFORM", "osmesa")  # Use OSMesa as the GLFW backend
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("MPLBACKEND", "Agg")
