@@ -1,7 +1,15 @@
 import contextlib
 import os
 import platform
+import warnings
 from typing import Optional
+
+# Torch still imports the deprecated `pynvml` shim, which emits a noisy FutureWarning.
+warnings.filterwarnings(
+    "ignore",
+    message="The pynvml package is deprecated",
+    category=FutureWarning,
+)
 
 import torch
 from pydantic import Field, model_validator
