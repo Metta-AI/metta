@@ -27,6 +27,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
     ema_timescale: float = 0.001
+    slow_timescale_factor: float = 0.2  # Factor to multiply ema_timescale for slow EMA
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.05  # For bidirectional reweighting
 
@@ -579,7 +580,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     + self._p_fast[self._update_mask] * (1.0 - self.hypers.ema_timescale)
                 )
                 # Slow EMA uses a much slower timescale for better differentiation
-                slow_timescale = self.hypers.ema_timescale * 0.2
+                slow_timescale = self.hypers.ema_timescale * self.hypers.slow_timescale_factor
                 self._p_slow[self._update_mask] = normalized_task_success_rates * slow_timescale + self._p_slow[
                     self._update_mask
                 ] * (1.0 - slow_timescale)

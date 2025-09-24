@@ -191,6 +191,129 @@ class TaskDependencySimulator:
 
         return metrics
 
+    def _get_learning_progress_distributions(self, curriculum) -> Dict[str, Any]:
+        """Extract learning progress score distributions from curriculum algorithm."""
+        distributions = {}
+
+        try:
+            algorithm = curriculum._algorithm
+            if algorithm is None:
+                return distributions
+
+            # Get all active task IDs
+            active_task_ids = list(curriculum._tasks.keys())
+            if not active_task_ids:
+                return distributions
+
+            # Get learning progress scores for all tasks
+            task_scores = algorithm.score_tasks(active_task_ids)
+
+            if task_scores:
+                scores = list(task_scores.values())
+
+                # Overall score distribution statistics
+                if scores:
+                    distributions.update(
+                        {
+                            "learning_progress/pool_mean_score": np.mean(scores),
+                            "learning_progress/pool_std_score": np.std(scores),
+                            "learning_progress/pool_min_score": np.min(scores),
+                            "learning_progress/pool_max_score": np.max(scores),
+                            "learning_progress/pool_num_tasks": len(scores),
+                        }
+                    )
+
+                    # Add percentiles
+                    percentiles = [25, 50, 75, 90, 95]
+                    for p in percentiles:
+                        distributions[f"learning_progress/pool_score_p{p}"] = (
+                            np.percentile(scores, p)
+                        )
+
+                # Group by task dependency position (task position in chain)
+                position_scores = {}
+                label_scores = {}  # Group by task labels
+
+                for task_id, score in task_scores.items():
+                    position = task_id % self.num_tasks  # Position in dependency chain
+                    if position not in position_scores:
+                        position_scores[position] = []
+                    position_scores[position].append(score)
+
+                    # Group by task label (from curriculum task)
+                    if task_id in curriculum._tasks:
+                        task = curriculum._tasks[task_id]
+                        label = getattr(
+                            task._env_cfg, "label", f"task_dependency_{task_id}"
+                        )
+                        # Extract just the position part for consistent labeling
+                        if "task_dependency_" in label:
+                            label_key = f"task_dep_pos_{position}"
+                        else:
+                            label_key = label
+
+                        if label_key not in label_scores:
+                            label_scores[label_key] = []
+                        label_scores[label_key].append(score)
+
+                # Statistics by position in dependency chain
+                for position, pos_scores in position_scores.items():
+                    if pos_scores:
+                        distributions.update(
+                            {
+                                f"learning_progress/position_{position}_mean_score": np.mean(
+                                    pos_scores
+                                ),
+                                f"learning_progress/position_{position}_std_score": np.std(
+                                    pos_scores
+                                ),
+                                f"learning_progress/position_{position}_count": len(
+                                    pos_scores
+                                ),
+                            }
+                        )
+
+                # Statistics by task label
+                for label, label_scores_list in label_scores.items():
+                    if label_scores_list:
+                        distributions.update(
+                            {
+                                f"learning_progress/label_{label}_mean_score": np.mean(
+                                    label_scores_list
+                                ),
+                                f"learning_progress/label_{label}_std_score": np.std(
+                                    label_scores_list
+                                ),
+                                f"learning_progress/label_{label}_count": len(
+                                    label_scores_list
+                                ),
+                            }
+                        )
+
+                # Score distribution bins (histogram-like)
+                if scores:
+                    score_bins = np.linspace(
+                        0, max(scores) if max(scores) > 0 else 1, 10
+                    )
+                    hist, _ = np.histogram(scores, bins=score_bins)
+                    for i, count in enumerate(hist):
+                        distributions[f"learning_progress/pool_score_bin_{i}"] = count
+
+                    # Store raw scores for wandb histogram creation
+                    distributions["_learning_progress_scores_raw"] = scores
+
+                    # Store position-specific scores for histograms
+                    for position, pos_scores in position_scores.items():
+                        if pos_scores:
+                            distributions[
+                                f"_learning_progress_position_{position}_scores"
+                            ] = pos_scores
+
+        except Exception as e:
+            logger.warning(f"Failed to extract learning progress distributions: {e}")
+
+        return distributions
+
     def is_complete(self) -> bool:
         """Check if simulation is complete."""
         return self.current_epoch >= self.num_epochs
@@ -228,19 +351,23 @@ class MockTaskGenerator(TaskGenerator):
 def create_curriculum(
     num_tasks: int = 10,
     enable_detailed_slice_logging: bool = False,
+    ema_timescale: float = 0.001,
+    slow_timescale_factor: float = 0.2,
+    exploration_bonus: float = 0.1,
 ) -> CurriculumConfig:
     """Create curriculum configuration for task dependency simulation."""
     task_gen_config = MockTaskGenerator.Config()
 
     algorithm_config = LearningProgressConfig(
         use_bidirectional=True,
-        ema_timescale=0.001,
-        exploration_bonus=0.1,
+        ema_timescale=ema_timescale,
+        slow_timescale_factor=slow_timescale_factor,
+        exploration_bonus=exploration_bonus,
         max_memory_tasks=1000,
         max_slice_axes=3,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        num_active_tasks=min(16, num_tasks),
-        rand_task_rate=0.25,
+        num_active_tasks=1000,
+        rand_task_rate=0.01,
     )
 
     return CurriculumConfig(
@@ -259,6 +386,9 @@ def simulate_task_dependencies(
     performance_threshold: float = 0.9,
     task_seed: Optional[int] = None,
     enable_detailed_slice_logging: bool = False,
+    ema_timescale: float = 0.001,
+    slow_timescale_factor: float = 0.2,
+    exploration_bonus: float = 0.1,
     wandb_project: str = "task_dependency_simulator",
     wandb_run_name: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -295,6 +425,9 @@ def simulate_task_dependencies(
     curriculum_config = create_curriculum(
         num_tasks=num_tasks,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
+        ema_timescale=ema_timescale,
+        slow_timescale_factor=slow_timescale_factor,
+        exploration_bonus=exploration_bonus,
     )
     curriculum = Curriculum(curriculum_config)
 
@@ -320,6 +453,11 @@ def simulate_task_dependencies(
         # Complete epoch and collect metrics
         epoch_metrics = simulator.complete_epoch()
         epoch_metrics.update(curriculum.stats())
+
+        # Add learning progress score distributions
+        lp_distributions = simulator._get_learning_progress_distributions(curriculum)
+        epoch_metrics.update(lp_distributions)
+
         metrics_history.append(epoch_metrics)
 
         # Log progress
@@ -352,12 +490,51 @@ def simulate_task_dependencies(
                 "lambda_forget": lambda_forget,
                 "performance_threshold": performance_threshold,
                 "task_seed": task_seed,
+                "ema_timescale": ema_timescale,
+                "slow_timescale_factor": slow_timescale_factor,
+                "exploration_bonus": exploration_bonus,
             }
         )
 
         # Log metrics for each epoch
         for epoch, metrics in enumerate(metrics_history):
-            wandb.log(metrics, step=epoch)
+            # Extract raw scores for histogram creation
+            epoch_metrics = metrics.copy()
+
+            # Create wandb histograms from raw data
+            if "_learning_progress_scores_raw" in epoch_metrics:
+                scores = epoch_metrics.pop("_learning_progress_scores_raw")
+                if scores:
+                    # Create main histogram of all learning progress scores
+                    epoch_metrics["learning_progress/pool_score_histogram"] = (
+                        wandb.Histogram(scores)
+                    )
+
+            # Create position-specific histograms
+            position_keys_to_remove = []
+            for key in list(epoch_metrics.keys()):
+                if key.startswith("_learning_progress_position_") and key.endswith(
+                    "_scores"
+                ):
+                    # Extract position number and scores
+                    parts = key.split("_")
+                    position = parts[3]  # From "_learning_progress_position_N_scores"
+                    pos_scores = epoch_metrics[key]
+
+                    if pos_scores:
+                        # Create histogram for this position
+                        epoch_metrics[
+                            f"learning_progress/position_{position}_histogram"
+                        ] = wandb.Histogram(pos_scores)
+
+                    # Mark for removal (don't log raw scores)
+                    position_keys_to_remove.append(key)
+
+            # Remove raw score arrays from metrics
+            for key in position_keys_to_remove:
+                epoch_metrics.pop(key, None)
+
+            wandb.log(epoch_metrics, step=epoch)
 
         # Log final summary
         wandb.log({"simulation_summary": results})
@@ -440,6 +617,11 @@ class TaskDependencySimulationTool(Tool):
     task_seed: Optional[int] = None
     enable_detailed_slice_logging: bool = False
 
+    # Learning progress parameters
+    ema_timescale: float = 0.001
+    slow_timescale_factor: float = 0.2
+    exploration_bonus: float = 0.1
+
     # Wandb parameters
     wandb_project: str = "task_dependency_simulator"
     wandb_run_name: Optional[str] = None
@@ -458,6 +640,9 @@ class TaskDependencySimulationTool(Tool):
                 performance_threshold=self.performance_threshold,
                 task_seed=self.task_seed,
                 enable_detailed_slice_logging=self.enable_detailed_slice_logging,
+                ema_timescale=self.ema_timescale,
+                slow_timescale_factor=self.slow_timescale_factor,
+                exploration_bonus=self.exploration_bonus,
                 wandb_project=self.wandb_project,
                 wandb_run_name=self.wandb_run_name,
             )
