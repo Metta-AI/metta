@@ -304,61 +304,33 @@ class Curriculum(StatsLogger):
         # Always initialize task pool at capacity
         self._initialize_at_capacity()
 
-    def get_task(self, exclude_task_id: int | None = None) -> CurriculumTask:
-        """Sample a task from the population.
-
-        Parameters
-        ----------
-        exclude_task_id: int | None
-            If provided, avoid returning the task with this id when alternatives exist.
-        """
-
-        task = self._select_task(exclude_task_id=exclude_task_id)
-        task._num_scheduled += 1
-        return task
-
-    def _select_task(self, exclude_task_id: int | None = None) -> CurriculumTask:
-        """Internal helper to select or create a task, respecting exclusions."""
-
-        task = self._select_raw_task()
-
-        if exclude_task_id is None:
-            return task
-
-        if task._task_id != exclude_task_id:
-            return task
-
-        alternative_ids = [tid for tid in self._tasks.keys() if tid != exclude_task_id]
-        if alternative_ids:
-            return self._tasks[self._rng.choice(alternative_ids)]
-
-        # No alternative available. Evict completed task and create a new one to keep capacity.
-        self._evict_specific_task(exclude_task_id)
-        return self._select_raw_task()
-
-    def _select_raw_task(self) -> CurriculumTask:
-        """Select a task without applying exclusion rules."""
-
+    def get_task(self) -> CurriculumTask:
+        """Sample a task from the population."""
         # Curriculum always manages the task pool - no delegation
         if len(self._tasks) < self._config.num_active_tasks:
-            return self._create_task()
+            task = self._create_task()
+        else:
+            # At capacity - check if any task meets eviction criteria first
+            task = None
+            if self._algorithm is not None:
+                evictable_tasks = [
+                    tid
+                    for tid in self._tasks.keys()
+                    if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
+                ]
+                if evictable_tasks:
+                    # Evict a task that meets the criteria and create a new one
+                    evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
+                    if evict_candidate is not None:
+                        self._evict_specific_task(evict_candidate)
+                        task = self._create_task()
 
-        # At capacity - check if any task meets eviction criteria first
-        if self._algorithm is not None:
-            evictable_tasks = [
-                tid
-                for tid in self._tasks.keys()
-                if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
-            ]
-            if evictable_tasks:
-                # Evict a task that meets the criteria and create a new one
-                evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
-                if evict_candidate is not None:
-                    self._evict_specific_task(evict_candidate)
-                    return self._create_task()
+            # If no eviction happened, choose from existing tasks
+            if task is None:
+                task = self._choose_task()
 
-        # If no eviction happened, choose from existing tasks
-        return self._choose_task()
+        task._num_scheduled += 1
+        return task
 
     def _initialize_at_capacity(self) -> None:
         """Initialize the task pool to full capacity."""

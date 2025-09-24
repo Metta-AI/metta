@@ -114,8 +114,6 @@ def curriculum_with_algorithm(arena_env, learning_progress_algorithm):
     """Create a curriculum with learning progress algorithm."""
     return CurriculumConfig(
         task_generator=SingleTaskGenerator.Config(env=arena_env),
-        num_active_tasks=4,
-        max_task_id=4,
         algorithm_config=learning_progress_algorithm,
     )
 
