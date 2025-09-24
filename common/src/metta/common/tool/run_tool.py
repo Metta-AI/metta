@@ -16,7 +16,6 @@ import traceback
 import warnings
 from typing import Any
 
-from omegaconf import OmegaConf
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
 from typing_extensions import TypeVar
@@ -119,17 +118,13 @@ def parse_value(value_str: str) -> Any:
 
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
-    """Parse CLI arguments using OmegaConf for type inference."""
+    """Parse CLI arguments into key/value pairs using simple heuristics."""
     normalized = _normalize_cli_tokens(cli_args)
-    config = OmegaConf.from_cli(normalized)
 
     parsed: dict[str, Any] = {}
     for token in normalized:
-        key, assignment = token.split("=", 1)
-        if assignment == "":
-            parsed[key] = ""
-        else:
-            parsed[key] = OmegaConf.select(config, key)
+        key, value_str = token.split("=", 1)
+        parsed[key] = parse_value(value_str)
     return parsed
 
 
