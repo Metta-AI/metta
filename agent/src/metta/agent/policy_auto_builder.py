@@ -70,27 +70,30 @@ class PolicyAutoBuilder(nn.Module):
             try:
                 from torch.nn import attention as nn_attention
 
+                # Keep the math backend enabled so masked attention can fall back when flash/efficient kernels reject boolean masks.
                 self._sdpa_context.enter_context(
                     nn_attention.sdpa_kernel(
                         backends=[
                             nn_attention.SDPBackend.FLASH_ATTENTION,
                             nn_attention.SDPBackend.EFFICIENT_ATTENTION,
+                            nn_attention.SDPBackend.MATH,
                         ]
                     )
                 )
             except (AttributeError, ImportError):
                 try:
                     self._sdpa_context.enter_context(
+                        # Mirror the behavior of the torch.nn.attention helper when it isn't available.
                         torch.backends.cuda.sdp_kernel(
                             enable_flash=True,
                             enable_mem_efficient=True,
-                            enable_math=False,
+                            enable_math=True,
                         )
                     )
                 except AttributeError:
                     torch.backends.cuda.enable_flash_sdp(True)
                     torch.backends.cuda.enable_mem_efficient_sdp(True)
-                    torch.backends.cuda.enable_math_sdp(False)
+                    torch.backends.cuda.enable_math_sdp(True)
             torch.set_float32_matmul_precision("high")
         logs = []
         for _, value in self.components.items():
