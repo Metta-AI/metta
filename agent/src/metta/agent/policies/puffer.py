@@ -86,9 +86,10 @@ class PufferPolicy(Policy):
         self.max_vec = torch.maximum(self.max_vec, torch.ones_like(self.max_vec))
         self.max_vec = self.max_vec[None, :, None, None]
 
-        # Create actor heads for each action: one for action type, and one for each action's max args + 1
-        action_dims = [len(env_metadata.action_names)] + [max_args + 1 for max_args in env_metadata.max_action_args]
-        self.actor = nn.ModuleList([nn.Linear(512, n) for n in action_dims])
+        # Calculate total number of (action_type, action_param) combinations
+        # This matches how ActionEmbedding creates action names like "move_0", "attack_0", "attack_1", etc.
+        total_actions = sum(max_args + 1 for max_args in env_metadata.max_action_args)
+        self.actor = nn.Linear(512, total_actions)
         self.value = nn.Linear(512, 1)
 
         # Use LSTM from config
@@ -157,8 +158,7 @@ class PufferPolicy(Policy):
 
     def decode_actions(self, hidden):
         """Decode hidden state into action logits."""
-        logits = [actor_head(hidden) for actor_head in self.actor]
-        return logits
+        return self.actor(hidden)
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
@@ -172,11 +172,8 @@ class PufferPolicy(Policy):
         # Pass through LSTM: [B, 512] -> [B, 512]
         self.lstm(td)
 
-        # Decode actions
-        logits = self.decode_actions(td["core"])
-
-        # Concatenate logits for action_probs component (they have different sizes)
-        td["logits"] = torch.cat(logits, dim=-1)
+        # Decode actions - now returns a single tensor with all action-param combinations
+        td["logits"] = self.decode_actions(td["core"])
 
         # Get value
         self.value_head(td)
