@@ -21,7 +21,6 @@ from devops.skypilot.utils.subprocess_helpers import terminate_process_group
 from metta.common.util.log_config import getRankAwareLogger
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.common.wandb.utils import log_to_wandb_summary
-from mettagrid.config import Config
 
 logger = getRankAwareLogger(__name__)
 
@@ -183,7 +182,7 @@ def main() -> int:
                 )
                 try:
                     logger.info("Entering WandbContext...")
-                    with WandbContext(wandb_cfg, Config(**job_config.to_safe_dict())) as run:
+                    with WandbContext(wandb_cfg, extra_cfg=job_config.to_safe_dict()) as run:
                         if run:
                             logger.info(f"WandbContext created, run id: {run.id}")
                             log_to_wandb_summary(metrics)

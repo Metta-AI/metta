@@ -1,6 +1,7 @@
 import logging
 import os
 import socket
+from typing import Any
 
 import wandb
 import wandb.sdk.wandb_run
@@ -46,18 +47,31 @@ class WandbContext:
 
     Usually initialized in the following way:
 
-        with WandbContext(cfg.wandb, cfg) as wandb_run:
+        with WandbContext(wandb_cfg) as wandb_run:
+            ...
+
+    Or with extra configuration:
+
+        with WandbContext(wandb_cfg, extra_cfg=config) as wandb_run:
             ...
     """
 
     def __init__(
         self,
-        cfg: WandbConfig,
-        global_cfg: Config,
+        wandb_cfg: WandbConfig,
+        extra_cfg: Config | dict[str, Any] | None = None,
         timeout: int = 30,
     ):
-        self.cfg = cfg
-        self.global_cfg = global_cfg
+        """
+        Initialize WandbContext.
+
+        Args:
+            wandb_cfg: WandB configuration
+            extra_cfg: Optional Config object or dict to log to the wandb run
+            timeout: Connection timeout in seconds
+        """
+        self.cfg = wandb_cfg
+        self.extra_cfg = extra_cfg
         self.run: WandbRun | None = None
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
@@ -85,12 +99,22 @@ class WandbContext:
         try:
             tags = list(self.cfg.tags)
             tags.append("user:" + os.environ.get("METTA_USER", "unknown"))
+
+            # Build config dict
+            config = None
+            if self.extra_cfg:
+                if isinstance(self.extra_cfg, dict):
+                    config = self.extra_cfg
+                else:
+                    # Assume it's a Config object with model_dump method
+                    config = self.extra_cfg.model_dump()
+
             self.run = wandb.init(
                 id=self.cfg.run_id,
                 job_type=self.cfg.job_type,
                 project=self.cfg.project,
                 entity=self.cfg.entity,
-                config=self.global_cfg.model_dump(),
+                config=config,
                 group=self.cfg.group,
                 allow_val_change=True,
                 monitor_gym=True,
