@@ -59,8 +59,10 @@ class ViTSmallConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
-class ViTDefaultConfig(ViTSmallConfig):
+class ViTDefaultConfig(PolicyArchitecture):
     """Speed-optimized ViT variant with lighter token embeddings and attention stack."""
+
+    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _hidden_size = 128
     _embedding_dim = 16

@@ -72,6 +72,31 @@ class Trainer:
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
         self._policy.train()
+
+        compile_requested = getattr(self._cfg, "compile", False)
+        compile_mode = getattr(self._cfg, "compile_mode", None)
+        if compile_requested and not hasattr(torch, "compile"):
+            logger.warning(
+                "torch.compile requested but unavailable in this PyTorch build; continuing without compilation."
+            )
+            compile_requested = False
+
+        if compile_requested and self._distributed_helper.get_world_size() > 1:
+            logger.warning(
+                "torch.compile is currently unsupported with DistributedDataParallel in this configuration; skipping."
+            )
+            compile_requested = False
+
+        if compile_requested:
+            compile_kwargs = {}
+            if compile_mode:
+                compile_kwargs["mode"] = compile_mode
+            try:
+                self._policy = torch.compile(self._policy, **compile_kwargs)
+                logger.info("Enabled torch.compile with mode=%s", compile_kwargs.get("mode"))
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("torch.compile failed (%s); continuing without it.", exc)
+
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
