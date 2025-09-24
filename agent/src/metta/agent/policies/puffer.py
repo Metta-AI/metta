@@ -99,7 +99,7 @@ class PufferPolicy(Policy):
         # Action probabilities component
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
-    def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
+    def encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
         """Converts raw observation tokens into a concatenated self + CNN feature vector."""
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
