@@ -37,7 +37,6 @@ class ObsAttrCoordEmbed(nn.Module):
 
         self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
-
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
@@ -67,6 +66,7 @@ class ObsAttrCoordEmbed(nn.Module):
         feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
 
         td[self.config.out_key] = feat_vectors
+
         return td
 
 
@@ -110,7 +110,6 @@ class ObsAttrEmbedFourier(nn.Module):
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
         self.register_buffer("frequencies", 2.0 ** torch.arange(self._num_freqs))
-
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
@@ -169,6 +168,7 @@ class ObsAttrEmbedFourier(nn.Module):
         feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(attr_values, "... -> ... 1")
 
         td[self.config.out_key] = feat_vectors
+
         return td
 
 

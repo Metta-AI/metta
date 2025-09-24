@@ -71,7 +71,8 @@ class PolicyAutoBuilder(nn.Module):
             try:
                 from torch.nn import attention as nn_attention
 
-                # Keep the math backend enabled so masked attention can fall back when flash/efficient kernels reject boolean masks.
+                # Keep the math backend enabled so masked attention can fall back when
+                # flash/efficient kernels reject boolean masks.
                 self._sdpa_context.enter_context(
                     nn_attention.sdpa_kernel(
                         backends=[

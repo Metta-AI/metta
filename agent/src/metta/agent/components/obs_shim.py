@@ -190,13 +190,14 @@ class ObsAttrValNorm(nn.Module):
 
     def forward(self, td: TensorDict) -> TensorDict:
         observations = td[self.in_key]
-
         attr_indices = observations[..., 1].long()
         norm_factors = self._norm_factors[attr_indices]
-        observations = observations.clone()
-        observations[..., 2] = observations[..., 2] / norm_factors
+        observations = observations.to(torch.float32)
+        normalized_values = observations[..., 2] / norm_factors
+        observations[..., 2] = normalized_values
 
         td[self.out_key] = observations
+
         return td
 
 
