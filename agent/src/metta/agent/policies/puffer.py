@@ -37,8 +37,6 @@ class PufferPolicyConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
-
-
 class PufferPolicy(Policy):
     """Policy that exactly matches PufferLib architecture for seamless checkpoint loading."""
 

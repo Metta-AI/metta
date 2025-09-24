@@ -7,18 +7,11 @@ and loads them into compatible Metta agents.
 """
 
 import logging
-from typing import Any, Dict, Optional, TypeGuard
+from typing import Any, Dict, TypeGuard
 
-import einops
 import torch
-from tensordict import TensorDict
-from torch import nn
 
-from metta.agent.components.actor import ActionProbsConfig
-from metta.agent.components.lstm import LSTM, LSTMConfig
-from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.policies.puffer import PufferPolicy, PufferPolicyConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +134,3 @@ class PufferLibCheckpoint:
         policy = _create_metta_agent(device)
         processed_state = _preprocess_state_dict(checkpoint_data)
         return _load_state_dict_into_agent(policy, processed_state)
-
-
-
-
