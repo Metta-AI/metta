@@ -27,7 +27,8 @@ except ImportError:
         "try installing with --no-build-isolation"
     ) from None
 
-torch.set_float32_matmul_precision("high")
+# Keep TF32 fast paths enabled on compatible GPUs.
+torch.set_float32_matmul_precision("medium")
 logger = logging.getLogger(__name__)
 
 
