@@ -9,6 +9,7 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
+from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.file import local_copy, write_file
@@ -226,7 +227,13 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
 def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
-        return torch.load(path, weights_only=False, map_location=device)
+        checkpoint_data = torch.load(path, weights_only=False, map_location=device)
+
+        if _is_puffer_state_dict(checkpoint_data):
+            return load_pufferlib_checkpoint(checkpoint_data, device)
+
+        return checkpoint_data
+
     except FileNotFoundError:
         raise
     except (pickle.UnpicklingError, RuntimeError, OSError) as err:
