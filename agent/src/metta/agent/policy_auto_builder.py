@@ -10,6 +10,7 @@ from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.util.profile import PROFILER
 from mettagrid.config import Config
 
 logger = logging.getLogger("metta_agent")
@@ -54,8 +55,10 @@ class PolicyAutoBuilder(nn.Module):
         )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
-        self.network(td)
-        self.action_probs(td, action)
+        with PROFILER.section("network"):
+            self.network(td)
+        with PROFILER.section("action_head"):
+            self.action_probs(td, action)
         td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td
 
@@ -117,10 +120,12 @@ class PolicyAutoBuilder(nn.Module):
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
-                logs.append(value.initialize_to_environment(env, device))
+                with PROFILER.section(f"init_{value.__class__.__name__}"):
+                    logs.append(value.initialize_to_environment(env, device))
         if hasattr(self, "action_probs"):
             if hasattr(self.action_probs, "initialize_to_environment"):
-                self.action_probs.initialize_to_environment(env, device)
+                with PROFILER.section("init_action_probs"):
+                    self.action_probs.initialize_to_environment(env, device)
 
         for log in logs:
             if log is not None:

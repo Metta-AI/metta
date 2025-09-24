@@ -68,7 +68,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     _embedding_dim = 16
 
     _token_embed_dim = 8
-    _fourier_freqs = 6
+    _fourier_freqs = 3
     _latent_dim = 128
     _lstm_latent = 128
     _actor_hidden = 512
@@ -92,7 +92,7 @@ class ViTDefaultConfig(PolicyArchitecture):
             out_key="obs_latent_attn",
             feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
             latent_dim=_latent_dim,
-            num_latents=16,
+            num_latents=12,
             num_heads=4,
             num_layers=2,
         ),

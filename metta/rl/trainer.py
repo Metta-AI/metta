@@ -147,6 +147,11 @@ class Trainer:
 
         try:
             while self._state.agent_step < self._cfg.total_timesteps:
+                if self._state.agent_step % max(1, self._cfg.batch_size) == 0:
+                    from metta.agent.util.profile import PROFILER
+
+                    logger.info(PROFILER.summary())
+                    PROFILER.reset()
                 self._train_epoch_callable()
 
         except Exception:

@@ -22,6 +22,7 @@ from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.util.profile import PROFILER
 
 logger = logging.getLogger(__name__)
 
@@ -100,18 +101,28 @@ class FastPolicy(Policy):
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations hurting performance
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        self.obs_shim(td)
-        self.cnn_encoder(td)
-        self.lstm(td)
-        self.actor_1(td)
+        with PROFILER.section("obs_shim"):
+            self.obs_shim(td)
+        with PROFILER.section("cnn_encoder"):
+            self.cnn_encoder(td)
+        with PROFILER.section("lstm"):
+            self.lstm(td)
+        with PROFILER.section("actor_mlp"):
+            self.actor_1(td)
         td["actor_1"] = torch.relu(td["actor_1"])
-        self.critic_1(td)
+        with PROFILER.section("critic_mlp"):
+            self.critic_1(td)
         td["critic_1"] = self.critic_activation(td["critic_1"])
-        self.value_head(td)
-        self.action_embeddings(td)
-        self.actor_query(td)
-        self.actor_key(td)
-        self.action_probs(td, action)
+        with PROFILER.section("critic_head"):
+            self.value_head(td)
+        with PROFILER.section("action_embed"):
+            self.action_embeddings(td)
+        with PROFILER.section("actor_query"):
+            self.actor_query(td)
+        with PROFILER.section("actor_key"):
+            self.actor_key(td)
+        with PROFILER.section("action_probs"):
+            self.action_probs(td, action)
         td["values"] = td["values"].flatten()
 
         return td
