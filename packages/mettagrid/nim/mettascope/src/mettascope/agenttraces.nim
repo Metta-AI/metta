@@ -12,8 +12,8 @@ const
   ClickInterval = 0.3 # seconds
   ClickDistance = 10.0 # pixels
 var
-  lastClickTime: float64 = 0.0
-  lastClickPos: Vec2 = vec2(0, 0)
+  lastClickTime = 0.0f
+  lastClickPos = vec2(0, 0)
 
 proc drawAgentTraces*(panel: Panel) =
   let box = irect(0, 0, panel.rect.w, panel.rect.h)
