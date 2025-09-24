@@ -58,7 +58,7 @@ class TrainerConfig(Config):
     update_epochs: int = Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
 
-    compile: bool = False
+    compile: bool = True
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
 
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
