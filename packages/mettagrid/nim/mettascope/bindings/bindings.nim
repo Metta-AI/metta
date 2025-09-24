@@ -22,7 +22,6 @@ proc init(dataDir: string, replay: string): RenderResponse =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
-    result.shouldClose = false
     return
   except Exception:
     echo "Error initializing Mettascope2: ", getCurrentExceptionMsg()
@@ -56,7 +55,6 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
           requestActionArgument = 0
           return
         else:
-          result.shouldClose = false
           return
   except Exception:
     echo "Error rendering Mettascope2: ", getCurrentExceptionMsg()

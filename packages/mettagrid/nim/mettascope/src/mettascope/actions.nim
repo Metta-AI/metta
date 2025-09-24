@@ -37,18 +37,18 @@ proc agentControls*() =
       sendAction(agent.agentId, replay.moveActionId, W.int)
 
     # Put items
-    if window.buttonPressed[KeyQ]:
+    elif window.buttonPressed[KeyQ]:
       sendAction(agent.agentId, replay.putItemsActionId, 0)
 
     # Get items
-    if window.buttonPressed[KeyE]:
+    elif window.buttonPressed[KeyE]:
       sendAction(agent.agentId, replay.getItemsActionId, 0)
 
     # Attack
-    if window.buttonPressed[KeyZ]:
+    elif window.buttonPressed[KeyZ]:
       # TODO: Get implementation attack selection ui.
       sendAction(agent.agentId, replay.attackActionId, 0)
 
     # Noop
-    if window.buttonPressed[KeyX]:
+    elif window.buttonPressed[KeyX]:
       sendAction(agent.agentId, replay.noopActionId, 0)
