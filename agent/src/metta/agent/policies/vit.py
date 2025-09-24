@@ -6,7 +6,6 @@ from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, Acto
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.lstm import LSTMConfig
 from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_compact import ObsTokenCompactConfig
 from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrCoordEmbedConfig, ObsAttrEmbedFourierConfig
@@ -77,13 +76,8 @@ class ViTDefaultConfig(ViTSmallConfig):
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
         ),
-        ObsTokenCompactConfig(
-            in_key="obs_attr_embed",
-            out_key="obs_tokens_compact",
-            max_tokens=48,
-        ),
         ObsLatentAttnConfig(
-            in_key="obs_tokens_compact",
+            in_key="obs_attr_embed",
             out_key="obs_latent_attn",
             feat_dim=_token_embed_dim + 1,
             out_dim=_latent_dim,
