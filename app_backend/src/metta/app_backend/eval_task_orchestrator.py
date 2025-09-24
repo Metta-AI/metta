@@ -61,7 +61,7 @@ class FixedScaler(AbstractWorkerScaler):
 class AutoScaler(AbstractWorkerScaler):
     CREATED_IN_LAST_DAY_FILTER = "created_at > NOW() - INTERVAL '1 day'"
     DONE_FILTER = "status = 'done'"
-    UNPROCESSED_FILTER = "status = 'unprocessed'"
+    UNPROCESSED_FILTER = "status = 'unprocessed' OR status = 'running'"
 
     def __init__(self, task_client: EvalTaskClient, default_task_runtime_seconds: float):
         self._task_client = task_client
@@ -87,15 +87,12 @@ class AutoScaler(AbstractWorkerScaler):
         return avg_task_runtime
 
     async def get_desired_workers(self, num_workers: int) -> int:
-        num_unclaimed_tasks = (await self._task_client.count_tasks(self.UNPROCESSED_FILTER)).count
+        num_active_tasks = (await self._task_client.count_tasks(self.UNPROCESSED_FILTER)).count
+
         avg_task_runtime = await self._get_avg_task_runtime()
         num_desired_workers = await self._compute_desired_workers(avg_task_runtime)
 
-        if num_unclaimed_tasks > num_workers * 5:
-            # We have a big backlog of tasks.  Launch at least enough workers to work through the backlog in 1 hour
-            return max(num_desired_workers, math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600))
-        else:
-            return num_desired_workers
+        return max(num_desired_workers, math.ceil(num_active_tasks * avg_task_runtime / 3600))
 
 
 class EvalTaskOrchestrator:

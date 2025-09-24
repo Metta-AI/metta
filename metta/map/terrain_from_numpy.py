@@ -185,6 +185,7 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
             f"Mismatch between object names ({len(self.config.object_names)}) "
             f"and available positions ({len(converter_indices)})"
         )
+        self.config.rng.shuffle(self.config.object_names)
         for object, index in zip(self.config.object_names, converter_indices, strict=True):
             grid[tuple(index)] = object
 
