@@ -11,7 +11,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -92,6 +92,13 @@ curriculum_args = {
         "densities": ["", "balanced", "sparse", "high"],
         "room_sizes": ["tiny", "small", "medium"],
     },
+    "hard_eval": {
+        "chain_lengths": [4, 5],
+        "num_sinks": [1, 2],
+        "obstacle_types": ["square", "cross", "L"],
+        "densities": ["high"],
+        "room_sizes": ["medium"],
+    },
 }
 
 
@@ -163,6 +170,8 @@ def get_reward_estimates(
 class OrderedChainsTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
+        # Add map_dir support from main
+        self.map_dir = getattr(config, 'map_dir', 'icl_ordered_chains')
 
     def _add_converter(
         self,
@@ -216,7 +225,6 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         avg_hop,
         rng,
         max_steps=512,
-        numpy_dir: str | None = "icl_ordered_chains",
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
@@ -234,11 +242,11 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = int(cooldown)
 
-        if numpy_dir is not None:  # load from s3
+        if self.map_dir is not None:  # load from s3
             from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
-            dir = f"{numpy_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
+            dir = f"{self.map_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
             env = make_icl_with_numpy(
                 num_agents=1,
                 num_instances=24,
@@ -272,7 +280,6 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         self,
         task_id: int,
         rng: random.Random,
-        numpy_dir: str | None = "icl_ordered_chains",
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
         resources, num_sinks, room_size, obstacle_type, density, width, height = (
@@ -294,11 +301,10 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             density=density,
             avg_hop=avg_hop,
             rng=rng,
-            numpy_dir=numpy_dir,
         )
 
         # for numpy generated maps, we just load these rewards from a file
-        if numpy_dir is None and estimate_max_rewards:
+        if self.map_dir is None and estimate_max_rewards:
             # optimal reward estimates for the task, to be used in evaluation
             best_case_optimal_reward, worst_case_optimal_reward = get_reward_estimates(
                 len(resources), num_sinks, max_steps, avg_hop
@@ -315,13 +321,18 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         return icl_env
 
 
-def make_mettagrid(curriculum_style: str) -> MettaGridConfig:
-    task_generator_cfg = ICLTaskGenerator.Config(
-        **curriculum_args[curriculum_style],
-    )
+def make_mettagrid(curriculum_style: str, map_dir=None) -> MettaGridConfig:
+    # Update config to support map_dir from main
+    config_kwargs = curriculum_args[curriculum_style].copy()
+    if map_dir is not None:
+        config_kwargs['map_dir'] = map_dir
+    else:
+        config_kwargs['map_dir'] = None  # Generate environments instead of loading
+    
+    task_generator_cfg = ICLTaskGenerator.Config(**config_kwargs)
     task_generator = OrderedChainsTaskGenerator(task_generator_cfg)
 
-    env_cfg = task_generator.get_task(0)
+    env_cfg = task_generator.get_task(random.randint(0, 1000000))
 
     return env_cfg
 
@@ -329,10 +340,12 @@ def make_mettagrid(curriculum_style: str) -> MettaGridConfig:
 def make_curriculum(
     curriculum_style: str,
     lp_params: LPParams = LPParams(),
+    map_dir: str = "icl_ordered_chains",
 ) -> CurriculumConfig:
-    task_generator_cfg = ICLTaskGenerator.Config(
-        **curriculum_args[curriculum_style],
-    )
+    config_kwargs = curriculum_args[curriculum_style].copy()
+    config_kwargs['map_dir'] = map_dir
+    
+    task_generator_cfg = ICLTaskGenerator.Config(**config_kwargs)
     algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
     return CurriculumConfig(
@@ -345,13 +358,14 @@ def train(
     curriculum_style: str = "tiny",
     lp_params: LPParams = LPParams(),
     use_fast_lstm_reset: bool = True,
+    map_dir: str = "icl_ordered_chains",
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
 
-    curriculum = make_curriculum(curriculum_style, lp_params)
+    curriculum = make_curriculum(curriculum_style, lp_params, map_dir)
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
@@ -390,18 +404,18 @@ def play(
 
 
 def replay(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny_small"
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "hard_eval"
 ) -> ReplayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     # Default to the research policy if none specified
-    # default_policy_uri = "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23:v900.pt"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
             suite="in_context_learning",
             name="eval",
         ),
-        policy_uri="s3://softmax-public/policies/icl_resource_chain_tiny_small.2025-09-22/icl_resource_chain_tiny_small.2025-09-22:v500.pt",
+        policy_uri=default_policy_uri,
     )
 
 
@@ -474,13 +488,12 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                                 room_sizes=[room_size],
                                 obstacle_types=[obstacle_type],
                                 densities=[density],
+                                map_dir=None,
                             )
                             task_generator = OrderedChainsTaskGenerator(
                                 config=task_generator_cfg
                             )
-                            env_cfg = task_generator._generate_task(
-                                i, random.Random(i), numpy_dir=None
-                            )
+                            env_cfg = task_generator._generate_task(i, random.Random(i))
                             map_builder = env_cfg.game.map_builder.create()
                             map_builder.build()
 

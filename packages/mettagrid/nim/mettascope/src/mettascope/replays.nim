@@ -354,7 +354,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
   return data
 
 proc computeGainMap(replay: Replay) =
-  #$ Compute gain/loss for agents.
+  ## Compute gain/loss for agents.
   var items = [
     newSeq[int](replay.itemNames.len),
     newSeq[int](replay.itemNames.len)
@@ -530,6 +530,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "agent_id" in obj:
       replay.agents.add(entity)
 
+  # compute gain maps for static replays.
+  computeGainMap(replay)
+
   return replay
 
 proc loadReplay*(data: string, fileName: string): Replay =
@@ -580,9 +583,17 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.cooldownProgress.add(obj.cooldownProgress)
     entity.cooldownTime = obj.cooldownTime
 
-  computeGainMap(replay)
-
+  # Extend the max steps.
   replay.maxSteps = max(replay.maxSteps, step + 1)
+
+  # Populate the agents field for agent entities
+  if replay.agents.len == 0:
+    for obj in replay.objects:
+      if obj.typeId == agentTypeIndex:
+        replay.agents.add(obj)
+    doAssert replay.agents.len == replay.numAgents, "Agents and numAgents mismatch"
+
+  computeGainMap(replay)
 
 proc apply*(replay: Replay, replayStepJsonData: string) =
   ## Apply a replay step to the replay.

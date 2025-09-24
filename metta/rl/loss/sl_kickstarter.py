@@ -8,12 +8,10 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss
+from metta.rl.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
 from mettagrid.config import Config
-
-# Config class
 
 
 class SLKickstarterConfig(Config):
@@ -33,9 +31,6 @@ class SLKickstarterConfig(Config):
     ):
         """Create SLKickstarter loss instance."""
         return SLKickstarter(policy, trainer_cfg, vec_env, device, instance_name=instance_name, loss_config=loss_config)
-
-
-# Loss class
 
 
 class SLKickstarter(Loss):
