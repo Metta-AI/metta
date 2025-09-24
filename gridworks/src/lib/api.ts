@@ -86,47 +86,55 @@ export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
   );
 }
 
-const mettagridCfgFileMetadataSchema = z.object({
+const configMakerSchema = z.object({
   absolute_path: z.string(),
   path: z.string(),
   kind: z.string(),
+  line: z.number(),
 });
 
-const mettagridCfgFileSchema = z.object({
-  metadata: mettagridCfgFileMetadataSchema,
-  cfg: z.unknown(),
+const viewConfigSchema = z.object({
+  maker: configMakerSchema,
+  config: z.object({
+    value: z
+      .record(z.string(), z.unknown())
+      .or(z.array(z.record(z.string(), z.unknown()))),
+    unset_fields: z.array(z.string()),
+  }),
 });
 
-export type MettagridCfgFile = z.infer<typeof mettagridCfgFileSchema>;
+export type Config = z.infer<typeof viewConfigSchema>;
 
-const mettagridCfgsMetadataSchema = z.object({
-  env: z.array(mettagridCfgFileMetadataSchema).optional(),
-  curriculum: z.array(mettagridCfgFileMetadataSchema).optional(),
-  map: z.array(mettagridCfgFileMetadataSchema).optional(),
-  unknown: z.array(mettagridCfgFileMetadataSchema).optional(),
-});
+const groupedConfigMakersSchema = z.record(
+  z.string(),
+  z.array(configMakerSchema).optional()
+);
 
-type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
+type GroupedConfigMakers = z.infer<typeof groupedConfigMakersSchema>;
 
-export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata> {
+export async function listConfigMakers(): Promise<GroupedConfigMakers> {
+  return await fetchApi(`${API_URL}/configs`, groupedConfigMakersSchema);
+}
+
+export async function getConfig(path: string): Promise<Config> {
   return await fetchApi(
-    `${API_URL}/mettagrid-cfgs`,
-    mettagridCfgsMetadataSchema
+    `${API_URL}/configs/get?path=${encodeURIComponent(path)}`,
+    viewConfigSchema
   );
 }
 
-export async function getMettagridCfgFile(
-  path: string
-): Promise<MettagridCfgFile> {
-  return await fetchApi(
-    `${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`,
-    mettagridCfgFileSchema
-  );
-}
+export async function getConfigMap(
+  path: string,
+  name?: string
+): Promise<StorableMap> {
+  const queryParams = new URLSearchParams();
+  queryParams.set("path", path);
+  if (name) {
+    queryParams.set("name", name);
+  }
 
-export async function getMettagridCfgMap(path: string): Promise<StorableMap> {
   return await fetchApi(
-    `${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`,
+    `${API_URL}/configs/get-map?${queryParams.toString()}`,
     storableMapSchema
   );
 }

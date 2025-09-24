@@ -33,7 +33,6 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
 echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
-echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
@@ -139,12 +138,12 @@ shutdown() {
   echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
 
   # Read and preserve the termination reason if it exists
-  local termination_reason="$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || true)"
+  local termination_reason="$(cat "$TERMINATION_REASON_FILE" 2> /dev/null || true)"
 
   # If no termination reason was set, check cluster stop file
   if [[ -z "$termination_reason" ]]; then
     if [[ -f "$CLUSTER_STOP_FILE" ]]; then
-      termination_reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || echo "cluster_stop")"
+      termination_reason="$(cat "$CLUSTER_STOP_FILE" 2> /dev/null || echo "cluster_stop")"
     else
       termination_reason="cluster_stop"
     fi
@@ -249,17 +248,11 @@ run_cmd() {
   # Build the command as an array
   local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
-  # Add --args if METTA_ARGS is not empty
+  # Add args if METTA_ARGS is not empty
   if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(--args)
     cmd+=(${METTA_ARGS}) # split on spaces
   fi
 
-  # Add --overrides if METTA_OVERRIDES is not empty
-  if [ -n "${METTA_OVERRIDES:-}" ]; then
-    cmd+=(--overrides)
-    cmd+=(${METTA_OVERRIDES}) # split on spaces
-  fi
   echo "[INFO] Running command: ${cmd[*]}"
 
   # Use process substitution so $! is the trainer (not tee)

@@ -205,14 +205,17 @@ export async function autoImportArxivPaper(
         console.log(
           `🤖 Queuing LLM abstract generation for existing paper: ${existingPaper.id}`
         );
-        PaperAbstractService.generateAbstractForPaper(existingPaper.id).catch(
-          (error) => {
-            console.error(
-              `❌ Failed to generate LLM abstract for existing paper ${existingPaper.id}:`,
-              error
-            );
-          }
-        );
+        try {
+          const { queueLLMAbstractGeneration } = await import(
+            "./background-jobs"
+          );
+          await queueLLMAbstractGeneration(existingPaper.id);
+        } catch (error) {
+          console.error(
+            `❌ Failed to queue LLM abstract for existing paper ${existingPaper.id}:`,
+            error
+          );
+        }
       }
 
       return existingPaper.id;
@@ -287,19 +290,25 @@ export async function autoImportArxivPaper(
     // Generate LLM abstract in the background using job queue
     console.log(`🤖 Queuing LLM abstract generation for paper: ${paper.id}`);
     try {
-      const { queueLLMAbstractGeneration } = await import('./background-jobs');
+      const { queueLLMAbstractGeneration } = await import("./background-jobs");
       await queueLLMAbstractGeneration(paper.id);
     } catch (error) {
-      console.error(`❌ Failed to queue LLM abstract for paper ${paper.id}:`, error);
+      console.error(
+        `❌ Failed to queue LLM abstract for paper ${paper.id}:`,
+        error
+      );
     }
 
     // Auto-tag the paper in the background using job queue
     console.log(`🏷️ Queuing auto-tagging for paper: ${paper.id}`);
     try {
-      const { queueAutoTagging } = await import('./background-jobs');
+      const { queueAutoTagging } = await import("./background-jobs");
       await queueAutoTagging(paper.id);
     } catch (error) {
-      console.error(`❌ Failed to queue auto-tagging for paper ${paper.id}:`, error);
+      console.error(
+        `❌ Failed to queue auto-tagging for paper ${paper.id}:`,
+        error
+      );
     }
 
     return paper.id;
@@ -408,7 +417,7 @@ export async function processArxivAutoImport(
     return null;
   }
 
-  return await autoImportArxivPaperSync(arxivUrl); // Use sync version for immediate import
+  return await autoImportArxivPaper(arxivUrl); // Use worker version for background processing
 }
 
 /**

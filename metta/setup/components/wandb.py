@@ -57,6 +57,7 @@ class WandbSetup(SetupModule):
         elif saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("Weights & Biases access should be provided via environment variables.")
             info("Skipping W&B setup.")
+            return
         else:
             info("""
                 To use Weights & Biases, you'll need an account.
@@ -91,6 +92,10 @@ class WandbSetup(SetupModule):
             return None
         except Exception:
             return None
+
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return True
 
     def to_config_settings(self) -> dict[str, str | bool]:
         saved_settings = get_saved_settings()

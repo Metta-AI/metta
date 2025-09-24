@@ -8,7 +8,9 @@ repositories:
   - name: metrics-server
     url: https://kubernetes-sigs.github.io/metrics-server/
   - name: skypilot
-    url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-main
+    url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
+  # - name: skypilot-beta
+  #   url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
   - name: datadog
     url: https://helm.datadoghq.com
 
@@ -111,18 +113,18 @@ releases:
   #
   # You'll need to copy some secrets to the new namespace:
   #
-  # for s in lambda-ai-secrets aws-credentials softmax-infra-oauth; do
+  # for s in lambda-ai-credentials aws-credentials softmax-infra-oauth; do
   #   kubectl get secret $s --namespace=skypilot -o yaml | sed 's/namespace: .*/namespace: skypilot-beta/' | kubectl apply -f -
   # done
 
   # - name: skypilot-beta
-  #   chart: skypilot/skypilot
+  #   chart: skypilot-beta/skypilot
   #   version: 0.0.0
   #   namespace: skypilot-beta
   #   values:
   #     - ./helm.values/skypilot-values.yaml
   #     - apiService:
-  #         image: berkeleyskypilot/skypilot:0.10.2
+  #         image: berkeleyskypilot/skypilot:0.10.3
   #       rbac:
   #         manageRbacPolicies: false
   #         manageSystemComponents: false

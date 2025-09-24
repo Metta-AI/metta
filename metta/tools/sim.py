@@ -3,38 +3,33 @@ import logging
 import sys
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Sequence
 
 import torch
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
-from metta.common.wandb.wandb_context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.eval.eval_service import evaluate_policy
+from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
+from mettagrid.util.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
 
 def _determine_run_name(policy_uri: str) -> str:
-    if policy_uri.startswith("file://"):
-        # Extract checkpoint name from file path
-        checkpoint_path = Path(policy_uri.replace("file://", ""))
-        return f"eval_{checkpoint_path.stem}"
-    elif policy_uri.startswith("wandb://"):
-        # Extract artifact name from wandb URI
-        # Format: wandb://entity/project/artifact:version
-        artifact_part = policy_uri.split("/")[-1]
+    parsed = ParsedURI.parse(policy_uri)
+    if parsed.scheme == "file" and parsed.local_path is not None:
+        return f"eval_{parsed.local_path.stem}"
+    if parsed.scheme == "wandb" and parsed.wandb is not None:
+        artifact_part = parsed.wandb.artifact_path.split("/")[-1]
         return f"eval_{artifact_part.replace(':', '_')}"
-    else:
-        # Fallback to timestamp
-        return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
 class SimTool(Tool):
@@ -52,16 +47,24 @@ class SimTool(Tool):
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
             raise ValueError("policy_uris is required")
 
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
 
+        for uri in self.policy_uris:
+            parsed_uri = ParsedURI.parse(uri)
+            if parsed_uri.scheme == "wandb":
+                raise ValueError(
+                    "Policy artifacts must be stored on local disk or S3. "
+                    "Download the checkpoint and re-run with a file:// or s3:// URI."
+                )
+
         stats_client: StatsClient | None = None
         if self.stats_server_uri is not None:
-            stats_client = StatsClient.create(self.stats_server_uri)
+            stats_client = HttpStatsClient.create(self.stats_server_uri)
 
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
@@ -107,7 +110,7 @@ class SimTool(Tool):
             )
             if self.push_metrics_to_wandb:
                 try:
-                    process_policy_evaluator_stats(policy_uri, eval_results)
+                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results)
                 except Exception as e:
                     logger.error(f"Error logging evaluation results to wandb: {e}")
             results["checkpoints"].append(

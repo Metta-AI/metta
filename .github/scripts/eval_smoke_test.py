@@ -41,7 +41,6 @@ class EvaluationSmokeTest(SmokeTest):
             "run",
             "./tools/run.py",
             "experiments.recipes.navigation.eval",
-            "--overrides",
             f"policy_uris=wandb://run/{self.policy}",
             "stats_db_uri=wandb://stats/navigation_db",
             "system.seed=31415",

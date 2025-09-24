@@ -69,6 +69,10 @@ class ObservatoryKeySetup(SetupModule):
 
         return None
 
+    @property
+    def can_remediate_connected_status_with_install(self) -> bool:
+        return True
+
     def to_config_settings(self) -> dict[str, str | None]:
         if self.is_enabled() and get_saved_settings().user_type.is_softmax:
             return {"stats_server_uri": PROD_STATS_SERVER_URI}

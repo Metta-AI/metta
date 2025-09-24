@@ -3,7 +3,7 @@ import { createContext, FC, useContext, useState } from "react";
 
 import { SceneTree } from "@/lib/api";
 
-import { JsonAsYaml } from "./JsonAsYaml";
+import { ConfigViewer } from "./ConfigViewer";
 
 const ParamsViewer: FC<{ params: Record<string, unknown> }> = ({ params }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -26,7 +26,7 @@ const ParamsViewer: FC<{ params: Record<string, unknown> }> = ({ params }) => {
         </span>
         Parameters ({Object.keys(params).length})
       </button>
-      {isExpanded && <JsonAsYaml json={params} />}
+      {isExpanded && <ConfigViewer value={params} />}
     </div>
   );
 };

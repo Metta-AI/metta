@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
+from typing import Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
 
 from pydantic import (
     ConfigDict,
@@ -15,12 +15,9 @@ from pydantic import (
 )
 from typing_extensions import Generic
 
-from metta.mettagrid.config import Config
-from metta.mettagrid.mettagrid_config import MettaGridConfig
-from metta.mettagrid.util.module import load_symbol
-
-if TYPE_CHECKING:
-    pass
+from mettagrid.config import Config
+from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +63,18 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
                 f"either define it nested under the generator or set `_generator_cls`."
             )
         return cls._generator_cls
+
+    def to_curriculum(self, num_active_tasks: int = 16, algorithm_config=None):
+        """Create a CurriculumConfig from this TaskGeneratorConfig."""
+        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+
+        if algorithm_config is None:
+            algorithm_config = LearningProgressConfig()
+
+        return CurriculumConfig(
+            task_generator=self, num_active_tasks=num_active_tasks, algorithm_config=algorithm_config
+        )
 
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
@@ -192,7 +201,16 @@ class TaskGeneratorSet(TaskGenerator):
         self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        return rng.choices(self._sub_task_generators, weights=self._weights)[0].get_task(task_id)
+        chosen_generator = rng.choices(self._sub_task_generators, weights=self._weights)[0]
+        result = chosen_generator.get_task(task_id)
+
+        # Propagate bucket values if the chosen generator has them
+        if hasattr(chosen_generator, "_last_bucket_values"):
+            self._last_bucket_values = chosen_generator._last_bucket_values.copy()
+        else:
+            self._last_bucket_values = {}
+
+        return result
 
 
 ################################################################################
@@ -278,6 +296,9 @@ class BucketedTaskGenerator(TaskGenerator):
         for key, bucket_values in self._config.buckets.items():
             overrides[key] = self._get_bucket_value(bucket_values, rng)
 
+        # Store the bucket values for the curriculum to access
+        self._last_bucket_values = overrides.copy()
+
         # Get task from the child generator
         mg_config = self._child_generator.get_task(task_id)
         if self._config.label is not None:
@@ -310,13 +331,13 @@ def _validate_open_task_generator(v: Any, handler):
             # Special handling for known task generators
             if target is SingleTaskGenerator:
                 data = {k: v for k, v in v.items() if k != "type"}
-                return SingleTaskGeneratorConfig.model_validate(data)
+                return SingleTaskGenerator.Config.model_validate(data)
             elif target is TaskGeneratorSet:
                 data = {k: v for k, v in v.items() if k != "type"}
-                return TaskGeneratorSetConfig.model_validate(data)
+                return TaskGeneratorSet.Config.model_validate(data)
             elif target is BucketedTaskGenerator:
                 data = {k: v for k, v in v.items() if k != "type"}
-                return BucketedTaskGeneratorConfig.model_validate(data)
+                return BucketedTaskGenerator.Config.model_validate(data)
             else:
                 # Generic handling for unknown task generators
                 cfg_model = getattr(target, "Config", None)
@@ -341,9 +362,3 @@ def _validate_open_task_generator(v: Any, handler):
 AnyTaskGeneratorConfig = SerializeAsAny[
     Annotated[TaskGeneratorConfig[Any], WrapValidator(_validate_open_task_generator)]
 ]
-
-
-# Create aliases for backward compatibility
-SingleTaskGeneratorConfig = SingleTaskGenerator.Config
-TaskGeneratorSetConfig = TaskGeneratorSet.Config
-BucketedTaskGeneratorConfig = BucketedTaskGenerator.Config

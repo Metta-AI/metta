@@ -1,0 +1,7 @@
+[extend]
+# Use the default rules
+useDefault = true
+
+[allowlist]
+# Ignore files by path pattern
+paths = ['''packages/mettagrid/nim/mettascope/data/fidget/.*\.json''']

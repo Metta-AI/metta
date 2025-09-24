@@ -1,0 +1,46 @@
+# ROOT BUILD.bazel file for mettagrid - references new structure
+load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
+
+# Re-export main targets from cpp/ for backward compatibility
+alias(
+    name = "mettagrid_c",
+    actual = "//cpp:mettagrid_c",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "mettagrid_lib",
+    actual = "//cpp:mettagrid_core",
+    visibility = ["//visibility:public"],
+)
+
+# Export the .clang-tidy config file for use by the linter
+exports_files([".clang-tidy"])
+
+# Package group for internal visibility
+package_group(
+    name = "internal",
+    packages = [
+        "//cpp/...",
+        "//python/...",
+        "//benchmarks/...",
+        "//tests/...",
+    ],
+)
+
+# Documentation and configuration files
+filegroup(
+    name = "docs",
+    srcs = glob(["docs/**/*.md"],
+    allow_empty=True),
+    visibility = ["//visibility:public"]
+)
+
+filegroup(
+    name = "configs",
+    srcs = glob([
+        "configs/**/*.yaml",
+        "configs/**/*.map",
+    ], allow_empty = True),
+    visibility = ["//visibility:public"],
+)

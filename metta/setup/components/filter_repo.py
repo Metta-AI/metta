@@ -111,7 +111,7 @@ class FilterRepoSetup(SetupModule):
             error("Usage: metta run filter-repo <filter|inspect|push> ...")
             error("""
             This runs the sync_package.py script. Examples:
-              metta run filter-repo filter . mettagrid/ mettascope/
+              metta run filter-repo filter . packages/mettagrid/ mettascope/
               metta run filter-repo inspect /tmp/filtered-repo-xyz/filtered
               metta run filter-repo push /tmp/filtered-repo-xyz/filtered git@github.com:org/repo.git
             """)

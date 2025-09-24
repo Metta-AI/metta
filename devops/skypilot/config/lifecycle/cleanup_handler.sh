@@ -20,7 +20,7 @@ cleanup() {
   CMD_EXIT=${CMD_EXIT:-$?}
 
   # Read termination reason
-  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || echo "")
+  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2> /dev/null || echo "")
   echo "[INFO] Termination reason: $TERMINATION_REASON"
 
   # Master-only: Handle notifications and status updates
@@ -112,7 +112,6 @@ handle_master_cleanup() {
   export CMD_EXIT
   uv run devops/skypilot/config/observability/set_github_status.py "$GITHUB_STATUS_STATE" "$GITHUB_STATUS_DESCRIPTION"
 }
-
 
 print_final_summary() {
   echo "[SUMMARY] ===== Job Summary ====="

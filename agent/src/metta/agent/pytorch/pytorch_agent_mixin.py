@@ -139,7 +139,7 @@ class PyTorchAgentMixin:
         td["act_log_prob"] = selected_log_probs.float()
         td["entropy"] = entropy.float()
         td["full_log_probs"] = action_log_probs.float()
-        td["value"] = value.float()
+        td["values"] = value.view(-1).float()
 
         # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
         # The reshaping happens in ComponentPolicy.forward() after forward_training()

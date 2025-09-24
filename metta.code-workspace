@@ -147,7 +147,14 @@
     "[json]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
     },
-    "python.testing.pytestArgs": ["-v", "-s", "./tests", "./mettagrid/tests", "./mettascope/tests", "./agent/tests"],
+    "python.testing.pytestArgs": [
+      "-v",
+      "-s",
+      "./tests",
+      "./packages/mettagrid/tests",
+      "./mettascope/tests",
+      "./agent/tests",
+    ],
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
     "python.testing.autoTestDiscoverOnSaveEnabled": false,

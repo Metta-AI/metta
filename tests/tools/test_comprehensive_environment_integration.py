@@ -5,11 +5,14 @@ from pathlib import Path
 
 import pytest
 
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from metta.common.util.fs import get_repo_root
-from metta.mettagrid.builder import building
-from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import (
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from mettagrid import MettaGridEnv
+from mettagrid.builder import building
+from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
@@ -17,10 +20,7 @@ from metta.mettagrid.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
+from mettagrid.map_builder.random import RandomMapBuilder
 
 
 class TestComprehensiveEnvironmentIntegration:
@@ -218,7 +218,7 @@ class TestComprehensiveEnvironmentIntegration:
 
         for env_name in ["tiny_two_altars", "simple_obstacles"]:
             env_config = self.make_debug_env(env_name)
-            sim_config = SimulationConfig(name=f"sim_{env_name}", env=env_config)
+            sim_config = SimulationConfig(suite="test", name=f"sim_{env_name}", env=env_config)
 
             assert sim_config.name == f"sim_{env_name}"
             assert sim_config.env.game.num_agents == 2
@@ -227,7 +227,7 @@ class TestComprehensiveEnvironmentIntegration:
         """Test that tools can be configured with programmatic environments."""
 
         env_config = self.make_debug_env("resource_collection")
-        sim_config = SimulationConfig(name="test_resource", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_resource", env=env_config)
 
         # Test ReplayTool configuration
         replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
@@ -245,8 +245,9 @@ class TestComprehensiveEnvironmentIntegration:
                 f"Environment {env_name} should have exactly 2 agents, but has {env_config.game.num_agents}"
             )
             # Also check map_builder agent count matches
-            if hasattr(env_config.game.map_builder, "agents"):
-                assert env_config.game.map_builder.agents == 2, f"Map builder for {env_name} should configure 2 agents"
+            map_builder_agents = getattr(env_config.game.map_builder, "agents", None)
+            if map_builder_agents is not None:
+                assert map_builder_agents == 2, f"Map builder for {env_name} should configure 2 agents"
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -270,6 +271,7 @@ class TestComprehensiveEnvironmentIntegration:
                 f"run={run_name}",
                 "trainer.total_timesteps=50",  # Minimal training
                 "wandb=off",
+                "--dry-run",
             ]
 
             env = os.environ.copy()
@@ -348,6 +350,7 @@ class TestComprehensiveEnvironmentIntegration:
                 f"run={run_name}",
                 "trainer.total_timesteps=100",
                 "wandb=off",
+                "--dry-run",
             ]
 
             env = os.environ.copy()
@@ -375,6 +378,7 @@ class TestComprehensiveEnvironmentIntegration:
                     "./tools/run.py",
                     "experiments.recipes.arena.evaluate",
                     "policy_uri=mock://test",  # Use mock policy
+                    "--dry-run",
                 ]
 
                 sim_result = subprocess.run(

@@ -23,7 +23,7 @@ NODE_CONFIGS = [1, 2, 4]
 TEST_CONDITIONS = {
     "normal_completion": TestCondition(
         name="Normal Completion",
-        extra_args=["--overrides", "trainer.total_timesteps=50000"],
+        extra_args=["trainer.total_timesteps=50000"],
         description="Exit normally after training completes",
         ci=False,
     ),
@@ -37,6 +37,12 @@ TEST_CONDITIONS = {
         name="Runtime Timeout",
         extra_args=["-t", "0.03"],
         description="Exit based on timeout (0.03 hours = 1.8 minutes)",
+        ci=True,
+    ),
+    "cmd_fails": TestCondition(
+        name="Invalid Tool Parameters",  # deliberately invalid: evaluate interval must be >= checkpoint interval
+        extra_args=["evaluator.epoch_interval=1", "trainer.checkpoint.checkpoint_interval=10"],
+        description="Exit when command fails due to invalid parameters",
         ci=True,
     ),
 }

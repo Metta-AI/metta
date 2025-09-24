@@ -11,9 +11,9 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Tuple
+from typing import Annotated, Optional
 
-import click
+import typer
 
 from .file import get_context
 from .token_profiler import generate_flamegraph, profile_code_context
@@ -26,6 +26,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("codeclip.cli")
 
+app = typer.Typer(
+    help="Provide codebase context to LLMs with smart defaults.",
+    add_completion=False,
+    pretty_exceptions_enable=False,
+)
+
 
 def copy_to_clipboard(content: str) -> None:
     """Copy content to clipboard on macOS."""
@@ -33,34 +39,41 @@ def copy_to_clipboard(content: str) -> None:
         process = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
         process.communicate(content.encode("utf-8"))
     except FileNotFoundError:
-        click.echo("pbcopy not found - clipboard integration skipped", err=True)
+        typer.echo("pbcopy not found - clipboard integration skipped", err=True)
 
 
-@click.command(context_settings={"help_option_names": ["-h", "--help"]})
-@click.argument("paths", nargs=-1, type=str)
-@click.option("-s", "--stdout", is_flag=True, help="Output to stdout instead of clipboard")
-@click.option("-r", "--readmes", is_flag=True, help="Only include README.md files, including ancestor READMEs")
-@click.option("-e", "--extension", multiple=True, help="File extensions to include (e.g. -e py -e js or -e .py -e .js)")
-@click.option("-p", "--profile", is_flag=True, help="Show detailed token distribution analysis to stderr")
-@click.option(
-    "-f", "--flamegraph", is_flag=True, help="Generate a flame graph HTML visualization of token distribution"
-)
-@click.option(
-    "-d", "--diff", is_flag=True, help="Append git diff vs origin/main to the output as a single virtual file"
-)
-def cli(
-    paths: Tuple[str, ...],
-    stdout: bool,
-    readmes: bool,
-    extension: Tuple[str, ...],
-    profile: bool,
-    flamegraph: bool,
-    diff: bool,
+@app.command()
+def main(
+    paths: Annotated[
+        Optional[list[str]], typer.Argument(help="Paths to include (space-separated). Example: metta/rl tests/rl")
+    ] = None,
+    stdout: Annotated[bool, typer.Option("-s", "--stdout", help="Output to stdout instead of clipboard")] = False,
+    readmes: Annotated[
+        bool, typer.Option("-r", "--readmes", help="Only include README.md files, including ancestor READMEs")
+    ] = False,
+    extension: Annotated[
+        Optional[list[str]],
+        typer.Option("-e", "--extension", help="File extensions to include (e.g. -e py -e js or -e .py -e .js)"),
+    ] = None,
+    ignore: Annotated[
+        Optional[list[str]],
+        typer.Option(
+            "-i",
+            "--ignore",
+            help="Ignore patterns: directory names (-i cache) or paths (-i build/cache)",
+        ),
+    ] = None,
+    profile: Annotated[
+        bool, typer.Option("-p", "--profile", help="Show detailed token distribution analysis to stderr")
+    ] = False,
+    flamegraph: Annotated[
+        bool, typer.Option("-f", "--flamegraph", help="Generate a flame graph HTML visualization of token distribution")
+    ] = False,
+    diff: Annotated[
+        bool, typer.Option("-d", "--diff", help="Append git diff vs origin/main to the output as a single virtual file")
+    ] = False,
 ) -> None:
-    """
-    Provide codebase context to LLMs with smart defaults.
-    - PATHS can be space-separated. Example: metta/rl tests/rl
-    """
+    """Provide codebase context to LLMs with smart defaults."""
     # Use provided paths or default behavior
     # For diff mode with no paths, use empty list to get only diff
     # Otherwise default to current directory if no paths provided
@@ -72,6 +85,7 @@ def cli(
 
     # Normalize extensions to ensure they have a dot prefix
     normalized_extensions = tuple(ext if ext.startswith(".") else f".{ext}" for ext in extension) if extension else None
+    ignore_dirs = tuple(ignore) if ignore else ()
 
     # Get content and profile data
     try:
@@ -84,7 +98,11 @@ def cli(
         if profile or flamegraph:
             # This calls get_context internally and builds the full profile
             profile_report, profile_data = profile_code_context(
-                paths=path_list, extensions=normalized_extensions, include_git_diff=diff, readmes_only=readmes
+                paths=path_list,
+                extensions=normalized_extensions,
+                include_git_diff=diff,
+                readmes_only=readmes,
+                ignore_dirs=ignore_dirs,
             )
             # Extract the content from the profile data
             output_content = profile_data.get("context", "")
@@ -96,6 +114,7 @@ def cli(
                 include_git_diff=diff,
                 diff_base="origin/main",
                 readmes_only=readmes,
+                ignore_dirs=ignore_dirs,
             )
             profile_data = token_info
 
@@ -113,7 +132,7 @@ def cli(
             logger.debug(f"Generating flame graph at: {flamegraph_path}")
             generate_flamegraph(profile_data, flamegraph_path)
             logger.debug(f"Flame graph generated at: {flamegraph_path}")
-            click.echo(f"Flame graph generated at: {flamegraph_path}", err=True)
+            typer.echo(f"Flame graph generated at: {flamegraph_path}", err=True)
 
             # Open the file in Chrome
             try:
@@ -125,17 +144,17 @@ def cli(
                 elif system == "Windows":
                     subprocess.run(["chrome", flamegraph_path], shell=True)
                 else:
-                    click.echo(f"Flame graph saved but couldn't auto-open browser on {system}.", err=True)
+                    typer.echo(f"Flame graph saved but couldn't auto-open browser on {system}.", err=True)
             except Exception as e:
-                click.echo(f"Flame graph saved but couldn't launch Chrome: {e}", err=True)
+                typer.echo(f"Flame graph saved but couldn't launch Chrome: {e}", err=True)
     except Exception as e:
-        click.echo(f"Error loading context: {e}", err=True)
-        return
+        typer.echo(f"Error loading context: {e}", err=True)
+        raise typer.Exit(1) from e
 
     # Output content to stdout or clipboard
     if stdout:
         # Output to stdout
-        click.echo(output_content)
+        typer.echo(output_content)
     else:
         # Default behavior: copy to clipboard
         copy_to_clipboard(output_content)
@@ -146,8 +165,8 @@ def cli(
         total_files = profile_data["total_files"]
 
         if total_files == 0:
-            click.echo("No files found to copy", err=True)
-            return
+            typer.echo("No files found to copy", err=True)
+            raise typer.Exit(1)
 
         # Build summary message
         action = "Copied"
@@ -163,6 +182,11 @@ def cli(
 
             # First, identify which files belong to which requested path
             for doc in documents:
+                # Special handling for GIT_DIFF
+                if doc.source.startswith("GIT_DIFF:"):
+                    summary_items["<diff>"] = file_token_counts.get(doc.source, 0)
+                    continue
+
                 doc_path = Path(doc.source)
                 doc_path_resolved = doc_path.resolve()
 
@@ -219,6 +243,11 @@ def cli(
                     # Collect and aggregate by immediate children (directories or files)
                     aggregated = {}
                     for doc in documents:
+                        # Special handling for GIT_DIFF
+                        if doc.source.startswith("GIT_DIFF:"):
+                            aggregated["<diff>"] = file_token_counts.get(doc.source, 0)
+                            continue
+
                         doc_path = Path(doc.source)
                         tokens = file_token_counts.get(doc.source, 0)
                         if tokens > 0:
@@ -261,14 +290,18 @@ def cli(
                 summary_parts.append("  By path:")
                 for item_path, tokens in sorted_items[:10]:  # Show top 10
                     pct = (tokens / total_tokens * 100) if total_tokens else 0
-                    # Use relative path for display
-                    item_path_obj = Path(item_path)
-                    try:
-                        # Try to make it relative to current working directory
-                        display_path = item_path_obj.relative_to(Path.cwd())
-                    except ValueError:
-                        # If that fails, just use the name
-                        display_path = item_path_obj.name
+                    # Special handling for diff marker
+                    if item_path == "<diff>":
+                        display_path = "<diff>"
+                    else:
+                        # Use relative path for display
+                        item_path_obj = Path(item_path)
+                        try:
+                            # Try to make it relative to current working directory
+                            display_path = item_path_obj.relative_to(Path.cwd())
+                        except ValueError:
+                            # If that fails, just use the name
+                            display_path = item_path_obj.name
                     summary_parts.append(f"    {display_path}: ~{tokens:,} tokens ({pct:.0f}%)")
         # Get top-level breakdown
         elif "node_cache" in profile_data:
@@ -338,15 +371,15 @@ def cli(
                         pct = (tokens / total_tokens * 100) if total_tokens else 0
                         summary_parts.append(f"    {path.name}: ~{tokens:,} tokens ({pct:.0f}%)")
 
-        click.echo("\n".join(summary_parts), err=True)
+        typer.echo("\n".join(summary_parts), err=True)
 
     # Show detailed profiling info if requested
     if profile and profile_data:
-        click.echo("\n" + "=" * 60, err=True)
-        click.echo("DETAILED TOKEN PROFILE", err=True)
-        click.echo("=" * 60 + "\n", err=True)
-        click.echo(profile_report, err=True)
+        typer.echo("\n" + "=" * 60, err=True)
+        typer.echo("DETAILED TOKEN PROFILE", err=True)
+        typer.echo("=" * 60 + "\n", err=True)
+        typer.echo(profile_report, err=True)
 
 
 if __name__ == "__main__":
-    cli()
+    app()

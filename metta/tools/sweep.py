@@ -4,12 +4,13 @@ import logging
 import os
 import uuid
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Optional
 
 from cogweb.cogweb_client import CogwebClient
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
-from metta.common.wandb.wandb_context import WandbConfig
+from metta.common.wandb.context import WandbConfig
 from metta.sweep import JobTypes, LocalDispatcher, SweepController, SweepControllerConfig, SweepStatus
 from metta.sweep.dispatcher.routing import RoutingDispatcher
 from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
@@ -66,7 +67,6 @@ class DispatcherType(StrEnum):
 
     LOCAL = "local"  # All jobs run locally
     SKYPILOT = "skypilot"  # All jobs run on Skypilot
-    HYBRID_REMOTE_TRAIN = "hybrid_remote_train"  # Train on Skypilot, evaluate locally
 
 
 class SweepTool(Tool):
@@ -112,19 +112,10 @@ class SweepTool(Tool):
     stats_server_uri: Optional[str] = auto_stats_server_uri()  # Stats server for remote evaluations
 
     # Dispatcher configuration
-    dispatcher_type: DispatcherType = DispatcherType.HYBRID_REMOTE_TRAIN  # Default: train on Skypilot, evaluate locally
+    dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # Default: train on Skypilot, evaluate locally
     capture_output: bool = True  # Capture and stream subprocess output (local only)
 
-    consumed_args: list[str] = [
-        "sweep_name",
-        "max_trials",
-        "recipe_module",
-        "train_entrypoint",
-        "eval_entrypoint",
-        "run",
-    ]
-
-    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+    def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
 
         # Handle sweep_name being passed via cmd line
@@ -170,7 +161,7 @@ class SweepTool(Tool):
         os.makedirs(self.sweep_dir, exist_ok=True)
 
         # Initialize logging
-        init_logging(run_dir=self.sweep_dir)
+        init_logging(run_dir=Path(self.sweep_dir))
 
         logger.info("[SweepOrchestrator] " + "=" * 60)
         logger.info(f"[SweepOrchestrator] Starting sweep: {self.sweep_name}")
@@ -200,14 +191,7 @@ class SweepTool(Tool):
             dispatcher = LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:
-            dispatcher = SkypilotDispatcher()
-            if self.capture_output:
-                logger.warning(
-                    "[SweepOrchestrator] capture_output is not supported for SkypilotDispatcher (fire-and-forget mode)"
-                )
-
-        elif self.dispatcher_type == DispatcherType.HYBRID_REMOTE_TRAIN:
-            # Train on Skypilot, evaluate locally
+            # Train on Skypilot, evaluate locally through the CLI
             dispatcher = RoutingDispatcher(
                 routes={
                     JobTypes.LAUNCH_TRAINING: SkypilotDispatcher(),
@@ -300,14 +284,16 @@ class SweepTool(Tool):
             observations = [run for run in final_runs if run.observation is not None]
             if observations:
                 if self.protein_config.goal == "maximize":
-                    best_run = max(observations, key=lambda r: r.observation.score)
+                    best_run = max(observations, key=lambda r: r.observation.score if r.observation else 0.0)
                 else:
-                    best_run = min(observations, key=lambda r: r.observation.score)
+                    best_run = min(observations, key=lambda r: r.observation.score if r.observation else 0.0)
 
                 logger.info("[SweepOrchestrator] Best result:")
                 logger.info(f"[SweepOrchestrator]    Run: {best_run.run_id}")
-                logger.info(f"[SweepOrchestrator]    Score: {best_run.observation.score:.4f}")
-                if best_run.observation.suggestion:
+                logger.info(
+                    f"[SweepOrchestrator]    Score: {(best_run.observation.score if best_run.observation else 0.0):.4f}"
+                )
+                if best_run.observation and best_run.observation.suggestion:
                     logger.info(f"[SweepOrchestrator]    Config: {best_run.observation.suggestion}")
 
             logger.info("[SweepOrchestrator] " + "=" * 60)

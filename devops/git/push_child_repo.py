@@ -20,7 +20,7 @@ from pathlib import Path
 
 import gitta as git
 
-SUBDIR = "mettagrid"
+SUBDIR = "packages/mettagrid"
 
 
 def build_remote_url(target: str) -> str:

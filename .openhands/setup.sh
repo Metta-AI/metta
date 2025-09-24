@@ -43,7 +43,7 @@ if uv run python -c "
 import metta
 print('✅ Core metta package imported successfully')
 try:
-    import metta.mettagrid
+    import mettagrid
     print('✅ Metta mettagrid module imported successfully')
 except ImportError as e:
     print(f'⚠️  Mettagrid module import issue: {e}')
@@ -60,8 +60,8 @@ echo ""
 echo "🎉 Metta AI setup complete!"
 echo ""
 echo "📋 Quick start commands:"
-echo "  • Train a model:     ./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides wandb.enabled=false"
-echo "  • Play interactively: ./tools/run.py experiments.recipes.arena.play --overrides wandb.enabled=false"
+echo "  • Train a model:     ./tools/run.py experiments.recipes.arena.train run=my_experiment wandb.enabled=false"
+echo "  • Play interactively: ./tools/run.py experiments.recipes.arena.play wandb.enabled=false"
 echo "  • Run tests:         uv run pytest"
 echo "  • Format code:       uv run ruff format && uv run ruff check"
 echo ""

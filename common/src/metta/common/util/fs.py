@@ -1,4 +1,5 @@
 import hashlib
+import math
 import os
 import shutil
 import tempfile
@@ -136,7 +137,7 @@ def wait_for_file(
         progress_callback(time.time() - start_time, "found")
 
     stable_checks = 0
-    required_stable_checks = int(stability_duration / check_interval)
+    required_stable_checks = max(1, math.ceil(stability_duration / check_interval))
     last_size = -1
 
     while stable_checks < required_stable_checks:

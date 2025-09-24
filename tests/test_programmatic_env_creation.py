@@ -5,10 +5,10 @@ Demonstrates the new pattern for creating environments as shown in experiments/a
 
 import pytest
 
-import metta.mettagrid.builder.envs as eb
-from metta.mettagrid.builder import building
-from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import (
+import mettagrid.builder.envs as eb
+from mettagrid import MettaGridEnv
+from mettagrid.builder import building
+from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
@@ -16,7 +16,7 @@ from metta.mettagrid.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.map_builder.random import RandomMapBuilder
 
 
 class TestProgrammaticEnvironments:
