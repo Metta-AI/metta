@@ -220,6 +220,7 @@ class TestCurriculumCapacityAndEviction:
         config.min_presentations_for_eviction = 3
         config.algorithm_config = cc.LearningProgressConfig(
             ema_timescale=0.1,  # Faster convergence for testing
+            slow_timescale_factor=0.2,  # Factor for slow EMA timescale, should be < 1.0
             exploration_bonus=0.01,  # Minimal exploration bonus to see learning progress differences
             max_memory_tasks=100,
             use_bidirectional=True,  # Ensure we're using bidirectional scoring

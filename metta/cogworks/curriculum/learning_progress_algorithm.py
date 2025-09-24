@@ -28,6 +28,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
     ema_timescale: float = 0.001
+    slow_timescale_factor: float = 0.2  # Factor for slow EMA timescale, should be < 1.0
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.05  # For bidirectional reweighting
 
@@ -461,11 +462,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         Returns:
             Dictionary containing visualization data, empty if not enabled or not time to log
         """
-        if self.task_pool_visualizer is None or not self.task_pool_visualizer.should_log(epoch):
+        if self.task_pool_visualizer is None:
             return {}
 
+        # Always try to generate data if we have enough tasks, regardless of epoch interval
+        # The WandB logger will handle the actual logging frequency
         viz_data = self.task_pool_visualizer.collect_task_pool_distributions(self)
         if viz_data:
+            # Only mark as logged if we actually generated data
             self.task_pool_visualizer.mark_logged(epoch)
 
         return viz_data
@@ -620,7 +624,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     + self._p_fast[self._update_mask] * (1.0 - self.hypers.ema_timescale)
                 )
                 # Slow EMA uses a much slower timescale for better differentiation
-                slow_timescale = self.hypers.ema_timescale * 0.2
+                slow_timescale = self.hypers.ema_timescale * self.hypers.slow_timescale_factor
                 self._p_slow[self._update_mask] = normalized_task_success_rates * slow_timescale + self._p_slow[
                     self._update_mask
                 ] * (1.0 - slow_timescale)

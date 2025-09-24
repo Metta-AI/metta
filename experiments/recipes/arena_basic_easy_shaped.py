@@ -73,6 +73,7 @@ def make_curriculum(
         algorithm_config = LearningProgressConfig(
             use_bidirectional=True,  # Enable bidirectional learning progress by default
             ema_timescale=0.001,
+            slow_timescale_factor=0.2,  # Factor for slow EMA timescale, should be < 1.0
             exploration_bonus=0.1,
             max_memory_tasks=1000,
             max_slice_axes=5,  # More slices for arena complexity

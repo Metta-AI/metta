@@ -75,6 +75,12 @@ class CurriculumEnv(PufferEnv):
                 self._latest_viz_data = viz_data
                 # Also log a simple indicator in regular stats for debugging
                 info_dict["_viz_data_available"] = 1.0
+                import logging
+
+                logging.getLogger(__name__).info(
+                    f"📊 Stored viz data with {len(viz_data)} types for epoch {self._current_epoch}: "
+                    f"{list(viz_data.keys())}"
+                )
             elif not hasattr(self, "_latest_viz_data"):
                 self._latest_viz_data = None
         except Exception as e:

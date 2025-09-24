@@ -54,6 +54,7 @@ class LPParams:
     def __init__(
         self,
         ema_timescale: float = 0.001,
+        slow_timescale_factor: float = 0.2,  # Factor for slow EMA timescale, should be < 1.0
         exploration_bonus: float = 0.15,
         max_memory_tasks: int = 1000,
         max_slice_axes: int = 3,
@@ -63,6 +64,7 @@ class LPParams:
         rand_task_rate: float = 0.25,
     ):
         self.ema_timescale = ema_timescale
+        self.slow_timescale_factor = slow_timescale_factor
         self.exploration_bonus = exploration_bonus
         self.max_memory_tasks = max_memory_tasks
         self.max_slice_axes = max_slice_axes

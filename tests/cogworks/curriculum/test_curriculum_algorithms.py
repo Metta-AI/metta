@@ -434,6 +434,7 @@ class TestBidirectionalLearningProgressBehavior:
         # Bidirectional algorithm needs more data points to calculate meaningful progress
         config = LearningProgressConfig(
             ema_timescale=0.001,
+            slow_timescale_factor=0.2,  # Factor for slow EMA timescale, should be < 1.0
             max_memory_tasks=10,
             use_bidirectional=True,
         )
@@ -468,6 +469,7 @@ class TestBidirectionalLearningProgressBehavior:
         """Test that bidirectional learning progress works with sufficient task data."""
         config = LearningProgressConfig(
             ema_timescale=0.01,  # Higher timescale for faster response
+            slow_timescale_factor=0.2,  # Factor for slow EMA timescale, should be < 1.0
             max_memory_tasks=10,
             use_bidirectional=True,
             sample_threshold=5,  # Lower threshold for testing
@@ -520,6 +522,7 @@ class TestBidirectionalLearningProgressBehavior:
         """Test that bidirectional learning progress provides expected statistics."""
         config = LearningProgressConfig(
             ema_timescale=0.01,
+            slow_timescale_factor=0.2,  # Factor for slow EMA timescale, should be < 1.0
             max_memory_tasks=10,
             use_bidirectional=True,
         )
