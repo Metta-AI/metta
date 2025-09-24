@@ -155,10 +155,9 @@ class PufferPolicy(Policy):
         return result
 
     def decode_actions(self, hidden):
-        # hidden = self.layer_norm(hidden)
-        logits = [dec(hidden) for dec in self.actor]
-        value = self.value(hidden)
-        return logits, value
+        """Decode hidden state into action logits."""
+        logits = [actor_head(hidden) for actor_head in self.actor]
+        return logits
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
