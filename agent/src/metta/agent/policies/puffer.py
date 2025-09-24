@@ -161,51 +161,56 @@ class PufferPolicy(Policy):
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
+        """Forward pass through the policy."""
         observations = td["env_obs"]
-        hidden = self.encode_observations(observations)
 
-        td["encoded_obs"] = hidden
+        # Encode observations: [B, obs] -> [B, 512]
+        encoded_obs = self.encode_observations(observations)
+        td["encoded_obs"] = encoded_obs
 
         # Pass through LSTM: [B, 512] -> [B, 512]
         self.lstm(td)
-        hidden = td["core"]
-        # Decode actions and value
-        logits, value = self.decode_actions(hidden)
 
-        # Convert logits to actions by sampling from categorical distributions
-        actions = []
-        entropies = []
-        action_log_probs = []
+        # Decode actions
+        logits = self.decode_actions(td["core"])
 
-        for logit_tensor in logits:
-            action_probs = torch.softmax(logit_tensor, dim=-1)
-            sampled_action = torch.multinomial(action_probs, num_samples=1).squeeze(-1)
-            actions.append(sampled_action)
+        # Stack logits for action_probs component
+        td["logits"] = torch.stack(logits, dim=-1)
 
-            # Correct entropy calculation
-            entropy = -torch.sum(action_probs * torch.log(action_probs + 1e-8), dim=-1)
-            entropies.append(entropy)
+        # Get value
+        self.value_head(td)
 
-            # Get log probabilities of the selected actions
-            log_probs = torch.log(action_probs + 1e-8)
-            selected_log_probs = log_probs.gather(-1, sampled_action.unsqueeze(-1)).squeeze(-1)
-            action_log_probs.append(selected_log_probs)
+        # Process action probabilities using Metta's ActionProbs component
+        self.action_probs(td, action)
 
-        actions_tensor = torch.stack(actions, dim=-1)
-        entropies_tensor = torch.stack(entropies, dim=-1)
-        log_probs_tensor = torch.stack(action_log_probs, dim=-1)
-
-        if action is None:
-            td["actions"] = actions_tensor
-            td["act_log_prob"] = log_probs_tensor
-            td["values"] = value.flatten()
-            td["entropy"] = entropies_tensor
-        else:
-            td["act_log_prob"] = log_probs_tensor
-            td["entropy"] = entropies_tensor
-            td["full_log_probs"] = log_probs_tensor  # TODO: This is not correct (fix this later)
+        # Flatten values as expected by training
+        td["values"] = td["values"].flatten()
 
         return td
+
+    def initialize_to_environment(self, env, device) -> List[str]:
+        """Initialize policy components to environment."""
+        device = torch.device(device)
+        self.to(device)
+        self.action_probs.initialize_to_environment(env, device)
+        return ["PufferPolicy initialized"]
+
+    def reset_memory(self):
+        """Reset LSTM memory."""
+        self.lstm.reset_memory()
+
+    def get_agent_experience_spec(self) -> Composite:
+        """Get the experience specification for this agent."""
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+        )
+
+    @property
+    def device(self) -> torch.device:
+        """Get the device this policy is on."""
+        return next(self.parameters()).device
 
     @property
     def action_names(self) -> list[str]:
@@ -216,28 +221,3 @@ class PufferPolicy(Policy):
     def observation_space(self):
         """Return observation space."""
         return self.env.observation_space
-
-    def get_action_and_value(self, obs, state=None, action=None, **kwargs):
-        """Get action and value prediction."""
-        td = TensorDict({"env_obs": obs}, batch_size=obs.shape[:-3])
-        td = self.forward(td, state=state, action=action)
-
-        action_probs = td["action_probs"]
-        values = td["values"]
-
-        return action_probs, values, td.get("lstm_state")
-
-    def get_value(self, obs, state=None, **kwargs):
-        """Get value prediction only."""
-        td = TensorDict({"env_obs": obs}, batch_size=obs.shape[:-3])
-        td = self.forward(td, state=state)
-        return td["values"]
-
-    @property
-    def device(self) -> torch.device:
-        """Get the device this policy is on."""
-        return next(self.parameters()).device
-
-    def reset_memory(self):
-        """Reset policy memory/state if any."""
-        pass
