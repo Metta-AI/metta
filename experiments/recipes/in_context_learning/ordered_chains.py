@@ -435,8 +435,8 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
             simulations=make_icl_resource_chain_eval_suite(),
-            evaluate_remote=False,
-            evaluate_local=True,  # for testing
+            evaluate_remote=True,
+            evaluate_local=False,
         ),
     )
 
