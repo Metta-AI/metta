@@ -179,6 +179,13 @@ def main() -> int:
         subprocess = run_job_in_background()
         termination_reason = monitor_until_termination(job_config, subprocess)
 
+    logger.info("========= Job Summary =========")
+    logger.info(f"{'Metta Run ID:':<20} {job_config.metta_run_id or 'N/A'}")
+    logger.info(f"{'Skypilot Task ID:':<20} {job_config.skypilot_task_id or 'N/A'}")
+    logger.info(f"{'Restart Count:':<20} {'N/A' if job_config.restart_count is None else job_config.restart_count}")
+    logger.info(f"{'Termination Reason:':<20} {termination_reason or 'unknown'}")
+    logger.info("==============================")
+
     send_notifications(termination_reason, job_config)
     return EXIT_AND_STOP
 
