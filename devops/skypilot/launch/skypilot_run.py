@@ -11,15 +11,15 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from devops.skypilot.notifications import NotificationManager
+from devops.skypilot.notifications import send_notifications
 from devops.skypilot.utils.cost_monitor import get_cost_info
-from devops.skypilot.utils.job_config import JobConfig
+from devops.skypilot.utils.job_config import JobConfig, log_job_config
 from devops.skypilot.utils.job_latency import calculate_queue_latency
 from devops.skypilot.utils.nccl_tests import launch_nccl_tests
 from devops.skypilot.utils.runtime_monitors import HeartbeatMonitor, TimeoutMonitor
 from devops.skypilot.utils.subprocess_helpers import terminate_process_group
 from metta.common.util.log_config import getRankAwareLogger
-from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
+from metta.common.wandb.utils import log_to_wandb
 
 logger = getRankAwareLogger(__name__)
 
@@ -64,7 +64,7 @@ def create_job_config_from_environment() -> JobConfig:
         # Notification settings
         discord_webhook_url=os.environ.get("DISCORD_WEBHOOK_URL", "").strip() or None,
         enable_github_status=os.environ.get("ENABLE_GITHUB_STATUS", "false").lower() == "true",
-        enable_wandb_alerts=os.environ.get("ENABLE_WANDB_ALERTS", "true").lower() == "true",
+        enable_wandb_notification=os.environ.get("ENABLE_WANDB_ALERTS", "true").lower() == "true",
         # Git/GitHub configuration
         github_repository=os.environ.get("GITHUB_REPOSITORY"),
         metta_git_ref=os.environ.get("METTA_GIT_REF"),
@@ -143,8 +143,7 @@ def monitor_until_termination(job_config: JobConfig, job: subprocess.Popen) -> s
 
 def main() -> int:
     job_config = create_job_config_from_environment()
-    notifications_manager = NotificationManager(job_config)
-    notifications_manager.log_config()
+    log_job_config(job_config)
 
     if job_config.is_master:
         latency_sec = calculate_queue_latency()
@@ -162,7 +161,6 @@ def main() -> int:
             "skypilot/queue_latency_s": latency_sec,
         }
 
-        ensure_wandb_run()
         log_to_wandb(metrics)
 
     termination_reason = ""
@@ -181,8 +179,7 @@ def main() -> int:
         subprocess = run_job_in_background()
         termination_reason = monitor_until_termination(job_config, subprocess)
 
-    notifications_manager.log_final_summary(0, termination_reason)
-    notifications_manager.send_notifications(termination_reason)
+    send_notifications(termination_reason, job_config)
     return EXIT_AND_STOP
 
 
