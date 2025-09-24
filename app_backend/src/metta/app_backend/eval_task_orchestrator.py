@@ -87,12 +87,12 @@ class AutoScaler(AbstractWorkerScaler):
         return avg_task_runtime
 
     async def get_desired_workers(self, num_workers: int) -> int:
-        num_unclaimed_tasks = (await self._task_client.count_tasks(self.UNPROCESSED_FILTER)).count
+        num_active_tasks = (await self._task_client.count_tasks(self.UNPROCESSED_FILTER)).count
 
         avg_task_runtime = await self._get_avg_task_runtime()
         num_desired_workers = await self._compute_desired_workers(avg_task_runtime)
 
-        return max(num_desired_workers, math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600))
+        return max(num_desired_workers, math.ceil(num_active_tasks * avg_task_runtime / 3600))
 
 
 class EvalTaskOrchestrator:
