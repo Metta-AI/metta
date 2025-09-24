@@ -24,7 +24,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             name="in_context_assemblers/two_agent_two_altars_any",
             suite="in_context_learning",
             env=make_assembler_env(
-                num_agents=1,
+                num_agents=2,
                 max_steps=512,
                 num_altars=2,
                 num_converters=0,
