@@ -110,8 +110,8 @@ def train(
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        batch_size=1_048_576,
-        minibatch_size=262_144,
+        batch_size=524_288,
+        minibatch_size=131_072,
     )
 
     if policy_architecture is None:
