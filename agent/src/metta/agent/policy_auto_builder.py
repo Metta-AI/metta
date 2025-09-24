@@ -68,34 +68,50 @@ class PolicyAutoBuilder(nn.Module):
         if device.type == "cuda":
             self._sdpa_context.close()
             self._sdpa_context = ExitStack()
-            try:
-                from torch.nn import attention as nn_attention
 
-                # Keep the math backend enabled so masked attention can fall back when
-                # flash/efficient kernels reject boolean masks.
-                self._sdpa_context.enter_context(
-                    nn_attention.sdpa_kernel(
-                        backends=[
-                            nn_attention.SDPBackend.FLASH_ATTENTION,
-                            nn_attention.SDPBackend.EFFICIENT_ATTENTION,
-                            nn_attention.SDPBackend.MATH,
-                        ]
-                    )
-                )
-            except (AttributeError, ImportError):
+            sdpa_configured = False
+
+            nn_attention = getattr(torch.nn, "attention", None)
+            sdpa_kernel = getattr(nn_attention, "sdpa_kernel", None)
+            if callable(sdpa_kernel):
                 try:
                     self._sdpa_context.enter_context(
-                        # Mirror the behavior of the torch.nn.attention helper when it isn't available.
-                        torch.backends.cuda.sdp_kernel(
-                            enable_flash=True,
-                            enable_mem_efficient=True,
-                            enable_math=True,
+                        sdpa_kernel(
+                            backends=[
+                                nn_attention.SDPBackend.FLASH_ATTENTION,
+                                nn_attention.SDPBackend.EFFICIENT_ATTENTION,
+                                nn_attention.SDPBackend.MATH,
+                            ]
                         )
                     )
-                except AttributeError:
-                    torch.backends.cuda.enable_flash_sdp(True)
-                    torch.backends.cuda.enable_mem_efficient_sdp(True)
-                    torch.backends.cuda.enable_math_sdp(True)
+                    sdpa_configured = True
+                except RuntimeError:
+                    sdpa_configured = False
+
+            if not sdpa_configured:
+                cuda_backends = getattr(torch.backends, "cuda", None)
+                sdp_kernel = getattr(cuda_backends, "sdp_kernel", None)
+                if callable(sdp_kernel):
+                    try:
+                        self._sdpa_context.enter_context(
+                            sdp_kernel(
+                                enable_flash=True,
+                                enable_mem_efficient=True,
+                                enable_math=True,
+                            )
+                        )
+                        sdpa_configured = True
+                    except RuntimeError:
+                        sdpa_configured = False
+
+                if not sdpa_configured and cuda_backends is not None:
+                    if hasattr(cuda_backends, "enable_flash_sdp"):
+                        cuda_backends.enable_flash_sdp(True)
+                    if hasattr(cuda_backends, "enable_mem_efficient_sdp"):
+                        cuda_backends.enable_mem_efficient_sdp(True)
+                    if hasattr(cuda_backends, "enable_math_sdp"):
+                        cuda_backends.enable_math_sdp(True)
+
             # Keep TF32 fast paths enabled on Ampere+ by using the default precision.
             torch.set_float32_matmul_precision("medium")
         logs = []

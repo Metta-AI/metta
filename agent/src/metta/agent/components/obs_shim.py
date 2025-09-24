@@ -193,8 +193,7 @@ class ObsAttrValNorm(nn.Module):
         attr_indices = observations[..., 1].long()
         norm_factors = self._norm_factors[attr_indices]
         observations = observations.to(torch.float32)
-        normalized_values = observations[..., 2] / norm_factors
-        observations[..., 2] = normalized_values
+        observations[..., 2] = observations[..., 2] / norm_factors
 
         td[self.out_key] = observations
 

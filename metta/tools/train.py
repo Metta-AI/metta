@@ -54,7 +54,7 @@ logger = getRankAwareLogger(__name__)
 
 
 def _default_trainer_config() -> TrainerConfig:
-    return TrainerConfig(batch_size=2_097_152, minibatch_size=32_768, bptt_horizon=128)
+    return TrainerConfig()
 
 
 class TrainTool(Tool):

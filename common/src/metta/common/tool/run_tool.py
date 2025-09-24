@@ -46,11 +46,6 @@ def init_mettagrid_system_environment() -> None:
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
-    warnings.filterwarnings(
-        "ignore",
-        message="The pynvml package is deprecated",
-        category=FutureWarning,
-    )
 
 
 T = TypeVar("T", bound=Config)
