@@ -233,6 +233,7 @@ def process_policy_evaluator_stats(
         id=sanitized_run_name,
         project=METTA_WANDB_PROJECT,
         entity=METTA_WANDB_ENTITY,
+        reinit="create_new",
         resume="must",
     )
     try:
