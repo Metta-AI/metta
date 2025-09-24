@@ -56,13 +56,10 @@ logger = getRankAwareLogger(__name__)
 class TrainTool(Tool):
     @classmethod
     def policy_presets(cls) -> dict[str, str]:
-        presets: dict[str, str] = {}
-        for alias, target in POLICY_PRESETS.items():
-            if isinstance(target, str):
-                presets[alias] = target
-            else:
-                presets[alias] = f"{target.__module__}.{target.__qualname__}"
-        return presets
+        return {
+            alias: target if isinstance(target, str) else f"{target.__module__}.{target.__qualname__}"
+            for alias, target in POLICY_PRESETS.items()
+        }
 
     @field_validator("policy_architecture", mode="before")
     @classmethod

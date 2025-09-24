@@ -51,18 +51,10 @@ class PolicyArchitecture(Config):
 
         if isinstance(value, str):
             preset = POLICY_PRESETS.get(value.lower(), value)
-            value = preset
-
-        if isinstance(value, str):
-            value = load_symbol(value)
+            value = load_symbol(preset) if isinstance(preset, str) else preset
 
         if isinstance(value, type) and issubclass(value, cls):
             return value()
-
-        if callable(value):
-            produced = value()
-            if isinstance(produced, cls):
-                return produced
 
         raise TypeError(f"Unable to resolve value {value!r} into an instance of {cls.__name__}")
 
