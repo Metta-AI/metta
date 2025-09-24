@@ -57,7 +57,7 @@ class PlayTool(Tool):
             total_rewards = np.zeros(env.num_agents)
 
             response = mettascope2.init(replay=json.dumps(initial_replay))
-            if response.shutdown:
+            if response.should_close:
                 return
 
             def send_replay_step():
@@ -82,7 +82,7 @@ class PlayTool(Tool):
             while True:
                 replay_step = send_replay_step()
                 response = mettascope2.render(current_step, replay_step)
-                if response.shutdown:
+                if response.should_close:
                     break
 
                 actions = sim.generate_actions()

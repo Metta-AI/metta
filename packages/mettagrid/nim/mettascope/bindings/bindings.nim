@@ -4,7 +4,7 @@ import
 
 type
   RenderResponse* = object
-    shutdown*: bool
+    shouldClose*: bool
     action*: bool
     actionAgentId*: int
     actionActionId*: int
@@ -22,11 +22,11 @@ proc init(dataDir: string, replay: string): RenderResponse =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
-    result.shutdown = false
+    result.shouldClose = false
     return
   except Exception:
     echo "Error initializing Mettascope2: ", getCurrentExceptionMsg()
-    result.shutdown = true
+    result.shouldClose = true
     return
 
 proc render(currentStep: int, replayStep: string): RenderResponse =
@@ -39,7 +39,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     while true:
       if window.closeRequested:
         window.close()
-        result.shutdown = true
+        result.shouldClose = true
         return
       mainLoop()
       if requestPython:
@@ -56,11 +56,11 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
           requestActionArgument = 0
           return
         else:
-          result.shutdown = false
+          result.shouldClose = false
           return
   except Exception:
     echo "Error rendering Mettascope2: ", getCurrentExceptionMsg()
-    result.shutdown = true
+    result.shouldClose = true
     return
 
 exportObject RenderResponse:
