@@ -8,7 +8,7 @@ import torch
 from pydantic import Field, field_validator, model_validator
 
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import POLICY_PRESETS, Policy, PolicyArchitecture
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -49,8 +49,14 @@ from metta.tools.utils.auto_config import (
     auto_stats_server_uri,
     auto_wandb_config,
 )
+from mettagrid.util.module import load_symbol
 
 logger = getRankAwareLogger(__name__)
+
+POLICY_PRESETS: dict[str, str] = {
+    "fast": "metta.agent.policies.fast.FastConfig",
+    "vit": "metta.agent.policies.vit.ViTSmallConfig",
+}
 
 
 class TrainTool(Tool):
@@ -63,8 +69,21 @@ class TrainTool(Tool):
     def _coerce_policy_architecture(cls, value: Any) -> Any:
         if value is None:
             return None
-        if isinstance(value, (str, type, PolicyArchitecture)):
-            return PolicyArchitecture.resolve(value)
+        if isinstance(value, PolicyArchitecture):
+            return value
+
+        if isinstance(value, str):
+            reference = POLICY_PRESETS.get(value.lower(), value)
+            resolved = load_symbol(reference)
+            if isinstance(resolved, PolicyArchitecture):
+                return resolved
+            if isinstance(resolved, type) and issubclass(resolved, PolicyArchitecture):
+                return resolved()
+            raise TypeError(f"Resolved reference {reference!r} is not a PolicyArchitecture")
+
+        if isinstance(value, type) and issubclass(value, PolicyArchitecture):
+            return value()
+
         return value
 
     run: Optional[str] = None

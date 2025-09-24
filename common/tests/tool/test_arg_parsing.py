@@ -54,6 +54,30 @@ def test_parse_cli_args():
     assert result == {"key1": "value1", "key2": 123, "nested.field": "test"}
 
 
+def test_parse_cli_args_commander_styles():
+    result = parse_cli_args(
+        [
+            "--inner.value",
+            "-1",
+            "--enabled",
+            "--name=worker",
+            "--payload",
+            '{"foo": 1}',
+            "threshold:0.5",
+            "--ratio:2",
+            "outer.depth=9",
+        ]
+    )
+
+    assert result["inner.value"] == -1
+    assert result["enabled"] is True
+    assert result["name"] == "worker"
+    assert result["payload"] == {"foo": 1}
+    assert result["threshold"] == 0.5
+    assert result["ratio"] == 2
+    assert result["outer.depth"] == 9
+
+
 def test_get_tool_fields():
     fields = get_tool_fields(SimpleTestTool)
     assert "value" in fields
