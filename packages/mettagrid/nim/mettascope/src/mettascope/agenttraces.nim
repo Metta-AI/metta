@@ -12,7 +12,7 @@ const
   ClickInterval = 0.3 # seconds
   ClickDistance = 10.0 # pixels
 var
-  lastClickTime = 0.0f
+  lastClickTime = 0.0
   lastClickPos = vec2(0, 0)
 
 proc drawAgentTraces*(panel: Panel) =
