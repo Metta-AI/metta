@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 
-import { getSessionOrRedirect } from "@/lib/auth";
+import { auth, isSignedIn } from "@/lib/auth";
 import {
   getUserNotifications,
   getNotificationCounts,
@@ -15,7 +15,14 @@ const querySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSessionOrRedirect();
+    const session = await auth();
+
+    if (!isSignedIn(session)) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
     const params = querySchema.parse({

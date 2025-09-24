@@ -76,6 +76,28 @@ export const GroupCreateForm: FC<GroupCreateFormProps> = ({
     },
     onError: (error) => {
       console.error("Error creating group:", error);
+
+      // Extract error message from the error object
+      const serverError = error.error?.serverError;
+      const validationErrors = error.error?.validationErrors;
+
+      const errorMessage =
+        (typeof serverError === "string" ? serverError : null) ||
+        (typeof serverError === "object" &&
+        serverError !== null &&
+        "message" in serverError
+          ? (serverError as any).message
+          : null) ||
+        (Array.isArray(validationErrors) &&
+        validationErrors.length > 0 &&
+        typeof validationErrors[0] === "object" &&
+        validationErrors[0] !== null &&
+        "message" in validationErrors[0]
+          ? (validationErrors[0] as any).message
+          : null) ||
+        "Failed to create group. Please try again.";
+
+      setNameError(errorMessage);
     },
   });
 

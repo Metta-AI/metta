@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 
-import { getSessionOrRedirect } from "@/lib/auth";
+import { auth, isSignedIn } from "@/lib/auth";
 import {
   markNotificationsRead,
   markAllNotificationsRead,
@@ -14,7 +14,15 @@ const markReadSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSessionOrRedirect();
+    const session = await auth();
+
+    if (!isSignedIn(session)) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { notificationIds, markAllRead } = markReadSchema.parse(body);
 
