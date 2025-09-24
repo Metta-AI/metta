@@ -17,18 +17,6 @@ from mettagrid.util.grid_object_formatter import format_grid_object
 logger = logging.getLogger(__name__)
 
 
-def create_simulation(cfg: "PlayTool") -> Simulation:
-    """Create a simulation instance configured for the play tool."""
-    return Simulation.create(
-        sim_config=cfg.sim,
-        device=cfg.system.device,
-        vectorization=cfg.system.vectorization,
-        stats_dir=cfg.effective_stats_dir,
-        replay_dir=cfg.effective_replay_dir,
-        policy_uri=cfg.policy_uri,
-    )
-
-
 class PlayTool(Tool):
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
@@ -52,7 +40,14 @@ class PlayTool(Tool):
         if self.mettascope2:
             import mettagrid.mettascope as mettascope2
 
-            sim = create_simulation(self)
+            sim = Simulation.create(
+                sim_config=self.sim,
+                device=self.system.device,
+                vectorization=self.system.vectorization,
+                stats_dir=self.effective_stats_dir,
+                replay_dir=self.effective_replay_dir,
+                policy_uri=self.policy_uri,
+            )
             sim.start_simulation()
             env = sim.get_env()
             initial_replay = sim.get_replay()
