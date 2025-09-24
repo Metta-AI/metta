@@ -150,9 +150,9 @@ def build_train_overrides(
 
     if stats_server_uri:
         overrides["stats_server_uri"] = stats_server_uri
-        overrides["trainer.evaluation.evaluate_remote"] = "True"
-        overrides["trainer.evaluation.evaluate_local"] = "False"
-        overrides["trainer.evaluation.skip_git_check"] = "True"
+        overrides["evaluator.evaluate_remote"] = "True"
+        overrides["evaluator.evaluate_local"] = "False"
+        overrides["evaluator.skip_git_check"] = "True"
 
     return overrides
 

@@ -62,7 +62,7 @@ PPO_CORE = ProteinConfig (
     metric="evaluator/eval_arena/score",  # Metric to optimize
     goal="maximize",
     method="bayes",  # Use Bayesian optimization
-    parameters= {
+    parameters={
         # 1. Learning rate - log scale from 1e-5 to 1e-2
         "trainer.optimizer.learning_rate": ParameterConfig(
             min=1e-5,
@@ -79,7 +79,7 @@ PPO_CORE = ProteinConfig (
             mean=0.01,  # Geometric mean
             scale="auto",
         ),
-    }
+    },
     settings=ProteinSettings(
         num_random_samples=0,
         max_suggestion_cost=3600 * 6,
