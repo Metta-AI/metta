@@ -61,7 +61,7 @@ class JobConfig:
             if field_name in filtered_field_names and result[field_name] is not None:
                 result[field_name] = "REDACTED"
             elif result[field_name] is None:
-                result[field_name] = "None"
+                result[field_name] = "<not set>"
         return result
 
 
@@ -70,3 +70,11 @@ def log_job_config(jc: JobConfig):
     logger.info("Run Configuration:")
     for field_name, value in jc.to_filtered_dict().items():  # Need .items() here
         logger.info(f"  - {field_name}: {value}")
+
+
+def __repr__(self):
+    """Return a string representation with sensitive fields redacted."""
+    # Use the same redaction logic
+    safe_dict = self.to_filtered_dict()
+    params = ", ".join(f"{k}={v!r}" for k, v in safe_dict.items())
+    return f"JobConfig({params})"
