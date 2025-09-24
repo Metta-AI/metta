@@ -3,6 +3,7 @@
 import logging
 from collections import defaultdict
 from contextlib import nullcontext
+from numbers import Number
 from typing import Any, ContextManager, Optional, Protocol
 from uuid import UUID
 
@@ -28,7 +29,7 @@ class Timer(Protocol):
 def _to_scalar(value: Any) -> Optional[float]:
     """Convert supported numeric types to float, skipping non-scalars."""
 
-    if isinstance(value, (int, float, bool)):
+    if isinstance(value, Number):
         return float(value)
     if isinstance(value, np.ndarray):
         if value.size == 1:
