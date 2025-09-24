@@ -2,8 +2,9 @@ import json
 import logging
 import sys
 import uuid
+from contextlib import nullcontext
 from datetime import datetime
-from typing import Sequence
+from typing import ContextManager, Sequence
 
 import torch
 from pydantic import Field
@@ -69,63 +70,67 @@ class SimTool(Tool):
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
 
-        wandb_run = None
-        wandb_context = None
+        context: ContextManager[WandbContext | None]
         if self.wandb and self.wandb.enabled:
-            wandb_context = WandbContext(self.wandb, self)
-            wandb_context.__enter__()
-            wandb_run = wandb_context.run
-            logger.info(f"Initialized wandb run: {wandb_run.id if wandb_run else 'None'}")
-        # Get eval_task_id from config if provided
-        eval_task_id = None
-        if self.eval_task_id:
-            eval_task_id = uuid.UUID(self.eval_task_id)
+            context = WandbContext(self.wandb, self)
+        else:
+            context = nullcontext(None)
 
-        for policy_uri in self.policy_uris:
-            # Normalize the URI using CheckpointManager
-            normalized_uri = CheckpointManager.normalize_uri(policy_uri)
+        with context as wandb_context:
+            wandb_run = getattr(wandb_context, "run", None)
+            if wandb_run:
+                logger.info("Initialized wandb run: %s", wandb_run.id)
 
-            # Verify the checkpoint exists
-            try:
-                agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
-                metadata = CheckpointManager.get_policy_metadata(normalized_uri)
-                del agent
-            except Exception as e:
-                logger.warning(f"Failed to load policy from {policy_uri}: {e}")
-                continue
+            # Get eval_task_id from config if provided
+            eval_task_id = None
+            if self.eval_task_id:
+                eval_task_id = uuid.UUID(self.eval_task_id)
 
-            eval_run_name = _determine_run_name(policy_uri)
-            results = {"policy_uri": policy_uri, "checkpoints": []}
+            for policy_uri in self.policy_uris:
+                # Normalize the URI using CheckpointManager
+                normalized_uri = CheckpointManager.normalize_uri(policy_uri)
 
-            eval_results = evaluate_policy(
-                checkpoint_uri=normalized_uri,
-                simulations=list(self.simulations),
-                stats_dir=self.stats_dir,
-                replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
-                device=device,
-                vectorization=self.system.vectorization,
-                export_stats_db_uri=self.stats_db_uri,
-                stats_client=stats_client,
-                eval_task_id=eval_task_id,
-            )
-            if self.push_metrics_to_wandb:
+                # Verify the checkpoint exists
                 try:
-                    rl_stats.process_policy_evaluator_stats(policy_uri, eval_results)
+                    agent = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
+                    metadata = CheckpointManager.get_policy_metadata(normalized_uri)
+                    del agent
                 except Exception as e:
-                    logger.error(f"Error logging evaluation results to wandb: {e}")
-            results["checkpoints"].append(
-                {
-                    "name": metadata.get("run_name", "unknown"),
-                    "uri": normalized_uri,
-                    "metrics": {
-                        "reward_avg": eval_results.scores.avg_simulation_score,
-                        "reward_avg_category_normalized": eval_results.scores.avg_category_score,
-                        "detailed": eval_results.scores.to_wandb_metrics_format(),
-                    },
-                    "replay_url": eval_results.replay_urls,
-                }
-            )
-            all_results["policies"].append(results)
+                    logger.warning(f"Failed to load policy from {policy_uri}: {e}")
+                    continue
+
+                eval_run_name = _determine_run_name(policy_uri)
+                results = {"policy_uri": policy_uri, "checkpoints": []}
+
+                eval_results = evaluate_policy(
+                    checkpoint_uri=normalized_uri,
+                    simulations=list(self.simulations),
+                    stats_dir=self.stats_dir,
+                    replay_dir=f"{self.replay_dir}/{eval_run_name}/{metadata.get('run_name', 'unknown')}",
+                    device=device,
+                    vectorization=self.system.vectorization,
+                    export_stats_db_uri=self.stats_db_uri,
+                    stats_client=stats_client,
+                    eval_task_id=eval_task_id,
+                )
+                if self.push_metrics_to_wandb:
+                    try:
+                        rl_stats.process_policy_evaluator_stats(policy_uri, eval_results)
+                    except Exception as e:
+                        logger.error(f"Error logging evaluation results to wandb: {e}")
+                results["checkpoints"].append(
+                    {
+                        "name": metadata.get("run_name", "unknown"),
+                        "uri": normalized_uri,
+                        "metrics": {
+                            "reward_avg": eval_results.scores.avg_simulation_score,
+                            "reward_avg_category_normalized": eval_results.scores.avg_category_score,
+                            "detailed": eval_results.scores.to_wandb_metrics_format(),
+                        },
+                        "replay_url": eval_results.replay_urls,
+                    }
+                )
+                all_results["policies"].append(results)
 
         # Always output JSON results to stdout
         # Ensure all logging is flushed before printing JSON

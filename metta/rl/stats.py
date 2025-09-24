@@ -227,15 +227,20 @@ def process_policy_evaluator_stats(
     # Sanitize run_name for wandb - remove version suffix and invalid characters
     # WandB run IDs cannot contain: :;,#?/'
     sanitized_run_name = run_name.split(":")[0] if run_name else None
+    if not sanitized_run_name:
+        logger.debug("Missing run_name metadata for %s; creating ad-hoc W&B run", policy_uri)
 
     # TODO: improve this parsing to be more general
-    run = wandb.init(
-        id=sanitized_run_name,
-        project=METTA_WANDB_PROJECT,
-        entity=METTA_WANDB_ENTITY,
-        reinit="create_new",
-        resume="must",
-    )
+    init_kwargs: dict[str, Any] = {
+        "project": METTA_WANDB_PROJECT,
+        "entity": METTA_WANDB_ENTITY,
+        "reinit": "create_new",
+    }
+    if sanitized_run_name:
+        init_kwargs["id"] = sanitized_run_name
+        init_kwargs["resume"] = "must"
+
+    run = wandb.init(**init_kwargs)
     try:
         try:
             setup_policy_evaluator_metrics(run)

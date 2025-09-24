@@ -13,8 +13,10 @@ import os
 import shutil
 import tempfile
 from contextlib import contextmanager
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator, Union
+from urllib.parse import quote
 
 from .uri import ParsedURI
 
@@ -24,6 +26,9 @@ try:  # pragma: no cover - boto3 is optional in some environments
 except ModuleNotFoundError:  # pragma: no cover - handled at runtime when S3 is used
     boto3 = None  # type: ignore[assignment]
     ClientError = NoCredentialsError = None  # type: ignore[assignment]
+
+
+logger = logging.getLogger(__name__)
 
 
 # --------------------------------------------------------------------------- #
@@ -49,8 +54,7 @@ def exists(path: str) -> bool:
                 return False
             raise
         except NoCredentialsError as exc:  # type: ignore[misc]
-            logging.getLogger(__name__).error("AWS credentials not found; run 'aws sso login --profile softmax'")
-            raise exc
+            _raise_missing_credentials(exc)
 
     if parsed.scheme == "file" and parsed.local_path is not None:
         return parsed.local_path.exists()
@@ -64,8 +68,6 @@ def exists(path: str) -> bool:
 
 def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
     """Write in-memory bytes/str to local filesystem or S3."""
-    logger = logging.getLogger(__name__)
-
     if isinstance(data, str):
         data = data.encode()
 
@@ -79,8 +81,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
             logger.info("Wrote %d B → %s", len(data), http_url(parsed.canonical))
             return
         except NoCredentialsError as exc:  # type: ignore[misc]
-            logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
-            raise exc
+            _raise_missing_credentials(exc)
 
     if parsed.scheme == "file" and parsed.local_path is not None:
         local_path = parsed.local_path
@@ -94,35 +95,33 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
 
 def write_file(path: str, local_file: str, *, content_type: str = "application/octet-stream") -> None:
     """Copy a file to local filesystem or upload to S3."""
-    logger = logging.getLogger(__name__)
-
     parsed = ParsedURI.parse(path)
 
     if parsed.scheme == "s3":
         client = _require_s3_client()
         bucket, key = parsed.require_s3()
         try:
-            extra_args = {"ContentType": content_type} if content_type else None
-            if extra_args:
-                client.upload_file(local_file, bucket, key, ExtraArgs=extra_args)  # type: ignore[arg-type]
-            else:
-                client.upload_file(local_file, bucket, key)  # type: ignore[arg-type]
+            kwargs: dict[str, Any] = {}
+            if content_type:
+                kwargs["ExtraArgs"] = {"ContentType": content_type}
+            client.upload_file(local_file, bucket, key, **kwargs)  # type: ignore[arg-type]
+            file_size = Path(local_file).stat().st_size
             logger.info(
                 "Uploaded %s → %s (size %d B)",
                 local_file,
                 http_url(parsed.canonical),
-                os.path.getsize(local_file),
+                file_size,
             )
             return
         except NoCredentialsError as exc:  # type: ignore[misc]
-            logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
-            raise exc
+            _raise_missing_credentials(exc)
 
     if parsed.scheme == "file" and parsed.local_path is not None:
         dst = parsed.local_path
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(local_file, dst)
-        logger.info("Copied %s → %s (size %d B)", local_file, dst, Path(local_file).stat().st_size)
+        file_size = Path(local_file).stat().st_size
+        logger.info("Copied %s → %s (size %d B)", local_file, dst, file_size)
         return
 
     raise ValueError(f"Unsupported URI for write_file: {path}")
@@ -130,8 +129,6 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
 
 def read(path: str) -> bytes:
     """Read bytes from a local path or S3 object."""
-    logger = logging.getLogger(__name__)
-
     parsed = ParsedURI.parse(path)
 
     if parsed.scheme == "s3":
@@ -142,8 +139,7 @@ def read(path: str) -> bytes:
             logger.info("Read %d B from %s", len(body), parsed.canonical)
             return body
         except NoCredentialsError as exc:  # type: ignore[misc]
-            logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
-            raise exc
+            _raise_missing_credentials(exc)
 
     if parsed.scheme == "file" and parsed.local_path is not None:
         data = parsed.local_path.read_bytes()
@@ -176,7 +172,7 @@ def http_url(path: str) -> str:
     """Return a public HTTP URL when available."""
     parsed = ParsedURI.parse(path)
     if parsed.scheme == "s3" and parsed.bucket and parsed.key:
-        return f"https://{parsed.bucket}.s3.amazonaws.com/{parsed.key}"
+        return f"https://{parsed.bucket}.s3.amazonaws.com/{quote(parsed.key, safe='/')}"
     return parsed.canonical if parsed.scheme == "file" else parsed.raw
 
 
@@ -192,6 +188,12 @@ def is_public_uri(url: str | None) -> bool:
 # --------------------------------------------------------------------------- #
 
 
+def _raise_missing_credentials(exc: Exception) -> None:
+    logger.error("AWS credentials not found; run 'aws sso login --profile softmax'")
+    raise exc
+
+
+@lru_cache(maxsize=1)
 def _require_s3_client() -> Any:
     if boto3 is None:
         raise RuntimeError("boto3 is required for S3 operations but is not installed")
@@ -216,5 +218,4 @@ def _download_s3_to_path(parsed: ParsedURI, destination: Path) -> None:
     try:
         client.download_file(bucket, key, str(destination))
     except NoCredentialsError as exc:  # type: ignore[misc]
-        logging.getLogger(__name__).error("AWS credentials not found; run 'aws sso login --profile softmax'")
-        raise exc
+        _raise_missing_credentials(exc)
