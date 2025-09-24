@@ -12,6 +12,13 @@ from metta.agent.components.component_config import ComponentConfig
 # for token-based observation shaping. Or you can manipulate the two classes below directly in your policy.
 
 
+def _is_compiling() -> bool:
+    dynamo = getattr(torch, "_dynamo", None)
+    if dynamo is None:
+        return False
+    return bool(dynamo.is_compiling())
+
+
 class ObsTokenPadStrip(nn.Module):
     """
     This is a top-level layer that grabs environment token observations and strips them of padding, returning a tensor
@@ -31,6 +38,8 @@ class ObsTokenPadStrip(nn.Module):
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
+        # Cache positions on CPU so torch.compile / cudagraph capture stays safe.
+        self._positions_cache: Optional[torch.Tensor] = None
 
     def initialize_to_environment(
         self,
@@ -121,9 +130,13 @@ class ObsTokenPadStrip(nn.Module):
         max_flip = row_lengths.max()
 
         # build a 1‐D "positions" row [0,1,2,…,L−1]
-        if not hasattr(self, "_positions") or self._positions.device != obs_mask.device or self._positions.numel() < M:
-            self._positions = torch.arange(M, device=obs_mask.device)
-        positions = self._positions[:M]
+        cache = self._positions_cache
+        if cache is None or cache.numel() < M:
+            new_cache = torch.arange(M, dtype=torch.int64)
+            if not _is_compiling():
+                self._positions_cache = new_cache
+            cache = new_cache
+        positions = cache[:M].to(obs_mask.device)
 
         # make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool

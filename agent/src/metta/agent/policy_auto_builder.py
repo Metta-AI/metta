@@ -1,5 +1,6 @@
 import logging
 from collections import OrderedDict
+from contextlib import ExitStack
 
 import torch
 import torch.nn as nn
@@ -41,6 +42,7 @@ class PolicyAutoBuilder(nn.Module):
         self.action_probs = self.config.action_probs_config.make_component()
 
         self.network = TensorDictSequential(self.components, inplace=True)
+        self._sdpa_context = ExitStack()
 
         # PyTorch's nn.Module no longer exposes count_params(); defer to manual
         # aggregation to avoid AttributeError during policy construction.
@@ -63,10 +65,32 @@ class PolicyAutoBuilder(nn.Module):
     ):
         self.to(device)
         if device.type == "cuda":
+            self._sdpa_context.close()
+            self._sdpa_context = ExitStack()
             try:
-                torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False)
-            except AttributeError:
-                pass
+                from torch.nn import attention as nn_attention
+
+                self._sdpa_context.enter_context(
+                    nn_attention.sdpa_kernel(
+                        backends=[
+                            nn_attention.SDPBackend.FLASH_ATTENTION,
+                            nn_attention.SDPBackend.EFFICIENT_ATTENTION,
+                        ]
+                    )
+                )
+            except (AttributeError, ImportError):
+                try:
+                    self._sdpa_context.enter_context(
+                        torch.backends.cuda.sdp_kernel(
+                            enable_flash=True,
+                            enable_mem_efficient=True,
+                            enable_math=False,
+                        )
+                    )
+                except AttributeError:
+                    torch.backends.cuda.enable_flash_sdp(True)
+                    torch.backends.cuda.enable_mem_efficient_sdp(True)
+                    torch.backends.cuda.enable_math_sdp(False)
             torch.set_float32_matmul_precision("high")
         logs = []
         for _, value in self.components.items():

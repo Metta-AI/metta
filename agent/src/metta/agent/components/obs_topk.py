@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
@@ -18,12 +16,6 @@ class ObsTokenTopKConfig(ComponentConfig):
 
     def make_component(self, env=None):
         return ObsTokenTopK(config=self)
-
-
-@dataclass
-class TopKOutput:
-    tokens: torch.Tensor
-    mask: torch.Tensor
 
 
 class ObsTokenTopK(nn.Module):
