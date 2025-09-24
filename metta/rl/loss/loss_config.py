@@ -4,7 +4,6 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
-from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.kl_penalty import KLPenaltyConfig
 from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.config import Config

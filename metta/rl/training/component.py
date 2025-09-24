@@ -2,11 +2,11 @@
 
 import logging
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pydantic import Field
 
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class TrainerComponent:
             raise RuntimeError("TrainerComponent has not been registered with a ComponentContext")
         return self._context
 
-    def on_step(self, infos: Dict[str, Any]) -> None:
+    def on_step(self, infos: list[dict[str, Any]]) -> None:
         """Called after each environment step."""
         pass
 
