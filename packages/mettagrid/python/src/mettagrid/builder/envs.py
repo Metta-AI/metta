@@ -242,7 +242,6 @@ def make_icl_assembler(
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_instances,
-                # TODO GEORGE: implement AssemblerMapBuilder, where all objects are surrounded by empty space
                 instance_map=AssemblerMapBuilder.Config(
                     agents=num_agents,
                     width=width,
@@ -262,7 +261,6 @@ def make_icl_assembler(
                     },
                 ),
                 default_resource_limit=1,
-                # TODO GEORGE: think about resource limits
                 resource_limits={"heart": 15},
             ),
         ),
