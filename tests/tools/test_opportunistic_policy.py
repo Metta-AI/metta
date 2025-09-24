@@ -118,7 +118,7 @@ class TestBasicPolicyEnvironment:
         assert kwargs["cwd"] == Path.cwd()
         assert kwargs["env"]["AWS_ACCESS_KEY_ID"] == "dummy_for_test"
 
-    def test_simulation_creation(self):
+    def test_simulation_creation(self, monkeypatch):
         """Test simulation configuration creation and instantiation."""
 
         env_config = eb.make_navigation(num_agents=2)
@@ -134,17 +134,13 @@ class TestBasicPolicyEnvironment:
                 max_task_id=1,
             )
 
-        monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))
-        try:
-            simulation = Simulation.create(
-                sim_config=sim_config,
-                device="cpu",
-                vectorization="serial",
-                policy_uri=None,
-            )
-        finally:
-            monkeypatch.undo()
+        simulation = Simulation.create(
+            sim_config=sim_config,
+            device="cpu",
+            vectorization="serial",
+            policy_uri=None,
+        )
         try:
             assert simulation.name == "test/test_nav"
         finally:
