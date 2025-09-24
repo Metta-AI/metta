@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import resource
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Dict, Iterator
-
-import resource
 
 import torch
 
@@ -52,8 +51,16 @@ class Profiler:
             )
 
         if include_memory:
-            rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            rss_mb = rss_kb / 1024 if rss_kb else 0.0
+            rss_raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            if rss_raw:
+                import sys
+
+                if sys.platform == "darwin":
+                    rss_mb = rss_raw / (1024 * 1024)
+                else:
+                    rss_mb = rss_raw / 1024
+            else:
+                rss_mb = 0.0
             lines.append(f"  CPU max RSS            {rss_mb:6.2f} MB")
 
             if torch.cuda.is_available():

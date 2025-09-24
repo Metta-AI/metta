@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.util.profile import PROFILER
 
 
 class ObsLatentAttnConfig(ComponentConfig):
@@ -293,19 +294,21 @@ class ObsPerceiverLatent(nn.Module):
 
         latents = self.latents.expand(B, -1, -1)
 
-        for layer in self.layers:
-            residual = latents
-            latents_norm = layer["latent_norm"](latents)
-            q = layer["q_proj"](latents_norm)
-            q = einops.rearrange(q, "b n (h d) -> b h n d", h=self._num_heads)
+        for idx, layer in enumerate(self.layers):
+            with PROFILER.section(f"perceiver_attn_{idx}"):
+                residual = latents
+                latents_norm = layer["latent_norm"](latents)
+                q = layer["q_proj"](latents_norm)
+                q = einops.rearrange(q, "b n (h d) -> b h n d", h=self._num_heads)
 
-            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
-            attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
-            attn_output = layer["attn_out_proj"](attn_output)
-            latents = residual + attn_output
+                attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
+                attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
+                attn_output = layer["attn_out_proj"](attn_output)
+                latents = residual + attn_output
 
-            residual = latents
-            latents = residual + layer["mlp"](layer["mlp_norm"](latents))
+            with PROFILER.section(f"perceiver_mlp_{idx}"):
+                residual = latents
+                latents = residual + layer["mlp"](layer["mlp_norm"](latents))
 
         latents = self.final_norm(latents)
 
