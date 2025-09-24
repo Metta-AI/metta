@@ -200,7 +200,6 @@ class PufferPolicy(Policy):
         
         # Remove sequence dimension: [1, B, 512] -> [B, 512]
         core_features = lstm_output.squeeze(0)
-        td["core"] = core_features
 
         # Decode actions - returns separate logits per action type
         logits, value = self.decode_actions(core_features)
