@@ -671,3 +671,54 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         self._task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
+
+    def get_state(self) -> Dict[str, Any]:
+        """Get learning progress algorithm state for checkpointing."""
+        state = {
+            "type": self.hypers.algorithm_type(),
+            "hypers": self.hypers.model_dump(),
+            "task_tracker": self.task_tracker.get_state(),
+        }
+
+        # Save bidirectional scoring state
+        if hasattr(self, "_outcomes"):
+            state.update(
+                {
+                    "outcomes": {k: v for k, v in self._outcomes.items()},
+                    "counter": self._counter,
+                    "p_fast": self._p_fast.tolist() if self._p_fast is not None else None,
+                    "p_slow": self._p_slow.tolist() if self._p_slow is not None else None,
+                    "p_true": self._p_true.tolist() if self._p_true is not None else None,
+                    "random_baseline": self._random_baseline.tolist() if self._random_baseline is not None else None,
+                    "task_success_rate": self._task_success_rate.tolist(),
+                    "update_mask": self._update_mask.tolist(),
+                    "sample_levels": self._sample_levels.tolist(),
+                    "task_dist": self._task_dist.tolist() if self._task_dist is not None else None,
+                    "stale_dist": self._stale_dist,
+                    "score_cache": self._score_cache,
+                    "cache_valid_tasks": list(self._cache_valid_tasks),
+                }
+            )
+
+        return state
+
+    def load_state(self, state: Dict[str, Any]) -> None:
+        """Load learning progress algorithm state from checkpoint."""
+        # Restore task tracker
+        self.task_tracker.load_state(state["task_tracker"])
+
+        # Restore bidirectional scoring state
+        if "outcomes" in state:
+            self._outcomes = state["outcomes"]
+            self._counter = state["counter"]
+            self._p_fast = np.array(state["p_fast"]) if state["p_fast"] is not None else None
+            self._p_slow = np.array(state["p_slow"]) if state["p_slow"] is not None else None
+            self._p_true = np.array(state["p_true"]) if state["p_true"] is not None else None
+            self._random_baseline = np.array(state["random_baseline"]) if state["random_baseline"] is not None else None
+            self._task_success_rate = np.array(state["task_success_rate"])
+            self._update_mask = np.array(state["update_mask"])
+            self._sample_levels = np.array(state["sample_levels"])
+            self._task_dist = np.array(state["task_dist"]) if state["task_dist"] is not None else None
+            self._stale_dist = state["stale_dist"]
+            self._score_cache = state["score_cache"]
+            self._cache_valid_tasks = set(state["cache_valid_tasks"])

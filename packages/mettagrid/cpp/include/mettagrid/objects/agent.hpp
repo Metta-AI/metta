@@ -7,12 +7,13 @@
 #include <string>
 #include <vector>
 
-#include "systems/stats_tracker.hpp"
+#include "core/types.hpp"
 #include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
-#include "core/types.hpp"
+#include "objects/has_inventory.hpp"
+#include "systems/stats_tracker.hpp"
 
-class Agent : public GridObject {
+class Agent : public GridObject, public HasInventory {
 public:
   ObservationType group;
   short frozen;
@@ -21,7 +22,6 @@ public:
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
-  std::map<InventoryItem, InventoryQuantity> inventory;
   std::map<InventoryItem, RewardType> resource_rewards;
   std::map<InventoryItem, RewardType> resource_reward_max;
   std::map<std::string, RewardType> stat_rewards;
@@ -49,7 +49,6 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::North),
-        inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         stat_rewards(config.stat_rewards),
@@ -67,7 +66,7 @@ public:
         prev_action_name(""),
         steps_without_motion(0) {
     populate_initial_inventory(config.initial_inventory);
-    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
+    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
   }
 
   void init(RewardType* reward_ptr) {
@@ -121,25 +120,24 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-    // Get the initial amount (0 if item doesn't exist)
-    InventoryQuantity initial_amount = 0;
-    auto inv_it = this->inventory.find(item);
-    if (inv_it != this->inventory.end()) {
-      initial_amount = inv_it->second;
+    // Apply resource limits if adding items
+    if (attempted_delta > 0) {
+      auto limit_it = this->resource_limits.find(item);
+      if (limit_it != this->resource_limits.end()) {
+        InventoryQuantity current_amount = 0;
+        auto inv_it = this->inventory.find(item);
+        if (inv_it != this->inventory.end()) {
+          current_amount = inv_it->second;
+        }
+        InventoryQuantity limit = limit_it->second;
+        InventoryQuantity max_can_add = limit - current_amount;
+        if (max_can_add < attempted_delta) {
+          attempted_delta = max_can_add;
+        }
+      }
     }
 
-    // Calculate the new amount with clamping
-    InventoryQuantity new_amount = static_cast<InventoryQuantity>(std::clamp(
-        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item])));
-
-    InventoryDelta delta = new_amount - initial_amount;
-
-    // Update inventory
-    if (new_amount > 0) {
-      this->inventory[item] = new_amount;
-    } else {
-      this->inventory.erase(item);
-    }
+    const InventoryDelta delta = this->HasInventory::update_inventory(item, attempted_delta);
 
     // Update stats
     if (delta > 0) {
@@ -148,8 +146,14 @@ public:
       this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
     }
 
+    InventoryQuantity new_amount = 0;
+    auto inv_it = this->inventory.find(item);
+    if (inv_it != this->inventory.end()) {
+      new_amount = inv_it->second;
+    }
+
     // Update resource rewards incrementally
-    this->_update_resource_reward(item, initial_amount, new_amount);
+    this->_update_resource_reward(item, new_amount - delta, new_amount);
 
     return delta;
   }
@@ -188,7 +192,7 @@ public:
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
-    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);
+    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0) + this->tag_ids.size();
 
     std::vector<PartialObservationToken> features;
     features.reserve(num_tokens);
@@ -205,6 +209,11 @@ public:
       assert(amount > 0);
       auto item_observation_feature = static_cast<ObservationType>(InventoryFeatureOffset + item);
       features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
+    }
+
+    // Emit tag features
+    for (int tag_id : tag_ids) {
+      features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
     return features;

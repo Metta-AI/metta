@@ -6,7 +6,7 @@ import gymnasium as gym
 import numpy as np
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import MettaAgent
+from metta.agent.policy import Policy
 
 logger = logging.getLogger("policy")
 
@@ -37,7 +37,7 @@ def _init_env() -> SimpleNamespace:
     )
 
 
-def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[DictConfig] = None) -> MettaAgent:
+def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[DictConfig] = None) -> Policy:
     """Create or loads a PyTorch policy."""
     # TODO(richard): #dehydration - this is a hack to get the policy to work. We need to fix this.
     raise NotImplementedError("This is a hack to get the policy to work. We need to fix this.")
@@ -60,4 +60,4 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
 
     # system_cfg = SystemConfig(device=device)
 
-    # return MettaAgent(env, system_cfg, pytorch_cfg, policy=policy)
+    # return Policy(env, system_cfg, pytorch_cfg, policy=policy)
