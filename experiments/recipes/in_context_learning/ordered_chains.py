@@ -366,10 +366,10 @@ def make_curriculum(
     lp_params: LPParams = LPParams(),
     map_dir: str = "icl_ordered_chains",
 ) -> CurriculumConfig:
-    config_kwargs = curriculum_args[curriculum_style].copy()
-    config_kwargs["map_dir"] = map_dir
-
-    task_generator_cfg = ICLTaskGenerator.Config(**config_kwargs)
+    task_generator_cfg = ICLTaskGenerator.Config(
+        **curriculum_args[curriculum_style],
+        map_dir=map_dir,
+    )
     algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
     return CurriculumConfig(
