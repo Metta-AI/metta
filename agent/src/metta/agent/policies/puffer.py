@@ -59,7 +59,6 @@ class PufferPolicy(Policy):
             nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1), std=1.0
         )
 
-        # Calculate actual CNN output size dynamically (matching PufferLib)
         test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
         with torch.no_grad():
             test_output = self.policy.conv2(torch.relu(self.policy.conv1(test_input)))
