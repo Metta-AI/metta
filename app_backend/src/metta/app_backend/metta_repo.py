@@ -646,7 +646,6 @@ MIGRATIONS = [
             """,
         ],
     ),
-        version=27,
     SqlMigration(
         version=26,
         description="Drop simulation_suite column from episodes table",
@@ -696,21 +695,8 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_user_id_ilike ON eval_tasks(user_id text_pattern_ops)""",
             # Add index for policy name search (through JOIN)
             """CREATE INDEX idx_policies_name_ilike ON policies(name text_pattern_ops)""",
-        ],
-    ),
-    SqlMigration(
-        version=27,
-        description="Add git_hash search index for eval_tasks",
-        sql_statements=[
-            # Add index for git_hash search in attributes JSONB
-            """CREATE INDEX idx_eval_tasks_git_hash_ilike
-               ON eval_tasks((attributes->>'git_hash') text_pattern_ops)""",
-        ],
-    ),
-    SqlMigration(
-        version=28,
-        description="Add additional text search indexes for comprehensive eval_tasks search",
-        sql_statements=[
+            # Add index for git_hash search in attributes
+            """CREATE INDEX idx_eval_tasks_git_hash_ilike ON eval_tasks((attributes->>'git_hash') text_pattern_ops)""",
             # UUID text search indexes
             """CREATE INDEX idx_eval_tasks_id_text_ilike ON eval_tasks ((id::text) text_pattern_ops)""",
             """CREATE INDEX idx_eval_tasks_policy_id_text_ilike ON eval_tasks ((policy_id::text) text_pattern_ops)""",
