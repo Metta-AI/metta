@@ -102,6 +102,19 @@ curriculum_args = {
 }
 
 
+def make_task_generator_cfg(
+    chain_lengths, num_sinks, obstacle_types, densities, room_sizes, map_dir
+):
+    return ICLTaskGenerator.Config(
+        num_resources=chain_lengths - 1,
+        num_converters=num_sinks,
+        obstacle_types=obstacle_types,
+        densities=densities,
+        room_sizes=room_sizes,
+        map_dir=map_dir,
+    )
+
+
 def get_reward_estimates(
     num_resources: int,
     num_sinks: int,
@@ -305,7 +318,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         rng: random.Random,
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
-        resources, num_sinks, room_size, obstacle_type, density, width, height = (
+        resources, num_sinks, room_size, obstacle_type, density, width, height, _ = (
             self._setup_task(rng)
         )
 
@@ -345,12 +358,9 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
 
 def make_mettagrid(curriculum_style: str, map_dir=None) -> MettaGridConfig:
     # Update config to support map_dir from main
-    task_generator_cfg = ICLTaskGenerator.Config(
-        **curriculum_args[curriculum_style],
-        map_dir=map_dir,
+    task_generator = OrderedChainsTaskGenerator(
+        make_task_generator_cfg(**curriculum_args[curriculum_style], map_dir=map_dir)
     )
-
-    task_generator = OrderedChainsTaskGenerator(task_generator_cfg)
 
     env_cfg = task_generator.get_task(random.randint(0, 1000000))
 
@@ -362,9 +372,8 @@ def make_curriculum(
     lp_params: LPParams = LPParams(),
     map_dir: str = "icl_ordered_chains",
 ) -> CurriculumConfig:
-    task_generator_cfg = ICLTaskGenerator.Config(
-        **curriculum_args[curriculum_style],
-        map_dir=map_dir,
+    task_generator_cfg = make_task_generator_cfg(
+        **curriculum_args[curriculum_style], map_dir=map_dir
     )
     algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
@@ -501,7 +510,7 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                                 obstacle_type = random.choice(["square", "cross", "L"])
                             else:
                                 obstacle_type = ""
-                            task_generator_cfg = ICLTaskGenerator.Config(
+                            task_generator_cfg = make_task_generator_cfg(
                                 chain_lengths=[chain_length],
                                 num_sinks=[n_sinks],
                                 room_sizes=[room_size],

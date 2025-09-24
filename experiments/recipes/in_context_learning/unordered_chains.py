@@ -239,28 +239,16 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         cfg = self.config
 
         # Reuse superclass to sample common env geometry
-        _, _, room_size, obstacle_type, density, width, height = super()._setup_task(
-            rng
-        )
-
-        # Unordered-chain specifics
-        if cfg.num_resources:
-            num_resources = rng.choice(cfg.num_resources)
-            resources = rng.sample(self.resource_types, num_resources)
-        else:
-            # Fallback to chain_lengths for compatibility
-            num_resources = rng.choice(cfg.chain_lengths) if cfg.chain_lengths else 3
-            resources = rng.sample(self.resource_types, num_resources)
-
-        # Prefer explicit num_converters; fallback to legacy field for backward compatibility
-        if getattr(cfg, "num_converters", None):
-            num_converters = rng.choice(cfg.num_converters)
-        else:
-            num_converters = rng.choice(cfg.num_sinks) if cfg.num_sinks else 1
-
-        max_input_resources = (
-            rng.choice(cfg.max_recipe_inputs) if cfg.max_recipe_inputs else None
-        )
+        (
+            resources,
+            num_converters,
+            room_size,
+            obstacle_type,
+            density,
+            width,
+            height,
+            max_input_resources,
+        ) = super()._setup_task(rng)
 
         icl_env = self._make_env_cfg(
             resources,
