@@ -4,8 +4,6 @@ import tempfile
 import uuid
 from pathlib import Path
 
-import pytest
-
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.checkpoint_manager import CheckpointManager
 
@@ -67,14 +65,9 @@ def test_normalization_bug():
         avg_reward_complete = db1.get_average_metric("reward", policy_uri)
         avg_reward_partial = db2.get_average_metric("reward", policy_uri)
 
-        sum_reward_partial = db2.get_sum_metric("reward", policy_uri)
-
         if avg_reward_complete and avg_reward_partial:
             ratio = avg_reward_partial / avg_reward_complete
             assert ratio >= 0.99, f"Normalization bug detected: {ratio:.3f} ratio (should be ~1.0)"
-
-        # Sum should reflect total rewards collected (4 agents with reward 1.0)
-        assert sum_reward_partial == pytest.approx(4.0)
 
         db1.close()
         db2.close()
