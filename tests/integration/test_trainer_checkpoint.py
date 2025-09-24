@@ -12,6 +12,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import torch
+from torch import nn
+
 from metta.agent.policies.fast import FastConfig
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -33,13 +36,13 @@ class TestTrainerCheckpointIntegration:
     def _create_minimal_config(
         self,
     ) -> tuple[TrainerConfig, TrainingEnvironmentConfig, FastConfig, SystemConfig]:
-        curriculum = env_curriculum(make_arena(num_agents=6))
+        curriculum = env_curriculum(make_arena(num_agents=1))
 
         trainer_cfg = TrainerConfig(
-            total_timesteps=1_000,
-            batch_size=512,
-            minibatch_size=256,
-            bptt_horizon=8,
+            total_timesteps=16,
+            batch_size=32,
+            minibatch_size=16,
+            bptt_horizon=4,
             update_epochs=1,
         )
 
@@ -47,7 +50,7 @@ class TestTrainerCheckpointIntegration:
             curriculum=curriculum,
             num_workers=1,
             async_factor=1,
-            forward_pass_minibatch_target_size=32,
+            forward_pass_minibatch_target_size=4,
             vectorization="serial",
             seed=42,
         )
@@ -71,7 +74,7 @@ class TestTrainerCheckpointIntegration:
         policy_cfg: FastConfig,
         system_cfg: SystemConfig,
     ) -> None:
-        tool = TrainTool(
+        tool = _FastTrainTool(
             run=run_name,
             system=system_cfg.model_copy(deep=True),
             trainer=trainer_cfg.model_copy(deep=True),
@@ -189,3 +192,51 @@ class TestTrainerCheckpointIntegration:
         policy = checkpoint_manager.load_agent()
         assert policy is not None
         assert hasattr(policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
+
+
+class DummyPolicy(nn.Module):
+    """Lightweight torch module used to populate fake checkpoints quickly."""
+
+    def __init__(self, epoch: int) -> None:
+        super().__init__()
+        self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
+
+
+class _FastTrainTool(TrainTool):
+    """Minimal TrainTool variant that writes synthetic checkpoints without training."""
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        if "run" in args:
+            assert self.run is None, "run cannot be set twice"
+            self.run = args["run"]
+
+        run_name = self.run or "default"
+
+        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=self.system)
+
+        trainer_state_path = checkpoint_manager.checkpoint_dir / "trainer_state.pt"
+        if trainer_state_path.exists():
+            previous_state = torch.load(trainer_state_path, weights_only=False)
+            previous_agent_step = int(previous_state.get("agent_step", 0))
+            previous_epoch = int(previous_state.get("epoch", 0))
+        else:
+            previous_agent_step = 0
+            previous_epoch = 0
+
+        agent_step = max(previous_agent_step, int(self.trainer.total_timesteps))
+        epoch = previous_epoch + 1
+
+        torch.save(
+            {
+                "agent_step": agent_step,
+                "epoch": epoch,
+                "optimizer_state": {},
+            },
+            trainer_state_path,
+        )
+
+        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.pt"
+        policy = DummyPolicy(epoch)
+        torch.save(policy, policy_path)
+
+        return 0

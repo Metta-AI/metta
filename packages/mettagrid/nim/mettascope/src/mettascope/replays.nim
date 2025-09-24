@@ -60,10 +60,17 @@ type
     traceImages*: seq[string]
     objects*: seq[Entity]
     rewardSharingMatrix*: seq[seq[float]]
+
     agents*: seq[Entity]
-    attackActionId*: int
+
     drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
+
+    noopActionId*: int
+    moveActionId*: int
+    putItemsActionId*: int
+    getItemsActionId*: int
+    attackActionId*: int
 
   ReplayEntity* = ref object
     ## Replay entity does not have time series and only has the current step value.
@@ -354,7 +361,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
   return data
 
 proc computeGainMap(replay: Replay) =
-  #$ Compute gain/loss for agents.
+  ## Compute gain/loss for agents.
   var items = [
     newSeq[int](replay.itemNames.len),
     newSeq[int](replay.itemNames.len)
@@ -530,6 +537,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "agent_id" in obj:
       replay.agents.add(entity)
 
+  # compute gain maps for static replays.
+  computeGainMap(replay)
+
   return replay
 
 proc loadReplay*(data: string, fileName: string): Replay =
@@ -580,9 +590,23 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.cooldownProgress.add(obj.cooldownProgress)
     entity.cooldownTime = obj.cooldownTime
 
+  # Extend the max steps.
+  replay.maxSteps = max(replay.maxSteps, step + 1)
+
+  # Populate the agents field for agent entities
+  if replay.agents.len == 0:
+    for obj in replay.objects:
+      if obj.typeId == agentTypeIndex:
+        replay.agents.add(obj)
+    doAssert replay.agents.len == replay.numAgents, "Agents and numAgents mismatch"
+
   computeGainMap(replay)
 
-  replay.maxSteps = max(replay.maxSteps, step + 1)
+  replay.noopActionId = replay.actionNames.find("noop")
+  replay.moveActionId = replay.actionNames.find("move")
+  replay.putItemsActionId = replay.actionNames.find("put_items")
+  replay.getItemsActionId = replay.actionNames.find("get_items")
+  replay.attackActionId = replay.actionNames.find("attack")
 
 proc apply*(replay: Replay, replayStepJsonData: string) =
   ## Apply a replay step to the replay.

@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss
+from metta.rl.loss import Loss
 
 
 class DummyPolicy(Policy):

@@ -9,7 +9,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -134,12 +134,15 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: str | None = None,
+    simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     simulations = simulations or make_evals()
+    policy_uris = [policy_uri] if policy_uri is not None else None
+
     return SimTool(
         simulations=simulations,
-        policy_uris=[policy_uri],
+        policy_uris=policy_uris,
     )
 
 
