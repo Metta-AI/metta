@@ -91,12 +91,7 @@ def run_job_in_background() -> subprocess.Popen:
     # Add args if present
     args = os.environ.get("METTA_ARGS", "").strip()
     if args:
-        cmd.extend(["--args"] + args.split())
-
-    # Add overrides if present
-    overrides = os.environ.get("METTA_OVERRIDES", "").strip()
-    if overrides:
-        cmd.extend(["--overrides"] + overrides.split())
+        cmd.extend(args.split())
 
     logger.info(f"Launching training in background: {' '.join(cmd)}")
 
