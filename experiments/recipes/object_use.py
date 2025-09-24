@@ -153,6 +153,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
 
 def make_curriculum(
     object_use_env: Optional[MettaGridConfig] = None,
+    min_presentations_for_eviction: int = 5,
 ) -> CurriculumConfig:
     """Create curriculum for object use training."""
     object_use_env = object_use_env or make_mettagrid()
@@ -189,18 +190,25 @@ def make_curriculum(
     tasks.add_bucket("game.map_builder.instance_map.objects.lab", [Span(0, 2)])
     tasks.add_bucket("game.map_builder.instance_map.objects.factory", [Span(0, 2)])
 
-    return CurriculumConfig(task_generator=tasks)
+    return CurriculumConfig(
+        task_generator=tasks,
+        min_presentations_for_eviction=min_presentations_for_eviction,
+    )
 
 
 def train(
-    run: Optional[str] = None, curriculum: Optional[CurriculumConfig] = None
+    run: Optional[str] = None,
+    curriculum: Optional[CurriculumConfig] = None,
+    min_presentations_for_eviction: int = 5,
 ) -> TrainTool:
     """Create a training tool for object use."""
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
 
-    resolved_curriculum = curriculum or make_curriculum()
+    resolved_curriculum = curriculum or make_curriculum(
+        min_presentations_for_eviction=min_presentations_for_eviction,
+    )
 
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),

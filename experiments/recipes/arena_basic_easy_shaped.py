@@ -53,6 +53,8 @@ def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
 ) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
@@ -80,9 +82,14 @@ def make_curriculum(
             max_memory_tasks=1000,
             max_slice_axes=5,  # More slices for arena complexity
             enable_detailed_slice_logging=enable_detailed_slice_logging,
+            eviction_threshold_percentile=eviction_threshold_percentile,
         )
 
-    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
+    return CurriculumConfig(
+        task_generator=arena_tasks,
+        algorithm_config=algorithm_config,
+        min_presentations_for_eviction=min_presentations_for_eviction,
+    )
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
@@ -102,9 +109,13 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
-        enable_detailed_slice_logging=enable_detailed_slice_logging
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
     )
 
     eval_simulations = make_evals()

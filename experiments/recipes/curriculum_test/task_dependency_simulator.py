@@ -351,9 +351,11 @@ class MockTaskGenerator(TaskGenerator):
 def create_curriculum(
     num_tasks: int = 10,
     enable_detailed_slice_logging: bool = False,
-    ema_timescale: float = 0.001,
+    ema_timescale: float = 0.1,
     slow_timescale_factor: float = 0.2,
     exploration_bonus: float = 0.1,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
 ) -> CurriculumConfig:
     """Create curriculum configuration for task dependency simulation."""
     task_gen_config = MockTaskGenerator.Config()
@@ -363,17 +365,19 @@ def create_curriculum(
         ema_timescale=ema_timescale,
         slow_timescale_factor=slow_timescale_factor,
         exploration_bonus=exploration_bonus,
-        max_memory_tasks=1000,
+        max_memory_tasks=100,
         max_slice_axes=3,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         num_active_tasks=1000,
         rand_task_rate=0.01,
+        eviction_threshold_percentile=eviction_threshold_percentile,
     )
 
     return CurriculumConfig(
         task_generator=task_gen_config,
         algorithm_config=algorithm_config,
         num_active_tasks=min(16, num_tasks),
+        min_presentations_for_eviction=min_presentations_for_eviction,
     )
 
 
@@ -389,6 +393,8 @@ def simulate_task_dependencies(
     ema_timescale: float = 0.001,
     slow_timescale_factor: float = 0.2,
     exploration_bonus: float = 0.1,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
     wandb_project: str = "task_dependency_simulator",
     wandb_run_name: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -428,6 +434,8 @@ def simulate_task_dependencies(
         ema_timescale=ema_timescale,
         slow_timescale_factor=slow_timescale_factor,
         exploration_bonus=exploration_bonus,
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
     )
     curriculum = Curriculum(curriculum_config)
 
@@ -493,6 +501,8 @@ def simulate_task_dependencies(
                 "ema_timescale": ema_timescale,
                 "slow_timescale_factor": slow_timescale_factor,
                 "exploration_bonus": exploration_bonus,
+                "min_presentations_for_eviction": min_presentations_for_eviction,
+                "eviction_threshold_percentile": eviction_threshold_percentile,
             }
         )
 
@@ -556,42 +566,64 @@ def simulate_task_dependencies(
 # Convenience functions for programmatic use (return dictionaries)
 
 
-def run_small_chain_simulation(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
+def run_small_chain_simulation(
+    wandb_run_name: Optional[str] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
+) -> Dict[str, Any]:
     """Programmatically run a small task chain simulation (5 tasks)."""
     return simulate_task_dependencies(
         num_tasks=5,
         num_epochs=500,
         samples_per_epoch=25,
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
 
-def run_large_chain_simulation(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
+def run_large_chain_simulation(
+    wandb_run_name: Optional[str] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
+) -> Dict[str, Any]:
     """Programmatically run a large task chain simulation (20 tasks)."""
     return simulate_task_dependencies(
         num_tasks=20,
         num_epochs=2000,
         samples_per_epoch=100,
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
 
-def run_high_gamma_simulation(wandb_run_name: Optional[str] = None) -> Dict[str, Any]:
+def run_high_gamma_simulation(
+    wandb_run_name: Optional[str] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
+) -> Dict[str, Any]:
     """Programmatically run simulation with high parent contribution (gamma=0.3)."""
     return simulate_task_dependencies(
         gamma=0.3,  # High parent contribution
         lambda_forget=0.05,  # Lower forgetting
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
 
 def run_high_forgetting_simulation(
     wandb_run_name: Optional[str] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
 ) -> Dict[str, Any]:
     """Programmatically run simulation with high forgetting rate."""
     return simulate_task_dependencies(
         gamma=0.05,  # Low parent contribution
         lambda_forget=0.2,  # High forgetting
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
@@ -622,6 +654,10 @@ class TaskDependencySimulationTool(Tool):
     slow_timescale_factor: float = 0.2
     exploration_bonus: float = 0.1
 
+    # Eviction parameters
+    min_presentations_for_eviction: int = 5
+    eviction_threshold_percentile: float = 0.4
+
     # Wandb parameters
     wandb_project: str = "task_dependency_simulator"
     wandb_run_name: Optional[str] = None
@@ -643,6 +679,8 @@ class TaskDependencySimulationTool(Tool):
                 ema_timescale=self.ema_timescale,
                 slow_timescale_factor=self.slow_timescale_factor,
                 exploration_bonus=self.exploration_bonus,
+                min_presentations_for_eviction=self.min_presentations_for_eviction,
+                eviction_threshold_percentile=self.eviction_threshold_percentile,
                 wandb_project=self.wandb_project,
                 wandb_run_name=self.wandb_run_name,
             )
@@ -665,45 +703,61 @@ class TaskDependencySimulationTool(Tool):
 
 def simulate_small_chain(
     wandb_run_name: Optional[str] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
 ) -> TaskDependencySimulationTool:
     """Simulate a small task chain (5 tasks)."""
     return TaskDependencySimulationTool(
         num_tasks=5,
         num_epochs=500,
         samples_per_epoch=25,
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
 
 def simulate_large_chain(
     wandb_run_name: Optional[str] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
 ) -> TaskDependencySimulationTool:
     """Simulate a large task chain (20 tasks)."""
     return TaskDependencySimulationTool(
         num_tasks=20,
         num_epochs=2000,
         samples_per_epoch=100,
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
 
 def simulate_high_gamma(
     wandb_run_name: Optional[str] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
 ) -> TaskDependencySimulationTool:
     """Simulate with high parent contribution (gamma=0.3)."""
     return TaskDependencySimulationTool(
         gamma=0.3,  # High parent contribution
         lambda_forget=0.05,  # Lower forgetting
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
 
 def simulate_high_forgetting(
     wandb_run_name: Optional[str] = None,
+    min_presentations_for_eviction: int = 5,
+    eviction_threshold_percentile: float = 0.4,
 ) -> TaskDependencySimulationTool:
     """Simulate with high forgetting rate."""
     return TaskDependencySimulationTool(
         gamma=0.05,  # Low parent contribution
         lambda_forget=0.2,  # High forgetting
+        min_presentations_for_eviction=min_presentations_for_eviction,
+        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )

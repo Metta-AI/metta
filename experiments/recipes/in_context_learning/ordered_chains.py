@@ -69,6 +69,8 @@ class LPParams:
         enable_detailed_slice_logging: bool = False,
         num_active_tasks: int = 1000,
         rand_task_rate: float = 0.25,
+        min_presentations_for_eviction: int = 5,
+        eviction_threshold_percentile: float = 0.4,
     ):
         self.ema_timescale = ema_timescale
         self.exploration_bonus = exploration_bonus
@@ -78,6 +80,8 @@ class LPParams:
         self.enable_detailed_slice_logging = enable_detailed_slice_logging
         self.num_active_tasks = num_active_tasks
         self.rand_task_rate = rand_task_rate
+        self.min_presentations_for_eviction = min_presentations_for_eviction
+        self.eviction_threshold_percentile = eviction_threshold_percentile
 
 
 curriculum_args = {
@@ -482,11 +486,19 @@ def make_curriculum(
     task_generator_cfg = ConverterChainTaskGenerator.Config(
         **curriculum_args[curriculum_style], map_dir=map_dir
     )
-    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
+    # Extract parameters that belong to CurriculumConfig vs LearningProgressConfig
+    lp_dict = lp_params.__dict__.copy()
+    min_presentations_for_eviction = lp_dict.pop("min_presentations_for_eviction")
+    eviction_threshold_percentile = lp_dict.pop("eviction_threshold_percentile", 0.4)
+
+    algorithm_config = LearningProgressConfig(
+        eviction_threshold_percentile=eviction_threshold_percentile, **lp_dict
+    )
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
         algorithm_config=algorithm_config,
+        min_presentations_for_eviction=min_presentations_for_eviction,
     )
 
 

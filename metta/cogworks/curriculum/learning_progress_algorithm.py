@@ -26,7 +26,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
-    ema_timescale: float = 0.001
+    ema_timescale: float = 0.1
     slow_timescale_factor: float = 0.2  # Factor to multiply ema_timescale for slow EMA
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.05  # For bidirectional reweighting
@@ -41,6 +41,9 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     max_memory_tasks: int = 1000
     max_slice_axes: int = 3  # Updated terminology
     enable_detailed_slice_logging: bool = False  # Updated terminology
+
+    # Eviction criteria
+    eviction_threshold_percentile: float = 0.4  # Tasks below this percentile get evicted
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -273,10 +276,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         scores = self.score_tasks(all_task_ids)
         task_score = scores.get(task_id, 0.0)
 
-        # Evict if this task is in the bottom 40% of learning progress scores
+        # Evict if this task is in the bottom percentile of learning progress scores
         # This ensures eviction happens more readily with small task pools
         sorted_scores = sorted(scores.values())
-        threshold_index = max(0, int(len(sorted_scores) * 0.4))
+        threshold_index = max(0, int(len(sorted_scores) * self.hypers.eviction_threshold_percentile))
         threshold_score = sorted_scores[threshold_index] if sorted_scores else 0.0
 
         return task_score <= threshold_score
