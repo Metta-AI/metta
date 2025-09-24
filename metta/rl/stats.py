@@ -231,16 +231,13 @@ def process_policy_evaluator_stats(
         logger.debug("Missing run_name metadata for %s; creating ad-hoc W&B run", policy_uri)
 
     # TODO: improve this parsing to be more general
-    init_kwargs: dict[str, Any] = {
-        "project": METTA_WANDB_PROJECT,
-        "entity": METTA_WANDB_ENTITY,
-        "reinit": "create_new",
-    }
-    if sanitized_run_name:
-        init_kwargs["id"] = sanitized_run_name
-        init_kwargs["resume"] = "must"
-
-    run = wandb.init(**init_kwargs)
+    run = wandb.init(
+        project=METTA_WANDB_PROJECT,
+        entity=METTA_WANDB_ENTITY,
+        reinit="create_new",
+        id=sanitized_run_name,
+        resume="must" if sanitized_run_name else None,
+    )
     try:
         try:
             setup_policy_evaluator_metrics(run)

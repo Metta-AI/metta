@@ -4,7 +4,7 @@ import sys
 import uuid
 from contextlib import nullcontext
 from datetime import datetime
-from typing import ContextManager, Sequence
+from typing import Sequence
 
 import torch
 from pydantic import Field
@@ -70,21 +70,14 @@ class SimTool(Tool):
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
 
-        context: ContextManager[WandbContext | None]
-        if self.wandb and self.wandb.enabled:
-            context = WandbContext(self.wandb, self)
-        else:
-            context = nullcontext(None)
+        context = WandbContext(self.wandb, self) if self.wandb and self.wandb.enabled else nullcontext()
 
         with context as wandb_context:
             wandb_run = getattr(wandb_context, "run", None)
             if wandb_run:
                 logger.info("Initialized wandb run: %s", wandb_run.id)
 
-            # Get eval_task_id from config if provided
-            eval_task_id = None
-            if self.eval_task_id:
-                eval_task_id = uuid.UUID(self.eval_task_id)
+            eval_task_id = uuid.UUID(self.eval_task_id) if self.eval_task_id else None
 
             for policy_uri in self.policy_uris:
                 # Normalize the URI using CheckpointManager
