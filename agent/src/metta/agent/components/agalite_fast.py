@@ -109,11 +109,12 @@ class FastAGaLiTeLayer(nn.Module):
         )
 
         # Oscillatory terms (cached computation)
-        tick_inc = torch.arange(1, T + 1, device=device, dtype=tick.dtype)
-        ticks = tick + tick_inc.view(T, 1, 1)
+        tick_base = tick.view(1, B)
+        tick_inc = torch.arange(1, T + 1, device=device, dtype=tick.dtype).view(T, 1)
+        ticks = tick_inc + tick_base  # (T, B)
 
         # Vectorized oscillatory computation
-        occil = torch.cos(ticks @ self.omegas.unsqueeze(0))  # (T, B, r)
+        occil = torch.cos(ticks.unsqueeze(-1) * self.omegas.view(1, 1, -1))  # (T, B, r)
 
         # Apply gating
         values_gated = values * beta
@@ -122,16 +123,15 @@ class FastAGaLiTeLayer(nn.Module):
 
         # Expand with oscillations (optimize memory layout)
         # Instead of 5D tensors, keep as 4D
-        values_osc = values_gated.unsqueeze(2) * occil.unsqueeze(-1).unsqueeze(-1)
-        keys_osc = keys_gated.unsqueeze(2) * occil.unsqueeze(-1).unsqueeze(-1)
+        cos_expanded = occil.unsqueeze(-1).unsqueeze(-1)
+        values_osc = values_gated.unsqueeze(2) * cos_expanded
+        keys_osc = keys_gated.unsqueeze(2) * cos_expanded
 
         # Prepare discount factors
         if self.reset_hidden_on_terminate:
             term_mask = (1 - terminations.float()).unsqueeze(2).unsqueeze(3)
             discount_gamma = (1 - gammas_expanded) * term_mask
-            # Beta has shape (T, B, head_num, head_dim), need term_mask to match
-            term_mask_beta = (1 - terminations.float()).unsqueeze(2).unsqueeze(3)
-            discount_beta = (1 - beta) * term_mask_beta
+            discount_beta = (1 - beta) * term_mask
         else:
             discount_gamma = 1 - gammas_expanded
             discount_beta = 1 - beta
@@ -175,7 +175,8 @@ class FastAGaLiTeLayer(nn.Module):
             final_s = torch.cat(final_s_chunks, dim=1)
         else:
             # Normal processing
-            final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma.unsqueeze(2))
+            discount_gamma_expanded = discount_gamma.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
+            final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma_expanded)
             # For values, expand discount_beta to match values_osc shape
             discount_beta_expanded = discount_beta.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
             final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta_expanded)
@@ -203,9 +204,9 @@ class FastAGaLiTeLayer(nn.Module):
 
         # Update memory
         new_tick = tick + T
-        new_tilde_k = final_keys[-1].detach()
-        new_tilde_v = final_values[-1].detach()
-        new_s = final_s[-1].detach()
+        new_tilde_k = final_keys[-1]
+        new_tilde_v = final_values[-1]
+        new_s = final_s[-1]
 
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 
@@ -219,5 +220,5 @@ class FastAGaLiTeLayer(nn.Module):
             torch.zeros((batch_size, r, head_num, eta * head_dim), device=device),
             torch.zeros((batch_size, r, head_num, head_dim), device=device),
             torch.zeros((batch_size, head_num, eta * head_dim), device=device),
-            torch.zeros((batch_size, 1), device=device),
+            torch.zeros(batch_size, device=device),
         )

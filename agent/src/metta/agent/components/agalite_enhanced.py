@@ -154,7 +154,8 @@ class GaLiTeAttentionLayer(nn.Module):
         psi_k = psi_k.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
         # γ feature map: ReLU(γ) ⊗ ReLU(p3)
-        gamma_feat = torch.einsum("tbhd,tbhe->tbhde", gamma, F.relu(p3))
+        sigma_p3 = torch.sigmoid(p3)
+        gamma_feat = torch.einsum("tbhd,tbhe->tbhde", gamma, sigma_p3)
         gamma_feat = gamma_feat.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
         # Apply gating
@@ -188,8 +189,8 @@ class GaLiTeAttentionLayer(nn.Module):
         output = self.dropout(self.out_proj(attn_out))
 
         # Return output and memory (detach for memory efficiency)
-        final_kv_state = new_kv_state[-1].detach()
-        final_norm_state = new_norm_state[-1].detach()
+        final_kv_state = new_kv_state[-1]
+        final_norm_state = new_norm_state[-1]
 
         return output, (final_kv_state, final_norm_state)
 
@@ -314,25 +315,26 @@ class AGaLiTeAttentionLayer(nn.Module):
         psi_k = torch.einsum("tbhd,tbhe->tbhde", F.relu(keys), F.relu(p1))
         psi_k = psi_k.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
-        gamma_feat = torch.einsum("tbhd,tbhe->tbhde", gamma, F.relu(p3))
+        sigma_p3 = torch.sigmoid(p3)
+        gamma_feat = torch.einsum("tbhd,tbhe->tbhde", gamma, sigma_p3)
         gamma_feat = gamma_feat.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
         # Update tick and compute oscillatory terms
-        tick_inc = torch.arange(1, T + 1, device=device, dtype=tick.dtype).view(T, 1, 1)
-        ticks = tick + tick_inc  # (T, B, 1)
+        tick_base = tick.view(1, B)
+        tick_inc = torch.arange(1, T + 1, device=device, dtype=tick.dtype).view(T, 1)
+        ticks = tick_inc + tick_base  # (T, B)
 
-        # Compute oscillatory components: cos(ω(t-s)) ≈ Σ cos(ωt)cos(ωs)
-        cos_terms = torch.cos(ticks @ self.omegas.unsqueeze(0))  # (T, B, r)
+        # Compute oscillatory components: cos(ω · t)
+        cos_terms = torch.cos(ticks.unsqueeze(-1) * self.omegas.view(1, 1, -1))  # (T, B, r)
 
         # Apply gating and expand with oscillatory terms
         gated_values = values * beta  # (T, B, head_num, head_dim)
         gated_keys = psi_k * gamma_feat  # (T, B, head_num, head_dim * eta)
 
         # Expand with oscillatory terms
-        values_osc = gated_values.unsqueeze(2) * cos_terms.unsqueeze(-1).unsqueeze(-1)  # (T, B, r, head_num, head_dim)
-        keys_osc = gated_keys.unsqueeze(2) * cos_terms.unsqueeze(-1).unsqueeze(
-            -1
-        )  # (T, B, r, head_num, head_dim * eta)
+        cos_expanded = cos_terms.unsqueeze(-1).unsqueeze(-1)
+        values_osc = gated_values.unsqueeze(2) * cos_expanded  # (T, B, r, head_num, head_dim)
+        keys_osc = gated_keys.unsqueeze(2) * cos_expanded  # (T, B, r, head_num, head_dim * eta)
 
         # Prepare discount factors
         if self.reset_hidden_on_terminate:
@@ -366,9 +368,9 @@ class AGaLiTeAttentionLayer(nn.Module):
 
         # Update memory (detach for efficiency)
         new_tick = tick + T
-        new_tilde_k = final_keys[-1].detach()
-        new_tilde_v = final_values[-1].detach()
-        new_s = final_s[-1].detach()
+        new_tilde_k = final_keys[-1]
+        new_tilde_v = final_values[-1]
+        new_s = final_s[-1]
 
         return output, (new_tilde_k, new_tilde_v, new_s, new_tick)
 
@@ -383,7 +385,7 @@ class AGaLiTeAttentionLayer(nn.Module):
         tilde_k = torch.zeros(batch_size, r, head_num, eta * head_dim, device=device)
         tilde_v = torch.zeros(batch_size, r, head_num, head_dim, device=device)
         s = torch.zeros(batch_size, head_num, eta * head_dim, device=device)
-        tick = torch.zeros(batch_size, 1, device=device)
+        tick = torch.zeros(batch_size, device=device)
 
         return (tilde_k, tilde_v, s, tick)
 
