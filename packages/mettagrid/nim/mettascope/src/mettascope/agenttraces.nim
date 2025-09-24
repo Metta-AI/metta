@@ -60,15 +60,24 @@ proc drawAgentTraces*(panel: Panel) =
       panel.rect.w.float32, traceHeight.float32), color(0.3, 0.3, 0.3, 1.0))
 
   # Current step
-  bxy.drawRect(rect(step.float32 * traceWidth, 0.0, traceWidth,
-    panel.rect.h.float32), color(0.5, 0.5, 0.5, 0.5))
+  bxy.drawRect(
+    rect(
+      step.float32 * traceWidth,
+      0.0,
+      traceWidth,
+      panel.rect.h.float32
+    ),
+    color(0.5, 0.5, 0.5, 0.5)
+  )
 
   # Agents
   for obj in replay.agents:
     let j = obj.agentId
     for i in 0 ..< replay.maxSteps:
-      let pos = vec2(i.float32 * traceWidth + traceWidth / 2, j.float32 *
-        traceHeight + traceHeight / 2)
+      let pos = vec2(
+        i.float32 * traceWidth + traceWidth / 2,
+        j.float32 * traceHeight + traceHeight / 2
+      )
       if obj.isFrozen.len > 1 and obj.isFrozen[i]:
         bxy.drawImage("trace/frozen", pos, angle = 0, scale = 1/200)
       else:
