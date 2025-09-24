@@ -30,16 +30,13 @@ class AlsBuffer:
 
     def __init__(
         self,
+        trainer_cfg: TrainerConfig,
         batch_size: int,
         parallel_agents: int,
         num_envs: int,
+        num_agents_per_env: int,
         experience_spec: Composite,
         device: torch.device | str,
-        # Unused, but kept for API compatibility with Experience
-        bptt_horizon: int | None = None,
-        minibatch_size: int | None = None,
-        max_minibatch_size: int | None = None,
-        total_agents: int | None = None,
     ):
         """
         Initializes the SimpleReplayBuffer.
@@ -54,9 +51,14 @@ class AlsBuffer:
         """
         self._check_for_duplicate_keys(experience_spec)
 
+        self.trainer_cfg = trainer_cfg
+        self.sampling_state = {}
+
         self.batch_size = batch_size
         self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.num_parallel_streams = parallel_agents
+        self.num_envs = num_envs
+        self.num_agents_per_env = num_agents_per_env
 
         self.num_timesteps = self.batch_size // self.num_parallel_streams
         if self.batch_size != self.num_timesteps * self.num_parallel_streams:
@@ -65,30 +67,26 @@ class AlsBuffer:
             )
             self.batch_size = self.num_timesteps * self.num_parallel_streams
 
-        self.buffer = self._create_buffer(experience_spec)
-        self.pos = torch.zeros(self.num_parallel_streams, dtype=torch.long, device=self.device)
-        self.is_full = False
-
-        self.num_actors_per_slice = self.num_parallel_streams // num_envs
-
-    def _create_buffer(self, experience_spec: Composite) -> TensorDict:
-        """Pre-allocates the TensorDict buffer."""
         buffer_shape = (self.num_timesteps, self.num_parallel_streams)
-        return experience_spec.expand(*buffer_shape).to(self.device).zero_()
+        self.buffer = experience_spec.expand(*buffer_shape).to(self.device).zero()
+        self.pos = torch.zeros(self.num_parallel_streams, dtype=torch.long, device=self.device)  # oversized
+        self.is_full = False
 
     def store(self, data_td: TensorDict, env_id: slice):
         """
         Stores a single timestep of experience from a specific environment slice.
 
         Args:
-            data_td: Data for one timestep from `num_actors_per_slice`.
+            data_td: Data for one timestep.
             env_id: The slice of the asynchronous environment.
         """
-        # Assuming all streams in an async slice are at the same timestep
         current_pos = self.pos[env_id.start]
+        start_idx = env_id.start * self.num_agents_per_env
+        end_idx = env_id.stop * self.num_agents_per_env
 
-        self.buffer[current_pos, env_id] = data_td
-        self.pos[env_id] += 1
+        data_td = data_td.select(*self.buffer.keys(include_nested=True))
+        self.buffer[current_pos, start_idx:end_idx].update_at_(data_td)
+        self.pos[env_id.start : env_id.stop] += 1
 
         if torch.all(self.pos >= self.num_timesteps):
             self.is_full = True
@@ -112,17 +110,14 @@ class AlsBuffer:
 
         parallel_agents = getattr(env, "total_parallel_agents", None)
         if parallel_agents is None:
-            parallel_agents = batch_info.num_envs * env.meta_data.num_agents
-
-        print(f"parallel_agents: {parallel_agents}")
-        print(f"batch_info.num_envs: {batch_info.num_envs}")
-        print(f"env.meta_data.num_agents: {env.meta_data.num_agents}")
-        print(f"trainer_cfg.batch_size: {trainer_cfg.batch_size}")
+            parallel_agents = env.meta_data.num_agents * batch_info.num_envs
 
         buffer = AlsBuffer(
+            trainer_cfg=trainer_cfg,
             batch_size=trainer_cfg.batch_size,
             parallel_agents=parallel_agents,
             num_envs=batch_info.num_envs,
+            num_agents_per_env=env.meta_data.num_agents,
             experience_spec=Composite(merged_spec_dict),
             device=device,
         )
@@ -141,13 +136,27 @@ class AlsBuffer:
 
         return sample_strategy(self.buffer, **kwargs)
 
-    def reset(self):
+    def reset_for_rollout(self):
         """Resets the buffer's position pointers to start filling it again."""
         self.pos.fill_(0)
         self.is_full = False
+        self.sampling_state = {}
 
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
         if duplicate_keys := duplicates(all_keys):
             raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
+
+    def simple_sample(self) -> TensorDict:
+        """Get a minibatch amount of BPTT chunks, sequentially from the buffer."""
+        self.bptt = self.trainer_cfg.bptt_horizon
+        self.minibatch_size = self.trainer_cfg.minibatch_size
+        if self.minibatch_size % self.bptt != 0:
+            raise ValueError(
+                f"minibatch_size must be divisible by bptt_horizon: {self.minibatch_size} % {self.bptt} != 0"
+            )
+        self.minibatch_batch_dim = self.minibatch_size // self.bptt
+        if self.num_parallel_streams % self.minibatch_batch_dim != 0:
+            raise ValueError("num_parallel_streams must be divisible by minibatch_batch_dim")
+        self.num_minibatches = self.num_parallel_streams // self.minibatch_batch_dim
