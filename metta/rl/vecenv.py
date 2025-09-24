@@ -30,7 +30,6 @@ def make_env_func(
     if run_dir is not None:
         init_logging(run_dir=Path(run_dir))
 
-    # Create standard MettaGrid environment
     env = MettaGridEnv(
         curriculum.get_task().get_env_cfg(),
         render_mode=render_mode,
@@ -38,7 +37,6 @@ def make_env_func(
         replay_writer=replay_writer,
         is_training=is_training,
     )
-
     set_buffers(env, buf)
     env = CurriculumEnv(env, curriculum)
 
