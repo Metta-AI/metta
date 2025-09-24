@@ -406,8 +406,6 @@ def experiment():
         "terrain",
     ]
 
-    pretrained_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19/icl_resource_chain_terrain_PS0.05_EB0.15_NAT1000_RTR0.25.09-19:v960.pt"
-
     for curriculum_style in curriculum_styles:
         subprocess.run(
             [
@@ -421,18 +419,6 @@ def experiment():
             ]
         )
         time.sleep(1)
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.unordered_chains.train",
-                f"run=icl_unordered_chain_{curriculum_style}_pretrained.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                f"trainer.initial_policy.uri={pretrained_policy_uri}",
-                "--gpus=4",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
 
 
 if __name__ == "__main__":

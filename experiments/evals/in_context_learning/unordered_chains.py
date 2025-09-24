@@ -9,8 +9,7 @@ from experiments.recipes.in_context_learning.unordered_chains import (
 
 def icl_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     # Remove heart limit for evals to focus on recipe complexity
-    if "heart" in env.game.agent.resource_limits:
-        env.game.agent.resource_limits["heart"] = 255
+    env.game.agent.resource_limits["heart"] = 255
     return env
 
 
