@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 import einops
 import torch
@@ -216,6 +216,7 @@ class ObsPerceiverLatentConfig(ComponentConfig):
     num_layers: int = 2
     mlp_ratio: float = 4.0
     use_mask: bool = True
+    pool: Literal["mean", "first", "none"] = "mean"
     name: str = "obs_perceiver_latent"
 
     def make_component(self, env=None):
@@ -235,6 +236,7 @@ class ObsPerceiverLatent(nn.Module):
         self._num_layers = config.num_layers
         self._mlp_ratio = config.mlp_ratio
         self._use_mask = config.use_mask
+        self._pool = config.pool
 
         if self._feat_dim <= 0:
             raise ValueError("feat_dim must be positive")
@@ -306,6 +308,16 @@ class ObsPerceiverLatent(nn.Module):
             latents = residual + layer["mlp"](layer["mlp_norm"](latents))
 
         latents = self.final_norm(latents)
+
+        if self._pool == "mean":
+            latents = latents.mean(dim=1)
+        elif self._pool == "first":
+            latents = latents[:, 0]
+        elif self._pool == "none":
+            latents = latents.reshape(latents.shape[0], -1)
+        else:
+            raise ValueError(f"Unsupported pool mode: {self._pool}")
+
         td[self.config.out_key] = latents
         return td
 
