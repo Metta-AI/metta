@@ -150,6 +150,31 @@ def parse_number(candidate: str) -> int | float:
         raise ValueError(f"Invalid number format: {candidate}") from exc
 
 
+def _format_default_markup(default: Any, required: bool, *, callable_label: str = "<factory>") -> str:
+    if required:
+        return " [red](required)[/red]"
+
+    if default is None:
+        return ""
+
+    if callable(default):
+        return f" [green](default: {callable_label})[/green]"
+
+    if isinstance(default, BaseModel):
+        return f" [green](default: {type(default).__name__})[/green]"
+
+    if isinstance(default, str):
+        if default.startswith("<") and default.endswith(">"):
+            return ""
+        display = default if len(default) <= 100 else f"{default[:100]}..."
+        return f" [green](default: {display})[/green]"
+
+    display = str(default)
+    if len(display) > 100:
+        display = f"{display[:100]}..."
+    return f" [green](default: {display})[/green]"
+
+
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
     """Parse CLI arguments, supporting commander-style flags and key=value tokens."""
     parsed: dict[str, Any] = {}
@@ -372,19 +397,9 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
                     console.print(f"{indent}{field_name}", end="")
 
                 console.print(f": [dim]{type_str}[/dim]", end="")
-                if not required and default is not None:
-                    if callable(default):
-                        console.print(" [green](default: <factory>)[/green]", end="")
-                    elif isinstance(default, BaseModel):
-                        console.print(f" [green](default: <{type(default).__name__}>)[/green]", end="")
-                    elif isinstance(default, str) and (default.startswith("<") and default.endswith(">")):
-                        pass
-                    elif isinstance(default, str) and len(str(default)) > 100:
-                        console.print(f" [green](default: {str(default)[:100]}...)[/green]", end="")
-                    else:
-                        console.print(f" [green](default: {default})[/green]", end="")
-                elif required:
-                    console.print(" [red](required)[/red]", end="")
+                markup = _format_default_markup(default, required)
+                if markup:
+                    console.print(markup, end="")
 
                 console.print()
 
@@ -408,15 +423,12 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
             if param.annotation is not inspect._empty:
                 ann_str = str(param.annotation).replace("typing.", "")
                 console.print(f": [dim]{ann_str}[/dim]", end="")
-            if param.default is not inspect._empty:
-                if isinstance(param.default, BaseModel):
-                    console.print(f" [green](default: {type(param.default).__name__})[/green]", end="")
-                elif callable(param.default):
-                    console.print(" [green](default: <function>)[/green]", end="")
-                else:
-                    console.print(f" [green](default: {param.default})[/green]", end="")
-            else:
-                console.print(" [red](required)[/red]", end="")
+
+            required = param.default is inspect._empty
+            default_val = None if required else param.default
+            markup = _format_default_markup(default_val, required, callable_label="<function>")
+            if markup:
+                console.print(markup, end="")
 
             console.print()
 
@@ -430,11 +442,9 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
                                 indent = "    " * (depth + 1)
                                 field_name = path.split(".")[-1]
                                 console.print(f"{indent}{field_name}: [dim]{type_str}[/dim]", end="")
-                                if not required and default is not None:
-                                    if callable(default):
-                                        console.print(" [green](default: <factory>)[/green]", end="")
-                                    else:
-                                        console.print(f" [green](default: {default})[/green]", end="")
+                                markup = _format_default_markup(default, required)
+                                if markup:
+                                    console.print(markup, end="")
                                 console.print()
                 except (TypeError, AttributeError):
                     pass
@@ -464,11 +474,9 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
                         indent = "    " * depth
                         field_name = path.split(".")[-1] if "." in path else path
                         console.print(f"{indent}{field_name}: [dim]{type_str}[/dim]", end="")
-                        if not required and default is not None:
-                            if callable(default):
-                                console.print(" [green](default: <factory>)[/green]", end="")
-                            else:
-                                console.print(f" [green](default: {default})[/green]", end="")
+                        markup = _format_default_markup(default, required)
+                        if markup:
+                            console.print(markup, end="")
                         console.print()
         except Exception:
             console.print("  [dim]Unable to determine Tool fields (function requires runtime values)[/dim]")
