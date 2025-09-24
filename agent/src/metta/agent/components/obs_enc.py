@@ -181,7 +181,7 @@ class ObsLatentAttn(nn.Module):
             q_p = layer["q_proj"](queries_norm)
             q_p = einops.rearrange(q_p, "b q (h d) -> b h q d", h=self._num_heads)
 
-        attn_output = F.scaled_dot_product_attention(q_p, k_p, v_p, attn_mask=attn_mask)
+            attn_output = F.scaled_dot_product_attention(q_p, k_p, v_p, attn_mask=attn_mask)
             attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
             attn_output = layer["attn_out_proj"](attn_output)
 
