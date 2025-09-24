@@ -24,58 +24,10 @@ class BasicConfig(PolicyArchitecture):
 class BasicPolicy(Policy):
     """A Basic policy without any memory."""
 
-    def __init__(self, env_metadata, config: Optional[BasicConfig] = None):
+    def __init__(self, env_metadata, config: Optional[BasicConfig] = None, cnn_channels=128, hidden_size=512, input_size=512, **kwargs):
         super().__init__()
         self.config = config or BasicConfig()
         self.env_metadata = env_metadata
-        # Only ActionProbs component needed for Metta compatibility
-        self.action_probs = ActionProbs(config=self.config.action_probs_config)
-
-    def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        observations = td["env_obs"]
-
-        logits, value = self.policy(observations)
-
-        td["logits"] = torch.cat(logits, dim=-1)  # Flatten for ActionProbs
-        td["values"] = value.flatten()
-
-        # Use ActionProbs for action sampling/evaluation
-        self.action_probs(td, action)
-
-        return td
-
-    def initialize_to_environment(self, env_metadata, device: torch.device):
-        self.to(device)
-        self.action_probs.initialize_to_environment(env_metadata, device)
-
-    def reset_memory(self):
-        if hasattr(self.policy, 'reset_memory'):
-            self.policy.reset_memory()
-
-    def get_agent_experience_spec(self) -> Composite:
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-        )
-
-    @property
-    def device(self) -> torch.device:
-        return next(self.parameters()).device
-
-    @property
-    def action_names(self):
-        return self.env_metadata.action_names
-
-    @property
-    def observation_space(self):
-        return self.env_metadata.observation_space
-
-
-class PufferLibPolicy(nn.Module):
-
-    def __init__(self, env_metadata, cnn_channels=128, hidden_size=512, input_size=512, **kwargs):
-        super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.is_continuous = False
@@ -135,6 +87,9 @@ class PufferLibPolicy(nn.Module):
 
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
+        # Only ActionProbs component needed for Metta compatibility
+        self.action_probs = ActionProbs(config=self.config.action_probs_config)
+
     def encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
         """PufferLib observation encoding."""
         B = observations.shape[0]
@@ -189,6 +144,43 @@ class PufferLibPolicy(nn.Module):
         value = self.value(hidden)
         return logits, value
 
-    def forward(self, observations: torch.Tensor, state=None):
+    def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
+        observations = td["env_obs"]
+
         encoded = self.encode_observations(observations)
-        return self.decode_actions(encoded)
+        logits, value = self.decode_actions(encoded)
+
+        td["logits"] = torch.cat(logits, dim=-1)  # Flatten for ActionProbs
+        td["values"] = value.flatten()
+
+        # Use ActionProbs for action sampling/evaluation
+        self.action_probs(td, action)
+
+        return td
+
+    def initialize_to_environment(self, env_metadata, device: torch.device):
+        self.to(device)
+        self.action_probs.initialize_to_environment(env_metadata, device)
+
+    def reset_memory(self):
+        pass
+
+    def get_agent_experience_spec(self) -> Composite:
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+        )
+
+    @property
+    def device(self) -> torch.device:
+        return next(self.parameters()).device
+
+    @property
+    def action_names(self):
+        return self.env_metadata.action_names
+
+    @property
+    def observation_space(self):
+        return self.env_metadata.observation_space
+
