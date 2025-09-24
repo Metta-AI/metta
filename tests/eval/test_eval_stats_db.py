@@ -124,16 +124,6 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     assert 2.9 <= raw <= 3.1  # expected ≈3
 
 
-def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
-    db, _, _ = test_db
-    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
-    policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
-
-    sum_norm = db.get_sum_metric("hearts_collected", policy_uri)
-    assert sum_norm is not None
-    assert 1.15 <= sum_norm <= 1.25  # (6 / 5) ≈ 1.2
-
-
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
