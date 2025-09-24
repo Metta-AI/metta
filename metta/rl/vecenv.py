@@ -9,7 +9,6 @@ from pydantic import validate_call
 
 from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
-from metta.rl.mock_dynamical_env import MockDynamicalSystemEnv
 from mettagrid import MettaGridEnv
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
@@ -31,25 +30,14 @@ def make_env_func(
     if run_dir is not None:
         init_logging(run_dir=Path(run_dir))
 
-    # Check if this is a mock environment task
-    current_task = curriculum.get_task()
-    env_cfg = current_task.get_env_cfg()
-    if hasattr(env_cfg, "_mock_env_params"):
-        # Create mock dynamical system environment
-        mock_params = env_cfg._mock_env_params
-        env = MockDynamicalSystemEnv(
-            render_mode=render_mode,
-            **mock_params,
-        )
-    else:
-        # Create standard MettaGrid environment
-        env = MettaGridEnv(
-            current_task.get_env_cfg(),
-            render_mode=render_mode,
-            stats_writer=stats_writer,
-            replay_writer=replay_writer,
-            is_training=is_training,
-        )
+    # Create standard MettaGrid environment
+    env = MettaGridEnv(
+        curriculum.get_task().get_env_cfg(),
+        render_mode=render_mode,
+        stats_writer=stats_writer,
+        replay_writer=replay_writer,
+        is_training=is_training,
+    )
 
     set_buffers(env, buf)
     env = CurriculumEnv(env, curriculum)
