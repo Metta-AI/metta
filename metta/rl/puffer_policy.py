@@ -27,47 +27,48 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
     processed = {}
 
     key_mappings = {
+        # For PufferSimplePolicy, keep the "policy." prefix since it wraps PufferLibPolicy
         # Max vec
-        "policy.max_vec": "max_vec",
+        "policy.max_vec": "policy.max_vec",
         # Convolution layers
-        "policy.conv1.weight": "conv1.weight",
-        "policy.conv1.bias": "conv1.bias",
-        "policy.conv2.weight": "conv2.weight",
-        "policy.conv2.bias": "conv2.bias",
+        "policy.conv1.weight": "policy.conv1.weight",
+        "policy.conv1.bias": "policy.conv1.bias",
+        "policy.conv2.weight": "policy.conv2.weight",
+        "policy.conv2.bias": "policy.conv2.bias",
         # Fully connected layers
-        "policy.network.0.weight": "network.0.weight",
-        "policy.network.0.bias": "network.0.bias",
-        "policy.network.2.weight": "network.2.weight",
-        "policy.network.2.bias": "network.2.bias",
-        "policy.network.5.weight": "network.5.weight",
-        "policy.network.5.bias": "network.5.bias",
+        "policy.network.0.weight": "policy.network.0.weight",
+        "policy.network.0.bias": "policy.network.0.bias",
+        "policy.network.2.weight": "policy.network.2.weight",
+        "policy.network.2.bias": "policy.network.2.bias",
+        "policy.network.5.weight": "policy.network.5.weight",
+        "policy.network.5.bias": "policy.network.5.bias",
         # Self encoder
-        "policy.self_encoder.0.weight": "self_encoder.0.weight",
-        "policy.self_encoder.0.bias": "self_encoder.0.bias",
-        # LSTM mappings (different structure in PufferLib)
-        "lstm.weight_ih_l0": "lstm.net.weight_ih_l0",
-        "lstm.weight_hh_l0": "lstm.net.weight_hh_l0",
-        "lstm.bias_ih_l0": "lstm.net.bias_ih_l0",
-        "lstm.bias_hh_l0": "lstm.net.bias_hh_l0",
+        "policy.self_encoder.0.weight": "policy.self_encoder.0.weight",
+        "policy.self_encoder.0.bias": "policy.self_encoder.0.bias",
+        # LSTM mappings - PufferSimplePolicy doesn't have LSTM wrapper, so map directly
+        "lstm.weight_ih_l0": "policy.lstm.weight_ih_l0",
+        "lstm.weight_hh_l0": "policy.lstm.weight_hh_l0",
+        "lstm.bias_ih_l0": "policy.lstm.bias_ih_l0",
+        "lstm.bias_hh_l0": "policy.lstm.bias_hh_l0",
         # Alternate cell mappings (duplicates in checkpoint)
-        "cell.weight_ih": "lstm.net.weight_ih_l0",
-        "cell.weight_hh": "lstm.net.weight_hh_l0",
-        "cell.bias_ih": "lstm.net.bias_ih_l0",
-        "cell.bias_hh": "lstm.net.bias_hh_l0",
+        "cell.weight_ih": "policy.lstm.weight_ih_l0",
+        "cell.weight_hh": "policy.lstm.weight_hh_l0",
+        "cell.bias_ih": "policy.lstm.bias_ih_l0",
+        "cell.bias_hh": "policy.lstm.bias_hh_l0",
         # Value head
-        "policy.value.weight": "value.weight",
-        "policy.value.bias": "value.bias",
+        "policy.value.weight": "policy.value.weight",
+        "policy.value.bias": "policy.value.bias",
         # Actor head (expanded to handle more layers)
-        "policy.actor.0.weight": "actor.0.weight",
-        "policy.actor.0.bias": "actor.0.bias",
-        "policy.actor.1.weight": "actor.1.weight",
-        "policy.actor.1.bias": "actor.1.bias",
-        "policy.actor.2.weight": "actor.2.weight",
-        "policy.actor.2.bias": "actor.2.bias",
-        "policy.actor.3.weight": "actor.3.weight",
-        "policy.actor.3.bias": "actor.3.bias",
-        "policy.actor.4.weight": "actor.4.weight",
-        "policy.actor.4.bias": "actor.4.bias",
+        "policy.actor.0.weight": "policy.actor.0.weight",
+        "policy.actor.0.bias": "policy.actor.0.bias",
+        "policy.actor.1.weight": "policy.actor.1.weight",
+        "policy.actor.1.bias": "policy.actor.1.bias",
+        "policy.actor.2.weight": "policy.actor.2.weight",
+        "policy.actor.2.bias": "policy.actor.2.bias",
+        "policy.actor.3.weight": "policy.actor.3.weight",
+        "policy.actor.3.bias": "policy.actor.3.bias",
+        "policy.actor.4.weight": "policy.actor.4.weight",
+        "policy.actor.4.bias": "policy.actor.4.bias",
     }
 
     for src_key, dst_key in key_mappings.items():
