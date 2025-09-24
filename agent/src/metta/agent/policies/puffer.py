@@ -8,7 +8,6 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
-from metta.agent.components.lstm import LSTM, LSTMConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 
 
@@ -24,15 +23,6 @@ class PufferPolicyConfig(PolicyArchitecture):
     """
 
     class_path: str = "metta.agent.policies.puffer.PufferPolicy"
-
-    lstm_config: LSTMConfig = LSTMConfig(
-        in_key="encoded_obs",
-        out_key="core",
-        latent_size=512,  # Match PufferLib: 256 (self) + 256 (cnn) = 512 input to LSTM
-        hidden_size=512,  # Match PufferLib LSTM: 512 not 128
-        num_layers=1,
-    )
-    
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
@@ -193,8 +183,6 @@ class PufferPolicy(Policy):
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
         """Forward pass through the policy."""
         observations = td["env_obs"]
-
-        print(self._hidden_state, self._cell_state)
 
         # [B, obs] -> [B, 512]
         encoded_obs = self.encode_observations(observations)
