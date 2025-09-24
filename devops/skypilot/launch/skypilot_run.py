@@ -169,6 +169,11 @@ def main() -> int:
                 "skypilot/queue_latency_s": latency_sec,
             }
 
+            # Debug logging
+            logger.info(f"wandb_project: {job_config.wandb_project}")
+            logger.info(f"wandb_entity: {job_config.wandb_entity}")
+            logger.info(f"metta_run_id: {job_config.metta_run_id}")
+
             if job_config.wandb_project and job_config.wandb_entity:
                 wandb_cfg = WandbConfig(
                     enabled=True,
@@ -176,8 +181,17 @@ def main() -> int:
                     entity=job_config.wandb_entity,
                     run_id=job_config.metta_run_id,
                 )
-                with WandbContext(wandb_cfg, Config(**job_config.to_safe_dict())):
-                    log_to_wandb_summary(metrics)
+                try:
+                    logger.info("Entering WandbContext...")
+                    with WandbContext(wandb_cfg, Config(**job_config.to_safe_dict())) as run:
+                        if run:
+                            logger.info(f"WandbContext created, run id: {run.id}")
+                            log_to_wandb_summary(metrics)
+                            logger.info("Successfully logged metrics to wandb summary")
+                        else:
+                            logger.warning("WandbContext returned None run")
+                except Exception as e:
+                    logger.error(f"Failed to log to wandb: {e}", exc_info=True)
 
         termination_reason = ""
 
