@@ -7,7 +7,7 @@ without mixing in learning progress calculations or bucket analysis.
 
 import time
 from collections import deque
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 class TaskTracker:
@@ -149,3 +149,46 @@ class TaskTracker:
                 removed_count += 1
 
         # Cache may still be valid after cleanup if we tracked changes
+
+    def get_state(self) -> Dict[str, Any]:
+        """Get task tracker state for checkpointing."""
+        return {
+            "max_memory_tasks": self.max_memory_tasks,
+            "task_memory": {
+                task_id: {
+                    "creation_time": creation_time,
+                    "completion_count": completion_count,
+                    "total_score": total_score,
+                    "last_score": last_score,
+                }
+                for task_id, (creation_time, completion_count, total_score, last_score) in self._task_memory.items()
+            },
+            "task_creation_order": list(self._task_creation_order),
+            "completion_history": list(self._completion_history),
+            "cached_total_completions": self._cached_total_completions,
+            "cache_valid": self._cache_valid,
+        }
+
+    def load_state(self, state: Dict[str, Any]) -> None:
+        """Load task tracker state from checkpoint."""
+        self.max_memory_tasks = state["max_memory_tasks"]
+
+        # Restore task memory
+        self._task_memory.clear()
+        for task_id, task_data in state["task_memory"].items():
+            self._task_memory[task_id] = (
+                task_data["creation_time"],
+                task_data["completion_count"],
+                task_data["total_score"],
+                task_data["last_score"],
+            )
+
+        # Restore creation order
+        self._task_creation_order = deque(state["task_creation_order"])
+
+        # Restore completion history
+        self._completion_history = deque(state["completion_history"], maxlen=1000)
+
+        # Restore cache state
+        self._cached_total_completions = state["cached_total_completions"]
+        self._cache_valid = state["cache_valid"]
