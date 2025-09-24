@@ -1,7 +1,12 @@
 import random
 import subprocess
 import time
+<<<<<<< HEAD
 from typing import Optional, Sequence
+=======
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Sequence
+>>>>>>> 1d1630be3581c80357e2a062173697d2daf5036c
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -18,6 +23,7 @@ from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from pydantic import Field
 import json
 import os
 
@@ -122,10 +128,6 @@ def get_reward_estimates(
 
     # Number of converters in the chain (nothing->r1, ..., r_k->heart)
     n_converters = num_resources + 1
-    total_objects = n_converters + num_sinks
-
-    # Mirror _make_env_cfg’s episode-length extension
-    effective_max_steps = max_steps * 2 if total_objects > 4 else max_steps
 
     # Converter cooldown applied uniformly
     cooldown = avg_hop * n_converters
@@ -141,9 +143,9 @@ def get_reward_estimates(
     per_heart_cycle = max(cooldown, correct_chain_traverse_cost)
 
     def hearts_after(first_heart_steps: float) -> float:
-        if first_heart_steps > effective_max_steps:
+        if first_heart_steps > max_steps:
             return 0
-        remaining = effective_max_steps - first_heart_steps
+        remaining = max_steps - first_heart_steps
         return 1 + (remaining // per_heart_cycle)
 
     # ---------- Most efficient ----------
@@ -230,16 +232,14 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
 
         resource_chain = ["nothing"] + list(resources) + ["heart"]
 
-        chain_length = len(resource_chain)
-
-        for i in range(chain_length - 1):
+        for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
             self._add_converter(input_resource, output_resource, cfg, rng=rng)
 
         for _ in range(num_sinks):
             self._add_sink(cfg, rng=rng)
 
-        cooldown = avg_hop * (chain_length - 1)
+        cooldown = avg_hop * (len(resource_chain) - 1)
 
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = int(cooldown)
@@ -248,7 +248,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
-            dir = f"{numpy_dir}/{room_size}/{len(resources)}chains_{num_sinks}sinks/{terrain}"
+            dir = f"{numpy_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
             env = make_icl_with_numpy(
                 num_agents=1,
                 num_instances=24,
@@ -274,7 +274,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             height=height,
             obstacle_type=obstacle_type,
             density=density,
-            chain_length=len(resources),
+            chain_length=len(resources) + 1,
             num_sinks=num_sinks,
         )
 
@@ -289,7 +289,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             self._setup_task(rng)
         )
 
-        max_steps = 512
+        max_steps = self.config.max_steps
 
         # estimate average hop for cooldowns
         avg_hop = 7 if room_size == "tiny" else 10 if room_size == "small" else 13
@@ -385,7 +385,7 @@ def train(
 
 
 def play(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "terrain"
+    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny"
 ) -> PlayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     return PlayTool(
@@ -459,7 +459,9 @@ def experiment():
 
 
 def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
-    for chain_length in range(2, 9):
+    for chain_length in range(
+        2, 8
+    ):  # chain length should be equal to the number of converters, which is equal to the number of resources + 1
         for n_sinks in range(0, 3):
             for room_size in ["tiny", "small", "medium"]:
                 for terrain_type in ["", "terrain"]:
@@ -500,13 +502,6 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     import numpy as np
 
     room_sizes = os.listdir(dir)
-    for root, dirs, files in os.walk(dir):
-        for file in files:
-            if file == ".DS_Store":
-                try:
-                    os.remove(os.path.join(root, file))
-                except Exception:
-                    pass
     reward_estimates = {}
     for room_size in room_sizes:
         # Delete all .DS_Store files in the directory tree
