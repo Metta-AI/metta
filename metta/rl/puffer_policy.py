@@ -22,53 +22,23 @@ def _is_puffer_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]
 
 
 def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    """Map PufferLib-specific keys to Metta-compatible keys."""
+    """Preprocess PufferLib state dict - handle LSTM key mapping only."""
     processed = {}
 
-    key_mappings = {
-        # Max vec (normalization buffer)
-        "policy.max_vec": "max_vec",
-        # Convolution layers
-        "policy.conv1.weight": "conv1.weight",
-        "policy.conv1.bias": "conv1.bias",
-        "policy.conv2.weight": "conv2.weight",
-        "policy.conv2.bias": "conv2.bias",
-        # Fully connected layers
-        "policy.network.0.weight": "network.0.weight",
-        "policy.network.0.bias": "network.0.bias",
-        "policy.network.2.weight": "network.2.weight",
-        "policy.network.2.bias": "network.2.bias",
-        "policy.network.5.weight": "network.5.weight",
-        "policy.network.5.bias": "network.5.bias",
-        # Self encoder
-        "policy.self_encoder.0.weight": "self_encoder.0.weight",
-        "policy.self_encoder.0.bias": "self_encoder.0.bias",
-        # LSTM mappings (different structure in PufferLib)
-        "lstm.weight_ih_l0": "lstm.net.weight_ih_l0",
-        "lstm.weight_hh_l0": "lstm.net.weight_hh_l0",
-        "lstm.bias_ih_l0": "lstm.net.bias_ih_l0",
-        "lstm.bias_hh_l0": "lstm.net.bias_hh_l0",
-        # Alternate cell mappings (duplicates in checkpoint)
-        "cell.weight_ih": "lstm.net.weight_ih_l0",
-        "cell.weight_hh": "lstm.net.weight_hh_l0",
-        "cell.bias_ih": "lstm.net.bias_ih_l0",
-        "cell.bias_hh": "lstm.net.bias_hh_l0",
-        # Value head
-        "policy.value.weight": "value.weight",
-        "policy.value.bias": "value.bias",
-        # Actor head - note: checkpoint has different action dimensions
-        # We'll load what we can, but there will be shape mismatches
-        "policy.actor.0.weight": "actor.0.weight",
-        "policy.actor.0.bias": "actor.0.bias",
-        "policy.actor.1.weight": "actor.1.weight",
-        "policy.actor.1.bias": "actor.1.bias",
-    }
-
-    for src_key, dst_key in key_mappings.items():
-        if src_key in state_dict:
-            processed[dst_key] = state_dict[src_key]
+    # Most keys can be passed through directly now that policy has 'policy.' prefix
+    # Only need to handle LSTM keys which have different structure
+    for key, value in state_dict.items():
+        if key.startswith("lstm."):
+            # Map LSTM keys: lstm.* -> lstm.net.*
+            new_key = key.replace("lstm.", "lstm.net.")
+            processed[new_key] = value
+        elif key.startswith("cell."):
+            # Skip cell keys - they're duplicates of lstm keys
+            # cell.weight_ih is same as lstm.weight_ih_l0, etc.
+            continue
         else:
-            logger.debug(f"Missing expected key in checkpoint: {src_key}")
+            # Pass through all other keys unchanged (including policy.*)
+            processed[key] = value
 
     logger.info(f"Preprocessed checkpoint: {len(state_dict)} -> {len(processed)} parameters")
     print("Processed keys:", sorted(processed.keys()))

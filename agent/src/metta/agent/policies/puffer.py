@@ -41,6 +41,9 @@ class PufferPolicy(Policy):
 
     def __init__(self, env_metadata, config: Optional[PufferPolicyConfig] = None):
         super().__init__()
+
+        # Create a submodule called 'policy' to match checkpoint structure
+        self.policy = torch.nn.Module()
         self.config = config or PufferPolicyConfig()
         self.env_metadata = env_metadata
         self.is_continuous = False
@@ -59,23 +62,23 @@ class PufferPolicy(Policy):
         cnn_channels = 128
 
         # Define CNN layers separately to calculate output size (matching PufferLib)
-        self.conv1 = pufferlib.pytorch.layer_init(
+        self.policy.conv1 = pufferlib.pytorch.layer_init(
             nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3), std=1.0
         )
-        self.conv2 = pufferlib.pytorch.layer_init(
+        self.policy.conv2 = pufferlib.pytorch.layer_init(
             nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1), std=1.0
         )
 
         # Calculate actual CNN output size dynamically (matching PufferLib)
         test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
         with torch.no_grad():
-            test_output = self.conv2(torch.relu(self.conv1(test_input)))
+            test_output = self.policy.conv2(torch.relu(self.policy.conv1(test_input)))
             self.cnn_flattened_size = test_output.numel() // test_output.shape[0]
 
-        self.network = nn.Sequential(
-            self.conv1,
+        self.policy.network = nn.Sequential(
+            self.policy.conv1,
             nn.ReLU(),
-            self.conv2,
+            self.policy.conv2,
             nn.ReLU(),
             nn.Flatten(),
             pufferlib.pytorch.layer_init(
@@ -84,7 +87,7 @@ class PufferPolicy(Policy):
             nn.ReLU(),
         )
 
-        self.self_encoder = nn.Sequential(
+        self.policy.self_encoder = nn.Sequential(
             pufferlib.pytorch.layer_init(
                 nn.Linear(self.num_layers, hidden_size // 2), std=1.0
             ),
@@ -101,16 +104,16 @@ class PufferPolicy(Policy):
         # Clamp minimum value to 1.0 to avoid near-zero divisions
         max_vec = torch.maximum(max_vec, torch.ones_like(max_vec))
         max_vec = max_vec[None, :, None, None]
-        self.register_buffer("max_vec", max_vec)
+        self.policy.register_buffer("max_vec", max_vec)
 
         # Use the same action space structure as PufferLib (separate heads per action type)
         # Override for checkpoint compatibility: checkpoint has [5, 9] action dimensions
         action_nvec = [5, 9]  # Match checkpoint exactly: actor.0 (5 actions), actor.1 (9 actions)
-        self.actor = nn.ModuleList([
+        self.policy.actor = nn.ModuleList([
             pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
             for n in action_nvec
         ])
-        self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
+        self.policy.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
         # Use LSTM from config
         self.lstm = LSTM(config=self.config.lstm_config)
@@ -157,16 +160,16 @@ class PufferPolicy(Policy):
         ] = atr_values[valid_tokens]
 
         # Normalize features with epsilon for numerical stability
-        max_vec_device = self.max_vec.to(box_obs.device)
+        max_vec_device = self.policy.max_vec.to(box_obs.device)
         features = box_obs / (max_vec_device + 1e-8)
 
         # Self encoder processes center pixel features (matching PufferLib exactly)
         # Shape: [B, num_layers] -> [B, 256]
-        self_features = self.self_encoder(features[:, :, 5, 5])
+        self_features = self.policy.self_encoder(features[:, :, 5, 5])
 
         # CNN processes spatial features normally
         # Shape: [B, 24, H, W] -> [B, 256]
-        cnn_features = self.network(features)
+        cnn_features = self.policy.network(features)
 
         # Concatenate self and CNN features: [B, 256] + [B, 256] = [B, 512]
         result = torch.cat([self_features, cnn_features], dim=1)
@@ -174,8 +177,8 @@ class PufferPolicy(Policy):
 
     def decode_actions(self, hidden):
         """Decode hidden state into action logits (matching PufferLib exactly)."""
-        logits = [dec(hidden) for dec in self.actor]
-        value = self.value(hidden)
+        logits = [dec(hidden) for dec in self.policy.actor]
+        value = self.policy.value(hidden)
         return logits, value
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
