@@ -5,6 +5,7 @@ invokes the function, and then runs the tool defined by the config."""
 import argparse
 import copy
 import functools
+import importlib
 import inspect
 import json
 import logging
@@ -21,7 +22,12 @@ from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
-from metta.common.tool.discover import generate_candidate_paths, try_infer_tool_factory
+from metta.common.tool.discover import (
+    generate_candidate_paths,
+    get_available_tools,
+    get_tool_name_map,
+    try_infer_tool_factory,
+)
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
@@ -439,7 +445,11 @@ constructor/function vs configuration overrides based on introspection.
     parser.add_argument("args", nargs="*", help="Arguments in key=value format")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed argument classification")
     parser.add_argument("--dry-run", action="store_true", help="Validate the args and exit")
-    parser.add_argument("--list-tools", action="store_true", help="List available tools for a recipe module and exit")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List tools defined by the resolved recipe module and exit",
+    )
     parser.add_argument(
         "-h", "--help", action="store_true", help="Show help and list all available arguments for the tool"
     )
@@ -512,6 +522,40 @@ constructor/function vs configuration overrides based on introspection.
         output_error(f"{red('Error:')} Missing tool path. See -h for usage.")
         return 2
 
+    # If listing is requested with just a module path (e.g., 'arena'), import the module and list its tools
+    list_requested = known_args.list
+    if list_requested and known_args.make_tool_cfg_path:
+        module_candidates: list[str] = []
+        base = known_args.make_tool_cfg_path
+        # If base looks like a module path already
+        module_candidates.append(base)
+        if not base.startswith("experiments.recipes."):
+            module_candidates.append(f"experiments.recipes.{base}")
+
+        # Try to import the first valid module and list its tools
+        for mod_name in module_candidates:
+            try:
+                mod = importlib.import_module(mod_name)
+            except Exception:
+                continue
+            # Start with explicit tools
+            tools = dict(get_available_tools(mod))
+            names = set(tools.keys())
+            # Add inferred tools (canonical) when supported and inferable
+            for canonical in set(get_tool_name_map().values()):
+                try:
+                    if canonical not in names and try_infer_tool_factory(mod, canonical):
+                        names.add(canonical)
+                except Exception:
+                    # Ignore inference errors during listing
+                    pass
+
+            console.print(f"\n[bold]Tools for recipe module {mod_name} (explicit + inferred):[/bold]\n")
+            for name in sorted(names):
+                console.print(f"  {mod_name}.{name}")
+            return 0
+        # If module import failed, fall back to full resolution flow below
+
     # Try to load the symbol using the candidates in order (already alias-expanded)
     for cand in candidate_paths:
         try:
@@ -523,8 +567,6 @@ constructor/function vs configuration overrides based on introspection.
 
     # If not found, attempt to infer a tool factory from a recipe module's mettagrid
     if make_tool_cfg is None:
-        import importlib
-
         for cand in candidate_paths:
             if "." not in cand:
                 continue
@@ -566,7 +608,6 @@ constructor/function vs configuration overrides based on introspection.
         output_error(f"{red('Error:')} Could not find tool '{known_args.make_tool_cfg_path}'")
 
         # Check if it's a recipe that might need inference and suggest verbs
-        import importlib
 
         module_cache: dict[str, object] = {}
         for cand in candidate_paths:
@@ -600,17 +641,13 @@ constructor/function vs configuration overrides based on introspection.
         list_tool_arguments(make_tool_cfg, console)
         return 0
 
-    # List-tools: show available tools for the module
-    if known_args.list_tools and resolved_path:
-        import importlib
-
-        from metta.common.tool.discover import get_available_tools
-
+    # List tools for the resolved recipe module
+    if known_args.list and resolved_path:
         module_name = resolved_path.rsplit(".", 1)[0]
         try:
             mod = importlib.import_module(module_name)
             tools = get_available_tools(mod)
-            console.print(f"\n[bold]Available tools for {module_name}:[/bold]\n")
+            console.print(f"\n[bold]Tools defined by recipe module {module_name}:[/bold]\n")
             for name, _ in tools:
                 console.print(f"  {module_name}.{name}")
         except Exception as e:

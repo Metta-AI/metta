@@ -1,4 +1,5 @@
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.builder.envs import make_arena
 
@@ -11,3 +12,7 @@ def mettagrid() -> MettaGridConfig:
 def simulations() -> list[SimulationConfig]:
     env = mettagrid()
     return [SimulationConfig(suite="demo", name="basic", env=env)]
+
+
+def train_shaped() -> TrainTool:  # explicit tool-returning function, used by --list
+    ...
