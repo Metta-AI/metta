@@ -122,6 +122,10 @@ class PufferPolicy(Policy):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)
 
+        # LSTM state storage for persistence between forward passes
+        self._hidden_state = None
+        self._cell_state = None
+
         # Action probabilities component
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
@@ -194,9 +198,21 @@ class PufferPolicy(Policy):
         encoded_obs = self.encode_observations(observations)
         td["encoded_obs"] = encoded_obs
 
-        # Pass through LSTM: [1, B, 512] -> [1, B, 512]
+        # Pass through LSTM with persistent state: [1, B, 512] -> [1, B, 512]
         lstm_input = encoded_obs.unsqueeze(0)
-        lstm_output, _ = self.lstm(lstm_input)
+        batch_size = encoded_obs.shape[0]
+
+        # Initialize state if None or if batch size changed
+        if (self._hidden_state is None or self._cell_state is None or
+            self._hidden_state.shape[1] != batch_size):
+            device = encoded_obs.device
+            self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
+            self._cell_state = torch.zeros(1, batch_size, 512, device=device)
+
+        # Use stored state and update it
+        lstm_output, (self._hidden_state, self._cell_state) = self.lstm(
+            lstm_input, (self._hidden_state, self._cell_state)
+        )
         
         # Remove sequence dimension: [1, B, 512] -> [B, 512]
         core_features = lstm_output.squeeze(0)
@@ -225,10 +241,9 @@ class PufferPolicy(Policy):
         self.action_probs.initialize_to_environment(env_metadata, device)
 
     def reset_memory(self):
-        """Reset LSTM memory - nn.LSTM doesn't need explicit memory reset."""
-        # Direct nn.LSTM doesn't maintain persistent state like our LSTM wrapper
-        # Memory is handled automatically through the forward pass
-        pass
+        """Reset LSTM memory by clearing stored hidden and cell states."""
+        self._hidden_state = None
+        self._cell_state = None
 
     def get_agent_experience_spec(self) -> Composite:
         """Get the experience specification for this agent."""
