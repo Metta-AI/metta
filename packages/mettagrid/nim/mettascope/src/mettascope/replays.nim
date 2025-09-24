@@ -60,10 +60,17 @@ type
     traceImages*: seq[string]
     objects*: seq[Entity]
     rewardSharingMatrix*: seq[seq[float]]
+
     agents*: seq[Entity]
-    attackActionId*: int
+
     drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
+
+    noopActionId*: int
+    moveActionId*: int
+    putItemsActionId*: int
+    getItemsActionId*: int
+    attackActionId*: int
 
   ReplayEntity* = ref object
     ## Replay entity does not have time series and only has the current step value.
@@ -594,6 +601,12 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     doAssert replay.agents.len == replay.numAgents, "Agents and numAgents mismatch"
 
   computeGainMap(replay)
+
+  replay.noopActionId = replay.actionNames.find("noop")
+  replay.moveActionId = replay.actionNames.find("move")
+  replay.putItemsActionId = replay.actionNames.find("put_items")
+  replay.getItemsActionId = replay.actionNames.find("get_items")
+  replay.attackActionId = replay.actionNames.find("attack")
 
 proc apply*(replay: Replay, replayStepJsonData: string) =
   ## Apply a replay step to the replay.
