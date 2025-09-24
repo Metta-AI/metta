@@ -23,7 +23,7 @@ class PufferPolicyConfig(PolicyArchitecture):
     - Critic: Single value output
     """
 
-    class_path: str = "metta.agent.policies.pufferlib_compatible.PufferLibCompatiblePolicy"
+    class_path: str = "metta.agent.policies.puffer.PufferPolicy"
 
     lstm_config: LSTMConfig = LSTMConfig(
         in_key="encoded_obs",
