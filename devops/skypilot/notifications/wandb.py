@@ -1,61 +1,45 @@
-#!/usr/bin/env python3
+import time
+from typing import Any
 
-from typing import Any, Dict
-
-from devops.skypilot.notifications.notifier import NotificationBase
+from devops.skypilot.notifications.notifier import NotificationBase, NotificationConfig
 from devops.skypilot.utils.job_config import JobConfig
 from metta.common.wandb.utils import send_wandb_alert
 
 
 class WandBNotifier(NotificationBase):
-    @property
-    def name(self) -> str:
-        return "W&B"
+    def __init__(self):
+        super().__init__("W&B")
 
-    def get_required_fields(self, job_config: JobConfig) -> Dict[str, Any]:
-        return {
+    def _validate_config(self, job_config: JobConfig) -> str | None:
+        if not job_config.metta_run_id:
+            return "Missing required field: metta_run_id"
+        if not job_config.wandb_project:
+            return "Missing required field: wandb_project"
+        if not job_config.wandb_entity:
+            return "Missing required field: wandb_entity"
+        return None
+
+    def _make_payload(self, notification: NotificationConfig, job_config: JobConfig) -> dict[str, Any]:
+        alert_text_parts = [notification.description]
+
+        if job_config.start_time:
+            runtime_sec = int(time.time()) - job_config.start_time
+            runtime_str = f"{runtime_sec // 3600}h {runtime_sec % 3600 // 60}m"
+            alert_text_parts.append(f"Runtime: {runtime_str}")
+
+        alert_text_parts.append(f"Nodes: {job_config.total_nodes}")
+
+        if job_config.skypilot_task_id:
+            alert_text_parts.append(f"Task ID: {job_config.skypilot_task_id}")
+
+        payload = {
+            "title": notification.title,
+            "text": "\n".join(alert_text_parts),
             "run_id": job_config.metta_run_id,
             "project": job_config.wandb_project,
             "entity": job_config.wandb_entity,
-            "start_time": job_config.start_time,
-            "total_nodes": job_config.total_nodes,
-            "task_id": job_config.skypilot_task_id,
         }
+        return payload
 
-    def format_notification(self, fields: Dict[str, Any]) -> Dict[str, Any]:
-        title = fields.get("title", "")
-        description = fields.get("description", "")
-
-        if not all([title, description]):
-            raise ValueError("Missing title or description")
-
-        # Calculate runtime
-        runtime_str = self._calculate_runtime(fields["start_time"])
-
-        # Build alert text
-        alert_text_parts = [description]
-
-        if runtime_str:
-            alert_text_parts.append(f"Runtime: {runtime_str}")
-
-        alert_text_parts.extend([f"Nodes: {fields['total_nodes']}", f"Task ID: {fields['task_id'] or 'N/A'}"])
-
-        return {
-            "title": title,
-            "text": "\n".join(alert_text_parts),
-            "run_id": fields["run_id"],
-            "project": fields["project"],
-            "entity": fields["entity"],
-            "description": description,
-            "nodes": fields["total_nodes"],
-            "runtime": runtime_str or "N/A",
-        }
-
-    def send(self, payload: Dict[str, Any]) -> None:
-        send_wandb_alert(
-            title=payload["title"],
-            text=payload["text"],
-            run_id=payload["run_id"],
-            project=payload["project"],
-            entity=payload["entity"],
-        )
+    def _send(self, payload: dict[str, Any]) -> None:
+        send_wandb_alert(**payload)
