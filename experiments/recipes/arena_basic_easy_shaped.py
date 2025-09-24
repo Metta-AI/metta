@@ -101,7 +101,6 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    enable_contrastive: bool = True,
     policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
@@ -110,7 +109,7 @@ def train(
 
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(enable_contrastive=enable_contrastive),
+        losses=LossConfig(),
     )
 
     if policy_architecture is None:
