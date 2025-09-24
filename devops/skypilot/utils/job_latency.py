@@ -18,7 +18,7 @@ from typing import Final
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
-from metta.common.wandb.utils import log_to_wandb
+from metta.common.wandb.utils import log_to_wandb_summary
 from mettagrid.config import Config
 
 _EPOCH: Final = datetime.timezone.utc
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         try:
             with WandbContext(wandb_config, Config(), timeout=15) as run:
                 if run:
-                    log_to_wandb(metrics, also_summary=True)
+                    log_to_wandb_summary(metrics)
                     logger.info(f"Logged metrics to W&B run: {run.id}")
                 else:
                     logger.warning("W&B run not initialized (offline or no connection)")
