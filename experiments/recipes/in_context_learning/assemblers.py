@@ -92,6 +92,21 @@ curriculum_args = {
             ["N", "E"], ["N", "W"], ["S", "E"], ["S", "W"],
         ],
     },
+        "two_agent_two_altars_progressive_pattern": {
+        "num_agents": [2],
+        "num_altars": [2],
+        "num_converters": [0],
+        "widths": [5, 6, 7, 8],
+        "heights": [5, 6, 7, 8],
+        "generator_positions": [["Any"]],
+        "altar_positions": [
+            ["N", "S", "E"], ["N", "W", "E"], ["S", "E", "W"], ["S", "W", "E"],
+            ["Any"],
+            ["N", "S"], ["E", "W"],
+            ["N", "E"], ["N", "W"], ["S", "E"], ["S", "W"],
+        ],
+    },
+
     "two_agent_two_altars_any": {
         "num_agents": [2],
         "num_altars": [2],
@@ -234,11 +249,11 @@ class AssemblerTaskGenerator(TaskGenerator):
         altar_input = rng.choice(self.config.altar_inputs)
 
         if num_agents == 1:
-            num_instances = 4
+            num_instances = 24
         elif num_agents == 2:
-            num_instances = 2
+            num_instances = 12
         elif num_agents == 4:
-            num_instances = 1
+            num_instances = 5
         else:
             raise ValueError(f"Invalid number of agents: {num_agents}")
 
@@ -322,14 +337,15 @@ def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
     return TrainTool(trainer=trainer_cfg, training_env=TrainingEnvironmentConfig(curriculum=curriculum))
 
 
-# def play(curriculum_style: str = "single_agent_two_altars") -> PlayTool:
-#     eval_env = make_mettagrid(curriculum_style)
-#     return PlayTool(
-#         sim=SimulationConfig(
-#             env=eval_env,
-#             name="in_context_assemblers",
-#         ),
-#     )
+def play(curriculum_style: str = "two_agent_two_altars_pattern") -> PlayTool:
+    eval_env = make_mettagrid(curriculum_style)
+    return PlayTool(
+        sim=SimulationConfig(
+            env=eval_env,
+            name="in_context_assemblers",
+            suite="in_context_learning",
+        ),
+    )
 
 def play_eval() -> PlayTool:
     env = make_assembler_env(
@@ -380,7 +396,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.assemblers.train",
-                f"run=icl_assemblers3_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_assemblers4_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
@@ -392,3 +408,6 @@ def experiment():
 
 if __name__ == "__main__":
     experiment()
+
+
+# ./tools/run.py experiments.recipes.in_context_learning.assemblers.replay curriculum_style=two_agent_two_altars_pattern policy_uri=s3://softmax-public/policies/icl_assemblers4_single_agent_two_altars.2025-09-23/icl_assemblers4_single_agent_two_altars.2025-09-23:v100.pt

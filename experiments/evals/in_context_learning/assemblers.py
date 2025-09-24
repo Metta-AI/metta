@@ -5,9 +5,9 @@ from metta.sim.simulation_config import SimulationConfig
 
 
 def make_assembler_eval_suite() -> list[SimulationConfig]:
-
     return [
         SimulationConfig(
+            suite="in_context_learning",
             name="in_context_assemblers/single_agent_two_altars_W",
             env=make_assembler_env(
                 num_agents=1,
@@ -20,6 +20,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
                 altar_input="one")
         ),
         SimulationConfig(
+            suite="in_context_learning",
             name="in_context_assemblers/two_agent_two_altars_any",
             env=make_assembler_env(
                 num_agents=1,
@@ -32,6 +33,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
                 altar_input="one"),
         ),
         SimulationConfig(
+            suite="in_context_learning",
             name="in_context_assemblers/two_agent_two_altars_north_south",
             env=make_assembler_env(
                 num_agents=1,

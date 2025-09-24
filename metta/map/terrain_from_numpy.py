@@ -1,4 +1,3 @@
-import logging
 import os
 import random
 import zipfile
@@ -10,10 +9,11 @@ from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 from pydantic import ConfigDict, Field
 
+from metta.common.util.log_config import getRankAwareLogger
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.util.uri import ParsedURI
 
-logger = logging.getLogger(__name__)
+logger = getRankAwareLogger(__name__)
 
 MAPS_ROOT = "s3://softmax-public/maps"
 
@@ -40,7 +40,7 @@ def download_from_s3(s3_path: str, save_path: str):
         # Download the file directly to disk
         s3_client = boto3.client("s3")
         s3_client.download_file(Bucket=bucket, Key=key, Filename=save_path)
-        print(f"Successfully downloaded {parsed.canonical} to {save_path}")
+        logger.info(f"Successfully downloaded {parsed.canonical} to {save_path}")
 
     except NoCredentialsError as e:
         raise e
@@ -185,7 +185,8 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
             f"Mismatch between object names ({len(self.config.object_names)}) "
             f"and available positions ({len(converter_indices)})"
         )
-        for object, index in zip(self.config.object_names, converter_indices, strict=False):
+        self.config.rng.shuffle(self.config.object_names)
+        for object, index in zip(self.config.object_names, converter_indices, strict=True):
             grid[tuple(index)] = object
 
         return GameMap(grid=grid)

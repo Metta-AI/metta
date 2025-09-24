@@ -41,9 +41,6 @@ if [ "${CI}" != "true" ]; then
 
   echo "Installing testing dependencies..."
   uv sync --no-dev --group testing
-
-  # Activate virtual environment
-  source .venv/bin/activate
 fi
 
 # Create directories for test results
@@ -85,7 +82,7 @@ run_package_tests() {
   # Run tests and prefix each line with package name and color
   if [ "$package" == "core" ]; then
     (
-      pytest $PYTEST_BASE_ARGS \
+      uv run pytest $PYTEST_BASE_ARGS \
         --cov-report=xml:coverage-reports/coverage-${package_name}.xml \
         2>&1
       echo $? > test-results/${package_name}.exit
@@ -94,7 +91,7 @@ run_package_tests() {
     done
   else
     (
-      cd "$package" && pytest $PYTEST_BASE_ARGS \
+      cd "$package" && uv run pytest $PYTEST_BASE_ARGS \
         --cov-report=xml:${path_prefix}coverage-reports/coverage-${package_name}.xml \
         2>&1
       echo $? > ${path_prefix}test-results/${package_name}.exit
