@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import re
 import secrets
 import uuid
 from collections import defaultdict
@@ -705,6 +706,21 @@ MIGRATIONS = [
             # Add index for git_hash search in attributes JSONB
             """CREATE INDEX idx_eval_tasks_git_hash_ilike
                ON eval_tasks((attributes->>'git_hash') text_pattern_ops)""",
+        ],
+    ),
+    SqlMigration(
+        version=28,
+        description="Add additional text search indexes for comprehensive eval_tasks search",
+        sql_statements=[
+            # UUID text search indexes
+            """CREATE INDEX idx_eval_tasks_id_text_ilike ON eval_tasks ((id::text) text_pattern_ops)""",
+            """CREATE INDEX idx_eval_tasks_policy_id_text_ilike ON eval_tasks ((policy_id::text) text_pattern_ops)""",
+            # Status text search
+            """CREATE INDEX idx_eval_tasks_status_ilike ON eval_tasks (status text_pattern_ops)""",
+            # Numeric field text search
+            """CREATE INDEX idx_eval_tasks_retries_text_ilike ON eval_tasks ((retries::text) text_pattern_ops)""",
+            # Full JSON attributes text search
+            """CREATE INDEX idx_eval_tasks_attributes_text_ilike ON eval_tasks ((attributes::text) text_pattern_ops)""",
         ],
     ),
 ]
@@ -1557,42 +1573,58 @@ class MettaRepo:
         search: str | None = None,
         limit: int = 500,
     ) -> tuple[sql.Composed, list]:
-        # MIGHT_DO: possibly add this to a query builder class in the future
         """Build the SQL query and parameters for get_all_tasks."""
         where_conditions = []
         params = []
-
+    
         if statuses:
             placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(statuses))
             where_conditions.append(sql.SQL("et.status IN ({})").format(placeholders))
             params.extend(statuses)
+    
         if git_hash:
             where_conditions.append(sql.SQL("et.attributes->>'git_hash' = {}").format(sql.Placeholder()))
             params.append(git_hash)
+    
         if policy_ids:
             placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(policy_ids))
             where_conditions.append(sql.SQL("et.policy_id IN ({})").format(placeholders))
             params.extend(policy_ids)
+    
         if sim_suites:
             placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(sim_suites))
             where_conditions.append(sql.SQL("et.sim_suite IN ({})").format(placeholders))
             params.extend(sim_suites)
+    
         if search:
             search_conditions = [
+                # Text field searches (have indexes)
                 sql.SQL("p.name ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.sim_suite ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.assignee ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.user_id ILIKE {}").format(sql.Placeholder()),
                 sql.SQL("et.attributes->>'git_hash' ILIKE {}").format(sql.Placeholder()),
+                # UUID searches (have indexes)
+                sql.SQL("et.id::text ILIKE {}").format(sql.Placeholder()),
+                sql.SQL("et.policy_id::text ILIKE {}").format(sql.Placeholder()),
+                # Status search (has index)
+                sql.SQL("et.status ILIKE {}").format(sql.Placeholder()),
+                # Numeric search (has index)
+                sql.SQL("et.retries::text ILIKE {}").format(sql.Placeholder()),
+                # Full JSON search (has index)
+                sql.SQL("et.attributes::text ILIKE {}").format(sql.Placeholder()),
             ]
+    
             search_pattern = f"%{search}%"
             search_clause = sql.SQL(" OR ").join(search_conditions)
             where_conditions.append(sql.SQL("({})").format(search_clause))
-            params.extend([search_pattern] * 5)
-
+            
+            # Add search pattern params for all search conditions
+            params.extend([search_pattern] * len(search_conditions))
+    
         where_clause = sql.SQL(" AND ").join(where_conditions) if where_conditions else sql.SQL("1=1")
         params.append(limit)
-
+    
         query = sql.SQL("""
             SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
                 et.assignee, et.created_at, et.attributes, et.retries,
@@ -1603,7 +1635,7 @@ class MettaRepo:
             ORDER BY et.created_at DESC
             LIMIT {limit_placeholder}
         """).format(where_clause=where_clause, limit_placeholder=sql.Placeholder())
-
+    
         return query, params
 
     async def get_all_tasks(
