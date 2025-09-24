@@ -16,6 +16,7 @@ import traceback
 import warnings
 from typing import Any
 
+from omegaconf import OmegaConf
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
 from typing_extensions import TypeVar
@@ -118,15 +119,22 @@ def parse_value(value_str: str) -> Any:
 
 
 def parse_cli_args(cli_args: list[str]) -> dict[str, Any]:
-    """Parse CLI arguments supporting key=value and commander-style flags."""
+    """Parse CLI arguments using OmegaConf for type inference."""
+    normalized = _normalize_cli_tokens(cli_args)
+    config = OmegaConf.from_cli(normalized)
+
     parsed: dict[str, Any] = {}
-    for key, raw_value in _iter_cli_pairs(cli_args):
-        parsed[key] = parse_value(raw_value)
+    for token in normalized:
+        key, assignment = token.split("=", 1)
+        if assignment == "":
+            parsed[key] = ""
+        else:
+            parsed[key] = OmegaConf.select(config, key)
     return parsed
 
 
-def _iter_cli_pairs(cli_args: list[str]) -> list[tuple[str, str]]:
-    pairs: list[tuple[str, str]] = []
+def _normalize_cli_tokens(cli_args: list[str]) -> list[str]:
+    normalized: list[str] = []
     i = 0
     stop_processing = False
 
@@ -138,67 +146,38 @@ def _iter_cli_pairs(cli_args: list[str]) -> list[tuple[str, str]]:
             i += 1
             continue
 
-        # Allow explicit key=value tokens regardless of flag prefix
-        if "=" in token or ":" in token:
-            key, value = _split_inline_token(token)
-            pairs.append((key, value))
+        key_token = token
+        if not stop_processing and token.startswith("--"):
+            key_token = token[2:]
+        elif not stop_processing and token.startswith("-") and len(token) > 1:
+            key_token = token[1:]
+
+        if not key_token:
+            raise ValueError("Invalid argument format: ''. Expected key=value")
+
+        inline_token = key_token
+        if ":" in inline_token and "=" not in inline_token:
+            inline_token = inline_token.replace(":", "=", 1)
+
+        if "=" in inline_token:
+            normalized.append(inline_token)
             i += 1
             continue
 
-        key_token = token if stop_processing else token.lstrip("-")
-
-        if not key_token:
-            raise ValueError("Empty CLI argument detected")
+        if not stop_processing and not token.startswith("-"):
+            raise ValueError(f"Invalid argument format: {token}. Expected key=value")
 
         value = "true"
         if i + 1 < len(cli_args):
             next_token = cli_args[i + 1]
-            if _should_treat_as_value(next_token, stop_processing):
+            if next_token != "--" and not (not stop_processing and next_token.startswith("--")):
                 value = next_token
                 i += 1
 
-        pairs.append((key_token, value))
+        normalized.append(f"{key_token}={value}")
         i += 1
 
-    return pairs
-
-
-def _should_treat_as_value(token: str, stop_processing: bool) -> bool:
-    if token == "--":
-        return False
-    if not stop_processing and token.startswith("--"):
-        return False
-    if "=" in token or ":" in token:
-        return stop_processing or not token.startswith("-")
-    if not stop_processing and token.startswith("-"):
-        # Allow negative numbers as values
-        if len(token) > 1 and (token[1].isdigit() or token[1] == "."):
-            return True
-        try:
-            float(token)
-            return True
-        except ValueError:
-            return False
-    return True
-
-
-def _split_inline_token(token: str) -> tuple[str, str]:
-    if "=" in token:
-        key, value = token.split("=", 1)
-    elif ":" in token:
-        key, value = token.split(":", 1)
-    else:
-        raise ValueError(f"Invalid inline token: {token}")
-
-    if key.startswith("--"):
-        key = key[2:]
-    elif key.startswith("-"):
-        key = key[1:]
-
-    if not key:
-        raise ValueError(f"Empty key in token: {token}")
-
-    return key, value
+    return normalized
 
 
 def deep_merge(dst: dict, src: dict) -> dict:
