@@ -131,7 +131,7 @@ class TasksResponse(BaseModel):
 
 
 class PaginatedTasksResponse(BaseModel):
-    tasks: list[TaskResponse]
+    tasks: list[EvalTaskResponse]
     total_count: int
     page: int
     page_size: int
