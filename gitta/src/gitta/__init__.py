@@ -578,13 +578,25 @@ def fetch(repo_root: Path) -> None:
         pass
 
 
-@lru_cache(maxsize=256)
+# Manual cache for ref_exists - only cache positive results
+_ref_exists_cache: Dict[tuple[Path, str], bool] = {}
+
+
 def ref_exists(repo_root: Path, ref: str) -> bool:
-    """True if ref resolves in this repo."""
+    """True if ref resolves in this repo. Only caches positive results."""
+    cache_key = (repo_root, ref)
+
+    # Check cache only for positive results
+    if cache_key in _ref_exists_cache:
+        return True
+
     try:
         run_git_in_dir(repo_root, "rev-parse", "--verify", "--quiet", ref)
+        # Cache the positive result
+        _ref_exists_cache[cache_key] = True
         return True
     except GitError:
+        # Never cache negative results
         return False
 
 
