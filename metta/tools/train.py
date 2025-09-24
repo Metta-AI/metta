@@ -7,7 +7,7 @@ from typing import Optional
 import torch
 from pydantic import Field
 
-from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.puffer_simple import PufferSimpleConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -61,7 +61,7 @@ class TrainTool(Tool):
     device: str = guess_device()
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
+    policy_architecture: PolicyArchitecture = Field(default_factory=PufferSimpleConfig)
     initial_policy_uri: Optional[str] = None
     uploader: UploaderConfig = Field(default_factory=UploaderConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)

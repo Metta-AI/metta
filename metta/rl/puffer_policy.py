@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 def _is_puffer_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
     """Return True if the object appears to be a PufferLib state_dict."""
+    print("state dict keys", loaded_obj.keys())
     return isinstance(loaded_obj, dict) and bool(loaded_obj) and any(key.startswith("policy.") for key in loaded_obj)
 
 
@@ -26,6 +27,8 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
     processed = {}
 
     key_mappings = {
+        # Max vec
+        "policy.max_vec": "max_vec",
         # Convolution layers
         "policy.conv1.weight": "conv1.weight",
         "policy.conv1.bias": "conv1.bias",
@@ -38,6 +41,9 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
         "policy.network.2.bias": "network.2.bias",
         "policy.network.5.weight": "network.5.weight",
         "policy.network.5.bias": "network.5.bias",
+        # Self encoder
+        "policy.self_encoder.0.weight": "self_encoder.0.weight",
+        "policy.self_encoder.0.bias": "self_encoder.0.bias",
         # LSTM mappings (different structure in PufferLib)
         "lstm.weight_ih_l0": "lstm.net.weight_ih_l0",
         "lstm.weight_hh_l0": "lstm.net.weight_hh_l0",
@@ -51,11 +57,17 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
         # Value head
         "policy.value.weight": "value.weight",
         "policy.value.bias": "value.bias",
-        # Actor head
+        # Actor head (expanded to handle more layers)
         "policy.actor.0.weight": "actor.0.weight",
         "policy.actor.0.bias": "actor.0.bias",
         "policy.actor.1.weight": "actor.1.weight",
         "policy.actor.1.bias": "actor.1.bias",
+        "policy.actor.2.weight": "actor.2.weight",
+        "policy.actor.2.bias": "actor.2.bias",
+        "policy.actor.3.weight": "actor.3.weight",
+        "policy.actor.3.bias": "actor.3.bias",
+        "policy.actor.4.weight": "actor.4.weight",
+        "policy.actor.4.bias": "actor.4.bias",
     }
 
     for src_key, dst_key in key_mappings.items():
@@ -80,6 +92,7 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
 
     policy_cfg = PufferPolicyConfig()
     policy = PufferPolicy(temp_env, policy_cfg).to(device)
+    print("policy keys", policy.state_dict().keys())
 
     temp_env.close()
     return policy
