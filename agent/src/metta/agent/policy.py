@@ -78,6 +78,11 @@ class Policy(ABC, nn.Module):
     def reset_memory(self):
         pass
 
+    def enable_component_profiling(self):
+        """Toggle per-component profiling if the policy supports it."""
+
+        return
+
 
 class DistributedPolicy(DistributedDataParallel):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""

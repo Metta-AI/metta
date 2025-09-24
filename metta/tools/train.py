@@ -173,6 +173,7 @@ class TrainTool(Tool):
             self.policy_architecture,
             policy_uri=self.initial_policy_uri,
         )
+        self._maybe_enable_policy_profiling(policy)
         return policy_checkpointer, policy
 
     def _initialize_trainer(
@@ -194,6 +195,17 @@ class TrainTool(Tool):
             self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
 
         return trainer
+
+    def _maybe_enable_policy_profiling(self, policy: Policy) -> None:
+        if not getattr(self.torch_profiler, "collect_component_stats", False):
+            return
+
+        target = policy
+        if hasattr(target, "module"):
+            target = target.module
+
+        if hasattr(target, "enable_component_profiling"):
+            target.enable_component_profiling()
 
     def _register_components(
         self,
