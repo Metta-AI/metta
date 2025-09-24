@@ -16,8 +16,8 @@ class ObsLatentAttnConfig(ComponentConfig):
     name: str = "obs_latent_attn"
     use_mask: bool = True
     num_query_tokens: int = 10
-    num_heads: int = 4
-    num_layers: int = 2
+    num_heads: int = 6  # 4
+    num_layers: int = 6  # 2
     query_token_dim: Optional[int] = 48
     qk_dim: Optional[int] = None
     v_dim: Optional[int] = None
@@ -216,7 +216,7 @@ class ObsSelfAttnConfig(ComponentConfig):
     name: str = "obs_self_attn"
     out_dim: int = 128
     use_mask: bool = False
-    num_layers: int = 4
+    num_layers: int = 8  # 4
     num_heads: int = 8
     use_cls_token: bool = True
 
