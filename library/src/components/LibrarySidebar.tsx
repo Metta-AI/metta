@@ -184,7 +184,9 @@ export function LibrarySidebar() {
             <rect x="13.8" y="7" width="3.6" height="11" />
             <rect x="17.4" y="5" width="3.6" height="13" />
           </svg>
-          <h1 className="text-lg font-semibold text-gray-900">Library</h1>
+          <h1 className="text-lg font-semibold text-gray-900">
+            Republic of Papers
+          </h1>
         </div>
       </div>
 
