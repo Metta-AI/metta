@@ -69,10 +69,10 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     _token_embed_dim = 8
     _fourier_freqs = 3
-    _latent_dim = 128
-    _lstm_latent = 128
-    _actor_hidden = 512
-    _critic_hidden = 1024
+    _latent_dim = 64
+    _lstm_latent = 64
+    _actor_hidden = 256
+    _critic_hidden = 512
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),

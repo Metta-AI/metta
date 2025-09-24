@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import resource
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Dict, Iterator
+
+import torch
 
 
 @dataclass
@@ -38,7 +41,7 @@ class Profiler:
             stats = self._sections.setdefault(name, SectionStats())
             stats.record(elapsed)
 
-    def summary(self) -> str:
+    def summary(self, include_memory: bool = False) -> str:
         if not self._sections:
             return "Profiler: no sections recorded"
         lines = ["Profiler summary (seconds):"]
@@ -46,6 +49,29 @@ class Profiler:
             lines.append(
                 f"  {name:<20s} total={stats.total_time:6.3f} avg={stats.avg_time:6.4f} calls={stats.calls:4d}"
             )
+
+        if include_memory:
+            rss_raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            if rss_raw:
+                import sys
+
+                if sys.platform == "darwin":
+                    rss_mb = rss_raw / (1024 * 1024)
+                else:
+                    rss_mb = rss_raw / 1024
+            else:
+                rss_mb = 0.0
+            lines.append(f"  CPU max RSS            {rss_mb:6.2f} MB")
+
+            if torch.cuda.is_available():
+                allocated = torch.cuda.memory_allocated() / 1024**2
+                reserved = torch.cuda.memory_reserved() / 1024**2
+                peak = torch.cuda.max_memory_allocated() / 1024**2
+                lines.append(
+                    f"  GPU memory (MB)        alloc={allocated:6.1f} reserved={reserved:6.1f} peak={peak:6.1f}"
+                )
+                torch.cuda.reset_peak_memory_stats()
+
         return "\n".join(lines)
 
     def reset(self) -> None:

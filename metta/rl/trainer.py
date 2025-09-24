@@ -150,7 +150,7 @@ class Trainer:
                 if self._state.agent_step % max(1, self._cfg.batch_size) == 0:
                     from metta.agent.util.profile import PROFILER
 
-                    logger.info(PROFILER.summary())
+                    logger.info(PROFILER.summary(include_memory=True))
                     PROFILER.reset()
                 self._train_epoch_callable()
 
