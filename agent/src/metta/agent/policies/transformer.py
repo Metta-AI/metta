@@ -26,11 +26,8 @@ from metta.agent.components.actor import (
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.heads import LinearHead, LinearHeadConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
+from metta.agent.components.transformer_core import TransformerCoreConfig, TransformerImprovedCoreConfig
 from metta.agent.components.transformer_nvidia_module import TransformerNvidiaCoreConfig
-from metta.agent.components.vanilla_transformer import (
-    TransformerCoreConfig,
-    TransformerImprovedCoreConfig,
-)
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
