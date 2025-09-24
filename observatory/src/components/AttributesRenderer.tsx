@@ -1,5 +1,8 @@
 import React from 'react'
-import { AttributesRendererProps } from '../types/evalTasks'
+
+export interface AttributesRendererProps {
+  attributes: Record<string, any>
+}
 
 export const AttributesRenderer: React.FC<AttributesRendererProps> = ({ attributes }) => {
   if (!attributes || Object.keys(attributes).length === 0) {

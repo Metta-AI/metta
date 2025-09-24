@@ -1,5 +1,5 @@
 import { EvalTask } from '../repo'
-import { SortField, SortDirection } from '../types/evalTasks'
+import { SortField, SortDirection } from '../components/SortHeader'
 import { METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO } from '../constants'
 
 export const getStatusColor = (status: string, isInProgress: boolean): string => {

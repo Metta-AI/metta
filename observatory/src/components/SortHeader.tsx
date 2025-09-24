@@ -1,5 +1,29 @@
 import React from 'react'
-import { SortHeaderProps } from '../types/evalTasks'
+
+export type SortField =
+  | 'policy_name'
+  | 'sim_suite'
+  | 'status'
+  | 'assignee'
+  | 'user_id'
+  | 'retries'
+  | 'created_at'
+  | 'assigned_at'
+  | 'updated_at'
+
+export type SortDirection = 'asc' | 'desc'
+
+interface SortHeaderProps {
+  field: SortField
+  label: string
+  isActive: boolean
+  width?: string
+  onSort: (field: SortField, isActive: boolean) => void
+  activeSortField: SortField
+  activeSortDirection: SortDirection
+  completedSortField: SortField
+  completedSortDirection: SortDirection
+}
 
 export const SortHeader: React.FC<SortHeaderProps> = ({
   field,

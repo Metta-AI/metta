@@ -4,6 +4,7 @@ import { CreateTaskForm } from './components/CreateTaskForm'
 import { TaskTable } from './components/TaskTable'
 import { useEvalTasks } from './hooks/useEvalTasks'
 import { EvalTasksProps } from './types/evalTasks'
+import { Repo } from './repo'
 
 const TabButton = ({
   isActive,
@@ -78,7 +79,7 @@ const PaginationControls = ({
   const getPageNumbers = () => {
     const pages = []
     const maxPagesToShow = 5
-    
+
     if (totalPages <= maxPagesToShow) {
       // Show all pages if total is small
       for (let i = 1; i <= totalPages; i++) {
@@ -111,7 +112,7 @@ const PaginationControls = ({
         pages.push(totalPages)
       }
     }
-    
+
     return pages
   }
 
@@ -209,6 +210,10 @@ const PaginationControls = ({
       </button>
     </div>
   )
+}
+
+export interface EvalTasksProps {
+  repo: Repo
 }
 
 export function EvalTasks({ repo }: EvalTasksProps) {
