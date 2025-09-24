@@ -1,4 +1,4 @@
-type: metta.map.scenes.convchain.ConvChain
+type: mettagrid.mapgen.scenes.convchain.ConvChain
 params:
   pattern_size: 4
   iterations: 10

@@ -2,6 +2,7 @@ import asyncio
 import logging
 import webbrowser
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch as th
@@ -9,11 +10,13 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from omegaconf import DictConfig
 
-import mettascope.replays as replays
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
-from metta.util.metta_script import metta_script
+from metta.sim.simulation import Simulation
+from mettagrid.util.grid_object_formatter import format_grid_object
+
+if TYPE_CHECKING:
+    from metta.tools.play import PlayTool
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -21,11 +24,12 @@ logger = logging.getLogger(__name__)
 
 
 class CustomStaticFiles(StaticFiles):
-    """StaticFiles that disables caching for specific file extensions and sets custom content types."""
+    """StaticFiles that disables caching for specific file extensions or filenames and sets custom content types."""
 
-    def __init__(self, *args, no_cache_extensions=None, custom_content_types=None, **kwargs):
+    def __init__(self, *args, no_cache_extensions=None, no_cache_filenames=None, custom_content_types=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.no_cache_extensions = no_cache_extensions or {".js", ".json"}
+        self.no_cache_filenames = no_cache_filenames or set()
         self.custom_content_types = custom_content_types or {}
 
     def file_response(
@@ -46,14 +50,14 @@ class CustomStaticFiles(StaticFiles):
         if file_ext in self.custom_content_types:
             response.headers["content-type"] = self.custom_content_types[file_ext]
 
-        # Handle caching
-        if file_ext in self.no_cache_extensions:
+        # Handle caching.
+        if file_ext in self.no_cache_extensions or file_path.name in self.no_cache_filenames:
             response.headers["Cache-Control"] = "no-store"
 
         return response
 
 
-def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
+def clear_memory(sim: Simulation, what: str, agent_id: int) -> None:
     """Clear the memory of the policy."""
     policy_state = sim.get_policy_state()
 
@@ -72,7 +76,7 @@ def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
         policy_state.lstm_h[:, agent_id, :].normal_(mean=0, std=1)
 
 
-def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], list[float]]:
+def copy_memory(sim: Simulation, agent_id: int) -> tuple[list[float], list[float]]:
     """Copy the memory of the policy."""
     policy_state = sim.get_policy_state()
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
@@ -85,7 +89,7 @@ def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], li
     return lstm_c.tolist(), lstm_h.tolist()
 
 
-def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[float], list[float]]):
+def paste_memory(sim: Simulation, agent_id: int, memory: tuple[list[float], list[float]]):
     """Paste the memory of the policy."""
     policy_state = sim.get_policy_state()
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
@@ -97,7 +101,7 @@ def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[floa
     policy_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
 
 
-def make_app(cfg: DictConfig):
+def make_app(cfg: "PlayTool"):
     app = FastAPI()
 
     @app.get("/", response_class=HTMLResponse)
@@ -124,7 +128,11 @@ def make_app(cfg: DictConfig):
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
     app.mount(
         "/dist",
-        CustomStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
+        CustomStaticFiles(
+            directory="mettascope/dist",
+            no_cache_extensions={".js", ".json", ".css"},
+            no_cache_filenames={"atlas.png"},
+        ),
         name="dist",
     )
     app.mount(
@@ -148,8 +156,14 @@ def make_app(cfg: DictConfig):
         logger.info("Received websocket connection!")
         await send_message(type="message", message="Connecting!")
 
-        # Create a simulation that we are going to play.
-        sim = replays.create_simulation(cfg)
+        sim = Simulation.create(
+            sim_config=cfg.sim,
+            device=cfg.system.device,
+            vectorization=cfg.system.vectorization,
+            stats_dir=cfg.effective_stats_dir,
+            replay_dir=cfg.effective_replay_dir,
+            policy_uri=cfg.policy_uri,
+        )
         sim.start_simulation()
         env = sim.get_env()
         replay = sim.get_replay()
@@ -166,17 +180,16 @@ def make_app(cfg: DictConfig):
             for i, grid_object in enumerate(env.grid_objects.values()):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
-                for key, value in grid_object.items():
-                    grid_objects[i][key] = value
+
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
-                    grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
-                    grid_objects[i]["action"] = actions[agent_id].tolist()
-                    grid_objects[i]["reward"] = env.rewards[agent_id].item()
                     total_rewards[agent_id] += env.rewards[agent_id]
-                    grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
 
-            await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
+                update_object = format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+
+                grid_objects[i] = update_object
+
+            await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
 
         # Send the first replay step.
         await send_replay_step()
@@ -221,8 +234,8 @@ def make_app(cfg: DictConfig):
                 actions = sim.generate_actions()
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id][0] = action_message["action"][0]
-                    actions[agent_id][1] = action_message["action"][1]
+                    actions[agent_id][0] = action_message["action_id"]
+                    actions[agent_id][1] = action_message["action_param"]
                 sim.step_simulation(actions)
 
                 await send_replay_step()
@@ -236,7 +249,7 @@ def make_app(cfg: DictConfig):
     return app
 
 
-def run(cfg: DictConfig, open_url: str | None = None):
+def run(cfg: "PlayTool", open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:
@@ -247,6 +260,3 @@ def run(cfg: DictConfig, open_url: str | None = None):
             webbrowser.open(f"{server_url}{open_url}")
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-metta_script(run, "replay_job")

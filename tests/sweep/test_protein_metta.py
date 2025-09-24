@@ -1,199 +1,215 @@
-"""Tests for MettaProtein class."""
+"""Tests for ProteinOptimizer class."""
 
-from unittest.mock import Mock, patch
+import pytest
 
-from omegaconf import OmegaConf
+from metta.sweep.models import Observation
+from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
-from metta.sweep.protein_metta import MettaProtein
+
+@pytest.fixture
+def base_protein_config():
+    """Base ProteinConfig for ProteinOptimizer tests."""
+    return ProteinConfig(
+        metric="reward",
+        goal="maximize",
+        method="bayes",
+        parameters={},
+        settings=ProteinSettings(
+            max_suggestion_cost=3600,
+            resample_frequency=0,
+            num_random_samples=50,
+            global_search_scale=1,
+            random_suggestions=1024,
+            suggestions_per_pareto=256,
+        ),
+    )
 
 
-class TestMettaProtein:
-    """Test cases for MettaProtein class."""
+class TestProteinOptimizer:
+    """Test cases for ProteinOptimizer class."""
 
-    def test_metta_protein_init_with_full_config(self):
-        """Test MettaProtein initialization with complete config."""
-        config = OmegaConf.create(
-            {
-                "protein": {
-                    "max_suggestion_cost": 7200,
-                    "resample_frequency": 0,
-                    "num_random_samples": 100,
-                    "global_search_scale": 2,
-                    "random_suggestions": 1024,
-                    "suggestions_per_pareto": 256,
+    def test_unsupported_method_error(self):
+        """Test that ProteinOptimizer raises error for unsupported methods."""
+        with pytest.raises(ValueError, match="Unsupported optimization method"):
+            # This should fail since we only allow 'bayes' now
+            config = ProteinConfig(
+                metric="loss",
+                goal="minimize",
+                method="bayes",  # This is supported, but let's create an invalid one
+                parameters={
+                    "learning_rate": ParameterConfig(
+                        distribution="log_normal",
+                        min=1e-4,
+                        max=1e-1,
+                        scale="auto",
+                        mean=1e-2,
+                    )
                 },
-                "metric": "reward",
-                "goal": "maximize",
-                "parameters": {
-                    "trainer": {
-                        "optimizer": {
-                            "learning_rate": {
-                                "distribution": "log_normal",
-                                "min": 1e-5,
-                                "max": 1e-2,
-                                "scale": "auto",
-                                "mean": 3e-4,
-                            }
-                        }
-                    },
-                },
-            }
+            )
+            # Manually set an invalid method to test error handling
+            config.method = "invalid_method"
+            ProteinOptimizer(config)
+
+    def test_suggest_method_single(self):
+        """Test the suggest method of ProteinOptimizer with single suggestion."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
         )
 
-        mock_wandb_run = Mock()
+        optimizer = ProteinOptimizer(config)
 
-        with patch("metta.sweep.protein_metta.Protein") as mock_protein:
-            mock_protein_instance = Mock()
-            mock_protein.return_value = mock_protein_instance
+        # Test suggest with no observations
+        suggestions = optimizer.suggest(observations=[], n_suggestions=1)
 
-            with patch("metta.sweep.protein_metta.WandbProtein.__init__", return_value=None):
-                _ = MettaProtein(config, mock_wandb_run)
+        # Check suggestion format
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 1
+        suggestion = suggestions[0]
+        assert isinstance(suggestion, dict)
+        assert "param1" in suggestion
+        assert 0 <= suggestion["param1"] <= 1
 
-                # Verify Protein was called with correct parameters
-                mock_protein.assert_called_once()
-                args, kwargs = mock_protein.call_args
-
-                # Check that parameters were passed correctly
-                protein_config = args[0]
-                assert protein_config["metric"] == "reward"
-                assert protein_config["goal"] == "maximize"
-                assert "trainer" in protein_config
-
-                # Check protein-specific parameters were passed as kwargs
-                assert kwargs["max_suggestion_cost"] == 7200
-                assert kwargs["num_random_samples"] == 100
-                assert kwargs["global_search_scale"] == 2
-
-    def test_metta_protein_init_with_defaults(self):
-        """Test MettaProtein initialization with minimal config (using defaults)."""
-        config = OmegaConf.create(
-            {
-                "protein": {
-                    "max_suggestion_cost": 3600,
-                    "resample_frequency": 0,
-                    "num_random_samples": 50,
-                    "global_search_scale": 1,
-                    "random_suggestions": 1024,
-                    "suggestions_per_pareto": 256,
-                },  # Default protein config values
-                "metric": "accuracy",
-                "goal": "minimize",
-                "parameters": {
-                    "batch_size": {"distribution": "uniform", "min": 16, "max": 128, "scale": "auto", "mean": 64},
-                },
-            }
+    def test_suggest_method_multiple(self):
+        """Test the suggest method of ProteinOptimizer with multiple suggestions."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
         )
 
-        mock_wandb_run = Mock()
+        optimizer = ProteinOptimizer(config)
 
-        with patch("metta.sweep.protein_metta.Protein") as mock_protein:
-            mock_protein_instance = Mock()
-            mock_protein.return_value = mock_protein_instance
+        # Test suggest with multiple suggestions
+        suggestions = optimizer.suggest(observations=[], n_suggestions=3)
 
-            with patch("metta.sweep.protein_metta.WandbProtein.__init__", return_value=None):
-                _ = MettaProtein(config, mock_wandb_run)
+        # Check suggestion format
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 3
+        for suggestion in suggestions:
+            assert isinstance(suggestion, dict)
+            assert "param1" in suggestion
+            assert 0 <= suggestion["param1"] <= 1
 
-                # Verify Protein was called with defaults
-                mock_protein.assert_called_once()
-                args, kwargs = mock_protein.call_args
-
-                # Check that parameters were passed correctly
-                protein_config = args[0]
-                assert protein_config["metric"] == "accuracy"
-                assert protein_config["goal"] == "minimize"
-
-                # Check defaults were used
-                assert kwargs["max_suggestion_cost"] == 3600
-                assert kwargs["num_random_samples"] == 50
-                assert kwargs["global_search_scale"] == 1
-
-    def test_metta_protein_config_interpolation(self):
-        """Test that OmegaConf interpolations are resolved correctly."""
-        config = OmegaConf.create(
-            {
-                "protein": {
-                    "max_suggestion_cost": 3600,
-                    "resample_frequency": 0,
-                    "num_random_samples": 50,
-                    "global_search_scale": 1,
-                    "random_suggestions": 1024,
-                    "suggestions_per_pareto": 256,
-                },
-                "metric": "loss",
-                "goal": "minimize",
-                "parameters": {
-                    "trainer": {
-                        "batch_size": 32,
-                        "optimizer": {
-                            "learning_rate": {
-                                "distribution": "log_normal",
-                                "min": 1e-5,
-                                "max": 1e-2,
-                                "scale": "auto",
-                                "mean": "${parameters.trainer.batch_size}",
-                            }
-                        },
-                    },
-                },
-            }
+    def test_suggest_with_observations(self):
+        """Test the suggest method with previous observations."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
         )
 
-        mock_wandb_run = Mock()
+        optimizer = ProteinOptimizer(config)
 
-        with patch("metta.sweep.protein_metta.Protein") as mock_protein:
-            mock_protein_instance = Mock()
-            mock_protein.return_value = mock_protein_instance
+        # Create some observations
+        observations = [
+            Observation(score=0.5, cost=100, suggestion={"param1": 0.3}),
+            Observation(score=0.8, cost=100, suggestion={"param1": 0.7}),
+        ]
 
-            with patch("metta.sweep.protein_metta.WandbProtein.__init__", return_value=None):
-                _ = MettaProtein(config, mock_wandb_run)
+        # Get suggestions based on observations
+        suggestions = optimizer.suggest(observations=observations, n_suggestions=2)
 
-                # Verify interpolation was resolved
-                mock_protein.assert_called_once()
-                args, _ = mock_protein.call_args
-                protein_config = args[0]
+        # Check that we got suggestions back
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 2
+        for suggestion in suggestions:
+            assert isinstance(suggestion, dict)
+            assert "param1" in suggestion
+            assert 0 <= suggestion["param1"] <= 1
 
-                # Check that interpolation was resolved
-                assert protein_config["trainer"]["optimizer"]["learning_rate"]["mean"] == 32
-
-    def test_transform_suggestion(self):
-        """Test the _transform_suggestion method."""
-        config = OmegaConf.create(
-            {
-                "protein": {
-                    "max_suggestion_cost": 3600,
-                    "resample_frequency": 0,
-                    "num_random_samples": 50,
-                    "global_search_scale": 1,
-                    "random_suggestions": 1024,
-                    "suggestions_per_pareto": 256,
-                },
-                "metric": "reward",
-                "goal": "maximize",
-                "parameters": {},
-            }
+    def test_suggest_stateless_behavior(self):
+        """Test that ProteinOptimizer is stateless - each call creates fresh instance."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
         )
 
-        mock_wandb_run = Mock()
+        optimizer = ProteinOptimizer(config)
 
-        with patch("metta.sweep.protein_metta.Protein") as mock_protein:
-            mock_protein_instance = Mock()
-            mock_protein.return_value = mock_protein_instance
+        # Create an observation
+        observation = Observation(score=0.8, cost=100, suggestion={"param1": 0.7})
 
-            with patch("metta.sweep.protein_metta.WandbProtein.__init__", return_value=None):
-                metta_protein = MettaProtein(config, mock_wandb_run)
+        # First call with the observation
+        suggestions1 = optimizer.suggest(observations=[observation], n_suggestions=1)
 
-                # Test numpy type conversion
-                import numpy as np
+        # Second call with no observations - should not remember the previous observation
+        suggestions2 = optimizer.suggest(observations=[], n_suggestions=1)
 
-                suggestion_with_numpy = {
-                    "learning_rate": np.float64(0.001),
-                    "batch_size": np.int32(64),
-                    "nested": {"value": np.array([1, 2, 3])},
-                }
+        # Both should return valid suggestions
+        assert len(suggestions1) == 1
+        assert len(suggestions2) == 1
+        assert isinstance(suggestions1[0], dict)
+        assert isinstance(suggestions2[0], dict)
 
-                result = metta_protein._transform_suggestion(suggestion_with_numpy)
+    def test_suggest_with_failure_observations(self):
+        """Test suggest method with failure observations."""
+        config = ProteinConfig(
+            metric="test_metric",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "param1": ParameterConfig(
+                    distribution="uniform",
+                    min=0,
+                    max=1,
+                    scale="auto",
+                    mean=0.5,
+                )
+            },
+        )
 
-                # Check that numpy types were converted
-                assert isinstance(result["learning_rate"], float)
-                assert isinstance(result["batch_size"], int)
-                assert isinstance(result["nested"]["value"], list)
+        optimizer = ProteinOptimizer(config)
+
+        # Create observations with one failure (score should be ignored for failures)
+        observations = [
+            Observation(score=0.5, cost=100, suggestion={"param1": 0.3}),
+            Observation(score=0.0, cost=50, suggestion={"param1": 0.1}),  # This would be marked as failure
+        ]
+
+        # Should still work fine
+        suggestions = optimizer.suggest(observations=observations, n_suggestions=1)
+
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 1
+        assert isinstance(suggestions[0], dict)
+        assert "param1" in suggestions[0]

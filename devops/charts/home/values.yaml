@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: softmax-home
+  tag: "" # will be set by CI/CD pipeline
+
+host: home.softmax-research.net
+
+cert_manager_issuer: letsencrypt
+
+oauth2_proxy:
+  email_domains:
+    - stem.ai
+    - softmax.com
+  # This secret is terraformed by devops/tf/eks
+  secret_name: softmax-infra-oauth

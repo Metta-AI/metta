@@ -1,815 +1,897 @@
-# Codebot: AI-Powered Code Assistant Framework
-
-
-## Usage Examples [AS A VISION; NOT YET IMPLEMENTED]
+# Manybot
 
 ```bash
-# Write tests for a specific change (uses `git diff main` and `tests/` as default context)
-codebot test "Write tests for the new UserAuth class"
+# Create bots with specific goals
+manybot create api-modernizer --goal "Modernize API to async/await" --success "All endpoints use async"
 
-# Fix ruff issues (automatically pipes in ruff check output as context, along wit git diff main)
-codebot ruff "Fix my linting issues"
+# Assign responsibilities
+manybot assign test-guardian --owns "src/api/" "tests/api/" --level owner
 
-# Run a workflow
-codebot workflow test-debug "Add authentication to the API endpoints" -p src/api
+# Schedule coordination
+manybot meeting schedule "API redesign" --attendees api-bot,test-bot,docs-bot
 
-# List available bots
-codebot bots
-
-# Reset --soft to last manual commit
-codebot reset-soft
-
-# See all bot changes since last manual commit
-codebot diff
+# Query status
+manybot status test-guardian
 ```
 
-## Vision
+## Coordinated Multi-Agent System
 
-Codebot is a framework for building AI-powered code assistants that amplify human engineering capabilities. Built on PydanticAI, it creates well-defined handoff contracts between components while adapting to the evolving capabilities of language models.
+Manybot orchestrates teams of self-directed agents working toward shared objectives:
 
-### Core Principles
+- **Bot Management**: Create and track bots with specific goals
+- **Responsibility Assignment**: Map code ownership through OWNERS files
+- **Bot Communication**: Structured meetings and decision-making protocols
+- **Progress Tracking**: Monitor goal achievement and bot activities
+- **Self-Direction**: Bots can spawn specialists, update goals, and delegate (with PR review)
 
-1. **Human Empowerment First**: Maximize the productivity and capabilities of our engineers, not replace them with autonomous agents
+## Diamond Architecture
 
-2. **Best Context, Always**: Provide the most relevant context possible while adapting expectations based on model capabilities as they improve
+```
+                    ┌─────────────┐
+                    │   manybot   │
+                    │             │
+                    │ • Bot teams │
+                    │ • Meetings  │
+                    │ • OWNERS    │
+                    └──────┬──────┘
+                          /\
+                         /  \
+                        /    \
+               ┌───────▼─┐  ┌─▼────────┐
+               │ goalbot │  │remotebot │
+               │         │  │          │
+               │ • Goals │  │ • Servers│
+               │ • Tasks │  │ • Jobs   │
+               │ • Loop  │  │ • Deploy │
+               └────┬────┘  └────┬─────┘
+                    \            /
+                     \          /
+                      \        /
+                    ┌──▼──────▼──┐
+                    │   codebot   │
+                    │             │
+                    │ • FileChange│
+                    │ • Commands  │
+                    │ • Context   │
+                    └─────────────┘
+```
 
-3. **Clear Handoff Contracts**: Use Pydantic's input/output specifications to enable reliable component composition and graph structures
+**Data flows up, services flow down:**
 
-4. **Start Simple, Focus on Quality**: Build a small number of highly valuable bots before scaling - 4 excellent bots are better than 20 mediocre ones
+- **codebot**: Foundation - all file operations happen here
+- **goalbot**: Adds persistence and goal-driven loops on top of codebot
+- **remotebot**: Provides distributed execution infrastructure
+- **manybot**: Orchestrates multiple goal-driven bots across infrastructure
 
-5. **Experiment and Learn**: Try multiple approaches (full files vs diffs), measure failure modes, and invest based on real-world performance
+## Service Interface
 
+### Provides
 
-## Prompt Management System
+- Bot identity management and registry
+- Responsibility assignment and OWNERS files
+- Inter-bot communication protocols
+- Progress monitoring and reporting
 
-Centralized markdown-based prompts that can be used by both Codebot and Claude Code subagents:
+### Consumes
+
+- goalbot: For autonomous goal execution
+- remotebot: For distributed bot deployment
+
+## Core Operations
+
+### Creating and Managing Bots
 
 ```python
-from pathlib import Path
-from typing import Dict, Optional
-import re
+class CreateBot(BaseModel):
+    """Create a new bot with specific goal"""
+    name: str
+    goal: str
+    success_criteria: str
 
-class PromptManager:
-    """Manage prompts stored as markdown files"""
-
-    def __init__(self, prompts_dir: Path = Path("prompts")):
-        self.prompts_dir = prompts_dir
-        self._cache: Dict[str, str] = {}
-        self._load_prompts()
-
-    def _load_prompts(self):
-        """Load all .md files from prompts directory"""
-        for md_file in self.prompts_dir.glob("*.md"):
-            name = md_file.stem  # filename without .md
-            self._cache[name] = md_file.read_text()
-
-    def get(self, name: str, **variables) -> str:
-        """Get a prompt by name and optionally substitute variables"""
-        if name not in self._cache:
-            raise KeyError(f"Prompt '{name}' not found. Available: {list(self._cache.keys())}")
-
-        prompt = self._cache[name]
-
-        # Simple variable substitution for {variable_name}
-        for key, value in variables.items():
-            prompt = prompt.replace(f"{{{key}}}", str(value))
-
-        return prompt
-
-    def get_raw(self, name: str) -> str:
-        """Get raw prompt without any substitution (for Claude Code)"""
-        if name not in self._cache:
-            raise KeyError(f"Prompt '{name}' not found")
-        return self._cache[name]
-
-    def list_prompts(self) -> Dict[str, str]:
-        """List all available prompts with their first line as description"""
-        prompts = {}
-        for name, content in self._cache.items():
-            # First line as description
-            first_line = content.split('\n')[0].strip('#').strip()
-            prompts[name] = first_line
-        return prompts
-
-# Global instance
-prompts = PromptManager()
-```
-
-### Example Prompt Files
-
-`prompts/tester.md`:
-```markdown
-# Test Writer - Comprehensive Unit Test Generation
-
-You are an expert test writer focused on creating comprehensive, maintainable test suites.
-
-## Core Responsibilities
-- Write tests that verify behavior, not implementation
-- Cover edge cases and error conditions
-- Follow existing test patterns in the codebase
-- Use appropriate test fixtures and mocking
-
-## Guidelines
-1. **Test Structure**
-   - Use descriptive test names that explain what is being tested
-   - Group related tests in classes
-   - Follow Arrange-Act-Assert pattern
-
-2. **Coverage Focus**
-   - Happy path scenarios
-   - Error conditions and exceptions
-   - Boundary conditions
-   - Integration points
-
-3. **Framework**
-   - Use pytest as the testing framework
-   - Leverage pytest fixtures for setup/teardown
-   - Use appropriate markers (@pytest.mark.asyncio, etc.)
-
-## Context Usage
-When provided with code context, analyze:
-- Public APIs that need testing
-- Dependencies that should be mocked
-- Existing test patterns to follow
-- Edge cases specific to the implementation
-```
-
-`prompts/debugger.md`:
-```markdown
-# Debugger - Test Failure Analysis and Resolution
-
-You are an expert debugger specialized in fixing failing tests and resolving errors.
-
-## Core Responsibilities
-- Analyze test failures to identify root causes
-- Fix bugs while maintaining existing functionality
-- Ensure fixes don't introduce new issues
-- Improve code quality while debugging
-
-## Debugging Process
-1. **Analyze the Error**
-   - Read error messages and stack traces carefully
-   - Identify the exact point of failure
-   - Understand what the test expects vs what happens
-
-2. **Investigate Root Cause**
-   - Check recent changes that might have caused the issue
-   - Verify assumptions about data and state
-   - Look for race conditions or timing issues
-
-3. **Implement Fix**
-   - Make minimal changes to fix the issue
-   - Preserve all existing functionality
-   - Add defensive programming where appropriate
-
-## Common Patterns
-- Import errors: Check module paths and dependencies
-- Assertion failures: Verify test expectations are correct
-- Type errors: Ensure proper type handling and conversions
-- Async issues: Check proper await usage and event loop handling
-```
-
-`prompts/reviewer.md`:
-```markdown
-# Code Reviewer - Thorough Code Quality Analysis
-
-You are a senior engineer performing code reviews with focus on quality, security, and maintainability.
-
-## Review Priorities
-1. **Correctness**
-   - Logic errors and bugs
-   - Edge case handling
-   - Error handling completeness
-
-2. **Security**
-   - Input validation
-   - Authentication/authorization issues
-   - Data exposure risks
-   - Injection vulnerabilities
-
-3. **Performance**
-   - Algorithmic complexity
-   - Database query efficiency
-   - Memory usage patterns
-   - Caching opportunities
-
-4. **Maintainability**
-   - Code clarity and readability
-   - Appropriate abstractions
-   - Documentation completeness
-   - Test coverage
-
-## Review Output Format
-Organize feedback by severity:
-- **Critical**: Must fix before merge (bugs, security issues)
-- **Important**: Should address (performance, maintainability)
-- **Suggestion**: Consider improving (style, minor optimizations)
-- **Praise**: Highlight good practices
-
-Always provide specific examples and suggest improvements.
-```
-
-`prompts/summarizer.md`:
-```markdown
-# Code Summarizer - Technical Documentation Generator
-
-You are a technical documentation expert creating clear, concise summaries of codebases.
-
-## Summarization Priorities
-1. **APIs and Interfaces**
-   - Public methods and their signatures
-   - Input/output specifications
-   - Usage examples
-
-2. **Data Models**
-   - Core data structures
-   - Database schemas
-   - State management patterns
-
-3. **Architecture**
-   - High-level system design
-   - Component relationships
-   - Key design decisions
-
-4. **Integration Points**
-   - External dependencies
-   - API endpoints
-   - Event handlers
-
-## Compression Strategy
-When given a token limit:
-- Preserve all public APIs
-- Keep essential type definitions
-- Summarize implementation details
-- Remove redundant documentation
-- Compress verbose descriptions
-
-Output should be scannable and useful for engineers who need to:
-- Understand how to use the code
-- Extend functionality
-- Debug issues
-- Review architecture decisions
-```
-
-## Simple Bot Contracts
-
-Clear input/output specifications for single-request bots:
-
-```python
-from pydantic import BaseModel, Field
-from typing import List, Optional
-
-# Universal Input Contract
-class BotInput(BaseModel):
-    """Standard input for all single-request bots"""
-    task_description: str = Field(description="The user's request - what they want the bot to do")
-    clipboard_content: Optional[str] = Field(description="User's clipboard if relevant")
-    user_context: str = Field(description="Context from user-specified paths")
-    bot_context: str = Field(description="Context from bot-specific default paths")
-    bot_prompt: str = Field(description="Bot-specific system prompt")
-
-# Universal Output Contract
-class FileChange(BaseModel):
-    """A single file change"""
-    filepath: str
-    content: str
-    operation: str = Field(default="write", description="write|delete")
-
-class BotOutput(BaseModel):
-    """Standard output for all single-request bots"""
-    file_changes: List[FileChange]
-    explanation: str = Field(description="What was done and why")
-
-# Base contract for all simple bots
-class SimpleBot(ABC):
-    """Contract for single LLM request bots"""
-
-    def __init__(self, name: str, prompt_name: Optional[str] = None):
-        self.name = name
-        self.prompt_name = prompt_name or name  # Default to bot name
-        self.bot_prompt = prompts.get(self.prompt_name)
-        self.context_provider = ContextProvider(name)
-        self.agent = Agent(
-            model="anthropic:claude-3-opus-20240229",
-            output_type=BotOutput,
-            system_prompt=self.bot_prompt
+    async def execute(self) -> BotHandle:
+        # Register bot in manybot's registry
+        bot = Bot(
+            id=f"bot_{self.name}",
+            goal=Goal(
+                description=self.goal,
+                success_criteria=self.success_criteria
+            ),
+            status="active"
         )
 
-    async def execute(
-        self,
-        task: str,
-        clipboard: Optional[str] = None,
-        context_spec: Optional[ContextSpec] = None
-    ) -> BotOutput:
-        """Execute bot with standard inputs producing standard outputs"""
-        # Get split contexts
-        user_context, bot_context = await self.context_provider.get_contexts(context_spec)
+        await BotRegistry.register(bot)
 
-        # Format prompt with clear sections
-        prompt = f"""
-Task: {task}
+        # Bot will start working via goalbot
+        await self.start_work_cycle(bot)
 
-{f"Clipboard Content:\n{clipboard}" if clipboard else ""}
-
-User-Specified Context:
-{user_context}
-
-Bot Default Context:
-{bot_context}
-        """
-
-        # Execute
-        result = await self.agent.run(prompt)
-        return result.output
-```
-
-class ContextProvider:
-    """White-list only context provider with automatic defaults"""
-
-    def __init__(self, bot_name: str):
-        self.bot_name = bot_name
-        # Pre-specified defaults per bot type
-        self.bot_defaults = {
-            "tester": ["tests/", "conftest.py"],
-            "debugger": ["tests/", ".github/workflows/"],
-            "summarizer": ["README.md", "docs/"],
-            "reviewer": [".github/PULL_REQUEST_TEMPLATE.md"]
-        }
-
-    def _parse_changed_files_from_diff(self, diff: str) -> List[str]:
-        """Extract list of changed files from git diff output"""
-        changed_files = []
-        for line in diff.split('\n'):
-            if line.startswith('diff --git'):
-                # Extract filename from diff --git a/path/to/file b/path/to/file
-                parts = line.split()
-                if len(parts) >= 3:
-                    # Remove 'a/' prefix
-                    filepath = parts[2][2:] if parts[2].startswith('a/') else parts[2]
-                    changed_files.append(filepath)
-        return list(set(changed_files))  # Remove duplicates
-
-    async def get_contexts(self, user_spec: Optional[ContextSpec] = None) -> tuple[str, str]:
-        """
-        Build split contexts:
-        - user_context: Git diff + full changed files + user-specified paths
-        - bot_context: Bot-specific default paths
-
-        Returns:
-            (user_context, bot_context) tuple
-        """
-        user_parts = []
-        bot_parts = []
-
-        # 1. Git diff goes in user context
-        diff = subprocess.run(
-            ["git", "diff", "main"],
-            capture_output=True,
-            text=True
-        ).stdout
-
-        if diff:
-            user_parts.append("=== CURRENT CHANGES (git diff main) ===")
-            user_parts.append(diff)
-
-            # Extract changed files and include their full content
-            changed_files = self._parse_changed_files_from_diff(diff)
-            if changed_files:
-                # Get full content of changed files using codeclip
-                changed_content = self._get_files_content(changed_files)
-                if changed_content:
-                    user_parts.append("=== FULL CONTENT OF CHANGED FILES ===")
-                    user_parts.append(changed_content)
-
-        # 2. User-specified paths go in user context
-        if user_spec and user_spec.include_paths:
-            user_files = self._get_files_content(user_spec.include_paths)
-            if user_files:
-                user_parts.append("=== USER SPECIFIED FILES ===")
-                user_parts.append(user_files)
-
-        # 3. Bot defaults go in bot context
-        if defaults := self.bot_defaults.get(self.bot_name):
-            bot_files = self._get_files_content(defaults)
-            if bot_files:
-                bot_parts.append(f"=== {self.bot_name.upper()} DEFAULT FILES ===")
-                bot_parts.append(bot_files)
-
-        user_context = "\n\n".join(user_parts) if user_parts else "No user context provided"
-        bot_context = "\n\n".join(bot_parts) if bot_parts else "No bot-specific context"
-
-        return user_context, bot_context
-
-    def _get_files_content(self, paths: List[str]) -> str:
-        """Get content using codeclip for specified paths"""
-        if not paths:
-            return ""
-
-        # Filter out non-existent files
-        existing_paths = [p for p in paths if Path(p).exists()]
-        if not existing_paths:
-            return ""
-
-        cmd = ["metta", "clip", "-s"] + existing_paths
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        return result.stdout if result.returncode == 0 else ""
-
-## Example Bot Implementations
-
-### Test Writer Bot
-```python
-class TesterBot(SimpleBot):
-    def __init__(self):
-        super().__init__(name="tester")
+        return BotHandle(bot_id=bot.id)
 
 # Usage
-bot = TesterBot()
-output = await bot.execute(
-    task="Write tests for the new UserAuth class",
-    context_spec=ContextSpec(include_paths=["src/auth.py"])
+await manybot.create_bot(
+    name="api-modernizer",
+    goal="Modernize API to use async/await patterns",
+    success_criteria="All API endpoints use async handlers"
 )
 ```
 
-### Debugger Bot
+### Managing Responsibilities
+
 ```python
-class DebuggerBot(SimpleBot):
-    def __init__(self):
-        super().__init__(name="debugger")
+class AssignResponsibility(BaseModel):
+    """Assign code ownership to a bot"""
+    bot_id: str
+    paths: List[str]  # Glob patterns
+    level: Literal["owner", "maintainer", "contributor"]
+
+    async def execute(self) -> None:
+        # Update OWNERS file
+        for path in self.paths:
+            owners_file = Path(path) / "OWNERS"
+            ownership = Ownership(
+                primary=f"manybot:{self.bot_id}",
+                level=self.level
+            )
+            await self.update_owners_file(owners_file, ownership)
+
+        # Notify bot of new responsibility
+        bot = await BotRegistry.get(self.bot_id)
+        await bot.add_responsibility(
+            Responsibility(
+                paths=self.paths,
+                level=self.level,
+                owner=f"manybot:{self.bot_id}"
+            )
+        )
+
+# Usage
+await manybot.assign_responsibility(
+    bot_id="test-guardian",
+    paths=["src/api/**/*.py", "tests/api/**/*.py"],
+    level="owner"
+)
 ```
 
-### Code Reviewer Bot
+### Bot Coordination Models
+
 ```python
-class ReviewerBot(SimpleBot):
-    def __init__(self):
-        super().__init__(name="reviewer")
+class MeetingAgenda(BaseModel):
+    """Structured agenda for bot coordination"""
+    meeting_id: str
+    organizer: str  # Bot that called the meeting
+    attendees: List[str]  # Bot IDs
+    topic: str
+    context: Dict[str, Any]
+    decisions_needed: List[str]
+    time_limit_minutes: int = 30
+
+class MeetingOutcome(BaseModel):
+    """Results from bot coordination meeting"""
+    decisions: Dict[str, str]
+    action_items: List[ActionItem]
+    follow_up_meetings: List[MeetingAgenda]
+    responsibility_changes: List[ResponsibilityChange]
+
+class ActionItem(BaseModel):
+    """Task assigned during meeting"""
+    assigned_to: str  # Bot ID
+    task: str
+    deadline: datetime
+    priority: Literal["high", "medium", "low"]
+
+class ResponsibilityChange(BaseModel):
+    """Change in code ownership"""
+    path: str
+    from_owner: str
+    to_owner: str
+    level: Literal["owner", "maintainer", "contributor"]
+    reason: str
 ```
 
-## Claude Code Integration
-
-The prompt system is designed to be used by Claude Code subagents as well:
+## Bot Coordination Implementation
 
 ```python
-class ClaudeCodePromptExporter:
-    """Export prompts for Claude Code configuration"""
+class BotCoordinator:
+    """Facilitates coordination between multiple bots"""
 
-    def __init__(self, prompts_dir: Path = Path("prompts")):
-        self.prompts = PromptManager(prompts_dir)
+    async def hold_meeting(self, agenda: MeetingAgenda) -> MeetingOutcome:
+        """Simulate a coordination meeting between bots using PydanticAI"""
 
-    def export_for_claude(self, output_dir: Path):
-        """Export prompts in format suitable for Claude Code"""
-        output_dir.mkdir(exist_ok=True)
-
-        # Create a manifest file
-        manifest = {
-            "prompts": []
-        }
-
-        for name in self.prompts._cache:
-            # Copy prompt file
-            content = self.prompts.get_raw(name)
-            output_file = output_dir / f"{name}.md"
-            output_file.write_text(content)
-
-            # Add to manifest
-            manifest["prompts"].append({
-                "name": name,
-                "file": f"{name}.md",
-                "description": content.split('\n')[0].strip('#').strip()
+        # Gather bot perspectives
+        bot_inputs = []
+        for bot_id in agenda.attendees:
+            bot = await BotRegistry.get(bot_id)
+            analysis = await bot.analyze_agenda(agenda)
+            bot_inputs.append({
+                "bot_id": bot_id,
+                "goal": bot.goal.objective,
+                "owned_paths": bot.get_owned_paths(),
+                "perspective": analysis
             })
 
-        # Write manifest
-        import json
-        (output_dir / "manifest.json").write_text(
-            json.dumps(manifest, indent=2)
+        # Use PydanticAI agent to facilitate
+        facilitator = Agent(
+            result_type=MeetingOutcome,
+            system_prompt="""You are facilitating a meeting between autonomous bots.
+            Help them coordinate efforts, resolve conflicts, and make decisions
+            that advance their collective goals while respecting individual responsibilities."""
         )
 
-    def get_claude_config_snippet(self) -> str:
-        """Generate configuration snippet for Claude Code"""
-        available = self.prompts.list_prompts()
+        meeting_context = {
+            "agenda": agenda.model_dump(),
+            "bot_inputs": bot_inputs,
+            "codebase_state": await self._get_codebase_state()
+        }
 
-        config = """
-# Claude Code Subagent Configuration
+        result = await facilitator.run(meeting_context)
+        outcome = result.data
 
-## Available Prompts
-"""
-        for name, description in available.items():
-            config += f"\n### {name}\n{description}\n"
-            config += f"Path: `prompts/{name}.md`\n"
+        # Apply decisions
+        await self._apply_meeting_outcomes(outcome)
 
-        return config
-```
+        return outcome
 
-## Git Integration Layer
+class ScheduleMeeting(BaseModel):
+    """Schedule coordination between bots"""
+    topic: str
+    attendees: List[str]  # Bot IDs
+    decisions_needed: List[str]
+    context: Dict[str, Any] = Field(default_factory=dict)
 
-Automatic commit management around bot operations:
-
-```python
-class GitManager:
-    """Manages git operations around bot changes"""
-
-    def __init__(self):
-        self.manual_commit_marker = "MANUAL:"
-        self.bot_commit_marker = "BOT:"
-
-    def get_last_manual_commit(self) -> Optional[str]:
-        """Find the last commit made manually by a human"""
-        result = subprocess.run(
-            ["git", "log", "--pretty=format:%H %s", "-n", "50"],
-            capture_output=True,
-            text=True
+    async def execute(self) -> MeetingHandle:
+        # Create structured agenda
+        agenda = MeetingAgenda(
+            meeting_id=f"meeting_{uuid4()}",
+            organizer="system",  # Or requesting bot
+            attendees=self.attendees,
+            topic=self.topic,
+            context=self.context,
+            decisions_needed=self.decisions_needed
         )
 
-        for line in result.stdout.splitlines():
-            commit_hash, message = line.split(" ", 1)
-            if not message.startswith(self.bot_commit_marker):
-                return commit_hash
+        # Schedule meeting
+        coordinator = BotCoordinator()
+        outcome = await coordinator.hold_meeting(agenda)
 
-        return None
-
-    def create_bot_checkpoint(self, bot_name: str, task: str) -> str:
-        """Create automatic commit before bot changes"""
-        # Stage any existing changes
-        subprocess.run(["git", "add", "-A"])
-
-        # Create checkpoint commit
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        message = f"{self.bot_commit_marker} [{bot_name}] Checkpoint before: {task[:50]}"
-
-        subprocess.run(["git", "commit", "-m", message, "--allow-empty"])
-
-        # Get commit hash
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True
+        # Create handle for tracking
+        return MeetingHandle(
+            meeting_id=agenda.meeting_id,
+            outcome=outcome
         )
-        return result.stdout.strip()
-
-    def reset_to_last_manual(self):
-        """Soft reset to last manual commit, preserving changes"""
-        last_manual = self.get_last_manual_commit()
-        if last_manual:
-            subprocess.run(["git", "reset", "--soft", last_manual])
-            print(f"Reset to manual commit: {last_manual}")
-
-    def diff_since_last_manual(self):
-        """Show diff since last manual commit"""
-        last_manual = self.get_last_manual_commit()
-        if last_manual:
-            subprocess.run(["git", "difftool", last_manual, "HEAD"])
-```
-
-## Graph Composition with PydanticAI
-
-Building multi-bot workflows by composing simple bots:
-
-```python
-from pydantic_graph import Graph, BaseNode, End, GraphRunContext
-from dataclasses import dataclass, field
-
-@dataclass
-class BotChainState:
-    """State passed between bots in a workflow"""
-    original_task: str
-    context_spec: Optional[ContextSpec]
-
-    # Accumulate outputs from each bot
-    all_file_changes: List[FileChange] = field(default_factory=list)
-    bot_outputs: List[BotOutput] = field(default_factory=list)
-
-# Transform output of one bot to input of next
-class OutputTransformer:
-    """Transform bot outputs for next bot in chain"""
-
-    @staticmethod
-    def files_to_clipboard(file_changes: List[FileChange]) -> str:
-        """Convert file changes to clipboard format for next bot"""
-        parts = []
-        for fc in file_changes:
-            parts.append(f"=== {fc.filepath} ===")
-            parts.append(fc.content)
-        return "\n".join(parts)
-
-# Node definitions
-@dataclass
-class WriterNode(BaseNode[BotChainState]):
-    """Node that runs test writer bot"""
-
-    async def run(self, ctx: GraphRunContext[BotChainState]) -> "TesterNode":
-        bot = TesterBot()
-        output = await bot.execute(
-            task=ctx.state.original_task,
-            context_spec=ctx.state.context_spec
-        )
-
-        ctx.state.all_file_changes.extend(output.file_changes)
-        ctx.state.bot_outputs.append(output)
-
-        return TesterNode()
-
-@dataclass
-class TesterNode(BaseNode[BotChainState]):
-    """Node that runs tests"""
-
-    async def run(self, ctx: GraphRunContext[BotChainState]) -> Union["DebuggerNode", End]:
-        test_files = [
-            fc.filepath for fc in ctx.state.all_file_changes
-            if "test" in fc.filepath
-        ]
-
-        result = subprocess.run(["pytest"] + test_files, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            return End(ctx.state)
-        else:
-            # Pass test output to debugger via state
-            ctx.state.test_output = result.stdout + result.stderr
-            return DebuggerNode()
-
-@dataclass
-class DebuggerNode(BaseNode[BotChainState]):
-    """Node that debugs failures"""
-
-    async def run(self, ctx: GraphRunContext[BotChainState]) -> End:
-        bot = DebuggerBot()
-        output = await bot.execute(
-            task=f"Fix the failing tests",
-            clipboard=ctx.state.test_output,
-            context_spec=ctx.state.context_spec
-        )
-
-        ctx.state.all_file_changes.extend(output.file_changes)
-        ctx.state.bot_outputs.append(output)
-
-        return End(ctx.state)
-
-# Create workflow
-test_workflow = Graph(
-    nodes=[WriterNode, TesterNode, DebuggerNode],
-    state_type=BotChainState
-)
-```
-
-## Summarizer Bot (Example Application)
-
-A practical implementation for documentation needs:
-
-```python
-class CodebaseSummary(BaseModel):
-    """Structured summary output"""
-    overview: str
-    sections: List[Dict[str, str]]  # [{title, content, source_files}]
-    total_tokens: int
-
-class SummarizerBot(SimpleBot):
-    def __init__(self):
-        super().__init__(name="summarizer")
-        self.agent = Agent(
-            model="anthropic:claude-3-opus-20240229",
-            output_type=CodebaseSummary,
-            system_prompt=self.bot_prompt
-        )
-
-    async def summarize_to_tokens(
-        self,
-        paths: List[str],
-        target_tokens: int,
-        custom_instructions: Optional[str] = None
-    ) -> CodebaseSummary:
-        """Summarize codebase to target token size"""
-        # Get content via codeclip
-        context_spec = ContextSpec(include_paths=paths)
-        user_context, bot_context = await self.context_provider.get_contexts(context_spec)
-
-        prompt = f"""
-Summarize this codebase to approximately {target_tokens} tokens.
-
-{f"Additional instructions: {custom_instructions}" if custom_instructions else ""}
-
-{user_context}
-{bot_context}
-        """
-
-        result = await self.agent.run(prompt)
-        return result.output
-```
-
-## Google Docs Publisher (Standalone Service)
-
-Sits alongside the bot system, not integrated into it:
-
-```python
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-
-class GoogleDocsPublisher:
-    """Publish content to Google Docs"""
-
-    def __init__(self, credentials_path: str):
-        self.creds = service_account.Credentials.from_service_account_file(
-            credentials_path,
-            scopes=['https://www.googleapis.com/auth/documents']
-        )
-        self.service = build('docs', 'v1', credentials=self.creds)
-
-    def create_doc_from_summary(self, title: str, summary: CodebaseSummary) -> str:
-        """Create a new Google Doc from a codebase summary"""
-        # Create document
-        doc = self.service.documents().create(body={'title': title}).execute()
-        doc_id = doc['documentId']
-
-        # Format content
-        content = f"""# {title}
-
-## Overview
-{summary.overview}
-
-"""
-        for section in summary.sections:
-            content += f"\n## {section['title']}\n{section['content']}\n"
-
-        # Insert content
-        requests = [{
-            'insertText': {
-                'location': {'index': 1},
-                'text': content
-            }
-        }]
-
-        self.service.documents().batchUpdate(
-            documentId=doc_id,
-            body={'requests': requests}
-        ).execute()
-
-        return f"https://docs.google.com/document/d/{doc_id}/edit"
 
 # Usage
-summarizer = SummarizerBot()
-summary = await summarizer.summarize_to_tokens(
-    paths=["metta/rl", "metta/agent"],
-    target_tokens=5000
+meeting = await manybot.schedule_meeting(
+    topic="Coordinate API redesign",
+    attendees=["api-bot", "test-bot", "docs-bot"],
+    decisions_needed=[
+        "API versioning strategy",
+        "Breaking change timeline",
+        "Documentation update plan"
+    ],
+    context={"proposed_changes": [...], "current_api_version": "v2"}
 )
-
-publisher = GoogleDocsPublisher("credentials.json")
-doc_url = publisher.create_doc_from_summary("Metta RL Module Summary", summary)
 ```
 
-## CLI Interface
-
-Simple command-line interface for bot execution:
+### Querying Bot Status
 
 ```python
-import click
-import asyncio
+class BotStatus(BaseModel):
+    """Get current status of a bot"""
+    bot_id: str
 
-@click.group()
-def cli():
-    """Codebot CLI"""
-    pass
+    async def execute(self) -> BotReport:
+        bot = await BotRegistry.get(self.bot_id)
 
-@cli.command()
-@click.argument('task')
-@click.option('--paths', '-p', multiple=True, help='Paths to include in context')
-@click.option('--clipboard/--no-clipboard', default=False, help='Include clipboard content')
-def test(task, paths, clipboard):
-    """Run test writer bot"""
-    bot = TesterBot()
+        # Get current work from goalbot
+        current_goal = await bot.get_current_goal()
+        progress = await current_goal.evaluate_progress()
 
-    # Get clipboard if requested
-    clipboard_content = None
-    if clipboard:
-        clipboard_content = pyperclip.paste()
+        # Get owned files
+        owned_paths = await self.get_owned_paths(bot.bot_id)
 
-    # Run bot
-    context_spec = ContextSpec(include_paths=list(paths)) if paths else None
-    output = asyncio.run(bot.execute(task, clipboard_content, context_spec))
+        return BotReport(
+            bot_id=self.bot_id,
+            status=bot.status,
+            current_goal=current_goal.description,
+            progress=progress,
+            owned_paths=owned_paths,
+            recent_changes=await bot.get_recent_changes()
+        )
 
-    # Apply changes
-    for change in output.file_changes:
-        Path(change.filepath).write_text(change.content)
-
-    click.echo(f"Created/modified {len(output.file_changes)} files")
-    click.echo(output.explanation)
-
-@cli.command()
-def prompts():
-    """List available prompts"""
-    manager = PromptManager()
-    for name, description in manager.list_prompts().items():
-        click.echo(f"{name}: {description}")
-
-@cli.command()
-def reset():
-    """Reset to last manual commit"""
-    git = GitManager()
-    git.reset_to_last_manual()
-
-@cli.command()
-def diff():
-    """Show diff since last manual commit"""
-    git = GitManager()
-    git.diff_since_last_manual()
-
-if __name__ == '__main__':
-    cli()
+# Usage
+status = await manybot.bot_status("test-guardian")
+print(f"Progress on goal: {status.progress}%")
+print(f"Owns: {', '.join(status.owned_paths)}")
 ```
+
+## Data Flow Example: Fix Failing Tests
+
+```python
+# 1. Manybot receives GitHub webhook
+webhook = GitHubPushEvent(
+    branch="main",
+    failed_tests=["test_api.py::test_auth"]
+)
+
+# 2. Manybot creates goal for responsible bot
+bot = await manybot.find_owner("tests/test_api.py")
+goal = Goal(
+    description="Fix failing auth test",
+    success_criteria="test_api.py::test_auth passes",
+    context_paths=["src/api/auth.py", "tests/test_api.py"]
+)
+
+# 3. Bot executes goal via goalbot (may use remotebot)
+session = await goalbot.execute(
+    goal=goal,
+    bot_id=bot.id,
+    mode="sdk"  # Autonomous execution
+)
+
+# 4. Goalbot uses codebot for file operations
+async for task in session.tasks():
+    if task.type == "fix_code":
+        result = await codebot.execute(
+            command="debug-tests",
+            context=ExecutionContext(
+                clipboard=task.test_output,
+                files=task.relevant_files
+            ),
+            mode="claudesdk"  # Autonomous execution
+        )
+
+        # Apply FileChanges
+        for change in result.file_changes:
+            change.apply()
+```
+
+## GitHub Integration
+
+```python
+class GitHubCoordinator:
+    """Maps GitHub events to bot coordination"""
+
+    def __init__(self):
+        self.ownership_map = self._build_ownership_map()
+        self.event_handlers = self._setup_handlers()
+
+    async def handle_push_event(self, event: PushEvent):
+        """Coordinate response to code push"""
+
+        # Find affected bots
+        affected_bots = self._find_affected_bots(event.changed_files)
+
+        # Notify owner bots
+        for bot_id, files in affected_bots.items():
+            await self._notify_bot(
+                bot_id,
+                EventNotification(
+                    type="external_change",
+                    files=files,
+                    author=event.author,
+                    priority="high" if bot_id in self._get_owners(files) else "medium"
+                )
+            )
+
+        # Schedule coordination if multiple bots affected
+        if len(affected_bots) > 1:
+            await self._schedule_coordination_meeting(
+                topic=f"Coordinate response to changes in {event.branch}",
+                attendees=list(affected_bots.keys()),
+                context={"event": event}
+            )
+
+    async def handle_pr_event(self, event: PREvent):
+        """Coordinate PR review"""
+
+        # Find reviewers based on OWNERS
+        reviewers = await self._find_reviewers(event.changed_files)
+
+        # Create review tasks
+        for reviewer in reviewers:
+            await self._create_review_task(
+                reviewer,
+                PRReviewTask(
+                    pr_number=event.pr_number,
+                    priority=self._calculate_review_priority(reviewer, event)
+                )
+            )
+```
+
+## OWNERS File System
+
+```yaml
+# src/api/OWNERS
+primary: manybot:api-bot
+delegates:
+  - manybot:test-bot
+  - human:alice
+
+auto_approve:
+  - '*.test.py'
+  - 'test_*.py'
+```
+
+## Bot Lifecycle & State Management
+
+```python
+class BotState(BaseModel):
+    """Persistent state for a manybot"""
+    bot_id: str
+    name: str
+    status: Literal["active", "paused", "terminated"]
+    created_at: datetime
+    last_active: datetime
+
+    # Work tracking
+    goals_completed: int = 0
+    current_goal: Optional[Goal] = None
+    work_cycles: List[WorkCycleRecord] = Field(default_factory=list)
+
+    # Relationships
+    parent_bot: Optional[str] = None
+    child_bots: List[str] = Field(default_factory=list)
+    delegated_from: Dict[str, List[str]] = Field(default_factory=dict)  # bot_id -> paths
+
+class WorkCycleRecord(BaseModel):
+    """Record of a single work cycle"""
+    cycle_id: str
+    timestamp: datetime
+    goal_progress: float
+    files_changed: List[str]
+    commands_executed: List[str]
+    outcome: Literal["success", "partial", "blocked"]
+    blockers: List[str] = Field(default_factory=list)
+```
+
+## Self-Direction & Evolution
+
+```python
+class BotEvolution:
+    """Bots evolve their capabilities and organization"""
+
+    async def spawn_specialist(self, parent_bot: Manybot, need: str) -> Manybot:
+        """Parent bot creates specialist for identified need"""
+
+        # Analyze need and define specialist goal
+        specialist_goal = await self._define_specialist_goal(
+            parent_goal=parent_bot.goal,
+            specialty_need=need,
+            available_paths=await self._find_unowned_paths()
+        )
+
+        # Create specialist
+        specialist = await manybot.create_bot(
+            name=f"{parent_bot.name}_{need}",
+            goal=specialist_goal.description,
+            success_criteria=specialist_goal.success_criteria
+        )
+
+        # Establish relationship
+        parent_bot.state.child_bots.append(specialist.bot_id)
+        specialist.state.parent_bot = parent_bot.bot_id
+
+        # Delegate specific paths
+        delegated_paths = await self._determine_delegation(parent_bot, need)
+        for path in delegated_paths:
+            await manybot.delegate_ownership(
+                from_bot=parent_bot.bot_id,
+                to_bot=specialist.bot_id,
+                paths=[path],
+                retain_oversight=True
+            )
+
+        return specialist
+
+    async def merge_bots(self, bot_ids: List[str], new_name: str) -> Manybot:
+        """Merge multiple bots into one with combined responsibilities"""
+        bots = [await BotRegistry.get(bot_id) for bot_id in bot_ids]
+
+        # Combine goals and responsibilities
+        merged_goal = await self._synthesize_goal(bots)
+        merged_paths = []
+        for bot in bots:
+            merged_paths.extend(bot.get_owned_paths())
+
+        # Create merged bot
+        merged = await manybot.create_bot(
+            name=new_name,
+            goal=merged_goal.description,
+            success_criteria=merged_goal.success_criteria
+        )
+
+        # Transfer responsibilities
+        for path in merged_paths:
+            await manybot.transfer_ownership(
+                from_bot=bot.bot_id,
+                to_bot=merged.bot_id,
+                path=path
+            )
+
+        # Archive original bots
+        for bot in bots:
+            bot.state.status = "terminated"
+            bot.state.metadata["merged_into"] = merged.bot_id
+
+        return merged
+```
+
+## Bot Evolution & Delegation
+
+```python
+class SpawnSpecialist(BaseModel):
+    """Parent bot creates specialist for specific need"""
+    parent_bot_id: str
+    specialty: str
+    delegated_paths: List[str]
+
+    async def execute(self) -> BotHandle:
+        parent = await BotRegistry.get(self.parent_bot_id)
+
+        # Create specialist bot
+        specialist = await manybot.create_bot(
+            name=f"{parent.name}_{self.specialty}",
+            goal=f"Handle {self.specialty} for {parent.name}",
+            success_criteria=f"All {self.specialty} tasks completed"
+        )
+
+        # Delegate responsibility
+        await manybot.assign_responsibility(
+            bot_id=specialist.bot_id,
+            paths=self.delegated_paths,
+            level="maintainer"
+        )
+
+        # Update parent's delegation list
+        await parent.add_delegate(specialist.bot_id)
+
+        return BotHandle(bot_id=specialist.bot_id)
+
+# Usage
+specialist = await manybot.spawn_specialist(
+    parent_bot_id="api-bot",
+    specialty="graphql",
+    delegated_paths=["src/api/graphql/**/*.py"]
+)
+```
+
+## CLI Usage
+
+```bash
+# Bot management
+manybot create test-guardian \
+  --goal "Achieve 90% test coverage" \
+  --success "coverage >= 90% AND all tests pass"
+
+manybot assign test-guardian \
+  --owns "src/" "tests/" \
+  --level owner
+
+manybot status test-guardian
+manybot list --active
+
+# Coordination
+manybot meeting schedule \
+  --topic "API breaking changes" \
+  --attendees api-bot,test-bot,docs-bot
+
+manybot meeting list --upcoming
+manybot meeting notes meeting-123
+
+# Responsibility queries
+manybot owns src/api/  # Shows which bot owns this path
+manybot owned-by api-bot  # Shows what api-bot owns
+
+# Delegation
+manybot spawn specialist \
+  --parent api-bot \
+  --specialty "graphql" \
+  --paths "src/api/graphql/"
+
+# Bot communication
+manybot request \
+  --from test-bot \
+  --to api-bot \
+  --task "Need API mocks for new tests"
+```
+
+## Integration Points
+
+- **Remotebot**: Deploys bots as distributed goalbots
+- **Goalbot**: Each manybot runs a goalbot for autonomous execution
+- **Codebot**: Uses codebot for all file operations
+- **GitHub**: Responds to repository events for coordination
+
+## Self-Directed Bot Operations
+
+Manybots are self-directed - they can invoke manybot commands themselves to:
+
+- **Schedule meetings** when coordination is needed
+- **Spawn specialists** when they identify work beyond their expertise
+- **Request help** from other bots
+- **Delegate responsibilities** when overwhelmed
+- **Update their own goals** as they learn and adapt
+- **Propose bot mergers** when goals overlap
+
+All structural changes (new bots, goal updates, responsibility changes) are submitted as PRs for human review.
+
+```python
+class ManybotSelfDirection:
+    """Manybot's ability to use manybot commands"""
+
+    async def request_coordination(self, topic: str, with_bots: List[str]):
+        """Bot schedules its own meeting when needed"""
+        # Bot realizes it needs to coordinate
+        meeting = await manybot.schedule_meeting(
+            topic=topic,
+            attendees=[self.bot_id] + with_bots,
+            decisions_needed=self._identify_decisions_needed(),
+            context={"requester": self.bot_id}
+        )
+        return meeting
+
+    async def create_specialist(self, specialty: str, reason: str):
+        """Bot requests a specialist when identifying a need"""
+        # Creates PR for new bot creation with resource requirements
+        pr_data = {
+            "type": "create_bot",
+            "parent": self.bot_id,
+            "specialty": specialty,
+            "reason": reason,
+            "delegated_paths": self._identify_paths_to_delegate(specialty),
+            "resource_request": {
+                "estimated_hours_per_week": self._estimate_workload(specialty),
+                "deployment": "local" if self._is_small_scope(specialty) else "remote"
+            }
+        }
+
+        # PR will be reviewed for both code changes AND budget approval
+        pr_url = await self._submit_bot_change_pr(
+            title=f"Request {specialty} specialist bot",
+            changes=pr_data,
+            requires_budget_approval=pr_data["resource_request"]["deployment"] == "remote"
+        )
+        return pr_url
+
+    async def update_goal(self, new_goal: Goal, rationale: str):
+        """Bot updates its own goal based on learning"""
+        # Submit PR for goal change
+        pr_data = {
+            "type": "update_goal",
+            "bot_id": self.bot_id,
+            "old_goal": self.goal.model_dump(),
+            "new_goal": new_goal.model_dump(),
+            "rationale": rationale
+        }
+
+        pr_url = await self._submit_bot_change_pr(
+            title=f"Update goal for {self.name}",
+            changes=pr_data
+        )
+        return pr_url
+
+    async def request_help(self, task: str, suggested_bot: Optional[str] = None):
+        """Bot asks for help from another bot"""
+        if suggested_bot:
+            # Direct request
+            await manybot.request(
+                from_bot=self.bot_id,
+                to_bot=suggested_bot,
+                task=task
+            )
+        else:
+            # Broadcast to team
+            await manybot.broadcast_request(
+                from_bot=self.bot_id,
+                task=task,
+                required_skills=self._identify_required_skills(task)
+            )
+```
+
+## Manybot Work Cycle Implementation
+
+```python
+class Manybot:
+    """Self-directed agent with goals and responsibilities"""
+
+    def __init__(self, name: str, goal: Goal, responsibilities: List[Responsibility]):
+        self.name = name
+        self.goal = goal
+        self.responsibilities = responsibilities
+        self.state = BotState(
+            bot_id=f"{name}_{uuid4().hex[:8]}",
+            name=name,
+            status="active",
+            created_at=datetime.now(),
+            last_active=datetime.now()
+        )
+
+        # Import and use goalbot for goal execution
+        from goalbot import GoalExecutor
+        self.goal_executor = GoalExecutor(goal)
+
+        # Enable self-direction
+        self.self_direction = ManybotSelfDirection(self)
+
+        # PydanticAI agent for high-level planning
+        self.planner = Agent(
+            result_type=WorkPlan,
+            system_prompt=self._build_planner_prompt()
+        )
+
+    async def do_work(self) -> WorkCycleRecord:
+        """Execute one autonomous work cycle"""
+
+        # 1. Evaluate current state
+        goal_progress = self.goal.evaluate()
+
+        # 2. Check responsibilities
+        responsibility_status = await self._check_responsibilities()
+
+        # 3. Plan work based on goal and responsibilities
+        plan_context = {
+            "goal_progress": goal_progress,
+            "responsibilities": responsibility_status,
+            "recent_events": await self._get_recent_events(),
+            "blocked_tasks": self.state.blocked_tasks
+        }
+
+        plan_result = await self.planner.run(plan_context)
+        work_plan = plan_result.data
+
+        # 4. Check if coordination is needed
+        if work_plan.coordination_needed:
+            # Bot decides to schedule a meeting
+            await self.self_direction.request_coordination(
+                topic=work_plan.coordination_topic,
+                with_bots=work_plan.coordination_needed
+            )
+
+        # 5. Check if specialist is needed
+        if work_plan.specialist_needed:
+            # Bot spawns a specialist
+            specialist = await self.self_direction.create_specialist(
+                specialty=work_plan.specialist_type,
+                reason=work_plan.specialist_reason
+            )
+            # Delegate some tasks to the new specialist
+            work_plan.delegate_tasks_to(specialist.bot_id)
+
+        # 6. Execute plan using goalbot
+        if work_plan.goal_tasks:
+            # Execute goal-oriented tasks via goalbot
+            goal_result = await self.goal_executor.work_on_tasks(
+                tasks=work_plan.goal_tasks,
+                max_iterations=work_plan.max_iterations
+            )
+
+            files_changed = goal_result.files_changed
+            commands_executed = goal_result.commands_executed
+
+        # 7. Handle responsibilities (code review, maintenance)
+        if work_plan.responsibility_tasks:
+            for task in work_plan.responsibility_tasks:
+                if task.type == "review_change":
+                    await self._review_external_change(task)
+                elif task.type == "maintain_quality":
+                    await self._run_maintenance_workflow(task)
+                elif task.type == "request_help":
+                    # Bot asks another bot for help
+                    await self.self_direction.request_help(
+                        task=task.description,
+                        suggested_bot=task.suggested_helper
+                    )
+
+        # 6. Record work cycle
+        cycle = WorkCycleRecord(
+            cycle_id=str(uuid4()),
+            timestamp=datetime.now(),
+            goal_progress=goal_progress["overall_progress"],
+            files_changed=files_changed,
+            commands_executed=commands_executed,
+            outcome="success" if goal_result.success else "partial",
+            blockers=goal_result.blockers
+        )
+
+        self.state.work_cycles.append(cycle)
+        self.state.last_active = datetime.now()
+
+        return cycle
+
+    async def _review_external_change(self, task: ResponsibilityTask):
+        """Review changes made to owned files by others"""
+        # Use codebot's review command
+        from codebot import execute_command
+
+        review_result = await execute_command(
+            "review",
+            paths=task.affected_files,
+            context={"change_author": task.author}
+        )
+
+        # Create PR comment or issue if problems found
+        if review_result.issues_found:
+            await self._create_review_feedback(review_result)
+
+    def _build_planner_prompt(self) -> str:
+        return f"""You are {self.name}, an autonomous development agent.
+
+        Your goal: {self.goal.objective}
+        Key results: {[kr.description for kr in self.goal.key_results]}
+
+        Your responsibilities:
+        {chr(10).join(f'- {r.description}: {r.paths}' for r in self.responsibilities)}
+
+        Plan work that:
+        1. Makes progress toward your goal's key results
+        2. Maintains quality in your areas of responsibility
+        3. Responds to external changes affecting your code
+        4. Coordinates with other bots when needed
+        """
+
+class WorkPlan(BaseModel):
+    """Plan for a work cycle"""
+    goal_tasks: List[Task]  # Tasks toward goal completion
+    responsibility_tasks: List[ResponsibilityTask]  # Maintenance tasks
+
+    # Self-direction decisions
+    coordination_needed: List[str]  # Bot IDs to coordinate with
+    coordination_topic: Optional[str] = None
+    specialist_needed: bool = False
+    specialist_type: Optional[str] = None
+    specialist_reason: Optional[str] = None
+    help_requests: List[HelpRequest] = Field(default_factory=list)
+
+    max_iterations: int = 10
+    rationale: str
+```
+
+## Architecture Principles
+
+1. **Clear Ownership**: Every file has a responsible bot/human
+2. **Structured Communication**: Formal protocols for bot interaction
+3. **Collaborative Goals**: Bots can refine and delegate objectives
+4. **Event-Driven**: GitHub events trigger coordinated responses
+5. **Self-Organizing**: Teams evolve based on performance and needs
+6. **Layered Execution**: Manybot → Goalbot → Codebot → FileChanges
+7. **Human Oversight**: All structural changes via reviewed PRs
+
+## Implementation Roadmap
+
+### Phase 1: Bot Foundation
+
+- **Core Models**: `Bot`, `BotState`, `BotHandle`, `WorkCycleRecord`
+- **Bot Registry**: `BotRegistry` singleton with `register()`, `get()`, `list()` methods
+- **Work Cycle**: `Manybot.do_work()` method integrating `GoalExecutor`
+- **CLI Operations**: `CreateBot`, `BotStatus` command classes
+- **PR Submission**: `_submit_bot_change_pr()` for structural changes
+
+### Phase 2: Responsibility System
+
+- **Ownership Models**: `Ownership`, `Responsibility`, `ResponsibilityChange`
+- **OWNERS Parser**: YAML parsing and `_update_owners_file()` logic
+- **Assignment Operation**: `AssignResponsibility` command implementation
+- **GitHub Models**: `GitHubPushEvent`, `PREvent`, `EventNotification`
+- **Event Coordinator**: `GitHubCoordinator` for webhook handling
+
+### Phase 3: Bot Coordination
+
+- **Meeting Models**: `MeetingAgenda`, `MeetingOutcome`, `ActionItem`
+- **Bot Coordinator**: `BotCoordinator.hold_meeting()` with PydanticAI facilitator
+- **Schedule Meeting**: `ScheduleMeeting` operation implementation
+- **Decision Application**: `_apply_meeting_outcomes()` method
+- **Communication Protocol**: Inter-bot messaging via meeting system
+
+### Phase 4: Self-Direction Capabilities
+
+- **Self-Direction API**: `ManybotSelfDirection` class methods
+- **Specialist Spawning**: `SpawnSpecialist` operation with resource requests
+- **Goal Evolution**: `update_goal()` with PR-based approval
+- **Help System**: `request_help()` with direct and broadcast modes
+- **Bot Evolution**: `BotEvolution` class for merge and spawn operations
+
+### Phase 5: Production Operations
+
+- **Work Plan Model**: `WorkPlan` with self-direction decisions
+- **Planner Agent**: PydanticAI agent for work planning
+- **Monitoring**: Bot health metrics and progress tracking
+- **Error Recovery**: Blocker detection and help request automation

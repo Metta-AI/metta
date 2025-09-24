@@ -6,7 +6,11 @@ from experiments.notebooks.utils.metrics import get_run
 
 
 def show_replay(
-    run_name: str, step: str | int = "last", width: int = 1000, height: int = 600
+    run_name: str,
+    step: str | int = "last",
+    width: int = 1000,
+    height: int = 600,
+    autoplay: bool = False,
 ) -> None:
     run = get_run(run_name)
     if run is None:
@@ -32,9 +36,16 @@ def show_replay(
                 f"Note: Requested step {target_step}, showing closest available step {selected['step']}"
             )
 
+    url = selected["url"]
+    separator = "&" if "?" in url else "?"
+    if autoplay:
+        url = f"{url}{separator}play=true"
+    else:
+        url = f"{url}{separator}play=false"
+
     print(f"Loading MettaScope viewer for {run_name} at step {selected['step']:,}...")
-    print(f"\nDirect link: {selected['url']}")
-    display(IFrame(src=selected["url"], width=width, height=height))
+    print(f"\nDirect link: {url}")
+    display(IFrame(src=url, width=width, height=height))
 
 
 def get_available_replays(run_name: str) -> list[dict]:
@@ -53,7 +64,7 @@ def fetch_replay_urls_for_run(run) -> list[dict]:
     replay_files = [
         f
         for f in files
-        if "media/html/replays/link_" in f.name and f.name.endswith(".html")
+        if "media/html/replays/all_" in f.name and f.name.endswith(".html")
     ]
 
     if not replay_files:
@@ -61,7 +72,7 @@ def fetch_replay_urls_for_run(run) -> list[dict]:
 
     # Sort by step number
     def get_step_from_filename(file):
-        match = re.search(r"link_(\d+)_", file.name)
+        match = re.search(r"all_(\d+)_", file.name)
         return int(match.group(1)) if match else 0
 
     replay_files.sort(key=get_step_from_filename)
@@ -92,3 +103,10 @@ def fetch_replay_urls_for_run(run) -> list[dict]:
             pass
 
     return replay_urls
+
+
+def show_replays(
+    run_names: list[str], step: str | int = "last", width: int = 1000, height: int = 600
+) -> None:
+    for run_name in run_names:
+        show_replay(run_name, step=step, width=width, height=height)

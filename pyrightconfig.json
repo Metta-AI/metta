@@ -1,15 +1,10 @@
 {
-  "include": [
-    "**/*.py"
-  ],
-  "exclude": [
-    "**/node_modules",
-    "**/__pycache__",
-    ".venv"
-  ],
+  "include": ["**/*.py"],
+  "exclude": ["**/node_modules", "**/__pycache__", ".venv"],
   "extraPaths": [
     "./common/src",
-    "./mettagrid/src",
+    "./packages/mettagrid/python/src",
+    "./packages/cogames/src",
     "./agent/src",
     "./app_backend/src"
   ],

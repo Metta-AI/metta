@@ -1,0 +1,19 @@
+{
+  "$schema": "https://turborepo.org/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "src/**",
+        "eval_finder_widget/**/*.py",
+        "package.json",
+        "vite.config.js",
+        "!eval_finder_widget/static/**"
+      ],
+      "outputs": ["eval_finder_widget/static/**"]
+    },
+    // common linting and formatting tasks
+    "lint": {},
+    "lint:eslint": {}
+  }
+}

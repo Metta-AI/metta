@@ -162,39 +162,120 @@ metta configure    # Reconfigure for a different profile
 #### Additional installation options
 
 ```
-./install.sh --profile=softmax   # For Softmax employees
-./install.sh --profile=external  # For external collaborators
+./install.sh --profile softmax   # For Softmax employees
+./install.sh --profile external  # For external collaborators
 ./install.sh --help             # Show all available options
 ```
 
 ## Usage
 
-The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/)
-for configuration management, which allows flexible parameter overrides and composition.
+The repository contains command-line tools in the `tools/` directory.
 
-#### Hydra Configuration Patterns
+### Run tasks with the runner
 
-- Use `+` prefix to add new config groups: `+hardware=macbook`
-- Use `++` prefix to force override: `++trainer.device=cpu`
-- Config composition order matters - later overrides take precedence
+`run.py` is a script that kicks off tasks like training, evaluation, and visualization. The runner looks up the task,
+builds its configuration, and runs it. The current available tasks are:
 
-Common patterns:
-- **Override parameters**: `param=value` sets configuration values directly
-- **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
-- **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
+- **experiments.recipes.arena.train**: Train on the arena curriculum
 
-### Training a Model
+  `./tools/run.py experiments.recipes.arena.train run=my_experiment`
+
+- **experiments.recipes.navigation.train**: Train on the navigation curriculum
+
+  `./tools/run.py experiments.recipes.navigation.train run=my_experiment`
+
+- **experiments.recipes.arena.play**: Play in the browser
+
+  `./tools/run.py experiments.recipes.arena.play`
+
+- **experiments.recipes.arena.replay**: Replay a single episode from a saved policy
+
+  `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
+
+- **experiments.recipes.arena.evaluate**: Evaluate a policy on the arena eval suite
+
+  `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
+
+### Runner arguments
+
+Use the runner like this:
 
 ```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name>
+./tools/run.py <task_name> [key=value ...] [--verbose]
 ```
 
-Parameters:
+The runner automatically classifies arguments:
 
-- `run=my_experiment` - Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
-- `+hardware=macbook` - Loads hardware-specific settings from `configs/hardware/macbook.yaml`
-- `wandb=off` - Disables Weights & Biases logging
-- `+user=<name>` - Loads your personal settings from `configs/user/<name>.yaml`
+- **Function arguments**: Arguments that match parameters of your task function
+- **Configuration overrides**: Arguments that match fields in the Tool configuration (supports nested paths with dots)
+
+Examples:
+
+```bash
+# The runner automatically identifies 'run' as a function arg and the rest as overrides
+./tools/run.py experiments.recipes.arena.train run=local.alice.1 \
+  system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
+
+# Evaluate a specific policy URI
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+
+# Use --verbose to see how arguments are classified
+./tools/run.py experiments.recipes.arena.train run=test --verbose
+```
+
+Tips:
+
+- Strings with spaces: quote the value, for example `notes="my local run"`.
+- Booleans are lowercase: `true` and `false`.
+- If a value looks numeric but should be a string, wrap it in quotes (for example, `run="001"`).
+
+### Defining your own runner tasks
+
+A “task” is just a Python function (or class) that returns a Tool configuration. The runner loads it by name and runs
+its `invoke()` method.
+
+What you write:
+
+- A function that returns a Tool, for example `TrainTool`, `SimTool`, `PlayTool`, or `ReplayTool`.
+- Place it anywhere importable (for personal use, `experiments/user/<your_file>.py` is convenient).
+- The function name becomes part of the task name you run.
+
+Minimal example:
+
+```python
+# experiments/user/my_tasks.py
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from mettagrid.config.envs import make_arena
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.train import TrainTool
+from mettagrid.builder.envs import make_arena
+
+
+def my_train() -> TrainTool:
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(),
+        evaluator=EvaluatorConfig(
+            simulations=[
+                SimulationConfig(
+                    suite="arena", name="arena/basic", env=make_arena(num_agents=6)
+                )
+            ]
+        ),
+    )
+```
+
+Run your task:
+
+```bash
+./tools/run.py experiments.user.my_tasks.my_train run=local.me.1 system.device=cpu wandb.enabled=false
+```
+
+Notes:
+
+- Tasks can also be Tool classes (subclasses of `metta.common.tool.Tool`)
+- The runner automatically determines which arguments go to the function vs configuration overrides
+- Use `--verbose` to see how arguments are being classified
+- If an argument doesn't match either category, you'll get a helpful error message
 
 ### Setting up Weights & Biases for Personal Use
 
@@ -215,7 +296,7 @@ To use WandB with your personal account:
 Now you can run training with your personal WandB config:
 
 ```
-./tools/train.py run=local.yourname.123 +hardware=macbook wandb=user
+./tools/run.py experiments.recipes.arena.train run=local.yourname.123 wandb.enabled=true wandb.entity=<your_user>
 ```
 
 ## Visualizing a Model
@@ -230,24 +311,19 @@ For more information, see [./mettascope/README.md](./mettascope/README.md).
 #### Run the interactive simulation
 
 ```bash
-./tools/play.py run=<name> [options]
+./tools/run.py experiments.recipes.arena.play
 ```
 
-Arguments:
+Optional overrides:
 
-- `run=<name>` - **Required**. Experiment identifier
-- `policy_uri=<path>` - Specify the policy the models follow when not manually controller with a model checkpoint (`.pt`
-  file).
-  - For local files, supply the path: `./train_dir/<run_name>/checkpoints/<checkpoint_name>.pt`. These checkpoint files
-    are created during training
-  - For wandb artifacts, prefix with `wandb://`
-- `+hardware=<config>` - Hardware configuration (see [Training a Model](#training-a-model))
+- `policy_uri=<path>`: Use a specific policy for NPC agents.
+  - Local checkpoints: `file://./train_dir/<run>/checkpoints/<run>:v{epoch}.pt`
+- S3 checkpoints: `s3://bucket/path/<run_name>/checkpoints/<run_name>:v5.pt`
 
-### Run the terminal simulation
+### Replay a single episode
 
 ```
-./tools/renderer.py run=demo_obstacles \
-renderer_job.environment.root.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
+./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
 ### Evaluating a Model
@@ -261,25 +337,49 @@ However, this will not apply for anything trained before April 8th.
 
 If you want to run evaluation post-training to compare different policies, you can do the following:
 
-To add your policy to the existing navigation evals DB:
+Evaluate a policy against the arena eval suite:
 
 ```
-./tools/sim.py \
-    sim=navigation \
-    run=navigation101 \
-    policy_uri=wandb://run/YOUR_POLICY_URI \
-    sim_job.stats_db_uri=wandb://stats/navigation_db \
-    device=cpu
+./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
-This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db`
-artifact on WandB.
-
-Then, to see the results in the heatmap along with the other policies in the database, you can run:
+Evaluate on the navigation eval suite (provide the policy URI):
 
 ```
-./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
+./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
+
+### Specifying your agent architecture
+
+#### Configuring a MettaAgent
+
+This repo implements a `MettaAgent` policy class. The underlying network is parameterized by config files in
+`configs/agent` (with `configs/agent/fast.yaml` used by default). See `configs/agent/reference_design.yaml` for an
+explanation of the config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture)
+for further documentation.
+
+To use `MettaAgent` with a non-default architecture config:
+
+- (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
+- Run with the configuration file of your choice:
+  ```bash
+  ./tools/run.py experiments.recipes.arena.train policy_architecture.agent_config=my_agent
+  ```
+
+#### Defining your own PyTorch agent
+
+We support agent architectures without using the MettaAgent system:
+
+- Implement your agent class under `metta/agent/src/metta/agent/pytorch/my_agent.py`. See
+  `metta/agent/src/metta/agent/pytorch/fast.py` for an example.
+- Register it in `metta/agent/src/metta/agent/agent_config.py` by adding an entry to `AGENT_REGISTRY` with a key name
+  (e.g., `"my_agent"`).
+- Select it at runtime using the runner and an override on the agent config name:
+  ```bash
+  ./tools/run.py experiments.recipes.arena.train policy_architecture.name=pytorch/my_agent
+  ```
+
+Further updates to support bringing your own agent are coming soon.
 
 ## Development Setup
 
@@ -292,12 +392,15 @@ pyright metta  # optional, some stubs are missing
 pytest
 ```
 
+### CLI cheat sheet
+
+| Task                        | Command                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
+| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
+| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
+| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
+| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
+| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
+
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
-
-## Third-party Content
-
-Some sample map patterns in `scenes/dcss` were adapted from the open-source game
-[Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl), specifically from the file
-[`simple.des`](https://github.com/crawl/crawl/blob/master/crawl-ref/source/dat/des/arrival/simple.des).
-
-DCSS is licensed under the [GNU General Public License v2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).

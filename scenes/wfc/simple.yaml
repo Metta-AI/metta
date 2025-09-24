@@ -1,4 +1,4 @@
-type: metta.map.scenes.wfc.WFC
+type: mettagrid.mapgen.scenes.wfc.WFC
 params:
   pattern_size: 2
   pattern: |-

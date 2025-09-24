@@ -26,26 +26,25 @@ function updateSearchDropdown() {
   // Add all of the resources to the search dropdown.
   const usedKeys = new Set<string>()
   const keys: string[] = []
-  for (const key of state.replay.resource_inventory.keys()) {
+  for (const key of state.replay.itemNames) {
     keys.push(key)
   }
-  for (const key of state.replay.object_types) {
+  for (const key of state.replay.typeNames) {
     keys.push(key)
   }
 
   for (const key of keys) {
     const searchItem = searchItemTemplate.cloneNode(true) as HTMLElement
-    const shortKey = key.replace('inv:', '').replace('agent:', '')
-    if (usedKeys.has(shortKey)) {
+    if (usedKeys.has(key)) {
       continue
     }
-    usedKeys.add(shortKey)
-    searchItem.setAttribute('data-key', shortKey)
+    usedKeys.add(key)
+    searchItem.setAttribute('data-key', key)
     searchItem.querySelector('.name')!.textContent = propertyName(key)
     const icon = searchItem.querySelector('.icon') as HTMLImageElement
     icon.src = propertyIcon(key)
     const filter = searchItem.querySelector('.filter') as HTMLImageElement
-    if (search.parts.includes(shortKey)) {
+    if (search.parts.includes(key)) {
       filter.src = 'data/ui/check-on.png'
     } else {
       filter.src = 'data/ui/check-off.png'

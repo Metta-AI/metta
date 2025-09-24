@@ -10,6 +10,7 @@ from metta.app_backend.routes.sweep_routes import (
     SweepInfo,
 )
 from metta.common.util.constants import DEV_STATS_SERVER_URI
+from metta.common.util.log_config import init_logging
 
 
 class SweepClient:
@@ -17,12 +18,13 @@ class SweepClient:
 
     def __init__(self, base_url: str = DEV_STATS_SERVER_URI, auth_token: Optional[str] = None):
         """
-        Initialize the sweep client.
+        Initialize the sweep client with automatic authentication if no token provided.
 
         Args:
             base_url: Base URL of the API server
-            auth_token: Authentication token (machine token or user session)
+            auth_token: Authentication token.
         """
+        # Get machine token if no auth_token provided
         self.base_url = base_url.rstrip("/")
         self.headers = {}
         if auth_token:
@@ -73,6 +75,7 @@ def generate_run_id_for_sweep(
 
 if __name__ == "__main__":
     # Example usage
+    init_logging()
     client = SweepClient()
 
     # Initialize a sweep

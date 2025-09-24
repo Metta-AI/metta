@@ -6,11 +6,20 @@ import { z } from "zod/v4";
 
 import { actionClient } from "@/lib/actionClient";
 import { getSessionOrRedirect } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { postsTable } from "@/lib/db/schema/post";
+import { prisma } from "@/lib/db/prisma";
+import {
+  processArxivAutoImport,
+  detectArxivUrl,
+} from "@/lib/arxiv-auto-import";
+import { queueArxivInstitutionProcessing } from "@/lib/background-jobs";
 
 const inputSchema = zfd.formData({
   title: zfd.text(z.string().min(1).max(255)),
+  content: zfd.text(z.string().optional()),
+  postType: zfd.text(
+    z.enum(["user-post", "paper-post", "pure-paper"]).optional()
+  ),
+  paperId: zfd.text(z.string().optional()), // Added support for paperId
 });
 
 export const createPostAction = actionClient
@@ -18,10 +27,52 @@ export const createPostAction = actionClient
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
 
-    const post = await db.insert(postsTable).values({
-      title: input.title,
-      authorId: session.user.id,
+    // Import arXiv paper synchronously for instant paper preview
+    let paperId = input.paperId || null;
+    let postType = input.postType || "user-post";
+    let arxivUrl: string | null = null;
+
+    if (input.content && !paperId) {
+      // Check for arXiv URL and import paper immediately (fast - no institutions)
+      arxivUrl = detectArxivUrl(input.content);
+      if (arxivUrl) {
+        const importedPaperId = await processArxivAutoImport(input.content);
+        if (importedPaperId) {
+          paperId = importedPaperId;
+          postType = "paper-post"; // Set as paper post immediately
+          console.log(`✅ arXiv paper imported synchronously: ${paperId}`);
+        }
+      }
+    }
+
+    // Require posts to have associated papers
+    if (!paperId) {
+      throw new Error(
+        "Posts must include an arXiv paper link. Please include a valid arXiv URL in your post content (e.g., https://arxiv.org/abs/2301.12345)."
+      );
+    }
+
+    const post = await prisma.post.create({
+      data: {
+        title: input.title,
+        content: input.content || null,
+        postType,
+        paperId,
+        authorId: session.user.id,
+      },
+      select: {
+        id: true,
+      },
     });
+
+    // If we imported a paper, queue institution enhancement in background
+    if (paperId && arxivUrl) {
+      console.log("🏛️ Queuing institution processing for paper:", paperId);
+      // Fire and forget - enhance paper with institutions
+      queueArxivInstitutionProcessing(paperId, arxivUrl).catch((error) => {
+        console.error("Failed to queue institution processing:", error);
+      });
+    }
 
     revalidatePath("/");
 

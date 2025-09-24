@@ -12,9 +12,6 @@ class CoreSetup(SetupModule):
     def description(self) -> str:
         return "Core Python dependencies and virtual environment"
 
-    def is_applicable(self) -> bool:
-        return True
-
     def check_installed(self) -> bool:
         try:
             subprocess.run(["uv", "--version"], check=True, capture_output=True)
@@ -24,6 +21,6 @@ class CoreSetup(SetupModule):
             error("  curl -LsSf https://astral.sh/uv/install.sh | sh")
             sys.exit(1)
 
-    def install(self) -> None:
-        self.run_command(["uv", "sync"])
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
+        self.run_command(["uv", "sync"], non_interactive=non_interactive)
         success("Core dependencies installed")

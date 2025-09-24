@@ -26,6 +26,10 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Bazel for mettagrid build
+RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && chmod +x /usr/local/bin/bazel
+
 # Configure screen
 RUN echo "defscrollback 10000" >> /root/.screenrc && \
     echo "termcapinfo xterm* ti@:te@" >> /root/.screenrc
@@ -39,8 +43,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
 WORKDIR /workspace/metta
 
 # Install dependencies
-ADD .python-version pyproject.toml uv.lock ./
-COPY mettagrid/pyproject.toml mettagrid/
+COPY .python-version pyproject.toml uv.lock ./
+COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
@@ -52,7 +56,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --no-install-workspace --frozen
 
 # Install sources
-ADD . .
+COPY . .
 
 # When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
 RUN git config --remove-section http."https://github.com/" || true
@@ -67,8 +71,12 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
+ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
 RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
  && echo 'cd /workspace/metta' >> /root/.bashrc
+
+RUN echo 'if [ -n "$VIRTUAL_ENV" ]; then deactivate 2>/dev/null || true; fi' >> /root/.bashrc && \
+    echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
 ENTRYPOINT ["/bin/bash", "-c"]

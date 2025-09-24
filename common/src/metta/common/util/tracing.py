@@ -135,29 +135,3 @@ def save_trace(filename):
             "displayTimeUnit": "ms",
         }
         json.dump(data, f)
-
-
-if __name__ == "__main__":
-
-    @trace
-    def my_function(a, b):
-        return a + b
-
-    class MyClass:
-        @trace
-        def __init__(self, a, b):
-            self.a = a
-            self.b = b
-
-        @trace
-        def my_method(self, a, b):
-            return a + b
-
-    my_class = MyClass(1, 2)
-    my_class.my_method(3, 4)
-
-    with tracer("my_section"):
-        my_function(1, 2)
-
-    print("Written to trace.json, load it in chrome://tracing")
-    save_trace("trace.json")

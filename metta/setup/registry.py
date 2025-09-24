@@ -11,8 +11,8 @@ def register_module(cls: Type["SetupModule"]) -> Type["SetupModule"]:
     return cls
 
 
-def get_all_modules(config) -> list["SetupModule"]:
-    all_modules = [cls(config) for cls in _REGISTRY]
+def get_all_modules() -> list["SetupModule"]:
+    all_modules = [cls() for cls in _REGISTRY]
 
     # Create a mapping from name to module for easy lookup
     name_to_module = {m.name: m for m in all_modules}
@@ -45,7 +45,3 @@ def get_all_modules(config) -> list["SetupModule"]:
             visit(module)
 
     return result
-
-
-def get_applicable_modules(config) -> list["SetupModule"]:
-    return [m for m in get_all_modules(config) if m.is_applicable()]

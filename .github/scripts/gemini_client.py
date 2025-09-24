@@ -10,13 +10,13 @@ import logging
 import time
 from typing import Optional
 
-import google.generativeai as genai
-from google.generativeai.types import HarmBlockThreshold, HarmCategory
+import google.generativeai as genai  # type: ignore
+from google.generativeai.types import HarmBlockThreshold, HarmCategory  # type: ignore
 
 # Model configuration - three tiers for different use cases
 MODEL_CONFIG = {
-    "fast": "gemini-2.5-flash-lite-preview-06-17",  # Most cost-efficient, high throughput
-    "default": "gemini-2.5-flash",  # Balanced cost and performance
+    "fast": "gemini-2.5-flash",  # Most cost-efficient, high throughput
+    "default": "gemini-2.5-pro",  # Balanced cost and performance
     "best": "gemini-2.5-pro",  # Enhanced reasoning and complex analysis
 }
 

@@ -1,15 +1,19 @@
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable
+from typing import Annotated, Callable
+
+import typer
+from rich.console import Console
 
 from devops.docker.push_image import push_image
+from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, METTA_AWS_ACCOUNT_ID, METTA_AWS_REGION
 from metta.common.util.fs import get_repo_root
-from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.utils import error, info, success
 
 repo_root = get_repo_root()
+console = Console()
 
 
 class Kind:
@@ -69,29 +73,30 @@ class Kind:
 
         self._maybe_load_secrets()
 
+        info("Updating Helm dependencies...")
+        subprocess.run(["helm", "dependency", "update", str(self.helm_chart_path)], check=True)
+        success("Helm dependencies updated")
+
         result = subprocess.run(["helm", "list", "-n", self.namespace, "-q"], capture_output=True, text=True)
         cmd = "upgrade" if self.helm_release_name in result.stdout else "install"
         info(f"Running {cmd} for {self.helm_release_name}...")
-        subprocess.run(
-            [
-                "helm",
-                cmd,
-                self.helm_release_name,
-                str(self.helm_chart_path),
-                "-n",
-                self.namespace,
-                *(
-                    [
-                        "-f",
-                        str(self.environment_values_file),
-                    ]
-                    if self.environment_values_file
-                    else []
-                ),
-            ],
-            check=True,
-        )
+
+        helm_cmd = [
+            "helm",
+            cmd,
+            self.helm_release_name,
+            str(self.helm_chart_path),
+            "-n",
+            self.namespace,
+        ]
+
+        if self.environment_values_file:
+            helm_cmd.extend(["-f", str(self.environment_values_file)])
+
+        subprocess.run(helm_cmd, check=True)
+
         info("Orchestrator deployed via Helm")
+
         info("To view pods: metta local kind get-pods")
         info("To view logs: metta local kind logs <pod-name>")
         info("To stop: metta local kind down")
@@ -101,12 +106,10 @@ class Kind:
         info("Stopping...")
         self._use_appropriate_context()
 
-        # Uninstall Helm release
         subprocess.run(
             ["helm", "uninstall", self.helm_release_name, "-n", self.namespace, "--ignore-not-found"], check=True
         )
 
-        # Clean up any remaining worker pods
         subprocess.run(
             ["kubectl", "delete", "pods", "-l", "app=eval-worker", "-n", self.namespace, "--ignore-not-found=true"],
             check=True,
@@ -133,7 +136,6 @@ class Kind:
         if pod_name:
             subprocess.run(["kubectl", "logs", pod_name, "-n", self.namespace, "--follow"], check=True)
         else:
-            # Default to orchestrator logs
             subprocess.run(
                 ["kubectl", "logs", "-n", self.namespace, "-l", "app.kubernetes.io/name=orchestrator", "--follow"],
                 check=True,
@@ -144,7 +146,6 @@ class Kind:
         self._use_appropriate_context()
 
         if not pod_name:
-            # Get orchestrator pod name
             result = subprocess.run(
                 [
                     "kubectl",
@@ -166,27 +167,9 @@ class Kind:
         subprocess.run(["kubectl", "exec", "-it", pod_name, "-n", self.namespace, "--", "/bin/bash"], check=True)
 
     def _get_wandb_api_key(self) -> str | None:
-        """Get WANDB API key from .netrc file."""
-        netrc_path = Path.home() / ".netrc"
-        if netrc_path.exists():
-            try:
-                with open(netrc_path, "r") as f:
-                    content = f.read()
-                    lines = content.split("\n")
-                    for i, line in enumerate(lines):
-                        if "machine api.wandb.ai" in line:
-                            # Look for login and password in subsequent lines
-                            for j in range(i + 1, min(i + 3, len(lines))):
-                                parts = lines[j].split()
-                                if len(parts) >= 2 and parts[0] == "login":
-                                    # Look for password
-                                    for k in range(j, min(j + 2, len(lines))):
-                                        parts2 = lines[k].split()
-                                        if len(parts2) >= 2 and parts2[0] == "password":
-                                            return parts2[1]
-            except Exception:
-                pass
-        return None
+        import wandb
+
+        return wandb.Api().api_key
 
 
 class KindLocal(Kind):
@@ -223,7 +206,6 @@ class KindLocal(Kind):
             info("Creating Kind cluster...")
             subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         else:
-            # Verify cluster is healthy
             result = subprocess.run(["kubectl", "cluster-info", "--context", self.context], capture_output=True)
             if result.returncode != 0:
                 info("Cluster exists but is not healthy. Recreating...")
@@ -231,9 +213,9 @@ class KindLocal(Kind):
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
 
-        from metta.setup.local_commands import LocalCommands
+        from metta.setup.local_commands import build_policy_evaluator_img_internal
 
-        self._ensure_docker_img_built("metta-policy-evaluator-local:latest", LocalCommands().build_policy_evaluator_img)
+        self._ensure_docker_img_built("metta-policy-evaluator-local:latest", build_policy_evaluator_img_internal)
         success("Kind cluster ready")
 
         if not self._check_namespace_exists():
@@ -244,9 +226,9 @@ class KindLocal(Kind):
 class EksProd(Kind):
     aws_account_id = METTA_AWS_ACCOUNT_ID
     aws_region = METTA_AWS_REGION
-    cluster_name = f"arn:aws:eks:{aws_region}:{aws_account_id}:cluster/main"
+    cluster_name = "main"
     namespace = "orchestrator"
-    context = cluster_name
+    context = f"arn:aws:eks:{aws_region}:{aws_account_id}:cluster/{cluster_name}"
     helm_release_name = "orchestrator"
     helm_chart_path = repo_root / "devops/charts/orchestrator"
     environment_values_file = None
@@ -255,9 +237,9 @@ class EksProd(Kind):
         info("Building AMD64 for EKS...")
 
         local_image_name = "metta-policy-evaluator-local:latest-amd64"
-        from metta.setup.local_commands import LocalCommands
+        from metta.setup.local_commands import build_policy_evaluator_img_internal
 
-        LocalCommands().build_policy_evaluator_img(
+        build_policy_evaluator_img_internal(
             tag=local_image_name,
             build_args=["--platform", "linux/amd64"],
         )
@@ -267,3 +249,55 @@ class EksProd(Kind):
             region=self.aws_region,
             account_id=self.aws_account_id,
         )
+
+
+kind_app = typer.Typer(help="Manage Kind cluster", rich_markup_mode="rich", no_args_is_help=True)
+
+kind_local = KindLocal()
+
+
+@kind_app.command(name="build")
+def cmd_build():
+    kind_local.build()
+    console.print("[green]Kind cluster created[/green]")
+
+
+@kind_app.command(name="up")
+def cmd_up():
+    kind_local.up()
+    console.print("[green]Orchestrator started[/green]")
+
+
+@kind_app.command(name="down")
+def cmd_down():
+    kind_local.down()
+    console.print("[green]Orchestrator stopped[/green]")
+
+
+@kind_app.command(name="clean")
+def cmd_clean():
+    kind_local.clean()
+    console.print("[green]Cluster deleted[/green]")
+
+
+@kind_app.command(name="get-pods")
+def cmd_get_pods():
+    kind_local.get_pods()
+
+
+@kind_app.command(name="logs")
+def cmd_logs(pod_name: Annotated[str | None, typer.Argument(help="Pod name")] = None):
+    kind_local.logs(pod_name)
+
+
+@kind_app.command(name="enter")
+def cmd_enter(pod_name: Annotated[str | None, typer.Argument(help="Pod name")] = None):
+    kind_local.enter(pod_name)
+
+
+def main():
+    kind_app()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,71 +1,25 @@
 # metta/sim/simulation_config.py
 
-from typing import Dict, Optional
+from typing import Optional
 
-from pydantic import model_validator
+from pydantic import Field
 
-from metta.common.util.config import Config
+from mettagrid import MettaGridConfig
+from mettagrid.config import Config
 
 
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
-    __init__ = Config.__init__
+    suite: str = Field(description="Name of the simulation suite")
+    name: str = Field(description="Name of the simulation")
+    env: MettaGridConfig
 
     # Core simulation config
-    num_episodes: int
-    max_time_s: int = 120
-    env_overrides: dict = {}
+    num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
+    max_time_s: int = Field(default=120, description="Maximum time in seconds to run the simulation", ge=0)
 
-    npc_policy_uri: Optional[str] = None
-    policy_agents_pct: float = 1.0
+    npc_policy_uri: Optional[str] = Field(default=None, description="URI of the policy to use for NPC agents")
+    policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
 
-    # Doxascope config
-    doxascope: Optional[dict] = None
-
-
-class SingleEnvSimulationConfig(SimulationConfig):
-    """Configuration for a single simulation run."""
-
-    __init__ = SimulationConfig.__init__
-
-    env: str
-    env_overrides: dict = {}
-
-
-class SimulationSuiteConfig(SimulationConfig):
-    """A suite of named simulations, with suite-level defaults injected."""
-
-    name: str
-    simulations: Dict[str, SingleEnvSimulationConfig]
-    episode_tags: list[str] = []
-
-    @model_validator(mode="before")
-    @classmethod
-    def propagate_suite_fields(cls, values: dict) -> dict:
-        # collect only fields that were explicitly passed (not defaults)
-        # note: in `mode="before"`, `values` is raw user input
-
-        explicitly_provided = {
-            k: v
-            for k, v in values.items()
-            if k in SimulationConfig.model_fields  # only fields simulation children would know
-        }
-        raw_sims = values.get("simulations", {}) or {}
-        merged: Dict[str, dict] = {}
-
-        for name, sim_cfg in raw_sims.items():
-            # Handle both dict and SingleEnvSimulationConfig instances
-            if isinstance(sim_cfg, dict):
-                # Raw dict - merge with suite defaults
-                merged[name] = {**explicitly_provided, **sim_cfg}
-            elif isinstance(sim_cfg, SingleEnvSimulationConfig):
-                # Already instantiated - convert to dict and merge
-                sim_dict = sim_cfg.model_dump()
-                merged[name] = {**explicitly_provided, **sim_dict}
-            else:
-                # Pass through as-is and let Pydantic handle validation
-                merged[name] = sim_cfg
-
-        values["simulations"] = merged
-        return values
+    episode_tags: Optional[list[str]] = Field(default=None, description="Tags to add to each episode")

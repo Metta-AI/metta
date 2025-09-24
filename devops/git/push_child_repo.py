@@ -1,96 +1,77 @@
 #!/usr/bin/env python3
 """
-Sync child repositories from monorepo with preserved git history.
+Extract the `mettagrid/` subdirectory as a standalone repo (history preserved)
+and push it to a target repository.
 
 Usage:
-    uv run devops/git/sync_package.py filter_repo_test
-    uv run devops/git/sync_package.py filter_repo_test --dry-run
-    uv run devops/git/sync_package.py filter_repo_test --yes  # Skip confirmations
+    # Dry run (no push)
+    uv run devops/git/push_child_repo.py Metta-AI/mettagrid --dry-run
 
-Add new repos to CONFIG_REGISTRY below.
+    # Force push to target (with confirmations unless -y)
+    uv run devops/git/push_child_repo.py Metta-AI/mettagrid -y
+
+Target can be either an HTTPS remote URL or an owner/repo slug.
+Only HTTPS is supported (no SSH).
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-from pydantic import field_validator
+import gitta as git
 
-from metta.common.util.config import Config
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION
-from metta.common.util.git import add_remote, get_commit_count, get_file_list, run_git, run_git_in_dir
-from metta.common.util.git_filter import filter_repo
+SUBDIR = "packages/mettagrid"
 
 
-class FilterRepoConfig(Config):
-    """Child repository configuration."""
+def build_remote_url(target: str) -> str:
+    """Build HTTPS remote URL from input target.
 
-    __init__ = Config.__init__
+    - If target is an HTTPS URL, return as-is
+    - If target is an owner/repo slug, return https://github.com/owner/repo.git
+    - Otherwise, exit with an error (SSH and non-HTTPS URLs are not supported)
+    """
+    # HTTPS URL provided
+    if target.startswith("https://"):
+        return target
 
-    name: str
-    paths: list[str]
-    remote: str
+    # Disallow SSH and non-HTTPS URLs
+    if target.startswith("git@") or target.startswith("ssh://") or target.startswith("http://"):
+        raise SystemExit("Only HTTPS remotes are supported. Provide an HTTPS URL or 'owner/repo' slug.")
 
-    @field_validator("paths")
-    @classmethod
-    def normalize_paths(cls, v: list[str]) -> list[str]:
-        """Ensure paths end with /."""
-        return [p.rstrip("/") + "/" for p in v]
+    # Expect owner/repo slug
+    if "/" not in target:
+        raise SystemExit("Target must be an HTTPS URL or an 'owner/repo' slug")
 
-    @field_validator("remote")
-    @classmethod
-    def validate_remote(cls, v: str) -> str:
-        """Basic validation of git remote URL."""
-        if not v.startswith(("git@", "https://", "http://")):
-            raise ValueError("Remote must start with git@, https://, or http://")
-        if f"{METTA_GITHUB_ORGANIZATION}/" not in v:
-            raise ValueError(f"Remote must be from {METTA_GITHUB_ORGANIZATION} organization")
-        return v
+    owner_repo = target.strip("/")
+    return f"https://github.com/{owner_repo}.git"
 
 
-# Add new child repositories here
-CONFIG_REGISTRY = {
-    "filter_repo_test": FilterRepoConfig(
-        name="filter_repo_test",
-        paths=["mettagrid", "mettascope"],
-        remote=f"git@github.com:{METTA_GITHUB_ORGANIZATION}/test_filter_repo.git",
-    ),
-}
+def sync_repo(target: str, dry_run: bool = False, skip_confirmation: bool = False):
+    """Filter `SUBDIR/` to repo root and push to the target remote."""
 
-
-def sync_repo(config_name: str, dry_run: bool = False, skip_confirmation: bool = False):
-    """Filter and push repository subset to configured remote."""
-
-    # Load config
-    if config_name not in CONFIG_REGISTRY:
-        available = ", ".join(CONFIG_REGISTRY.keys())
-        print(f"Unknown config: {config_name}")
-        print(f"Available: {available}")
-        sys.exit(1)
-
-    config = CONFIG_REGISTRY[config_name]
-
-    print(f"Syncing: {config.name}")
-    print(f"Paths: {', '.join(config.paths)}")
-    print(f"Target: {config.remote}")
+    remote_url = build_remote_url(target)
+    print(f"Syncing target: {target}")
+    print(f"Subdir: {SUBDIR}/")
+    print(f"Target: {remote_url}")
 
     # Step 1: Filter
     print("\nFiltering repository...")
     try:
-        filtered_path = filter_repo(Path.cwd(), config.paths)
+        # Make the configured subdirectory the repository root in the filtered repo
+        filtered_path = git.filter_repo(Path.cwd(), [SUBDIR], root_subdir=SUBDIR)
     except Exception as e:
         print(f"Filter failed: {e}")
         sys.exit(1)
 
     # Step 2: Show what we got
-    files = get_file_list(filtered_path)
-    commits = get_commit_count(filtered_path)
+    files = git.get_file_list(filtered_path)
+    commits = git.get_commit_count(filtered_path)
     print(f"Result: {len(files)} files, {commits} commits")
 
     # Step 3: Safety checks before push
     try:
-        current_origin = run_git("remote", "get-url", "origin").strip()
-        if current_origin and config.remote.rstrip("/").rstrip(".git") == current_origin.rstrip("/").rstrip(".git"):
+        current_origin = git.run_git("remote", "get-url", "origin").strip()
+        if current_origin and remote_url.rstrip("/").rstrip(".git") == current_origin.rstrip("/").rstrip(".git"):
             print("\n*** SAFETY STOP ***")
             print("Target remote matches current origin!")
             print("This would destroy the main repository.")
@@ -99,12 +80,12 @@ def sync_repo(config_name: str, dry_run: bool = False, skip_confirmation: bool =
         pass  # No origin is fine
 
     # Step 4: Push (with confirmations)
-    print(f"\n{'DRY RUN: ' if dry_run else ''}Push to {config.remote}")
+    print(f"\n{'DRY RUN: ' if dry_run else ''}Push to {remote_url}")
 
     if not dry_run and not skip_confirmation:
         print("\nThis will FORCE PUSH and replace the target repository!")
         print("Type the target URL to confirm:")
-        if input("> ").strip() != config.remote:
+        if input("> ").strip() != remote_url:
             print("Aborted - URLs don't match")
             sys.exit(1)
 
@@ -114,13 +95,13 @@ def sync_repo(config_name: str, dry_run: bool = False, skip_confirmation: bool =
 
     # Do the push
     try:
-        add_remote("production", config.remote, filtered_path)
+        git.add_remote("production", remote_url, filtered_path)
 
         push_cmd = ["push", "--force", "production", "HEAD:main"]
         if dry_run:
             push_cmd.insert(2, "--dry-run")
 
-        output = run_git_in_dir(filtered_path, *push_cmd)
+        output = git.run_git_in_dir(filtered_path, *push_cmd)
         if output:
             print(output)
 
@@ -134,14 +115,14 @@ def sync_repo(config_name: str, dry_run: bool = False, skip_confirmation: bool =
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("config", help="Repository config name")
+    parser.add_argument("target", help="Target GitHub repository (owner/repo) or full remote URL")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be pushed")
     parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompts")
 
     args = parser.parse_args()
 
     try:
-        sync_repo(args.config, args.dry_run, args.yes)
+        sync_repo(args.target, args.dry_run, args.yes)
     except KeyboardInterrupt:
         print("\nAborted")
         sys.exit(1)

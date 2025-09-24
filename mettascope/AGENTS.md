@@ -11,7 +11,14 @@ MettaScope is a browser viewer to watch metta replays.
 
 The code is plain TypeScript with no framework.
 
-## Useful commands
+## Recipe System Commands
+
+| Task        | Command                                                               |
+| ----------- | --------------------------------------------------------------------- |
+| Interactive | `uv run ./tools/run.py experiments.recipes.arena.play policy_uri=*`   |
+| Replays     | `uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=*` |
+
+## Development Commands
 
 All commands are executed from the `mettascope/` directory.
 
@@ -40,4 +47,14 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 
 ## Programming Guidelines
 
+- Important: all code comments should be full sentences and include a period at the end.
+- do not write comments that are redundant with code.
+- common.ts is imported by most parts of mettascope and contains all the state.
+- Most 'magic number' constants should live in ./mettascope/src/common.ts
+- code is expected to fail fast and loudly. DO NOT use silent error suppression or error hiding.
+  - if a function gets invalid input, we should throw an error.
+  - if a function returns an error, allow that error to bubble up.
+
+- ./mettascope/src/vector_math.ts has Vec2f and Mat3f.
+- Do not pass X and Y arguments separately. pass them as a Vec2f.
 - when working with `gridObject`s, do not access properties directly. you must use `getAttr()` from replay.ts

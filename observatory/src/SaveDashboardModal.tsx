@@ -225,7 +225,7 @@ export function SaveDashboardModal({
       const dashboardData: SavedDashboardCreate = {
         name: name.trim(),
         description: description.trim() || undefined,
-        type: 'heatmap',
+        type: 'scorecard',
         dashboard_state: {}, // This will be filled by the parent component
       }
 

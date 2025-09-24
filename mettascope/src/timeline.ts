@@ -13,7 +13,6 @@ import { clamp } from './context3d.js'
 import { onEvent } from './htmlutils.js'
 import { requestFrame, updateStep } from './main.js'
 import type { PanelInfo } from './panels.js'
-import { getAttr } from './replay.js'
 
 /** Initializes the timeline. */
 export function initTimeline() {
@@ -24,8 +23,8 @@ export function initTimeline() {
 
 function getStepFromX(x: number) {
   const scrubberWidth = ui.timelinePanel.width - 32
-  const s = Math.floor(((x - 16) / scrubberWidth) * state.replay.max_steps)
-  return clamp(s, 0, state.replay.max_steps - 1)
+  const s = Math.floor(((x - 16) / scrubberWidth) * state.replay.maxSteps)
+  return clamp(s, 0, state.replay.maxSteps - 1)
 }
 
 /** Updates the scrubber. */
@@ -64,7 +63,7 @@ export function updateTimeline() {
   }
 
   const scrubberWidth = ui.timelinePanel.width - 32
-  const fullSteps = state.replay.max_steps - 1
+  const fullSteps = state.replay.maxSteps - 1
   html.stepCounter.textContent = state.step.toString()
   html.stepCounter.parentElement!.style.left = `${(16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString()}px`
 }
@@ -88,7 +87,7 @@ export function drawTimeline(panel: PanelInfo) {
   ctx.scale(ui.dpr, ui.dpr)
 
   const scrubberWidth = rect.width - 32
-  const fullSteps = state.replay.max_steps - 1
+  const fullSteps = state.replay.maxSteps - 1
 
   // Draw the background of the scrubber.
   ctx.drawSolidRect(
@@ -113,16 +112,16 @@ export function drawTimeline(panel: PanelInfo) {
 
   // Draw key actions on the timeline.
   for (const agent of state.replay.agents) {
-    let prevFrozen = 0
-    for (let j = 0; j < state.replay.max_steps; j++) {
+    let prevFrozen = false
+    for (let j = 0; j < state.replay.maxSteps; j++) {
       // Draw the frozen state.
-      const frozen = getAttr(agent, 'agent:frozen', j)
-      if (frozen > 0 && prevFrozen === 0) {
+      const isFrozen = agent.isFrozen.get(j)
+      if (isFrozen && !prevFrozen) {
         const x = 16 + (j / fullSteps) * scrubberWidth
         ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
         ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])
       }
-      prevFrozen = frozen
+      prevFrozen = isFrozen
     }
   }
 

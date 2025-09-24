@@ -1,4 +1,8 @@
+resources
+
 # Environment and IDE
+.claude/tasks
+.claude/analysis
 .envrc
 .env
 .env.*
@@ -17,8 +21,9 @@
 .coverage.*
 coverage.xml
 htmlcov/
-cython_debug/
 .venv/
+coverage-reports/
+test-results/
 
 # CMake FetchContent cache
 .deps/
@@ -30,6 +35,12 @@ build_debug/
 build-release/
 build-debug/
 build-coverage/
+
+# Bazel build artifacts
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-mettagrid
 
 # Node.js / Frontend
 node_modules/
@@ -59,6 +70,7 @@ personal/
 test_data/
 **/*benchmark_results.json
 .testmondata*
+tests/pufferlib_compatibility_matrix.json
 
 # Logs and profiling
 *.log
@@ -81,3 +93,28 @@ sweep_id
 
 # Notebooks
 experiments/notebooks/.ipynb_checkpoints
+experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
+experiments/recipes/scratchpad/*.py
+!experiments/recipes/scratchpad/README.md
+!experiments/recipes/scratchpad/example.py
+!experiments/recipes/scratchpad/ci.py
+
+resources
+LUNARVIM_CHEATSHEET.md
+metta/sweep/experiments/README.md
+metta/sweep/experiments/README_*.md
+identified-figures/
+
+# Cursor MCP configuration (may contain credentials)
+.cursor-mcp/
+
+# TODO - remove after troubleshooting stability and re-add to keys in .github/workflows/checks.yml
+mettagrid/MODULE.bazel.lock
+
+# skypilot testing
+recipe_test_jobs.json
+cluster_test_jobs.json
+
+# MetaScope
+packages/mettagrid/nim/mettascope/dist/
+packages/mettagrid/nim/mettascope/bindings/generated/

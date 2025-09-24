@@ -83,8 +83,9 @@ class PullRequest:
                 "timestamp": r["submitted_at"],
                 "user": r["user"]["login"],
                 "text": r["body"],
-                "action": r["state"].lower(),
+                "action": r["state"],
                 "id": r["id"],
+                "html_url": r["html_url"],
             }
             for r in self.retrieved_reviews
             if r.get("state") in ["APPROVED", "CHANGES_REQUESTED"]

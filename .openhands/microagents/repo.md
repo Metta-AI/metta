@@ -49,13 +49,12 @@ Note: The project requires Python 3.11.7 specifically, as specified in the pypro
 To train a model:
 
 ```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off
+./tools/run.py experiments.recipes.arena.train run=my_experiment wandb.enabled=false
 ```
 
 Parameters:
 
 - `run`: Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
-- `+hardware=<preset>`: Tunes the trainer for your machine (options include macbook, desktop, etc.)
 - `+user=<n>`: Loads defaults from `configs/user/<n>.yaml`
 - `wandb=off`: Disables Weights & Biases logging if you don't have access
 
@@ -64,7 +63,7 @@ Parameters:
 To run the interactive simulation:
 
 ```bash
-./tools/play.py run=my_experiment +hardware=macbook wandb=off
+./tools/run.py experiments.recipes.arena.play run=my_experiment wandb.enabled=false
 ```
 
 This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing
@@ -73,7 +72,7 @@ maps or policies on your local hardware.
 To run the terminal simulation:
 
 ```bash
-./tools/renderer.py run=demo_obstacles \
+./tools/run.py experiments.recipes.arena.play run=demo_obstacles \
 renderer_job.environment.root.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
@@ -86,18 +85,18 @@ For post-training evaluation to compare different policies:
 1. Add your policy to the existing navigation evals DB:
 
 ```bash
-./tools/sim.py \
-    sim=navigation \
-    run=navigation101 \
-    policy_uri=wandb://run/YOUR_POLICY_URI \
-    sim_job.stats_db_uri=wandb://stats/navigation_db \
-    device=cpu
+./tools/run.py \
+    experiments.recipes.navigation.eval \
+    policy_uris=wandb://run/YOUR_POLICY_URI \
+    stats_db_uri=wandb://stats/navigation_db \
+    system.device=cpu
 ```
 
 2. View the results in a heatmap along with other policies in the database:
 
 ```bash
-./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
+# Note: Dashboard generation is now integrated into the recipe system
+# Use the analysis recipes to generate comprehensive reports
 ```
 
 ## Development Setup

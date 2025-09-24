@@ -7,9 +7,10 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from tests.base_async_test import BaseAsyncTest
+from metta.app_backend.test_support.base_async_test import BaseAsyncTest
 
 
+@pytest.mark.slow
 class TestSQLConcurrency(BaseAsyncTest):
     """Tests for SQL route concurrency to validate async behavior."""
 
@@ -130,8 +131,3 @@ class TestSQLConcurrency(BaseAsyncTest):
             print(f"✓ 5 fast queries completed in {fast_duration:.2f}s")
             print(f"✓ 1 slow query completed in {slow_duration:.2f}s")
             print("✓ Async behavior confirmed: fast queries not blocked")
-
-
-if __name__ == "__main__":
-    # Simple test runner for debugging
-    pytest.main([__file__, "-v", "-s"])

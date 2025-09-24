@@ -15,9 +15,6 @@ class MettaScopeSetup(SetupModule):
     def setup_script_location(self) -> str:
         return "mettascope/install.sh"
 
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("mettascope")
-
     def check_installed(self) -> bool:
         mettascope_dir = self.repo_root / "mettascope"
         node_modules = mettascope_dir / "node_modules"

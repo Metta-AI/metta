@@ -1,28 +1,13 @@
 import uuid
 from typing import List
 
-import pytest
-from fastapi.testclient import TestClient
-
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 
 
 class TestStatsServerSimple:
     """Simplified end-to-end tests for the stats server."""
 
-    @pytest.fixture(scope="class")
-    def stats_client(self, test_client: TestClient) -> StatsClient:
-        """Create a stats client for testing."""
-        # First create a machine token
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "test_stats_client_token"},
-            headers={"X-Auth-Request-Email": "test_user"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
-
-        return StatsClient(test_client, machine_token=token)
+    # Remove duplicate stats_client fixture - it's already defined in conftest.py
 
     def test_complete_workflow(self, stats_client: StatsClient) -> None:
         """Test the complete end-to-end workflow."""
@@ -66,8 +51,8 @@ class TestStatsServerSimple:
             },
             primary_policy_id=policy.id,
             stats_epoch=epoch.id,
-            eval_name="test_evaluation",
-            simulation_suite="test_suite",
+            sim_suite="test_evaluation",
+            env_name="mettagrid",
             replay_url="https://example.com/replay",
             attributes={"episode_length": 100, "difficulty": "medium"},
         )
@@ -98,7 +83,8 @@ class TestStatsServerSimple:
                 agent_metrics={0: {"reward": float(i * 10), "steps": float(i * 5)}},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                eval_name=f"episode_{i}",
+                sim_suite="episode_{i}",
+                env_name="test_env",
             )
             episode_ids.append(episode.id)
             assert episode.id is not None
@@ -115,8 +101,3 @@ class TestStatsServerSimple:
         """Test policy ID lookup for non-existent policies."""
         policy_ids = stats_client.get_policy_ids(["nonexistent_policy"])
         assert policy_ids.policy_ids == {}
-
-
-if __name__ == "__main__":
-    # Simple test runner for debugging
-    pytest.main([__file__, "-v", "-s"])

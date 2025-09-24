@@ -1,16 +1,17 @@
 import logging
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 import pufferlib
 import pufferlib.vector
+from pufferlib.pufferlib import set_buffers
 from pydantic import validate_call
 
-from metta.common.util.logging_helpers import init_logging
-from metta.common.util.resolvers import register_resolvers
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
+from metta.cogworks.curriculum import Curriculum, CurriculumEnv
+from metta.common.util.log_config import init_logging
+from mettagrid import MettaGridEnv
+from mettagrid.util.replay_writer import ReplayWriter
+from mettagrid.util.stats_writer import StatsWriter
 
 logger = logging.getLogger("vecenv")
 
@@ -18,33 +19,27 @@ logger = logging.getLogger("vecenv")
 @validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
-    buf=None,
     render_mode="rgb_array",
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
     is_training: bool = False,
-    is_serial: bool = False,
     run_dir: str | None = None,
+    buf: Optional[Any] = None,
     **kwargs,
 ):
-    if not is_serial:
-        # Running in a new process, so we need to reinitialize logging and resolvers
-        register_resolvers()
-        init_logging(run_dir=run_dir)
+    if run_dir is not None:
+        init_logging(run_dir=Path(run_dir))
 
-    # Create the environment instance
     env = MettaGridEnv(
-        curriculum,
+        curriculum.get_task().get_env_cfg(),
         render_mode=render_mode,
-        buf=buf,
         stats_writer=stats_writer,
         replay_writer=replay_writer,
         is_training=is_training,
-        **kwargs,
     )
-    # Ensure the environment is properly initialized
-    if hasattr(env, "_c_env") and env._c_env is None:
-        raise ValueError("MettaGridEnv._c_env is None after hydra instantiation")
+    set_buffers(env, buf)
+    env = CurriculumEnv(env, curriculum)
+
     return env
 
 
@@ -52,16 +47,16 @@ def make_env_func(
 def make_vecenv(
     curriculum: Curriculum,
     vectorization: str,
-    num_envs=1,
-    batch_size=None,
-    num_workers=1,
-    render_mode=None,
-    stats_writer: Optional[StatsWriter] = None,
-    replay_writer: Optional[ReplayWriter] = None,
+    num_envs: int = 1,
+    batch_size: int | None = None,
+    num_workers: int = 1,
+    render_mode: str | None = None,
+    stats_writer: StatsWriter | None = None,
+    replay_writer: ReplayWriter | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
     **kwargs,
-):
+) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
     is_serial = vectorization == "serial" or num_workers == 1
 
@@ -69,8 +64,6 @@ def make_vecenv(
         vectorizer_cls = pufferlib.vector.Serial
     elif vectorization == "multiprocessing":
         vectorizer_cls = pufferlib.vector.Multiprocessing
-    elif vectorization == "ray":
-        vectorizer_cls = pufferlib.vector.Ray
     else:
         raise ValueError("Invalid --vector (serial/multiprocessing/ray).")
 
@@ -84,7 +77,6 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "is_training": is_training,
-        "is_serial": is_serial,
         "run_dir": run_dir,
     }
 

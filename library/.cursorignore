@@ -1,0 +1,10 @@
+# Large lock files
+uv.lock
+
+# map files
+*.map
+
+# Directories
+.vscode/
+.claude/
+node_modules/

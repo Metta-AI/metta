@@ -24,9 +24,22 @@ spec:
         {{- range .Values.oauth2_proxy.email_domains | required "oauth2_proxy.email_domains is required" }}
         - --email-domain={{ . }}
         {{- end }}
-        envFrom:
-        - secretRef:
-            name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+        env:
+        - name: OAUTH2_PROXY_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+              key: client-id
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+              key: client-secret
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+              key: cookie-secret
         ports:
         - containerPort: 4180
           protocol: TCP

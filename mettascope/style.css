@@ -104,6 +104,10 @@ html {
   color: white;
 }
 
+#modal.error .message {
+  user-select: text;
+}
+
 #agent-panel {
   overflow-x: auto;
   overflow-y: auto;
@@ -266,8 +270,14 @@ input::placeholder {
   }
 }
 
+#file-name:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* very small phone sized screens */
 @media (max-width: 480px) {
+
   /* Even smaller buttons for very small screens */
   #footer .hover-icon {
     width: 24px !important;

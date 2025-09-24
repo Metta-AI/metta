@@ -46,6 +46,10 @@ def clean_directory(root_path, dry_run=True):
         if ".git" in dir_path.parts:
             continue
 
+        # Skip build cache directories
+        if any(part in [".turbo", ".vite-temp", "node_modules"] for part in dir_path.parts):
+            continue
+
         if is_dir_empty_or_pycache_only(dirpath):
             if dry_run:
                 print(f"{yellow('Would remove:')} {cyan(dirpath)}")

@@ -1,4 +1,4 @@
-type: metta.map.scenes.room_grid.RoomGrid
+type: mettagrid.mapgen.scenes.room_grid.RoomGrid
 params:
   rows: 3
   columns: 2

@@ -24,12 +24,18 @@ import {
 } from './htmlutils.js'
 import { drawMiniMap } from './minimap.js'
 import { initObjectMenu } from './objmenu.js'
-import { fetchReplay, initWebSocket, readFile } from './replay.js'
+import { Entity, fetchReplay, initWebSocket, readFile } from './replay.js'
 import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
-import { drawTrace } from './traces.js'
+import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
+
+// Expose state to window for testing purposes (e.g., Playwright tests)
+if (typeof window !== 'undefined') {
+  let anyWindow = window as any
+  anyWindow.state = state
+}
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
@@ -78,8 +84,8 @@ export function onResize() {
 
     // Minimap goes in the bottom left corner of the mapPanel.
     if (state.replay != null) {
-      const miniMapWidth = state.replay.map_size[0] * 2
-      const miniMapHeight = state.replay.map_size[1] * 2
+      const miniMapWidth = state.replay.mapSize[0] * 2
+      const miniMapHeight = state.replay.mapSize[1] * 2
       ui.miniMapPanel.x = 0
       ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight
       ui.miniMapPanel.width = miniMapWidth
@@ -153,6 +159,7 @@ function hideUi() {
   state.showTraces = false
   state.showAgentPanel = false
   state.showActionButtons = false
+  invalidateTrace()
   onResize()
 }
 
@@ -411,7 +418,7 @@ function updateUrlParams() {
   // Handle the selected object.
   if (state.selectedGridObject !== null) {
     // Find the index of the selected object.
-    const selectedObjectIndex = state.replay.grid_objects.indexOf(state.selectedGridObject)
+    const selectedObjectIndex = state.replay.objects.indexOf(state.selectedGridObject)
     if (selectedObjectIndex !== -1) {
       urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString())
       // Remove map position parameters when an object is selected.
@@ -458,7 +465,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 }
 
 /** Centralized function to select an object. */
-export function updateSelection(object: any, setFollow = false) {
+export function updateSelection(object: Entity | null, setFollow = false) {
   state.selectedGridObject = object
   if (setFollow) {
     setFollowSelection(true)
@@ -517,6 +524,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
       state.showTraces = false
       localStorage.setItem('showTraces', state.showTraces.toString())
       toggleOpacity(html.tracesToggle, state.showTraces)
+      invalidateTrace()
       onResize()
     } else if (state.showActionButtons) {
       state.showActionButtons = false
@@ -585,7 +593,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
     if (state.ws !== null) {
       state.ws.send(JSON.stringify({ type: 'advance' }))
     } else {
-      updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+      updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
     }
   }
 
@@ -596,7 +604,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
   }
   if (event.key === ']') {
     setIsPlaying(false)
-    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
   }
 
   // '<' and '>' for zoom out/in on keyboard
@@ -697,7 +705,7 @@ export function onFrame() {
   if (state.isPlaying) {
     state.partialStep += state.playbackSpeed
     if (state.partialStep >= 1) {
-      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps
+      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.maxSteps
       state.partialStep -= Math.floor(state.partialStep)
       if (state.ws !== null) {
         state.ws.send(JSON.stringify({ type: 'advance' }))
@@ -744,6 +752,7 @@ async function parseUrlParams() {
   if (replayUrl) {
     console.info('Loading replay from URL: ', replayUrl)
     await fetchReplay(replayUrl)
+
     focusFullMap(ui.mapPanel)
   } else if (wsUrl) {
     Common.showModal('info', 'Connecting to a websocket', 'Please wait a few seconds for the environment to load.')
@@ -769,8 +778,8 @@ async function parseUrlParams() {
     // Set the selected object.
     if (urlParams.get('selectedObjectId') !== null) {
       const selectedObjectId = Number.parseInt(urlParams.get('selectedObjectId') || '-1') - 1
-      if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-        updateSelection(state.replay.grid_objects[selectedObjectId], true)
+      if (selectedObjectId >= 0 && selectedObjectId < state.replay.objects.length) {
+        updateSelection(state.replay.objects[selectedObjectId], true)
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
         console.info('Selected object via query parameter:', state.selectedGridObject)
@@ -884,12 +893,12 @@ onEvent('click', '#step-forward', () => {
   if (state.ws !== null) {
     state.ws.send(JSON.stringify({ type: 'advance' }))
   } else {
-    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    updateStep(Math.min(state.step + 1, state.replay.maxSteps - 1))
   }
 })
 onEvent('click', '#rewind-to-end', () => {
   setIsPlaying(false)
-  updateStep(state.replay.max_steps - 1)
+  updateStep(state.replay.maxSteps - 1)
 })
 onEvent('click', '#demo-mode-toggle', () => {
   if (state.demoMode) {
@@ -968,6 +977,17 @@ if (localStorage.hasOwnProperty('showFogOfWar')) {
 }
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar)
 
+onEvent('click', '#heatmap-toggle', () => {
+  state.showHeatmap = !state.showHeatmap
+  localStorage.setItem('showHeatmap', state.showHeatmap.toString())
+  toggleOpacity(html.heatmapToggle, state.showHeatmap)
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showHeatmap')) {
+  state.showHeatmap = localStorage.getItem('showHeatmap') === 'true'
+}
+toggleOpacity(html.heatmapToggle, state.showHeatmap)
+
 onEvent('click', '#minimap-toggle', () => {
   state.showMiniMap = !state.showMiniMap
   localStorage.setItem('showMiniMap', state.showMiniMap.toString())
@@ -1016,6 +1036,12 @@ onEvent('click', '#traces-toggle', () => {
   state.showTraces = !state.showTraces
   localStorage.setItem('showTraces', state.showTraces.toString())
   toggleOpacity(html.tracesToggle, state.showTraces)
+
+  // Invalidate trace cache when hiding to ensure proper regeneration when shown again
+  if (!state.showTraces) {
+    invalidateTrace()
+  }
+
   onResize()
   requestFrame()
 })
@@ -1049,6 +1075,7 @@ onEvent('click', '#trace-panel .close', () => {
   state.showTraces = false
   localStorage.setItem('showTraces', state.showTraces.toString())
   toggleOpacity(html.tracesToggle, state.showTraces)
+  invalidateTrace()
   onResize()
   requestFrame()
 })
@@ -1058,6 +1085,22 @@ onEvent('click', '#action-buttons .close', () => {
   localStorage.setItem('showActionButtons', state.showActionButtons.toString())
   toggleOpacity(html.controlsToggle, state.showActionButtons)
   requestFrame()
+})
+
+onEvent('click', '#modal', () => {
+  // make error modal dismissable.
+  if (html.modal.classList.contains('error')) {
+    Common.closeModal()
+  }
+})
+
+onEvent('click', '#file-name', () => {
+  // Open a new window with the env config as a JSON string.
+  const configWindow = window.open('', '_blank')
+  if (configWindow) {
+    configWindow.document.write(`<pre>${JSON.stringify(state.replay.MettaGridConfig, null, 2)}</pre>`)
+    configWindow.document.close()
+  }
 })
 
 initHighDpiMode()

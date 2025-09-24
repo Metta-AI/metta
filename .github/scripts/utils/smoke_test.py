@@ -53,17 +53,49 @@ class SmokeTest(ABC):
         Returns:
             Tuple of (success, full_output)
         """
-        MAX_STDERR_CHARS = 20000
-
         if not result["success"]:
             print(f"{self.test_name.title()} failed with exit code: {result['exit_code']}")
             if result["timeout"]:
                 print(f"{self.test_name.title()} timed out")
             elif result["stderr"]:
                 print("STDERR output:")
-                print(result["stderr"][:MAX_STDERR_CHARS])
-                if len(result["stderr"]) > MAX_STDERR_CHARS:
-                    print("... (truncated)")
+                # Print full stderr without truncation
+                print(result["stderr"])
+
+                # Try to extract and highlight the actual error from the traceback
+                stderr_lines = result["stderr"].split("\n")
+
+                # Look for the actual exception at the end of the traceback
+                for i in range(len(stderr_lines) - 1, max(0, len(stderr_lines) - 50), -1):
+                    line = stderr_lines[i].strip()
+                    # Check if this line contains an exception
+                    if line and any(
+                        exc in line
+                        for exc in [
+                            "Error",
+                            "Exception",
+                            "Error:",
+                            "Exception:",
+                            "AssertionError",
+                            "ValueError",
+                            "RuntimeError",
+                            "TypeError",
+                            "AttributeError",
+                            "KeyError",
+                            "IndexError",
+                        ]
+                    ):
+                        print("\n" + "=" * 60)
+                        print("Actual error (extracted from traceback):")
+                        print("=" * 60)
+                        # Print this line and a few lines of context
+                        start_idx = max(0, i - 3)
+                        end_idx = min(len(stderr_lines), i + 3)
+                        for j in range(start_idx, end_idx):
+                            if stderr_lines[j].strip():
+                                print(stderr_lines[j])
+                        print("=" * 60 + "\n")
+                        break
 
         full_output = result["stdout"] + "\n" + result["stderr"]
         return result["success"], full_output

@@ -1,7 +1,53 @@
 import { state } from './common.js'
 import { find } from './htmlutils.js'
 import { requestFrame } from './main.js'
-import { getAttr, sendAction } from './replay.js'
+import { sendAction } from './replay.js'
+
+// Small timing window to combine two directional key presses (e.g., W+A -> Northwest).
+const COMBO_WINDOW_MS = 100
+let comboKeys: Set<'w' | 'a' | 's' | 'd'> = new Set()
+let comboTimer: number | null = null
+
+// Queue up a key press for a directional combo.
+function pushComboKey(key: 'w' | 'a' | 's' | 'd') {
+  comboKeys.add(key)
+  if (comboTimer != null) window.clearTimeout(comboTimer)
+  comboTimer = window.setTimeout(() => flushComboIfAny(), COMBO_WINDOW_MS)
+}
+
+// Flush the combo if any keys are pressed.
+function flushComboIfAny() {
+  if (comboTimer != null) {
+    window.clearTimeout(comboTimer)
+    comboTimer = null
+  }
+  if (comboKeys.size === 0) return
+
+  let param = -1
+  if (comboKeys.size >= 2) {
+    const has = (k: 'w' | 'a' | 's' | 'd') => comboKeys.has(k)
+    if (has('w') && has('a'))
+      param = 4 // NW
+    else if (has('w') && has('d'))
+      param = 5 // NE
+    else if (has('s') && has('d'))
+      param = 7 // SE
+    else if (has('s') && has('a')) param = 6 // SW
+  }
+  if (param === -1) {
+    // Single key or opposing keys fallback: prefer last in insertion order.
+    let lastKey: 'w' | 'a' | 's' | 'd' | null = null
+    for (const k of comboKeys) lastKey = k
+    if (lastKey === 'w') param = 0
+    else if (lastKey === 'd') param = 3
+    else if (lastKey === 's') param = 1
+    else if (lastKey === 'a') param = 2
+  }
+  if (param !== -1) {
+    sendAction('move', param)
+  }
+  comboKeys.clear()
+}
 
 /** Initializes the action buttons. */
 export function initActionButtons() {
@@ -66,45 +112,118 @@ export function processActions(event: KeyboardEvent) {
 
   if (state.selectedGridObject != null) {
     const agent = state.selectedGridObject
-    const orientation = getAttr(agent, 'agent:orientation')
+    const orientation = agent.orientation.get()
     // Support WASD, arrow keys, and all numpad keys for movement/rotation.
     const key = event.key
     const code = event.code
+    const supportsMove = state.replay.actionNames.includes('move')
+    const supportsMove8 = state.replay.MettaGridConfig.game?.allow_diagonals ?? false
 
-    if (key === 'w' || key === 'ArrowUp' || code === 'Numpad8') {
-      if (orientation !== 0) {
-        // Rotate up.
-        sendAction('rotate', 0)
+    // Movement handling.
+    if (key === 'w' || key === 'ArrowUp') {
+      if (supportsMove) {
+        if (supportsMove8) {
+          pushComboKey('w')
+        } else {
+          sendAction('move', 0) // North
+        }
       } else {
-        // Move forward (up).
-        sendAction('move', 0)
+        if (orientation !== 0) {
+          sendAction('rotate', 0)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
-    if (key === 'a' || key === 'ArrowLeft' || code === 'Numpad4') {
-      if (orientation !== 2) {
-        // Rotate left.
-        sendAction('rotate', 2)
+    if (key === 'a' || key === 'ArrowLeft') {
+      if (supportsMove) {
+        if (supportsMove8) {
+          pushComboKey('a')
+        } else {
+          sendAction('move', 2) // West
+        }
       } else {
-        // Move forward (left).
-        sendAction('move', 0)
+        if (orientation !== 2) {
+          sendAction('rotate', 2)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
-    if (key === 's' || key === 'ArrowDown' || code === 'Numpad2') {
-      if (orientation !== 1) {
-        // Rotate down.
-        sendAction('rotate', 1)
+    if (key === 's' || key === 'ArrowDown') {
+      if (supportsMove) {
+        if (supportsMove8) {
+          pushComboKey('s')
+        } else {
+          sendAction('move', 1) // South
+        }
       } else {
-        // Move forward (down).
-        sendAction('move', 0)
+        if (orientation !== 1) {
+          sendAction('rotate', 1)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
-    if (key === 'd' || key === 'ArrowRight' || code === 'Numpad6') {
-      if (orientation !== 3) {
-        // Rotate right.
-        sendAction('rotate', 3)
+    if (key === 'd' || key === 'ArrowRight') {
+      if (supportsMove) {
+        if (supportsMove8) {
+          pushComboKey('d')
+        } else {
+          sendAction('move', 3) // East
+        }
       } else {
-        // Move forward (right).
-        sendAction('move', 0)
+        if (orientation !== 3) {
+          sendAction('rotate', 3)
+        } else {
+          sendAction('move', 0)
+        }
+      }
+    }
+
+    // Numpad movement (immediate, no combo buffering)
+    if (code === 'Numpad8') {
+      if (supportsMove) {
+        sendAction('move', 0) // North
+      } else {
+        if (orientation !== 0) {
+          sendAction('rotate', 0)
+        } else {
+          sendAction('move', 0)
+        }
+      }
+    }
+    if (code === 'Numpad4') {
+      if (supportsMove) {
+        sendAction('move', 2) // West
+      } else {
+        if (orientation !== 2) {
+          sendAction('rotate', 2)
+        } else {
+          sendAction('move', 0)
+        }
+      }
+    }
+    if (code === 'Numpad2') {
+      if (supportsMove) {
+        sendAction('move', 1) // South
+      } else {
+        if (orientation !== 1) {
+          sendAction('rotate', 1)
+        } else {
+          sendAction('move', 0)
+        }
+      }
+    }
+    if (code === 'Numpad6') {
+      if (supportsMove) {
+        sendAction('move', 3) // East
+      } else {
+        if (orientation !== 3) {
+          sendAction('rotate', 3)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (event.key === 'f') {
@@ -119,38 +238,74 @@ export function processActions(event: KeyboardEvent) {
       // Put recipe items.
       sendAction('put_items', 0)
     }
+    if (event.key === 'b') {
+      // Place box.
+      sendAction('place_box', 0)
+    }
     if (event.key === 'e') {
       // Get the output.
       sendAction('get_items', 0)
     }
-    // Diagonal movement with numpad (4-action approach for true diagonal in one press)
+    // Diagonal numpad
     if (event.code === 'Numpad7') {
-      // Up-Left
-      sendAction('rotate', 0) // Rotate up
-      sendAction('move', 0) // Move up
-      sendAction('rotate', 2) // Rotate left
-      sendAction('move', 0) // Move left
+      if (supportsMove) {
+        if (supportsMove8) {
+          sendAction('move', 4) // Northwest
+        } else {
+          sendAction('move', 0) // North
+          sendAction('move', 2) // West
+        }
+      } else {
+        sendAction('rotate', 0) // Rotate up.
+        sendAction('move', 0) // Move up.
+        sendAction('rotate', 2) // Rotate left.
+        sendAction('move', 0) // Move left.
+      }
     }
     if (event.code === 'Numpad9') {
-      // Up-Right
-      sendAction('rotate', 0) // Rotate up
-      sendAction('move', 0) // Move up
-      sendAction('rotate', 3) // Rotate right
-      sendAction('move', 0) // Move right
+      if (supportsMove) {
+        if (supportsMove8) {
+          sendAction('move', 5) // Northeast
+        } else {
+          sendAction('move', 0) // North
+          sendAction('move', 3) // East
+        }
+      } else {
+        sendAction('rotate', 0) // Rotate up.
+        sendAction('move', 0) // Move up.
+        sendAction('rotate', 3) // Rotate right.
+        sendAction('move', 0) // Move right.
+      }
     }
     if (event.code === 'Numpad1') {
-      // Down-Left
-      sendAction('rotate', 1) // Rotate down
-      sendAction('move', 0) // Move down
-      sendAction('rotate', 2) // Rotate left
-      sendAction('move', 0) // Move left
+      if (supportsMove) {
+        if (supportsMove8) {
+          sendAction('move', 6) // Southwest
+        } else {
+          sendAction('move', 1) // South
+          sendAction('move', 2) // West
+        }
+      } else {
+        sendAction('rotate', 1) // Rotate down.
+        sendAction('move', 0) // Move down.
+        sendAction('rotate', 2) // Rotate left.
+        sendAction('move', 0) // Move left.
+      }
     }
     if (event.code === 'Numpad3') {
-      // Down-Right
-      sendAction('rotate', 1) // Rotate down
-      sendAction('move', 0) // Move down
-      sendAction('rotate', 3) // Rotate right
-      sendAction('move', 0) // Move right
+      if (supportsMove) {
+        if (supportsMove8) {
+          sendAction('move', 7) // Southeast
+        } else {
+          sendAction('move', 1) // South
+          sendAction('move', 3) // East
+        }
+      } else {
+        sendAction('rotate', 1) // Rotate down.
+        sendAction('move', 0) // Move down.
+        sendAction('rotate', 3) // Rotate right.
+        sendAction('move', 0) // Move right.
+      }
     }
 
     if (event.key === 'x' || event.code === 'Numpad5') {
@@ -176,9 +331,7 @@ export function processActions(event: KeyboardEvent) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Gamepad support
-// ---------------------------------------------------------------------------
 
 // You can test your gamepad here: https://hardwaretester.com/gamepad
 

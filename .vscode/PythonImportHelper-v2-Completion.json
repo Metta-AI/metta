@@ -20374,7 +20374,7 @@
         "kind": 2,
         "importPath": "devops.add_to_leaderboard",
         "description": "devops.add_to_leaderboard",
-        "peekOfCode": "def main():\n    parser = argparse.ArgumentParser(\n        description=\"Add policy to evaluation leaderboard and update dashboard\",\n        formatter_class=argparse.RawDescriptionHelpFormatter,\n        epilog=\"\"\"\nExamples:\n%(prog)s --run b.username.test_run +hardware=macbook\n\"\"\",\n    )\n    parser.add_argument(\"--run\", required=True, help=\"Your run name (e.g., b.$USER.test_run)\")",
+        "peekOfCode": "def main():\n    parser = argparse.ArgumentParser(\n        description=\"Add policy to evaluation leaderboard and update dashboard\",\n        formatter_class=argparse.RawDescriptionHelpFormatter,\n        epilog=\"\"\"\nExamples:\n%(prog)s --run b.username.test_run\n\"\"\",\n    )\n    parser.add_argument(\"--run\", required=True, help=\"Your run name (e.g., b.$USER.test_run)\")",
         "detail": "devops.add_to_leaderboard",
         "documentation": {}
     },

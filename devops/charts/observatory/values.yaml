@@ -13,15 +13,8 @@ cert_manager_issuer: letsencrypt
 
 oauth2_proxy:
   email_domains:
-  - stem.ai
-  - softmax.com
+    - stem.ai
+    - softmax.com
 
-  # This secret must be created manually.
-  # (it's not possible to automate it because it's not possible to terraform oauth clients in GCP)
-  #
-  # The secret contains the following keys:
-  # - OAUTH2_PROXY_CLIENT_ID
-  # - OAUTH2_PROXY_CLIENT_SECRET
-  # - OAUTH2_PROXY_COOKIE_SECRET
-  # First two fields are from Google Cloud console. The third one can be generated randomly by hand.
-  secret_name: observatory-oauth2-proxy-env
+  # This secret is terraformed by devops/tf/eks
+  secret_name: softmax-infra-oauth
