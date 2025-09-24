@@ -95,7 +95,8 @@ class PolicyAutoBuilder(nn.Module):
                     torch.backends.cuda.enable_flash_sdp(True)
                     torch.backends.cuda.enable_mem_efficient_sdp(True)
                     torch.backends.cuda.enable_math_sdp(True)
-            torch.set_float32_matmul_precision("high")
+            # Keep TF32 fast paths enabled on Ampere+ by using the default precision.
+            torch.set_float32_matmul_precision("medium")
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):

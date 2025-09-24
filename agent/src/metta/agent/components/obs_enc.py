@@ -169,10 +169,11 @@ class ObsLatentAttn(nn.Module):
         k_p = einops.rearrange(k_p, "b m (h d) -> b h m d", h=self._num_heads)
         v_p = einops.rearrange(v_p, "b m (h d) -> b h m d", h=self._num_heads)
 
-        attn_mask = None
+        attn_bias = None
         if key_mask is not None:
             key_mask = key_mask.to(torch.bool)
-            attn_mask = key_mask.unsqueeze(1).unsqueeze(1)
+            mask_value = -torch.finfo(k_p.dtype).max
+            attn_bias = key_mask.unsqueeze(1).unsqueeze(1).to(k_p.dtype) * mask_value
 
         for layer in self.layers:
             # Attention block
@@ -181,7 +182,7 @@ class ObsLatentAttn(nn.Module):
             q_p = layer["q_proj"](queries_norm)
             q_p = einops.rearrange(q_p, "b q (h d) -> b h q d", h=self._num_heads)
 
-            attn_output = F.scaled_dot_product_attention(q_p, k_p, v_p, attn_mask=attn_mask)
+            attn_output = F.scaled_dot_product_attention(q_p, k_p, v_p, attn_mask=attn_bias)
             attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
             attn_output = layer["attn_out_proj"](attn_output)
 
@@ -269,13 +270,14 @@ class ObsSelfAttn(nn.Module):
         if self._use_cls_token:
             x_features = torch.cat([self._cls_token.expand(x_features.shape[0], -1, -1), x_features], dim=1)
 
-        attn_mask = None
+        attn_bias = None
         if self._use_mask:
             key_mask = td["obs_mask"].to(torch.bool)
             if self._use_cls_token:
                 cls_pad = torch.zeros(key_mask.shape[0], 1, device=key_mask.device, dtype=torch.bool)
                 key_mask = torch.cat([cls_pad, key_mask], dim=1)
-            attn_mask = key_mask.unsqueeze(1).unsqueeze(1)
+            mask_value = -torch.finfo(x_features.dtype).max
+            attn_bias = key_mask.unsqueeze(1).unsqueeze(1).to(x_features.dtype) * mask_value
 
         x = x_features
 
@@ -292,7 +294,7 @@ class ObsSelfAttn(nn.Module):
             k = einops.rearrange(k, "b m (h d) -> b h m d", h=self._num_heads)
             v = einops.rearrange(v, "b m (h d) -> b h m d", h=self._num_heads)
 
-            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)
+            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
 
             # Combine heads: [B, M, feat_dim]
             attn_output = einops.rearrange(attn_output, "b h m d -> b m (h d)")
