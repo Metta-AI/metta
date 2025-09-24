@@ -13,6 +13,7 @@ import torch.nn as nn
 
 from metta.agent.components.agalite_enhanced import EnhancedTransformerEncoder
 from metta.agent.components.agalite_fast import FastAGaLiTeLayer
+from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class EnhancedAGaLiTeCore(nn.Module):
         dropout: float = 0.0,
         layer_norm_eps: float = 1e-5,
         gru_bias: float = 2.0,
+        kernel: Optional[AGaLiTeKernelConfig] = None,
     ):
         super().__init__()
         self.n_layers = n_layers
@@ -61,6 +63,8 @@ class EnhancedAGaLiTeCore(nn.Module):
             self.r = r
             logger.info(f"Using {mode} mode with full parameters: eta={self.eta}, r={self.r}")
 
+        self.kernel = kernel or AGaLiTeKernelConfig()
+
         # Create encoder layers
         self.encoders = nn.ModuleList()
         for layer_idx in range(n_layers):
@@ -74,6 +78,7 @@ class EnhancedAGaLiTeCore(nn.Module):
                     r=self.r,
                     reset_hidden_on_terminate=reset_on_terminate,
                     dropout=dropout,
+                    kernel=self.kernel,
                 )
             else:
                 # Use enhanced implementation with mode selection
@@ -85,6 +90,7 @@ class EnhancedAGaLiTeCore(nn.Module):
                     n_heads=n_heads,
                     eta=self.eta,
                     r=self.r,
+                    kernel=self.kernel,
                     mode=mode,
                     use_dense=use_dense,
                     gru_bias=gru_bias,

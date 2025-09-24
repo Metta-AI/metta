@@ -4,6 +4,7 @@ from pydantic import Field
 
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
+from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 from metta.agent.components.agalite_transformer import AGaLiTeTransformerConfig
 from metta.agent.components.cnn_encoder import CNNEncoderConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -23,6 +24,7 @@ def _build_components(
     r: int,
     mode: str,
     dropout: float,
+    kernel: AGaLiTeKernelConfig | None = None,
 ) -> List[ComponentConfig]:
     return [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_box"),
@@ -45,6 +47,7 @@ def _build_components(
             r=r,
             mode=mode,
             dropout=dropout,
+            kernel=kernel or AGaLiTeKernelConfig(),
         ),
         MLPConfig(
             in_key="core",
@@ -75,22 +78,18 @@ def _build_components(
 class AGaLiTeConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _hidden_size = 192
-    _embedding_dim = 16
-
-    components: List[ComponentConfig] = Field(
-        default_factory=lambda: _build_components(
-            hidden_size=AGaLiTeConfig._hidden_size,
-            embedding_dim=AGaLiTeConfig._embedding_dim,
-            n_layers=2,
-            n_heads=4,
-            feedforward_size=4 * AGaLiTeConfig._hidden_size,
-            eta=4,
-            r=8,
-            mode="agalite",
-            dropout=0.0,
-        )
-    )
+    components: List[ComponentConfig] = Field(default_factory=lambda: _build_components(
+        hidden_size=192,
+        embedding_dim=16,
+        n_layers=2,
+        n_heads=4,
+        feedforward_size=768,
+        eta=4,
+        r=8,
+        mode="agalite",
+        dropout=0.0,
+        kernel=AGaLiTeKernelConfig(name="relu", nu=4),
+    ))
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
@@ -98,21 +97,17 @@ class AGaLiTeConfig(PolicyArchitecture):
 class AGaLiTeImprovedConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _hidden_size = 256
-    _embedding_dim = 16
-
-    components: List[ComponentConfig] = Field(
-        default_factory=lambda: _build_components(
-            hidden_size=AGaLiTeImprovedConfig._hidden_size,
-            embedding_dim=AGaLiTeImprovedConfig._embedding_dim,
-            n_layers=4,
-            n_heads=8,
-            feedforward_size=4 * AGaLiTeImprovedConfig._hidden_size,
-            eta=4,
-            r=16,
-            mode="agalite",
-            dropout=0.1,
-        )
-    )
+    components: List[ComponentConfig] = Field(default_factory=lambda: _build_components(
+        hidden_size=256,
+        embedding_dim=16,
+        n_layers=4,
+        n_heads=8,
+        feedforward_size=1024,
+        eta=4,
+        r=16,
+        mode="agalite",
+        dropout=0.1,
+        kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
+    ))
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from metta.agent.components.agalite_optimized import discounted_sum
+from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 
 
 class EnhancedGRUGatingUnit(nn.Module):
@@ -70,6 +71,7 @@ class GaLiTeAttentionLayer(nn.Module):
         head_dim: int,
         head_num: int,
         eta: int,
+        kernel: AGaLiTeKernelConfig,
         dropout: float = 0.0,
         eps: float = 1e-6,
         reset_hidden_on_terminate: bool = True,
@@ -81,6 +83,7 @@ class GaLiTeAttentionLayer(nn.Module):
         self.eta = eta
         self.eps = eps
         self.reset_hidden_on_terminate = reset_hidden_on_terminate
+        self.kernel = kernel
 
         # Feature map projections with proper dimensions
         self.q_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
@@ -145,16 +148,19 @@ class GaLiTeAttentionLayer(nn.Module):
         p3 = self.p3_proj(inputs).view(T, B, self.head_num, self.eta)
 
         # Apply feature maps with outer products (paper eq. 4-6)
-        # φ(q) = ReLU(q) ⊗ ReLU(p2)
-        phi_q = torch.einsum("tbhd,tbhe->tbhde", F.relu(queries), F.relu(p2))
+        feature_activation = self.kernel.feature_activation()
+        projection_activation = self.kernel.project_activation()
+
+        # φ(q) = φ(q) ⊗ φ(p2)
+        phi_q = torch.einsum("tbhd,tbhe->tbhde", feature_activation(queries), projection_activation(p2))
         phi_q = phi_q.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
-        # ψ(k) = ReLU(k) ⊗ ReLU(p1)
-        psi_k = torch.einsum("tbhd,tbhe->tbhde", F.relu(keys), F.relu(p1))
+        # ψ(k) = φ(k) ⊗ φ(p1)
+        psi_k = torch.einsum("tbhd,tbhe->tbhde", feature_activation(keys), projection_activation(p1))
         psi_k = psi_k.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
-        # γ feature map: ReLU(γ) ⊗ ReLU(p3)
-        sigma_p3 = torch.sigmoid(p3)
+        # γ feature map uses gated projections
+        sigma_p3 = torch.sigmoid(self.kernel.gamma_projection(p3))
         gamma_feat = torch.einsum("tbhd,tbhe->tbhde", gamma, sigma_p3)
         gamma_feat = gamma_feat.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
@@ -226,6 +232,7 @@ class AGaLiTeAttentionLayer(nn.Module):
         head_num: int,
         eta: int,
         r: int,
+        kernel: AGaLiTeKernelConfig,
         dropout: float = 0.0,
         eps: float = 1e-6,
         reset_hidden_on_terminate: bool = True,
@@ -238,6 +245,7 @@ class AGaLiTeAttentionLayer(nn.Module):
         self.r = r
         self.eps = eps
         self.reset_hidden_on_terminate = reset_hidden_on_terminate
+        self.kernel = kernel
 
         # All projections (same as GaLiTe but with r-dimensional expansion)
         self.q_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
@@ -309,13 +317,16 @@ class AGaLiTeAttentionLayer(nn.Module):
         p3 = self.p3_proj(inputs).view(T, B, self.head_num, self.eta)
 
         # Apply feature maps with outer products
-        phi_q = torch.einsum("tbhd,tbhe->tbhde", F.relu(queries), F.relu(p2))
+        feature_activation = self.kernel.feature_activation()
+        projection_activation = self.kernel.project_activation()
+
+        phi_q = torch.einsum("tbhd,tbhe->tbhde", feature_activation(queries), projection_activation(p2))
         phi_q = phi_q.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
-        psi_k = torch.einsum("tbhd,tbhe->tbhde", F.relu(keys), F.relu(p1))
+        psi_k = torch.einsum("tbhd,tbhe->tbhde", feature_activation(keys), projection_activation(p1))
         psi_k = psi_k.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
-        sigma_p3 = torch.sigmoid(p3)
+        sigma_p3 = torch.sigmoid(self.kernel.gamma_projection(p3))
         gamma_feat = torch.einsum("tbhd,tbhe->tbhde", gamma, sigma_p3)
         gamma_feat = gamma_feat.reshape(T, B, self.head_num, self.head_dim * self.eta)
 
@@ -403,6 +414,7 @@ class EnhancedTransformerEncoder(nn.Module):
         n_heads: int,
         eta: int,
         r: int,
+        kernel: AGaLiTeKernelConfig,
         mode: Literal["galite", "agalite"] = "agalite",
         use_dense: bool = False,
         gru_bias: float = 2.0,
@@ -432,6 +444,7 @@ class EnhancedTransformerEncoder(nn.Module):
                 head_dim=d_head,
                 head_num=n_heads,
                 eta=eta,
+                kernel=kernel,
                 dropout=dropout,
                 reset_hidden_on_terminate=reset_hidden_on_terminate,
             )
@@ -442,6 +455,7 @@ class EnhancedTransformerEncoder(nn.Module):
                 head_num=n_heads,
                 eta=eta,
                 r=r,
+                kernel=kernel,
                 dropout=dropout,
                 reset_hidden_on_terminate=reset_hidden_on_terminate,
             )

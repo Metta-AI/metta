@@ -10,8 +10,10 @@ from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite
 
 from metta.agent.components.agalite_core_enhanced import EnhancedAGaLiTeCore
+from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.memory import SegmentMemoryRecord
+from pydantic import Field
 
 
 class AGaLiTeTransformerConfig(ComponentConfig):
@@ -30,6 +32,7 @@ class AGaLiTeTransformerConfig(ComponentConfig):
     reset_on_terminate: bool = True
     layer_norm_eps: float = 1e-5
     gru_bias: float = 2.0
+    kernel: AGaLiTeKernelConfig = Field(default_factory=AGaLiTeKernelConfig)
 
     def make_component(self, env=None):
         return AGaLiTeTransformer(config=self)
@@ -62,6 +65,7 @@ class AGaLiTeTransformer(nn.Module):
             dropout=config.dropout,
             layer_norm_eps=config.layer_norm_eps,
             gru_bias=config.gru_bias,
+            kernel=config.kernel,
         )
 
         # Per-environment memory cache used during rollout.

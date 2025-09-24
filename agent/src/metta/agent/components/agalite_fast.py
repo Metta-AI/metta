@@ -8,8 +8,7 @@ from typing import Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
+from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 from metta.agent.components.agalite_optimized import discounted_sum
 
 
@@ -23,6 +22,7 @@ class FastAGaLiTeLayer(nn.Module):
         head_dim: int,
         eta: int = 2,  # Reduced from 4
         r: int = 4,  # Reduced from 8
+        kernel: AGaLiTeKernelConfig | None = None,
         reset_hidden_on_terminate: bool = True,
         dropout: float = 0.0,
         eps: float = 1e-6,
@@ -35,6 +35,7 @@ class FastAGaLiTeLayer(nn.Module):
         self.r = r
         self.reset_hidden_on_terminate = reset_hidden_on_terminate
         self.eps = eps
+        self.kernel = kernel or AGaLiTeKernelConfig()
 
         # Fused projection for all parameters (more efficient)
         total_proj_dim = head_num * head_dim * 5 + head_num * eta * 3
@@ -87,23 +88,27 @@ class FastAGaLiTeLayer(nn.Module):
         # Optimized feature mapping using batched operations
         # Flatten batch and head dimensions for efficiency
         TB = T * B
-        keys_flat = F.relu(keys).reshape(TB * self.head_num, self.head_dim)
-        p1_flat = F.relu(p1).reshape(TB * self.head_num, self.eta)
+        activation = self.kernel.feature_activation()
+        proj_activation = self.kernel.project_activation()
 
-        # Use batched matrix multiply instead of einsum
-        keys_expanded = torch.bmm(keys_flat.unsqueeze(2), p1_flat.unsqueeze(1)).reshape(
+        keys_flat = keys.reshape(TB * self.head_num, self.head_dim)
+        p1_flat = p1.reshape(TB * self.head_num, self.eta)
+
+        keys_expanded = torch.bmm(activation(keys_flat).unsqueeze(2), proj_activation(p1_flat).unsqueeze(1)).reshape(
             T, B, self.head_num, self.head_dim * self.eta
         )
 
         # Similar for queries and gammas
-        queries_flat = F.relu(queries).reshape(TB * self.head_num, self.head_dim)
-        p2_flat = F.relu(p2).reshape(TB * self.head_num, self.eta)
-        queries_expanded = torch.bmm(queries_flat.unsqueeze(2), p2_flat.unsqueeze(1)).reshape(
+        queries_flat = queries.reshape(TB * self.head_num, self.head_dim)
+        p2_flat = p2.reshape(TB * self.head_num, self.eta)
+        queries_expanded = torch.bmm(
+            activation(queries_flat).unsqueeze(2), proj_activation(p2_flat).unsqueeze(1)
+        ).reshape(
             T, B, self.head_num, self.head_dim * self.eta
         )
 
-        gammas_flat = torch.sigmoid(gammas).reshape(TB * self.head_num, self.head_dim)
-        p3_flat = torch.sigmoid(p3).reshape(TB * self.head_num, self.eta)
+        gammas_flat = torch.sigmoid(gammas.reshape(TB * self.head_num, self.head_dim))
+        p3_flat = torch.sigmoid(self.kernel.gamma_projection(p3.reshape(TB * self.head_num, self.eta)))
         gammas_expanded = torch.bmm(gammas_flat.unsqueeze(2), p3_flat.unsqueeze(1)).reshape(
             T, B, self.head_num, self.head_dim * self.eta
         )
