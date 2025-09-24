@@ -258,7 +258,7 @@ def calculate_max_steps(avg_hop: float, chain_length: int, num_sinks: int) -> in
     steps_per_attempt = 2 * avg_hop
     sink_exploration_cost = steps_per_attempt * num_sinks
     chain_completion_cost = steps_per_attempt * chain_length
-    target_completions = 5
+    target_completions = 10
 
     return int(sink_exploration_cost + target_completions * chain_completion_cost)
 
