@@ -29,6 +29,9 @@ except ImportError:
 
 # Keep TF32 fast paths enabled on compatible GPUs.
 torch.set_float32_matmul_precision("medium")
+torch.backends.cuda.enable_flash_sdp(True)
+torch.backends.cuda.enable_mem_efficient_sdp(True)
+torch.backends.cuda.enable_math_sdp(True)
 logger = logging.getLogger(__name__)
 
 

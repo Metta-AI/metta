@@ -46,7 +46,7 @@ class ObsTokenTrim(torch.nn.Module):
         if max_len == 0:
             max_len = 1
 
-        trimmed_tokens = tokens[:, :max_len]
+        trimmed_tokens = tokens[:, :max_len].contiguous()
 
         expanded_indices = torch.arange(max_len, device=tokens.device).unsqueeze(0)
         capped_counts = valid_counts.clamp(max=max_len).unsqueeze(1)

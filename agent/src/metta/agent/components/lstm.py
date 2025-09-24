@@ -91,6 +91,10 @@ class LSTM(nn.Module):
         if "batch" in td.keys():
             B = int(td["batch"][0].item())
 
+        lengths = td.get("obs_token_lengths")
+        if lengths is not None:
+            lengths = lengths.to(torch.long)
+
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
 
         training_env_ids = td.get("training_env_ids", None)
@@ -115,7 +119,13 @@ class LSTM(nn.Module):
             h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
             c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
 
-        hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
+        if lengths is not None:
+            lengths = lengths.clamp(min=1, max=TT).cpu()
+            packed = nn.utils.rnn.pack_padded_sequence(latent, lengths, enforce_sorted=False)
+            hidden_packed, (h_n, c_n) = self.net(packed, (h_0, c_0))
+            hidden, _ = nn.utils.rnn.pad_packed_sequence(hidden_packed)
+        else:
+            hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
 
         self.lstm_h[training_env_id_start] = h_n.detach()
         self.lstm_c[training_env_id_start] = c_n.detach()
