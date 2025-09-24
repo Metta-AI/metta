@@ -318,11 +318,15 @@ class PerimeterInContextMapBuilder(MapBuilder):
                 size = "medium"
 
             terrain = "terrain" if obstacle_type else "simple"
-            density = density if density else ""
+            density = density if obstacle_type else ""
 
             random_number = self._rng.integers(1000000)
 
-            subdir = f"{size}/{self._config.chain_length - 2}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
+            converter_indices = np.argwhere((grid != "agent.agent") & (grid != "wall") & (grid != "empty"))
+
+            assert len(converter_indices) == self._config.chain_length + self._config.num_sinks
+
+            subdir = f"{size}/{self._config.chain_length}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
             filename = os.path.join(dir, subdir, f"{random_number}.npy")
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             np.save(filename, grid)
