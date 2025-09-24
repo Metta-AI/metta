@@ -66,6 +66,18 @@ def test_transformer_config_creates_policy(config_cls):
     assert output_td["full_log_probs"].shape[0] == 1
 
 
+def test_transformer_policy_initialization_sets_action_metadata():
+    env_metadata = _build_env_metadata()
+    policy = TransformerPolicyConfig().make_policy(env_metadata)
+
+    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+
+    assert policy.action_probs.action_index_tensor is not None
+    assert policy.action_probs.cum_action_max_params is not None
+    assert policy.action_index_tensor is policy.action_probs.action_index_tensor
+    assert policy.cum_action_max_params is policy.action_probs.cum_action_max_params
+
+
 def test_padding_tokens_do_not_zero_valid_entries():
     env_metadata = _build_env_metadata()
     policy = TransformerPolicyConfig().make_policy(env_metadata)

@@ -214,7 +214,7 @@ AGaLiTeImproved → AGaLiTePolicy → EnhancedAGaLiTeCore → EnhancedTransforme
 ```
 
 #### 1. **AGaLiTeImproved** (`/agent/src/metta/agent/pytorch/agalite_improved.py`)
-- **Entry Point**: Main agent class implementing `PyTorchAgentMixin` interface
+- **Entry Point**: Component-driven policy built with `PolicyAutoBuilder`
 - **Integration**: Uses `TransformerWrapper` for proper BPTT handling
 - **Features**: Complete policy network with action/value heads and observation encoding
 

@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any, Dict, List, Tuple
 
 import torch
@@ -105,8 +106,7 @@ class CoreTrainingLoop:
             td.set("_segment_indices", segment_indices.to(device=td.device))
             td.set("_segment_pos", segment_pos.to(device=td.device))
 
-            self._ensure_rollout_metadata(td)
-            self._ensure_training_env_metadata(td, training_env_id)
+            self._ensure_rollout_metadata(td, training_env_id)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             context.training_env_id = training_env_id
@@ -136,42 +136,39 @@ class CoreTrainingLoop:
             env_indices = env_indices.to(device=device)
         return env_indices
 
-    def _ensure_rollout_metadata(self, td: TensorDict) -> None:
+    def _ensure_rollout_metadata(self, td: TensorDict, training_env_id: slice) -> None:
         """Populate metadata fields needed downstream while reusing cached tensors."""
 
         batch_elems = td.batch_size.numel()
         device = td.device
+        diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
+
         if "batch" not in td.keys():
             td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
         if "bptt" not in td.keys():
             td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
 
-    def _ensure_training_env_metadata(self, td: TensorDict, training_env_id: slice) -> None:
-        """Ensure training environment identifiers are present for downstream components."""
+        if diag_enabled:
+            batch_tensor = td.get("batch")
+            bptt_tensor = td.get("bptt")
+            logger.info(
+                "[TRANSFORMER_DIAG] rollout metadata batch=%s bptt=%s",
+                batch_tensor[0].item() if batch_tensor is not None and batch_tensor.numel() else None,
+                bptt_tensor[0].item() if bptt_tensor is not None and bptt_tensor.numel() else None,
+            )
 
-        batch_elems = td.batch_size.numel()
-        device = td.device
-        training_env_shape = tuple(int(dim) for dim in td.batch_size)
+        training_env_shape = tuple(int(dim) for dim in td.batch_size) or (batch_elems,)
+        env_start = training_env_id.start if training_env_id.start is not None else 0
 
         if "training_env_id" not in td.keys():
             td.set(
                 "training_env_id",
-                self._get_constant_tensor(
-                    "training_env_id",
-                    training_env_shape or (batch_elems,),
-                    training_env_id.start,
-                    device,
-                ),
+                self._get_constant_tensor("training_env_id", training_env_shape, env_start, device),
             )
         if "training_env_id_start" not in td.keys():
             td.set(
                 "training_env_id_start",
-                self._get_constant_tensor(
-                    "training_env_id_start",
-                    training_env_shape or (batch_elems,),
-                    training_env_id.start,
-                    device,
-                ),
+                self._get_constant_tensor("training_env_id_start", training_env_shape, env_start, device),
             )
 
     def _get_constant_tensor(

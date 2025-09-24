@@ -1,7 +1,7 @@
-"""PolicyInterface: Abstract base class defining the required interface for all policies.
+"""Policy interface shared by all Metta agent implementations.
 
-This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
-implement the required methods that MettaAgent depends on."""
+Component-driven policies, legacy transformer rebuilds, and any custom policy must
+implement this API so trainer components can interact with them uniformly."""
 
 from abc import ABC, abstractmethod
 from typing import List

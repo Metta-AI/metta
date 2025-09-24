@@ -6,6 +6,7 @@ from typing import Any, ClassVar, Optional
 import torch
 from pydantic import Field, model_validator
 
+from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.transformer import (
     TransformerImprovedConfig,
@@ -59,6 +60,7 @@ logger = getRankAwareLogger(__name__)
 
 class TrainTool(Tool):
     POLICY_PRESETS: ClassVar[dict[str, type[PolicyArchitecture]]] = {
+        "agalite": AGaLiTeConfig,
         "fast": FastConfig,
         "transformer": TransformerPolicyConfig,
         "transformer_improved": TransformerImprovedConfig,
