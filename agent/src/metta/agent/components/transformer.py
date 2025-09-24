@@ -1,7 +1,8 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from einops import rearrange
 from tensordict import TensorDict
 
@@ -18,12 +19,20 @@ class TransformerConfig(Config):
     dropout: float = 0.0
     in_key: str = "encoded_obs"
     out_key: str = "hidden"
+    kv_cache: bool = True
 
 
 class TransformerBlock(nn.Module):
     def __init__(self, d_model: int, nhead: int, ff_mult: int, dropout: float) -> None:
         super().__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=False)
+        self.nhead = nhead
+        self.d_model = d_model
+        self.d_head = d_model // nhead
+        assert self.d_head * nhead == d_model, "d_model must be divisible by nhead"
+
+        self.qkv_proj = nn.Linear(d_model, 3 * d_model)
+        self.out_proj = nn.Linear(d_model, d_model)
+
         self.ff = nn.Sequential(
             nn.Linear(d_model, ff_mult * d_model),
             nn.GELU(),
@@ -36,38 +45,62 @@ class TransformerBlock(nn.Module):
     def forward(
         self,
         src: torch.Tensor,  # [T, B, D]
-        attn_mask: Optional[torch.Tensor] = None,  # [T, T]
-        key_padding_mask: Optional[torch.Tensor] = None,  # [B, T] True for PAD
-    ) -> torch.Tensor:
+        past_kv: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        key_padding_mask: Optional[torch.Tensor] = None,  # [B, S_past]
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        T, B, D = src.shape
         residual = src
-        attn_out, _ = self.self_attn(
-            src,
-            src,
-            src,
-            attn_mask=attn_mask,
-            key_padding_mask=key_padding_mask,
-            need_weights=False,
+
+        # Self-attention block with Post-LN, matching original structure
+        q, k, v = self.qkv_proj(src).chunk(3, dim=-1)
+
+        q = q.view(T, B, self.nhead, self.d_head).permute(1, 2, 0, 3)  # B, h, T, d_h
+        k = k.view(T, B, self.nhead, self.d_head).permute(1, 2, 0, 3)  # B, h, T, d_h
+        v = v.view(T, B, self.nhead, self.d_head).permute(1, 2, 0, 3)  # B, h, T, d_h
+
+        is_training = past_kv is None
+        if not is_training:  # Rollout with KV cache
+            past_k, past_v = past_kv  # B, h, S_past, d_h
+            k = torch.cat([past_k, k], dim=2)  # B, h, S_past+T, d_h
+            v = torch.cat([past_v, v], dim=2)
+
+        new_kv = (k.detach(), v.detach())
+
+        attn_mask = None
+        if key_padding_mask is not None:
+            # key_padding_mask is [B, S_past]. Pad for current token(s) (always unpadded)
+            current_pad = torch.zeros((B, T), dtype=torch.bool, device=key_padding_mask.device)
+            full_key_padding_mask = torch.cat([key_padding_mask, current_pad], dim=1)  # [B, S_past+T]
+            # S->D attention mask requires (N, S) shape. For batched multi-head, (N, num_heads, S) is not supported
+            # but we can use a broadcastable mask (N, 1, 1, S)
+            attn_mask = full_key_padding_mask.unsqueeze(1).unsqueeze(2)  # [B, 1, 1, S_past+T]
+
+        # Use is_causal for training, and attn_mask for rollout padding
+        attn_output = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=attn_mask, is_causal=is_training and attn_mask is None
         )
+
+        attn_output = attn_output.permute(2, 0, 1, 3).contiguous().view(T, B, D)
+        attn_out = self.out_proj(attn_output)
         src = self.norm1(residual + self.dropout(attn_out))
 
+        # Feed-forward block
         residual = src
         ff_out = self.ff(src)
         src = self.norm2(residual + self.dropout(ff_out))
-        return src
+
+        return src, new_kv
 
 
 class Transformer(nn.Module):
     """
-    Causal transformer layer that mirrors the LSTM layer's API, including shape handling
-    and per-environment memory management. During rollout (TT=1) it maintains a per-env
-    token cache (input embeddings) to provide autoregressive context. During training
-    (TT>1) it processes full sequences with a causal mask and no cache.
+    Causal transformer layer that mirrors the LSTM layer's API.
+    During rollout (TT=1), it maintains a per-environment K/V cache for each layer
+    to provide efficient autoregressive context. During training (TT>1), it processes
+    full sequences with a causal mask and no cache.
 
-    Notes
-    - The __init__ of this layer (and MettaAgent) is only executed on fresh instantiation,
-      not when reloading from a saved policy.
-    - The cache stores projected input tokens (post input projection, pre-transformer) per env id.
-    - We do not store KV caches per layer to keep implementation simple and robust to resets.
+    The cache is managed internally but can be accessed via get/set_memory,
+    allowing the training loop to persist cache states across rollout/training boundaries.
     """
 
     def __init__(self, config: TransformerConfig):
@@ -82,6 +115,7 @@ class Transformer(nn.Module):
         self.dropout_p = self.config.dropout
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
+        self.use_kv_cache = self.config.kv_cache
 
         needs_proj = self.latent_size != self.hidden_size
         self.input_proj = nn.Linear(self.latent_size, self.hidden_size) if needs_proj else nn.Identity()
@@ -94,127 +128,160 @@ class Transformer(nn.Module):
             ]
         )
 
-        # Per-environment token caches (projected inputs). Keyed by absolute env id (int)
-        self._token_cache: Dict[int, torch.Tensor] = {}
+        # Per-environment K/V caches, keyed by absolute env id.
+        # List is over layers: [(k0, v0), (k1, v1), ...]
+        self._kv_cache: Dict[int, List[Tuple[torch.Tensor, torch.Tensor]]] = {}
 
     def __setstate__(self, state):
         """Ensure caches are re-initialized after loading from checkpoint."""
         self.__dict__.update(state)
-        if not hasattr(self, "_token_cache"):
-            self._token_cache = {}
-        self._token_cache.clear()
-
-    def _causal_mask(self, T: int, device: torch.device) -> torch.Tensor:
-        # True/inf above diagonal -> mask future positions
-        mask = torch.full((T, T), float("-inf"), device=device)
-        mask = torch.triu(mask, diagonal=1)
-        return mask
+        if not hasattr(self, "_kv_cache"):
+            self._kv_cache = {}
+        self._kv_cache.clear()
 
     @torch._dynamo.disable  # Exclude forward from Dynamo to avoid graph breaks from Python dict usage
     def forward(self, td: TensorDict) -> TensorDict:
-        x = td[self.in_key]  # [BT, latent]
+        x = td[self.in_key]
 
         TT = 1
-        B = td.batch_size.numel()
-        if td.get("bptt", None) is not None and td["bptt"][0] != 1:
+        B = td.batch_size[0] if td.batch_size else 1
+        if "bptt" in td.keys() and td.get("bptt", None) is not None and td["bptt"][0] != 1:
             TT = int(td["bptt"][0].item())
         B = B // TT
 
-        x = rearrange(x, "(b t) h -> t b h", b=B, t=TT)  # [T, B, latent]
-        x = self.input_proj(x)  # [T, B, hidden]
+        # Reshape to [T, B, ...]
+        if x.ndim == 2:  # [BT, latent]
+            x = rearrange(x, "(b t) h -> t b h", b=B, t=TT)
+        elif x.ndim == 3:  # [BT, S, latent] -> [T, B, S, latent]
+            x = rearrange(x, "(b t) s h -> t b s h", b=B, t=TT)
+            # Combine S into T for sequence processing
+            x = rearrange(x, "t b s h -> (t s) b h")
+            TT = x.shape[0]
+        x = self.input_proj(x)
 
-        # Environment ids for double-buffered envs
-        training_env_ids = td.get("training_env_ids", None)
-        if training_env_ids is not None:
-            env_ids = training_env_ids.reshape(-1)  # [B]
+        # Handle env_ids for cache indexing
+        if "training_env_ids" in td.keys() and td.get("training_env_ids", None) is not None:
+            env_ids = td["training_env_ids"].reshape(-1)
         else:
             env_ids = torch.arange(B, device=x.device)
 
-        dones = td.get("dones", None)
-        truncateds = td.get("truncateds", None)
-        reset_flags: Optional[torch.Tensor]
-        if dones is not None and truncateds is not None:
-            if TT == 1:
-                reset_flags = (dones.bool() | truncateds.bool()).reshape(B)
-            else:
-                # For training we assume segments are episode-consistent; reset not applied here
-                reset_flags = None
-        else:
-            reset_flags = None
-
         device = x.device
+        is_rollout = TT == 1 and self.use_kv_cache
 
-        if TT == 1:
-            # Rollout: maintain per-env caches and run with padding + causal mask
-            # Prepare per-b sequences of variable lengths by concatenating cache and current token
-            seqs = []
-            lengths = []
-            for b in range(B):
-                env_id = int(env_ids[b].item())
-                if reset_flags is not None and bool(reset_flags[b].item()):
-                    past = torch.empty((0, self.hidden_size), device=device, dtype=x.dtype)
-                else:
-                    past = self._token_cache.get(
-                        env_id, torch.empty((0, self.hidden_size), device=device, dtype=x.dtype)
-                    )
+        if is_rollout:
+            h = self._forward_rollout(x, B, env_ids, td.get("dones"), td.get("truncateds"))
+            td[self.out_key] = rearrange(h, "b h -> (b) h")
+        else:
+            h = self._forward_training(x, TT, device)
+            td[self.out_key] = rearrange(h, "t b h -> (b t) h")
 
-                cur = x[0, b]  # [hidden]
-                seq = torch.cat([past, cur.unsqueeze(0)], dim=0)  # [L_i, hidden]
-                if seq.size(0) > self.max_seq_len:
-                    seq = seq[-self.max_seq_len :]
-                seqs.append(seq)
-                lengths.append(seq.size(0))
-
-            Lmax = max(lengths) if lengths else 1
-            # Build padded batch [Lmax, B, hidden]
-            src = x.new_zeros((Lmax, B, self.hidden_size))
-            key_padding_mask = torch.ones((B, Lmax), dtype=torch.bool, device=device)  # True = PAD
-            for b in range(B):
-                Lb = lengths[b]
-                if Lb > 0:
-                    src[:Lb, b] = seqs[b]
-                    key_padding_mask[b, :Lb] = False
-
-            # Add positional embeddings
-            pos_ids = torch.arange(Lmax, device=device)
-            src = src + self.pos_embedding(pos_ids).unsqueeze(1)
-
-            attn_mask = self._causal_mask(Lmax, device)
-            h = src
-            for layer in self.layers:
-                h = layer(h, attn_mask=attn_mask, key_padding_mask=key_padding_mask)
-
-            # Gather last valid token output per batch element
-            out = x.new_empty((B, self.hidden_size))
-            for b in range(B):
-                out[b] = h[lengths[b] - 1, b]
-
-            # Update caches with new input token appended (detached)
-            for b in range(B):
-                env_id = int(env_ids[b].item())
-                seq = seqs[b].detach()
-                self._token_cache[env_id] = seq
-
-            td[self.out_key] = out  # [B, hidden]
-            td[self.out_key] = rearrange(td[self.out_key], "b h -> (b) h")  # [BT, hidden]
-            return td
-
-        # Training: process full sequence [TT, B, hidden] with causal mask; no caches used
-        attn_mask = self._causal_mask(TT, device)
-        pos_ids = torch.arange(TT, device=device)
-        h = x + self.pos_embedding(pos_ids).unsqueeze(1)
-        for layer in self.layers:
-            h = layer(h, attn_mask=attn_mask, key_padding_mask=None)
-
-        td[self.out_key] = rearrange(h, "t b h -> (b t) h")  # [BT, hidden]
         return td
 
+    def _forward_training(self, x: torch.Tensor, TT: int, device: torch.device) -> torch.Tensor:
+        """Process a full sequence for training, using a causal mask."""
+        pos_ids = torch.arange(TT, device=device)
+        h = x + self.pos_embedding(pos_ids).unsqueeze(1)
+
+        for layer in self.layers:
+            h, _ = layer(h, past_kv=None)
+        return h
+
+    def _forward_rollout(
+        self,
+        x: torch.Tensor,
+        B: int,
+        env_ids: torch.Tensor,
+        dones: Optional[torch.Tensor],
+        truncateds: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """Process a single step for rollout, using the K/V cache."""
+        device = x.device
+        # Check for resets to clear cache
+        reset_flags = (
+            (dones.bool() | truncateds.bool()).reshape(B)
+            if dones is not None and truncateds is not None
+            else torch.zeros(B, dtype=torch.bool, device=device)
+        )
+
+        # 1. Prepare layer-wise batched past_kv and padding masks
+        layer_past_kvs = []
+        layer_padding_masks = []
+        max_len = 0
+
+        for ll in range(self.num_layers):
+            ks, vs = [], []
+            lengths = []
+            for b in range(B):
+                env_id = env_ids[b].item()
+                if reset_flags[b].item():
+                    self._kv_cache.pop(env_id, None)
+
+                past_kv = self._kv_cache.get(env_id, [None] * self.num_layers)[ll]
+                if past_kv is not None:
+                    k, v = past_kv  # k: [1, h, L, d]
+                    ks.append(k.squeeze(0))  # h, L, d
+                    vs.append(v.squeeze(0))
+                    lengths.append(k.shape[2])
+                else:
+                    lengths.append(0)
+
+            max_len = max(lengths) if lengths else 0
+            if max_len == 0:
+                layer_past_kvs.append(None)
+                layer_padding_masks.append(None)
+                continue
+
+            # Pad and batch
+            padded_k = torch.zeros((B, self.nhead, max_len, self.d_head), device=device, dtype=x.dtype)
+            padded_v = torch.zeros((B, self.nhead, max_len, self.d_head), device=device, dtype=x.dtype)
+            padding_mask = torch.ones((B, max_len), dtype=torch.bool, device=device)
+
+            k_idx, v_idx = 0, 0
+            for b in range(B):
+                if lengths[b] > 0:
+                    padded_k[b, :, : lengths[b], :] = ks[k_idx]
+                    padded_v[b, :, : lengths[b], :] = vs[v_idx]
+                    padding_mask[b, : lengths[b]] = False
+                    k_idx += 1
+                    v_idx += 1
+            layer_past_kvs.append((padded_k, padded_v))
+            layer_padding_masks.append(padding_mask)
+
+        # 2. Forward pass through layers
+        h = x
+        seq_len = max_len + 1
+        pos_ids = torch.arange(seq_len - 1, seq_len, device=device)
+        h = h + self.pos_embedding(pos_ids).unsqueeze(1)
+
+        new_kvs_by_layer = []
+        for ll, layer in enumerate(self.layers):
+            h, new_kv = layer(h, past_kv=layer_past_kvs[ll], key_padding_mask=layer_padding_masks[ll])
+            new_kvs_by_layer.append(new_kv)
+
+        # 3. Update cache
+        for b in range(B):
+            env_id = env_ids[b].item()
+            env_kvs = []
+            for ll in range(self.num_layers):
+                k, v = new_kvs_by_layer[ll]  # [B, h, L_new, d]
+                # Unpad and truncate
+                len_past = lengths[b] if max_len > 0 else 0
+                new_len = len_past + 1
+                unpadded_k = k[b : b + 1, :, :new_len, :]
+                unpadded_v = v[b : b + 1, :, :new_len, :]
+                if new_len > self.max_seq_len:
+                    unpadded_k = unpadded_k[:, :, -self.max_seq_len :, :]
+                    unpadded_v = unpadded_v[:, :, -self.max_seq_len :, :]
+                env_kvs.append((unpadded_k, unpadded_v))
+            self._kv_cache[env_id] = env_kvs
+
+        return h.squeeze(0)  # [1, B, D] -> [B, D]
+
     def get_memory(self):
-        return self._token_cache
+        return self._kv_cache
 
     def set_memory(self, memory):
-        """Cannot be called at the MettaAgent level - use policy.component[this_layer_name].set_memory()"""
-        self._token_cache = memory if isinstance(memory, dict) else {}
+        self._kv_cache = memory if isinstance(memory, dict) else {}
 
     def reset_memory(self):
-        self._token_cache.clear()
+        self._kv_cache.clear()

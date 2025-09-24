@@ -80,8 +80,6 @@ class LSTM(nn.Module):
             raise KeyError("TensorDict is missing required 'bptt' metadata")
 
         TT = int(td["bptt"][0].item())
-        if TT <= 0:
-            raise ValueError("bptt entries must be positive")
 
         total_batch = latent.shape[0]
         B, remainder = divmod(total_batch, TT)
