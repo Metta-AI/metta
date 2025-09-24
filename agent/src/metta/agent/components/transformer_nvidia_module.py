@@ -9,6 +9,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from metta.agent.components.component_config import ComponentConfig
+
 
 class NvidiaPositionalEmbedding(nn.Module):
     """Sinusoidal positional embedding identical to NVIDIA's Transformer-XL."""
@@ -128,7 +130,9 @@ class NvidiaRelPartialLearnableMultiHeadAttn(nn.Module):
 
         if attn_mask is not None and attn_mask.any():
             if attn_mask.dim() == 2:
-                attn_score = attn_score.float().masked_fill(attn_mask[None, None, :, :], float("-inf")).type_as(attn_score)
+                attn_score = (
+                    attn_score.float().masked_fill(attn_mask[None, None, :, :], float("-inf")).type_as(attn_score)
+                )
             elif attn_mask.dim() == 3:
                 attn_score = attn_score.float().masked_fill(attn_mask[:, None, :, :], float("-inf")).type_as(attn_score)
 
@@ -367,3 +371,37 @@ class NvidiaTransformerModule(nn.Module):
         dtype = next(self.parameters()).dtype
         hidden_states = self.core.initialize_memory(batch_size, device=device, dtype=dtype)
         return {"hidden_states": hidden_states if hidden_states else None}
+
+
+class TransformerNvidiaCoreConfig(ComponentConfig):
+    """Component wrapper for the NVIDIA Transformer-XL implementation."""
+
+    name: str = "transformer_nvidia_core"
+    in_key: str = "encoded_obs"
+    out_key: str = "core"
+
+    latent_size: int = 256
+    hidden_size: int = 256
+    num_layers: int = 6
+    n_heads: int = 8
+    d_inner: int = 512
+    max_seq_len: int = 256
+    memory_len: int = 32
+    dropout: float = 0.1
+    attn_dropout: float = 0.1
+    clamp_len: int = 256
+    pre_lnorm: bool = True
+
+    def make_component(self, env: Optional[object] = None) -> NvidiaTransformerModule:
+        return NvidiaTransformerModule(
+            d_model=self.hidden_size,
+            n_heads=self.n_heads,
+            n_layers=self.num_layers,
+            d_ff=self.d_inner,
+            max_seq_len=self.max_seq_len,
+            memory_len=self.memory_len,
+            dropout=self.dropout,
+            dropatt=self.attn_dropout,
+            pre_lnorm=self.pre_lnorm,
+            clamp_len=self.clamp_len,
+        )

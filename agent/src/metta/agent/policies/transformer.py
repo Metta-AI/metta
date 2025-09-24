@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 import math
 import os
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Dict, List, Optional, Tuple
 
 import pufferlib.pytorch
 import torch
 from einops import rearrange
+from pydantic import Field
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
@@ -25,8 +26,11 @@ from metta.agent.components.actor import (
 )
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
-from metta.agent.components.transformer_module import TransformerModule
-from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
+from metta.agent.components.transformer_nvidia_module import TransformerNvidiaCoreConfig
+from metta.agent.components.vanilla_transformer import (
+    TransformerCoreConfig,
+    TransformerImprovedCoreConfig,
+)
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -59,19 +63,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     )
 
     # Transformer interface dimensions
-    latent_size: int = 256
-    hidden_size: int = 256
-
-    # Transformer hyperparameters
-    transformer_num_layers: int = 6
-    transformer_num_heads: int = 8
-    transformer_ff_size: int = 512
-    transformer_max_seq_len: int = 256
-    transformer_memory_len: int = 64
-    transformer_dropout: float = 0.1
-    transformer_attn_dropout: float = 0.1
-    transformer_clamp_len: int = -1
-    transformer_module_cls: Type[nn.Module] = TransformerModule
+    transformer_core: TransformerCoreConfig = Field(default_factory=TransformerCoreConfig)
 
     # Actor / critic head dimensions
     critic_hidden_dim: int = 1024
@@ -88,22 +80,16 @@ class TransformerImprovedConfig(TransformerPolicyConfig):
     """Matches the legacy Transformer-XL agent implementation."""
 
     class_path: str = "metta.agent.policies.transformer.TransformerImprovedPolicy"
-    transformer_ff_size: int = 1024
-    transformer_memory_len: int = 64
+    transformer_core: TransformerImprovedCoreConfig = Field(default_factory=TransformerImprovedCoreConfig)
 
 
 class TransformerNvidiaConfig(TransformerPolicyConfig):
     """Matches NVIDIA's reference Transformer-XL implementation."""
 
     class_path: str = "metta.agent.policies.transformer.TransformerNvidiaPolicy"
-    transformer_ff_size: int = 512
-    transformer_memory_len: int = 32
-    transformer_dropout: float = 0.1
-    transformer_attn_dropout: float = 0.1
-    transformer_clamp_len: int = 256
-    transformer_module_cls: Type[nn.Module] = NvidiaTransformerModule
     manual_init: bool = True
     strict_attr_indices: bool = True
+    transformer_core: TransformerNvidiaCoreConfig = Field(default_factory=TransformerNvidiaCoreConfig)
 
 
 class TransformerPolicy(Policy):
@@ -117,8 +103,9 @@ class TransformerPolicy(Policy):
         self.is_continuous = False
         self.action_space = env.action_space
 
-        self.latent_size = self.config.latent_size
-        self.hidden_size = self.config.hidden_size
+        self.transformer_core_cfg = self.config.transformer_core
+        self.latent_size = self.transformer_core_cfg.latent_size
+        self.hidden_size = self.transformer_core_cfg.hidden_size
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
 
@@ -205,24 +192,8 @@ class TransformerPolicy(Policy):
         self.action_probs = self.config.action_probs_config.make_component()
 
     def _build_transformer(self) -> None:
-        module_cls = self.config.transformer_module_cls
-        clamp_len = self.config.transformer_clamp_len
-        if clamp_len < 0 and module_cls is NvidiaTransformerModule:
-            clamp_len = self.config.transformer_max_seq_len
-
-        self.transformer_module = module_cls(
-            d_model=self.hidden_size,
-            n_heads=self.config.transformer_num_heads,
-            n_layers=self.config.transformer_num_layers,
-            d_ff=self.config.transformer_ff_size,
-            max_seq_len=self.config.transformer_max_seq_len,
-            memory_len=self.config.transformer_memory_len,
-            dropout=self.config.transformer_dropout,
-            dropatt=self.config.transformer_attn_dropout,
-            pre_lnorm=True,
-            clamp_len=clamp_len,
-            attn_type=0,
-        )
+        self.transformer_module = self.transformer_core_cfg.make_component(self.env)
+        self._memory_enabled = getattr(self.transformer_core_cfg, "memory_len", 0) > 0
 
     # ------------------------------------------------------------------
     # Forward path
@@ -326,7 +297,7 @@ class TransformerPolicy(Policy):
 
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
-        use_memory = self.config.transformer_memory_len > 0
+        use_memory = self._memory_enabled
         memory = None
         env_key: Optional[int] = None
         if use_memory and tt == 1:
