@@ -13,9 +13,9 @@ from metta.agent.policy import Policy, PolicyArchitecture
 
 class PufferPolicyConfig(PolicyArchitecture):
     """
-    Policy configuration that exactly matches PufferLib architecture for checkpoint loading.
+    Policy configuration that exactly matches PufferLib architecture.
 
-    Based on analysis of PufferLib checkpoint:
+    Based on analysis of PufferLib policy:
     - CNN: 128 channels, 24 input channels, 5x5 and 3x3 kernels
     - LSTM: 512 hidden size
     - Actor: 5 actions + 9 action args
@@ -27,12 +27,11 @@ class PufferPolicyConfig(PolicyArchitecture):
 
 
 class PufferPolicy(Policy):
-    """Policy that exactly matches PufferLib architecture for seamless checkpoint loading."""
+    """Policy that exactly matches PufferLib architecture"""
 
     def __init__(self, env_metadata, config: Optional[PufferPolicyConfig] = None):
         super().__init__()
 
-        # Create a submodule called 'policy' to match checkpoint structure
         self.policy = torch.nn.Module()
         self.config = config or PufferPolicyConfig()
         self.env_metadata = env_metadata
@@ -51,7 +50,6 @@ class PufferPolicy(Policy):
         hidden_size = 512
         cnn_channels = 128
 
-        # Define CNN layers separately to calculate output size (matching PufferLib)
         self.policy.conv1 = pufferlib.pytorch.layer_init(
             nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3), std=1.0
         )
@@ -83,8 +81,7 @@ class PufferPolicy(Policy):
             nn.ReLU(),
         )
 
-        # Build normalization vector dynamically from environment feature_normalizations (matching PufferLib)
-        max_values = [1.0] * self.num_layers  # Default to 1.0
+        max_values = [1.0] * self.num_layers
         for feature_id, norm_value in env_metadata.feature_normalizations.items():
             if feature_id < self.num_layers:
                 max_values[feature_id] = norm_value if norm_value > 0 else 1.0
@@ -119,7 +116,6 @@ class PufferPolicy(Policy):
         self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
     def encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
-        """Converts raw observation tokens into a concatenated self + CNN feature vector."""
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
 
@@ -160,11 +156,10 @@ class PufferPolicy(Policy):
         max_vec_device = self.policy.max_vec.to(box_obs.device)
         features = box_obs / (max_vec_device + 1e-8)
 
-        # Self encoder processes center pixel features (matching PufferLib exactly)
+        # Self encoder processes center pixel features
         # Shape: [B, num_layers] -> [B, 256]
         self_features = self.policy.self_encoder(features[:, :, 5, 5])
 
-        # CNN processes spatial features normally
         # Shape: [B, 24, H, W] -> [B, 256]
         cnn_features = self.policy.network(features)
 
@@ -173,14 +168,12 @@ class PufferPolicy(Policy):
         return result
 
     def decode_actions(self, hidden):
-        """Decode hidden state into action logits (matching PufferLib exactly)."""
         logits = [dec(hidden) for dec in self.policy.actor]
         value = self.policy.value(hidden)
         return logits, value
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
-        """Forward pass through the policy."""
         observations = td["env_obs"]
 
         # [B, obs] -> [B, 512]
@@ -216,17 +209,14 @@ class PufferPolicy(Policy):
         return td
 
     def initialize_to_environment(self, env_metadata, device: torch.device):
-        """Initialize policy components to environment."""
         self.to(device)
         self.action_probs.initialize_to_environment(env_metadata, device)
 
     def reset_memory(self):
-        """Reset LSTM memory by clearing stored hidden and cell states."""
         self._hidden_state = None
         self._cell_state = None
 
     def get_agent_experience_spec(self) -> Composite:
-        """Get the experience specification for this agent."""
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
@@ -235,15 +225,12 @@ class PufferPolicy(Policy):
 
     @property
     def device(self) -> torch.device:
-        """Get the device this policy is on."""
         return next(self.parameters()).device
 
     @property
     def action_names(self) -> list[str]:
-        """Return list of action names."""
         return self.env_metadata.action_names
 
     @property
     def observation_space(self):
-        """Return observation space."""
         return self.env_metadata.observation_space
