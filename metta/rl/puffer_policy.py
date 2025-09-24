@@ -122,15 +122,13 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
     return policy
 
 
-class PufferLibCheckpoint:
-    """Loader for checkpoints in both Metta and PufferLib formats."""
+def load_pufferlib_checkpoint(checkpoint_data: Any, device: str | torch.device = "cpu") -> Any:
+    """Load a PufferLib checkpoint into a Metta policy."""
+    logger.info("Loading checkpoint in PufferLib state_dict format")
+    if not isinstance(checkpoint_data, dict):
+        raise TypeError("Expected checkpoint_data to be a dict (state_dict format)")
 
-    def load_checkpoint(self, checkpoint_data: Any, device: str | torch.device = "cpu") -> Any:
-        logger.info("Loading checkpoint in PufferLib state_dict format")
-        if not isinstance(checkpoint_data, dict):
-            raise TypeError("Expected checkpoint_data to be a dict (state_dict format)")
-
-        logger.debug(f"Checkpoint sample keys: {list(checkpoint_data.keys())[:10]}")
-        policy = _create_metta_agent(device)
-        processed_state = _preprocess_state_dict(checkpoint_data)
-        return _load_state_dict_into_agent(policy, processed_state)
+    logger.debug(f"Checkpoint sample keys: {list(checkpoint_data.keys())[:10]}")
+    policy = _create_metta_agent(device)
+    processed_state = _preprocess_state_dict(checkpoint_data)
+    return _load_state_dict_into_agent(policy, processed_state)
