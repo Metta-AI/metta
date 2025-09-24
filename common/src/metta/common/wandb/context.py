@@ -61,6 +61,7 @@ class WandbContext:
         wandb_cfg: WandbConfig,
         extra_cfg: Config | dict[str, Any] | None = None,
         timeout: int = 30,
+        extra_cfg_name: str | None = None,
     ):
         """
         Initialize WandbContext.
@@ -72,6 +73,7 @@ class WandbContext:
         """
         self.cfg = wandb_cfg
         self.extra_cfg = extra_cfg
+        self.extra_cfg_name = extra_cfg_name
         self.run: WandbRun | None = None
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
@@ -104,10 +106,13 @@ class WandbContext:
             config = None
             if self.extra_cfg:
                 if isinstance(self.extra_cfg, dict):
-                    config = self.extra_cfg
+                    key = self.extra_cfg_name or "extra_config_dict"
+                    config = {key: self.extra_cfg}
                 else:
                     # Assume it's a Config object with model_dump method
-                    config = self.extra_cfg.model_dump()
+                    class_name = self.extra_cfg.__class__.__name__
+                    key = self.extra_cfg_name or class_name or "extra_config_object"
+                    config = {key: self.extra_cfg.model_dump()}
 
             self.run = wandb.init(
                 id=self.cfg.run_id,
