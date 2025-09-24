@@ -11,7 +11,7 @@ from typing import Any, Dict, TypeGuard
 
 import torch
 
-from metta.agent.policies.puffer import PufferPolicy, PufferPolicyConfig
+from metta.agent.policies.puffer_simple import PufferSimpleConfig, PufferSimplePolicy
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,7 @@ def _preprocess_state_dict(state_dict: Dict[str, torch.Tensor]) -> Dict[str, tor
             logger.debug(f"Missing expected key in checkpoint: {src_key}")
 
     logger.info(f"Preprocessed checkpoint: {len(state_dict)} -> {len(processed)} parameters")
+    print("Preprocessed state dict keys:", list(processed.keys()))
     return processed
 
 
@@ -90,8 +91,8 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
     env_cfg = make_arena(num_agents=60)
     temp_env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
-    policy_cfg = PufferPolicyConfig()
-    policy = PufferPolicy(temp_env, policy_cfg).to(device)
+    policy_cfg = PufferSimpleConfig()
+    policy = PufferSimplePolicy(temp_env, policy_cfg).to(device)
     print("policy keys", policy.state_dict().keys())
 
     temp_env.close()
@@ -103,6 +104,7 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
     policy_state = policy.state_dict()
     compatible_state = {}
     shape_mismatches = []
+    missing_keys = []
 
     keys_matched = 0
     for key, value in state_dict.items():
@@ -113,12 +115,18 @@ def _load_state_dict_into_agent(policy: Any, state_dict: Dict[str, torch.Tensor]
                 keys_matched += 1
             else:
                 shape_mismatches.append(f"{key}: checkpoint {value.shape} vs policy {target_param.shape}")
-                logger.debug(f"Shape mismatch for {key}: checkpoint {value.shape} vs policy {target_param.shape}")
+                print(f"Shape mismatch for {key}: checkpoint {value.shape} vs policy {target_param.shape}")
         else:
-            logger.debug(f"Skipping unmatched parameter: {key}")
+            missing_keys.append(key)
+            print(f"Missing key in policy: {key}")
 
     if shape_mismatches:
         logger.warning(f"Shape mismatches found for {len(shape_mismatches)} parameters")
+        for mismatch in shape_mismatches:
+            print(f"SHAPE MISMATCH: {mismatch}")
+
+    if missing_keys:
+        print(f"Missing keys in policy: {missing_keys}")
 
     logger.info(f"Loaded {keys_matched}/{len(state_dict)} compatible parameters")
 
