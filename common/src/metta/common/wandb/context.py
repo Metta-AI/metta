@@ -59,7 +59,7 @@ class WandbContext:
     def __init__(
         self,
         wandb_cfg: WandbConfig,
-        extra_cfg: Config | dict[str, Any] | None = None,
+        extra_cfg: Config | dict[str, Any] | str | None = None,
         timeout: int = 30,
         extra_cfg_name: str | None = None,
     ):
@@ -68,7 +68,7 @@ class WandbContext:
 
         Args:
             wandb_cfg: WandB configuration
-            extra_cfg: Optional Config object or dict to log to the wandb run
+            extra_cfg: Optional data to log to the wandb run summary
             timeout: Connection timeout in seconds
         """
         self.cfg = wandb_cfg
@@ -108,11 +108,16 @@ class WandbContext:
                 if isinstance(self.extra_cfg, dict):
                     key = self.extra_cfg_name or "extra_config_dict"
                     config = {key: self.extra_cfg}
-                else:
+                elif isinstance(self.extra_cfg, Config):
                     # Assume it's a Config object with model_dump method
                     class_name = self.extra_cfg.__class__.__name__
                     key = self.extra_cfg_name or class_name or "extra_config_object"
                     config = {key: self.extra_cfg.model_dump()}
+                elif isinstance(self.extra_cfg, str):
+                    config = self.extra_cfg
+                else:
+                    logger.error(f"Invalid extra_cfg: {self.extra_cfg}")
+                    config = None
 
             self.run = wandb.init(
                 id=self.cfg.run_id,
@@ -124,7 +129,7 @@ class WandbContext:
                 allow_val_change=True,
                 monitor_gym=True,
                 save_code=True,
-                resume=True,
+                resume="allow",
                 tags=tags,
                 notes=self.cfg.notes or None,
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
