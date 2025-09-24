@@ -110,7 +110,6 @@ def train(
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        bptt_horizon=96,
     )
 
     if policy_architecture is None:
