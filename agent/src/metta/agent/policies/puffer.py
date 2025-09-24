@@ -90,14 +90,14 @@ class PufferPolicy(Policy):
         self.actor = nn.ModuleList([nn.Linear(512, n) for n in action_nvec])
         self.value = nn.Linear(512, 1)
 
-        lstm_config = LSTMConfig(
-            in_key="encoded_obs",
-            out_key="core",
-            latent_size=512,
-            hidden_size=512,
-            num_layers=1,
-        )
-        self.lstm = LSTM(lstm_config)
+        # Use LSTM from config
+        self.lstm = LSTM(config=self.config.lstm_config)
+
+        # Value head as TensorDictModule
+        self.value_head = TDM(self.value, in_keys=["core"], out_keys=["values"])
+
+        # Action probabilities component
+        self.action_probs = ActionProbs(config=self.config.action_probs_config)
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Converts raw observation tokens into a concatenated self + CNN feature vector."""
