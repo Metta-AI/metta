@@ -1,12 +1,7 @@
 import random
 import subprocess
 import time
-<<<<<<< HEAD
 from typing import Optional, Sequence
-=======
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
->>>>>>> 05a4cb6dc0a94565ae83300a8ab8ccce90eaaf15
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -21,13 +16,8 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-<<<<<<< HEAD
-=======
-from mettagrid.builder import empty_converters
->>>>>>> 05a4cb6dc0a94565ae83300a8ab8ccce90eaaf15
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from pydantic import Field
 import json
 import os
 
