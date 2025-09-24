@@ -24,9 +24,6 @@ wandb_retry = retry_on_exception(
     exceptions=(CommError, TimeoutError, ConnectionError, OSError),
 )
 
-# Global storage for table data, keyed by table name
-_table_data_storage = {}
-
 
 def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: str) -> None:
     if not all([title, text, run_id, project, entity]):
@@ -48,30 +45,20 @@ def send_wandb_alert(title: str, text: str, run_id: str, project: str, entity: s
         wandb.finish()
 
 
-def log_to_wandb_table(data: dict[str, Any], table_name: str = "Summary") -> None:
-    """Append multiple key-value pairs from a dictionary to a persistent table in wandb."""
+def log_to_wandb_summary(data: dict[str, Any]) -> None:
+    """Log key-value pairs to wandb summary for cross-run comparison."""
     if wandb.run is None:
         raise RuntimeError("No active wandb run. Use WandbContext to initialize a run.")
 
     try:
-        # Initialize table data list if this is the first entry for this table
-        if table_name not in _table_data_storage:
-            _table_data_storage[table_name] = []
-
-        # Add all new rows to the table data
+        # Simply update the summary with all key-value pairs
         for key, value in data.items():
-            _table_data_storage[table_name].append([key, str(value)])
+            wandb.run.summary[key] = value
 
-        # Create a new table with all accumulated data for this table
-        table = wandb.Table(columns=["Key", "Value"], data=_table_data_storage[table_name])
-
-        # Log the updated table once
-        wandb.log({table_name: table})
-
-        logger.info(f"✅ Added {len(data)} items to wandb '{table_name}' table")
+        logger.info(f"✅ Added {len(data)} items to wandb summary")
 
     except Exception as e:
-        raise RuntimeError(f"Failed to log dict to wandb table '{table_name}': {e}") from e
+        raise RuntimeError(f"Failed to log to wandb summary: {e}") from e
 
 
 @wandb_retry
