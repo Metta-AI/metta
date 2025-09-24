@@ -8,7 +8,7 @@ import torch
 from pydantic import Field, field_validator, model_validator
 
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import POLICY_PRESETS, Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -56,10 +56,13 @@ logger = getRankAwareLogger(__name__)
 class TrainTool(Tool):
     @classmethod
     def policy_presets(cls) -> dict[str, str]:
-        provider = getattr(PolicyArchitecture, "available_aliases", None)
-        if callable(provider):
-            return provider()
-        return {}
+        presets: dict[str, str] = {}
+        for alias, target in POLICY_PRESETS.items():
+            if isinstance(target, str):
+                presets[alias] = target
+            else:
+                presets[alias] = f"{target.__module__}.{target.__qualname__}"
+        return presets
 
     @field_validator("policy_architecture", mode="before")
     @classmethod

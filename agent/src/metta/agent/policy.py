@@ -4,7 +4,7 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, Dict, List
 
 import torch
 import torch.nn as nn
@@ -23,6 +23,16 @@ from metta.rl.training import EnvironmentMetaData
 from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
 
+POLICY_PRESETS: Dict[str, Any] = {
+    "fast": "metta.agent.policies.fast.FastConfig",
+    "fast_lstm_reset": "metta.agent.policies.fast_lstm_reset.FastLSTMResetConfig",
+    "fast_dynamics": "metta.agent.policies.fast_dynamics.FastDynamicsConfig",
+    "cnn_trans": "metta.agent.policies.cnn_trans.CNNTransConfig",
+    "vit_small": "metta.agent.policies.vit.ViTSmallConfig",
+    # Backwards compatibility alias for existing docs/CLI usage.
+    "vit": "metta.agent.policies.vit.ViTSmallConfig",
+}
+
 
 class PolicyArchitecture(Config):
     """Policy architecture configuration."""
@@ -34,62 +44,27 @@ class PolicyArchitecture(Config):
     # a separate component that optionally accepts actions and process logits into log probs, entropy, etc.
     action_probs_config: ComponentConfig
 
-    _ALIASES: ClassVar[Dict[str, tuple[str, str]]] = {}
-
-    @classmethod
-    def register_alias(cls, alias: str, target: str) -> None:
-        alias_key = alias.casefold()
-        cls._ALIASES[alias_key] = (alias, target)
-
-    @classmethod
-    def available_aliases(cls) -> dict[str, str]:
-        return {alias: target for alias, target in cls._ALIASES.values()}
-
     @classmethod
     def resolve(cls, value: Any) -> "PolicyArchitecture":
-        direct = cls._coerce_value(value)
-        if direct is not None:
-            return direct
+        if isinstance(value, cls):
+            return value
 
         if isinstance(value, str):
-            alias_entry = cls._ALIASES.get(value.casefold())
-            reference = alias_entry[1] if alias_entry else value
+            preset = POLICY_PRESETS.get(value.lower(), value)
+            value = preset
 
-            try:
-                symbol = load_symbol(reference)
-            except (ImportError, AttributeError, ModuleNotFoundError) as exc:
-                if alias_entry is None:
-                    aliases = cls._format_aliases()
-                    raise ValueError(f"Unknown policy preset '{value}'. Valid options: {aliases}") from exc
-                raise ValueError(f"Unable to load policy preset '{value}': {exc}") from exc
+        if isinstance(value, str):
+            value = load_symbol(value)
 
-            coerced = cls._coerce_value(symbol)
-            if coerced is not None:
-                return coerced
+        if isinstance(value, type) and issubclass(value, cls):
+            return value()
 
-            raise TypeError(f"Resolved object {symbol!r} for reference {reference!r} is not a {cls.__name__}")
-
-        raise TypeError(f"Unable to resolve value {value!r} into an instance of {cls.__name__}")
-
-    @classmethod
-    def _coerce_value(cls, candidate: Any) -> Optional["PolicyArchitecture"]:
-        if isinstance(candidate, cls):
-            return candidate
-
-        if isinstance(candidate, type) and issubclass(candidate, cls):
-            return candidate()
-
-        if callable(candidate):
-            produced = candidate()
+        if callable(value):
+            produced = value()
             if isinstance(produced, cls):
                 return produced
 
-        return None
-
-    @classmethod
-    def _format_aliases(cls) -> str:
-        aliases = sorted(cls.available_aliases())
-        return ", ".join(aliases) if aliases else "(none available)"
+        raise TypeError(f"Unable to resolve value {value!r} into an instance of {cls.__name__}")
 
     def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""
@@ -200,18 +175,3 @@ class ExternalPolicyWrapper(Policy):
 
     def reset_memory(self):
         pass
-
-
-_POLICY_ALIAS_TARGETS: Dict[str, str] = {
-    "fast": "metta.agent.policies.fast.FastConfig",
-    "fast_lstm_reset": "metta.agent.policies.fast_lstm_reset.FastLSTMResetConfig",
-    "fast_dynamics": "metta.agent.policies.fast_dynamics.FastDynamicsConfig",
-    "cnn_trans": "metta.agent.policies.cnn_trans.CNNTransConfig",
-    "vit_small": "metta.agent.policies.vit.ViTSmallConfig",
-    # Backwards compatibility alias for existing docs/CLI usage.
-    "vit": "metta.agent.policies.vit.ViTSmallConfig",
-}
-
-
-for alias, target in _POLICY_ALIAS_TARGETS.items():
-    PolicyArchitecture.register_alias(alias, target)
