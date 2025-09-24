@@ -59,7 +59,8 @@ export const MentionInput: React.FC<MentionInputProps> = ({
   const searchMentions = async (
     query: string,
     type: MentionType,
-    domain?: string
+    domain?: string,
+    institutionName?: string
   ) => {
     if (query.length === 0) {
       setSuggestions([]);
@@ -75,6 +76,10 @@ export const MentionInput: React.FC<MentionInputProps> = ({
 
       if (domain) {
         params.set("domain", domain);
+      }
+
+      if (institutionName) {
+        params.set("institutionName", institutionName);
       }
 
       const response = await fetch(`/api/mentions/search?${params}`);
@@ -105,13 +110,13 @@ export const MentionInput: React.FC<MentionInputProps> = ({
     if (mentionAtCursor && mentionAtCursor.match.startsWith("@")) {
       setCurrentMention(mentionAtCursor);
 
-      const { query, type, domain } = extractMentionQuery(
+      const { query, type, domain, institutionName } = extractMentionQuery(
         mentionAtCursor.match
       );
 
       // Debounced search
       searchTimeoutRef.current = setTimeout(() => {
-        searchMentions(query, type, domain);
+        searchMentions(query, type, domain, institutionName);
         setShowSuggestions(true);
         setSelectedIndex(0);
       }, 150);
