@@ -10,6 +10,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.loss_config import LossConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.trainer_config import TrainerConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -350,16 +351,19 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
-    # for in context learning, we need episode length to be equal to bptt_horizon
-    # which requires a large batch size
-    trainer_cfg.batch_size = 4128768
-    trainer_cfg.bptt_horizon = 512
+    policy_config = FastLSTMResetConfig()
 
     training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
     return TrainTool(
         trainer=trainer_cfg,
         training_env=training_env_cfg,
-        evaluator=EvaluatorConfig(simulations=make_unordered_chain_eval_suite()),
+        policy_architecture=policy_config,
+        evaluator=EvaluatorConfig(
+            simulations=make_unordered_chain_eval_suite(),
+            evaluate_remote=True,
+            evaluate_local=False,
+        ),
+        stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
 
