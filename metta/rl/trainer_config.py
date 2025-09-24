@@ -2,7 +2,7 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss import LossConfig
 from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
 from mettagrid.config import Config
 

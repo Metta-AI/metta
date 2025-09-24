@@ -1,14 +1,19 @@
+import json
+import os
 import random
 import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Optional, Sequence
+
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.rl.loss.loss_config import LossConfig
+from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -16,14 +21,14 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from pydantic import Field
-import json
-import os
+
+from experiments.evals.in_context_learning.ordered_chains import (
+    make_icl_resource_chain_eval_suite,
+)
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -144,11 +149,11 @@ curriculum_args = {
 
 @dataclass
 class _BuildCfg:
-    used_objects: List[str] = field(default_factory=list)
-    all_input_resources: List[str] = field(default_factory=list)
-    converters: List[str] = field(default_factory=list)
-    game_objects: Dict[str, Any] = field(default_factory=dict)
-    map_builder_objects: Dict[str, int] = field(default_factory=dict)
+    used_objects: list[str] = field(default_factory=list)
+    all_input_resources: list[str] = field(default_factory=list)
+    converters: list[str] = field(default_factory=list)
+    game_objects: dict[str, Any] = field(default_factory=dict)
+    map_builder_objects: dict[str, int] = field(default_factory=dict)
 
 
 def get_reward_estimates(
@@ -247,7 +252,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         self.converter_types = CONVERTER_TYPES.copy()
 
     def _choose_converter_name(
-        self, pool: Dict[str, Any], used: set[str], rng: random.Random
+        self, pool: dict[str, Any], used: set[str], rng: random.Random
     ) -> str:
         choices = [name for name in pool.keys() if name not in used]
         if not choices:
@@ -458,11 +463,6 @@ def train(
     lp_params: LPParams = LPParams(),
     use_fast_lstm_reset: bool = True,
 ) -> TrainTool:
-    # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.ordered_chains import (
-        make_icl_resource_chain_eval_suite,
-    )
-
     curriculum = make_curriculum(curriculum_style, lp_params)
 
     trainer_cfg = TrainerConfig(
@@ -521,11 +521,6 @@ def replay(
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
-    # Local import to   avoid circular import at module load time
-    from experiments.evals.in_context_learning.ordered_chains import (
-        make_icl_resource_chain_eval_suite,
-    )
-
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
         simulations=simulations,
