@@ -12,12 +12,12 @@ from metta.agent.policies.puffer import PufferPolicy, PufferPolicyConfig
 logger = logging.getLogger(__name__)
 
 
-def _is_puffer_state_dict(loaded_obj: Any) -> TypeGuard[Dict[str, torch.Tensor]]:
+def _is_puffer_state_dict(loaded_obj) -> TypeGuard[Dict[str, torch.Tensor]]:
     """Return True if the object appears to be a PufferLib state_dict."""
     return isinstance(loaded_obj, dict) and bool(loaded_obj) and any(key.startswith("policy.") for key in loaded_obj)
 
 
-def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
+def _create_metta_agent(device: str | torch.device = "cpu"):
     """Instantiate a PufferLib-compatible Metta policy for checkpoint loading."""
 
     from mettagrid import MettaGridEnv
@@ -32,7 +32,7 @@ def _create_metta_agent(device: str | torch.device = "cpu") -> Any:
     return policy
 
 
-def load_pufferlib_checkpoint(checkpoint_data: Any, device: str | torch.device = "cpu") -> Any:
+def load_pufferlib_checkpoint(checkpoint_data, device: str | torch.device = "cpu"):
     """Load a PufferLib checkpoint into a Metta policy."""
     logger.info("Loading checkpoint in PufferLib state_dict format")
     if not isinstance(checkpoint_data, dict):
