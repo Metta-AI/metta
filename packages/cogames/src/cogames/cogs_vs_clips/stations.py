@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import AssemblerConfig, RecipeConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, RecipeConfig
 
 resources = [
     "energy",
@@ -22,7 +22,7 @@ def charger() -> AssemblerConfig:
             (
                 ["Any"],
                 RecipeConfig(
-                    output_resources={"energy": 100},
+                    output_resources={"energy": 50},
                     cooldown=1,
                 ),
             )
@@ -73,8 +73,8 @@ def geranium_extractor() -> AssemblerConfig:
                 ["Any"],
                 RecipeConfig(
                     input_resources={"energy": 1},
-                    output_resources={"geranium": 1},
-                    cooldown=1,
+                    output_resources={"geranium": 10},
+                    cooldown=100,
                 ),
             )
         ],
@@ -98,20 +98,12 @@ def silicon_extractor() -> AssemblerConfig:
     )
 
 
-def chest() -> AssemblerConfig:
-    return AssemblerConfig(
-        name="chest",
+def chest() -> ChestConfig:
+    return ChestConfig(
         type_id=17,
-        recipes=[
-            (
-                ["Any"],
-                RecipeConfig(
-                    input_resources={"heart": 1},
-                    output_resources={},
-                    cooldown=1,
-                ),
-            )
-        ],
+        resource_type="heart",
+        deposit_positions=["E"],
+        withdrawal_positions=["W"],
     )
 
 
