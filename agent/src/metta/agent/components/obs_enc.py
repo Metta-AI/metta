@@ -206,6 +206,110 @@ class ObsLatentAttn(nn.Module):
         return td
 
 
+class ObsPerceiverLatentConfig(ComponentConfig):
+    in_key: str
+    out_key: str
+    feat_dim: int
+    latent_dim: int
+    num_latents: int = 16
+    num_heads: int = 4
+    num_layers: int = 2
+    mlp_ratio: float = 4.0
+    use_mask: bool = True
+    name: str = "obs_perceiver_latent"
+
+    def make_component(self, env=None):
+        return ObsPerceiverLatent(config=self)
+
+
+class ObsPerceiverLatent(nn.Module):
+    """Cross-attention encoder that maps input tokens to a fixed set of latent slots."""
+
+    def __init__(self, config: ObsPerceiverLatentConfig) -> None:
+        super().__init__()
+        self.config = config
+        self._feat_dim = config.feat_dim
+        self._latent_dim = config.latent_dim
+        self._num_latents = config.num_latents
+        self._num_heads = config.num_heads
+        self._num_layers = config.num_layers
+        self._mlp_ratio = config.mlp_ratio
+        self._use_mask = config.use_mask
+
+        if self._feat_dim <= 0:
+            raise ValueError("feat_dim must be positive")
+        if self._latent_dim % self._num_heads != 0:
+            raise ValueError(f"latent_dim ({self._latent_dim}) must be divisible by num_heads ({self._num_heads})")
+
+        self.latents = nn.Parameter(torch.randn(1, self._num_latents, self._latent_dim))
+        nn.init.trunc_normal_(self.latents, std=0.02)
+
+        self.token_norm = nn.LayerNorm(self._feat_dim)
+        self.k_proj = nn.Linear(self._feat_dim, self._latent_dim, bias=False)
+        self.v_proj = nn.Linear(self._feat_dim, self._latent_dim, bias=False)
+
+        self.layers = nn.ModuleList([])
+        for _ in range(self._num_layers):
+            self.layers.append(
+                nn.ModuleDict(
+                    {
+                        "latent_norm": nn.LayerNorm(self._latent_dim),
+                        "q_proj": nn.Linear(self._latent_dim, self._latent_dim, bias=False),
+                        "attn_out_proj": nn.Linear(self._latent_dim, self._latent_dim),
+                        "mlp_norm": nn.LayerNorm(self._latent_dim),
+                        "mlp": nn.Sequential(
+                            nn.Linear(self._latent_dim, int(self._latent_dim * self._mlp_ratio)),
+                            nn.GELU(),
+                            nn.Linear(int(self._latent_dim * self._mlp_ratio), self._latent_dim),
+                        ),
+                    }
+                )
+            )
+
+        self.final_norm = nn.LayerNorm(self._latent_dim)
+
+    def forward(self, td: TensorDict) -> TensorDict:
+        x_features = td[self.config.in_key]
+        key_mask = None
+        if self._use_mask:
+            key_mask = td.get("obs_mask")
+
+        B = x_features.shape[0]
+
+        tokens_norm = self.token_norm(x_features)
+        k = self.k_proj(tokens_norm)
+        v = self.v_proj(tokens_norm)
+
+        k = einops.rearrange(k, "b m (h d) -> b h m d", h=self._num_heads)
+        v = einops.rearrange(v, "b m (h d) -> b h m d", h=self._num_heads)
+
+        attn_bias = None
+        if key_mask is not None:
+            key_mask = key_mask.to(torch.bool)
+            mask_value = -torch.finfo(k.dtype).max
+            attn_bias = key_mask.unsqueeze(1).unsqueeze(1).to(k.dtype) * mask_value
+
+        latents = self.latents.expand(B, -1, -1)
+
+        for layer in self.layers:
+            residual = latents
+            latents_norm = layer["latent_norm"](latents)
+            q = layer["q_proj"](latents_norm)
+            q = einops.rearrange(q, "b n (h d) -> b h n d", h=self._num_heads)
+
+            attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
+            attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
+            attn_output = layer["attn_out_proj"](attn_output)
+            latents = residual + attn_output
+
+            residual = latents
+            latents = residual + layer["mlp"](layer["mlp_norm"](latents))
+
+        latents = self.final_norm(latents)
+        td[self.config.out_key] = latents
+        return td
+
+
 class ObsSelfAttnConfig(ComponentConfig):
     feat_dim: int
     in_key: str
