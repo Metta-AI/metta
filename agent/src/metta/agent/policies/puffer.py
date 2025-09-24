@@ -40,22 +40,23 @@ class PufferPolicyConfig(PolicyArchitecture):
 class PufferPolicy(Policy):
     """Policy that exactly matches PufferLib architecture for seamless checkpoint loading."""
 
-    def __init__(self, env, config: Optional[PufferPolicyConfig] = None):
+    def __init__(self, env_metadata, config: Optional[PufferPolicyConfig] = None):
         super().__init__()
         self.config = config or PufferPolicyConfig()
-        self.env = env
+        self.env_metadata = env_metadata
+        self.env = env_metadata.env
         self.is_continuous = False
-        self.action_space = env.action_space
+        self.action_space = self.env.action_space
 
         self.active_action_names = []
         self.num_active_actions = 100  # Default
         self.action_index_tensor = None
         self.cum_action_max_params = None
 
-        self.out_width = env.obs_width
-        self.out_height = env.obs_height
+        self.out_width = self.env.obs_width
+        self.out_height = self.env.obs_height
 
-        self.num_layers = max(env.feature_normalizations.keys())
+        self.num_layers = max(self.env.feature_normalizations.keys())
 
         self.conv1 = nn.Conv2d(24, 128, kernel_size=5, stride=3)
         self.conv2 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
@@ -119,6 +120,7 @@ class PufferPolicy(Policy):
             dtype=atr_values.dtype,
             device=observations.device,
         )
+        
 
         valid_tokens = (
             (coords_byte != 0xFF)
@@ -186,12 +188,10 @@ class PufferPolicy(Policy):
 
         return td
 
-    def initialize_to_environment(self, env, device) -> List[str]:
+    def initialize_to_environment(self, env_metadata, device: torch.device):
         """Initialize policy components to environment."""
-        device = torch.device(device)
         self.to(device)
-        self.action_probs.initialize_to_environment(env, device)
-        return ["PufferPolicy initialized"]
+        self.action_probs.initialize_to_environment(env_metadata, device)
 
     def reset_memory(self):
         """Reset LSTM memory."""
