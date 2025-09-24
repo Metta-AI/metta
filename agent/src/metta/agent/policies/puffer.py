@@ -106,8 +106,6 @@ class PufferPolicy(Policy):
         max_vec = max_vec[None, :, None, None]
         self.policy.register_buffer("max_vec", max_vec)
 
-        # Use the same action space structure as PufferLib (separate heads per action type)
-        # Override for checkpoint compatibility: checkpoint has [5, 9] action dimensions
         action_nvec = [5, 9]  # Match checkpoint exactly: actor.0 (5 actions), actor.1 (9 actions)
         self.policy.actor = nn.ModuleList([
             pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
@@ -115,8 +113,6 @@ class PufferPolicy(Policy):
         ])
         self.policy.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
-        # Use direct nn.LSTM to match checkpoint structure exactly
-        # Instead of LSTM wrapper which creates lstm.net.*, use direct LSTM
         self.lstm = nn.LSTM(input_size=512, hidden_size=512, num_layers=1)
 
         # Initialize LSTM weights to match PufferLib initialization
@@ -198,15 +194,13 @@ class PufferPolicy(Policy):
         encoded_obs = self.encode_observations(observations)
         td["encoded_obs"] = encoded_obs
 
-        # Pass through LSTM: [B, 512] -> [B, 512]
-        # For direct nn.LSTM, we need to handle the sequence dimension
-        # Expand to sequence length 1: [B, 512] -> [1, B, 512]
+        # Pass through LSTM: [1, B, 512] -> [1, B, 512]
         lstm_input = encoded_obs.unsqueeze(0)
         lstm_output, _ = self.lstm(lstm_input)
         # Remove sequence dimension: [1, B, 512] -> [B, 512]
         core_features = lstm_output.squeeze(0)
 
-        # Decode actions - returns separate logits per action type (matching PufferLib)
+        # Decode actions - returns separate logits per action type
         logits, value = self.decode_actions(core_features)
 
         # For ActionProbs compatibility, we need to flatten logits into single tensor
