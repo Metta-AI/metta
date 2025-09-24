@@ -3,6 +3,7 @@ import argparse
 import copy
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from devops.skypilot.utils.job_helpers import (
     validate_module_path,
 )
 from metta.common.util.cli import get_user_confirmation
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import cd_repo_root
 from metta.common.util.text_styles import red
 from metta.tools.utils.auto_config import auto_run_name
@@ -242,6 +244,8 @@ Examples:
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,  # enables discord notification
         GITHUB_PAT=args.github_pat,  # enables github status update
+        WANDB_PROJECT=os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT),
+        WANDB_ENTITY=os.environ.get("WANDB_ENTITY", METTA_WANDB_ENTITY),
         ENABLE_WANDB_ALERTS="false" if args.run_ci_tests else "true",  # enables wandb alerts
         TEST_NCCL="true" if args.run_ci_tests else "false",
         TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
