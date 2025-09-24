@@ -84,6 +84,7 @@ class GaLiTeAttentionLayer(nn.Module):
         self.eps = eps
         self.reset_hidden_on_terminate = reset_hidden_on_terminate
         self.kernel = kernel
+        self.feature_dim = self.kernel.feature_dim(self.head_dim, self.eta)
 
         # Feature map projections with proper dimensions
         self.q_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
@@ -148,25 +149,13 @@ class GaLiTeAttentionLayer(nn.Module):
         p3 = self.p3_proj(inputs).view(T, B, self.head_num, self.eta)
 
         # Apply feature maps with outer products (paper eq. 4-6)
-        feature_activation = self.kernel.feature_activation()
-        projection_activation = self.kernel.project_activation()
-
-        # φ(q) = φ(q) ⊗ φ(p2)
-        phi_q = torch.einsum("tbhd,tbhe->tbhde", feature_activation(queries), projection_activation(p2))
-        phi_q = phi_q.reshape(T, B, self.head_num, self.head_dim * self.eta)
-
-        # ψ(k) = φ(k) ⊗ φ(p1)
-        psi_k = torch.einsum("tbhd,tbhe->tbhde", feature_activation(keys), projection_activation(p1))
-        psi_k = psi_k.reshape(T, B, self.head_num, self.head_dim * self.eta)
-
-        # γ feature map uses gated projections
-        sigma_p3 = torch.sigmoid(self.kernel.gamma_projection(p3))
-        gamma_feat = torch.einsum("tbhd,tbhe->tbhde", gamma, sigma_p3)
-        gamma_feat = gamma_feat.reshape(T, B, self.head_num, self.head_dim * self.eta)
+        phi_q = self.kernel.feature_map(queries, p2, self.eta).reshape(T, B, self.head_num, self.feature_dim)
+        psi_k = self.kernel.feature_map(keys, p1, self.eta).reshape(T, B, self.head_num, self.feature_dim)
+        gamma_feat = self.kernel.gamma_map(gamma, p3, self.eta).reshape(T, B, self.head_num, self.feature_dim)
 
         # Apply gating
         gated_values = values * beta  # (T, B, head_num, head_dim)
-        gated_keys = psi_k * gamma_feat  # (T, B, head_num, head_dim * eta)
+        gated_keys = psi_k * gamma_feat  # (T, B, head_num, feature_dim)
 
         # Prepare discount factors for discounted sum
         if self.reset_hidden_on_terminate:
@@ -185,8 +174,8 @@ class GaLiTeAttentionLayer(nn.Module):
 
         # Compute attention output
         # Output = KV @ φ(q) / (φ(q)^T @ norm + ε)
-        attn_num = torch.einsum("tbhDd,tbhD->tbhd", new_kv_state, phi_q)  # (T, B, head_num, head_dim)
-        attn_denom = torch.einsum("tbhD,tbhD->tbh", phi_q, new_norm_state)  # (T, B, head_num)
+        attn_num = torch.einsum("tbhDd,tbhD->tbhd", new_kv_state, phi_q)
+        attn_denom = torch.einsum("tbhD,tbhD->tbh", phi_q, new_norm_state)
 
         attn_out = attn_num / (attn_denom.unsqueeze(-1) + self.eps)
 
@@ -202,17 +191,22 @@ class GaLiTeAttentionLayer(nn.Module):
 
     @staticmethod
     def initialize_memory(
-        batch_size: int, head_num: int, head_dim: int, eta: int, device: Optional[torch.device] = None
+        batch_size: int,
+        head_num: int,
+        head_dim: int,
+        eta: int,
+        device: Optional[torch.device] = None,
+        kernel: Optional[AGaLiTeKernelConfig] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Initialize memory for GaLiTe attention layer."""
         if device is None:
             device = torch.device("cpu")
 
-        # KV state: (B, head_num, head_dim * eta, head_dim)
-        kv_state = torch.zeros(batch_size, head_num, head_dim * eta, head_dim, device=device)
+        kernel_conf = kernel or AGaLiTeKernelConfig()
+        feature_dim = kernel_conf.feature_dim(head_dim, eta)
 
-        # Norm state: (B, head_num, head_dim * eta)
-        norm_state = torch.zeros(batch_size, head_num, head_dim * eta, device=device)
+        kv_state = torch.zeros(batch_size, head_num, feature_dim, head_dim, device=device)
+        norm_state = torch.zeros(batch_size, head_num, feature_dim, device=device)
 
         return (kv_state, norm_state)
 
@@ -246,6 +240,7 @@ class AGaLiTeAttentionLayer(nn.Module):
         self.eps = eps
         self.reset_hidden_on_terminate = reset_hidden_on_terminate
         self.kernel = kernel
+        self.feature_dim = self.kernel.feature_dim(self.head_dim, self.eta)
 
         # All projections (same as GaLiTe but with r-dimensional expansion)
         self.q_proj = nn.Linear(input_dim, head_num * head_dim, bias=False)
@@ -316,19 +311,9 @@ class AGaLiTeAttentionLayer(nn.Module):
         p2 = self.p2_proj(inputs).view(T, B, self.head_num, self.eta)
         p3 = self.p3_proj(inputs).view(T, B, self.head_num, self.eta)
 
-        # Apply feature maps with outer products
-        feature_activation = self.kernel.feature_activation()
-        projection_activation = self.kernel.project_activation()
-
-        phi_q = torch.einsum("tbhd,tbhe->tbhde", feature_activation(queries), projection_activation(p2))
-        phi_q = phi_q.reshape(T, B, self.head_num, self.head_dim * self.eta)
-
-        psi_k = torch.einsum("tbhd,tbhe->tbhde", feature_activation(keys), projection_activation(p1))
-        psi_k = psi_k.reshape(T, B, self.head_num, self.head_dim * self.eta)
-
-        sigma_p3 = torch.sigmoid(self.kernel.gamma_projection(p3))
-        gamma_feat = torch.einsum("tbhd,tbhe->tbhde", gamma, sigma_p3)
-        gamma_feat = gamma_feat.reshape(T, B, self.head_num, self.head_dim * self.eta)
+        phi_q = self.kernel.feature_map(queries, p2, self.eta).reshape(T, B, self.head_num, self.feature_dim)
+        psi_k = self.kernel.feature_map(keys, p1, self.eta).reshape(T, B, self.head_num, self.feature_dim)
+        gamma_feat = self.kernel.gamma_map(gamma, p3, self.eta).reshape(T, B, self.head_num, self.feature_dim)
 
         # Update tick and compute oscillatory terms
         tick_base = tick.view(1, B)
@@ -387,15 +372,24 @@ class AGaLiTeAttentionLayer(nn.Module):
 
     @staticmethod
     def initialize_memory(
-        batch_size: int, head_num: int, head_dim: int, eta: int, r: int, device: Optional[torch.device] = None
+        batch_size: int,
+        head_num: int,
+        head_dim: int,
+        eta: int,
+        r: int,
+        device: Optional[torch.device] = None,
+        kernel: Optional[AGaLiTeKernelConfig] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Initialize memory for AGaLiTe attention layer."""
         if device is None:
             device = torch.device("cpu")
 
-        tilde_k = torch.zeros(batch_size, r, head_num, eta * head_dim, device=device)
+        kernel_conf = kernel or AGaLiTeKernelConfig()
+        feature_dim = kernel_conf.feature_dim(head_dim, eta)
+
+        tilde_k = torch.zeros(batch_size, r, head_num, feature_dim, device=device)
         tilde_v = torch.zeros(batch_size, r, head_num, head_dim, device=device)
-        s = torch.zeros(batch_size, head_num, eta * head_dim, device=device)
+        s = torch.zeros(batch_size, head_num, feature_dim, device=device)
         tick = torch.zeros(batch_size, device=device)
 
         return (tilde_k, tilde_v, s, tick)
@@ -514,6 +508,7 @@ class EnhancedTransformerEncoder(nn.Module):
                 head_dim=self.attention.head_dim,
                 eta=self.attention.eta,
                 device=device,
+                kernel=self.kernel,
             )
         else:  # agalite
             return self.attention.initialize_memory(
@@ -523,4 +518,5 @@ class EnhancedTransformerEncoder(nn.Module):
                 eta=self.attention.eta,
                 r=self.attention.r,
                 device=device,
+                kernel=self.kernel,
             )

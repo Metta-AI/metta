@@ -136,7 +136,7 @@ class EnhancedAGaLiTeCore(nn.Module):
             if self.mode == "fast":
                 # Fast mode memory initialization
                 memory_dict[layer_key] = FastAGaLiTeLayer.initialize_memory(
-                    batch_size, self.n_heads, self.d_head, self.eta, self.r, device
+                    batch_size, self.n_heads, self.d_head, self.eta, self.r, device, kernel=self.kernel
                 )
             else:
                 # Enhanced mode memory initialization

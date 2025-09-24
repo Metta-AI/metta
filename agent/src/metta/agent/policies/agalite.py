@@ -78,18 +78,20 @@ def _build_components(
 class AGaLiTeConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    components: List[ComponentConfig] = Field(default_factory=lambda: _build_components(
-        hidden_size=192,
-        embedding_dim=16,
-        n_layers=2,
-        n_heads=4,
-        feedforward_size=768,
-        eta=4,
-        r=8,
-        mode="agalite",
-        dropout=0.0,
-        kernel=AGaLiTeKernelConfig(name="relu", nu=4),
-    ))
+    components: List[ComponentConfig] = Field(
+        default_factory=lambda: _build_components(
+            hidden_size=192,
+            embedding_dim=16,
+            n_layers=2,
+            n_heads=4,
+            feedforward_size=768,
+            eta=4,
+            r=8,
+            mode="agalite",
+            dropout=0.0,
+            kernel=AGaLiTeKernelConfig(name="relu", nu=4),
+        )
+    )
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
@@ -97,17 +99,19 @@ class AGaLiTeConfig(PolicyArchitecture):
 class AGaLiTeImprovedConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    components: List[ComponentConfig] = Field(default_factory=lambda: _build_components(
-        hidden_size=256,
-        embedding_dim=16,
-        n_layers=4,
-        n_heads=8,
-        feedforward_size=1024,
-        eta=4,
-        r=16,
-        mode="agalite",
-        dropout=0.1,
-        kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
-    ))
+    components: List[ComponentConfig] = Field(
+        default_factory=lambda: _build_components(
+            hidden_size=256,
+            embedding_dim=16,
+            n_layers=4,
+            n_heads=8,
+            feedforward_size=1024,
+            eta=4,
+            r=16,
+            mode="agalite",
+            dropout=0.1,
+            kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
+        )
+    )
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

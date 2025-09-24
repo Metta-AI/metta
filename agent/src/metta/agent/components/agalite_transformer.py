@@ -243,10 +243,7 @@ class AGaLiTeTransformer(nn.Module):
         if hasattr(data, "__iter__") and not isinstance(data, (str, bytes)):
             return list(data)
 
-        raise TypeError(
-            "segment_memory_snapshots must be a sequence of snapshot dicts; "
-            f"received {type(data)!r}"
-        )
+        raise TypeError(f"segment_memory_snapshots must be a sequence of snapshot dicts; received {type(data)!r}")
 
     def _record_segment_memory(
         self,

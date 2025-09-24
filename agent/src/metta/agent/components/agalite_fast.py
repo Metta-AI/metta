@@ -4,7 +4,7 @@ This version reduces memory overhead and fuses operations.
 """
 
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -36,6 +36,7 @@ class FastAGaLiTeLayer(nn.Module):
         self.reset_hidden_on_terminate = reset_hidden_on_terminate
         self.eps = eps
         self.kernel = kernel or AGaLiTeKernelConfig()
+        self.feature_dim = self.kernel.feature_dim(self.head_dim, self.eta)
 
         # Fused projection for all parameters (more efficient)
         total_proj_dim = head_num * head_dim * 5 + head_num * eta * 3
@@ -88,30 +89,9 @@ class FastAGaLiTeLayer(nn.Module):
         # Optimized feature mapping using batched operations
         # Flatten batch and head dimensions for efficiency
         TB = T * B
-        activation = self.kernel.feature_activation()
-        proj_activation = self.kernel.project_activation()
-
-        keys_flat = keys.reshape(TB * self.head_num, self.head_dim)
-        p1_flat = p1.reshape(TB * self.head_num, self.eta)
-
-        keys_expanded = torch.bmm(activation(keys_flat).unsqueeze(2), proj_activation(p1_flat).unsqueeze(1)).reshape(
-            T, B, self.head_num, self.head_dim * self.eta
-        )
-
-        # Similar for queries and gammas
-        queries_flat = queries.reshape(TB * self.head_num, self.head_dim)
-        p2_flat = p2.reshape(TB * self.head_num, self.eta)
-        queries_expanded = torch.bmm(
-            activation(queries_flat).unsqueeze(2), proj_activation(p2_flat).unsqueeze(1)
-        ).reshape(
-            T, B, self.head_num, self.head_dim * self.eta
-        )
-
-        gammas_flat = torch.sigmoid(gammas.reshape(TB * self.head_num, self.head_dim))
-        p3_flat = torch.sigmoid(self.kernel.gamma_projection(p3.reshape(TB * self.head_num, self.eta)))
-        gammas_expanded = torch.bmm(gammas_flat.unsqueeze(2), p3_flat.unsqueeze(1)).reshape(
-            T, B, self.head_num, self.head_dim * self.eta
-        )
+        psi_k = self.kernel.feature_map(keys, p1, self.eta).reshape(T, B, self.head_num, self.feature_dim)
+        phi_q = self.kernel.feature_map(queries, p2, self.eta).reshape(T, B, self.head_num, self.feature_dim)
+        gamma_feat = self.kernel.gamma_map(gammas, p3, self.eta).reshape(T, B, self.head_num, self.feature_dim)
 
         # Oscillatory terms (cached computation)
         tick_base = tick.view(1, B)
@@ -123,7 +103,7 @@ class FastAGaLiTeLayer(nn.Module):
 
         # Apply gating
         values_gated = values * beta
-        keys_gated = keys_expanded * gammas_expanded
+        keys_gated = psi_k * gamma_feat
         s = keys_gated.clone()
 
         # Expand with oscillations (optimize memory layout)
@@ -135,10 +115,10 @@ class FastAGaLiTeLayer(nn.Module):
         # Prepare discount factors
         if self.reset_hidden_on_terminate:
             term_mask = (1 - terminations.float()).unsqueeze(2).unsqueeze(3)
-            discount_gamma = (1 - gammas_expanded) * term_mask
+            discount_gamma = (1 - gamma_feat) * term_mask
             discount_beta = (1 - beta) * term_mask
         else:
-            discount_gamma = 1 - gammas_expanded
+            discount_gamma = 1 - gamma_feat
             discount_beta = 1 - beta
 
         # Discounted sums (the sequential part)
@@ -190,7 +170,7 @@ class FastAGaLiTeLayer(nn.Module):
         # Attention computation (optimized)
         # Use batched operations instead of einsum
         keys_for_attn = final_keys.reshape(T, B, self.r, -1)
-        queries_for_attn = queries_expanded.reshape(T, B, 1, -1)
+        queries_for_attn = phi_q.reshape(T, B, 1, -1)
 
         # Compute attention scores
         attn_scores = (keys_for_attn * queries_for_attn).sum(dim=-1)  # (T, B, r)
@@ -200,7 +180,7 @@ class FastAGaLiTeLayer(nn.Module):
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
 
         # Normalization
-        norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
+        norm = (final_s * phi_q).sum(dim=-1, keepdim=True)
         attn_out = kv / (2 * self.r * norm + self.eps)
 
         # Output projection
@@ -216,14 +196,25 @@ class FastAGaLiTeLayer(nn.Module):
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 
     @staticmethod
-    def initialize_memory(batch_size: int, head_num: int, head_dim: int, eta: int, r: int, device=None):
+    def initialize_memory(
+        batch_size: int,
+        head_num: int,
+        head_dim: int,
+        eta: int,
+        r: int,
+        device=None,
+        kernel: Optional[AGaLiTeKernelConfig] = None,
+    ):
         """Initialize memory for fast AGaLiTe layer."""
         if device is None:
             device = torch.device("cpu")
 
+        kernel_conf = kernel or AGaLiTeKernelConfig()
+        feature_dim = kernel_conf.feature_dim(head_dim, eta)
+
         return (
-            torch.zeros((batch_size, r, head_num, eta * head_dim), device=device),
+            torch.zeros((batch_size, r, head_num, feature_dim), device=device),
             torch.zeros((batch_size, r, head_num, head_dim), device=device),
-            torch.zeros((batch_size, head_num, eta * head_dim), device=device),
+            torch.zeros((batch_size, head_num, feature_dim), device=device),
             torch.zeros(batch_size, device=device),
         )
