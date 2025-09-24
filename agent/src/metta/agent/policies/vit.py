@@ -69,9 +69,10 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     _token_embed_dim = 8
     _fourier_freqs = 6
-    _latent_dim = 48
-    _lstm_latent = 96
-    _critic_hidden = 128
+    _latent_dim = 128
+    _lstm_latent = 128
+    _actor_hidden = 512
+    _critic_hidden = 1024
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
@@ -100,7 +101,15 @@ class ViTDefaultConfig(PolicyArchitecture):
             out_key="core",
             latent_size=_latent_dim,
             hidden_size=_lstm_latent,
-            num_layers=1,
+            num_layers=2,
+        ),
+        MLPConfig(
+            in_key="core",
+            out_key="actor_hidden",
+            name="actor_mlp",
+            in_features=_lstm_latent,
+            hidden_features=[_actor_hidden],
+            out_features=_actor_hidden,
         ),
         MLPConfig(
             in_key="core",
@@ -112,9 +121,9 @@ class ViTDefaultConfig(PolicyArchitecture):
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
         ActorQueryConfig(
-            in_key="core",
+            in_key="actor_hidden",
             out_key="actor_query",
-            hidden_size=_lstm_latent,
+            hidden_size=_actor_hidden,
             embed_dim=_embedding_dim,
         ),
         ActorKeyConfig(
