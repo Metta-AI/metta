@@ -83,10 +83,6 @@ class PufferSimplePolicy(Policy):
 
 
 class PufferLibPolicy(nn.Module):
-    """
-    Direct copy of PufferLib Policy class with minimal changes.
-    This is the actual PufferLib implementation.
-    """
 
     def __init__(self, env_metadata, cnn_channels=128, hidden_size=512, input_size=512, **kwargs):
         super().__init__()
