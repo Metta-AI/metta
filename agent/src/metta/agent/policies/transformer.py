@@ -12,7 +12,6 @@ import torch
 from einops import rearrange
 from pydantic import Field
 from tensordict import TensorDict
-from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
 
@@ -25,6 +24,7 @@ from metta.agent.components.actor import (
     ActorQueryConfig,
 )
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
+from metta.agent.components.heads import LinearHead, LinearHeadConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
 from metta.agent.components.transformer_nvidia_module import TransformerNvidiaCoreConfig
 from metta.agent.components.vanilla_transformer import (
@@ -142,32 +142,45 @@ class TransformerPolicy(Policy):
 
     def _build_heads(self) -> None:
         manual = self.config.manual_init
+        actor_init_std = 1.0
+        critic_init_std = math.sqrt(2)
+        value_init_std = 1.0
 
-        if manual:
-            self.critic_1 = nn.Linear(self.hidden_size, self.config.critic_hidden_dim)
-            nn.init.orthogonal_(self.critic_1.weight, math.sqrt(2))
-            nn.init.zeros_(self.critic_1.bias)
-            self.value_head = nn.Linear(self.config.critic_hidden_dim, 1)
-            nn.init.orthogonal_(self.value_head.weight, 1.0)
-            nn.init.zeros_(self.value_head.bias)
-
-            self.actor_1 = nn.Linear(self.hidden_size, self.config.actor_hidden_dim)
-            nn.init.orthogonal_(self.actor_1.weight, 1.0)
-            nn.init.zeros_(self.actor_1.bias)
-        else:
-            self.critic_1 = pufferlib.pytorch.layer_init(
-                nn.Linear(self.hidden_size, self.config.critic_hidden_dim), std=math.sqrt(2)
+        self.actor_head = LinearHead(
+            LinearHeadConfig(
+                in_key="core",
+                out_key="actor_1",
+                in_features=self.hidden_size,
+                out_features=self.config.actor_hidden_dim,
+                activation="ReLU",
+                manual_init=manual,
+                init_std=actor_init_std,
             )
-            self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
-            self.actor_1 = pufferlib.pytorch.layer_init(
-                nn.Linear(self.hidden_size, self.config.actor_hidden_dim), std=1.0
+        )
+
+        self.critic_head = LinearHead(
+            LinearHeadConfig(
+                in_key="core",
+                out_key="critic_1",
+                in_features=self.hidden_size,
+                out_features=self.config.critic_hidden_dim,
+                activation="Tanh",
+                manual_init=manual,
+                init_std=critic_init_std,
             )
+        )
 
-        self.critic_activation = nn.Tanh()
-
-        self.actor_module = TDM(self.actor_1, in_keys=["core"], out_keys=["actor_1"])
-        self.critic_module = TDM(self.critic_1, in_keys=["core"], out_keys=["critic_1"])
-        self.value_module = TDM(self.value_head, in_keys=["critic_1"], out_keys=["values"])
+        self.value_head = LinearHead(
+            LinearHeadConfig(
+                in_key="critic_1",
+                out_key="values",
+                in_features=self.config.critic_hidden_dim,
+                out_features=1,
+                activation=None,
+                manual_init=manual,
+                init_std=value_init_std,
+            )
+        )
 
         self.action_embeddings = ActionEmbedding(
             ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=self.config.action_embedding_dim)
@@ -262,12 +275,9 @@ class TransformerPolicy(Policy):
         core = self._forward_transformer(td, latent, batch_size, tt)
         td["core"] = core
 
-        self.actor_module(td)
-        td["actor_1"] = torch.relu(td["actor_1"])
-
-        self.critic_module(td)
-        td["critic_1"] = self.critic_activation(td["critic_1"])
-        self.value_module(td)
+        self.actor_head(td)
+        self.critic_head(td)
+        self.value_head(td)
         td["values"] = td["values"].flatten()
 
         self.action_embeddings(td)
