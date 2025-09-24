@@ -171,7 +171,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
         # Add map_dir support from main
-        self.map_dir = getattr(config, 'map_dir', 'icl_ordered_chains')
+        self.map_dir = getattr(config, "map_dir", "icl_ordered_chains")
 
     def _add_converter(
         self,
@@ -325,10 +325,10 @@ def make_mettagrid(curriculum_style: str, map_dir=None) -> MettaGridConfig:
     # Update config to support map_dir from main
     config_kwargs = curriculum_args[curriculum_style].copy()
     if map_dir is not None:
-        config_kwargs['map_dir'] = map_dir
+        config_kwargs["map_dir"] = map_dir
     else:
-        config_kwargs['map_dir'] = None  # Generate environments instead of loading
-    
+        config_kwargs["map_dir"] = None  # Generate environments instead of loading
+
     task_generator_cfg = ICLTaskGenerator.Config(**config_kwargs)
     task_generator = OrderedChainsTaskGenerator(task_generator_cfg)
 
@@ -343,8 +343,8 @@ def make_curriculum(
     map_dir: str = "icl_ordered_chains",
 ) -> CurriculumConfig:
     config_kwargs = curriculum_args[curriculum_style].copy()
-    config_kwargs['map_dir'] = map_dir
-    
+    config_kwargs["map_dir"] = map_dir
+
     task_generator_cfg = ICLTaskGenerator.Config(**config_kwargs)
     algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
