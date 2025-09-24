@@ -8,7 +8,7 @@ from metta.agent.components.lstm import LSTMConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
-from metta.agent.components.obs_tokenizers import ObsAttrCoordEmbedConfig, ObsAttrEmbedFourierConfig
+from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.components.obs_trim import ObsTokenTrimConfig
 from metta.agent.policy import PolicyArchitecture
 
@@ -74,10 +74,11 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
-        ObsAttrCoordEmbedConfig(
+        ObsAttrEmbedFourierConfig(
             in_key="obs_shim_tokens",
             out_key="obs_attr_embed",
             attr_embed_dim=_token_embed_dim,
+            num_freqs=6,
         ),
         ObsTokenTrimConfig(
             in_key="obs_attr_embed",
