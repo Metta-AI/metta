@@ -6,6 +6,7 @@ import {
 import { extractInstitutionsFromPdf } from "./pdf-institution-extractor";
 import { PaperAbstractService } from "./paper-abstract-service";
 import { AutoTaggingService } from "./auto-tagging-service";
+import { validateAuthorUsername } from "./name-validation";
 
 /**
  * Normalizes author name for consistent storage

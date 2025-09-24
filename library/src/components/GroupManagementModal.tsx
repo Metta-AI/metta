@@ -56,6 +56,7 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
     userEmail: "",
     role: "member",
   });
+  const [error, setError] = useState<string | null>(null);
 
   // Update local members when group prop changes
   useEffect(() => {
@@ -85,11 +86,34 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
             userEmail: "",
             role: "member",
           });
+          setError(null);
           setActiveTab("members");
         }
       },
       onError: (error) => {
         console.error("Error managing membership:", error);
+
+        // Extract error message from the error object
+        const serverError = error.error?.serverError;
+        const validationErrors = error.error?.validationErrors;
+
+        const errorMessage =
+          (typeof serverError === "string" ? serverError : null) ||
+          (typeof serverError === "object" &&
+          serverError !== null &&
+          "message" in serverError
+            ? (serverError as any).message
+            : null) ||
+          (Array.isArray(validationErrors) &&
+          validationErrors.length > 0 &&
+          typeof validationErrors[0] === "object" &&
+          validationErrors[0] !== null &&
+          "message" in validationErrors[0]
+            ? (validationErrors[0] as any).message
+            : null) ||
+          "Failed to manage membership. Please try again.";
+
+        setError(errorMessage);
       },
     }
   );
@@ -271,12 +295,16 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                 <input
                   type="email"
                   value={newMemberData.userEmail}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setNewMemberData((prev) => ({
                       ...prev,
                       userEmail: e.target.value,
-                    }))
-                  }
+                    }));
+                    // Clear error when user starts typing
+                    if (error) {
+                      setError(null);
+                    }
+                  }}
                   required
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   placeholder="user@example.com"
@@ -301,6 +329,13 @@ export const GroupManagementModal: FC<GroupManagementModalProps> = ({
                   <option value="admin">Admin</option>
                 </select>
               </div>
+
+              {/* Error Display */}
+              {error && (
+                <div className="rounded-md bg-red-50 p-3">
+                  <div className="text-sm text-red-700">{error}</div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-4">
                 <button

@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSessionOrRedirect } from "@/lib/auth";
+import { auth, isSignedIn } from "@/lib/auth";
 import { getNotificationCounts } from "@/lib/notifications";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSessionOrRedirect();
+    const session = await auth();
+
+    if (!isSignedIn(session)) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
 
     const counts = await getNotificationCounts(session.user.id);
 
