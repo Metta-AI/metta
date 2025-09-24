@@ -11,6 +11,12 @@ class WandBNotifier(NotificationBase):
         super().__init__("W&B")
 
     def _validate_config(self, job_config: JobConfig) -> str | None:
+        if not job_config.metta_run_id:
+            return "Missing required field: metta_run_id"
+        if not job_config.wandb_project:
+            return "Missing required field: wandb_project"
+        if not job_config.wandb_entity:
+            return "Missing required field: wandb_entity"
         return None
 
     def _make_payload(self, notification: NotificationConfig, job_config: JobConfig) -> dict[str, Any]:
@@ -26,13 +32,14 @@ class WandBNotifier(NotificationBase):
         if job_config.skypilot_task_id:
             alert_text_parts.append(f"Task ID: {job_config.skypilot_task_id}")
 
-        return {
+        payload = {
             "title": notification.title,
             "text": "\n".join(alert_text_parts),
-            "run_id": job_config.metta_run_id or "N/A",
-            "project": job_config.wandb_project or "N/A",
-            "entity": job_config.wandb_entity or "N/A",
+            "run_id": job_config.metta_run_id,
+            "project": job_config.wandb_project,
+            "entity": job_config.wandb_entity,
         }
+        return payload
 
     def _send(self, payload: dict[str, Any]) -> None:
         send_wandb_alert(**payload)
