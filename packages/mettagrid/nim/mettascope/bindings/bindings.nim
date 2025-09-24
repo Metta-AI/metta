@@ -2,7 +2,15 @@ import
   genny, fidget2, openGL, jsony, vmath,
   ../src/mettascope, ../src/mettascope/[replays, common]
 
-proc init(dataDir: string, replay: string): bool =
+type
+  RenderResponse* = object
+    shouldClose*: bool
+    action*: bool
+    actionAgentId*: int
+    actionActionId*: int
+    actionArgument*: int
+
+proc init(dataDir: string, replay: string): RenderResponse =
   try:
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
@@ -14,12 +22,13 @@ proc init(dataDir: string, replay: string): bool =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
-    return false
+    return
   except Exception:
     echo "Error initializing Mettascope2: ", getCurrentExceptionMsg()
-    return true
+    result.shouldClose = true
+    return
 
-proc render(currentStep: int, replayStep: string): bool =
+proc render(currentStep: int, replayStep: string): RenderResponse =
   try:
     echo "Current step from python: ", currentStep
     common.replay.apply(replayStep)
@@ -29,14 +38,31 @@ proc render(currentStep: int, replayStep: string): bool =
     while true:
       if window.closeRequested:
         window.close()
-        return true
+        result.shouldClose = true
+        return
       mainLoop()
       if requestPython:
         echo "Requesting Python, breaking loop"
-        return false
+        if requestAction:
+          echo "Requesting action: ", requestActionAgentId, " ", requestActionActionId, " ", requestActionArgument
+          result.action = true
+          result.actionAgentId = requestActionAgentId
+          result.actionActionId = requestActionActionId
+          result.actionArgument = requestActionArgument
+          requestAction = false
+          requestActionAgentId = 0
+          requestActionActionId = 0
+          requestActionArgument = 0
+          return
+        else:
+          return
   except Exception:
     echo "Error rendering Mettascope2: ", getCurrentExceptionMsg()
-    return true
+    result.shouldClose = true
+    return
+
+exportObject RenderResponse:
+  discard
 
 exportProcs:
   init
