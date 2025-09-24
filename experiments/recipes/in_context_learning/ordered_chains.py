@@ -21,11 +21,11 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
-
 from experiments.recipes.in_context_learning.icl_resource_chain import (
     ICLTaskGenerator,
     LPParams,
     _BuildCfg,
+    calculate_avg_hop,
 )
 
 curriculum_args = {
@@ -100,10 +100,6 @@ curriculum_args = {
         "room_sizes": ["medium"],
     },
 }
-
-
-def calculate_avg_hop(room_size: str) -> float:
-    return (size_ranges[room_size][0] + size_ranges[room_size][1]) / 2
 
 
 def get_reward_estimates(

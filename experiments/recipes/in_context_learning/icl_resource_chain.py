@@ -41,6 +41,10 @@ size_ranges: dict[str, tuple[int, int]] = {
 }
 
 
+def calculate_avg_hop(room_size: str) -> float:
+    return (size_ranges[room_size][0] + size_ranges[room_size][1]) / 2
+
+
 @dataclass
 class _BuildCfg:
     used_objects: List[str] = field(default_factory=list)
@@ -77,7 +81,10 @@ class ICLTaskGenerator(TaskGenerator):
         densities: list[str] = Field(default=[], description="Density to sample from")
         # obstacle_complexity
         max_steps: int = Field(default=512, description="Episode length")
-
+        map_dir: str | None = Field(
+            default=None,
+            description="Directory to load environments from",
+        )
         # Unordered chain specific parameters
         num_resources: list[int] = Field(
             default_factory=list,
@@ -100,10 +107,6 @@ class ICLTaskGenerator(TaskGenerator):
         non_reusable_resources: list[str] = Field(
             default_factory=list,
             description="List of resource types that are not reusable",
-        )
-        map_dir: str | None = Field(
-            default=None,
-            description="Directory to load environments from",
         )
 
     def __init__(self, config: "ICLTaskGenerator.Config"):
