@@ -245,13 +245,13 @@ def calculate_max_steps(avg_hop: float, chain_length: int, num_sinks: int) -> in
 
     This calculation ensures enough time for:
     1. Finding all sinks through exploration
-    2. Completing the chain at least 5 times
+    2. Completing the chain at least 10 times
 
     Formula breakdown:
     - steps_per_attempt = 2 * avg_hop (movement to object + interaction costs)
     - Finding sinks: steps_per_attempt * num_sinks
     - Chain completion: steps_per_attempt * chain_length (traverse full chain once)
-    - Target: Complete chain 5 times minimum
+    - Target: Complete chain 10 times minimum
 
     Total = sink_exploration + 5 * chain_completion
     """
