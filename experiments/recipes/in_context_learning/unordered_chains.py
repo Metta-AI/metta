@@ -30,32 +30,32 @@ curriculum_args = {
         "num_resources": [2, 3, 4],
         "num_converters": [1, 2],
         "room_sizes": ["small"],
-        "max_input_resources": [1, 2],
+        "max_recipe_inputs": [1, 2],
     },
     "small_medium": {
         "num_resources": [2, 3, 4],
         "num_converters": [1, 2, 3],
         "room_sizes": ["small", "medium"],
-        "max_input_resources": [1, 2, 3],
+        "max_recipe_inputs": [1, 2, 3],
     },
     "all_room_sizes": {
         "num_resources": [3, 4, 5],
         "num_converters": [1, 2, 3],
         "room_sizes": ["small", "medium", "large"],
-        "max_input_resources": [1, 2, 3],
+        "max_recipe_inputs": [1, 2, 3],
     },
     "complex_recipes": {
         "num_resources": [4, 5, 6],
         "num_converters": [2, 3, 4],
         "room_sizes": ["small", "medium", "large"],
-        "max_input_resources": [2, 3, 4],
+        "max_recipe_inputs": [2, 3, 4],
     },
     "terrain": {
         "num_resources": [3, 4, 5],
         "num_converters": [1, 2, 3],
         "obstacle_types": ["square", "cross", "L"],
         "densities": ["", "balanced", "sparse", "high"],
-        "max_input_resources": [1, 2, 3],
+        "max_recipe_inputs": [1, 2, 3],
         "room_sizes": ["small", "medium", "large"],
     },
 }
@@ -306,7 +306,7 @@ def make_curriculum(
     room_sizes=["small"],
     obstacle_types=[],
     densities=[],
-    max_input_resources=[1, 2, 3],
+    max_recipe_inputs=[1, 2, 3],
     lp_params: LPParams = LPParams(),
 ) -> CurriculumConfig:
     task_generator_cfg = ICLTaskGenerator.Config(
@@ -315,7 +315,7 @@ def make_curriculum(
         room_sizes=room_sizes,
         obstacle_types=obstacle_types,
         densities=densities,
-        max_recipe_inputs=max_input_resources,
+        max_recipe_inputs=max_recipe_inputs,
     )
     algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
