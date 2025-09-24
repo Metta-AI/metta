@@ -2,7 +2,7 @@ from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from experiments.recipes.in_context_learning.icl_resource_chain import ICLTaskGenerator
-from experiments.recipes.in_context_learning.unordered_chain import (
+from experiments.recipes.in_context_learning.unordered_chains import (
     UnorderedChainTaskGenerator,
 )
 

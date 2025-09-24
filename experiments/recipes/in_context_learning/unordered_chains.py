@@ -5,12 +5,12 @@ from bisect import bisect_left
 from math import comb
 from typing import List, Optional, Sequence
 
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -238,7 +238,12 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
     def _generate_task(self, task_id: int, rng: random.Random):
         cfg = self.config
 
-        # For unordered chains, use num_resources and num_sinks as converters
+        # Reuse superclass to sample common env geometry
+        _, _, room_size, obstacle_type, density, width, height = super()._setup_task(
+            rng
+        )
+
+        # Unordered-chain specifics
         if cfg.num_resources:
             num_resources = rng.choice(cfg.num_resources)
             resources = rng.sample(self.resource_types, num_resources)
@@ -248,27 +253,9 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
             resources = rng.sample(self.resource_types, num_resources)
 
         num_converters = rng.choice(cfg.num_sinks) if cfg.num_sinks else 1
-        room_size = rng.choice(cfg.room_sizes)
-        obstacle_type = (
-            rng.choice(cfg.obstacle_types) if len(cfg.obstacle_types) > 0 else None
-        )
-        density = rng.choice(cfg.densities) if len(cfg.densities) > 0 else None
 
         max_input_resources = (
             rng.choice(cfg.max_recipe_inputs) if cfg.max_recipe_inputs else None
-        )
-
-        size_range = (
-            (8, 12)
-            if room_size == "medium"
-            else (12, 15)
-            if room_size == "large"
-            else (5, 8)
-        )
-
-        width, height = (
-            rng.randint(size_range[0], size_range[1]),
-            rng.randint(size_range[0], size_range[1]),
         )
 
         icl_env = self._make_env_cfg(
