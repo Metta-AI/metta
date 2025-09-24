@@ -13,7 +13,7 @@ from metta.agent.policy import Policy, PolicyArchitecture
 
 
 class BasicConfig (PolicyArchitecture):
-    """Simple PufferLib policy configuration."""
+    """A Basic policy without any memory."""
 
     class_path: str = "metta.agent.policies.basic.BasicPolicy"
 
