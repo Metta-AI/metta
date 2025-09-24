@@ -1,12 +1,7 @@
 import random
 import subprocess
 import time
-<<<<<<< HEAD
 from typing import Optional, Sequence
-=======
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
->>>>>>> 1d1630be3581c80357e2a062173697d2daf5036c
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
