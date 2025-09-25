@@ -34,6 +34,7 @@ class LossConfig(Config):
         if self.enable_contrastive and "contrastive" not in self.loss_configs:
             # Import here to avoid circular dependency
             from metta.rl.loss.contrastive_config import ContrastiveConfig
+
             self.loss_configs["contrastive"] = ContrastiveConfig()
 
     def init_losses(

@@ -120,13 +120,16 @@ def train(
 
     ppo_config = PPOConfig()  # Default PPO config for action generation
 
+    loss_configs = {"ppo": ppo_config}  # PPO generates actions
+    if enable_contrastive:
+        loss_configs["contrastive"] = (
+            contrastive_config  # Only add contrastive if enabled
+        )
+
     trainer_config = TrainerConfig(
         losses=LossConfig(
             enable_contrastive=enable_contrastive,
-            loss_configs={
-                "ppo": ppo_config,  # PPO generates actions
-                "contrastive": contrastive_config,  # Contrastive config ready to enable
-            },
+            loss_configs=loss_configs,
         )
     )
 

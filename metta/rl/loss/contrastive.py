@@ -9,7 +9,7 @@ from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.loss import Loss
-from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
 class ContrastiveLoss(Loss):
@@ -39,7 +39,9 @@ class ContrastiveLoss(Loss):
         self.contrastive_coef = self.loss_cfg.contrastive_coef
         self.embedding_dim = self.loss_cfg.embedding_dim
 
-        print(f"[Contrastive Loss] Initialized with instance_name='{instance_name}', temperature={self.temperature}, coef={self.contrastive_coef}")
+        print(
+            f"[Contrastive Loss] Initialized with instance_name='{instance_name}', temperature={self.temperature}, coef={self.contrastive_coef}"
+        )
 
         # Add projection head if needed
         if self.loss_cfg.use_projection_head:
@@ -58,11 +60,15 @@ class ContrastiveLoss(Loss):
             # e.g., positive/negative pairs, augmentations, etc.
         )
 
-    def run_train(self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int) -> tuple[Tensor, TensorDict, bool]:
+    def run_train(
+        self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
+    ) -> tuple[Tensor, TensorDict, bool]:
         """Compute contrastive loss."""
         if mb_idx == 0:  # Only log on first minibatch to avoid spam
-            print(f"[Contrastive Loss] run_train called at epoch {context.epoch}, agent_step {context.agent_step}, mb_idx {mb_idx}")
-        
+            print(
+                f"[Contrastive Loss] run_train called at epoch {context.epoch}, agent_step {context.agent_step}, mb_idx {mb_idx}"
+            )
+
         policy_td = shared_loss_data["policy_td"]
         minibatch = shared_loss_data["sampled_mb"]
 
@@ -85,7 +91,7 @@ class ContrastiveLoss(Loss):
 
         # Track metrics
         self.loss_tracker["contrastive_loss"].append(float(contrastive_loss.item()))
-        
+
         # Track additional metrics for wandb logging
         for key, value in metrics.items():
             if key not in self.loss_tracker:
@@ -94,11 +100,13 @@ class ContrastiveLoss(Loss):
 
         # Console logging for similarities
         if self.loss_cfg.log_similarities and context.epoch % self.loss_cfg.log_frequency == 0:
-            print(f"[Contrastive Loss] Epoch {context.epoch}: "
-                  f"Positive sim: {metrics['positive_sim_mean']:.4f}±{metrics['positive_sim_std']:.4f}, "
-                  f"Negative sim: {metrics['negative_sim_mean']:.4f}±{metrics['negative_sim_std']:.4f}, "
-                  f"Pairs: {metrics['num_pairs']}, "
-                  f"Loss: {contrastive_loss.item():.6f}")
+            print(
+                f"[Contrastive Loss] Epoch {context.epoch}: "
+                f"Positive sim: {metrics['positive_sim_mean']:.4f}±{metrics['positive_sim_std']:.4f}, "
+                f"Negative sim: {metrics['negative_sim_mean']:.4f}±{metrics['negative_sim_std']:.4f}, "
+                f"Pairs: {metrics['num_pairs']}, "
+                f"Loss: {contrastive_loss.item():.6f}"
+            )
 
         return contrastive_loss, shared_loss_data, False
 
@@ -150,7 +158,11 @@ class ContrastiveLoss(Loss):
             batch_size = B * T
 
         if batch_size < 4:  # Need minimum samples for contrastive learning
-            return torch.tensor(0.0, device=self.device), {"positive_sim_mean": 0.0, "negative_sim_mean": 0.0, "num_pairs": 0}
+            return torch.tensor(0.0, device=self.device), {
+                "positive_sim_mean": 0.0,
+                "negative_sim_mean": 0.0,
+                "num_pairs": 0,
+            }
 
         # L2 normalize embeddings to unit vectors (critical for InfoNCE)
         embeddings = F.normalize(embeddings, p=2, dim=-1)
@@ -164,7 +176,11 @@ class ContrastiveLoss(Loss):
         num_pairs = len(anchor_embeddings)
 
         if num_pairs < 2:
-            return torch.tensor(0.0, device=self.device), {"positive_sim_mean": 0.0, "negative_sim_mean": 0.0, "num_pairs": 0}
+            return torch.tensor(0.0, device=self.device), {
+                "positive_sim_mean": 0.0,
+                "negative_sim_mean": 0.0,
+                "num_pairs": 0,
+            }
 
         # Compute positive similarities: [N-1]
         positive_sim = torch.sum(anchor_embeddings * positive_embeddings, dim=-1)
