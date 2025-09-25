@@ -100,26 +100,11 @@ class SimTool(Tool):
         elif self.policy_uris is None:
             raise ValueError("Either 'run' or 'policy_uris' is required")
 
-        # Configure wandb following train.py's pattern exactly (lines 91-97)
-        if self.wandb == WandbConfig.Unconfigured():
-            if self.run:
-                self.wandb = auto_wandb_config(self.run)
-            elif self.push_metrics_to_wandb and self.policy_uris:
-                # Try to extract run name from first policy URI for wandb config
-                import re
-
-                uri = self.policy_uris[0] if isinstance(self.policy_uris, list) else self.policy_uris
-                # Pattern: .../checkpoints/RUN_NAME:vN.pt or .../checkpoints/RUN_NAME:latest.pt
-                match = re.search(r"/checkpoints/([^/:]+):", uri)
-                if match:
-                    run_name = match.group(1)
-                    self.wandb = auto_wandb_config(run_name)
-                else:
-                    logger.warning("Cannot auto-configure wandb without a run name")
-
-        # Apply group override after auto-configuration (matching train.py lines 95-97)
-        if self.group:
-            self.wandb.group = self.group
+        # Configure wandb using run name if unconfigured, preserving existing settings
+        if self.run:
+            self.wandb = auto_wandb_config(self.run)
+            if self.group:
+                self.wandb.group = self.group
 
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
