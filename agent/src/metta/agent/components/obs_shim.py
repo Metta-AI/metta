@@ -142,9 +142,6 @@ class ObsTokenPadStrip(nn.Module):
         observations = observations[:, keep_cols]  # shape [B, max_flip]
         obs_mask = obs_mask[:, keep_cols]
 
-        if obs_mask.any():
-            observations = observations.masked_fill(obs_mask.unsqueeze(-1), 0)
-
         td[self.out_key] = observations
         td["obs_mask"] = obs_mask
         return td

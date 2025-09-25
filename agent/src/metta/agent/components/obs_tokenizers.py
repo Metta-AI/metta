@@ -6,6 +6,14 @@ from tensordict import TensorDict
 from metta.agent.components.component_config import ComponentConfig
 
 
+def _zero_masked_features(td: TensorDict, features: torch.Tensor) -> torch.Tensor:
+    mask = td.get("obs_mask")
+    if mask is not None:
+        mask_bool = mask.to(torch.bool)
+        features = features.masked_fill(mask_bool.unsqueeze(-1), 0.0)
+    return features
+
+
 class ObsAttrCoordEmbedConfig(ComponentConfig):
     in_key: str
     out_key: str
@@ -60,7 +68,7 @@ class ObsAttrCoordEmbed(nn.Module):
         feat_vectors[..., : self._attr_embed_dim] = combined_embeds
         feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
 
-        td[self.config.out_key] = feat_vectors
+        td[self.config.out_key] = _zero_masked_features(td, feat_vectors)
 
         return td
 
@@ -153,7 +161,7 @@ class ObsAttrEmbedFourier(nn.Module):
             observations[..., 2].float(), "... -> ... 1"
         )
 
-        td[self.config.out_key] = feat_vectors
+        td[self.config.out_key] = _zero_masked_features(td, feat_vectors)
 
         return td
 
@@ -210,7 +218,7 @@ class ObsAttrCoordValueEmbed(nn.Module):
 
         combined_embeds = attr_embeds + coord_pair_embedding + val_embeds
 
-        td[self.config.out_key] = combined_embeds
+        td[self.config.out_key] = _zero_masked_features(td, combined_embeds)
         return td
 
 
