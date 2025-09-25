@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
-from .uri import ParsedURI
+from metta.utils.uri import ParsedURI
 
 # --------------------------------------------------------------------------- #
 #  Public IO helpers                                                           #
