@@ -70,10 +70,18 @@ def make_game(
             ),
             agent=AgentConfig(
                 default_resource_limit=10,
-                resource_limits={"heart": 1},
+                resource_limits={
+                    "heart": 1,
+                    "energy": 100,
+                },
                 rewards=AgentRewards(
-                    inventory={},
+                    inventory={
+                        "heart": 1,
+                    },
                 ),
+                initial_inventory={
+                    "energy": 100,
+                },
             ),
         )
     )
