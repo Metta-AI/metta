@@ -357,8 +357,24 @@ def main():
     include_drafts = os.getenv("INCLUDE_DRAFT_PRS", "false").lower() == "true"
     output_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
 
+    # Check for historical date support
+    historical_end_date = os.getenv("HISTORICAL_END_DATE")
+    is_historical = os.getenv("IS_HISTORICAL_RUN", "false").lower() == "true"
+
+    # Determine the end date
+    if historical_end_date and is_historical:
+        try:
+            until_date = datetime.strptime(historical_end_date, "%Y-%m-%d")
+            # Make it end of day in UTC
+            until_date = until_date.replace(hour=23, minute=59, second=59)
+            logging.info(f"📅 Historical mode: Using end date {historical_end_date}")
+        except ValueError:
+            logging.error(f"Invalid historical date format: {historical_end_date}. Expected YYYY-MM-DD")
+            sys.exit(1)
+    else:
+        until_date = datetime.now()
+
     days = int(days_to_scan)
-    until_date = datetime.now()
     since_date = until_date - timedelta(days=days)
     since = since_date.isoformat() + "Z"
     until = until_date.isoformat() + "Z"
@@ -388,6 +404,10 @@ def main():
 
         # Save statistics for the workflow
         stats_file = Path("pr_digest_stats.json")
+        # Add historical run info to stats
+        stats["is_historical"] = is_historical
+        stats["end_date"] = until_date.strftime("%Y-%m-%d")
+
         with open(stats_file, "w") as f:
             json.dump(stats, f, indent=2)
 
@@ -410,7 +430,13 @@ def main():
                 # Format for display
                 since_formatted = since_pst.strftime("%B %d, %Y")
                 until_formatted = until_pst.strftime("%B %d, %Y")
-                f.write(f"date_range_display={since_formatted} to {until_formatted}\n")
+
+                # Add historical marker if applicable
+                date_display = f"{since_formatted} to {until_formatted}"
+                if is_historical:
+                    date_display = f"📅 Historical: {date_display}"
+
+                f.write(f"date_range_display={date_display}\n")
 
                 # Add author info if filtering
                 if filter_author:
