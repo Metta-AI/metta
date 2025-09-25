@@ -4,15 +4,15 @@ import platform
 from pathlib import Path
 from typing import Any, Optional
 
+import torch
+
 import pufferlib.pytorch
 import pufferlib.vector
-import torch
-from pufferlib import pufferl
-from pufferlib.pufferlib import set_buffers
-
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.module import load_symbol
+from pufferlib import pufferl
+from pufferlib.pufferlib import set_buffers
 
 logger = logging.getLogger("cogames.pufferlib")
 
