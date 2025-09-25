@@ -75,8 +75,6 @@ jobs:
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
           CI: "true"
-          CIBW_ENVIRONMENT_PASS_LINUX: SETUPTOOLS_SCM_PRETEND_VERSION
-          CIBW_ENVIRONMENT_PASS_MACOS: SETUPTOOLS_SCM_PRETEND_VERSION
         with:
           package-dir: packages/mettagrid
           output-dir: wheelhouse

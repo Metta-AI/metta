@@ -42,12 +42,6 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
-    - name: Ensure Git history is available
-      shell: bash
-      run: |
-        git fetch --tags --force --prune --unshallow 2>/dev/null || \
-        git fetch --tags --force --prune 2>/dev/null || true
-
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
       id: cache-bazel
