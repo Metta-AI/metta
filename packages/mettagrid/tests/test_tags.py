@@ -704,5 +704,111 @@ def test_default_agent_tags_in_cpp_config():
     assert tag_id_map[0] == "hero", f"Tag ID 0 should be 'hero', got {tag_id_map[0]}"
     assert tag_id_map[1] == "player", f"Tag ID 1 should be 'player', got {tag_id_map[1]}"
 
-    # The key requirement is that the tag mapping includes the default agent tags
-    # The actual verification that agents get these tags is already tested in test_default_agent_tags_preserved
+
+def test_tag_mapping_in_feature_spec():
+    """Test that tag mapping is exposed through feature_spec()"""
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            num_agents=1,
+            max_steps=100,
+            obs_width=3,
+            obs_height=3,
+            num_observation_tokens=NUM_OBS_TOKENS,
+            actions=ActionsConfig(noop=ActionConfig()),
+            objects={
+                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=["solid", "blocking"]),
+                "converter": ConverterConfig(
+                    type_id=2,
+                    input_resources={"wood": 1},
+                    output_resources={"coal": 1},
+                    max_output=10,
+                    max_conversions=5,
+                    conversion_ticks=10,
+                    cooldown=5,
+                    tags=["machine", "industrial"],
+                ),
+            },
+            agents=[
+                AgentConfig(tags=["player", "mobile"]),
+            ],
+            resource_names=["wood", "coal"],
+            map_builder=AsciiMapBuilder.Config(
+                map_data=[
+                    ["#", "#", "#"],
+                    ["#", "@", "#"],
+                    ["#", "#", "#"],
+                ],
+            ),
+        )
+    )
+
+    env = MettaGridCore(cfg)
+    feature_spec = env.c_env.feature_spec()
+
+    # Check that tag feature exists
+    assert "tag" in feature_spec, "tag feature should be in feature_spec"
+
+    tag_spec = feature_spec["tag"]
+
+    # Check that tag feature has expected fields
+    assert "id" in tag_spec, "tag feature should have 'id' field"
+    assert "normalization" in tag_spec, "tag feature should have 'normalization' field"
+    assert "values" in tag_spec, "tag feature should have 'values' field for tag mapping"
+
+    # Check tag mapping contents
+    tag_values = tag_spec["values"]
+    assert isinstance(tag_values, dict), "tag values should be a dict mapping tag_id -> tag_name"
+
+    # All unique tags sorted: ["blocking", "industrial", "machine", "mobile", "player", "solid"]
+    # IDs should be 0-5
+    expected_tags = ["blocking", "industrial", "machine", "mobile", "player", "solid"]
+    assert len(tag_values) == len(expected_tags), f"Should have {len(expected_tags)} tags, got {len(tag_values)}"
+
+    # Verify tags are sorted alphabetically with correct IDs
+    for i, expected_tag in enumerate(expected_tags):
+        assert i in tag_values, f"Tag ID {i} should be in mapping"
+        assert tag_values[i] == expected_tag, f"Tag ID {i} should be '{expected_tag}', got '{tag_values[i]}'"
+
+
+def test_tag_mapping_empty_tags():
+    """Test that tag mapping works correctly when there are no tags."""
+    cfg = MettaGridConfig(
+        game=GameConfig(
+            num_agents=1,
+            max_steps=100,
+            obs_width=3,
+            obs_height=3,
+            num_observation_tokens=NUM_OBS_TOKENS,
+            actions=ActionsConfig(noop=ActionConfig()),
+            objects={
+                "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID, tags=[]),
+            },
+            agents=[
+                AgentConfig(tags=[]),  # No tags
+            ],
+            resource_names=[],
+            map_builder=AsciiMapBuilder.Config(
+                map_data=[
+                    ["#", "#", "#"],
+                    ["#", "@", "#"],
+                    ["#", "#", "#"],
+                ],
+            ),
+        )
+    )
+
+    env = MettaGridCore(cfg)
+    feature_spec = env.c_env.feature_spec()
+
+    # Check that tag feature exists
+    assert "tag" in feature_spec, "tag feature should be in feature_spec even with no tags"
+
+    tag_spec = feature_spec["tag"]
+
+    # Check that tag feature has expected fields
+    assert "values" in tag_spec, "tag feature should have 'values' field even with no tags"
+
+    # Check tag mapping is empty
+    tag_values = tag_spec["values"]
+    assert isinstance(tag_values, dict), "tag values should be a dict"
+    assert len(tag_values) == 0, f"Should have 0 tags, got {len(tag_values)}"
