@@ -29,6 +29,8 @@ public:
   std::map<InventoryItem, InventoryQuantity> resource_limits;
   float action_failure_penalty;
   std::string group_name;
+  // We expect only a small number (single-digit) of soul-bound resources.
+  std::vector<InventoryItem> soul_bound_resources;
   ObservationType color;
   ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
@@ -56,6 +58,7 @@ public:
         resource_limits(config.resource_limits),
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
+        soul_bound_resources(config.soul_bound_resources),
         color(0),
         glyph(0),
         agent_id(0),
