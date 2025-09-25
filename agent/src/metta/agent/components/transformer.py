@@ -15,7 +15,7 @@ class TransformerConfig(Config):
     num_layers: int = 2
     nhead: int = 4
     ff_mult: int = 4
-    max_seq_len: int = 512
+    max_seq_len: int = 16
     dropout: float = 0.0
     in_key: str = "encoded_obs"
     out_key: str = "hidden"
