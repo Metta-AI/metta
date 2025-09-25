@@ -8,7 +8,6 @@ from typing import Any, Optional, Sequence
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from typing import Any, Dict, List, Optional, Sequence
 
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.rl.training.evaluator import EvaluatorConfig
@@ -569,9 +568,26 @@ def replay(
 
 
 def evaluate(
-    policy_uri: Optional[str] = None, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: Optional[str] = None,
+    simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     simulations = simulations or make_icl_resource_chain_eval_suite()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri] if policy_uri else None,
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
+
+
+def evaluate_test(
+    policy_uri: Optional[str] = None,
+    simulations: Optional[Sequence[SimulationConfig]] = None,
+) -> SimTool:
+    """Test evaluation with only one simulation for quick testing."""
+    if simulations is None:
+        # Use only the first simulation from the suite for testing
+        full_suite = make_icl_resource_chain_eval_suite()
+        simulations = [full_suite[0]]  # Just "2c_1s_small"
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri] if policy_uri else None,
