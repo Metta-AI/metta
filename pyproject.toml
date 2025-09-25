@@ -48,6 +48,7 @@ dependencies = [
   "pyro-ppl>=1.9.1",
   "python-dotenv>=1.1.0",
   "pyyaml>=6.0.2",
+  "schedulefree>=1.4.0",
   "rich>=13.9.4",
   "scipy>=1.15.3",
   "setuptools>=80.9.0",
