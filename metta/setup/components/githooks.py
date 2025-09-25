@@ -305,7 +305,6 @@ class GitHooksSetup(SetupModule):
             if hook_mode == CommitHookMode.FIX:
                 subprocess.run(["git", "add"] + files, cwd=self.repo_root, check=True)
 
-            success("Pre-commit linting passed")
         except subprocess.CalledProcessError as e:
             if hook_mode == CommitHookMode.CHECK:
                 error("Linting failed. Please fix the issues before committing.")
