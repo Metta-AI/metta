@@ -546,7 +546,6 @@ class StatsReporter(TrainerComponent):
         if optimizer and optimizer.param_groups:
             param_group = optimizer.param_groups[0]
             is_schedulefree = 'train_mode' in param_group
-            parameters["is_schedulefree"] = is_schedulefree
 
             if is_schedulefree:
                 # Track ScheduleFree-specific parameters
