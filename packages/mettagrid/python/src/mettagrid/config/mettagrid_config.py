@@ -34,6 +34,9 @@ class AgentConfig(Config):
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
+    soul_bound_resources: list[str] = Field(
+        default_factory=list, description="Resources that cannot be stolen during attacks"
+    )
 
 
 class ActionConfig(Config):

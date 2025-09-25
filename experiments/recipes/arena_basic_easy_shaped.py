@@ -2,15 +2,15 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -113,13 +113,14 @@ def train(
     )
 
     if policy_architecture is None:
-        policy_architecture = FastConfig()
+        policy_architecture = ViTDefaultConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
+        torch_profiler=TorchProfilerConfig(),
     )
 
 
@@ -134,12 +135,15 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: str | None = None,
+    simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     simulations = simulations or make_evals()
+    policy_uris = [policy_uri] if policy_uri is not None else None
+
     return SimTool(
         simulations=simulations,
-        policy_uris=[policy_uri],
+        policy_uris=policy_uris,
     )
 
 
