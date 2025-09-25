@@ -127,7 +127,7 @@ class WindowAttention(nn.Module):
             # mask shape: (num_windows, N, N)
             nW = mask.shape[0]
             attn = attn.view(b // nW, nW, self.num_heads, n, n)
-            attn = attn + einops.rearrange(mask, "nw n1 n2 -> () nw () n1 n2")
+            attn = attn + einops.rearrange(mask, "nw n1 n2 -> 1 nw 1 n1 n2")
             attn = attn.view(-1, self.num_heads, n, n)
 
         attn = F.softmax(attn, dim=-1, dtype=torch.float32).to(q.dtype)
@@ -183,9 +183,7 @@ class SwinBlock(nn.Module):
         shifted_mask = torch.roll(img_mask, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
         mask_windows = window_partition(shifted_mask, self.window_size)
         mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
-        attn_mask = einops.rearrange(mask_windows, "nw n -> nw n ()") - einops.rearrange(
-            mask_windows, "nw n -> nw () n"
-        )
+        attn_mask = einops.rearrange(mask_windows, "nw n -> nw n 1") - einops.rearrange(mask_windows, "nw n -> nw 1 n")
         attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, 0.0)
         self._attn_mask = attn_mask
         self._mask_hw = (h, w)
@@ -355,7 +353,7 @@ class ObsSwinEncoder(nn.Module):
             patch_indices = flat_indices[flat_valid]
             flat_feats = einops.rearrange(projected, "b m d -> (b m) d")[flat_valid]
             agg.index_add_(0, patch_indices, flat_feats)
-            ones = einops.rearrange(torch.ones_like(patch_indices, dtype=projected.dtype, device=device), "n -> n ()")
+            ones = einops.rearrange(torch.ones_like(patch_indices, dtype=projected.dtype, device=device), "n -> n 1")
             counts.index_add_(0, patch_indices, ones)
 
         counts = counts.clamp_min(1.0)
