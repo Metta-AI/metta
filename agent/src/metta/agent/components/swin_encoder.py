@@ -318,9 +318,7 @@ class ObsSwinEncoder(nn.Module):
     ) -> torch.Tensor:
         B, M, feat_dim = token_features.shape
         if feat_dim != self.config.token_feat_dim:
-            raise ValueError(
-                f"token_feat_dim mismatch: expected {self.config.token_feat_dim}, got {feat_dim}."
-            )
+            raise ValueError(f"token_feat_dim mismatch: expected {self.config.token_feat_dim}, got {feat_dim}.")
 
         device = token_features.device
         normed_features = self.token_norm(token_features)
