@@ -72,7 +72,7 @@ class VanillaTransformerConfig(ComponentConfig):
     embed_dim: int = 32
     num_heads: int = 4
     ff_mult: int = 4
-    num_layers: int = 2
+    num_layers: int = 5
     max_cache_size: int = 8
 
     def make_component(self, env=None):
