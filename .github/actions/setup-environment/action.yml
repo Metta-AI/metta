@@ -42,47 +42,14 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
-    - name: Ensure MettaGrid version context
+    - name: Ensure Git history is available
       shell: bash
       run: |
-        if [ -n "${SETUPTOOLS_SCM_PRETEND_VERSION+x}" ]; then
-          echo "MettaGrid version preset via SETUPTOOLS_SCM_PRETEND_VERSION"
-          exit 0
-        fi
-
-        if ! git rev-parse --git-dir >/dev/null 2>&1; then
-          echo "Git metadata not available; skipping MettaGrid version setup"
-          exit 0
-        fi
-
-        git fetch --tags --quiet 2>/dev/null || true
-
-        describe=$(git describe --tags --match 'mettagrid-v*' --long 2>/dev/null || true)
-        if [ -n "$describe" ]; then
-          describe=${describe#mettagrid-v}
-          IFS='-' read -r base distance gsha _ <<EOF
-$describe
-EOF
-          sha=${gsha#g}
-          if [ "$distance" = "0" ]; then
-            version="$base"
-          elif [ -n "$base" ] && [ -n "$distance" ] && [ -n "$sha" ]; then
-            version="${base}.dev${distance}+${sha}"
-          fi
+        if git rev-parse --git-dir >/dev/null 2>&1; then
+          git fetch --tags --force --prune --unshallow 2>/dev/null || \
+          git fetch --tags --force --prune 2>/dev/null || true
         else
-          sha=$(git rev-parse --short HEAD 2>/dev/null || true)
-          distance=$(git rev-list HEAD --count 2>/dev/null || true)
-          if [ -n "$sha" ] && [ -n "$distance" ]; then
-            version="0.0.0.dev${distance}+g${sha}"
-          fi
-        fi
-
-        if [ -n "$version" ]; then
-          echo "METTAGRID_BUILD_VERSION=$version" >> "$GITHUB_ENV"
-          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
-          echo "Using MettaGrid derived version $version"
-        else
-          echo "MettaGrid version still unresolved; relying on setuptools_scm defaults"
+          echo "Git metadata not available; skipping history fetch"
         fi
 
     - name: Cache Bazel binary

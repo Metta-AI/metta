@@ -43,6 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
       - name: Ensure manual run version is provided
         if: github.event_name == 'workflow_dispatch' && env.METTAGRID_BUILD_VERSION == ''
         run: |
@@ -89,6 +90,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
       - name: Ensure manual run version is provided
         if: github.event_name == 'workflow_dispatch' && env.METTAGRID_BUILD_VERSION == ''
         run: |
