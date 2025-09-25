@@ -24,7 +24,7 @@ dependencies = [
   "botocore>=1.38.29",
   "gymnasium==0.29.1",
   "pettingzoo>=1.24.1,<1.25",
-  "pufferlib-core>=3.0.10,<3.1.0",
+  "pufferlib-core",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
 ]
