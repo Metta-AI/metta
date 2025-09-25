@@ -186,7 +186,7 @@ class ObsLatentAttn(nn.Module):
             attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
             attn_output = layer["attn_out_proj"](attn_output)
 
-            # reesidgual konnectshun
+            # residual connection
             queries = queries_res + attn_output
 
             # MLP block
