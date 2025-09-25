@@ -53,14 +53,10 @@ from metta.tools.utils.auto_config import (
 logger = getRankAwareLogger(__name__)
 
 
-def _default_trainer_config() -> TrainerConfig:
-    return TrainerConfig()
-
-
 class TrainTool(Tool):
     run: Optional[str] = None
 
-    trainer: TrainerConfig = Field(default_factory=_default_trainer_config)
+    trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
     policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None

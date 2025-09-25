@@ -66,53 +66,7 @@ class PolicyAutoBuilder(nn.Module):
     ):
         self.to(device)
         if device.type == "cuda":
-            self._sdpa_context.close()
-            self._sdpa_context = ExitStack()
-
-            sdpa_configured = False
-
-            nn_attention = getattr(torch.nn, "attention", None)
-            sdpa_kernel = getattr(nn_attention, "sdpa_kernel", None)
-            if callable(sdpa_kernel):
-                try:
-                    self._sdpa_context.enter_context(
-                        sdpa_kernel(
-                            backends=[
-                                nn_attention.SDPBackend.FLASH_ATTENTION,
-                                nn_attention.SDPBackend.EFFICIENT_ATTENTION,
-                                nn_attention.SDPBackend.MATH,
-                            ]
-                        )
-                    )
-                    sdpa_configured = True
-                except RuntimeError:
-                    sdpa_configured = False
-
-            if not sdpa_configured:
-                cuda_backends = getattr(torch.backends, "cuda", None)
-                sdp_kernel = getattr(cuda_backends, "sdp_kernel", None)
-                if callable(sdp_kernel):
-                    try:
-                        self._sdpa_context.enter_context(
-                            sdp_kernel(
-                                enable_flash=True,
-                                enable_mem_efficient=True,
-                                enable_math=True,
-                            )
-                        )
-                        sdpa_configured = True
-                    except RuntimeError:
-                        sdpa_configured = False
-
-                if not sdpa_configured and cuda_backends is not None:
-                    if hasattr(cuda_backends, "enable_flash_sdp"):
-                        cuda_backends.enable_flash_sdp(True)
-                    if hasattr(cuda_backends, "enable_mem_efficient_sdp"):
-                        cuda_backends.enable_mem_efficient_sdp(True)
-                    if hasattr(cuda_backends, "enable_math_sdp"):
-                        cuda_backends.enable_math_sdp(True)
-
-            # Keep TF32 fast paths enabled on Ampere+ by using the default precision.
+            self._configure_sdp()
             torch.set_float32_matmul_precision("medium")
         logs = []
         for _, value in self.components.items():
@@ -125,6 +79,52 @@ class PolicyAutoBuilder(nn.Module):
         for log in logs:
             if log is not None:
                 log_on_master(log)
+
+    def _configure_sdp(self) -> None:
+        self._sdpa_context.close()
+        self._sdpa_context = ExitStack()
+
+        configured = False
+
+        nn_attention = getattr(torch.nn, "attention", None)
+        sdpa_kernel = getattr(nn_attention, "sdpa_kernel", None)
+        if callable(sdpa_kernel):
+            configured = self._enter_sdp_context(
+                sdpa_kernel,
+                backends=[
+                    nn_attention.SDPBackend.FLASH_ATTENTION,
+                    nn_attention.SDPBackend.EFFICIENT_ATTENTION,
+                    nn_attention.SDPBackend.MATH,
+                ],
+            )
+
+        if configured:
+            return
+
+        cuda_backends = getattr(torch.backends, "cuda", None)
+        sdp_kernel = getattr(cuda_backends, "sdp_kernel", None) if cuda_backends else None
+        if callable(sdp_kernel):
+            configured = self._enter_sdp_context(
+                sdp_kernel,
+                enable_flash=True,
+                enable_mem_efficient=True,
+                enable_math=True,
+            )
+
+        if configured or not cuda_backends:
+            return
+
+        for attr in ("enable_flash_sdp", "enable_mem_efficient_sdp", "enable_math_sdp"):
+            fn = getattr(cuda_backends, attr, None)
+            if callable(fn):
+                fn(True)
+
+    def _enter_sdp_context(self, fn, *args, **kwargs) -> bool:
+        try:
+            self._sdpa_context.enter_context(fn(*args, **kwargs))
+            return True
+        except RuntimeError:
+            return False
 
     def __getstate__(self) -> dict[str, Any]:
         state = self.__dict__.copy()

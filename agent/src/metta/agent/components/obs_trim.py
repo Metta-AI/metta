@@ -31,44 +31,38 @@ class ObsTokenTrim(torch.nn.Module):
         mask = td.get(self.config.mask_key, None)
 
         batch, seq_len, _ = tokens.shape
+        max_tokens = self.config.max_tokens
 
-        if self.config.max_tokens is not None:
-            max_len = min(self.config.max_tokens, seq_len)
+        if max_tokens is not None:
+            max_len = min(max_tokens, seq_len)
             trimmed_tokens = tokens[:, :max_len].contiguous()
             if mask is not None:
                 new_mask = mask[:, :max_len].to(torch.bool)
             else:
                 new_mask = torch.zeros((batch, max_len), dtype=torch.bool, device=tokens.device)
             trimmed_tokens = trimmed_tokens.masked_fill(new_mask.unsqueeze(-1), self.config.pad_value)
-            capped_counts = None
+            lengths = None
         else:
             if mask is not None:
-                mask_bool = mask.to(torch.bool)
-                valid_counts = (~mask_bool).sum(dim=1)
+                valid_counts = (~mask.to(torch.bool)).sum(dim=1)
             else:
-                mask_bool = None
                 valid_counts = torch.full((batch,), seq_len, device=tokens.device, dtype=torch.long)
 
-            max_len = int(valid_counts.max().item()) if valid_counts.numel() else seq_len
-            if max_len == 0:
-                max_len = 1
-
+            max_len = max(int(valid_counts.max().item()), 1)
             trimmed_tokens = tokens[:, :max_len].contiguous()
 
-            expanded_indices = torch.arange(max_len, device=tokens.device).unsqueeze(0)
+            positions = torch.arange(max_len, device=tokens.device).unsqueeze(0)
             capped_counts = valid_counts.clamp(max=max_len).unsqueeze(1)
-            new_mask = expanded_indices >= capped_counts
-
+            new_mask = positions >= capped_counts
             trimmed_tokens = trimmed_tokens.masked_fill(new_mask.unsqueeze(-1), self.config.pad_value)
+            lengths = capped_counts.squeeze(1)
 
         td[self.config.out_key] = trimmed_tokens
         td[self.config.mask_key] = new_mask
 
         if self.config.length_key:
-            if capped_counts is not None:
-                td[self.config.length_key] = capped_counts.squeeze(1)
-            else:
+            if lengths is None:
                 lengths = (~new_mask).sum(dim=1)
-                td[self.config.length_key] = lengths
+            td[self.config.length_key] = lengths
 
         return td
