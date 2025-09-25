@@ -27,7 +27,7 @@ class FilterRepoSetup(SetupModule):
         except Exception:
             return False
 
-    def install(self, non_interactive: bool = False) -> None:
+    def install(self, non_interactive: bool = False, force: bool = False) -> None:
         """Install git-filter-repo."""
         info("Installing git-filter-repo...")
 
@@ -97,24 +97,25 @@ class FilterRepoSetup(SetupModule):
 
             if not installed:
                 error("Failed to install git-filter-repo automatically")
-                error("")
-                error("Please install manually:")
-                error("  curl -O https://raw.githubusercontent.com/newren/git-filter-repo/main/git-filter-repo")
-                error("  chmod +x git-filter-repo")
-                error("  sudo mv git-filter-repo /usr/local/bin/")
+                error("""
+                You can manually install it with:
+                    curl -O https://raw.githubusercontent.com/newren/git-filter-repo/main/git-filter-repo
+                    chmod +x git-filter-repo
+                    sudo mv git-filter-repo /usr/local/bin/
+                """)
                 raise RuntimeError("Installation failed")
 
     def run(self, args: list[str]) -> None:
         """Run filter-repo commands via metta."""
         if not args:
             error("Usage: metta run filter-repo <filter|inspect|push> ...")
-            error("")
-            error("This runs the sync_package.py script. Examples:")
-            error("  metta run filter-repo filter . mettagrid/ mettascope/")
-            error("  metta run filter-repo inspect /tmp/filtered-repo-xyz/filtered")
-            error("  metta run filter-repo push /tmp/filtered-repo-xyz/filtered git@github.com:org/repo.git")
+            error("""
+            This runs the sync_package.py script. Examples:
+              metta run filter-repo filter . packages/mettagrid/ mettascope/
+              metta run filter-repo inspect /tmp/filtered-repo-xyz/filtered
+              metta run filter-repo push /tmp/filtered-repo-xyz/filtered git@github.com:org/repo.git
+            """)
             return
-
         # Run the sync_package.py script with provided arguments
         script_path = self.repo_root / "devops" / "git" / "sync_package.py"
         if not script_path.exists():

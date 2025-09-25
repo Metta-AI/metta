@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "gen:encoding": "cd ../mettagrid && uv run python -c 'import json; from metta.mettagrid.char_encoder import NAME_TO_CHAR; print(json.dumps(NAME_TO_CHAR))' >../gridworks/src/lib/encoding.json",
+    "gen:encoding": "cd ../mettagrid && uv run python -c 'import json; from mettagrid.util.char_encoder import NAME_TO_CHAR; print(json.dumps(NAME_TO_CHAR))' >../gridworks/src/lib/encoding.json",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.16",
     "clsx": "^2.1.1",
     "framer-motion": "^12.19.1",
     "js-yaml": "^4.1.0",

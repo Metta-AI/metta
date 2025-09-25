@@ -4,13 +4,14 @@ from typing import Optional
 
 from pydantic import Field
 
-from metta.mettagrid import MettaGridConfig
-from metta.mettagrid.config import Config
+from mettagrid import MettaGridConfig
+from mettagrid.config import Config
 
 
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
+    suite: str = Field(description="Name of the simulation suite")
     name: str = Field(description="Name of the simulation")
     env: MettaGridConfig
 

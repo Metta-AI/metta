@@ -122,4 +122,4 @@ packages:
   amazon-efs-utils:
     brew:
       name: amazon-efs-utils
-      tap: aws/homebrew-aws
+      tap: aws/aws

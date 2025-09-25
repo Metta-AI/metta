@@ -1,9 +1,10 @@
 #!/usr/bin/env -S uv run
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
 from rich.console import Console
@@ -11,17 +12,17 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from metta.common.util.fs import get_repo_root
+from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
-from metta.setup.utils import error, info, success, warning
+from metta.setup.utils import debug, error, info, success, warning
+from metta.tools.utils.auto_config import auto_policy_storage_decision
+from metta.utils.live_run_monitor import app as run_monitor_app
+from softmax.dashboard.report import app as softmax_system_health_app
 
-app = typer.Typer(
-    help="Metta Setup Tool - Configure and install development environment",
-    rich_markup_mode="rich",
-    no_args_is_help=True,
-    context_settings={"help_option_names": ["-h", "--help"]},
-)
+if TYPE_CHECKING:
+    from metta.setup.registry import SetupModule
 
 PYTHON_TEST_FOLDERS = [
     "tests",
@@ -30,8 +31,15 @@ PYTHON_TEST_FOLDERS = [
     "app_backend/tests",
     "codebot/tests",
     "common/tests",
-    "mettagrid/tests",
+    "packages/mettagrid/tests",
+    "packages/cogames/tests",
 ]
+
+VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
+PACKAGE_TAG_PREFIXES = {
+    "mettagrid": "mettagrid-v",
+}
+DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
 
 class MettaCLI:
@@ -133,11 +141,56 @@ class MettaCLI:
         return text[: max_len - 3] + "..."
 
 
-# Create a single CLI instance
 cli = MettaCLI()
+app = typer.Typer(
+    help="Metta Setup Tool - Configure and install development environment",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    callback=cli._init_all,
+)
 
 
-# Configure command
+def _run_git_command(args: list[str], *, capture_output: bool = True) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cli.repo_root,
+        capture_output=capture_output,
+        text=True,
+        check=True,
+    )
+
+
+def _get_git_output(args: list[str]) -> str:
+    return _run_git_command(args).stdout.strip()
+
+
+def _bump_version(version: str) -> str:
+    parts = version.split(".")
+    bumped = parts[:-1] + [str(int(parts[-1]) + 1)]
+    return ".".join(bumped)
+
+
+def _validate_version_format(version: str) -> None:
+    if not VERSION_PATTERN.match(version):
+        error(f"Invalid version '{version}'. Expected numeric segments like '1.2.3' or '1.2.3.4'.")
+        raise typer.Exit(1)
+
+
+def _ensure_tag_unique(package: str, version: str) -> None:
+    prefix = PACKAGE_TAG_PREFIXES[package]
+    tag_name = f"{prefix}{version}"
+    result = subprocess.run(
+        ["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag_name}"],
+        cwd=cli.repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        error(f"Tag '{tag_name}' already exists.")
+        raise typer.Exit(1)
+
+
 @app.command(name="configure", help="Configure Metta settings")
 def cmd_configure(
     component: Annotated[Optional[str], typer.Argument(help="Specific component to configure")] = None,
@@ -151,8 +204,10 @@ def cmd_configure(
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
 ):
     """Configure Metta settings."""
-    cli._init_all()
     if component:
+        if profile:
+            error("Cannot configure a component and a profile at the same time.")
+            raise typer.Exit(1)
         configure_component(component)
     elif profile:
         from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
@@ -163,7 +218,6 @@ def cmd_configure(
             saved_settings = get_saved_settings()
             saved_settings.apply_profile(selected_user_type)
             success(f"Configured as {selected_user_type.value} user.")
-            info("\nRun 'metta install' to set up your environment.")
         else:
             error(f"Unknown profile: {profile}")
             raise typer.Exit(1)
@@ -190,48 +244,46 @@ def configure_component(component_name: str):
     module.configure()
 
 
-# Install command
+def _get_selected_modules(components: list[str] | None = None) -> list["SetupModule"]:
+    from metta.setup.registry import get_all_modules
+
+    return [
+        m
+        for m in get_all_modules()
+        if (components is not None and m.name in components) or (components is None and m.is_enabled())
+    ]
+
+
 @app.command(name="install", help="Install or update components")
 def cmd_install(
     components: Annotated[Optional[list[str]], typer.Argument(help="Components to install")] = None,
+    profile: Annotated[Optional[str], typer.Option("--profile", help="Profile to configure before installing")] = None,
     force: Annotated[bool, typer.Option("--force", help="Force reinstall")] = False,
     no_clean: Annotated[bool, typer.Option("--no-clean", help="Skip cleaning before install")] = False,
     non_interactive: Annotated[bool, typer.Option("--non-interactive", help="Non-interactive mode")] = False,
+    check_status: Annotated[bool, typer.Option("--check-status", help="Check status after installation")] = True,
 ):
-    """Install or update components."""
-    from metta.setup.registry import get_all_modules, get_enabled_setup_modules
-    from metta.setup.saved_settings import get_saved_settings
-
-    cli._init_all()
-
-    if not get_saved_settings().exists():
-        warning("No configuration found. Running setup wizard first...")
-        cli.setup_wizard()
-
     if not no_clean:
         cmd_clean()
 
+    from metta.setup.saved_settings import get_saved_settings
+
+    # A profile must exist before installing. If installing in non-interactive mode,
+    # the target profile must be specified with --profile. If in interactive mode and
+    # no profile is specified, the setup wizard will be run.
+    profile_exists = get_saved_settings().exists()
+    if non_interactive and not profile_exists and not profile:
+        error("Must specify a profile if installing in non-interactive mode without an existing one.")
+        raise typer.Exit(1)
+    elif profile or not profile_exists:
+        cmd_configure(profile=profile, non_interactive=non_interactive, component=None)
+
     if components:
-        modules = get_all_modules()
+        always_required_components = ["system", "core"]
+        limited_components = always_required_components + [m for m in components if m not in always_required_components]
     else:
-        modules = get_enabled_setup_modules()
-
-    if components:
-        only_names = list(components)
-        original_only = set(only_names)
-
-        essential_modules = {"system", "core"}
-        added_essentials = essential_modules - original_only
-
-        for essential in essential_modules:
-            if essential not in only_names:
-                only_names.append(essential)
-
-        if added_essentials:
-            info(f"Note: Adding essential dependencies: {', '.join(sorted(added_essentials))}\n")
-
-        modules = [m for m in modules if m.name in only_names]
-        modules.sort(key=lambda m: (m.name not in essential_modules, m.name))
+        limited_components = None
+    modules = _get_selected_modules(limited_components)
 
     if not modules:
         info("No modules to install.")
@@ -243,7 +295,7 @@ def cmd_install(
         info(f"[{module.name}] {module.description}")
 
         if module.install_once and module.check_installed() and not force:
-            info("  -> Already installed, skipping (use --force to reinstall)\n")
+            debug("  -> Already installed, skipping (use --force to reinstall)\n")
             continue
 
         try:
@@ -252,51 +304,27 @@ def cmd_install(
         except Exception as e:
             error(f"  Error: {e}\n")
 
-    success("Installation complete!")
+    if not non_interactive and check_status:
+        cmd_status(components=components, non_interactive=non_interactive)
 
 
-# Status command
-@app.command(name="status", help="Show status of all components")
+@app.command(name="status", help="Show status of components")
 def cmd_status(
     components: Annotated[
-        Optional[str], typer.Option("--components", help="Comma-separated list of components")
+        Optional[list[str]],
+        typer.Option("--components", help="Comma-separated list of components. Defaults to all enabled components."),
     ] = None,
     non_interactive: Annotated[bool, typer.Option("-n", "--non-interactive", help="Non-interactive mode")] = False,
 ):
-    """Show status of all components."""
     import concurrent.futures
 
-    from metta.setup.registry import get_all_modules
-
-    cli._init_all()
-
-    all_modules = get_all_modules()
-
-    if components:
-        requested_components = [c.strip() for c in components.split(",")]
-        module_map = {m.name: m for m in all_modules}
-        modules = []
-        for comp in requested_components:
-            if comp in module_map:
-                modules.append(module_map[comp])
-            else:
-                warning(f"Unknown component: {comp}")
-                info(f"Available components: {', '.join(sorted(module_map.keys()))}")
-        if not modules:
-            return
-    else:
-        modules = all_modules
-
+    modules = _get_selected_modules(components if components else None)
     if not modules:
-        warning("No modules found.")
+        warning("No modules to check.")
         return
 
-    applicable_modules = [m for m in modules if m.is_enabled()]
-    if not applicable_modules:
-        warning("No applicable modules found.")
-        return
-
-    module_status = {}
+    modules_by_name = {m.name: m for m in modules}
+    module_status: dict[str, SetupModuleStatus] = {}
 
     console = Console()
     with Progress(
@@ -326,9 +354,9 @@ def cmd_status(
             continue
 
         status_data = module_status[module.name]
-        installed = status_data["installed"]
-        connected_as = status_data["connected_as"]
-        expected = status_data["expected"]
+        installed = status_data.installed
+        connected_as = status_data.connected_as
+        expected = status_data.expected
 
         installed_str = "Yes" if installed else "No"
         connected_str = cli._truncate(connected_as or "-", 25)
@@ -353,61 +381,49 @@ def cmd_status(
     console = Console()
     console.print(table)
 
-    all_installed = all(module_status[name]["installed"] for name in module_status)
-    all_connected = all(
-        (module_status[name]["connected_as"] is not None or module_status[name]["expected"] is None)
-        for name in module_status
-        if module_status[name]["installed"]
-    )
-
-    if all_installed:
-        if all_connected:
-            success("All components are properly configured!")
+    policy_decision = auto_policy_storage_decision()
+    if policy_decision.using_remote and policy_decision.base_prefix:
+        if policy_decision.reason == "env_override":
+            success(
+                f"Policy storage: S3 uploads enabled via POLICY_REMOTE_PREFIX → {policy_decision.base_prefix}/<run>."
+            )
         else:
-            warning("Some components need authentication. Run 'metta install' to set them up.")
-    else:
-        warning("Some components are not installed. Run 'metta install' to set them up.")
-
-    not_connected = [
+            success(f"Policy storage: Softmax S3 uploads active → {policy_decision.base_prefix}/<run>.")
+    elif policy_decision.reason == "not_connected" and policy_decision.base_prefix:
+        warning(
+            "Policy storage: local only. Run 'aws sso login --profile softmax' to enable uploads to "
+            f"{policy_decision.base_prefix}/<run>."
+        )
+    elif policy_decision.reason == "aws_not_enabled":
+        info("Policy storage: local only (AWS component disabled).")
+    elif policy_decision.reason == "no_base_prefix":
+        info(
+            "Policy storage: local only (remote policy prefix not configured). "
+            "Set POLICY_REMOTE_PREFIX or rerun 'metta configure aws'."
+        )
+    could_force_install = [
         name
         for name, data in module_status.items()
-        if data["installed"] and data["expected"] and data["connected_as"] is None
+        if (
+            not data.installed  # Not installed
+            or (  # Expected to be connected as a specific account, but is not, and can remediate through force install
+                data.expected is not None
+                and data.connected_as != data.expected
+                and modules_by_name[name].can_remediate_connected_status_with_install
+            )
+        )
     ]
-
-    if not_connected:
-        console.print(f"\n[yellow]Components not connected: {', '.join(not_connected)}[/yellow]")
-        console.print("This could be due to expired credentials, network issues, or broken installations.")
-
-        if non_interactive:
-            console.print(f"\nTo fix: metta install {' '.join(not_connected)} --force")
-        elif sys.stdin.isatty():
-            if typer.confirm("\nReinstall these components to fix connection issues?"):
-                console.print(f"\nRunning: metta install {' '.join(not_connected)} --force")
-                subprocess.run([sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=cli.repo_root)
-
-    not_installed = [name for name, data in module_status.items() if not data["installed"]]
-
-    if not_installed:
-        console.print(f"\n[yellow]Components not installed: {', '.join(not_installed)}[/yellow]")
-
-        if non_interactive:
-            console.print(f"\nTo fix: metta install {' '.join(not_installed)}")
-        elif sys.stdin.isatty():
-            if typer.confirm("\nInstall these components?"):
-                console.print(f"\nRunning: metta install {' '.join(not_installed)}")
-                subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=cli.repo_root)
+    if could_force_install and not non_interactive and sys.stdin.isatty():
+        if typer.confirm(f"\nForce install {', '.join(could_force_install)} to attempt to resolve issues?"):
+            cmd_install(components=could_force_install, non_interactive=non_interactive, force=True, check_status=False)
 
 
-# Run command
 @app.command(name="run", help="Run component-specific commands")
 def cmd_run(
     component: Annotated[str, typer.Argument(help="Component to run command for")],
     args: Annotated[Optional[list[str]], typer.Argument(help="Arguments to pass to the component")] = None,
 ):
-    """Run component-specific commands."""
     from metta.setup.registry import get_all_modules
-
-    cli._init_all()
 
     modules = get_all_modules()
     module_map = {m.name: m for m in modules}
@@ -420,21 +436,18 @@ def cmd_run(
     module.run(args or [])
 
 
-# Clean command
 @app.command(name="clean", help="Clean build artifacts and temporary files")
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
-    """Clean build artifacts and temporary files."""
-
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
         info("  Removing root build directory...")
         shutil.rmtree(build_dir)
 
-    mettagrid_dir = cli.repo_root / "mettagrid"
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
     for build_name in ["build-debug", "build-release"]:
         build_path = mettagrid_dir / build_name
         if build_path.exists():
-            info(f"  Removing mettagrid/{build_name}...")
+            info(f"  Removing packages/mettagrid/{build_name}...")
             shutil.rmtree(build_path)
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
@@ -448,15 +461,112 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
             warning(f"  Cleanup script failed: {e}")
 
 
-# Lint command
+@app.command(name="publish", help="Create and push a release tag for a package")
+def cmd_publish(
+    package: Annotated[str, typer.Argument(help="Package to publish (currently only 'mettagrid')")],
+    version_override: Annotated[
+        Optional[str],
+        typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
+    ] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview actions without tagging")] = False,
+    remote: Annotated[str, typer.Option("--remote", help="Git remote to push the tag to")] = "origin",
+    force: Annotated[bool, typer.Option("--force", help="Bypass branch and clean checks")] = False,
+):
+    package = package.lower()
+    if package not in PACKAGE_TAG_PREFIXES:
+        error(f"Unsupported package '{package}'. Supported packages: {', '.join(sorted(PACKAGE_TAG_PREFIXES))}.")
+        raise typer.Exit(1)
+
+    prefix = PACKAGE_TAG_PREFIXES[package]
+
+    try:
+        status_output = _get_git_output(["status", "--porcelain"])
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to read git status: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    if status_output.strip() and not force:
+        error("Working tree is not clean. Commit, stash, or clean changes before publishing (use --force to override).")
+        raise typer.Exit(1)
+
+    try:
+        current_branch = _get_git_output(["rev-parse", "--abbrev-ref", "HEAD"])
+        current_commit = _get_git_output(["rev-parse", "HEAD"])
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to determine git state: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    if current_branch not in {"main"} and not force:
+        error("Publishing is only supported from the main branch. Switch to 'main' or pass --force to override.")
+        raise typer.Exit(1)
+
+    try:
+        tag_list_output = _get_git_output(["tag", "--list", f"{prefix}*", "--sort=-v:refname"])
+    except subprocess.CalledProcessError:
+        tag_list_output = ""
+
+    tags = [line for line in tag_list_output.splitlines() if line.strip()]
+    latest_tag = tags[0] if tags else None
+
+    if version_override is None:
+        if latest_tag:
+            previous_version = latest_tag[len(prefix) :]
+            _validate_version_format(previous_version)
+            target_version = _bump_version(previous_version)
+        else:
+            target_version = DEFAULT_INITIAL_VERSION
+    else:
+        _validate_version_format(version_override)
+        target_version = version_override
+
+    _validate_version_format(target_version)
+    _ensure_tag_unique(package, target_version)
+
+    tag_name = f"{prefix}{target_version}"
+
+    info("Release summary:\n")
+    info(f"  Package: {package}")
+    info(f"  Current branch: {current_branch}")
+    info(f"  Commit: {current_commit}")
+    info(f"  Tag: {tag_name}")
+    if latest_tag:
+        info(f"  Previous tag: {latest_tag}")
+    else:
+        info("  Previous tag: none")
+    if force:
+        warning("Force mode enabled: branch and clean checks were bypassed.")
+    info("")
+
+    if dry_run:
+        success("Dry run: no tag created. Run without --dry-run to proceed.")
+        return
+
+    if not typer.confirm("Create and push this tag?", default=True):
+        info("Publishing aborted.")
+        return
+
+    try:
+        _run_git_command(["tag", "-a", tag_name, "-m", f"Release {package} {target_version}"])
+        _run_git_command(["push", remote, tag_name], capture_output=False)
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to publish: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    success(f"Published {tag_name} to {remote}.")
+
+
 @app.command(name="lint", help="Run linting and formatting")
 def cmd_lint(
+    files: Annotated[Optional[list[str]], typer.Argument()] = None,
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
 ):
-    """Run linting and formatting."""
-    files = []
-    if staged:
+    # Determine which files to lint
+    if files:
+        # Filter to only Python files
+        files = [f for f in files if f.endswith(".py")]
+    elif staged:
+        # Discover staged files
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
             cwd=cli.repo_root,
@@ -465,12 +575,14 @@ def cmd_lint(
             check=True,
         )
         files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
-        if not files:
-            return
 
+    if files is not None and not files:
+        info("No Python files to lint")
+        return
+
+    # Build commands
     check_cmd = ["uv", "run", "--active", "ruff", "check"]
     format_cmd = ["uv", "run", "--active", "ruff", "format"]
-    cmds = [format_cmd, check_cmd]
 
     if fix:
         check_cmd.append("--fix")
@@ -478,10 +590,11 @@ def cmd_lint(
         format_cmd.append("--check")
 
     if files:
-        for cmd in cmds:
-            cmd.extend(files)
+        check_cmd.extend(files)
+        format_cmd.extend(files)
 
-    for cmd in cmds:
+    # Run commands
+    for cmd in [format_cmd, check_cmd]:
         try:
             info(f"Running: {' '.join(cmd)}")
             subprocess.run(cmd, cwd=cli.repo_root, check=True)
@@ -489,13 +602,8 @@ def cmd_lint(
             raise typer.Exit(e.returncode) from e
 
 
-# CI command
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
 def cmd_ci():
-    """Run all Python unit tests and all Mettagrid C++ tests."""
-
-    cli._init_all()
-
     info("Running Python tests...")
     python_test_cmd = [
         "uv",
@@ -515,14 +623,13 @@ def cmd_ci():
         raise typer.Exit(e.returncode) from e
 
     info("\nBuilding and running C++ tests...")
-    mettagrid_dir = cli.repo_root / "mettagrid"
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
 
     try:
-        subprocess.run(["cmake", "--preset", "benchmark"], cwd=mettagrid_dir, check=True)
-        subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
-        build_dir = mettagrid_dir / "build-release"
-        subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
+        subprocess.run(["make", "test"], cwd=mettagrid_dir, check=True)
         success("C++ tests passed!")
+        # Note: Benchmarks are not run in CI as they're for performance testing, not correctness
+        # To run benchmarks manually, use: cd packages/mettagrid && make benchmark
     except subprocess.CalledProcessError as e:
         error("C++ tests failed!")
         raise typer.Exit(e.returncode) from e
@@ -530,10 +637,29 @@ def cmd_ci():
     success("\nAll CI tests passed!")
 
 
-# Test command
+@app.command(name="benchmark", help="Run C++ and Python benchmarks for mettagrid")
+def cmd_benchmark():
+    """Run performance benchmarks for the mettagrid package."""
+    mettagrid_dir = cli.repo_root / "packages" / "mettagrid"
+
+    info("Running mettagrid benchmarks...")
+    info("Note: This may fail if Python environment is not properly configured.")
+    info("If it fails, try running directly: cd packages/mettagrid && make benchmark")
+
+    try:
+        subprocess.run(["make", "benchmark"], cwd=mettagrid_dir, check=True)
+        success("Benchmarks completed!")
+    except subprocess.CalledProcessError as e:
+        error("Benchmark execution failed!")
+        info("\nTroubleshooting:")
+        info("1. Try building first: cd packages/mettagrid && make build-prod")
+        info("2. Run benchmark binary directly: ./build-release/test_mettagrid_env_benchmark")
+        info("3. Run Python benchmarks: uv run pytest benchmarks/test_mettagrid_env_benchmark.py -v --benchmark-only")
+        raise typer.Exit(e.returncode) from e
+
+
 @app.command(name="test", help="Run all Python unit tests", context_settings={"allow_extra_args": True})
 def cmd_test(ctx: typer.Context):
-    """Run all Python unit tests."""
     cmd = [
         "uv",
         "run",
@@ -546,19 +672,18 @@ def cmd_test(ctx: typer.Context):
     if ctx.args:
         cmd.extend(ctx.args)
     try:
+        info(f"Running: {' '.join(cmd)}")
         subprocess.run(cmd, cwd=cli.repo_root, check=True)
     except subprocess.CalledProcessError as e:
         raise typer.Exit(e.returncode) from e
 
 
-# Pytest command
 @app.command(
     name="pytest",
     help="Run pytest with passed arguments",
     context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
 )
 def cmd_pytest(ctx: typer.Context):
-    """Run pytest with custom arguments."""
     cmd = [
         "uv",
         "run",
@@ -575,13 +700,11 @@ def cmd_pytest(ctx: typer.Context):
         raise typer.Exit(e.returncode) from e
 
 
-# Tool command
 @app.command(name="tool", help="Run a tool from the tools/ directory", context_settings={"allow_extra_args": True})
 def cmd_tool(
     tool_name: Annotated[str, typer.Argument(help="Name of the tool to run")],
     ctx: typer.Context,
 ):
-    """Run a tool from the tools/ directory."""
     tool_path = cli.repo_root / "tools" / f"{tool_name}.py"
     if not tool_path.exists():
         error(f"Error: Tool '{tool_name}' not found at {tool_path}")
@@ -594,10 +717,8 @@ def cmd_tool(
         raise typer.Exit(e.returncode) from e
 
 
-# Shell command
 @app.command(name="shell", help="Start an IPython shell with Metta imports")
 def cmd_shell():
-    """Start IPython shell."""
     cmd = ["uv", "run", "--active", "metta/setup/shell.py"]
     try:
         subprocess.run(cmd, cwd=cli.repo_root, check=True)
@@ -605,10 +726,8 @@ def cmd_shell():
         raise typer.Exit(e.returncode) from e
 
 
-# Go command
 @app.command(name="go", help="Navigate to a Softmax Home shortcut", context_settings={"allow_extra_args": True})
 def cmd_go(ctx: typer.Context):
-    """Navigate to Softmax Home shortcut."""
     import webbrowser
 
     if not ctx.args:
@@ -641,13 +760,25 @@ def cmd_report_env_details():
         info(f"Git Commit: {commit}")
 
 
-# Clip command
-@app.command(name="clip", help="Copy subsets of codebase for LLM contexts", context_settings={"allow_extra_args": True})
-def cmd_clip(ctx: typer.Context):
-    """Run codeclip tool."""
-    cmd = ["codeclip"]
-    if ctx.args:
-        cmd.extend(ctx.args)
+@app.command(
+    name="clip",
+    help="Copy codebase to clipboard. Pass through any codeclip flags",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,  # Disable typer's help handling
+)
+def cmd_clip(
+    ctx: typer.Context,
+):
+    """Copy subsets of codebase for LLM contexts."""
+    import sys
+
+    # Find all arguments after 'clip' command
+    clip_index = sys.argv.index("clip")
+    args_after_clip = sys.argv[clip_index + 1 :]
+
+    # Build command with codeclip and pass all arguments through
+    cmd = ["codeclip"] + args_after_clip
+
     try:
         subprocess.run(cmd, cwd=cli.repo_root, check=False)
     except FileNotFoundError:
@@ -656,15 +787,17 @@ def cmd_clip(ctx: typer.Context):
         raise typer.Exit(1) from None
 
 
+@app.command(name="gridworks", help="Start the Gridworks web UI", context_settings={"allow_extra_args": True})
+def cmd_gridworks(ctx: typer.Context):
+    cmd = ["./gridworks/start.py", *ctx.args]
+    subprocess.run(cmd, cwd=cli.repo_root, check=False)
+
+
+app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
 app.add_typer(symlink_app, name="symlink-setup")
-
-
-@app.callback()
-def main_callback():
-    """Handle initialization checks."""
-    pass
+app.add_typer(softmax_system_health_app, name="softmax-system-health")
 
 
 def main() -> None:

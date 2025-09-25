@@ -15,10 +15,11 @@ import re
 import sys
 from typing import Final
 
-import wandb
-
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.log_config import init_logging
-from metta.common.wandb.utils import ensure_wandb_run, log_to_wandb
+from metta.common.wandb.context import WandbConfig, WandbContext
+from metta.common.wandb.utils import log_to_wandb_summary
+from mettagrid.config import Config
 
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
@@ -87,11 +88,23 @@ if __name__ == "__main__":
         exit_code = 1
 
     finally:
+        wandb_config = WandbConfig(
+            enabled=True,
+            project=os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT),
+            entity=os.environ.get("WANDB_ENTITY", METTA_WANDB_ENTITY),
+            run_id=os.environ.get("METTA_RUN_ID"),
+            job_type="skypilot_latency",
+            tags=["skypilot", "latency"],
+        )
+
         try:
-            ensure_wandb_run()
-            log_to_wandb(metrics, also_summary=True)
+            with WandbContext(wandb_config, Config(), timeout=15) as run:
+                if run:
+                    log_to_wandb_summary(metrics)
+                    logger.info(f"Logged metrics to W&B run: {run.id}")
+                else:
+                    logger.warning("W&B run not initialized (offline or no connection)")
         except Exception as wandb_err:
             logger.warning(f"W&B logging failed: {wandb_err}")
-        finally:
-            wandb.finish()
-            sys.exit(exit_code)
+
+        sys.exit(exit_code)

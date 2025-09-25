@@ -3,9 +3,11 @@ from pathlib import Path
 
 import pytest
 
-import metta.mettagrid.builder.envs as eb
+import mettagrid.builder.envs as eb
 from experiments.recipes.arena import evaluate, replay, train
 from metta.agent.mocks import MockAgent
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
@@ -38,20 +40,34 @@ class TestNewPolicySystem:
     def test_simulation_creation_with_policy_uri(self):
         """Test creating simulations with policy URIs."""
         env_config = eb.make_navigation(num_agents=2)
-        sim = Simulation.create(
-            sim_config=SimulationConfig(name="test", env=env_config),
-            device="cpu",
-            vectorization="serial",
-            policy_uri=None,
-        )
+
+        monkeypatch = pytest.MonkeyPatch()
+
+        def _small_curriculum(cls, mg_config):
+            return CurriculumConfig(
+                task_generator=SingleTaskGenerator.Config(env=mg_config),
+                num_active_tasks=1,
+                max_task_id=1,
+            )
+
+        monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))
+        try:
+            sim = Simulation.create(
+                sim_config=SimulationConfig(suite="sim_suite", name="test", env=env_config),
+                device="cpu",
+                vectorization="serial",
+                policy_uri=None,
+            )
+        finally:
+            monkeypatch.undo()
 
         assert sim is not None
-        assert sim.name == "test"
+        assert sim.full_name == "sim_suite/test"
 
     def test_sim_tool_with_policy_uris(self):
         """Test SimTool with policy URIs."""
         env_config = eb.make_arena(num_agents=4)
-        sim_config = SimulationConfig(name="test_arena", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
         sim_tool = SimTool(
             simulations=[sim_config],
             policy_uris=["mock://test_policy"],
@@ -60,6 +76,51 @@ class TestNewPolicySystem:
 
         assert sim_tool.simulations[0].name == "test_arena"
         assert sim_tool.policy_uris == ["mock://test_policy"]
+
+    def test_sim_tool_with_run_parameter(self):
+        """Test SimTool with run parameter that converts to S3 policy URI."""
+        env_config = eb.make_arena(num_agents=4)
+        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
+        sim_tool = SimTool(
+            simulations=[sim_config],
+            run="test_experiment_2024",
+            stats_db_uri=None,
+        )
+
+        # Should have converted run name to S3 policy URI with :latest selector
+        expected_uri = "s3://softmax-public/policies/test_experiment_2024/test_experiment_2024:latest.pt"
+
+        # Need to call invoke to trigger the conversion
+        try:
+            sim_tool.invoke({})
+        except Exception:
+            # Expected to fail since the policy doesn't exist, but conversion should happen
+            pass
+
+        assert sim_tool.policy_uris == [expected_uri]
+
+    def test_sim_tool_run_parameter_validation(self):
+        """Test SimTool validation for run vs policy_uris parameters."""
+        env_config = eb.make_arena(num_agents=4)
+        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
+
+        # Should raise error when both run and policy_uris are provided
+        with pytest.raises(ValueError, match="Cannot specify both 'run' and 'policy_uris'"):
+            sim_tool = SimTool(
+                simulations=[sim_config],
+                run="test_run",
+                policy_uris=["mock://test_policy"],
+                stats_db_uri=None,
+            )
+            sim_tool.invoke({})
+
+        # Should raise error when neither is provided
+        with pytest.raises(ValueError, match="Either 'run' or 'policy_uris' is required"):
+            sim_tool = SimTool(
+                simulations=[sim_config],
+                stats_db_uri=None,
+            )
+            sim_tool.invoke({})
 
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""
@@ -71,12 +132,6 @@ class TestNewPolicySystem:
             assert agent is None or isinstance(agent, object)
         except Exception as e:
             assert "not found" in str(e).lower() or "invalid" in str(e).lower()
-
-    def test_checkpoint_manager_cache_interface(self):
-        """Test that CheckpointManager caching interface works."""
-        manager = CheckpointManager(cache_size=5)
-        manager.clear_cache()
-        assert manager.cache_size == 5
 
     def test_policy_uri_formats(self):
         """Test different policy URI formats are recognized."""
@@ -107,7 +162,7 @@ class TestNewPolicySystem:
         """Test that all tools have consistent configuration interfaces."""
 
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(name="test", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test", env=env_config)
         tools = [
             ReplayTool(sim=sim_config, policy_uri=None),
             PlayTool(sim=sim_config, policy_uri=None),

@@ -9,12 +9,15 @@ from pathlib import Path
 
 import pytest
 
-import metta.mettagrid.builder.envs as eb
-from metta.mettagrid import dtype_observations
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+import mettagrid.builder.envs as eb
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
+from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.sim import SimTool
+from mettagrid import MettaGridEnv, dtype_observations
 
 
 class TestBasicPolicyEnvironment:
@@ -72,9 +75,17 @@ class TestBasicPolicyEnvironment:
             assert config.game.num_agents > 0, f"{env_name} has no agents"
 
     @pytest.mark.slow
-    def test_basic_training_integration(self):
+    def test_basic_training_integration(self, monkeypatch):
         """Test that we can run basic training with the new system."""
         run_name = "integration_test"
+
+        captured_runs: list[tuple[list[str], dict[str, object]]] = []
+
+        def _fake_run(cmd: list[str], **kwargs):
+            captured_runs.append((cmd, kwargs))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", _fake_run)
 
         with tempfile.TemporaryDirectory():
             # Use the new recipe-based system
@@ -92,77 +103,70 @@ class TestBasicPolicyEnvironment:
             env["AWS_ACCESS_KEY_ID"] = "dummy_for_test"
             env["AWS_SECRET_ACCESS_KEY"] = "dummy_for_test"
 
-            try:
-                result = subprocess.run(
-                    cmd,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                    timeout=120,  # 2 minute timeout
-                    cwd=Path.cwd(),
-                )
+            subprocess.run(
+                cmd,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=120,  # 2 minute timeout
+                cwd=Path.cwd(),
+            )
 
-                # Check if training started successfully (even if it fails later)
-                # We're mainly testing that the new system doesn't have import/config errors
-                if result.returncode != 0:
-                    # Look for specific initialization errors vs training errors
-                    combined_output = result.stdout + result.stderr
-                    initialization_errors = [
-                        "ImportError",
-                        "ModuleNotFoundError",
-                        "AttributeError",
-                        "recipe not found",
-                        "TypeError",
-                        "NameError",
-                    ]
+        assert captured_runs, "Training command was not invoked"
+        train_cmd, kwargs = captured_runs[0]
+        assert train_cmd[:4] == ["uv", "run", "./tools/run.py", "experiments.recipes.arena.train"]
+        assert kwargs["cwd"] == Path.cwd()
+        assert kwargs["env"]["AWS_ACCESS_KEY_ID"] == "dummy_for_test"
 
-                    found_init_error = any(error in combined_output for error in initialization_errors)
+    def test_simulation_creation(self, monkeypatch):
+        """Test simulation configuration creation and instantiation."""
 
-                    if found_init_error:
-                        pytest.fail(
-                            f"Training initialization failed:\n"
-                            f"STDOUT: {result.stdout[-1000:]}\n"
-                            f"STDERR: {result.stderr[-1000:]}"
-                        )
-                    else:
-                        # Training started but failed during execution - that's ok for this test
-                        print("Training started successfully but failed during execution (expected for minimal test)")
-
-            except subprocess.TimeoutExpired:
-                # Timeout might be ok if training is actually running
-                print("Training test timed out - likely means it's working")
-
-    def test_simulation_creation(self):
-        """Test simulation configuration creation."""
-
-        # Test creating simulation config
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(name="test_nav", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_nav", env=env_config)
 
         assert sim_config.name == "test_nav"
         assert sim_config.env.game.num_agents == 2
 
-    def test_replay_tool_config(self):
-        """Test that replay tool can be configured."""
+        def _small_curriculum(cls, mg_config):
+            return CurriculumConfig(
+                task_generator=SingleTaskGenerator.Config(env=mg_config),
+                num_active_tasks=1,
+                max_task_id=1,
+            )
+
+        monkeypatch.setattr(CurriculumConfig, "from_mg", classmethod(_small_curriculum))
+        simulation = Simulation.create(
+            sim_config=sim_config,
+            device="cpu",
+            vectorization="serial",
+            policy_uri=None,
+        )
+        try:
+            assert simulation.full_name == "test/test_nav"
+        finally:
+            simulation._vecenv.close()  # type: ignore[attr-defined]
+
+    def test_sim_tool_config_with_policy_uri(self):
+        """Test that SimTool accepts policy URIs."""
 
         env_config = eb.make_arena(num_agents=4)
-        sim_config = SimulationConfig(name="test_arena", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        replay_tool = ReplayTool(
-            sim=sim_config,
-            policy_uri=None,
-            open_browser_on_start=False,  # Don't try to open browser in tests
-        )
+        sim_tool = SimTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
 
-        assert replay_tool.sim.name == "test_arena"
-        assert replay_tool.open_browser_on_start is False
+        assert sim_tool.simulations[0].name == "test_arena"
+        assert sim_tool.policy_uris == ["mock://test_policy"]
 
-    def test_play_tool_config(self):
-        """Test that play tool can be configured."""
+    def test_play_and_replay_tools_share_run_configuration(self):
+        """Ensure basic tool wiring stays aligned with SimulationConfig usage."""
 
         env_config = eb.make_navigation(num_agents=2)
-        sim_config = SimulationConfig(name="test_nav_play", env=env_config)
+        sim_config = SimulationConfig(suite="test", name="tool_config", env=env_config)
 
         play_tool = PlayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
+        replay_tool = ReplayTool(sim=sim_config, policy_uri=None, open_browser_on_start=False)
 
-        assert play_tool.sim.name == "test_nav_play"
+        assert play_tool.sim.name == "tool_config"
+        assert replay_tool.sim.name == "tool_config"
+        assert play_tool.open_browser_on_start is False
+        assert replay_tool.open_browser_on_start is False

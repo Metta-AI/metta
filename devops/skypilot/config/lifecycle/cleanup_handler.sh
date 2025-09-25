@@ -20,19 +20,24 @@ cleanup() {
   CMD_EXIT=${CMD_EXIT:-$?}
 
   # Read termination reason
-  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2>/dev/null || echo "")
+  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE" 2> /dev/null || echo "")
   echo "[INFO] Termination reason: $TERMINATION_REASON"
 
   # Master-only: Handle notifications and status updates
   if [[ "$IS_MASTER" == "true" ]]; then
-    handle_master_cleanup
     print_final_summary
+    # Force flush stdout to ensure summary is written
+    exec 1>&1
+
+    handle_master_cleanup
   fi
 
   # Set the final exit code for the script
   determine_final_exit_code
 
   sleep 1
+
+  echo "[INFO] cleanup() complete. Final exit code: ${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
 
   # Override the process exit code from within the EXIT trap.
   # Note: calling `exit` inside an EXIT trap does not recurse the trap.
@@ -110,27 +115,23 @@ handle_master_cleanup() {
   uv run devops/skypilot/config/observability/set_github_status.py "$GITHUB_STATUS_STATE" "$GITHUB_STATUS_DESCRIPTION"
 }
 
-
 print_final_summary() {
   echo "[SUMMARY] ===== Job Summary ====="
   echo "[SUMMARY] Metta Run ID: ${METTA_RUN_ID}"
   echo "[SUMMARY] Skypilot Task ID: ${SKYPILOT_TASK_ID}"
+  echo "[SUMMARY] Restart Count: ${RESTART_COUNT}"
   echo "[SUMMARY] Exit code: ${CMD_EXIT}"
   echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
   echo "[SUMMARY] ======================"
-
-  echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
 }
 
 determine_final_exit_code() {
-  if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] \
-    || [[ "${TERMINATION_REASON}" == "completed" ]] \
-    || [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
+  if [[ "${TERMINATION_REASON}" == "force_restart_test" ]]; then
+    echo "[INFO] Will exit with code 1 to trigger SkyPilot restart"
+    FINAL_EXIT_CODE=1
+  else
     echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0
-  else
-    echo "[INFO] Will exit with code: $CMD_EXIT"
-    FINAL_EXIT_CODE=$CMD_EXIT
   fi
 }
 

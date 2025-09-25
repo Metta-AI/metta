@@ -33,6 +33,7 @@
     "cfgs",
     "charconv",
     "charliermarsh",
+    "checkpointer",
     "chrono",
     "cimport",
     "cinit",
@@ -41,11 +42,14 @@
     "clocale",
     "clusterissuer",
     "cmath",
+    "codebot",
     "codeclip",
     "codecvt",
     "coef",
     "coeff",
+    "cogames",
     "cogeval",
+    "cogweb",
     "cogworks",
     "configs",
     "conftest",
@@ -90,6 +94,7 @@
     "endgroup",
     "errc",
     "esac",
+    "etype",
     "evals",
     "excinfo",
     "exitstatus",
@@ -117,6 +122,7 @@
     "hasattr",
     "heavyball",
     "hookwrapper",
+    "hotfixes",
     "htmlcov",
     "httpx",
     "hyperparameters",
@@ -148,6 +154,7 @@
     "libnccl",
     "lognormal",
     "logratio",
+    "lookback",
     "lowent",
     "macbook",
     "makereport",
@@ -307,9 +314,5 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": [
-    "node_modules",
-    "venv",
-    ".git"
-  ]
+  "ignorePaths": ["node_modules", "venv", ".git"]
 }

@@ -7,28 +7,29 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.mocks import MockAgent
-from metta.rl.checkpoint_manager import CheckpointManager, parse_checkpoint_filename
+from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.system_config import SystemConfig
 
 
 @pytest.fixture
-def temp_run_dir():
+def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield tmpdir
+        yield SystemConfig(data_dir=Path(tmpdir), local_only=True)
 
 
 @pytest.fixture
-def checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run="test_run", run_dir=temp_run_dir)
+def checkpoint_manager(test_system_cfg):
+    return CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
 
 @pytest.fixture
-def cached_checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run="test_run", run_dir=temp_run_dir, cache_size=3)
+def cached_checkpoint_manager(test_system_cfg):
+    return CheckpointManager(run="test_run", system_cfg=test_system_cfg, cache_size=3)
 
 
 @pytest.fixture
-def no_cache_checkpoint_manager(temp_run_dir):
-    return CheckpointManager(run="test_run", run_dir=temp_run_dir, cache_size=0)
+def no_cache_checkpoint_manager(test_system_cfg):
+    return CheckpointManager(run="test_run", system_cfg=test_system_cfg, cache_size=0)
 
 
 @pytest.fixture
@@ -37,23 +38,53 @@ def mock_agent():
 
 
 class TestBasicSaveLoad:
+    def test_latest_selector_file_uri(self, checkpoint_manager, mock_agent):
+        """Test :latest selector for file:// URIs."""
+        # Save multiple checkpoints
+        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=5, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=3, metadata={})
+
+        # Test :latest resolution
+        from metta.rl.checkpoint_manager import key_and_version
+
+        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
+        run_name, epoch = key_and_version(latest_uri)
+
+        assert run_name == "test_run"
+        assert epoch == 5  # Should resolve to highest epoch
+
+    def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent):
+        """Test loading policy with :latest selector."""
+        # Save multiple checkpoints
+        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=7, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=3, metadata={})
+
+        # Load using :latest selector
+        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
+        loaded_agent = CheckpointManager.load_from_uri(latest_uri)
+
+        assert loaded_agent is not None
+        # Verify it loaded the correct checkpoint by checking metadata
+        metadata = CheckpointManager.get_policy_metadata(latest_uri)
+        assert metadata["run_name"] == "test_run"
+        assert metadata["epoch"] == 7  # Should be the highest epoch
+
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent):
         metadata = {"agent_step": 5280, "total_time": 120.0, "score": 0.75}
 
         checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
 
-        checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        expected_filename = "test_run__e5__s5280__t120__sc7500.pt"
+        checkpoint_dir = checkpoint_manager.checkpoint_dir
+        expected_filename = "test_run:v5.pt"
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
 
-        parsed = parse_checkpoint_filename(expected_filename)
-        assert parsed[0] == "test_run"  # run name
-        assert parsed[1] == 5  # epoch
-        assert parsed[2] == 5280  # agent_step
-        assert parsed[3] == 120  # total_time
-        assert abs(parsed[4] - 0.75) < 0.0001  # score
+        metadata = CheckpointManager.get_policy_metadata(agent_file.as_uri())
+        assert "run_name" in metadata and metadata["run_name"] == "test_run"
+        assert "epoch" in metadata and metadata["epoch"] == 5
 
         loaded_agent = checkpoint_manager.load_agent(epoch=5)
         assert loaded_agent is not None
@@ -62,6 +93,25 @@ class TestBasicSaveLoad:
         output = loaded_agent(test_input)
         assert "actions" in output
         assert output["actions"].shape[0] == 1
+
+    def test_remote_prefix_upload(self, test_system_cfg, mock_agent):
+        metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
+
+        test_system_cfg.local_only = False
+        test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
+        manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
+
+        expected_filename = "test_run:v3.pt"
+        expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
+
+        with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
+            remote_uri = manager.save_agent(mock_agent, epoch=3, metadata=metadata)
+
+        assert remote_uri == expected_remote
+        mock_write.assert_called_once()
+        remote_arg, local_arg = mock_write.call_args[0]
+        assert remote_arg == expected_remote
+        assert Path(local_arg).name == expected_filename
 
     def test_multiple_epoch_saves_and_selection(self, checkpoint_manager, mock_agent):
         epochs_data = [
@@ -78,14 +128,9 @@ class TestBasicSaveLoad:
         assert loaded_agent is not None
 
         # Test checkpoint selection
-        latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="epoch")
+        latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1)
         assert len(latest_checkpoints) == 1
-        assert latest_checkpoints[0].endswith("test_run__e10__s10000__t300__sc9000.pt")
-
-        # Test selection by score
-        best_score_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1, metric="score")
-        assert len(best_score_checkpoints) == 1
-        assert best_score_checkpoints[0].endswith("test_run__e10__s10000__t300__sc9000.pt")
+        assert latest_checkpoints[0].endswith("test_run:v10.pt")
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent):
         # Save agent checkpoint
@@ -102,7 +147,17 @@ class TestBasicSaveLoad:
         assert loaded_trainer_state["epoch"] == 5
         assert loaded_trainer_state["agent_step"] == 1000
         assert loaded_trainer_state["stopwatch_state"]["elapsed_time"] == 123.45
+        assert loaded_trainer_state.get("loss_states", {}) == {}
         assert "optimizer_state" in loaded_trainer_state
+
+    def test_checkpoint_existence(self, checkpoint_manager, mock_agent):
+        # Should raise FileNotFoundError when no checkpoints exist
+        with pytest.raises(FileNotFoundError):
+            checkpoint_manager.load_agent()
+
+        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100, "total_time": 30})
+        loaded = checkpoint_manager.load_agent()
+        assert loaded is not None
 
 
 class TestCaching:
@@ -175,8 +230,8 @@ class TestCleanup:
                 mock_agent, epoch=epoch, metadata={"agent_step": epoch * 1000, "total_time": epoch * 30}
             )
 
-        checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        checkpoint_files = list(checkpoint_dir.glob("test_run__e*__s*__t*__sc*.pt"))
+        checkpoint_dir = checkpoint_manager.checkpoint_dir
+        checkpoint_files = [p for p in checkpoint_dir.glob("*.pt") if ":v" in p.stem]
         assert len(checkpoint_files) == 10
 
         # Clean up, keeping only 5
@@ -184,10 +239,10 @@ class TestCleanup:
         assert deleted_count == 5
 
         # Verify only 5 remain (latest ones: epochs 6-10)
-        remaining_files = list(checkpoint_dir.glob("test_run__e*__s*__t*__sc*.pt"))
+        remaining_files = [p for p in checkpoint_dir.glob("*.pt") if ":v" in p.stem]
         assert len(remaining_files) == 5
 
-        remaining_epochs = sorted([parse_checkpoint_filename(f.name)[1] for f in remaining_files])
+        remaining_epochs = sorted(int(f.stem.split(":v")[1]) for f in remaining_files)
         assert remaining_epochs == [6, 7, 8, 9, 10]
 
     def test_cleanup_with_trainer_state(self, checkpoint_manager, mock_agent):
@@ -196,56 +251,15 @@ class TestCleanup:
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
         checkpoint_manager.save_trainer_state(mock_optimizer, epoch=1, agent_step=1000)
 
-        checkpoint_dir = Path(checkpoint_manager.run_dir) / "test_run" / "checkpoints"
-        assert (checkpoint_dir / "test_run__e1__s1000__t60__sc0.pt").exists()
+        checkpoint_dir = checkpoint_manager.checkpoint_dir
+        assert (checkpoint_dir / "test_run:v1.pt").exists()
         assert (checkpoint_dir / "trainer_state.pt").exists()
 
         # Cleanup should remove both
         deleted_count = checkpoint_manager.cleanup_old_checkpoints(keep_last_n=0)
         assert deleted_count == 1
-        assert not (checkpoint_dir / "test_run__e1__s1000__t60__sc0.pt").exists()
+        assert not (checkpoint_dir / "test_run:v1.pt").exists()
         assert not (checkpoint_dir / "trainer_state.pt").exists()
-
-
-class TestUtilities:
-    def test_parse_checkpoint_filename_valid(self):
-        filename = "my_run__e42__s12500__t1800__sc8750.pt"
-        parsed = parse_checkpoint_filename(filename)
-        assert parsed == ("my_run", 42, 12500, 1800, 0.8750)
-
-        # Test edge cases
-        filename = "run__e0__s0__t0__sc0.pt"
-        parsed = parse_checkpoint_filename(filename)
-        assert parsed == ("run", 0, 0, 0, 0.0)
-
-        filename = "run__e999__s999999__t86400__sc9999.pt"
-        parsed = parse_checkpoint_filename(filename)
-        assert parsed == ("run", 999, 999999, 86400, 0.9999)
-
-    def test_parse_checkpoint_filename_invalid(self):
-        invalid_filenames = [
-            "invalid.pt",
-            "run_e5_s1000_t300.pt",  # Wrong separators
-            "run__e5__s1000.pt",  # Missing fields
-            "run__epoch5__s1000__t300__sc0.pt",  # Wrong prefixes
-            "run__e5__s1000__t300__sc0.txt",  # Wrong extension
-        ]
-
-        for invalid_filename in invalid_filenames:
-            with pytest.raises(ValueError):
-                parse_checkpoint_filename(invalid_filename)
-
-    def test_checkpoint_existence(self, checkpoint_manager, mock_agent):
-        # Should raise FileNotFoundError initially
-        with pytest.raises(FileNotFoundError):
-            checkpoint_manager.load_agent()
-
-        # Save a checkpoint
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100, "total_time": 30})
-
-        # Should load successfully now
-        loaded = checkpoint_manager.load_agent()
-        assert loaded is not None
 
 
 class TestErrorHandling:
@@ -262,9 +276,9 @@ class TestErrorHandling:
         checkpoints = checkpoint_manager.select_checkpoints()
         assert checkpoints == []
 
-    def test_invalid_run_name(self, temp_run_dir):
+    def test_invalid_run_name(self, test_system_cfg):
         invalid_names = ["", "name with spaces", "name/with/slash", "name*with*asterisk"]
 
         for invalid_name in invalid_names:
             with pytest.raises(ValueError):
-                CheckpointManager(run=invalid_name, run_dir=temp_run_dir)
+                CheckpointManager(run=invalid_name, system_cfg=test_system_cfg)

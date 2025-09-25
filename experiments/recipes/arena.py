@@ -1,16 +1,21 @@
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import MettaGridConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+import mettagrid.builder.envs as eb
+from metta.cogworks.curriculum.curriculum import (
+    CurriculumAlgorithmConfig,
+    CurriculumConfig,
+)
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from mettagrid import MettaGridConfig
+from mettagrid.config import ConverterConfig
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
@@ -21,10 +26,13 @@ def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    arena_env: Optional[MettaGridConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+    algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
-    # make a set of training tasks for the arena
     arena_tasks = cc.bucketed(arena_env)
 
     # arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6])
@@ -46,7 +54,17 @@ def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumCo
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return CurriculumConfig(task_generator=arena_tasks)
+    if algorithm_config is None:
+        algorithm_config = LearningProgressConfig(
+            use_bidirectional=True,  # Default: bidirectional learning progress
+            ema_timescale=0.001,
+            exploration_bonus=0.1,
+            max_memory_tasks=1000,
+            max_slice_axes=5,  # More slices for arena complexity
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+        )
+
+    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
@@ -57,28 +75,23 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     combat_env.game.actions.attack.consumed_resources["laser"] = 1
 
     return [
-        SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=combat_env),
+        SimulationConfig(suite="arena", name="basic", env=basic_env),
+        SimulationConfig(suite="arena", name="combat", env=combat_env),
     ]
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum or make_curriculum(),
-        evaluation=EvaluationConfig(
-            simulations=[
-                SimulationConfig(
-                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-                ),
-                SimulationConfig(
-                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
-                ),
-            ],
-        ),
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+    enable_detailed_slice_logging: bool = False,
+) -> TrainTool:
+    curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
+    )
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
@@ -107,27 +120,24 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         )
 
     if converters:
-        env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
+        altar = env_cfg.game.objects.get("altar")
+        if isinstance(altar, ConverterConfig) and hasattr(altar, "input_resources"):
+            altar.input_resources["battery_red"] = 1
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=cc.env_curriculum(env_cfg),
-        evaluation=EvaluationConfig(
-            simulations=make_evals(env_cfg),
-        ),
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
+        evaluator=EvaluatorConfig(simulations=make_evals()),
     )
-
-    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return PlayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+    return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
 def evaluate(
@@ -137,4 +147,14 @@ def evaluate(
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
+    )
+
+
+def evaluate_remote(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> EvalRemoteTool:
+    simulations = simulations or make_evals()
+    return EvalRemoteTool(
+        simulations=simulations,
+        policy_uri=policy_uri,
     )

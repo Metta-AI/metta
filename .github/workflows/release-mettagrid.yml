@@ -1,0 +1,106 @@
+name: Build and publish mettagrid
+
+on:
+  push:
+    tags:
+      - mettagrid-v*
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Enable publishing step (builds will be created regardless)"
+        required: false
+        default: "yes"
+        type: choice
+        options:
+          - "yes"
+          - "no"
+      target:
+        description: "Where to publish: testpypi (safe testing) or pypi (live release)"
+        required: false
+        default: testpypi
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+      - run: pipx run build --sdist --outdir dist packages/mettagrid
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  build-wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-13, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+
+      # Install Bazel on macOS
+      - uses: bazelbuild/setup-bazelisk@v3
+        if: runner.os == 'macOS'
+
+      - uses: pypa/cibuildwheel@v2.16.5
+        env:
+          CIBW_BUILD: cp311-*
+          CIBW_SKIP: "*-musllinux* *i686"
+          CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-14' && 'arm64' || 'x86_64' }}
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_BEFORE_ALL_LINUX: |
+            curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
+            chmod +x /usr/local/bin/bazelisk
+            ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+          CI: "true"
+        with:
+          package-dir: packages/mettagrid
+          output-dir: wheelhouse
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  publish:
+    needs: [build-sdist, build-wheels]
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
+    runs-on: ubuntu-latest
+    env:
+      PUBLISH_TARGET: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target || 'pypi' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -l dist/
+
+      - name: Check distributions
+        run: pipx run twine check dist/*
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: ${{ env.PUBLISH_TARGET == 'testpypi' && 'https://test.pypi.org/legacy/' || '' }}
+          skip-existing: ${{ env.PUBLISH_TARGET == 'testpypi' }}

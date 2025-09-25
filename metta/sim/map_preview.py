@@ -10,9 +10,9 @@ from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.util.fs import get_repo_root
-from metta.mettagrid.mettagrid_config import MettaGridConfig
-from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.file import write_file
+from metta.utils.file import write_file
+from mettagrid import MettaGridEnv
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 

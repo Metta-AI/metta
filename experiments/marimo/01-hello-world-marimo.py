@@ -68,7 +68,7 @@ def _():
     import anywidget
     import traitlets
     from IPython.display import display
-    from metta.mettagrid import MettaGridEnv
+    from mettagrid import MettaGridEnv
 
     # Import MettaScope replay viewer
     try:
@@ -81,7 +81,7 @@ def _():
 
     from metta.rl.checkpoint_manager import CheckpointManager
 
-    from metta.common.wandb.wandb_context import WandbConfig
+    from metta.common.wandb.context import WandbConfig
     import wandb
     import torch
 
@@ -89,27 +89,23 @@ def _():
 
     import logging
     from metta.tools.train import TrainTool
-    from metta.rl.trainer_config import (
-        TrainerConfig,
-        CheckpointConfig,
-        EvaluationConfig,
-    )
+    from metta.rl.trainer_config import TrainerConfig
+    from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 
     from metta.cogworks.curriculum import (
         env_curriculum,
-        SingleTaskGeneratorConfig,
         CurriculumConfig,
+        SingleTaskGenerator,
     )
 
     # Additional imports for cells
-    from metta.mettagrid.builder.envs import make_arena
-    from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-    from metta.mettagrid.mettagrid_config import (
+    from mettagrid.builder.envs import make_arena
+    from mettagrid.map_builder.ascii import AsciiMapBuilder
+    from mettagrid.config.mettagrid_config import (
         AgentRewards,
-        StatsRewards,
     )
-    from metta.mettagrid.config import Config
-    from metta.mettagrid.test_support.actions import generate_valid_random_actions
+    from mettagrid.config import Config
+    from mettagrid.test_support.actions import generate_valid_random_actions
     from metta.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td
     import pprint
@@ -364,16 +360,14 @@ def _():
     return (
         AgentRewards,
         AsciiMapBuilder,
-        CheckpointConfig,
         Config,
-        EvaluationConfig,
+        EvaluatorConfig,
         MettaGridEnv,
         OpportunisticPolicy,
         Path,
         CheckpointManager,
         RendererToolConfig,
         SimulationConfig,
-        StatsRewards,
         TensorDict,
         TrainTool,
         TrainerConfig,
@@ -464,7 +458,6 @@ def _(
     make_arena,
     AsciiMapBuilder,
     AgentRewards,
-    StatsRewards,
     pprint,
     textwrap,
 ):
@@ -496,7 +489,6 @@ def _(
     mg_config.game.actions.change_color.enabled = False
     mg_config.game.actions.change_glyph.enabled = False
     mg_config.game.actions.swap.enabled = False
-    mg_config.game.actions.place_box.enabled = False
 
     # IMPORTANT: Match the exact training reward structure from config.json
     mg_config.game.agent.rewards = AgentRewards(
@@ -544,7 +536,6 @@ def _(
     return (
         AgentRewards,
         AsciiMapBuilder,
-        StatsRewards,
         mg_config,
         make_arena,
         renderer_config,
@@ -811,8 +802,7 @@ def _(mo):
 
 @app.cell
 def _(
-    CheckpointConfig,
-    EvaluationConfig,
+    EvaluatorConfig,
     TrainTool,
     TrainerConfig,
     datetime,
@@ -834,7 +824,6 @@ def _(
 
         # Create trainer configuration to reach peak performance before unlearning
         trainer_config = TrainerConfig(
-            curriculum=env_curriculum(mg_config),
             total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 ore)
             batch_size=32768,  # Reduced batch size for more stable learning
             minibatch_size=256,  # Smaller minibatches for better gradient estimates
@@ -854,19 +843,26 @@ def _(
             },
             checkpoint=CheckpointConfig(
                 checkpoint_interval=20,  # Frequent checkpoints to catch peak performance
-                wandb_checkpoint_interval=20,
+                remote_prefix=f"s3://softmax-public/policies/{run_name}",
             ),
-            evaluation=EvaluationConfig(
-                evaluate_interval=20,  # Frequent evaluation to monitor for unlearning
-                evaluate_remote=False,
-                evaluate_local=True,
-                replay_dir=f"s3://softmax-public/replays/{run_name}",
-            ),
+        )
+
+        training_env_cfg = TrainingEnvironmentConfig(
+            curriculum=env_curriculum(mg_config)
+        )
+
+        evaluator_cfg = EvaluatorConfig(
+            epoch_interval=20,  # Frequent evaluation to monitor for unlearning
+            evaluate_remote=False,
+            evaluate_local=True,
+            replay_dir=f"s3://softmax-public/replays/{run_name}",
         )
 
         # Create and configure the training tool
         train_tool = TrainTool(
             trainer=trainer_config,
+            training_env=training_env_cfg,
+            evaluator=evaluator_cfg,
             # wandb=WandbConfigOff(),  # Disable wandb for simplicity
             run=run_name,
             run_dir=f"train_dir/{run_name}",
@@ -1269,7 +1265,6 @@ def _(
     AgentRewards,
     AsciiMapBuilder,
     RendererToolConfig,
-    StatsRewards,
     make_arena,
     textwrap,
 ):
@@ -1301,7 +1296,6 @@ def _(
     mg_config2.game.actions.change_color.enabled = False
     mg_config2.game.actions.change_glyph.enabled = False
     mg_config2.game.actions.swap.enabled = False
-    mg_config2.game.actions.place_box.enabled = False
 
     # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping
     mg_config2.game.agent.rewards = AgentRewards(
@@ -1320,9 +1314,6 @@ def _(
 
     # Use action failure penalty for efficiency (encourages purposeful movement)
     mg_config2.game.agent.action_failure_penalty = 0.01
-
-    # Use proper StatsRewards object to avoid serialization warnings
-    mg_config2.game.agent.rewards.stats = StatsRewards()
 
     renderer_config2 = RendererToolConfig(
         policy_type="opportunistic",
@@ -1487,7 +1478,8 @@ def _(mo):
 @app.cell
 def _(
     CheckpointConfig,
-    EvaluationConfig,
+    EvaluatorConfig,
+    TrainingEnvironmentConfig,
     TrainTool,
     TrainerConfig,
     datetime,
@@ -1509,7 +1501,6 @@ def _(
         run_name2 = f"{username}.hello_world_train.mine_plus_generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         trainer_config = TrainerConfig(
-            curriculum=curriculum,
             total_timesteps=3500000,  # Extended training to master conversion cycles
             batch_size=65536,  # Larger batches for stable learning of clear signal
             minibatch_size=512,  # Bigger minibatches with clean reward structure
@@ -1548,19 +1539,24 @@ def _(
             },
             checkpoint=CheckpointConfig(
                 checkpoint_interval=10,  # More frequent checkpoints to catch peak
-                wandb_checkpoint_interval=10,
+                remote_prefix=f"s3://softmax-public/policies/{run_name2}",
             ),
-            evaluation=EvaluationConfig(
-                evaluate_interval=10,  # More frequent evaluation to monitor unlearning
-                evaluate_remote=False,
-                evaluate_local=True,
-                replay_dir=f"s3://softmax-public/replays/{run_name2}",
-            ),
+        )
+
+        training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
+
+        evaluator_cfg = EvaluatorConfig(
+            epoch_interval=10,  # More frequent evaluation to monitor unlearning
+            evaluate_remote=False,
+            evaluate_local=True,
+            replay_dir=f"s3://softmax-public/replays/{run_name2}",
         )
 
         # Create and configure the training tool
         train_tool = TrainTool(
             trainer=trainer_config,
+            training_env=training_env_cfg,
+            evaluator=evaluator_cfg,
             # wandb=WandbConfigOff(),  # Disable wandb for simplicity
             run=run_name2,
             run_dir=f"train_dir/{run_name2}",
