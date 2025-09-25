@@ -24,6 +24,8 @@ from mettagrid.map_builder.random import RandomMapBuilder
 
 def make_game(
     num_cogs: int = 4,
+    width: int = 10,
+    height: int = 10,
     num_assemblers: int = 1,
     num_chargers: int = 0,
     num_carbon_extractors: int = 0,
@@ -54,8 +56,8 @@ def make_game(
                 "assembler": assembler(),
             },
             map_builder=RandomMapBuilder.Config(
-                width=10,
-                height=10,
+                width=width,
+                height=height,
                 agents=num_cogs,
                 objects={
                     "assembler": num_assemblers,
@@ -70,10 +72,18 @@ def make_game(
             ),
             agent=AgentConfig(
                 default_resource_limit=10,
-                resource_limits={"heart": 1},
+                resource_limits={
+                    "heart": 1,
+                    "energy": 100,
+                },
                 rewards=AgentRewards(
-                    inventory={},
+                    inventory={
+                        "heart": 1,
+                    },
                 ),
+                initial_inventory={
+                    "energy": 100,
+                },
             ),
         )
     )
@@ -114,5 +124,16 @@ def games() -> dict[str, MettaGridConfig]:
         # "chest_1": tutorial_chest(num_cogs=1),
         # "chest_4": tutorial_chest(num_cogs=4),
         "machina_1": make_game(num_cogs=1),
-        "machina_2": make_game(num_cogs=4),
+        "machina_2": make_game(
+            num_cogs=4,
+            width=20,
+            height=20,
+            num_assemblers=1,
+            num_chests=1,
+            num_chargers=5,
+            num_carbon_extractors=1,
+            num_oxygen_extractors=1,
+            num_geranium_extractors=1,
+            num_silicon_extractors=1,
+        ),
     }

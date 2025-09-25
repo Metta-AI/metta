@@ -1,4 +1,5 @@
 import math
+from typing import Sequence
 
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
@@ -35,7 +36,7 @@ def recursive_update(d, u):
     return d
 
 
-def expand_position_patterns(positions: list[Position]) -> list[int]:
+def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
     """Convert from a list of string positions to a list of matching bit patterns.
 
     Args:
@@ -89,7 +90,24 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     resource_names = list(game_config.resource_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
 
+    objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
+
+    # These are the baseline settings for all agents
+    default_agent_config_dict = game_config.agent.model_dump()
+    default_resource_limit = default_agent_config_dict["default_resource_limit"]
+
+    # If no agents specified, create default agents with appropriate team IDs
+    if not game_config.agents:
+        # Create default agents that inherit from game_config.agent
+        base_agent_dict = game_config.agent.model_dump()
+        game_config.agents = []
+        for _ in range(game_config.num_agents):
+            agent_dict = base_agent_dict.copy()
+            agent_dict["team_id"] = 0  # All default agents are on team 0
+            game_config.agents.append(AgentConfig(**agent_dict))
+
     # Build tag mappings - collect all unique tags from all objects
+    # Note: This must happen AFTER default agents are created, so their tags are included
     all_tags = set()
     for obj_config in game_config.objects.values():
         all_tags.update(obj_config.tags)
@@ -107,22 +125,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     tag_name_to_id = {tag: tag_id_offset + i for i, tag in enumerate(sorted_tags)}
     tag_id_to_name = {id: name for name, id in tag_name_to_id.items()}
-
-    objects_cpp_params = {}  # params for CppConverterConfig or CppWallConfig
-
-    # These are the baseline settings for all agents
-    default_agent_config_dict = game_config.agent.model_dump()
-    default_resource_limit = default_agent_config_dict["default_resource_limit"]
-
-    # If no agents specified, create default agents with appropriate team IDs
-    if not game_config.agents:
-        # Create default agents that inherit from game_config.agent
-        base_agent_dict = game_config.agent.model_dump()
-        game_config.agents = []
-        for _ in range(game_config.num_agents):
-            agent_dict = base_agent_dict.copy()
-            agent_dict["team_id"] = 0  # All default agents are on team 0
-            game_config.agents.append(AgentConfig(**agent_dict))
 
     # Group agents by team_id to create groups
     team_groups = {}
@@ -163,16 +165,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         }
 
         # Process stats rewards
-        stat_rewards = {}
-        stat_reward_max = {}
-        stats_rewards_dict = rewards_config.get("stats", {}) if rewards_config else {}
-
-        for k, v in stats_rewards_dict.items():
-            if v is not None and not k.endswith("_max"):
-                stat_rewards[k] = v
-            elif k.endswith("_max") and v is not None:
-                stat_name = k[:-4]
-                stat_reward_max[stat_name] = v
+        stat_rewards = rewards_config.get("stats", {})
+        stat_reward_max = rewards_config.get("stats_max", {})
 
         # Process potential initial inventory
         initial_inventory = {}
@@ -184,6 +178,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         group_name = team_names.get(team_id, f"team_{team_id}")
         # Convert tag names to IDs for first agent in team
         tag_ids = [tag_name_to_id[tag] for tag in first_agent.tags if tag in tag_name_to_id]
+
+        # Convert soul bound resources from names to IDs
+        soul_bound_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("soul_bound_resources", [])
+            if resource_name in resource_name_to_id
+        ]
 
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
@@ -203,6 +204,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_name": "agent",
             "initial_inventory": initial_inventory,
             "tag_ids": tag_ids,
+            "soul_bound_resources": soul_bound_resources,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -307,8 +309,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id,
                 type_name=object_type,
                 resource_type=resource_type_id,
-                deposit_positions=set(object_config.deposit_positions),
-                withdrawal_positions=set(object_config.withdrawal_positions),
+                deposit_positions=set(expand_position_patterns(object_config.deposit_positions)),
+                withdrawal_positions=set(expand_position_patterns(object_config.withdrawal_positions)),
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config
@@ -330,7 +332,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         episode_completion_pct=global_obs_config.episode_completion_pct,
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
-        resource_rewards=global_obs_config.resource_rewards,
         visitation_counts=global_obs_config.visitation_counts,
     )
     game_cpp_params["global_obs"] = global_obs_cpp

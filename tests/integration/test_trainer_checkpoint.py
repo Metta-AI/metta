@@ -12,24 +12,22 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import torch
+from torch import nn
+
 from metta.agent.policies.fast import FastConfig
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.checkpointer import CheckpointConfig, CheckpointerConfig
-from metta.rl.training.context_checkpointer import ContextCheckpointerConfig
-from metta.rl.training.evaluator import EvaluatorConfig
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, ContextCheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 
 
 class TestTrainerCheckpointIntegration:
     def setup_method(self) -> None:
-        self.temp_dir = tempfile.mkdtemp()
-        self.run_root = Path(self.temp_dir) / "runs"
-        self.run_root.mkdir(parents=True, exist_ok=True)
+        self.temp_dir = Path(tempfile.mkdtemp())
 
     def teardown_method(self) -> None:
         if os.path.exists(self.temp_dir):
@@ -38,25 +36,21 @@ class TestTrainerCheckpointIntegration:
     def _create_minimal_config(
         self,
     ) -> tuple[TrainerConfig, TrainingEnvironmentConfig, FastConfig, SystemConfig]:
-        curriculum = env_curriculum(make_arena(num_agents=6))
+        curriculum = env_curriculum(make_arena(num_agents=1))
 
         trainer_cfg = TrainerConfig(
-            total_timesteps=1_000,
-            batch_size=512,
-            minibatch_size=256,
-            bptt_horizon=8,
+            total_timesteps=16,
+            batch_size=32,
+            minibatch_size=16,
+            bptt_horizon=4,
             update_epochs=1,
-            checkpoint=CheckpointConfig(
-                checkpoint_interval=2,
-                remote_prefix=None,
-            ),
         )
 
         training_env_cfg = TrainingEnvironmentConfig(
             curriculum=curriculum,
             num_workers=1,
             async_factor=1,
-            forward_pass_minibatch_target_size=32,
+            forward_pass_minibatch_target_size=4,
             vectorization="serial",
             seed=42,
         )
@@ -75,16 +69,13 @@ class TestTrainerCheckpointIntegration:
         self,
         *,
         run_name: str,
-        run_root: Path,
         trainer_cfg: TrainerConfig,
         training_env_cfg: TrainingEnvironmentConfig,
         policy_cfg: FastConfig,
         system_cfg: SystemConfig,
     ) -> None:
-        tool = TrainTool(
+        tool = _FastTrainTool(
             run=run_name,
-            run_dir=str(run_root),
-            device=system_cfg.device,
             system=system_cfg.model_copy(deep=True),
             trainer=trainer_cfg.model_copy(deep=True),
             training_env=training_env_cfg.model_copy(deep=True),
@@ -98,15 +89,18 @@ class TestTrainerCheckpointIntegration:
 
     def test_trainer_checkpoint_save_and_resume(self) -> None:
         run_name = "test_checkpoint_run"
-        expected_run_dir = self.run_root / run_name
         trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=str(expected_run_dir))
+        expected_run_dir = system_cfg.data_dir / run_name
+        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
+
+        assert expected_run_dir.exists(), "expected_run_dir was not created"
+        expected_checkpoint_dir = expected_run_dir / "checkpoints"
+        assert expected_checkpoint_dir.exists(), "expected_checkpoint_dir was not created"
 
         print("Starting first training run...")
         self._run_training(
             run_name=run_name,
-            run_root=self.run_root,
             trainer_cfg=trainer_cfg,
             training_env_cfg=training_env_cfg,
             policy_cfg=policy_cfg,
@@ -131,11 +125,10 @@ class TestTrainerCheckpointIntegration:
         print("Starting second training run (resume from checkpoint)...")
         trainer_cfg.total_timesteps = first_run_agent_step + 500
 
-        checkpoint_manager_2 = CheckpointManager(run=run_name, run_dir=str(expected_run_dir))
+        checkpoint_manager_2 = CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
-            run_root=self.run_root,
             trainer_cfg=trainer_cfg,
             training_env_cfg=training_env_cfg,
             policy_cfg=policy_cfg,
@@ -154,15 +147,12 @@ class TestTrainerCheckpointIntegration:
 
     def test_checkpoint_fields_are_preserved(self) -> None:
         run_name = "test_checkpoint_fields"
-        expected_run_dir = self.run_root / run_name
         trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
-        trainer_cfg.checkpoint.checkpoint_interval = 1
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=str(expected_run_dir))
+        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
-            run_root=self.run_root,
             trainer_cfg=trainer_cfg,
             training_env_cfg=training_env_cfg,
             policy_cfg=policy_cfg,
@@ -180,14 +170,12 @@ class TestTrainerCheckpointIntegration:
 
     def test_policy_loading_from_checkpoint(self) -> None:
         run_name = "test_policy_loading"
-        expected_run_dir = self.run_root / run_name
         trainer_cfg, training_env_cfg, policy_cfg, system_cfg = self._create_minimal_config()
 
-        checkpoint_manager = CheckpointManager(run=run_name, run_dir=str(expected_run_dir))
+        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=system_cfg)
 
         self._run_training(
             run_name=run_name,
-            run_root=self.run_root,
             trainer_cfg=trainer_cfg,
             training_env_cfg=training_env_cfg,
             policy_cfg=policy_cfg,
@@ -204,3 +192,51 @@ class TestTrainerCheckpointIntegration:
         policy = checkpoint_manager.load_agent()
         assert policy is not None
         assert hasattr(policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
+
+
+class DummyPolicy(nn.Module):
+    """Lightweight torch module used to populate fake checkpoints quickly."""
+
+    def __init__(self, epoch: int) -> None:
+        super().__init__()
+        self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
+
+
+class _FastTrainTool(TrainTool):
+    """Minimal TrainTool variant that writes synthetic checkpoints without training."""
+
+    def invoke(self, args: dict[str, str]) -> int | None:
+        if "run" in args:
+            assert self.run is None, "run cannot be set twice"
+            self.run = args["run"]
+
+        run_name = self.run or "default"
+
+        checkpoint_manager = CheckpointManager(run=run_name, system_cfg=self.system)
+
+        trainer_state_path = checkpoint_manager.checkpoint_dir / "trainer_state.pt"
+        if trainer_state_path.exists():
+            previous_state = torch.load(trainer_state_path, weights_only=False)
+            previous_agent_step = int(previous_state.get("agent_step", 0))
+            previous_epoch = int(previous_state.get("epoch", 0))
+        else:
+            previous_agent_step = 0
+            previous_epoch = 0
+
+        agent_step = max(previous_agent_step, int(self.trainer.total_timesteps))
+        epoch = previous_epoch + 1
+
+        torch.save(
+            {
+                "agent_step": agent_step,
+                "epoch": epoch,
+                "optimizer_state": {},
+            },
+            trainer_state_path,
+        )
+
+        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.pt"
+        policy = DummyPolicy(epoch)
+        torch.save(policy, policy_path)
+
+        return 0

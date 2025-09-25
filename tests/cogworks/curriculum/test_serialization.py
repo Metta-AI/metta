@@ -9,12 +9,7 @@ import unittest
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum import (
-    BucketedTaskGeneratorConfig,
-    CurriculumConfig,
-    SingleTaskGeneratorConfig,
-    TaskGeneratorSetConfig,
-)
+from metta.cogworks.curriculum import BucketedTaskGenerator, CurriculumConfig, SingleTaskGenerator, TaskGeneratorSet
 from metta.cogworks.curriculum.task_generator import Span
 
 
@@ -22,9 +17,9 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
     """Test curriculum configuration serialization/deserialization round-trip."""
 
     def test_single_task_generator(self):
-        """Test SingleTaskGeneratorConfig round-trip."""
+        """Test `SingleTaskGenerator.Config` round-trip."""
         arena = eb.make_arena(num_agents=2)
-        single_config = SingleTaskGeneratorConfig(env=arena)
+        single_config = SingleTaskGenerator.Config(env=arena)
         original = CurriculumConfig(task_generator=single_config, num_active_tasks=10)
 
         # Serialize and deserialize
@@ -35,7 +30,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())
 
     def test_bucketed_task_generator(self):
-        """Test BucketedTaskGeneratorConfig round-trip."""
+        """Test `BucketedTaskGenerator.Config` round-trip."""
         arena = eb.make_arena(num_agents=4)
         arena_tasks = cc.bucketed(arena)
 
@@ -53,14 +48,14 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())
 
     def test_task_generator_set(self):
-        """Test TaskGeneratorSetConfig round-trip."""
+        """Test `TaskGeneratorSet.Config` round-trip."""
         arena1 = eb.make_arena(num_agents=2)
         arena2 = eb.make_arena(num_agents=4)
 
-        single1 = SingleTaskGeneratorConfig(env=arena1)
-        single2 = SingleTaskGeneratorConfig(env=arena2)
+        single1 = SingleTaskGenerator.Config(env=arena1)
+        single2 = SingleTaskGenerator.Config(env=arena2)
 
-        set_config = TaskGeneratorSetConfig(task_generators=[single1, single2], weights=[0.5, 0.5])
+        set_config = TaskGeneratorSet.Config(task_generators=[single1, single2], weights=[0.5, 0.5])
         original = CurriculumConfig(task_generator=set_config, num_active_tasks=20)
 
         # Serialize and deserialize
@@ -71,7 +66,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         self.assertEqual(original.model_dump_json(), restored.model_dump_json())
 
     def test_deeply_nested_bucketed(self):
-        """Test nested BucketedTaskGeneratorConfig round-trip."""
+        """Test nested `BucketedTaskGenerator.Config` round-trip."""
         arena = eb.make_arena(num_agents=2)
 
         # Create inner bucketed config
@@ -79,7 +74,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         inner_tasks.add_bucket("game.level_map.width", [5, 10])
 
         # Create outer bucketed config with inner as child
-        outer_config = BucketedTaskGeneratorConfig(
+        outer_config = BucketedTaskGenerator.Config(
             child_generator_config=inner_tasks, buckets={"game.level_map.height": [15, 20]}
         )
 

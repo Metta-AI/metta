@@ -4,9 +4,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.component_context import ComponentContext
-from metta.rl.training.distributed_helper import DistributedHelper
+from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
@@ -66,6 +64,7 @@ class ContextCheckpointer(TrainerComponent):
                     "epoch": raw.get("epoch", 0),
                     "optimizer_state": raw.get("optimizer_state", {}),
                     "stopwatch_state": raw.get("stopwatch_state"),
+                    "curriculum_state": raw.get("curriculum_state"),
                     "loss_states": raw.get("loss_states", {}),
                 }
 
@@ -95,6 +94,15 @@ class ContextCheckpointer(TrainerComponent):
                 wall_time_baseline = context.stopwatch.get_elapsed()
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Failed to restore stopwatch state: %s", exc)
+
+        curriculum_state = payload.get("curriculum_state")
+        context.state.curriculum_state = curriculum_state
+        if curriculum_state and context.curriculum is not None:
+            try:
+                context.curriculum.load_state(curriculum_state)
+                logger.info("Successfully restored curriculum state")
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("Failed to restore curriculum state: %s", exc)
 
         loss_states = payload.get("loss_states") or {}
         context.state.loss_states = loss_states
@@ -156,10 +164,21 @@ class ContextCheckpointer(TrainerComponent):
         else:
             context.state.loss_states = {}
 
+        # Capture curriculum state
+        try:
+            if context.curriculum is not None:
+                context.state.curriculum_state = context.curriculum.get_state()
+            else:
+                context.state.curriculum_state = None
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.debug("Unable to capture curriculum state: %s", exc)
+            context.state.curriculum_state = None
+
         self._checkpoint_manager.save_trainer_state(
             context.optimizer,
             current_epoch,
             agent_step,
             stopwatch_state=context.state.stopwatch_state,
+            curriculum_state=context.state.curriculum_state,
             loss_states=context.state.loss_states,
         )

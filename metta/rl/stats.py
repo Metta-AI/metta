@@ -13,7 +13,7 @@ from metta.eval.eval_request_config import EvalResults
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.experience import Experience
+from metta.rl.training import Experience
 from metta.rl.wandb import (
     POLICY_EVALUATOR_EPOCH_METRIC,
     POLICY_EVALUATOR_METRIC_PREFIX,
@@ -201,6 +201,7 @@ def compute_timing_stats(
 def process_policy_evaluator_stats(
     policy_uri: str,
     eval_results: EvalResults,
+    wandb_run=None,
 ) -> None:
     metrics_to_log: dict[str, float] = {
         f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
@@ -229,12 +230,17 @@ def process_policy_evaluator_stats(
     sanitized_run_name = run_name.split(":")[0] if run_name else None
 
     # TODO: improve this parsing to be more general
-    run = wandb.init(
-        id=sanitized_run_name,
-        project=METTA_WANDB_PROJECT,
-        entity=METTA_WANDB_ENTITY,
-        resume="must",
-    )
+    if wandb_run is not None:
+        run = wandb_run
+        should_finish_run = False
+    else:
+        run = wandb.init(
+            id=sanitized_run_name,
+            project=METTA_WANDB_PROJECT,
+            entity=METTA_WANDB_ENTITY,
+            resume="must",
+        )
+        should_finish_run = True
     try:
         try:
             setup_policy_evaluator_metrics(run)
@@ -259,4 +265,5 @@ def process_policy_evaluator_stats(
             except Exception as e:
                 logger.error(f"Failed to upload replays for {policy_uri}: {e}", exc_info=True)
     finally:
-        run.finish()
+        if should_finish_run:
+            run.finish()

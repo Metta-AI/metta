@@ -75,6 +75,7 @@ class TestEvalTaskOrchestratorIntegration:
             name=f"test_integration_policy_{uuid.uuid4().hex[:8]}",
             description="Test policy for integration tests",
             epoch_id=epoch.id,
+            url="s3://example/policy.pt",
         )
 
         return policy.id
@@ -106,7 +107,7 @@ class TestEvalTaskOrchestratorIntegration:
             worker_manager=mock_thread_manager,
             poll_interval=0.5,  # Fast polling for tests
             worker_scaler=FixedScaler(2),
-            worker_idle_timeout=5.0,  # Short timeout for tests
+            worker_idle_timeout_minutes=5.0,  # Short timeout for tests
         )
         return orch
 
@@ -177,7 +178,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=failure_manager,
             poll_interval=0.5,
-            worker_idle_timeout=5.0,
+            worker_idle_timeout_minutes=5.0,
             worker_scaler=FixedScaler(1),
         )
 
@@ -241,7 +242,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=success_manager,
             poll_interval=0.5,
-            worker_idle_timeout=10.0,
+            worker_idle_timeout_minutes=10.0,
             worker_scaler=FixedScaler(3),
         )
 

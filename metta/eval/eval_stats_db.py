@@ -9,7 +9,7 @@ import pandas as pd
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.file import local_copy
+from metta.utils.file import local_copy
 
 # --------------------------------------------------------------------------- #
 #   Views                                                                     #
@@ -125,10 +125,10 @@ class EvalStatsDB(SimulationStatsDB):
         policy_key: str,
         policy_version: int,
         metric: str,
-        agg: str,  # "SUM", "AVG", or "STD"
+        agg: str,  # "AVG" or "STD"
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        """Return SUM/AVG/STD after zero‑filling missing samples."""
+        """Return mean/standard deviation after zero-filling missing samples."""
         potential = self.potential_samples_for_metric(policy_key, policy_version, filter_condition)
         if potential == 0:
             return None
@@ -149,15 +149,13 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND {filter_condition}"
         r = self.query(q)
         if r.empty:
-            return 0.0 if agg in {"SUM", "AVG"} else 0.0
+            return 0.0
 
         # DuckDB returns NULL→NaN when no rows match; coalesce to 0
         s1_val, s2_val, _ = r.iloc[0][["s1", "s2", "k"]]
         s1 = 0.0 if pd.isna(s1_val) else float(s1_val)
         s2 = 0.0 if pd.isna(s2_val) else float(s2_val)
 
-        if agg == "SUM":
-            return s1 / potential
         if agg == "AVG":
             return s1 / potential
         if agg == "STD":
@@ -177,12 +175,6 @@ class EvalStatsDB(SimulationStatsDB):
         metadata = CheckpointManager.get_policy_metadata(policy_uri)
         pk, pv = metadata["run_name"], metadata["epoch"]
         return self._normalized_value(pk, pv, metric, "STD", filter_condition)
-
-    def get_sum_metric(self, metric: str, policy_uri: str, filter_condition: str | None = None) -> Optional[float]:
-        """URI-native version to get sum metric."""
-        metadata = CheckpointManager.get_policy_metadata(policy_uri)
-        pk, pv = metadata["run_name"], metadata["epoch"]
-        return self._normalized_value(pk, pv, metric, "SUM", filter_condition)
 
     def sample_count_uri(
         self,

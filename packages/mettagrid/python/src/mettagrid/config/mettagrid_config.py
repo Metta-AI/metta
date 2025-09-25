@@ -14,25 +14,13 @@ FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
 Position = FixedPosition | Literal["Any"]
 
 
-class StatsRewards(Config):
-    """Agent stats-based reward configuration.
-
-    Maps stat names to reward values. Stats are tracked by the StatsTracker
-    and can include things like 'action.attack.agent', 'inventory.armor.gained', etc.
-    Each entry can have:
-    - stat_name: reward_per_unit
-    - stat_name_max: maximum cumulative reward for this stat
-    """
-
-    model_config = ConfigDict(extra="allow")  # Allow any stat names to be added dynamically
-
-
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
     inventory: dict[str, float] = Field(default_factory=dict)
     inventory_max: dict[str, int] = Field(default_factory=dict)
-    stats: StatsRewards = Field(default_factory=StatsRewards)
+    stats: dict[str, float] = Field(default_factory=dict)
+    stats_max: dict[str, float] = Field(default_factory=dict)
 
 
 class AgentConfig(Config):
@@ -46,6 +34,9 @@ class AgentConfig(Config):
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
+    soul_bound_resources: list[str] = Field(
+        default_factory=list, description="Resources that cannot be stolen during attacks"
+    )
 
 
 class ActionConfig(Config):
@@ -96,9 +87,6 @@ class GlobalObsConfig(Config):
     last_action: bool = Field(default=True)
 
     last_reward: bool = Field(default=True)
-
-    # Controls whether resource rewards are included in observations
-    resource_rewards: bool = Field(default=False)
 
     # Controls whether visitation counts are included in observations
     visitation_counts: bool = Field(default=False)

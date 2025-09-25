@@ -5,16 +5,16 @@ import logging
 import os
 import shutil
 import tempfile
+from pathlib import Path
 from typing import Any, Optional
 
 import torch.profiler
 import wandb
 
 from metta.common.wandb.context import WandbRun
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext, TrainerComponent
 from metta.rl.utils import should_run
-from mettagrid.util.file import http_url, is_public_uri, write_file
+from metta.utils.file import http_url, is_public_uri, write_file
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class TorchProfileSession:
         master: bool,
         profiler_config: Any,
         wandb_run: WandbRun | None,
-        run_dir: str | None,
+        run_dir: Path | None,
     ) -> None:
         self._master = master
         self._profiler_config = profiler_config
@@ -146,7 +146,7 @@ class TorchProfiler(TrainerComponent):
         *,
         profiler_config: Any,
         wandb_run: Optional[WandbRun] = None,
-        run_dir: Optional[str] = None,
+        run_dir: Optional[Path] = None,
         is_master: bool = True,
     ) -> None:
         interval = getattr(profiler_config, "interval_epochs", 0)

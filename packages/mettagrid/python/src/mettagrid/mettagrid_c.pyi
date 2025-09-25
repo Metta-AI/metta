@@ -154,13 +154,11 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        resource_rewards: bool = False,
         visitation_counts: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    resource_rewards: bool
     visitation_counts: bool
 
 class GameConfig:
@@ -224,3 +222,4 @@ class MettaGrid:
     def object_type_names(self) -> list[str]: ...
     def resource_names(self) -> list[str]: ...
     def feature_spec(self) -> dict[str, dict[str, float | int]]: ...
+    def set_inventory(self, agent_id: int, inventory: dict[int, int]) -> None: ...
