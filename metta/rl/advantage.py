@@ -4,10 +4,10 @@ from contextlib import nullcontext
 
 import einops
 import torch
-from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
 from torch import Tensor
 
 from metta.rl import mps
+from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
 
 
 def compute_advantage(

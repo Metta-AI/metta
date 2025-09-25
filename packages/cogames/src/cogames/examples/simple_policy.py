@@ -2,10 +2,10 @@ import logging
 from typing import Any
 
 import numpy as np
-import pufferlib.pytorch
 import torch
 import torch.nn as nn
 
+import pufferlib.pytorch
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridEnv
 
