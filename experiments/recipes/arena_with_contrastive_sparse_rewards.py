@@ -98,8 +98,9 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    enable_contrastive: bool = False,
 ) -> TrainTool:
-    """Train with contrastive loss enabled and sparse rewards."""
+    """Train with sparse rewards and optional contrastive loss."""
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
@@ -114,19 +115,18 @@ def train(
         embedding_dim=128,
         use_projection_head=True,
         log_similarities=True,
-        log_frequency=1  # Log every epoch instead of every 100 epochs
+        log_frequency=1,  # Log every epoch instead of every 100 epochs
     )
 
     ppo_config = PPOConfig()  # Default PPO config for action generation
 
     trainer_config = TrainerConfig(
-        total_timesteps=10_000_000,  # Shorter for testing
         losses=LossConfig(
-            enable_contrastive=True,
+            enable_contrastive=enable_contrastive,
             loss_configs={
                 "ppo": ppo_config,  # PPO generates actions
-                "contrastive": contrastive_config  # Contrastive for representation learning
-            }
+                "contrastive": contrastive_config,  # Contrastive config ready to enable
+            },
         )
     )
 
@@ -137,24 +137,20 @@ def train(
     )
 
 
-def train_with_contrastive(
-    curriculum: Optional[CurriculumConfig] = None,
-    enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
-    """Alias for train function."""
-    return train(curriculum, enable_detailed_slice_logging)
-
-
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     """Interactive play with sparse reward environment."""
     eval_env = env or make_mettagrid()
-    return PlayTool(sim=SimulationConfig(suite="arena_sparse", env=eval_env, name="eval"))
+    return PlayTool(
+        sim=SimulationConfig(suite="arena_sparse", env=eval_env, name="eval")
+    )
 
 
 def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     """Replay with sparse reward environment."""
     eval_env = env or make_mettagrid()
-    return ReplayTool(sim=SimulationConfig(suite="arena_sparse", env=eval_env, name="eval"))
+    return ReplayTool(
+        sim=SimulationConfig(suite="arena_sparse", env=eval_env, name="eval")
+    )
 
 
 def evaluate(
