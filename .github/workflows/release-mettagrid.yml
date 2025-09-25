@@ -106,3 +106,4 @@ jobs:
         with:
           repository-url: ${{ env.PUBLISH_TARGET == 'testpypi' && 'https://test.pypi.org/legacy/' || '' }}
           skip-existing: ${{ env.PUBLISH_TARGET == 'testpypi' }}
+          verbose: true
