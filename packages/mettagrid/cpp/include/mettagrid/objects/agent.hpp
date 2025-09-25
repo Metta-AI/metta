@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <iostream>
 #include <string>
 #include <vector>
 
@@ -184,68 +183,31 @@ public:
   }
 
   void compute_stat_rewards() {
-    std::cout << "[DEBUG] compute_stat_rewards() called" << std::endl;
-
     if (this->stat_rewards.empty()) {
-      std::cout << "[DEBUG] stat_rewards is empty, returning early" << std::endl;
       return;
-    }
-
-    std::cout << "[DEBUG] stat_rewards size: " << this->stat_rewards.size() << std::endl;
-    for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
-      std::cout << "[DEBUG] stat_reward: " << stat_name << " = " << reward_per_unit << std::endl;
     }
 
     float new_stat_reward = 0;
     auto stat_dict = this->stats.to_dict();
 
-    std::cout << "[DEBUG] stat_dict size: " << stat_dict.size() << std::endl;
-    for (const auto& [stat_name, stat_value] : stat_dict) {
-      std::cout << "[DEBUG] stat_dict: " << stat_name << " = " << stat_value << std::endl;
-    }
-
     for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
-      std::cout << "[DEBUG] Processing stat: " << stat_name << " with reward_per_unit: " << reward_per_unit
-                << std::endl;
-
       if (stat_dict.count(stat_name) > 0) {
         float stat_value = stat_dict[stat_name];
-        std::cout << "[DEBUG] Found stat_value: " << stat_value << " for " << stat_name << std::endl;
 
         float stats_reward = stat_value * reward_per_unit;
-        std::cout << "[DEBUG] Initial stats_reward: " << stats_reward << " (stat_value * reward_per_unit)" << std::endl;
-
         if (this->stat_reward_max.count(stat_name) > 0) {
-          float max_reward = this->stat_reward_max.at(stat_name);
-          std::cout << "[DEBUG] Found stat_reward_max for " << stat_name << ": " << max_reward << std::endl;
-          stats_reward = std::min(stats_reward, max_reward);
-          std::cout << "[DEBUG] Capped stats_reward to: " << stats_reward << std::endl;
-        } else {
-          std::cout << "[DEBUG] No stat_reward_max found for " << stat_name << std::endl;
+          stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
         }
 
         new_stat_reward += stats_reward;
-        std::cout << "[DEBUG] Added to new_stat_reward. Total now: " << new_stat_reward << std::endl;
-      } else {
-        std::cout << "[DEBUG] Stat " << stat_name << " not found in stat_dict" << std::endl;
       }
     }
 
-    std::cout << "[DEBUG] Final new_stat_reward: " << new_stat_reward << std::endl;
-    std::cout << "[DEBUG] Current stat_reward: " << this->current_stat_reward << std::endl;
-
     // Update the agent's reward with the difference
     float reward_delta = new_stat_reward - this->current_stat_reward;
-    std::cout << "[DEBUG] Reward delta: " << reward_delta << std::endl;
-
     if (reward_delta != 0.0f) {
-      std::cout << "[DEBUG] Updating reward. Old reward: " << *this->reward << std::endl;
       *this->reward += reward_delta;
       this->current_stat_reward = new_stat_reward;
-      std::cout << "[DEBUG] New reward: " << *this->reward << ", new current_stat_reward: " << this->current_stat_reward
-                << std::endl;
-    } else {
-      std::cout << "[DEBUG] No reward delta, no update needed" << std::endl;
     }
   }
 
