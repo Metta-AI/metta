@@ -367,7 +367,7 @@ def main():
             until_date = datetime.strptime(historical_end_date, "%Y-%m-%d")
             # Make it end of day in UTC
             until_date = until_date.replace(hour=23, minute=59, second=59)
-            logging.info(f"📅 Historical mode: Using end date {historical_end_date}")
+            logging.info(f"Using end date {historical_end_date}")
         except ValueError:
             logging.error(f"Invalid historical date format: {historical_end_date}. Expected YYYY-MM-DD")
             sys.exit(1)
@@ -431,10 +431,8 @@ def main():
                 since_formatted = since_pst.strftime("%B %d, %Y")
                 until_formatted = until_pst.strftime("%B %d, %Y")
 
-                # Add historical marker if applicable
+                # Simple date range display
                 date_display = f"{since_formatted} to {until_formatted}"
-                if is_historical:
-                    date_display = f"📅 Historical: {date_display}"
 
                 f.write(f"date_range_display={date_display}\n")
 

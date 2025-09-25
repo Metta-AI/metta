@@ -372,12 +372,8 @@ def create_discord_summary(
         category_stats[pr.category] = category_stats.get(pr.category, 0) + 1
         impact_stats[pr.impact_level] = impact_stats.get(pr.impact_level, 0) + 1
 
-    # Check if this is a historical run
-    is_historical = stats.get("is_historical", False)
-    title = f"📊 **{github_repository} Newsletter{' (Historical)' if is_historical else ''}** • {date_range}"
-
     lines = [
-        title,
+        f"📊 **{github_repository} Newsletter** • {date_range}",
         "",
         "**📈 Statistics**",
         f"• Total PRs analyzed: {len(pr_summaries)}",

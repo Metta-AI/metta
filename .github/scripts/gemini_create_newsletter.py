@@ -266,8 +266,7 @@ def main():
 
     # Log if this is a historical run
     if is_historical:
-        logging.info("📅 Running in HISTORICAL mode")
-        logging.info(f"Generating historical newsletter for: {report_period}")
+        logging.info(f"Generating newsletter for: {report_period}")
 
     # Construct GitHub run URL
     github_run_url = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}"

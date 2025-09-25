@@ -125,7 +125,7 @@ jobs:
         run: |
           echo "Creating PR digest for last ${{ steps.set-days.outputs.days }} days..."
           if [ "${{ steps.set-days.outputs.is_historical }}" = "true" ]; then
-            echo "📅 Historical mode: ending on ${{ steps.set-days.outputs.end_date }}"
+            echo "Using date: ${{ steps.set-days.outputs.end_date }}"
           fi
 
           # Show cache status before running
