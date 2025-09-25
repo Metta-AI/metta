@@ -166,6 +166,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         normalized = CheckpointManager.normalize_uri(task.policy_uri)
 
+        wandb_resume = task.attributes.get("wandb_resume") or {}
+
         cmd = [
             "uv",
             "run",
@@ -177,6 +179,21 @@ class SimTaskExecutor(AbstractTaskExecutor):
             f"stats_server_uri={self._backend_url}",
             "push_metrics_to_wandb=true",
         ]
+        if wandb_resume.get("run_id"):
+            cmd.extend(
+                [
+                    "wandb.enabled=true",
+                    f"wandb.project={wandb_resume['project']}",
+                    f"wandb.entity={wandb_resume['entity']}",
+                    f"wandb.run_id={wandb_resume['run_id']}",
+                ]
+            )
+            if wandb_resume.get("name"):
+                cmd.append(f"wandb.name={wandb_resume['name']}")
+            if wandb_resume.get("group"):
+                cmd.append(f"wandb.group={wandb_resume['group']}")
+            if wandb_resume.get("tags"):
+                cmd.append(f"wandb.tags={json.dumps(wandb_resume['tags'])}")
         # exclude simulation_json_base64 from logging, since it's too large and undescriptive
         logged_cmd = [arg for arg in cmd if not arg.startswith("simulations_json_base64")]
         logger.info(f"Running command: {' '.join(logged_cmd)}")

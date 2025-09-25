@@ -52,14 +52,32 @@ def evaluate_policy_remote_with_checkpoint_manager(
         return None
 
     # Create evaluation task
+    wandb_resume: dict[str, Any] | None = None
+    if wandb_run:
+        wandb_resume = {
+            "project": wandb_run.project,
+            "entity": wandb_run.entity,
+            "run_id": wandb_run.id,
+        }
+        if wandb_run.group:
+            wandb_resume["group"] = wandb_run.group
+        if wandb_run.name:
+            wandb_resume["name"] = wandb_run.name
+        if wandb_run.tags:
+            wandb_resume["tags"] = list(wandb_run.tags)
+
+    attributes: dict[str, Any] = {
+        "git_hash": (evaluation_cfg and evaluation_cfg.git_hash),
+        "simulations": [sim.model_dump() for sim in simulations],
+    }
+    if wandb_resume:
+        attributes["wandb_resume"] = wandb_resume
+
     task = stats_client.create_task(
         TaskCreateRequest(
             policy_id=stats_server_policy_id,
             sim_suite=simulations[0].name,
-            attributes={
-                "git_hash": (evaluation_cfg and evaluation_cfg.git_hash),
-                "simulations": [sim.model_dump() for sim in simulations],
-            },
+            attributes=attributes,
         )
     )
 
