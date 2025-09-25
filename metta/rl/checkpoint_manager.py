@@ -12,8 +12,8 @@ from metta.agent.policy import Policy
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.util.file import local_copy, write_file
-from mettagrid.util.uri import ParsedURI
+from metta.utils.file import local_copy, write_file
+from metta.utils.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +179,7 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
     try:
         import boto3
 
-        from mettagrid.util.uri import ParsedURI
+        from metta.utils.uri import ParsedURI
 
         # Extract base path without the filename
         base_uri = uri.rsplit("/", 1)[0] + "/"

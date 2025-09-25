@@ -1,12 +1,12 @@
 from typing import Optional
 
 import einops
-import pufferlib.pytorch
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
+import pufferlib.pytorch
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 

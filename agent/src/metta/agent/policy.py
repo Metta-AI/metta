@@ -3,12 +3,12 @@
 This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
 implement the required methods that MettaAgent depends on."""
 
-import importlib
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, ClassVar, Dict, List
 
 import torch
 import torch.nn as nn
+from pydantic import ConfigDict
 from tensordict import TensorDict
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -22,24 +22,21 @@ from metta.agent.components.obs_shim import (
 )
 from metta.rl.training import EnvironmentMetaData
 from mettagrid.config import Config
+from mettagrid.util.module import load_symbol
 
 PolicyPresetFactory = Callable[[], type["PolicyArchitecture"]]
 
 
-def _import_symbol(path: str) -> Any:
-    module_path, _, attr = path.rpartition(".")
-    if not module_path:
-        raise ValueError(f"Expected a dotted path, got: {path}")
-    module = importlib.import_module(module_path)
+def _resolve_symbol(path: str) -> Any:
     try:
-        return getattr(module, attr)
-    except AttributeError as exc:
-        raise AttributeError(f"Module '{module_path}' has no attribute '{attr}'") from exc
+        return load_symbol(path)
+    except (AttributeError, ModuleNotFoundError, ValueError) as exc:
+        raise ValueError(f"Failed to resolve symbol '{path}': {exc}") from exc
 
 
 POLICY_PRESETS: Dict[str, PolicyPresetFactory] = {
-    "fast": lambda: _import_symbol("metta.agent.policies.fast.FastConfig"),
-    "vit": lambda: _import_symbol("metta.agent.policies.vit.ViTSmallConfig"),
+    "fast": lambda: _resolve_symbol("metta.agent.policies.fast.FastConfig"),
+    "vit": lambda: _resolve_symbol("metta.agent.policies.vit.ViTDefaultConfig"),
 }
 
 
@@ -47,6 +44,8 @@ class PolicyArchitecture(Config):
     """Policy architecture configuration."""
 
     class_path: str
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
     components: List[ComponentConfig] = []
 
@@ -67,8 +66,8 @@ class PolicyArchitecture(Config):
                 raise TypeError("Policy preset factory must return a PolicyArchitecture subclass")
 
             try:
-                resolved_obj = _import_symbol(value)
-            except (ImportError, AttributeError, ValueError) as exc:
+                resolved_obj = _resolve_symbol(value)
+            except ValueError as exc:
                 available = ", ".join(sorted(POLICY_PRESETS))
                 raise ValueError(f"Unknown policy preset: {value}. Available presets: [{available}]") from exc
 
@@ -86,7 +85,7 @@ class PolicyArchitecture(Config):
     def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""
 
-        agent_cls = _import_symbol(self.class_path)
+        agent_cls = _resolve_symbol(self.class_path)
         return agent_cls(env_metadata, self)
 
 

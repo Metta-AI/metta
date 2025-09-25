@@ -7,7 +7,7 @@ from typing import Any, Optional
 import torch
 from pydantic import Field, field_validator, model_validator
 
-from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import POLICY_PRESETS, Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -69,7 +69,7 @@ class TrainTool(Tool):
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
+    policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None
     uploader: UploaderConfig = Field(default_factory=UploaderConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
@@ -77,6 +77,7 @@ class TrainTool(Tool):
 
     stats_server_uri: Optional[str] = auto_stats_server_uri()
     wandb: WandbConfig = WandbConfig.Unconfigured()
+    group: Optional[str] = None
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
@@ -112,7 +113,10 @@ class TrainTool(Tool):
             self.wandb = auto_wandb_config(self.run)
 
         if group_override:
-            self.wandb.group = group_override
+            self.group = group_override
+
+        if self.group:
+            self.wandb.group = self.group
 
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
             self._minimize_config_for_debugging()  # this overrides many config settings for local testings
