@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-import pufferlib.pytorch
 import torch.nn as nn
 from tensordict import TensorDict
 
+import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
 
 
