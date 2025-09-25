@@ -4,6 +4,7 @@ import logging
 import subprocess
 import uuid
 
+from metta.adaptive.dispatcher.local import LocalDispatcher
 from metta.adaptive.models import JobDefinition, JobTypes
 from metta.adaptive.protocols import Dispatcher
 from metta.adaptive.utils import get_display_id
@@ -16,63 +17,32 @@ class SkypilotDispatcher(Dispatcher):
     """Dispatches jobs to cloud resources using Skypilot.
 
     Training jobs are dispatched to cloud resources via Skypilot.
-    Evaluation jobs are run locally to avoid unnecessary cloud costs.
+    Evaluation jobs are delegated to LocalDispatcher to avoid unnecessary cloud costs.
     """
 
     def __init__(self):
-        """Initialize the Skypilot dispatcher."""
-        pass  # No initialization needed
+        """Initialize the Skypilot dispatcher with a LocalDispatcher for eval jobs."""
+        # Create a LocalDispatcher instance for handling eval jobs
+        # Use capture_output=True to see evaluation output
+        self._local_dispatcher = LocalDispatcher(capture_output=True)
 
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch job based on type.
 
         Training jobs go to Skypilot for cloud execution.
-        Evaluation jobs run locally to avoid cloud costs.
+        Evaluation jobs are delegated to LocalDispatcher.
         """
         display_id = get_display_id(job.run_id)
 
         # Check if this is an evaluation job
         if job.type == JobTypes.LAUNCH_EVAL:
-            # Run evaluations locally
-            logger.info(f"Running evaluation {display_id} locally (not via Skypilot)")
-            return self._dispatch_local(job)
+            # Delegate evaluations to LocalDispatcher
+            logger.info(f"Delegating evaluation {display_id} to LocalDispatcher")
+            return self._local_dispatcher.dispatch(job)
         else:
             # Dispatch training jobs to Skypilot
             logger.info(f"Dispatching training {display_id} to Skypilot")
             return self._dispatch_skypilot(job)
-
-    def _dispatch_local(self, job: JobDefinition) -> str:
-        """Dispatch evaluation job locally."""
-        # Build command for local execution
-        cmd_parts = ["uv", "run", "./tools/run.py", job.cmd]
-
-        # Add all arguments
-        for k, v in job.args.items():
-            cmd_parts.append(f"{k}={v}")
-
-        for k, v in job.overrides.items():
-            cmd_parts.append(f"{k}={v}")
-
-        display_id = get_display_id(job.run_id)
-        logger.info(f"Local eval command: {' '.join(cmd_parts)}")
-
-        try:
-            # Launch the process locally with no output capture
-            process = subprocess.Popen(
-                cmd_parts,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                text=True,
-            )
-
-            # Use PID as dispatch ID for local processes
-            dispatch_id = str(process.pid)
-            logger.info(f"Started local eval {display_id} with PID {dispatch_id}")
-            return dispatch_id
-
-        except Exception as e:
-            logger.error(f"Failed to launch local eval {job.run_id}: {e}")
-            raise
 
     def _dispatch_skypilot(self, job: JobDefinition) -> str:
         """Dispatch training job via Skypilot."""
@@ -129,3 +99,11 @@ class SkypilotDispatcher(Dispatcher):
         except Exception as e:
             logger.error(f"Failed to launch Skypilot job {job.run_id}: {e}")
             raise
+
+    def check_local_processes(self) -> int:
+        """Check status of local evaluation processes.
+
+        Returns:
+            Number of active local processes
+        """
+        return self._local_dispatcher.check_processes()
