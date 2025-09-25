@@ -189,6 +189,7 @@ class Scene(Generic[ParamsT]):
             width=width,
             height=height,
             grid=self.grid[y : y + height, x : x + width],
+            abs_grid=self.area.abs_grid,
             tags=tags or [],
         )
         self._areas.append(area)

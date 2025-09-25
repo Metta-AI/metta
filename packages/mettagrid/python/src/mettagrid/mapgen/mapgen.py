@@ -165,7 +165,9 @@ class MapGen(MapBuilder):
                     self.height, self.width = intrinsic_size
 
                 instance_grid = create_grid(self.height, self.width)
-                instance_area = Area(x=0, y=0, width=self.width, height=self.height, grid=instance_grid, tags=[])
+                instance_area = Area(
+                    x=0, y=0, width=self.width, height=self.height, grid=instance_grid, abs_grid=instance_grid, tags=[]
+                )
                 instance_scene = self.root.create(instance_area, self.rng)
                 instance_scene.render_with_children()
                 self.instance_scene_factories.append(
@@ -249,7 +251,9 @@ class MapGen(MapBuilder):
             bw : bw + self.inner_width,
         ]
 
-        self.inner_area = Area(x=bw, y=bw, width=self.inner_width, height=self.inner_height, grid=inner_grid, tags=[])
+        self.inner_area = Area(
+            x=bw, y=bw, width=self.inner_width, height=self.inner_height, grid=inner_grid, abs_grid=inner_grid, tags=[]
+        )
 
     def get_root_scene_cfg(self) -> SceneConfig:
         """Create the full root scene configuration, handling single or multiple instances."""
