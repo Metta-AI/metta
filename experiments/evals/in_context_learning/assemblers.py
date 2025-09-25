@@ -9,13 +9,11 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             suite="in_context_learning",
             env=make_assembler_env(
                 num_agents=1,
-                max_steps=512,
                 num_altars=2,
-                num_converters=0,
+                num_generators=0,
                 width=6,
                 height=6,
-                altar_position=["W"],
-                altar_input="one",
+                position=["W"],
             ),
         ),
         SimulationConfig(
@@ -23,13 +21,11 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             suite="in_context_learning",
             env=make_assembler_env(
                 num_agents=2,
-                max_steps=512,
                 num_altars=2,
-                num_converters=0,
+                num_generators=0,
                 width=6,
                 height=6,
-                altar_position=["Any"],
-                altar_input="one",
+                position=["Any"],
             ),
         ),
         SimulationConfig(
@@ -37,13 +33,11 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             suite="in_context_learning",
             env=make_assembler_env(
                 num_agents=1,
-                max_steps=512,
                 num_altars=2,
-                num_converters=0,
+                num_generators=0,
                 width=6,
                 height=6,
-                altar_position=["N", "S"],
-                altar_input="one",
+                position=["N", "S"],
             ),
         ),
     ]
