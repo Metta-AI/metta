@@ -9,7 +9,40 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+# Temporarily comment out mixin until it's available
+# from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+
+# Mock PyTorchAgentMixin for testing
+class PyTorchAgentMixin:
+    def __init__(self, env, policy, input_size, hidden_size, num_layers=1):
+        super().__init__()
+        self.env = env
+        self.policy = policy
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+
+    def extract_mixin_params(self, kwargs):
+        return {}
+
+    def init_mixin(self, **kwargs):
+        pass
+
+    def set_tensordict_fields(self, td, observations):
+        pass
+
+    def forward_inference(self, td, logits_list, value):
+        # Mock implementation for testing
+        td['action_logits'] = logits_list
+        td['value'] = value
+        return td
+
+    def forward_training(self, td, action, logits_list, value):
+        # Mock implementation for testing
+        td['action_logits'] = logits_list
+        td['value'] = value
+        td['action'] = action
+        return td
 
 # ------------------
 # Utility functions
@@ -558,28 +591,45 @@ class HRMBackbone(nn.Module):
         }, outputs
 
 
-class HRM(PyTorchAgentMixin, HRMMemory):
+class HRM(PyTorchAgentMixin, HRMMemory, nn.Module):
     """Hierarchical Reasoning Model with LSTM using PyTorchAgentMixin for shared functionality."""
 
     def __init__(self, env, policy=None, input_size=64, hidden_size=64, num_layers=1, **kwargs):
         """Initialize HRM policy with mixin support."""
+        # Initialize nn.Module first
+        nn.Module.__init__(self)
+
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
 
         if policy is None:
             policy = Policy(env, input_size=input_size, hidden_size=hidden_size)
 
-        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
+        # Initialize mixin and memory
+        PyTorchAgentMixin.__init__(self, env, policy, input_size, hidden_size, num_layers=num_layers)
+        HRMMemory.__init__(self)
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
+    def initialize_to_environment(self, features, action_names, action_max_params, device, is_training=True):
+        """Initialize policy to environment - required by training framework."""
+        # Initialize action embeddings in the policy
+        self.policy.initialize_to_environment(action_names, device)
+
+        # Store environment metadata
+        self.features = features
+        self.action_names = action_names
+        self.action_max_params = action_max_params
+        self.device = device
+        self.is_training = is_training
+
+        # Move model to device
+        self.to(device)
+
     @torch._dynamo.disable
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
-
-        if state is None:
-            state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
         # Determine dimensions from observations before any reshaping
         if observations.dim() == 4:  # Training: [B, TT, obs_tokens, 3]
@@ -595,23 +645,8 @@ class HRM(PyTorchAgentMixin, HRMMemory):
         # Now set TensorDict fields with mixin (TD is already reshaped if needed)
         self.set_tensordict_fields(td, observations)
 
-        # Encode obs
-        hidden = self.policy.encode_observations(observations, state)
-
-        # # Use base class method for LSTM state management
-        # lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
-        # lstm_state = (lstm_h, lstm_c)
-
-        # # Forward LSTM
-        # hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
-        # lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden.to(torch.float32), lstm_state)
-
-        # # Use base class method to store state with automatic detachment
-        # self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
-
-        # flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
-
-        
+        # Encode obs - pass self (HRM) as the memory manager
+        hidden = self.policy.encode_observations(observations, td, memory_manager=self)
 
         # Decode - use the actual batch size from the hidden tensor
         if td.batch_dims > 1:
@@ -722,13 +757,14 @@ class Policy(nn.Module):
         """Initialize to environment, setting up action embeddings to match the available actions."""
         self.activate_action_embeddings(full_action_names, device)
 
-    def encode_observations(self, observations, state=None):
+    def encode_observations(self, observations, td=None, memory_manager=None):
         """
         Encode observations using the HRM backbone.
 
         Args:
             observations: Input observation tensor, shape (B, TT, M, 3) or (B, M, 3)
-            state: Optional state dictionary
+            td: TensorDict containing environment metadata
+            memory_manager: Object with get_memory/set_memory methods (usually the HRM instance)
 
         Returns:
             hidden: Encoded representation, shape (B * TT, hidden_size)
@@ -738,27 +774,34 @@ class Policy(nn.Module):
             observations = observations.reshape(-1, 200, 3)
 
         # Get environment ID for state tracking
-        training_env_id_start = td.get("training_env_id_start", None)
-        if training_env_id_start is None:
-            training_env_id_start = 0
+        if td is not None:
+            training_env_id_start = td.get("training_env_id_start", None)
+            if training_env_id_start is not None:
+                env_id = training_env_id_start[0].item()
+            else:
+                env_id = 0
         else:
-            training_env_id_start = training_env_id_start[0].item()
+            env_id = 0
 
-        prev_carry = self.get_memory()
-        if prev_carry is None:
+        # Get previous carry state or initialize new one
+        if memory_manager is not None:
+            prev_memory = memory_manager.get_memory()
+        else:
+            prev_memory = {}
+
+        if prev_memory is None or f"{env_id}" not in prev_memory:
             prev_carry = self.backbone.initial_carry({"env_obs": observations})
         else:
-            prev_carry = prev_carry[training_env_id_start]
-
-        prev_carry = self.get_memory()[f"{env_id}"]
+            prev_carry = prev_memory[f"{env_id}"]
 
         # Forward through backbone
         new_carry, outputs = self.backbone(prev_carry, {"env_obs": observations})
-        
-        self.set_memory({
-            f"{env_id}": new_carry
-        })
 
+        # Update memory with new carry state
+        if memory_manager is not None:
+            current_memory = memory_manager.get_memory() or {}
+            current_memory[f"{env_id}"] = new_carry
+            memory_manager.set_memory(current_memory)
 
         # Return hidden state
         return outputs["hidden_state"]
