@@ -1,12 +1,12 @@
 from typing import List, Optional
 
-import pufferlib.pytorch
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
 
+import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
 
 
