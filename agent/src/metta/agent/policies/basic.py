@@ -1,13 +1,13 @@
 from typing import Optional
 
 import einops
-import pufferlib.models
-import pufferlib.pytorch
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
+import pufferlib.models
+import pufferlib.pytorch
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 
@@ -24,7 +24,15 @@ class BasicConfig(PolicyArchitecture):
 class BasicPolicy(Policy):
     """A Basic policy without any memory."""
 
-    def __init__(self, env_metadata, config: Optional[BasicConfig] = None, cnn_channels=128, hidden_size=512, input_size=512, **kwargs):
+    def __init__(
+        self,
+        env_metadata,
+        config: Optional[BasicConfig] = None,
+        cnn_channels=128,
+        hidden_size=512,
+        input_size=512,
+        **kwargs,
+    ):
         super().__init__()
         self.config = config or BasicConfig()
         self.env_metadata = env_metadata
@@ -37,12 +45,8 @@ class BasicPolicy(Policy):
 
         self.num_layers = max(env_metadata.feature_normalizations.keys()) + 1
 
-        self.conv1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3), std=1.0
-        )
-        self.conv2 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1), std=1.0
-        )
+        self.conv1 = pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3), std=1.0)
+        self.conv2 = pufferlib.pytorch.layer_init(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1), std=1.0)
 
         test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
         with torch.no_grad():
@@ -55,16 +59,12 @@ class BasicPolicy(Policy):
             self.conv2,
             nn.ReLU(),
             nn.Flatten(),
-            pufferlib.pytorch.layer_init(
-                nn.Linear(self.cnn_flattened_size, hidden_size // 2), std=1.0
-            ),
+            pufferlib.pytorch.layer_init(nn.Linear(self.cnn_flattened_size, hidden_size // 2), std=1.0),
             nn.ReLU(),
         )
 
         self.self_encoder = nn.Sequential(
-            pufferlib.pytorch.layer_init(
-                nn.Linear(self.num_layers, hidden_size // 2), std=1.0
-            ),
+            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, hidden_size // 2), std=1.0),
             nn.ReLU(),
         )
 
@@ -80,10 +80,9 @@ class BasicPolicy(Policy):
         self.register_buffer("max_vec", max_vec)
 
         action_nvec = [max_args + 1 for max_args in env_metadata.max_action_args]
-        self.actor = nn.ModuleList([
-            pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
-            for n in action_nvec
-        ])
+        self.actor = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in action_nvec]
+        )
 
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
@@ -119,11 +118,7 @@ class BasicPolicy(Policy):
             & (atr_indices < self.num_layers)
         )
 
-        batch_idx = (
-            torch.arange(B * TT, device=observations.device)
-            .unsqueeze(-1)
-            .expand_as(atr_values)
-        )
+        batch_idx = torch.arange(B * TT, device=observations.device).unsqueeze(-1).expand_as(atr_values)
         box_obs[
             batch_idx[valid_tokens],
             atr_indices[valid_tokens],
@@ -183,4 +178,3 @@ class BasicPolicy(Policy):
     @property
     def observation_space(self):
         return self.env_metadata.observation_space
-
