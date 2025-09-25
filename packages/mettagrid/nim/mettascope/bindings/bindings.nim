@@ -1,6 +1,6 @@
 import
   genny, fidget2, openGL, jsony, vmath,
-  ../src/mettascope, ../src/mettascope/[replays, common]
+  ../src/mettascope, ../src/mettascope/[replays, common, worldmap]
 
 type
   RenderResponse* = object
@@ -14,7 +14,6 @@ proc init(dataDir: string, replay: string): RenderResponse =
   try:
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
-    common.replay = loadReplayString(replay, "PlayTool")
     initFidget(
       figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
       windowTitle = "MetaScope V2",
@@ -22,15 +21,20 @@ proc init(dataDir: string, replay: string): RenderResponse =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
+    buildAtlas()
+    common.replay = loadReplayString(replay, "MettaScope")
     return
   except Exception:
-    echo "Error initializing Mettascope2: ", getCurrentExceptionMsg()
+    echo "############ Error initializing Mettascope #################"
+    echo getCurrentException().getStackTrace()
+    echo getCurrentExceptionMsg()
+    echo "############################################################"
+
     result.shouldClose = true
     return
 
 proc render(currentStep: int, replayStep: string): RenderResponse =
   try:
-    echo "Current step from python: ", currentStep
     common.replay.apply(replayStep)
     step = currentStep
     stepFloat = currentStep.float32
@@ -42,9 +46,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         return
       mainLoop()
       if requestPython:
-        echo "Requesting Python, breaking loop"
         if requestAction:
-          echo "Requesting action: ", requestActionAgentId, " ", requestActionActionId, " ", requestActionArgument
           result.action = true
           result.actionAgentId = requestActionAgentId
           result.actionActionId = requestActionActionId
@@ -57,7 +59,10 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         else:
           return
   except Exception:
-    echo "Error rendering Mettascope2: ", getCurrentExceptionMsg()
+    echo "############## Error rendering Mettascope ##################"
+    echo getCurrentException().getStackTrace()
+    echo getCurrentExceptionMsg()
+    echo "############################################################"
     result.shouldClose = true
     return
 
