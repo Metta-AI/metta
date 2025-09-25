@@ -120,11 +120,12 @@ def build_eval_overrides(
     """
     eval_overrides = dict(additional_overrides) if additional_overrides else {}
 
-    # WandB configuration
+    # WandB configuration - simplified to match new setup
     eval_overrides["push_metrics_to_wandb"] = "True"
     eval_overrides["wandb.name"] = run_id
-    eval_overrides["wandb.run_id"] = run_id
-    eval_overrides["wandb.group"] = experiment_id
+    # Use 'group' instead of 'wandb.group' to match train.py pattern
+    eval_overrides["group"] = experiment_id
+    # No need to set wandb.run_id or wandb.enabled - they'll be auto-configured
 
     # Stats server configuration
     if stats_server_uri:
