@@ -70,11 +70,11 @@ class VanillaTransformerConfig(ComponentConfig):
     out_key: str
     name: str = "vanilla_transformer"
     in_dim: int = 128
-    output_dim: int = 16
+    output_dim: int
     num_heads: int = 4
     ff_mult: int = 4
     num_layers: int = 5
-    max_cache_size: int = 64
+    max_cache_size: int = 80
     pool: Literal["cls", "mean", "none"] = "mean"
 
     def make_component(self, env=None):
