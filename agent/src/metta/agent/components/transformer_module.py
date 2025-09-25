@@ -1,4 +1,4 @@
-"""Transformer-XL based sequence module used by PyTorch transformer agents."""
+"""Transformer modules for Metta transformer policies."""
 
 from __future__ import annotations
 
@@ -9,11 +9,341 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# ---------------------------------------------------------------------------
+# Full-context GTrXL-style transformer (legacy working version)
+# ---------------------------------------------------------------------------
 
-class PositionalEmbedding(nn.Module):
+
+class FCPositionalEncoding(nn.Module):
+    """Sinusoidal positional encoding with dropout."""
+
+    def __init__(self, d_model: int, max_len: int = 8192, dropout: float = 0.1) -> None:
+        super().__init__()
+        position = torch.arange(0, max_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32) * (-math.log(10000.0) / d_model))
+
+        pe = torch.zeros(max_len, d_model)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.register_buffer("pe", pe.unsqueeze(1))  # (max_len, 1, d_model)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        seq_len = x.size(0)
+        if seq_len > self.pe.size(0):
+            raise ValueError(f"Sequence length {seq_len} exceeds positional encoding capacity {self.pe.size(0)}.")
+        return self.dropout(x + self.pe[:seq_len])
+
+
+class FusedGRUGating(nn.Module):
+    """Fused GRU-style gating used by GTrXL."""
+
+    def __init__(self, d_model: int, bias: float = 2.0) -> None:
+        super().__init__()
+        self.gate_proj = nn.Linear(2 * d_model, 3 * d_model, bias=False)
+        self.register_buffer("bias", torch.full((d_model,), bias))
+        nn.init.orthogonal_(self.gate_proj.weight, gain=math.sqrt(2))
+
+    def forward(self, residual: torch.Tensor, transformed: torch.Tensor) -> torch.Tensor:
+        gates = self.gate_proj(torch.cat([residual, transformed], dim=-1))
+        gates = gates.view(*gates.shape[:-1], 3, -1)
+        reset = torch.sigmoid(gates[..., 0, :])
+        update = torch.sigmoid(gates[..., 1, :] - self.bias)
+        candidate = torch.tanh(gates[..., 2, :] * reset)
+        return (1.0 - update) * residual + update * candidate
+
+
+class GTrXLMultiHeadSelfAttention(nn.Module):
+    """Multi-head attention with optional causal masking."""
+
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int,
+        dropout: float = 0.1,
+        use_causal_mask: bool = True,
+    ) -> None:
+        super().__init__()
+        if d_model % n_heads != 0:
+            raise ValueError("d_model must be divisible by n_heads")
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_k = d_model // n_heads
+        self.use_causal_mask = use_causal_mask
+
+        self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)
+        self.out_proj = nn.Linear(d_model, d_model)
+        self.dropout = nn.Dropout(dropout)
+
+        nn.init.orthogonal_(self.qkv_proj.weight, gain=math.sqrt(2))
+        nn.init.orthogonal_(self.out_proj.weight, gain=math.sqrt(2))
+        nn.init.constant_(self.out_proj.bias, 0.0)
+
+    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        seq_len, batch_size, _ = x.shape
+        qkv = self.qkv_proj(x)
+        qkv = qkv.view(seq_len, batch_size, 3, self.n_heads, self.d_k)
+        qkv = qkv.permute(2, 3, 1, 0, 4)  # (3, n_heads, batch, seq_len, d_k)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        q = q.reshape(self.n_heads * batch_size, seq_len, self.d_k)
+        k = k.reshape(self.n_heads * batch_size, seq_len, self.d_k)
+        v = v.reshape(self.n_heads * batch_size, seq_len, self.d_k)
+
+        scores = torch.bmm(q, k.transpose(1, 2)) / math.sqrt(self.d_k)
+
+        if self.use_causal_mask:
+            causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool), diagonal=1)
+            scores = scores.masked_fill(causal_mask.unsqueeze(0), float("-inf"))
+
+        if attn_mask is not None:
+            if attn_mask.dim() == 2:
+                expanded = attn_mask.unsqueeze(0).expand(scores.size(0), -1, -1)
+            elif attn_mask.dim() == 3:
+                expanded = attn_mask
+                if expanded.size(0) == 1:
+                    expanded = expanded.expand(scores.size(0), -1, -1)
+            else:
+                raise ValueError("Attention mask must have dim 2 or 3.")
+            scores = scores.masked_fill(expanded.to(torch.bool), float("-inf"))
+
+        weights = F.softmax(scores, dim=-1)
+        weights = self.dropout(weights)
+
+        out = torch.bmm(weights, v)
+        out = out.view(self.n_heads, batch_size, seq_len, self.d_k)
+        out = out.permute(2, 1, 0, 3).reshape(seq_len, batch_size, self.d_model)
+        return self.out_proj(out)
+
+
+class GTrXLTransformerBlock(nn.Module):
+    """Transformer block with LayerNorm, gating and ReLU activations."""
+
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int,
+        d_ff: int,
+        dropout: float,
+        use_causal_mask: bool,
+        use_gating: bool,
+    ) -> None:
+        super().__init__()
+        self.use_gating = use_gating
+        self.attention = GTrXLMultiHeadSelfAttention(d_model, n_heads, dropout, use_causal_mask)
+        self.feed_forward = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(d_ff, d_model),
+            nn.Dropout(dropout),
+        )
+        for module in self.feed_forward:
+            if isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
+                nn.init.constant_(module.bias, 0.0)
+
+        if use_gating:
+            self.gate1 = FusedGRUGating(d_model)
+            self.gate2 = FusedGRUGating(d_model)
+
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+
+    def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        ln1 = self.norm1(x)
+        attn_out = F.relu(self.attention(ln1, attn_mask))
+        if self.use_gating:
+            residual = self.gate1(x, attn_out)
+        else:
+            residual = x + attn_out
+
+        ln2 = self.norm2(residual)
+        ff_out = F.relu(self.feed_forward(ln2))
+        if self.use_gating:
+            return self.gate2(residual, ff_out)
+        return residual + ff_out
+
+
+class TransformerModule(nn.Module):
+    """GTrXL-style transformer matching the working full-context implementation."""
+
+    def __init__(
+        self,
+        d_model: int = 128,
+        n_heads: int = 8,
+        n_layers: int = 6,
+        d_ff: int = 512,
+        max_seq_len: int = 256,
+        memory_len: int = 0,
+        dropout: float = 0.1,
+        dropatt: float = 0.1,  # Unused, kept for compatibility
+        pre_lnorm: bool = True,  # Unused flag retained for compatibility
+        same_length: bool = False,  # Unused flag retained for compatibility
+        clamp_len: int = -1,  # Unused flag retained for compatibility
+        ext_len: int = 0,  # Unused flag retained for compatibility
+        attn_type: int = 0,  # Unused flag retained for compatibility
+        use_gating: bool = True,
+        use_causal_mask: bool = True,
+    ) -> None:
+        super().__init__()
+        if d_model % n_heads != 0:
+            raise ValueError("d_model must be divisible by n_heads")
+
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.n_layers = n_layers
+        self.d_ff = d_ff
+        self.memory_len = max(0, memory_len)
+        self.max_seq_len = max_seq_len
+        self.use_input_proj = True
+        self.use_gating = use_gating
+        self.use_causal_mask = use_causal_mask
+
+        positional_max = max_seq_len + self.memory_len + 1024
+        self.positional_encoding = FCPositionalEncoding(d_model, max_len=positional_max, dropout=dropout)
+        if self.use_input_proj:
+            self.input_proj = nn.Linear(d_model, d_model)
+            nn.init.orthogonal_(self.input_proj.weight, gain=math.sqrt(2))
+            nn.init.constant_(self.input_proj.bias, 0.0)
+
+        self.layers = nn.ModuleList(
+            [
+                GTrXLTransformerBlock(
+                    d_model=d_model,
+                    n_heads=n_heads,
+                    d_ff=d_ff,
+                    dropout=dropout,
+                    use_causal_mask=use_causal_mask,
+                    use_gating=use_gating,
+                )
+                for _ in range(n_layers)
+            ]
+        )
+        self.output_norm = nn.LayerNorm(d_model)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        memory: Optional[Dict[str, Optional[List[torch.Tensor]]]] = None,
+    ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
+        squeeze = False
+        if inputs.dim() == 2:
+            inputs = inputs.unsqueeze(0)
+            squeeze = True
+        if inputs.dim() != 3:
+            raise ValueError(f"Expected tensor of shape (T, B, D); received {inputs.shape}.")
+
+        seq_len, batch_size, _ = inputs.shape
+        device = inputs.device
+        dtype = inputs.dtype
+
+        layer_mems = self._prepare_memory(memory, batch_size, device, dtype)
+
+        core = inputs
+        if self.use_input_proj:
+            core = F.relu(self.input_proj(core))
+        core = self.positional_encoding(core)
+        core = self.dropout(core)
+
+        layer_outputs: List[torch.Tensor] = []
+        for layer_idx, layer in enumerate(self.layers):
+            mem = layer_mems[layer_idx]
+            mem_len = mem.size(0)
+            if mem_len > 0:
+                if mem.size(1) != batch_size:
+                    mem = mem[:, :batch_size].contiguous()
+                combined = torch.cat([mem, core], dim=0)
+            else:
+                combined = core
+
+            attn_mask = None
+            if self.use_causal_mask:
+                total_len = combined.size(0)
+                attn_mask = torch.triu(torch.ones(total_len, total_len, device=device, dtype=torch.bool), diagonal=1)
+            layer_out = layer(combined, attn_mask)
+            layer_outputs.append(layer_out)
+
+            if mem_len > 0:
+                core = layer_out[mem_len:]
+            else:
+                core = layer_out
+
+        core = self.output_norm(core)
+        core = self.dropout(core)
+
+        if squeeze:
+            core = core.squeeze(0)
+
+        new_memory = self._update_memory(layer_outputs, batch_size)
+        return core, {"hidden_states": new_memory}
+
+    def _prepare_memory(
+        self,
+        memory: Optional[Dict[str, Optional[List[torch.Tensor]]]],
+        batch_size: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> List[torch.Tensor]:
+        zeros = torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype)
+        if self.memory_len <= 0 or memory is None:
+            return [zeros.clone() for _ in range(self.n_layers)]
+
+        stored = memory.get("hidden_states") if isinstance(memory, dict) else None
+        if not stored or len(stored) != self.n_layers:
+            return [zeros.clone() for _ in range(self.n_layers)]
+
+        mems: List[torch.Tensor] = []
+        for tensor in stored:
+            if tensor is None or tensor.numel() == 0:
+                mems.append(zeros.clone())
+                continue
+            mem = tensor.to(device=device, dtype=dtype)
+            if mem.size(1) != batch_size:
+                mem = mem[:, :batch_size].contiguous()
+            mems.append(mem)
+        return mems
+
+    def _update_memory(self, layer_outputs: List[torch.Tensor], batch_size: int) -> Optional[List[torch.Tensor]]:
+        if self.memory_len <= 0:
+            return None
+        new_memory: List[torch.Tensor] = []
+        for layer_out in layer_outputs:
+            if layer_out.numel() == 0:
+                new_memory.append(
+                    torch.zeros(
+                        0,
+                        batch_size,
+                        self.d_model,
+                        device=layer_out.device,
+                        dtype=layer_out.dtype,
+                    )
+                )
+                continue
+            total_len = layer_out.size(0)
+            start_idx = max(total_len - self.memory_len, 0)
+            new_memory.append(layer_out[start_idx:].detach())
+        return new_memory
+
+    def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
+        if self.memory_len <= 0:
+            return {"hidden_states": None}
+        device = next(self.parameters()).device
+        dtype = next(self.parameters()).dtype
+        empty = torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype)
+        return {"hidden_states": [empty.clone() for _ in range(self.n_layers)]}
+
+
+# ---------------------------------------------------------------------------
+# Transformer-XL implementation (improved variant)
+# ---------------------------------------------------------------------------
+
+
+class XLPositionalEmbedding(nn.Module):
     """Sinusoidal positional embedding identical to Transformer-XL."""
 
-    def __init__(self, d_model: int):
+    def __init__(self, d_model: int) -> None:
         super().__init__()
         inv_freq = 1.0 / (10000 ** (torch.arange(0.0, d_model, 2.0) / d_model))
         self.register_buffer("inv_freq", inv_freq)
@@ -26,11 +356,13 @@ class PositionalEmbedding(nn.Module):
         return pos_emb[:, None, :]
 
 
-class PositionwiseFF(nn.Module):
-    """Position-wise feed-forward network with optional pre-layernorm."""
+class XLPositionwiseFF(nn.Module):
+    """Position-wise feed-forward layer for Transformer-XL."""
 
     def __init__(self, d_model: int, d_inner: int, dropout: float, pre_lnorm: bool) -> None:
         super().__init__()
+        self.pre_lnorm = pre_lnorm
+        self.layer_norm = nn.LayerNorm(d_model)
         self.core = nn.Sequential(
             nn.Linear(d_model, d_inner),
             nn.ReLU(inplace=True),
@@ -38,19 +370,17 @@ class PositionwiseFF(nn.Module):
             nn.Linear(d_inner, d_model),
             nn.Dropout(dropout),
         )
-        self.layer_norm = nn.LayerNorm(d_model)
-        self.pre_lnorm = pre_lnorm
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         if self.pre_lnorm:
-            output = self.core(self.layer_norm(inputs)) + inputs
+            output = inputs + self.core(self.layer_norm(inputs))
         else:
             output = self.layer_norm(inputs + self.core(inputs))
         return output
 
 
-class RelMultiHeadAttn(nn.Module):
-    """Relative position multi-head attention from Transformer-XL."""
+class XLRelMultiHeadAttn(nn.Module):
+    """Base class for relative multi-head attention."""
 
     def __init__(
         self,
@@ -74,12 +404,12 @@ class RelMultiHeadAttn(nn.Module):
         self.dropatt = nn.Dropout(dropatt)
         self.layer_norm = nn.LayerNorm(d_model)
 
-    def _rel_shift(self, x: torch.Tensor) -> torch.Tensor:
+    @staticmethod
+    def _rel_shift(x: torch.Tensor) -> torch.Tensor:
         zero_pad = torch.zeros((x.size(0), 1, *x.size()[2:]), device=x.device, dtype=x.dtype)
         x_padded = torch.cat([zero_pad, x], dim=1)
         x_padded = x_padded.view(x.size(1) + 1, x.size(0), *x.size()[2:])
-        x = x_padded[1:].view_as(x)
-        return x
+        return x_padded[1:].view_as(x)
 
     def forward(
         self,
@@ -93,8 +423,8 @@ class RelMultiHeadAttn(nn.Module):
         raise NotImplementedError
 
 
-class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
-    """Partial relative attention variant used by Transformer-XL."""
+class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
+    """Partial relative position multi-head attention used by Transformer-XL."""
 
     def __init__(
         self,
@@ -164,17 +494,12 @@ class RelPartialLearnableMultiHeadAttn(RelMultiHeadAttn):
 
         attn_vec = torch.einsum("ijbn,jbnd->ibnd", (attn_prob, w_head_v))
         attn_vec = attn_vec.contiguous().view(qlen, batch_size, self.n_head * self.d_head)
-
-        attn_out = self.o_net(attn_vec)
-        attn_out = self.drop(attn_out)
-
-        if self.pre_lnorm:
-            return content + attn_out
-        return self.layer_norm(content + attn_out)
+        attn_out = self.drop(self.o_net(attn_vec))
+        return attn_out
 
 
-class RelPartialLearnableDecoderLayer(nn.Module):
-    """Decoder layer that applies relative multi-head attention and a feed-forward block."""
+class XLRelPartialLearnableDecoderLayer(nn.Module):
+    """Transformer-XL decoder layer."""
 
     def __init__(
         self,
@@ -187,8 +512,8 @@ class RelPartialLearnableDecoderLayer(nn.Module):
         pre_lnorm: bool,
     ) -> None:
         super().__init__()
-        self.attn = RelPartialLearnableMultiHeadAttn(n_head, d_model, d_head, dropout, dropatt, pre_lnorm)
-        self.ff = PositionwiseFF(d_model, d_inner, dropout, pre_lnorm)
+        self.attn = XLRelPartialLearnableMultiHeadAttn(n_head, d_model, d_head, dropout, dropatt, pre_lnorm)
+        self.ff = XLPositionwiseFF(d_model, d_inner, dropout, pre_lnorm)
 
     def forward(
         self,
@@ -204,8 +529,8 @@ class RelPartialLearnableDecoderLayer(nn.Module):
         return output
 
 
-class TransformerModule(nn.Module):
-    """Transformer-XL style module that exposes the interface used by Metta agents."""
+class TransformerXLModule(nn.Module):
+    """Transformer-XL style module that exposes the legacy interface."""
 
     def __init__(
         self,
@@ -226,7 +551,6 @@ class TransformerModule(nn.Module):
         super().__init__()
         if d_model % n_heads != 0:
             raise ValueError("d_model must be divisible by n_heads")
-
         if attn_type != 0:
             raise NotImplementedError("Only relative positional attention (attn_type=0) is supported.")
 
@@ -243,13 +567,13 @@ class TransformerModule(nn.Module):
 
         d_head = d_model // n_heads
 
-        self.pos_emb = PositionalEmbedding(d_model)
+        self.pos_emb = XLPositionalEmbedding(d_model)
         self.r_w_bias = nn.Parameter(torch.zeros(n_heads, d_head))
         self.r_r_bias = nn.Parameter(torch.zeros(n_heads, d_head))
         self.drop = nn.Dropout(dropout)
         self.layers = nn.ModuleList(
             [
-                RelPartialLearnableDecoderLayer(
+                XLRelPartialLearnableDecoderLayer(
                     n_heads,
                     d_model,
                     d_head,
