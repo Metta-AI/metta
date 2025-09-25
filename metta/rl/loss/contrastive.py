@@ -107,6 +107,10 @@ class ContrastiveLoss(Loss):
         # Try different possible embedding sources in order of preference
         if "encoder_output" in policy_td:
             return policy_td["encoder_output"]
+        elif "encoded_obs" in policy_td:
+            return policy_td["encoded_obs"]  # Try encoded observations
+        elif "core" in policy_td:
+            return policy_td["core"]  # Try core hidden state
         elif "hidden_state" in policy_td:
             return policy_td["hidden_state"]
         elif "features" in policy_td:
@@ -118,7 +122,7 @@ class ContrastiveLoss(Loss):
                 "WARNING: Contrastive loss using value tensor as embeddings - "
                 "this is suboptimal for representation learning"
             )
-            value = policy_td["value"].squeeze(-1)  # Remove last dimension if it's 1
+            value = policy_td["values"].squeeze(-1)  # Remove last dimension if it's 1
 
             if value.dim() == 1:
                 # Don't expand identical values - instead create a learnable linear projection

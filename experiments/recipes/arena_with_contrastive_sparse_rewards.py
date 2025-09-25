@@ -104,10 +104,30 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    # Create trainer config with contrastive loss enabled
+    # Create trainer config with contrastive loss enabled + PPO for actions
+    from metta.rl.loss.contrastive_config import ContrastiveConfig
+    from metta.rl.loss.ppo import PPOConfig
+
+    contrastive_config = ContrastiveConfig(
+        temperature=0.07,
+        contrastive_coef=0.1,
+        embedding_dim=128,
+        use_projection_head=True,
+        log_similarities=True,
+        log_frequency=1  # Log every epoch instead of every 100 epochs
+    )
+
+    ppo_config = PPOConfig()  # Default PPO config for action generation
+
     trainer_config = TrainerConfig(
         total_timesteps=10_000_000,  # Shorter for testing
-        losses=LossConfig(enable_contrastive=True)
+        losses=LossConfig(
+            enable_contrastive=True,
+            loss_configs={
+                "ppo": ppo_config,  # PPO generates actions
+                "contrastive": contrastive_config  # Contrastive for representation learning
+            }
+        )
     )
 
     return TrainTool(
