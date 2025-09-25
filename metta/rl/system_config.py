@@ -1,6 +1,7 @@
 import os
 import platform
 import random
+from datetime import timedelta
 from pathlib import Path
 from typing import ClassVar, Literal
 
@@ -44,6 +45,7 @@ class SystemConfig(Config):
     data_dir: Path = Field(default_factory=guess_data_dir)
     remote_prefix: str | None = Field(default=None)
     local_only: bool = Field(default=False)
+    nccl_timeout: timedelta = Field(default=timedelta(minutes=10))
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
