@@ -54,8 +54,8 @@ class TransformerPolicyConfig(PolicyArchitecture):
         in_key="obs_normalizer",
         out_key="encoded_obs",
         cnn1_cfg={"out_channels": 64, "kernel_size": 5, "stride": 3},
-        cnn2_cfg={"out_channels": 128, "kernel_size": 3, "stride": 1},
-        fc1_cfg={"out_features": 512},
+        cnn2_cfg={"out_channels": 64, "kernel_size": 3, "stride": 1},
+        fc1_cfg={"out_features": 256},
         encoded_obs_cfg={"out_features": 256},
     )
 
@@ -63,8 +63,8 @@ class TransformerPolicyConfig(PolicyArchitecture):
     transformer_core: TransformerCoreConfig = Field(default_factory=TransformerCoreConfig)
 
     # Actor / critic head dimensions
-    critic_hidden_dim: int = 1024
-    actor_hidden_dim: int = 512
+    critic_hidden_dim: int = 512
+    actor_hidden_dim: int = 256
     action_embedding_dim: int = 16
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
