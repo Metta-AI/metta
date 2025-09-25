@@ -3,7 +3,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -558,11 +557,16 @@ def cmd_publish(
 
 @app.command(name="lint", help="Run linting and formatting")
 def cmd_lint(
+    files: Annotated[Optional[list[str]], typer.Argument()] = None,
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
 ):
-    files = []
-    if staged:
+    # Determine which files to lint
+    if files:
+        # Filter to only Python files
+        files = [f for f in files if f.endswith(".py")]
+    elif staged:
+        # Discover staged files
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
             cwd=cli.repo_root,
@@ -572,48 +576,13 @@ def cmd_lint(
         )
         files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
 
-        if not files:
-            return
+    if files is not None and not files:
+        info("No Python files to lint")
+        return
 
-        # When explicit file paths are passed to ruff, it ignores the exclude patterns
-        # in .ruff.toml. This is by design - ruff assumes if you explicitly specify
-        # files, you want them linted regardless of exclude rules.
-        # So we need to manually filter out excluded paths when using --staged.
-        ruff_config_path = cli.repo_root / ".ruff.toml"
-        excluded_paths = []
-
-        try:
-            if ruff_config_path.exists():
-                with open(ruff_config_path, "rb") as f:
-                    config = tomllib.load(f)
-                excluded_paths = config.get("exclude", [])
-        except Exception:
-            # If we can't read the config, continue without filtering
-            pass
-
-        if excluded_paths:
-            filtered_files = []
-            for f in files:
-                should_exclude = False
-                for excluded in excluded_paths:
-                    # Handle both exact matches and directory prefixes
-                    if f.startswith(excluded.rstrip("/") + "/") or f == excluded:
-                        should_exclude = True
-                        break
-
-                if not should_exclude:
-                    filtered_files.append(f)
-
-            files = filtered_files
-
-            if not files:
-                info("No files to lint after applying exclusions")
-                return
-
+    # Build commands
     check_cmd = ["uv", "run", "--active", "ruff", "check"]
     format_cmd = ["uv", "run", "--active", "ruff", "format"]
-
-    cmds = [format_cmd, check_cmd]
 
     if fix:
         check_cmd.append("--fix")
@@ -621,10 +590,11 @@ def cmd_lint(
         format_cmd.append("--check")
 
     if files:
-        for cmd in cmds:
-            cmd.extend(files)
+        check_cmd.extend(files)
+        format_cmd.extend(files)
 
-    for cmd in cmds:
+    # Run commands
+    for cmd in [format_cmd, check_cmd]:
         try:
             info(f"Running: {' '.join(cmd)}")
             subprocess.run(cmd, cwd=cli.repo_root, check=True)

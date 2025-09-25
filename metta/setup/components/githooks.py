@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tomllib
 from enum import Enum
 from pathlib import Path
 
@@ -270,18 +271,44 @@ class GitHooksSetup(SetupModule):
             # No Python files to lint
             sys.exit(0)
 
-        lint_cmd = ["metta", "lint", "--staged"]
+        # Filter out excluded paths based on .ruff.toml
+        ruff_config_path = self.repo_root / ".ruff.toml"
+        try:
+            if ruff_config_path.exists():
+                with open(ruff_config_path, "rb") as f:
+                    config = tomllib.load(f)
+                excluded_paths = config.get("exclude", [])
 
+                if excluded_paths:
+                    filtered_files = []
+                    for f in files:
+                        should_exclude = any(
+                            f.startswith(excluded.rstrip("/") + "/") or f == excluded for excluded in excluded_paths
+                        )
+                        if not should_exclude:
+                            filtered_files.append(f)
+
+                    files = filtered_files
+        except Exception:
+            # Continue without filtering if config can't be read
+            pass
+
+        if not files:
+            # No files to lint after exclusions
+            sys.exit(0)
+
+        lint_cmd = ["metta", "lint"]
         if hook_mode == CommitHookMode.FIX:
             lint_cmd.append("--fix")
+        lint_cmd.extend(files)
 
         try:
             subprocess.run(lint_cmd, cwd=self.repo_root, check=True)
 
-            # If in fix mode, stage the fixed files
             if hook_mode == CommitHookMode.FIX:
                 subprocess.run(["git", "add"] + files, cwd=self.repo_root, check=True)
 
+            success("Pre-commit linting passed")
         except subprocess.CalledProcessError as e:
             if hook_mode == CommitHookMode.CHECK:
                 error("Linting failed. Please fix the issues before committing.")
