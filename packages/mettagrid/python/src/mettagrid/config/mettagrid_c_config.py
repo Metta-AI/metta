@@ -178,6 +178,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # Convert tag names to IDs for first agent in team
         tag_ids = [tag_name_to_id[tag] for tag in first_agent.tags if tag in tag_name_to_id]
 
+        # Convert soul bound resources from names to IDs
+        soul_bound_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("soul_bound_resources", [])
+            if resource_name in resource_name_to_id
+        ]
+
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
             "group_id": team_id,
@@ -196,6 +203,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_name": "agent",
             "initial_inventory": initial_inventory,
             "tag_ids": tag_ids,
+            "soul_bound_resources": soul_bound_resources,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
