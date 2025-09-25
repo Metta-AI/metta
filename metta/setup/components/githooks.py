@@ -282,8 +282,10 @@ class GitHooksSetup(SetupModule):
                 if excluded_paths:
                     filtered_files = []
                     for f in files:
+                        file_path = Path(f)
                         should_exclude = any(
-                            f.startswith(excluded.rstrip("/") + "/") or f == excluded for excluded in excluded_paths
+                            file_path == Path(excluded) or file_path.is_relative_to(Path(excluded))
+                            for excluded in excluded_paths
                         )
                         if not should_exclude:
                             filtered_files.append(f)
