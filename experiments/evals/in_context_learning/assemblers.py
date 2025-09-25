@@ -1,5 +1,6 @@
-from experiments.recipes.in_context_learning.assemblers import make_assembler_env
 from metta.sim.simulation_config import SimulationConfig
+
+from experiments.recipes.in_context_learning.assemblers import make_assembler_env
 
 
 def make_assembler_eval_suite() -> list[SimulationConfig]:

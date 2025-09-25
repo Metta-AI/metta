@@ -18,10 +18,14 @@ import random
 import subprocess
 import time
 from dataclasses import dataclass, field
+from math import comb
 from typing import Any, Dict, Optional
 
 import numpy as np
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import (
+    LearningProgressConfig,
+)
 from metta.cogworks.curriculum.task_generator import (
     TaskGenerator,
     TaskGeneratorConfig,
@@ -81,6 +85,35 @@ RESOURCE_TYPES = [
     "blueprint",
     "armor",
 ]
+
+foraging_curriculum_args = {
+    "foraging_mixed_lp": {
+        "num_agents": [1, 2],
+        "map_sizes": {
+            "small": {"width": 10, "height": 10, "resource_count": 2},
+            "large": {"width": 24, "height": 24, "resource_count": 4},
+        },
+        "size_weights": None,  # uniform
+        "separation_modes": ["strict", "soft"],
+        "separation_weights": [0.5, 0.5],
+        "soft_mode_bias": 0.75,
+        "recipe_mode": ["simple", "unordered_chain"],
+        "max_recipe_inputs": [1, 2, 3],
+        "num_assemblers": [1, 2],
+        # resource_positions: region bias specification handled in builder by separation_modes
+    },
+    "foraging_strict_1agent": {
+        "num_agents": [1],
+        "separation_modes": ["strict"],
+        "separation_weights": [1.0],
+    },
+    "foraging_soft_2agent": {
+        "num_agents": [2],
+        "separation_modes": ["soft"],
+        "separation_weights": [1.0],
+        "soft_mode_bias": 0.8,
+    },
+}
 
 curriculum_args = {
     "single_agent_two_altars": {
@@ -1013,3 +1046,842 @@ def play_foraging_directional() -> PlayTool:
             suite="in_context_learning",
         ),
     )
+
+
+class BiasedForagingMapBuilder(MapBuilder):
+    """Map builder that places resources in specific regions to create spatial bias."""
+
+    class Config(MapBuilderConfig["BiasedForagingMapBuilder"]):
+        seed: Optional[int] = None
+        width: int = 12
+        height: int = 12
+        agents: int | dict[str, int] = 1
+        border_width: int = 1
+        border_object: str = "wall"
+        # Central assembler
+        num_assemblers: int = 1
+        # Resource specifications with regional bias
+        # Each entry: {name: str, count: int, region: str}
+        # Regions: "north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"
+        resource_regions: list[dict] = []
+        # Spatial separation mode: "strict" or "soft"
+        # strict: resources only appear in their designated regions
+        # soft: resources have preference for their regions but can appear elsewhere
+        separation_mode: str = "strict"
+        # For soft mode: probability of placing resource in its preferred region (0.0-1.0)
+        region_bias: float = 0.8
+
+    def __init__(self, config: "BiasedForagingMapBuilder.Config"):
+        self._config: BiasedForagingMapBuilder.Config = config
+        import numpy as _np
+
+        self._rng = _np.random.default_rng(self._config.seed)
+
+    def build(self) -> GameMap:
+        import numpy as _np
+
+        if getattr(self._config, "seed", None) is not None:
+            self._rng = _np.random.default_rng(self._config.seed)
+        rng = self._rng
+
+        h, w = self._config.height, self._config.width
+        grid = _np.full((h, w), "empty", dtype="<U50")
+
+        if self._config.border_width > 0:
+            draw_border(grid, self._config.border_width, self._config.border_object)
+
+        def in_bounds(i: int, j: int) -> bool:
+            b = self._config.border_width
+            return b <= i < h - b and b <= j < w - b
+
+        reserved = _np.zeros((h, w), dtype=bool)
+
+        def reserve_3x3(i: int, j: int):
+            for di in (-1, 0, 1):
+                for dj in (-1, 0, 1):
+                    ii, jj = i + di, j + dj
+                    if 0 <= ii < h and 0 <= jj < w:
+                        reserved[ii, jj] = True
+
+        # Place assembler(s) in center
+        cx, cy = h // 2, w // 2
+        grid[cx, cy] = "altar"
+        reserve_3x3(cx, cy)
+
+        # Additional assemblers if needed
+        extra = self._config.num_assemblers - 1
+        if extra > 0:
+            # Place in a small radius around center
+            attempts = 0
+            while extra > 0 and attempts < 100:
+                attempts += 1
+                di = rng.integers(-2, 3)
+                dj = rng.integers(-2, 3)
+                i, j = cx + di, cy + dj
+                if not in_bounds(i, j) or reserved[i, j]:
+                    continue
+                grid[i, j] = "altar"
+                reserve_3x3(i, j)
+                extra -= 1
+
+        # Define regions based on map quadrants/octants
+        def get_region_bounds(region: str) -> tuple[int, int, int, int]:
+            """Returns (min_i, max_i, min_j, max_j) for a region."""
+            b = self._config.border_width
+            mid_i, mid_j = h // 2, w // 2
+
+            regions = {
+                "north": (b, mid_i, b, w - b),
+                "south": (mid_i, h - b, b, w - b),
+                "east": (b, h - b, mid_j, w - b),
+                "west": (b, h - b, b, mid_j),
+                "northeast": (b, mid_i, mid_j, w - b),
+                "northwest": (b, mid_i, b, mid_j),
+                "southeast": (mid_i, h - b, mid_j, w - b),
+                "southwest": (mid_i, h - b, b, mid_j),
+                "center": (mid_i - 2, mid_i + 3, mid_j - 2, mid_j + 3),
+            }
+            return regions.get(region, (b, h - b, b, w - b))
+
+        # Place resources according to regional specifications
+        for spec in self._config.resource_regions:
+            name = str(spec.get("name", "mine_red"))
+            count = int(spec.get("count", 3))
+            region = str(spec.get("region", "north"))
+
+            placed = 0
+            attempts = 0
+
+            while placed < count and attempts < count * 30:
+                attempts += 1
+
+                # Determine placement region based on separation mode
+                if self._config.separation_mode == "strict":
+                    # Strict mode: always use designated region
+                    target_region = region
+                else:
+                    # Soft mode: use region bias to decide
+                    if rng.random() < self._config.region_bias:
+                        target_region = region
+                    else:
+                        # Place randomly anywhere (excluding center)
+                        regions = [
+                            "north",
+                            "south",
+                            "east",
+                            "west",
+                            "northeast",
+                            "northwest",
+                            "southeast",
+                            "southwest",
+                        ]
+                        # Remove the preferred region to avoid double-weighting
+                        other_regions = [r for r in regions if r != region]
+                        target_region = rng.choice(other_regions)
+
+                min_i, max_i, min_j, max_j = get_region_bounds(target_region)
+                i = rng.integers(min_i, max_i)
+                j = rng.integers(min_j, max_j)
+
+                if not in_bounds(i, j) or reserved[i, j]:
+                    continue
+
+                # Check 3x3 area is clear
+                clear = True
+                for di in (-1, 0, 1):
+                    for dj in (-1, 0, 1):
+                        ii, jj = i + di, j + dj
+                        if 0 <= ii < h and 0 <= jj < w and reserved[ii, jj]:
+                            clear = False
+                            break
+                    if not clear:
+                        break
+
+                if clear:
+                    grid[i, j] = name
+                    reserve_3x3(i, j)
+                    placed += 1
+
+        # Place agents in remaining empty cells
+        if isinstance(self._config.agents, int):
+            num_agents = self._config.agents
+        else:
+            num_agents = sum(self._config.agents.values())
+
+        empties = _np.argwhere((grid == "empty") & (~reserved))
+        rng.shuffle(empties)
+        for k in range(min(num_agents, len(empties))):
+            i, j = map(int, empties[k])
+            grid[i, j] = "agent.agent"
+
+        return GameMap(grid)
+
+
+class BiasedForagingTaskGenerator(ICLTaskGenerator):
+    """Task generator for biased foraging with small/medium/large/extra_large maps."""
+
+    class Config(ICLTaskGenerator.Config):
+        num_agents: list[int] = Field(default=[1])
+        # Number of assemblers lever
+        num_assemblers: list[int] = Field(default=[1])
+        # Map size configurations
+        map_sizes: dict[str, dict] = Field(
+            default={
+                "small": {"width": 10, "height": 10, "resource_count": 2},
+                "medium": {"width": 16, "height": 16, "resource_count": 3},
+                "large": {"width": 32, "height": 32, "resource_count": 4},
+                "extra_large": {"width": 64, "height": 64, "resource_count": 5},
+            }
+        )
+        size_weights: list[float] | None = Field(default=None)
+        altar_cooldown: int = Field(default=60)
+        # Recipe mode lever: simple, directional, unordered_chain
+        recipe_mode: list[str] = Field(
+            default=["simple"]
+        )  # "simple" | "directional" | "unordered_chain"
+        # Optional weights to balance recipe modes
+        recipe_mode_weights: list[float] | None = Field(default=None)
+        # Max recipe inputs lever (cap), used by unordered_chain/simple
+        max_recipe_inputs: list[int] | None = Field(default=[1, 2, 3])
+        # Non-reusable resources for unordered_chain semantics
+        non_reusable_resources: list[str] = Field(default=[])
+        # Resource types and their typical regions
+        resource_configs: list[dict] = Field(
+            default=[
+                {"resource": "ore_red", "region": "north"},
+                {"resource": "ore_blue", "region": "south"},
+                {"resource": "ore_green", "region": "east"},
+                {"resource": "battery_red", "region": "west"},
+            ]
+        )
+        # Alias: resource_positions overrides resource_configs if provided
+        resource_positions: list[dict] | None = Field(default=None)
+        # Separation modes and their weights for curriculum
+        separation_modes: list[str] = Field(default=["strict", "soft"])
+        separation_weights: list[float] | None = Field(default=None)
+        # Region bias for soft mode (higher = more concentrated in preferred regions)
+        soft_mode_bias: float = Field(default=0.75)
+        # Altar position patterns for non-directional modes
+        altar_positions: list[list[Position]] = Field(
+            default=[["Any"], ["N"], ["S"], ["E"], ["W"], ["N", "S"], ["E", "W"]]
+        )
+        # Directional recipe patterns
+        direction_recipes: list[list[Position]] = Field(
+            default=[["N"], ["S"], ["E"], ["W"]]
+        )
+
+    def __init__(self, config: "BiasedForagingTaskGenerator.Config"):
+        super().__init__(config)
+        self.config = config
+
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+        num_agents = rng.choice(self.config.num_agents)
+        if 24 % num_agents != 0:
+            raise ValueError(
+                f"Number of agents ({num_agents}) must be a divisor of 24."
+            )
+        num_instances = 24 // num_agents
+
+        # Choose map size (handle weight/population mismatch robustly)
+        size_names = list(self.config.map_sizes.keys())
+        if isinstance(self.config.size_weights, list) and len(
+            self.config.size_weights
+        ) == len(size_names):
+            size_weights = self.config.size_weights
+        else:
+            size_weights = None  # uniform
+        size_name = rng.choices(size_names, weights=size_weights)[0]
+        size_config = self.config.map_sizes[size_name]
+
+        width = size_config["width"]
+        height = size_config["height"]
+        base_resource_count = size_config["resource_count"]
+
+        # Choose number of assemblers
+        num_assemblers = rng.choice(self.config.num_assemblers)
+
+        # Select resources and assign regions
+        available_configs = list(self.config.resource_configs)
+        rng.shuffle(available_configs)
+        selected_configs = available_configs[:4]  # Always use 4 resource types
+
+        # Choose separation mode (handle weight/population mismatch robustly)
+        if isinstance(self.config.separation_weights, list) and len(
+            self.config.separation_weights
+        ) == len(self.config.separation_modes):
+            sep_weights = self.config.separation_weights
+        else:
+            sep_weights = None  # uniform
+        separation_mode = rng.choices(
+            self.config.separation_modes, weights=sep_weights
+        )[0]
+
+        # Build resource region specifications
+        resource_regions = []
+        chosen_resources = []
+        for cfg in selected_configs:
+            resource = cfg["resource"]
+            region = cfg["region"]
+            chosen_resources.append(resource)
+
+            # Map resource to mine/generator name
+            resource_type, color = resource.split("_")
+            if resource_type == "ore":
+                converter_name = f"mine_{color}"
+            elif resource_type == "battery":
+                converter_name = f"generator_{color}"
+            else:
+                converter_name = f"mine_{color}"  # fallback
+
+            resource_regions.append(
+                {
+                    "name": converter_name,
+                    "count": base_resource_count,
+                    "region": region,
+                }
+            )
+
+        # Game objects
+        game_objects: Dict[str, Any] = {"wall": empty_converters.wall}
+
+        # Add mines/generators with assembler semantics
+        for spec in resource_regions:
+            converter_key = spec["name"]
+            if converter_key in CONVERTER_TYPES:
+                converter_cfg = CONVERTER_TYPES[converter_key].model_copy(deep=True)
+                game_objects[converter_key] = converter_cfg
+
+        # Altar with recipe requiring resources from different regions
+        altar = building.assembler_altar.model_copy(deep=True)
+
+        # Helper functions for unordered_chain-style sampling
+        def _sample_composition(total: int, parts: int) -> list[int]:
+            if parts <= 0:
+                return []
+            if total == 0:
+                return [0] * parts
+            if parts == 1:
+                return [total]
+            bars = sorted(rng.sample(range(total + parts - 1), parts - 1))
+            prev = -1
+            counts: list[int] = []
+            for b in bars + [total + parts - 1]:
+                counts.append(b - prev - 1)
+                prev = b
+            return counts
+
+        def _weighted_choice(weights: list[int]) -> int:
+            total = sum(weights)
+            if total == 0:
+                return len(weights) - 1
+            cumsum: list[int] = []
+            acc = 0
+            for w in weights:
+                acc += w
+                cumsum.append(acc)
+            x = rng.random() * total
+            # bisect_left equivalent
+            lo, hi = 0, len(cumsum)
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if x <= cumsum[mid]:
+                    hi = mid
+                else:
+                    lo = mid + 1
+            return lo
+
+        # Decide recipe generation mode (optional weights)
+        if self.config.recipe_mode_weights and len(
+            self.config.recipe_mode_weights
+        ) == len(self.config.recipe_mode):
+            recipe_mode = rng.choices(
+                self.config.recipe_mode, weights=self.config.recipe_mode_weights
+            )[0]
+        else:
+            recipe_mode = rng.choice(self.config.recipe_mode)
+        max_inputs_cap = None
+        if self.config.max_recipe_inputs:
+            max_inputs_cap = rng.choice(self.config.max_recipe_inputs)
+
+        recipes: list[tuple[list[Position], RecipeConfig]] = []
+        if recipe_mode == "unordered_chain":
+            # Build one recipe using unordered multiset sampling over chosen_resources
+            non_reusable_set = set(self.config.non_reusable_resources)
+            available = [r for r in chosen_resources]
+            reusable = [r for r in available if r not in non_reusable_set]
+            unique_non_reusable = list({r for r in available if r in non_reusable_set})
+
+            L = max(1, max_inputs_cap or 2)
+            L = min(L, max(1, len(available)))
+
+            if len(non_reusable_set.intersection(available)) == 0:
+                # All reusable: sample composition across reusable types
+                if len(reusable) == 0:
+                    recipe_resources_counts: dict[str, int] = {rng.choice(available): 1}
+                else:
+                    counts = _sample_composition(L, len(reusable))
+                    recipe_resources_counts = {
+                        typ: c for typ, c in zip(reusable, counts) if c > 0
+                    }
+            else:
+                nR = len(reusable)
+                nNR = len(unique_non_reusable)
+                max_m = min(L, nNR)
+                weights: list[int] = []
+                for m in range(0, max_m + 1):
+                    r = L - m
+                    if r < 0 or (nR == 0 and r > 0):
+                        weights.append(0)
+                        continue
+                    ways_nr = comb(nNR, m)
+                    ways_r = (
+                        1
+                        if r == 0 and nR >= 0
+                        else (comb(r + nR - 1, nR - 1) if nR > 0 else 0)
+                    )
+                    weights.append(ways_nr * ways_r)
+                m = _weighted_choice(weights)
+                r = max(0, L - m)
+                chosen_nr = rng.sample(unique_non_reusable, m) if m > 0 else []
+                counts = _sample_composition(r, nR) if nR > 0 else []
+                recipe_resources_counts = {nr: 1 for nr in chosen_nr}
+                for typ, c in zip(reusable, counts):
+                    if c > 0:
+                        recipe_resources_counts[typ] = (
+                            recipe_resources_counts.get(typ, 0) + c
+                        )
+
+            recipes = [
+                (
+                    ["Any"],
+                    RecipeConfig(
+                        input_resources=recipe_resources_counts,
+                        output_resources={"heart": 1},
+                        cooldown=self.config.altar_cooldown,
+                    ),
+                )
+            ]
+        elif recipe_mode == "directional":
+            # Directional: create multiple recipes bound to specific sides
+            k_cap = max_inputs_cap if max_inputs_cap is not None else 3
+            recipes = []
+            for patt in self.config.direction_recipes:
+                k = min(k_cap, max(1, len(chosen_resources)))
+                inputs = rng.sample(chosen_resources, k=min(k, len(chosen_resources)))
+                recipes.append(
+                    (
+                        patt,
+                        RecipeConfig(
+                            input_resources={r: 1 for r in inputs},
+                            output_resources={"heart": 1},
+                            cooldown=self.config.altar_cooldown,
+                        ),
+                    )
+                )
+        else:
+            # simple or directional fall back to simple multi-inputs
+            if size_name == "small":
+                k = 2
+            elif size_name == "medium":
+                k = rng.choice([2, 3])
+            else:
+                k = min(3, len(chosen_resources))
+            if max_inputs_cap is not None:
+                k = min(k, max_inputs_cap)
+            recipe_resources = rng.sample(chosen_resources, k=k)
+            recipes = [
+                (
+                    ["Any"],
+                    RecipeConfig(
+                        input_resources={r: 1 for r in recipe_resources},
+                        output_resources={"heart": 1},
+                        cooldown=self.config.altar_cooldown,
+                    ),
+                )
+            ]
+
+        altar.recipes = recipes
+        game_objects["altar"] = altar
+
+        env_cfg = MettaGridConfig(
+            game=GameConfig(
+                max_steps=self.config.max_steps,
+                num_agents=num_agents * num_instances,
+                objects=game_objects,
+                map_builder=MapGen.Config(
+                    instances=num_instances,
+                    instance_map=BiasedForagingMapBuilder.Config(
+                        agents=num_agents,
+                        width=width,
+                        height=height,
+                        border_width=1,
+                        num_assemblers=num_assemblers,
+                        resource_regions=resource_regions,
+                        separation_mode=separation_mode,
+                        region_bias=self.config.soft_mode_bias
+                        if separation_mode == "soft"
+                        else 1.0,
+                    ),
+                ),
+                actions=ActionsConfig(
+                    move=ActionConfig(),
+                    rotate=ActionConfig(enabled=False),
+                    # Enable get/put when using non-directional recipes; disable when purely positional
+                    get_items=ActionConfig(enabled=(recipe_mode != "directional")),
+                    put_items=ActionConfig(enabled=(recipe_mode != "directional")),
+                    change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
+                ),
+                agent=AgentConfig(
+                    rewards=AgentRewards(inventory={"heart": 1}),
+                    default_resource_limit=2,
+                    resource_limits={"heart": 15},
+                ),
+            )
+        )
+
+        env_cfg.label = f"biased_foraging_{size_name}_{separation_mode}_{recipe_mode}"
+        return env_cfg
+
+
+def make_biased_foraging_curriculum() -> CurriculumConfig:
+    """Create curriculum for biased foraging with small/medium/large maps."""
+    task_generator_cfg = BiasedForagingTaskGenerator.Config(
+        num_agents=[1],
+        max_steps=512,
+        map_sizes={
+            "small": {"width": 10, "height": 10, "resource_count": 2},
+            "medium": {"width": 16, "height": 16, "resource_count": 3},
+            "large": {"width": 24, "height": 24, "resource_count": 4},
+            "extra_large": {"width": 32, "height": 32, "resource_count": 5},
+        },
+        size_weights=[0.4, 0.4, 0.2],  # More small/medium maps for easier learning
+    )
+    return CurriculumConfig(task_generator=task_generator_cfg)
+
+
+def make_biased_foraging_curriculum_variant(
+    separation: str = "strict",  # "strict" | "soft" | "mixed"
+    agents: int = 1,
+    soft_bias: float = 0.75,
+    recipe_mode: list[str] | None = None,
+) -> CurriculumConfig:
+    """Build a curriculum with strict/soft/mixed spatial bias and 1 or 2 agents.
+
+    - separation: strict → only preferred regions; soft → biased placement; mixed → both
+    - agents: 1 or 2 agents per instance
+    - soft_bias: P(preferred region) when separation is soft
+    - recipe_mode: e.g., ["simple"], ["unordered_chain"], ["simple","unordered_chain"]
+    """
+
+    if separation == "strict":
+        sep_modes = ["strict"]
+        sep_weights: list[float] | None = [1.0]
+    elif separation == "soft":
+        sep_modes = ["soft"]
+        sep_weights = [1.0]
+    else:  # mixed
+        sep_modes = ["strict", "soft"]
+        sep_weights = [0.5, 0.5]
+
+    task_generator_cfg = BiasedForagingTaskGenerator.Config(
+        num_agents=[agents],
+        max_steps=512,
+        map_sizes={
+            "small": {"width": 10, "height": 10, "resource_count": 2},
+            "medium": {"width": 16, "height": 16, "resource_count": 3},
+            "large": {"width": 24, "height": 24, "resource_count": 4},
+            "extra_large": {"width": 32, "height": 32, "resource_count": 5},
+            "extra_extra_large": {"width": 64, "height": 64, "resource_count": 6},
+        },
+        size_weights=[0.4, 0.4, 0.2, 0.1, 0.1],
+        separation_modes=sep_modes,
+        separation_weights=sep_weights,
+        soft_mode_bias=soft_bias,
+        recipe_mode=recipe_mode or ["simple"],
+    )
+    return CurriculumConfig(
+        task_generator=task_generator_cfg,
+        algorithm_config=LearningProgressConfig(),
+    )
+
+
+def train_biased_foraging() -> TrainTool:
+    """Train on biased foraging curriculum."""
+    curriculum = make_biased_foraging_curriculum()
+    trainer_cfg = TrainerConfig(losses=LossConfig())
+    trainer_cfg.batch_size = 4177920
+    trainer_cfg.bptt_horizon = 512
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+    )
+
+
+def train_biased_foraging_variant(
+    separation: str = "strict",  # "strict" | "soft" | "mixed"
+    agents: int = 1,
+    soft_bias: float = 0.75,
+    recipe_mode: list[str] | None = None,
+) -> TrainTool:
+    """Train with configurable separation bias and agent count.
+
+    CLI example:
+      uv run ./tools/run.py experiments.recipes.in_context_learning.assemblers.train_biased_foraging_variant separation=soft agents=2
+    """
+    curriculum = make_biased_foraging_curriculum_variant(
+        separation=separation,
+        agents=agents,
+        soft_bias=soft_bias,
+        recipe_mode=recipe_mode,
+    )
+    trainer_cfg = TrainerConfig(losses=LossConfig())
+    trainer_cfg.batch_size = 4177920
+    trainer_cfg.bptt_horizon = 512
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+    )
+
+
+def play_biased_foraging(size: str = "medium") -> PlayTool:
+    """Play a biased foraging environment."""
+    # Create a specific environment
+    task_gen = BiasedForagingTaskGenerator(
+        BiasedForagingTaskGenerator.Config(
+            num_agents=[1],
+            map_sizes={
+                "small": {"width": 10, "height": 10, "resource_count": 2},
+                "medium": {"width": 16, "height": 16, "resource_count": 3},
+                "large": {"width": 24, "height": 24, "resource_count": 4},
+                "extra_large": {"width": 32, "height": 32, "resource_count": 5},
+            },
+        )
+    )
+
+    # Generate with specific size by manipulating the RNG
+    rng = random.Random(42)
+    size_idx = {"small": 0, "medium": 1, "large": 2}[size]
+
+    # Generate until we get the desired size
+    for i in range(10):
+        env = task_gen._generate_task(i, rng)
+        if size in env.label:
+            break
+
+    return PlayTool(
+        sim=SimulationConfig(
+            env=env,
+            name=f"biased_foraging_{size}",
+            suite="in_context_learning",
+        ),
+    )
+
+
+def print_biased_foraging_examples():
+    """Print examples of biased foraging maps to show resource placement."""
+    print("Biased Foraging Environment Examples\n")
+    print("Resources are placed in specific regions:")
+    print("- Red mines: North region")
+    print("- Blue mines: South region")
+    print("- Green mines: East region")
+    print("- Red batteries: West region")
+    print("\nThis creates clear spatial structure for multi-agent coordination.\n")
+
+    symbol_map = {
+        "wall": "#",
+        "empty": ".",
+        "altar": "A",
+        "mine_red": "R",
+        "mine_blue": "B",
+        "mine_green": "G",
+        "generator_red": "W",  # West resource (battery generator)
+        "generator_blue": "b",
+        "generator_green": "g",
+        "agent.agent": "@",
+    }
+
+    # Create strict separation example
+    print("=== STRICT SEPARATION MODE ===")
+    print("Resources ONLY appear in their designated regions:\n")
+
+    strict_cfg = BiasedForagingMapBuilder.Config(
+        seed=42,
+        width=16,
+        height=16,
+        agents=1,
+        border_width=1,
+        num_assemblers=1,
+        resource_regions=[
+            {"name": "mine_red", "count": 3, "region": "north"},
+            {"name": "mine_blue", "count": 3, "region": "south"},
+            {"name": "mine_green", "count": 3, "region": "east"},
+        ],
+        separation_mode="strict",
+    )
+
+    strict_builder = BiasedForagingMapBuilder(strict_cfg)
+    strict_map = strict_builder.build()
+
+    for row in strict_map.grid:
+        line = ""
+        for cell in row:
+            line += symbol_map.get(cell, "?")
+        print(line)
+
+    # Create soft separation example
+    print("\n=== SOFT SEPARATION MODE ===")
+    print("Resources MOSTLY appear in their regions (75% chance):")
+    print("Some resources may appear in other regions for exploration.\n")
+
+    soft_cfg = BiasedForagingMapBuilder.Config(
+        seed=42,
+        width=16,
+        height=16,
+        agents=1,
+        border_width=1,
+        num_assemblers=1,
+        resource_regions=[
+            {"name": "mine_red", "count": 3, "region": "north"},
+            {"name": "mine_blue", "count": 3, "region": "south"},
+            {"name": "mine_green", "count": 3, "region": "east"},
+        ],
+        separation_mode="soft",
+        region_bias=0.75,
+    )
+
+    soft_builder = BiasedForagingMapBuilder(soft_cfg)
+    soft_map = soft_builder.build()
+
+    for row in soft_map.grid:
+        line = ""
+        for cell in row:
+            line += symbol_map.get(cell, "?")
+        print(line)
+
+    print("\nLegend:")
+    print("# = Wall")
+    print("A = Assembler (altar)")
+    print("R = Red mine (north)")
+    print("B = Blue mine (south)")
+    print("G = Green mine (east)")
+    print("W = Battery mine (west)")
+    print("@ = Agent spawn")
+    print(". = Empty space")
+
+    return strict_map, soft_map
+
+
+def make_biased_foraging_eval_suite() -> list[SimulationConfig]:
+    """Create evaluation suite with different map sizes."""
+    task_gen = BiasedForagingTaskGenerator(
+        BiasedForagingTaskGenerator.Config(
+            num_agents=[1],
+            max_steps=512,
+        )
+    )
+
+    configs = []
+    sizes = ["small", "medium", "large"]
+
+    for size in sizes:
+        rng = random.Random(42)  # Fixed seed for reproducibility
+        for i in range(10):
+            env = task_gen._generate_task(i, rng)
+            if size in env.label:
+                configs.append(
+                    SimulationConfig(
+                        env=env,
+                        name=f"biased_foraging_{size}",
+                        suite="in_context_learning",
+                    )
+                )
+                break
+
+    return configs
+
+
+def play_biased_foraging_strict(size: str = "medium") -> PlayTool:
+    """Play a biased foraging environment with STRICT spatial separation."""
+    task_gen = BiasedForagingTaskGenerator(
+        BiasedForagingTaskGenerator.Config(
+            num_agents=[1],
+            separation_modes=["strict"],  # Only strict mode
+            separation_weights=[1.0],
+        )
+    )
+
+    # Generate environment
+    rng = random.Random(42)
+    for i in range(20):
+        env = task_gen._generate_task(i, rng)
+        if size in env.label and "strict" in env.label:
+            return PlayTool(
+                sim=SimulationConfig(
+                    env=env,
+                    name=f"biased_foraging_{size}_strict",
+                    suite="in_context_learning",
+                ),
+            )
+
+    # Fallback if we couldn't generate the exact size
+    return PlayTool(
+        sim=SimulationConfig(
+            env=task_gen._generate_task(0, rng),
+            name="biased_foraging_strict",
+            suite="in_context_learning",
+        ),
+    )
+
+
+def play_biased_foraging_soft(size: str = "medium") -> PlayTool:
+    """Play a biased foraging environment with SOFT spatial separation."""
+    task_gen = BiasedForagingTaskGenerator(
+        BiasedForagingTaskGenerator.Config(
+            num_agents=[1],
+            separation_modes=["soft"],  # Only soft mode
+            separation_weights=[1.0],
+            soft_mode_bias=0.75,  # 75% chance resources appear in preferred region
+        )
+    )
+
+    # Generate environment
+    rng = random.Random(42)
+    for i in range(20):
+        env = task_gen._generate_task(i, rng)
+        if size in env.label and "soft" in env.label:
+            return PlayTool(
+                sim=SimulationConfig(
+                    env=env,
+                    name=f"biased_foraging_{size}_soft",
+                    suite="in_context_learning",
+                ),
+            )
+
+    # Fallback if we couldn't generate the exact size
+    return PlayTool(
+        sim=SimulationConfig(
+            env=task_gen._generate_task(0, rng),
+            name="biased_foraging_soft",
+            suite="in_context_learning",
+        ),
+    )
+
+
+def make_biased_foraging_curriculum_progressive() -> CurriculumConfig:
+    """Create a progressive curriculum: strict → soft separation."""
+    # Start with strict separation for clarity, then add soft for generalization
+    task_generator_cfg = BiasedForagingTaskGenerator.Config(
+        num_agents=[1],
+        max_steps=512,
+        map_sizes={
+            "small": {"width": 10, "height": 10, "resource_count": 2},
+            "medium": {"width": 16, "height": 16, "resource_count": 3},
+            "large": {"width": 32, "height": 32, "resource_count": 4},
+        },
+        size_weights=[0.3, 0.5, 0.2],
+        # Progressive: 70% strict early on, 30% soft
+        separation_modes=["strict", "soft"],
+        separation_weights=[0.7, 0.3],
+        soft_mode_bias=0.8,  # When soft, still fairly concentrated
+    )
+    return CurriculumConfig(task_generator=task_generator_cfg)
