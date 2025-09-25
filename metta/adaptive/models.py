@@ -1,7 +1,7 @@
-"""Data models for sweep orchestration."""
+"""Data models for adaptive experiment orchestration."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum, auto
 from typing import Any
 
@@ -17,9 +17,10 @@ class JobDefinition:
     cmd: str  # e.g., "experiments.recipes.arena.train_shaped" or "experiments.recipes.arena.evaluate"
     gpus: int = 1
     nodes: int = 1
-    args: list[str] = field(default_factory=list)  # positional arguments
-    overrides: dict[str, Any] = field(default_factory=dict)  # key=value overrides for the tool
-    config: dict[str, Any] = field(default_factory=dict)  # additional config from optimizer
+    # Single source for recipe arguments (serialized as --args key=value)
+    args: dict[str, Any] = field(default_factory=dict)
+    # Single source for config overrides (serialized as --overrides key=value)
+    overrides: dict[str, Any] = field(default_factory=dict)
     type: JobTypes = JobTypes.LAUNCH_TRAINING  # JobTypes enum value
     created_at: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -30,22 +31,9 @@ class JobStatus(StrEnum):
     IN_TRAINING = "IN TRAINING"
     TRAINING_DONE_NO_EVAL = "TRAINING DONE (NO EVAL)"
     IN_EVAL = "IN EVAL"
-    EVAL_DONE_NOT_COMPLETED = "COMPLETED (NPE)"
     COMPLETED = "COMPLETED"
     STALE = "STALE"
     FAILED = "FAILED"  # Job failed during training or evaluation
-
-
-class SweepStatus(StrEnum):
-    CREATED = auto()
-    RESUMED = auto()
-
-
-@dataclass
-class Observation:
-    score: float
-    cost: float
-    suggestion: dict
 
 
 @dataclass
@@ -63,6 +51,7 @@ class RunInfo:
     last_updated_at: datetime | None = None
 
     # Configuration and results
+    # TODO Clean up run lifecycle management
     summary: dict | None = None
     has_started_training: bool = False
     has_completed_training: bool = False
@@ -76,15 +65,16 @@ class RunInfo:
     total_timesteps: int | None = None  # Target timesteps from config
     current_steps: int | None = None  # Current agent_step from metrics
 
-    # Sweep specific
-    observation: Observation | None = None
-
     @property
     def status(self) -> JobStatus:
         time_since_last_updated = (
-            datetime.now() - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
+            datetime.now(timezone.utc) - self.last_updated_at if self.last_updated_at else timedelta(seconds=0)
         )
-        if not self.has_failed and not self.has_completed_training and time_since_last_updated > timedelta(seconds=600):
+        if (
+            not self.has_failed
+            and not self.has_completed_training
+            and time_since_last_updated > timedelta(seconds=1200)
+        ):
             return JobStatus.STALE
         if self.has_failed:
             return JobStatus.FAILED
@@ -97,36 +87,9 @@ class RunInfo:
         if self.has_started_eval and not self.has_been_evaluated:
             return JobStatus.IN_EVAL
         if self.has_been_evaluated:
-            if self.observation is not None:
-                return JobStatus.COMPLETED
-            return JobStatus.EVAL_DONE_NOT_COMPLETED
+            return JobStatus.COMPLETED
         return JobStatus.COMPLETED
 
     # Dispatch info
     # dispatch_id: str | None = None
     # dispatch_type: DispatchType | None = None
-
-
-@dataclass
-class SweepMetadata:
-    """
-    Metadata about a sweep stored in the Store.
-    This is the persistent state that survives controller restarts.
-    """
-
-    sweep_id: str
-    start_time: datetime = field(default_factory=datetime.now)
-    last_scheduling: datetime = field(default_factory=datetime.now)
-    runs_created: int = 0
-    runs_pending: int = 0
-    runs_in_progress: int = 0
-    runs_completed: int = 0
-
-    def to_metrics_dict(self) -> dict[str, Any]:
-        """Convert to metrics dictionary for logging"""
-        return {
-            "runs_created": self.runs_created,
-            "runs_completed": self.runs_completed,
-            "runs_in_progress": self.runs_in_progress,
-            "duration_seconds": (datetime.now() - self.start_time).total_seconds(),
-        }
