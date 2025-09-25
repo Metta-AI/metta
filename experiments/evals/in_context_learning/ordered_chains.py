@@ -103,4 +103,5 @@ def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
                 5, 2, "medium", ["square"], ["balanced"]
             ),
         ),
+
     ]

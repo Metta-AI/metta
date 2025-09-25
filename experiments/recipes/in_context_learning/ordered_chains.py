@@ -97,8 +97,8 @@ curriculum_args = {
         "room_sizes": ["tiny", "small", "medium"],
     },
     "hard_eval": {
-        "chain_lengths": [4, 5],
-        "num_sinks": [1, 2],
+        "chain_lengths": [4],
+        "num_sinks": [1],
         "obstacle_types": ["square", "cross", "L"],
         "densities": ["high"],
         "room_sizes": ["medium"],
@@ -455,7 +455,8 @@ def replay(
 ) -> ReplayTool:
     eval_env = env or make_mettagrid(curriculum_style, map_dir)
     # Default to the research policy if none specified
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23:v900.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
@@ -474,11 +475,24 @@ def evaluate(
     from experiments.evals.in_context_learning.ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
-
+    curriculum_styles = [
+        "level_1",
+        "level_2",
+        "tiny_small",
+        "all_room_sizes",
+        "longer_chains",
+        "terrain_1",
+        "terrain_2",
+        "terrain_3",
+        "terrain_4",
+    ]
     simulations = simulations or make_icl_resource_chain_eval_suite()
+    policy_uris = []
+    for curriculum_style in curriculum_styles:
+        policy_uris.append(f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24")
     return SimTool(
         simulations=simulations,
-        policy_uris=[policy_uri] if policy_uri else None,
+        policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
