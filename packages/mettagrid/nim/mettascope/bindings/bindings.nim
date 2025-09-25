@@ -22,7 +22,6 @@ proc init(dataDir: string, replay: string): RenderResponse =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
-    buildAtlas()
     common.replay = loadReplayString(replay, "MettaScope")
     return
   except Exception:
