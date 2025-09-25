@@ -156,7 +156,9 @@ class SimulationStatsDB(EpisodeStatsDB):
         self.con.execute("CHECKPOINT")
         write_file(dest, str(self.path))
 
-    def get_replay_urls(self, policy_uri: str | None = None, env: str | None = None) -> List[str]:
+    def get_replay_urls(
+        self, policy_uri: str | None = None, sim_suite: str | None = None, env: str | None = None
+    ) -> List[str]:
         """Get replay URLs, optionally filtered by policy URI and/or environment."""
         query = """
         SELECT e.replay_url
@@ -171,6 +173,10 @@ class SimulationStatsDB(EpisodeStatsDB):
             policy_key, policy_version = metadata["run_name"], metadata["epoch"]
             query += " AND s.policy_key = ? AND s.policy_version = ?"
             params.extend([policy_key, policy_version])
+
+        if sim_suite is not None:
+            query += " AND s.name = ?"
+            params.append(sim_suite)
 
         if env is not None:
             query += " AND s.env = ?"

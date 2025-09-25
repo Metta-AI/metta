@@ -1,7 +1,8 @@
-"""Tests for BatchedSyncedOptimizingScheduler."""
+"""Tests for BatchedSyncedOptimizingScheduler basic functionality."""
 
-from metta.sweep.models import JobTypes, Observation, RunInfo, SweepMetadata
-from metta.sweep.optimizer.protein import ProteinOptimizer
+from datetime import datetime, timezone
+
+from metta.adaptive.models import JobTypes, RunInfo
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,
@@ -10,14 +11,13 @@ from metta.sweep.schedulers.batched_synced import (
 
 
 class TestBatchedSyncedOptimizingScheduler:
-    """Test suite for BatchedSyncedOptimizingScheduler."""
+    """Test suite for BatchedSyncedOptimizingScheduler basic functionality."""
 
     def test_initialization(self):
         """Test scheduler initialization."""
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="bayes",
             parameters={
                 "learning_rate": ParameterConfig(
                     min=0.001,
@@ -29,25 +29,26 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        optimizer = ProteinOptimizer(protein_config)
         config = BatchedSyncedSchedulerConfig(
             max_trials=20,
             recipe_module="experiments.recipes.arena",
             train_entrypoint="train",
             eval_entrypoint="evaluate",
+            experiment_id="test_exp",
+            protein_config=protein_config,
         )
 
-        scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
+        scheduler = BatchedSyncedOptimizingScheduler(config)
 
         assert scheduler.config.max_trials == 20
         assert scheduler.config.batch_size == 4  # default batch size
+        assert scheduler.optimizer is not None
 
     def test_batch_generation_when_all_complete(self):
         """Test that scheduler generates batch only when all runs are complete."""
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -59,21 +60,20 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        optimizer = ProteinOptimizer(protein_config)
         config = BatchedSyncedSchedulerConfig(
             max_trials=10,
             recipe_module="test.module",
             train_entrypoint="train",
             eval_entrypoint="evaluate",
             batch_size=2,
+            experiment_id="test_sweep",
+            protein_config=protein_config,
         )
 
-        scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
-
-        metadata = SweepMetadata(sweep_id="test_sweep")
+        scheduler = BatchedSyncedOptimizingScheduler(config)
 
         # Case 1: No existing runs - should generate batch
-        jobs = scheduler.schedule(metadata, [], set(), set())
+        jobs = scheduler.schedule([], available_training_slots=5)
 
         assert len(jobs) == 2  # Should generate batch of 2
         assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
@@ -85,7 +85,6 @@ class TestBatchedSyncedOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -97,43 +96,46 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        optimizer = ProteinOptimizer(protein_config)
-        config = BatchedSyncedSchedulerConfig(max_trials=10)
-        scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
+        config = BatchedSyncedSchedulerConfig(
+            max_trials=10,
+            batch_size=3,
+            recipe_module="test.module",
+            train_entrypoint="train",
+            eval_entrypoint="evaluate",
+            experiment_id="test_sweep",
+            protein_config=protein_config,
+        )
+        scheduler = BatchedSyncedOptimizingScheduler(config)
 
-        metadata = SweepMetadata(sweep_id="test_sweep")
+        # Simulate that we have runs in training
+        scheduler.state.runs_in_training = {"test_sweep_trial_0001", "test_sweep_trial_0002"}
 
         # Create runs with mixed statuses
         runs = [
             RunInfo(
                 run_id="test_sweep_trial_0001",
                 has_started_training=True,
-                has_completed_training=True,
-                has_started_eval=True,
-                has_been_evaluated=True,
-                observation=Observation(score=0.5, cost=100, suggestion={"lr": 0.005}),
+                has_completed_training=False,  # Still training
+                has_started_eval=False,
+                has_been_evaluated=False,
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
             ),
             RunInfo(
                 run_id="test_sweep_trial_0002",
                 has_started_training=True,
-                has_completed_training=False,  # Still training
-            ),
-            RunInfo(
-                run_id="test_sweep_trial_0003",
-                has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=False,  # Still evaluating
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
             ),
         ]
 
         # Should not generate new batch while runs are incomplete
-        jobs = scheduler.schedule(
-            metadata,
-            runs,
-            {"test_sweep_trial_0001", "test_sweep_trial_0002", "test_sweep_trial_0003"},
-            {"test_sweep_trial_0001", "test_sweep_trial_0003"},
-        )
+        jobs = scheduler.schedule(runs, available_training_slots=5)
 
         assert len(jobs) == 0  # Should wait for all to complete
 
@@ -142,7 +144,6 @@ class TestBatchedSyncedOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -154,11 +155,19 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        optimizer = ProteinOptimizer(protein_config)
-        config = BatchedSyncedSchedulerConfig(max_trials=10)
-        scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
+        config = BatchedSyncedSchedulerConfig(
+            max_trials=10,
+            batch_size=3,
+            recipe_module="test.module",
+            train_entrypoint="train",
+            eval_entrypoint="evaluate",
+            experiment_id="test_sweep",
+            protein_config=protein_config,
+        )
+        scheduler = BatchedSyncedOptimizingScheduler(config)
 
-        metadata = SweepMetadata(sweep_id="test_sweep")
+        # Mark runs as in training (so eval scheduler knows about them)
+        scheduler.state.runs_in_training = {"test_sweep_trial_0001", "test_sweep_trial_0002"}
 
         # Create runs that need evaluation
         runs = [
@@ -167,22 +176,25 @@ class TestBatchedSyncedOptimizingScheduler:
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=False,  # Needs evaluation
+                has_been_evaluated=False,
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
             ),
             RunInfo(
                 run_id="test_sweep_trial_0002",
                 has_started_training=True,
                 has_completed_training=True,
                 has_started_eval=False,  # Needs evaluation
+                has_been_evaluated=False,
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
             ),
         ]
 
         # Should schedule evaluations
-        jobs = scheduler.schedule(
-            metadata,
-            runs,
-            {"test_sweep_trial_0001", "test_sweep_trial_0002"},
-            set(),  # No evals dispatched yet
-        )
+        jobs = scheduler.schedule(runs, available_training_slots=5)
 
         assert len(jobs) == 2  # Should schedule both evaluations
         assert all(job.type == JobTypes.LAUNCH_EVAL for job in jobs)
@@ -194,7 +206,6 @@ class TestBatchedSyncedOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -206,29 +217,36 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        optimizer = ProteinOptimizer(protein_config)
-        config = BatchedSyncedSchedulerConfig(max_trials=10)
-        scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
+        config = BatchedSyncedSchedulerConfig(
+            max_trials=10,
+            batch_size=3,
+            recipe_module="test.module",
+            train_entrypoint="train",
+            eval_entrypoint="evaluate",
+            experiment_id="test_sweep",
+            protein_config=protein_config,
+        )
+        scheduler = BatchedSyncedOptimizingScheduler(config)
 
-        metadata = SweepMetadata(sweep_id="test_sweep")
+        # Mark run as already in eval
+        scheduler.state.runs_in_eval = {"test_sweep_trial_0001"}
 
-        # Create run that needs evaluation
+        # Create run that appears to need evaluation
         runs = [
             RunInfo(
                 run_id="test_sweep_trial_0001",
                 has_started_training=True,
                 has_completed_training=True,
-                has_started_eval=False,
+                has_started_eval=False,  # Looks like it needs eval
+                has_been_evaluated=False,
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
             ),
         ]
 
-        # Evaluation already dispatched
-        jobs = scheduler.schedule(
-            metadata,
-            runs,
-            {"test_sweep_trial_0001"},
-            {"test_sweep_trial_0001"},  # Already dispatched
-        )
+        # Should not reschedule since already in eval
+        jobs = scheduler.schedule(runs, available_training_slots=5)
 
         assert len(jobs) == 0  # Should not reschedule
 
@@ -237,7 +255,6 @@ class TestBatchedSyncedOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="bayes",
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -249,18 +266,16 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        optimizer = ProteinOptimizer(protein_config)
-        config = BatchedSyncedSchedulerConfig(max_trials=5, batch_size=3)
-        scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
-
-        metadata = SweepMetadata(sweep_id="test_sweep")
-
-        # Already have 3 dispatched trainings
-        dispatched_trainings = {
-            "test_sweep_trial_0001",
-            "test_sweep_trial_0002",
-            "test_sweep_trial_0003",
-        }
+        config = BatchedSyncedSchedulerConfig(
+            max_trials=5,
+            batch_size=3,
+            recipe_module="test.module",
+            train_entrypoint="train",
+            eval_entrypoint="evaluate",
+            experiment_id="test_sweep",
+            protein_config=protein_config,
+        )
+        scheduler = BatchedSyncedOptimizingScheduler(config)
 
         # All runs completed
         runs = [
@@ -270,18 +285,23 @@ class TestBatchedSyncedOptimizingScheduler:
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=True,
-                observation=Observation(score=0.5, cost=100, suggestion={"lr": 0.005}),
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
+                summary={
+                    "sweep/score": 0.5 + i * 0.1,
+                    "sweep/cost": 100,
+                    "sweep/suggestion": {"lr": 0.005},
+                },
             )
             for i in range(1, 4)
         ]
 
+        # Mark these as completed in state
+        scheduler.state.runs_completed = {f"test_sweep_trial_{i:04d}" for i in range(1, 4)}
+
         # Should only generate 2 more to reach max_trials=5
-        jobs = scheduler.schedule(
-            metadata,
-            runs,
-            dispatched_trainings,
-            dispatched_trainings,  # All evaluated
-        )
+        jobs = scheduler.schedule(runs, available_training_slots=5)
 
         assert len(jobs) == 2  # Only 2 more to reach limit
         assert jobs[0].run_id.startswith("test_sweep_trial_0004_")
@@ -292,7 +312,6 @@ class TestBatchedSyncedOptimizingScheduler:
         protein_config = ProteinConfig(
             metric="test_metric",
             goal="maximize",
-            method="bayes",  # Use Bayesian optimization
             parameters={
                 "lr": ParameterConfig(
                     min=0.001,
@@ -304,13 +323,18 @@ class TestBatchedSyncedOptimizingScheduler:
             },
         )
 
-        optimizer = ProteinOptimizer(protein_config)
-        config = BatchedSyncedSchedulerConfig(max_trials=10, batch_size=2)
-        scheduler = BatchedSyncedOptimizingScheduler(config, optimizer)
+        config = BatchedSyncedSchedulerConfig(
+            max_trials=10,
+            batch_size=2,
+            recipe_module="test.module",
+            train_entrypoint="train",
+            eval_entrypoint="evaluate",
+            experiment_id="test_sweep",
+            protein_config=protein_config,
+        )
+        scheduler = BatchedSyncedOptimizingScheduler(config)
 
-        metadata = SweepMetadata(sweep_id="test_sweep")
-
-        # Previous completed runs with observations
+        # Previous completed runs with observations in summary
         runs = [
             RunInfo(
                 run_id="test_sweep_trial_0001",
@@ -318,7 +342,14 @@ class TestBatchedSyncedOptimizingScheduler:
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=True,
-                observation=Observation(score=0.5, cost=100, suggestion={"lr": 0.005}),
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
+                summary={
+                    "sweep/score": 0.5,
+                    "sweep/cost": 100,
+                    "sweep/suggestion": {"lr": 0.005},
+                },
             ),
             RunInfo(
                 run_id="test_sweep_trial_0002",
@@ -326,19 +357,25 @@ class TestBatchedSyncedOptimizingScheduler:
                 has_completed_training=True,
                 has_started_eval=True,
                 has_been_evaluated=True,
-                observation=Observation(score=0.8, cost=100, suggestion={"lr": 0.003}),
+                has_failed=False,
+                created_at=datetime.now(timezone.utc),
+                last_updated_at=datetime.now(timezone.utc),
+                summary={
+                    "sweep/score": 0.8,
+                    "sweep/cost": 100,
+                    "sweep/suggestion": {"lr": 0.003},
+                },
             ),
         ]
 
+        # Mark as completed in state
+        scheduler.state.runs_completed = {"test_sweep_trial_0001", "test_sweep_trial_0002"}
+
         # Should generate new batch using observations
-        jobs = scheduler.schedule(
-            metadata,
-            runs,
-            {"test_sweep_trial_0001", "test_sweep_trial_0002"},
-            {"test_sweep_trial_0001", "test_sweep_trial_0002"},
-        )
+        jobs = scheduler.schedule(runs, available_training_slots=5)
 
         assert len(jobs) == 2  # Batch of 2
         assert all(job.type == JobTypes.LAUNCH_TRAINING for job in jobs)
-        # The optimizer should have received the observations
-        assert all("lr" in job.config for job in jobs)
+        # The jobs should have suggestions in metadata
+        assert all("sweep/suggestion" in job.metadata for job in jobs)
+        assert all("lr" in job.metadata["sweep/suggestion"] for job in jobs)
