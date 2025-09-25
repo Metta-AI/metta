@@ -71,9 +71,9 @@ class VanillaTransformerConfig(ComponentConfig):
     name: str = "vanilla_transformer"
     in_dim: int = 128
     output_dim: int
-    num_heads: int = 4
+    num_heads: int = 1
     ff_mult: int = 4
-    num_layers: int = 5
+    num_layers: int = 2
     max_cache_size: int = 80
     pool: Literal["cls", "mean", "none"] = "mean"
 
