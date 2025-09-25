@@ -1,7 +1,14 @@
 import
-  std/[strformat, math],
+  std/[strformat, math, os, strutils],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays
+
+proc buildAtlas*() =
+  ## Build the atlas.
+  for path in walkDirRec(dataDir):
+    if path.endsWith(".png") and "fidget" notin path:
+      echo path
+      bxy.addImage(path.replace(dataDir & "/", "").replace(".png", ""), readImage(path))
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.
