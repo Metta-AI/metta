@@ -13,25 +13,25 @@ from metta.agent.components.component_config import ComponentConfig
 class TransformerBlock(nn.Module):
     """A single block of the transformer architecture."""
 
-    def __init__(self, embed_dim, num_heads, ff_mult):
+    def __init__(self, output_dim, num_heads, ff_mult):
         super().__init__()
-        self.embed_dim = embed_dim
+        self.output_dim = output_dim
         self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
+        self.head_dim = output_dim // num_heads
 
-        self.q_proj = nn.Linear(embed_dim, embed_dim)
-        self.k_proj = nn.Linear(embed_dim, embed_dim)
-        self.v_proj = nn.Linear(embed_dim, embed_dim)
-        self.out_proj = nn.Linear(embed_dim, embed_dim)
+        self.q_proj = nn.Linear(output_dim, output_dim)
+        self.k_proj = nn.Linear(output_dim, output_dim)
+        self.v_proj = nn.Linear(output_dim, output_dim)
+        self.out_proj = nn.Linear(output_dim, output_dim)
 
-        self.norm1 = nn.LayerNorm(embed_dim)
-        self.norm2 = nn.LayerNorm(embed_dim)
+        self.norm1 = nn.LayerNorm(output_dim)
+        self.norm2 = nn.LayerNorm(output_dim)
 
-        ff_hidden_dim = embed_dim * ff_mult
+        ff_hidden_dim = output_dim * ff_mult
         self.ffn = nn.Sequential(
-            nn.Linear(embed_dim, ff_hidden_dim),
+            nn.Linear(output_dim, ff_hidden_dim),
             nn.GELU(),
-            nn.Linear(ff_hidden_dim, embed_dim),
+            nn.Linear(ff_hidden_dim, output_dim),
         )
 
         self.norm_factor = self.head_dim**-0.5
@@ -69,7 +69,7 @@ class VanillaTransformerConfig(ComponentConfig):
     out_key: str
     name: str = "vanilla_transformer"
     in_dim: int = 128
-    embed_dim: int = 32
+    output_dim: int = 32
     num_heads: int = 4
     ff_mult: int = 4
     num_layers: int = 5
@@ -89,20 +89,20 @@ class VanillaTransformer(nn.Module):
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
 
-        self.embed_dim = self.config.embed_dim
+        self.output_dim = self.config.output_dim
         self.num_layers = self.config.num_layers
 
         in_dim = self.config.in_dim
-        if in_dim == self.embed_dim:
+        if in_dim == self.output_dim:
             self.input_proj = nn.Identity()
         else:
-            self.input_proj = nn.Linear(in_dim, self.embed_dim)
+            self.input_proj = nn.Linear(in_dim, self.output_dim)
 
         # Transformer blocks
         self.blocks = nn.ModuleList(
             [
                 TransformerBlock(
-                    embed_dim=self.embed_dim,
+                    output_dim=self.output_dim,
                     num_heads=self.config.num_heads,
                     ff_mult=self.config.ff_mult,
                 )
@@ -110,12 +110,12 @@ class VanillaTransformer(nn.Module):
             ]
         )
 
-        self.last_action_proj = nn.Linear(2, self.embed_dim)
-        self.reward_proj = nn.Linear(1, self.embed_dim)
-        self.dones_truncateds_proj = nn.Linear(1, self.embed_dim)
+        self.last_action_proj = nn.Linear(2, self.output_dim)
+        self.reward_proj = nn.Linear(1, self.output_dim)
+        self.dones_truncateds_proj = nn.Linear(1, self.output_dim)
 
-        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim))
-        self.final_norm = nn.LayerNorm(self.embed_dim)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.output_dim))
+        self.final_norm = nn.LayerNorm(self.output_dim)
 
         # State buffers (KV cache per layer)
         self.register_buffer(
@@ -125,7 +125,7 @@ class VanillaTransformer(nn.Module):
                 self.num_layers,
                 self.config.num_heads,
                 self.max_cache_size,
-                self.config.embed_dim // self.config.num_heads,
+                self.config.output_dim // self.config.num_heads,
             ),
         )
         self.register_buffer(
@@ -135,7 +135,7 @@ class VanillaTransformer(nn.Module):
                 self.num_layers,
                 self.config.num_heads,
                 self.max_cache_size,
-                self.config.embed_dim // self.config.num_heads,
+                self.config.output_dim // self.config.num_heads,
             ),
         )
         self.register_buffer(
@@ -145,7 +145,7 @@ class VanillaTransformer(nn.Module):
                 self.num_layers,
                 self.config.num_heads,
                 self.max_cache_size,
-                self.config.embed_dim // self.config.num_heads,
+                self.config.output_dim // self.config.num_heads,
             ),
         )
         self.register_buffer(
@@ -155,7 +155,7 @@ class VanillaTransformer(nn.Module):
                 self.num_layers,
                 self.config.num_heads,
                 self.max_cache_size,
-                self.config.embed_dim // self.config.num_heads,
+                self.config.output_dim // self.config.num_heads,
             ),
         )
         self.register_buffer("position_counter", torch.zeros(0, dtype=torch.long))
@@ -210,8 +210,8 @@ class VanillaTransformer(nn.Module):
         # Project inputs to tokens
         reward_token = self.reward_proj(reward)
         reset_token = self.dones_truncateds_proj(resets)
-        reward_reset_token = (reward_token + reset_token).view(B, TT, 1, self.embed_dim)
-        action_token = self.last_action_proj(last_actions.float()).view(B, TT, 1, self.embed_dim)
+        reward_reset_token = (reward_token + reset_token).view(B, TT, 1, self.output_dim)
+        action_token = self.last_action_proj(last_actions.float()).view(B, TT, 1, self.output_dim)
 
         # Combine all tokens for each timestep
         cls_token = self.cls_token.expand(B, TT, -1, -1)
@@ -236,7 +236,7 @@ class VanillaTransformer(nn.Module):
                 self.position_counter = torch.cat([self.position_counter, pos_filler])
 
             current_pos = self.position_counter[training_env_ids]
-            pos_enc = self._get_positional_encoding(current_pos, self.embed_dim)
+            pos_enc = self._get_positional_encoding(current_pos, self.output_dim)
             x = x + pos_enc.unsqueeze(1)  # Add to all S tokens for this timestep
 
             # 2. Process through transformer layers
@@ -283,7 +283,7 @@ class VanillaTransformer(nn.Module):
             # The cache is from the step before this sequence started
             start_pos = td["transformer_position"].view(B, TT)[:, 0]
             positions = start_pos.unsqueeze(1) + torch.arange(TT, device=x.device)
-            pos_enc = self._get_positional_encoding(positions, self.embed_dim)
+            pos_enc = self._get_positional_encoding(positions, self.output_dim)
             pos_enc = pos_enc.unsqueeze(2).expand(-1, -1, S, -1)
             pos_enc = rearrange(pos_enc, "b tt s d -> b (tt s) d")
             x = x + pos_enc
