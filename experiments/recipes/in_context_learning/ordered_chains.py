@@ -96,12 +96,12 @@ curriculum_args = {
         "densities": ["", "balanced", "sparse", "high"],
         "room_sizes": ["tiny", "small", "medium"],
     },
-    "hard_eval": {
-        "chain_lengths": [4],
-        "num_sinks": [1],
+    "full": {
+        "chain_lengths": [2, 3, 4, 5, 6],
+        "num_sinks": [0, 1, 2],
         "obstacle_types": ["square", "cross", "L"],
-        "densities": ["high"],
-        "room_sizes": ["medium"],
+        "densities": ["", "balanced", "sparse", "high"],
+        "room_sizes": ["tiny", "small", "medium", "large"],
     },
 }
 
@@ -303,7 +303,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
                     rng=rng,
                 ),
             )
-            if os.path.exists(f"{dir}/reward_estimates.json"):
+            if os.path.exists(f"./train_dir/{dir}/reward_estimates.json"):
                 reward_estimates = json.load(open(f"{dir}/reward_estimates.json"))
                 env.game.reward_estimates = reward_estimates[dir]
             return env
@@ -475,6 +475,7 @@ def evaluate(
     from experiments.evals.in_context_learning.ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
+
     curriculum_styles = [
         "level_1",
         "level_2",
@@ -489,7 +490,9 @@ def evaluate(
     simulations = simulations or make_icl_resource_chain_eval_suite()
     policy_uris = []
     for curriculum_style in curriculum_styles:
-        policy_uris.append(f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24/icl_resource_chain_{curriculum_style}.2.2025-09-24:latest.pt")
+        policy_uris.append(
+            f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24/icl_resource_chain_{curriculum_style}.2.2025-09-24:latest.pt"
+        )
     return SimTool(
         simulations=simulations,
         policy_uris=policy_uris,
@@ -498,17 +501,7 @@ def evaluate(
 
 
 def experiment():
-    curriculum_styles = [
-        "level_1",
-        "level_2",
-        "tiny_small",
-        "all_room_sizes",
-        "longer_chains",
-        "terrain_1",
-        "terrain_2",
-        "terrain_3",
-        "terrain_4",
-    ]
+    curriculum_styles = ["full"]
 
     for curriculum_style in curriculum_styles:
         subprocess.run(
