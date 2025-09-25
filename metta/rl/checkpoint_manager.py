@@ -482,7 +482,7 @@ class CheckpointManager:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
 
-        # For ScheduleFree optimizers, ensure we're in eval mode to get correct state
+        # For ScheduleFree optimizers, ensure we save in eval mode
         if is_schedulefree_optimizer(optimizer):
             optimizer.eval()
 
