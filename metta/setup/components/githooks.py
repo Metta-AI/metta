@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tomllib  # Python 3.11+ or use tomli for older versions
 from enum import Enum
 from pathlib import Path
 
@@ -109,6 +110,20 @@ class GitHooksSetup(SetupModule):
             for hook_file in hooks_source_dir.iterdir()
             if hook_file.is_file() and not hook_file.name.startswith(".")
         ]
+
+    def _get_ruff_excludes(self) -> list[str]:
+        """Read exclude patterns from .ruff.toml"""
+        ruff_config_path = self.repo_root / ".ruff.toml"
+        if not ruff_config_path.exists():
+            return []
+
+        try:
+            with open(ruff_config_path, "rb") as f:
+                config = tomllib.load(f)
+            return config.get("exclude", [])
+        except Exception:
+            # Fallback to hardcoded excludes if parsing fails
+            return ["packages/pufferlib-core"]
 
     def check_installed(self) -> bool:
         """Check if all hooks from devops/git-hooks are installed with matching content"""
@@ -270,6 +285,26 @@ class GitHooksSetup(SetupModule):
             # No Python files to lint
             sys.exit(0)
 
+        # Filter out excluded paths from ruff.toml
+        excluded_paths = self._get_ruff_excludes()
+        filtered_files = []
+
+        for f in files:
+            # Check if file is in any excluded path
+            should_exclude = False
+            for excluded in excluded_paths:
+                # Handle both exact matches and directory prefixes
+                if f.startswith(excluded.rstrip("/") + "/") or f == excluded:
+                    should_exclude = True
+                    break
+
+            if not should_exclude:
+                filtered_files.append(f)
+
+        if not filtered_files:
+            # No Python files to lint after filtering
+            sys.exit(0)
+
         # Run linting
         lint_cmd = ["metta", "lint", "--staged"]
 
@@ -279,9 +314,9 @@ class GitHooksSetup(SetupModule):
         try:
             subprocess.run(lint_cmd, cwd=self.repo_root, check=True)
 
-            # If in fix mode, stage the fixed files
+            # If in fix mode, stage the fixed files (only the filtered ones)
             if hook_mode == CommitHookMode.FIX:
-                subprocess.run(["git", "add"] + files, cwd=self.repo_root, check=True)
+                subprocess.run(["git", "add"] + filtered_files, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             if hook_mode == CommitHookMode.CHECK:
                 error("Linting failed. Please fix the issues before committing.")
