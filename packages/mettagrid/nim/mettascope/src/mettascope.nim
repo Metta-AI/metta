@@ -69,6 +69,9 @@ find "/UI/Main":
   onLoad:
     echo "onLoad"
 
+    # We need to build the atlas before loading the replay.
+    buildAtlas()
+
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
     if replay != "":
@@ -176,8 +179,6 @@ when isMainModule:
     windowStyle = DecoratedResizable,
     dataDir = "packages/mettagrid/nim/mettascope/data"
   )
-
-  buildAtlas()
 
   when defined(emscripten):
     # Emscripten can't block so it will call this callback instead.
