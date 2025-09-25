@@ -544,7 +544,7 @@ requires-dist = [
 
 [[package]]
 name = "cogames"
-version = "0.3.2"
+version = "0.3.5"
 source = { editable = "packages/cogames" }
 dependencies = [
     { name = "mettagrid" },
