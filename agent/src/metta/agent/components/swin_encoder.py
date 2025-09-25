@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 import torch
 import torch.nn as nn
@@ -17,6 +17,8 @@ class ObsSwinEncoderConfig(ComponentConfig):
 
     in_key: str
     out_key: str
+    tokens_key: str
+    token_feat_dim: int
     name: str = "obs_swin_encoder"
     embed_dim: int = 96
     depth: int = 2
@@ -30,6 +32,7 @@ class ObsSwinEncoderConfig(ComponentConfig):
     attn_dropout: float = 0.0
     pool: Literal["mean", "first", "flatten"] = "mean"
     out_dim: int = 256
+    mask_key: Optional[str] = "obs_mask"
 
     def make_component(self, env=None):
         return ObsSwinEncoder(config=self, env=env)
@@ -211,29 +214,14 @@ class SwinBlock(nn.Module):
         return x
 
 
-class PatchEmbed(nn.Module):
-    def __init__(self, in_chans: int, embed_dim: int, patch_size: int) -> None:
-        super().__init__()
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
-        self.norm = nn.LayerNorm(embed_dim)
-
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, int, int]:
-        x = self.proj(x)
-        b, c, h, w = x.shape
-        x = x.flatten(2).transpose(1, 2)
-        x = self.norm(x)
-        return x, h, w
-
-
 class ObsSwinEncoder(nn.Module):
-    """Swin-style encoder operating on box observations."""
+    """Swin-style encoder operating directly on token observations."""
 
     def __init__(self, config: ObsSwinEncoderConfig, env=None) -> None:
         super().__init__()
         if env is None:
             raise ValueError("Env is required to determine observation dimensions")
         self.config = config
-        in_chans = max(env.feature_normalizations.keys()) + 1
         self.obs_height = env.obs_height
         self.obs_width = env.obs_width
 
@@ -244,8 +232,22 @@ class ObsSwinEncoder(nn.Module):
             )
         if self.config.use_shifted_window and self.config.window_size % 2 != 0:
             raise ValueError("window_size must be even when using shifted windows")
+        if self.config.token_feat_dim <= 0:
+            raise ValueError("token_feat_dim must be positive")
 
-        self.patch_embed = PatchEmbed(in_chans, self.config.embed_dim, self.config.patch_size)
+        self.tokens_key = self.config.tokens_key
+        self.mask_key = self.config.mask_key
+        self.num_patches_x = self.obs_width // self.config.patch_size
+        self.num_patches_y = self.obs_height // self.config.patch_size
+        if self.num_patches_x % self.config.window_size != 0 or self.num_patches_y % self.config.window_size != 0:
+            raise ValueError(
+                "Patch grid must be divisible by window_size. "
+                f"Got ({self.num_patches_y}, {self.num_patches_x}) patches with window_size {self.config.window_size}."
+            )
+        self.num_tokens = self.num_patches_x * self.num_patches_y
+
+        self.token_norm = nn.LayerNorm(self.config.token_feat_dim)
+        self.input_proj = nn.Linear(self.config.token_feat_dim, self.config.embed_dim)
         self.pos_drop = nn.Dropout(self.config.dropout)
 
         self.blocks = nn.ModuleList()
@@ -267,14 +269,6 @@ class ObsSwinEncoder(nn.Module):
             )
 
         self.norm = nn.LayerNorm(self.config.embed_dim)
-        h_patches = self.obs_height // self.config.patch_size
-        w_patches = self.obs_width // self.config.patch_size
-        if h_patches % self.config.window_size != 0 or w_patches % self.config.window_size != 0:
-            raise ValueError(
-                "Patch grid must be divisible by window_size. "
-                f"Got ({h_patches}, {w_patches}) patches with window_size {self.config.window_size}."
-            )
-        self.num_tokens = h_patches * w_patches
 
         if self.config.pool == "flatten":
             out_in_features = self.config.embed_dim * self.num_tokens
@@ -283,14 +277,20 @@ class ObsSwinEncoder(nn.Module):
         self.output_proj = nn.Linear(out_in_features, self.config.out_dim)
 
     def forward(self, td: TensorDict) -> TensorDict:
-        x = td[self.config.in_key]
-        if x.dim() != 4:
-            raise ValueError(f"Expected input of shape [B, C, H, W]; got {tuple(x.shape)}")
+        token_features = td[self.config.in_key]
+        tokens = td[self.tokens_key]
+        if token_features.shape[:2] != tokens.shape[:2]:
+            raise ValueError("Token feature shape must align with raw token shape")
+        mask = None
+        if self.mask_key is not None and self.mask_key in td.keys():
+            mask = td[self.mask_key]
 
-        x, h, w = self.patch_embed(x)
-        if h * w != self.num_tokens:
-            raise ValueError("Unexpected patch count; make sure obs size matches initialization")
-        x = self.pos_drop(x)
+        patch_tokens = self._tokens_to_patches(token_features, tokens, mask)
+        h = self.num_patches_y
+        w = self.num_patches_x
+        if patch_tokens.shape[1] != self.num_tokens:
+            raise ValueError("Aggregated patch count mismatch")
+        x = self.pos_drop(patch_tokens)
 
         for block in self.blocks:
             x = block(x, h, w)
@@ -309,3 +309,56 @@ class ObsSwinEncoder(nn.Module):
         x = self.output_proj(x)
         td[self.config.out_key] = x
         return td
+
+    def _tokens_to_patches(
+        self,
+        token_features: torch.Tensor,
+        tokens: torch.Tensor,
+        mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        B, M, feat_dim = token_features.shape
+        if feat_dim != self.config.token_feat_dim:
+            raise ValueError(
+                f"token_feat_dim mismatch: expected {self.config.token_feat_dim}, got {feat_dim}."
+            )
+
+        device = token_features.device
+        normed_features = self.token_norm(token_features)
+        projected = self.input_proj(normed_features)
+
+        coords_byte = tokens[..., 0].to(torch.int64)
+        x_coords = (coords_byte >> 4) & 0x0F
+        y_coords = coords_byte & 0x0F
+
+        patch_x = torch.div(x_coords, self.config.patch_size, rounding_mode="floor")
+        patch_y = torch.div(y_coords, self.config.patch_size, rounding_mode="floor")
+        patch_x = patch_x.clamp(max=self.num_patches_x - 1)
+        patch_y = patch_y.clamp(max=self.num_patches_y - 1)
+        patch_ids = patch_y * self.num_patches_x + patch_x
+
+        if mask is None:
+            invalid = coords_byte == 0xFF
+        else:
+            invalid = mask.bool()
+        valid = ~invalid
+
+        num_patches = self.num_tokens
+        agg = torch.zeros(B * num_patches, self.config.embed_dim, device=device, dtype=projected.dtype)
+        counts = torch.zeros(B * num_patches, 1, device=device, dtype=projected.dtype)
+
+        batch_idx = torch.arange(B, device=device).unsqueeze(1).expand(B, M)
+        flat_indices = (batch_idx * num_patches + patch_ids).reshape(-1)
+        flat_valid = valid.reshape(-1)
+
+        if flat_valid.any():
+            patch_indices = flat_indices[flat_valid]
+            flat_feats = projected.reshape(-1, self.config.embed_dim)[flat_valid]
+            agg.index_add_(0, patch_indices, flat_feats)
+
+            ones = torch.ones_like(patch_indices, dtype=projected.dtype, device=device).unsqueeze(1)
+            counts.index_add_(0, patch_indices, ones)
+
+        counts = counts.clamp_min(1.0)
+        agg = agg / counts
+        agg = agg.view(B, num_patches, self.config.embed_dim)
+        return agg
