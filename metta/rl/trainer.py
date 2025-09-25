@@ -27,7 +27,13 @@ except ImportError:
         "try installing with --no-build-isolation"
     ) from None
 
-torch.set_float32_matmul_precision("high")
+# Keep TF32 fast paths enabled on compatible GPUs.
+torch.set_float32_matmul_precision("medium")
+
+if torch.cuda.is_available() and hasattr(torch.backends, "cuda"):
+    torch.backends.cuda.enable_flash_sdp(True)
+    torch.backends.cuda.enable_mem_efficient_sdp(True)
+    torch.backends.cuda.enable_math_sdp(True)
 logger = logging.getLogger(__name__)
 
 
@@ -66,6 +72,7 @@ class Trainer:
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
         self._policy.train()
+
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)

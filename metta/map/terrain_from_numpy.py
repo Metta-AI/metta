@@ -10,8 +10,8 @@ from filelock import FileLock
 from pydantic import ConfigDict, Field
 
 from metta.common.util.log_config import getRankAwareLogger
+from metta.utils.uri import ParsedURI
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.util.uri import ParsedURI
 
 logger = getRankAwareLogger(__name__)
 
@@ -185,6 +185,7 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
             f"Mismatch between object names ({len(self.config.object_names)}) "
             f"and available positions ({len(converter_indices)})"
         )
+        self.config.rng.shuffle(self.config.object_names)
         for object, index in zip(self.config.object_names, converter_indices, strict=True):
             grid[tuple(index)] = object
 

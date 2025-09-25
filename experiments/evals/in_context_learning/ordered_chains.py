@@ -1,6 +1,11 @@
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
+from experiments.recipes.in_context_learning.ordered_chains import (
+    OrderedChainsTaskGenerator,
+    make_task_generator_cfg,
+)
+
 
 def icl_resource_chain_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     env.game.agent.resource_limits["heart"] = 6
@@ -22,19 +27,15 @@ def make_icl_resource_chain_eval_env(
     obstacle_types: list[str] = [],
     densities: list[str] = [],
 ) -> MettaGridConfig:
-    # avoid circular import
-    from experiments.recipes.in_context_learning.ordered_chains import (
-        ConverterChainTaskGenerator,
-    )
-
-    task_generator_cfg = ConverterChainTaskGenerator.Config(
+    task_generator_cfg = make_task_generator_cfg(
         chain_lengths=[chain_length],
         num_sinks=[num_sinks],
         room_sizes=[room_size],
         obstacle_types=obstacle_types,
         densities=densities,
+        map_dir=None,  # for evals, generate the environments algorithmically
     )
-    task_generator = ConverterChainTaskGenerator(task_generator_cfg)
+    task_generator = OrderedChainsTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
     return task_generator.get_task(0)
 

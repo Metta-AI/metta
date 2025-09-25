@@ -11,7 +11,8 @@ backend-path = ["."]
 
 [project]
 name = "mettagrid" # Do not change! Has to be 'mettagrid' for our PyPi package
-dynamic = ["version"]
+# dynamic = ["version"]
+version = "0.2.0.11"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = ">=3.11,<3.12"
@@ -24,7 +25,7 @@ dependencies = [
   "botocore>=1.38.29",
   "gymnasium==0.29.1",
   "pettingzoo>=1.24.1,<1.25",
-  "pufferlib-core>=3.0.10,<3.1.0",
+  "pufferlib-core",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
 ]
