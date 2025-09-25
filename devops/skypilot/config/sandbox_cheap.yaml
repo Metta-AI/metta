@@ -65,3 +65,8 @@ envs:
 secrets:
   WANDB_PASSWORD: ""
   OBSERVATORY_TOKEN: ""
+  GH_TOKEN: ""  # GitHub CLI token for PR operations
+  # Optional: AWS credentials (if not using SSO or IAM roles)
+  AWS_ACCESS_KEY_ID: ""
+  AWS_SECRET_ACCESS_KEY: ""
+  AWS_DEFAULT_REGION: ""

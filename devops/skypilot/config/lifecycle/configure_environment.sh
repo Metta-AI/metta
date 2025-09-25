@@ -137,4 +137,57 @@ if ! "${CMD[@]}"; then
   exit 1
 fi
 
+# Configure GitHub CLI if token is available
+if [ -n "$GH_TOKEN" ]; then
+  echo "Configuring GitHub CLI authentication..."
+  echo "$GH_TOKEN" | gh auth login --with-token 2>/dev/null && echo "GitHub CLI authenticated successfully"
+elif [ -f ~/.config/gh/hosts.yml ]; then
+  echo "Using existing GitHub CLI authentication from transferred config"
+else
+  echo "Warning: GitHub CLI not authenticated - GH_TOKEN not set and no existing config found"
+fi
+
+# Configure AWS CLI credentials if not already present
+if [ ! -d ~/.aws ]; then
+  echo "AWS configuration directory not found, checking for AWS environment variables..."
+
+  # Check if we're running on EC2 with IAM role
+  if curl -s -m 2 http://169.254.169.254/latest/meta-data/iam/security-credentials/ &>/dev/null; then
+    echo "Detected EC2 instance with IAM role, AWS CLI will use instance credentials automatically"
+  elif [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+    echo "Found AWS credentials in environment, configuring AWS CLI..."
+    mkdir -p ~/.aws
+    cat > ~/.aws/credentials << EOF
+[default]
+aws_access_key_id = $AWS_ACCESS_KEY_ID
+aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+EOF
+
+    # Also create config file with region
+    cat > ~/.aws/config << EOF
+[default]
+region = ${AWS_DEFAULT_REGION:-us-east-1}
+output = json
+EOF
+    echo "AWS CLI credentials configured from environment variables"
+  else
+    echo "Warning: No AWS configuration found and no AWS credentials in environment"
+    echo "AWS/SkyPilot operations may fail - ensure ~/.aws folder is transferred via SCP"
+  fi
+elif [ -f ~/.aws/credentials ] || [ -f ~/.aws/config ]; then
+  echo "AWS configuration found at ~/.aws/"
+  # Check if SSO is configured
+  if grep -q "sso_session\|sso_start_url" ~/.aws/config 2>/dev/null; then
+    echo "AWS SSO configuration detected - you may need to run 'aws sso login' if tokens have expired"
+  fi
+else
+  echo "AWS configuration directory exists but no credentials or config found"
+fi
+
+# Ensure SkyPilot directory exists for state files
+if [ ! -d ~/.sky ]; then
+  echo "Creating ~/.sky directory for SkyPilot state files..."
+  mkdir -p ~/.sky
+fi
+
 echo "Runtime environment configuration completed"
