@@ -541,6 +541,25 @@ class StatsReporter(TrainerComponent):
             "num_minibatches": getattr(experience, "num_minibatches", 0),
             "latest_saved_policy_epoch": getattr(self.context.state, "latest_saved_policy_epoch", 0),
         }
+
+        # Add ScheduleFree optimizer information
+        if optimizer and optimizer.param_groups:
+            param_group = optimizer.param_groups[0]
+            is_schedulefree = 'train_mode' in param_group
+            parameters["is_schedulefree"] = is_schedulefree
+
+            if is_schedulefree:
+                # Track ScheduleFree-specific parameters
+                parameters["schedulefree_train_mode"] = param_group.get("train_mode", False)
+                # Track the scheduled learning rate if available
+                scheduled_lr = param_group.get("scheduled_lr")
+                if scheduled_lr is not None:
+                    parameters["schedulefree_scheduled_lr"] = scheduled_lr
+                # Track maximum learning rate seen so far
+                lr_max = param_group.get("lr_max")
+                if lr_max is not None:
+                    parameters["schedulefree_lr_max"] = lr_max
+
         return parameters
 
     def _collect_hyperparameters(
@@ -552,6 +571,18 @@ class StatsReporter(TrainerComponent):
         hyperparameters: dict[str, Any] = {}
         if "learning_rate" in parameters:
             hyperparameters["learning_rate"] = parameters["learning_rate"]
+
+        # Add ScheduleFree optimizer hyperparameters
+        optimizer_cfg = getattr(trainer_cfg, "optimizer", None)
+        if optimizer_cfg is not None:
+            optimizer_type = getattr(optimizer_cfg, "type", None)
+            if optimizer_type:
+                hyperparameters["optimizer_type"] = optimizer_type
+                # Add ScheduleFree-specific hyperparameters
+                if "schedulefree" in optimizer_type:
+                    warmup_steps = getattr(optimizer_cfg, "warmup_steps", None)
+                    if warmup_steps is not None:
+                        hyperparameters["schedulefree_warmup_steps"] = warmup_steps
 
         losses = getattr(trainer_cfg, "losses", None)
         loss_configs = getattr(losses, "loss_configs", {}) if losses else {}
