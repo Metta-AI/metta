@@ -384,14 +384,7 @@ def make_curriculum(
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=map_dir
     )
-    # Handle both LPParams Config object and dict
-    if isinstance(lp_params, LPParams):
-        algorithm_config = LearningProgressConfig(**lp_params.model_dump())
-    elif isinstance(lp_params, dict):
-        algorithm_config = LearningProgressConfig(**lp_params)
-    else:
-        # If lp_params is None or something else, use default
-        algorithm_config = LearningProgressConfig()
+    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
