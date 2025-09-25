@@ -131,6 +131,26 @@ class VanillaTransformer(nn.Module):
                 self.config.embed_dim // self.config.num_heads,
             ),
         )
+        self.register_buffer(
+            "k_cache_training",
+            torch.empty(
+                0,
+                self.num_layers,
+                self.config.num_heads,
+                self.max_cache_size,
+                self.config.embed_dim // self.config.num_heads,
+            ),
+        )
+        self.register_buffer(
+            "v_cache_training",
+            torch.empty(
+                0,
+                self.num_layers,
+                self.config.num_heads,
+                self.max_cache_size,
+                self.config.embed_dim // self.config.num_heads,
+            ),
+        )
         self.register_buffer("position_counter", torch.zeros(0, dtype=torch.long))
 
         # av need to handle switching between rollout/train and eval
@@ -200,7 +220,9 @@ class VanillaTransformer(nn.Module):
                 # Expand all state buffers for new environments
                 k_filler = torch.zeros(num_new_envs, *self.k_cache.shape[1:], device=self.k_cache.device)
                 self.k_cache = torch.cat([self.k_cache, k_filler])
-                self.v_cache = torch.cat([self.v_cache, k_filler])  # same shape for v
+                self.v_cache = torch.cat([self.v_cache, k_filler])
+                self.k_cache_training = self.k_cache.clone()
+                self.v_cache_training = self.v_cache.clone()
                 pos_filler = torch.zeros(num_new_envs, device=self.position_counter.device, dtype=torch.long)
                 self.position_counter = torch.cat([self.position_counter, pos_filler])
 
@@ -228,12 +250,10 @@ class VanillaTransformer(nn.Module):
                 updated_k_cache = updated_k_cache[:, :, :, -self.max_cache_size :]
                 updated_v_cache = updated_v_cache[:, :, :, -self.max_cache_size :]
 
-            self.k_cache[training_env_ids] = updated_k_cache
-            self.v_cache[training_env_ids] = updated_v_cache
+            self.k_cache[training_env_ids] = updated_k_cache.detach()
+            self.v_cache[training_env_ids] = updated_v_cache.detach()
 
             # 4. Store cache for training and get final output
-            td["past_key"] = pk_layers.detach()  # Save the cache *before* this step
-            td["past_value"] = pv_layers.detach()
             td.set("transformer_position", current_pos.detach())
 
             output = self.final_norm(x)
@@ -261,8 +281,8 @@ class VanillaTransformer(nn.Module):
 
             # 2. Prepare causal mask
             q_len_tokens = TT * S
-            pk_layers_at_start = td["past_key"].view(B, TT, *td["past_key"].shape[1:])[:, 0]
-            cache_len_tokens = pk_layers_at_start.shape[3]
+            # pk_layers_at_start = td["past_key"].view(B, TT, *td["past_key"].shape[1:])[:, 0]
+            cache_len_tokens = self.k_cache_training.shape[3]  # av should this use some of the code in the line above?
 
             causal_mask_timesteps = torch.triu(torch.ones(TT, TT, device=x.device, dtype=torch.bool), diagonal=1)
             causal_mask = causal_mask_timesteps.repeat_interleave(S, dim=0).repeat_interleave(S, dim=1)
@@ -275,13 +295,29 @@ class VanillaTransformer(nn.Module):
             )
 
             # 3. Process through transformer layers
-            pk_layers_at_start = td["past_key"].view(B, TT, *td["past_key"].shape[1:])[:, 0]
-            pv_layers_at_start = td["past_value"].view(B, TT, *td["past_value"].shape[1:])[:, 0]
+            pk_layers_at_start = self.k_cache_training[training_env_ids]
+            pv_layers_at_start = self.v_cache_training[training_env_ids]
 
+            new_k_cache_list, new_v_cache_list = [], []
             for i, block in enumerate(self.blocks):
                 pk = pk_layers_at_start[:, i]
                 pv = pv_layers_at_start[:, i]
-                x, _, _ = block(x, pk, pv, mask=full_mask)
+                x, new_k, new_v = block(x, pk, pv, mask=full_mask)
+                new_k_cache_list.append(new_k.unsqueeze(1))
+                new_v_cache_list.append(new_v.unsqueeze(1))
+
+            # 3. Truncate and update cache
+            updated_k_cache = torch.cat(new_k_cache_list, dim=1)
+            updated_v_cache = torch.cat(new_v_cache_list, dim=1)
+
+            if updated_k_cache.shape[3] > self.max_cache_size:
+                updated_k_cache = updated_k_cache[:, :, :, -self.max_cache_size :]
+                updated_v_cache = updated_v_cache[:, :, :, -self.max_cache_size :]
+
+            self.k_cache_training[training_env_ids] = updated_k_cache.detach()
+            self.v_cache_training[training_env_ids] = updated_v_cache.detach()
+            self.k_cache = self.k_cache_training.clone()
+            self.v_cache = self.v_cache_training.clone()
 
             # 4. Get final output
             output = self.final_norm(x)
@@ -293,31 +329,8 @@ class VanillaTransformer(nn.Module):
             return td
 
     def get_agent_experience_spec(self) -> Composite:
-        head_dim = self.config.embed_dim // self.config.num_heads
         return Composite(
             {
-                "past_key": UnboundedDiscrete(
-                    shape=torch.Size(
-                        [
-                            self.num_layers,
-                            self.config.num_heads,
-                            self.max_cache_size,
-                            head_dim,
-                        ]
-                    ),
-                    dtype=torch.float32,
-                ),
-                "past_value": UnboundedDiscrete(
-                    shape=torch.Size(
-                        [
-                            self.num_layers,
-                            self.config.num_heads,
-                            self.max_cache_size,
-                            head_dim,
-                        ]
-                    ),
-                    dtype=torch.float32,
-                ),
                 "transformer_position": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
                 "dones": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
                 "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
