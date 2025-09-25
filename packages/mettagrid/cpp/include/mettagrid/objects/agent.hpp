@@ -29,6 +29,7 @@ public:
   std::map<InventoryItem, InventoryQuantity> resource_limits;
   float action_failure_penalty;
   std::string group_name;
+  // We expect only a small number (single-digit) of soul-bound resources.
   std::vector<InventoryItem> soul_bound_resources;
   ObservationType color;
   ObservationType glyph;
