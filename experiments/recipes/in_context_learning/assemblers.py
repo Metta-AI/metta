@@ -14,6 +14,7 @@ Options:
 
 """
 
+from dis import Positions
 import random
 import subprocess
 import time
@@ -70,74 +71,155 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
+num_agents_to_positions = {
+    1: [["N"], ["S"], ["E"], ["W"]],
+    2: [
+        ["N", "S"],
+        ["E", "W"],
+        ["N", "E"],  # one agent must be north, the other agent must be east
+        ["N", "W"],  # one agent must be north, the other agent must be west
+        ["S", "E"],
+        ["S", "W"],
+    ],
+    3: [
+        ["N", "S", "E"],
+        ["E", "W", "N"],
+        ["W", "E", "S"],
+        ["N", "S", "W"],
+        ["S", "N", "E"],
+    ],
+    4: [
+        ["N", "S", "E", "W"],
+        ["E", "W", "N", "S"],
+        ["W", "E", "S", "N"],
+        ["N", "S", "W", "E"],
+        ["S", "N", "E", "W"],
+    ],
+}
+
+
+def make_curriculum_args(
+    num_agents: list[int],
+    num_altars: list[int],
+    num_converters: list[int],
+    widths: list[int],
+    heights: list[int],
+    include_Any=False,
+) -> dict:
+    positions = []  # currently altar and converter positions are the same
+    for n in num_agents:
+        positions.extend(num_agents_to_positions[n])
+    if include_Any:
+        positions.extend((["Any"] * n for n in num_agents))
+    generator_positions = positions if len(num_converters) > 0 else None
+    return {
+        "num_agents": num_agents,
+        "num_altars": num_altars,
+        "num_converters": num_converters,
+        "widths": widths,
+        "heights": heights,
+        "generator_positions": generator_positions,
+        "altar_positions": positions,
+    }
+
+
+def calculate_max_steps(num_objects: int, width: int, height: int) -> int:
+    area = width * height
+    max_steps = max(150, area * num_objects * 2)
+    return min(max_steps, 1800)
+
+
+# TODO set max inventory to 1
+
+
 curriculum_args = {
     "single_agent_two_altars": {
         "num_agents": [1],
         "num_altars": [2],
-        "num_converters": [0],
+        "num_converters": [],
         "widths": [5, 6, 7, 8],
         "heights": [5, 6, 7, 8],
-        "generator_positions": [["Any"]],
-        "altar_positions": [
-            ["Any"],
-            ["N", "S"],
-            ["E", "W"],
-            ["N", "E"],
-            ["N", "W"],
-            ["S", "E"],
-            ["S", "W"],
-            ["N"],
-            ["S"],
-            ["E"],
-            ["W"],
-        ],
+    },
+    "single_agent_many_altars": {
+        "num_agents": [1],
+        "num_altars": list(range(4, 16, 2)),
+        "num_converters": [],
+        "widths": list(range(7, 16, 2)),
+        "heights": list(range(7, 16, 2)),
+    },
+    "single_agent_many_altars_with_any": {
+        "num_agents": [1],
+        "num_altars": list(range(4, 16, 2)),
+        "num_converters": [],
+        "widths": list(range(7, 16, 2)),
+        "heights": list(range(7, 16, 2)),
+        "include_Any": True,
+    },
+    "two_agent_5_altars_pattern": {
+        "num_agents": [2],
+        "num_altars": [5],
+        "num_converters": [],
+        "widths": list(range(7, 16, 2)),
+        "heights": list(range(7, 16, 2)),
     },
     "two_agent_two_altars_pattern": {
         "num_agents": [2],
         "num_altars": [2],
-        "num_converters": [0],
-        "widths": [5, 6, 7, 8],
-        "heights": [5, 6, 7, 8],
-        "generator_positions": [["Any"]],
-        "altar_positions": [
-            ["Any"],
-            ["N", "S"],
-            ["E", "W"],
-            ["N", "E"],
-            ["N", "W"],
-            ["S", "E"],
-            ["S", "W"],
-        ],
+        "num_converters": [],
+        "widths": list(range(7, 14, 2)),
+        "heights": list(range(7, 14, 2)),
     },
-    "two_agent_two_altars_any": {
-        "num_agents": [2],
-        "num_altars": [2],
-        "num_converters": [0],
-        "widths": [5, 6, 7, 8],
-        "heights": [5, 6, 7, 8],
-        "generator_positions": [["Any"]],
-        "altar_positions": [["Any"]],
-    },
-    "three_agents_two_altars": {
+    "three_agents_2_4_altars": {
         "num_agents": [3],
-        "num_altars": [2],
-        "num_converters": [0],
-        "widths": [4, 6, 8, 10],
-        "heights": [4, 6, 8, 10],
-        "generator_positions": [["Any"]],
-        "altar_positions": [
-            ["Any"],
-            ["N", "S"],
-            ["E", "W"],
-            ["N", "E"],
-            ["N", "W"],
-            ["S", "E"],
-            ["S", "W"],
-            ["N"],
-            ["S"],
-            ["E"],
-            ["W"],
-        ],
+        "num_altars": [2, 4],
+        "num_converters": [],
+        "widths": list(range(7, 16, 2)),
+        "heights": list(range(7, 16, 2)),
+        "include_Any": False,
+    },
+    "three_agent_many_altars_with_any": {
+        "num_agents": [3],
+        "num_altars": list(range(4, 16, 2)),
+        "num_converters": [],
+        "widths": list(range(7, 16, 2)),
+        "heights": list(range(7, 16, 2)),
+        "include_Any": True,
+    },
+    "multi_agent_multi_altars": {
+        "num_agents": [1, 2, 3],
+        "num_altars": list(range(4, 16, 2)),
+        "num_converters": [],
+        "widths": list(range(7, 16, 2)),
+        "heights": list(range(7, 16, 2)),
+    },
+    "two_agents_1g_1a": {
+        "num_agents": [2],
+        "num_altars": [1],
+        "num_converters": [1],
+        "widths": list(range(5, 10)),
+        "heights": list(range(5, 10)),
+    },
+    "multi_agents_1g_1a": {
+        "num_agents": [1, 2, 3],
+        "num_altars": [1],
+        "num_converters": [1],
+        "widths": list(range(5, 16, 2)),
+        "heights": list(range(5, 16, 2)),
+    },
+    "multi_agents_1g_1a_with_any": {
+        "num_agents": [1, 2, 3],
+        "num_altars": [1],
+        "num_converters": [1],
+        "widths": list(range(5, 16, 2)),
+        "heights": list(range(5, 16, 2)),
+        "include_Any": True,
+    },
+    "three_agents_1g_1a": {
+        "num_agents": [3],
+        "num_altars": [1],
+        "num_converters": [1],
+        "widths": list(range(5, 16, 2)),
+        "heights": list(range(5, 16, 2)),
     },
 }
 
@@ -154,9 +236,9 @@ class AssemblerTaskGenerator(TaskGenerator):
         max_steps: int = 512
         num_altars: list[int] = Field(default=[2])
         num_converters: list[int] = Field(default=[0])
-        generator_positions: list[list[Position]] = Field(default=[["Any"]])
-        altar_positions: list[list[Position]] = Field(default=[["Any"]])
-        altar_inputs: list[str] = Field(default=["one", "both"])
+        generator_positions: list[list[Position]] | None = Field(default=None)
+        altar_positions: list[list[Position]] | Any = Field(default=None)
+        altar_inputs: list[str] | None = Field(default=None)
         widths: list[int] = Field(default=[6])
         heights: list[int] = Field(default=[6])
 
@@ -172,67 +254,62 @@ class AssemblerTaskGenerator(TaskGenerator):
         num_instances,
         num_altars,
         num_converters,
-        altar_input: str,
         width,
         height,
         converter_positions: list[Position],
         altar_positions: list[Position],
         max_steps: int,
-        rng: random.Random,
+        altar_input: str | None = None,
+        rng: random.Random = random.Random(),
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
-
-        # ensure the positions are the same length as the number of agents and altars
-        if len(converter_positions) > num_agents:
-            converter_positions = converter_positions[:num_agents]
-        if len(altar_positions) > num_agents:
-            altar_positions = altar_positions[:num_agents]
-
-        if len(converter_positions) < num_agents:
-            converter_positions = converter_positions + [converter_positions[0]] * (
-                num_agents - len(converter_positions)
-            )
-        if len(altar_positions) < num_agents:
-            altar_positions = altar_positions + [altar_positions[0]] * (
-                num_agents - len(altar_positions)
-            )
-
         # sample num_converters converters - TODO i want this with replacement
         converter_names = rng.sample(list(self.converter_types.keys()), num_converters)
         resources = rng.sample(self.resource_types, num_converters)
         for i, converter_name in enumerate(converter_names):
             cfg.map_builder_objects[converter_name] = 1
-            # create a generator red, that outputs a battery red, and inputs nothing
             converter = self.converter_types[converter_name].copy()
-            # no input resources
+            converter.recipes = []
+            # TODO allow this to accomadate multiple options
             recipe = (
                 converter_positions,
                 RecipeConfig(
                     input_resources={}, output_resources={resources[i]: 1}, cooldown=20
                 ),
             )
-            converter.recipes = [recipe]
+            converter.recipes.append(recipe)
             cfg.game_objects[converter_name] = converter
-
         cfg.map_builder_objects["altar"] = num_altars
+
+        if num_converters == 0:
+            altar_cooldown = 25 + num_altars * 10
+        else:
+            altar_cooldown = 1
+
+        print(f"Altar cooldown: {altar_cooldown}")
 
         altar = building.assembler_altar.copy()
         if num_converters == 0:
             input_resources = {}
-        elif altar_input == "both":
+        elif altar_input == "all":
             input_resources = {c: 1 for c in resources}
-        elif altar_input == "one":
+        else:
             input_resources = {rng.sample(resources, 1)[0]: 1}
+
+        altar.recipes = []
+        # TODO allow this to accomadate multiple options
         recipe = (
             altar_positions,
             RecipeConfig(
                 input_resources=input_resources,
                 output_resources={"heart": 1},
-                cooldown=20,
+                cooldown=altar_cooldown,
             ),
         )
-        altar.recipes = [recipe]
+        altar.recipes.append(recipe)
         cfg.game_objects["altar"] = altar
+
+        # print(f"Generating a map with {num_agents} agents, {num_altars} altars, {num_converters} converters, {width}x{height}, altar positions: {altar_positions}, converter positions: {converter_positions}.")
 
         return make_icl_assembler(
             num_agents=num_agents,
@@ -245,15 +322,43 @@ class AssemblerTaskGenerator(TaskGenerator):
         )
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
-        altar_position = rng.choice(self.config.altar_positions)
-        generator_position = rng.choice(self.config.generator_positions)
         num_agents = rng.choice(self.config.num_agents)
+
+        # altar positions must be the same length as the number of agents
+        altar_position = rng.choice(
+            [p for p in self.config.altar_positions if len(p) == num_agents]
+        )
+
+        # generator positions must be the same length as the number of agents
+        if self.config.generator_positions and len(self.config.generator_positions) > 0:
+            # currently generator and altar positions are the same
+            generator_position = altar_position
+            num_converters = rng.choice(self.config.num_converters)
+
+        else:
+            generator_position = None
+            num_converters = 0
         num_altars = rng.choice(self.config.num_altars)
-        num_converters = rng.choice(self.config.num_converters)
         width = rng.choice(self.config.widths)
         height = rng.choice(self.config.heights)
-        max_steps = self.config.max_steps
-        altar_input = rng.choice(self.config.altar_inputs)
+        altar_input = (
+            rng.choice(self.config.altar_inputs)
+            if self.config.altar_inputs and num_converters > 2
+            else None
+        )
+
+        # ensure the area is large enough
+        area = width * height
+        minimum_area = (num_agents + num_altars + num_converters) * 2
+        if area < minimum_area:
+            width, height = minimum_area // 2, minimum_area // 2
+        if width * height < num_agents + num_altars + num_converters:
+            raise ValueError(
+                f"Width ({width}) * height ({height}) must be greater than or equal to {num_agents + num_altars + num_converters}."
+            )
+        max_steps = calculate_max_steps(
+            num_agents + num_altars + num_converters, width, height
+        )
 
         if 24 % num_agents != 0:
             raise ValueError(
@@ -266,12 +371,12 @@ class AssemblerTaskGenerator(TaskGenerator):
             num_instances,
             num_altars,
             num_converters,
-            altar_input,
             width,
             height,
             generator_position,
             altar_position,
             max_steps,
+            altar_input,
             rng,
         )
 
@@ -280,10 +385,10 @@ def make_mettagrid(
     curriculum_style: str = "single_agent_two_altars",
 ) -> MettaGridConfig:
     task_generator_cfg = AssemblerTaskGenerator.Config(
-        **curriculum_args[curriculum_style]
+        **make_curriculum_args(**curriculum_args[curriculum_style])
     )
     task_generator = AssemblerTaskGenerator(task_generator_cfg)
-    return task_generator.get_task(0)
+    return task_generator.get_task(random.randint(0, 1000000))
 
 
 def make_assembler_env(
@@ -309,7 +414,7 @@ def make_assembler_env(
         heights=[height],
     )
     task_generator = AssemblerTaskGenerator(task_generator_cfg)
-    return task_generator.get_task(0)
+    return task_generator.get_task(random.randint(0, 1000000))
 
 
 def make_curriculum(
@@ -336,7 +441,9 @@ def make_curriculum(
 
 
 def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
-    curriculum = make_curriculum(**curriculum_args[curriculum_style])
+    curriculum = make_curriculum(
+        **make_curriculum_args(**curriculum_args[curriculum_style])
+    )
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
@@ -412,7 +519,7 @@ def experiment():
 
 def play(
     env: Optional[MettaGridConfig] = None,
-    curriculum_style: str = "single_agent_two_altars",
+    curriculum_style: str = "three_agents_2_4_altars",
 ) -> PlayTool:
     eval_env = env or make_mettagrid(curriculum_style)
     return PlayTool(
