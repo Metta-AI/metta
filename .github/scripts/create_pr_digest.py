@@ -404,9 +404,7 @@ def main():
 
         # Save statistics for the workflow
         stats_file = Path("pr_digest_stats.json")
-        # Add historical run info to stats
         stats["is_historical"] = is_historical
-        stats["end_date"] = until_date.strftime("%Y-%m-%d")
 
         with open(stats_file, "w") as f:
             json.dump(stats, f, indent=2)
