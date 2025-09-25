@@ -14,25 +14,32 @@ using InventoryItem = uint8_t;
 class StatsTracker {
 private:
   std::map<std::string, float> _stats;
-  MettaGrid* _env;
+  // StatsTracker holds a reference to resource_names to make it easier to track stats for each resource.
+  // The environment owns this reference, so it should live as long as we're going to use it.
+  const std::vector<std::string>* _resource_names;
 
   // Test class needs access for testing
   friend class StatsTrackerTest;
 
   // Use a static function to avoid global destructor
-  static const std::string& get_no_env_resource_name() {
-    static const std::string name = "[unknown -- stats tracker not initialized]";
+  static const std::string& get_unknown_resource_name() {
+    static const std::string name = "[unknown -- StatsTracker resource names not initialized]";
     return name;
   }
 
 public:
-  StatsTracker() : _stats(), _env(nullptr) {}
+  StatsTracker() : _stats(), _resource_names(nullptr) {}
 
-  void set_environment(MettaGrid* env) {
-    _env = env;
+  void set_resource_names(const std::vector<std::string>* resource_names) {
+    _resource_names = resource_names;
   }
 
-  const std::string& resource_name(InventoryItem item) const;
+  const std::string& resource_name(InventoryItem item) const {
+    if (_resource_names == nullptr) {
+      return get_unknown_resource_name();
+    }
+    return (*_resource_names)[item];
+  }
 
   void add(const std::string& key, float amount) {
     _stats[key] += amount;
