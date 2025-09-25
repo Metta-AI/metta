@@ -2,7 +2,6 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
-from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
@@ -49,7 +48,7 @@ class LSTM(nn.Module):
         self.num_layers = self.config.num_layers
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
-        self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers)
+        self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers, batch_first=True)
 
         for name, param in self.net.named_parameters():
             if "bias" in name:
@@ -91,7 +90,10 @@ class LSTM(nn.Module):
         if "batch" in td.keys():
             B = int(td["batch"][0].item())
 
-        latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
+        latent = latent.reshape(B, TT, self.latent_size)
+
+        # Ensure cuDNN keeps weights in a fused fast-path layout after transfers/checkpoints.
+        self.net.flatten_parameters()
 
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is not None:
@@ -120,7 +122,7 @@ class LSTM(nn.Module):
         self.lstm_h[training_env_id_start] = h_n.detach()
         self.lstm_c[training_env_id_start] = c_n.detach()
 
-        hidden = rearrange(hidden, "t b h -> (b t) h")
+        hidden = hidden.reshape(B * TT, self.hidden_size)
 
         td[self.out_key] = hidden
 
