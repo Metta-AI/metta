@@ -152,6 +152,15 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             async_factor=async_factor,
         )
 
+        print(f"num_envs: {self._num_envs}")
+        print(f"batch_size: {self._batch_size}")
+        print(f"target_batch_size: {self._target_batch_size}")
+        print(f"num_workers: {num_workers}")
+        print(f"async_factor: {async_factor}")
+        print(f"num_agents: {self._num_agents}")
+        print(f"num_workers: {num_workers}")
+        print(f"async_factor: {async_factor}")
+
         self._num_workers = num_workers
 
         self._vecenv = make_vecenv(
