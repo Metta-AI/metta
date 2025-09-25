@@ -29,6 +29,9 @@ class DistributedHelper:
     def __init__(self, system_cfg: SystemConfig):
         assert not torch.distributed.is_initialized(), "Distributed already initialized"
 
+        # Set up PyTorch optimizations (applies to both distributed and non-distributed)
+        self._setup_torch_optimizations()
+
         # Default values for non-distributed case
         config_values = {
             "device": system_cfg.device,
@@ -40,41 +43,62 @@ class DistributedHelper:
         }
 
         # Initialize distributed training if conditions are met
-        if "LOCAL_RANK" in os.environ and torch.device(system_cfg.device).type == "cuda":
-            world_size_str = os.environ.get("WORLD_SIZE") or os.environ.get("NUM_NODES") or "1"
-            world_size = int(world_size_str) if world_size_str.strip() else 1
-
-            if world_size > 1:
-                rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
-
-                logger.info(f"world_size: {world_size} rank: {rank}")
-
-                torch.distributed.init_process_group(
-                    backend="nccl",
-                    timeout=system_cfg.nccl_timeout,
-                    init_method=os.environ.get("DIST_URL", "env://"),
-                    world_size=world_size,
-                    rank=rank,
-                )
-
-                torch.cuda.set_device(system_cfg.device)
-
-                config_values.update(
-                    {
-                        "distributed": True,
-                        "rank": torch.distributed.get_rank(),
-                        "world_size": torch.distributed.get_world_size(),
-                        "local_rank": int(os.environ.get("LOCAL_RANK", "0")),
-                        "is_master": torch.distributed.get_rank() == 0,
-                    }
-                )
-
-                logger.info(
-                    f"Initialized distributed training on {system_cfg.device} "
-                    f"(rank {config_values['rank']}/{config_values['world_size']})"
-                )
+        distributed_config = self._setup_distributed_training(system_cfg)
+        if distributed_config:
+            config_values.update(distributed_config)
 
         self.config = TorchDistributedConfig(**config_values)
+
+    def _setup_torch_optimizations(self) -> None:
+        """Configure PyTorch for optimal performance."""
+        # Keep TF32 fast paths enabled on compatible GPUs
+        torch.set_float32_matmul_precision("medium")
+
+        # Enable SDPA optimizations for better attention performance
+        if torch.cuda.is_available() and hasattr(torch.backends, "cuda"):
+            torch.backends.cuda.enable_flash_sdp(True)
+            torch.backends.cuda.enable_mem_efficient_sdp(True)
+            torch.backends.cuda.enable_math_sdp(True)
+            logger.info("Enabled PyTorch CUDA optimizations")
+
+    def _setup_distributed_training(self, system_cfg: SystemConfig) -> Optional[dict[str, Any]]:
+        """Return distributed config values or None if world_size = 1"""
+        if "LOCAL_RANK" not in os.environ or torch.device(system_cfg.device).type != "cuda":
+            return None
+
+        world_size_str = os.environ.get("WORLD_SIZE") or os.environ.get("NUM_NODES") or "1"
+        world_size = int(world_size_str) if world_size_str.strip() else 1
+
+        if world_size <= 1:
+            return None
+
+        rank = int(os.environ.get("RANK", os.environ.get("NODE_INDEX", "0")))
+        logger.info(f"world_size: {world_size} rank: {rank}")
+
+        torch.distributed.init_process_group(
+            backend="nccl",
+            timeout=system_cfg.nccl_timeout,
+            init_method=os.environ.get("DIST_URL", "env://"),
+            world_size=world_size,
+            rank=rank,
+        )
+
+        torch.cuda.set_device(system_cfg.device)
+
+        distributed_config = {
+            "distributed": True,
+            "rank": torch.distributed.get_rank(),
+            "world_size": torch.distributed.get_world_size(),
+            "local_rank": int(os.environ.get("LOCAL_RANK", "0")),
+            "is_master": torch.distributed.get_rank() == 0,
+        }
+
+        logger.info(
+            f"Initialized distributed training on {system_cfg.device} "
+            f"(rank {distributed_config['rank']}/{distributed_config['world_size']})"
+        )
+
+        return distributed_config
 
     @property
     def is_distributed(self) -> bool:
