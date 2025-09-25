@@ -7,7 +7,9 @@ A unified, interactive CLI for training, analyzing, and managing Doxascope model
 
 import argparse
 import json
+import os
 import random
+import shlex
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -45,6 +47,31 @@ def _prompt_for_value(prompt: str, target_type: type, default: Any) -> Any:
             return None
 
 
+def _select_command(choices: Dict[str, argparse.ArgumentParser]) -> Optional[str]:
+    """Displays a list of commands with descriptions and prompts the user to select one."""
+    print("\nPlease select a command:")
+    commands = list(choices.keys())
+    for i, name in enumerate(commands):
+        help_text = choices[name].description or ""
+        print(f"  [{i + 1}] {name:<10} - {help_text}")
+
+    while True:
+        try:
+            choice = input(f"\nEnter number (1-{len(commands)}): ")
+            if not choice:
+                return None
+            idx = int(choice) - 1
+            if 0 <= idx < len(commands):
+                return commands[idx]
+            else:
+                print("Invalid number, please try again.")
+        except (ValueError, IndexError):
+            print("Invalid input, please enter a number.")
+        except (KeyboardInterrupt, EOFError):
+            print("\nSelection cancelled.")
+            return None
+
+
 def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argparse.Namespace]:
     """Asks the user to confirm or change prediction timestep settings."""
     # Set a sensible default if num_future_timesteps is not provided (e.g., in interactive sweep)
@@ -75,35 +102,6 @@ def _interactive_prediction_config(args: argparse.Namespace) -> Optional[argpars
     return args
 
 
-def _interactive_sweep_config(args: argparse.Namespace) -> Optional[argparse.Namespace]:
-    """Asks user to confirm or change sweep settings."""
-    print("\n--- Sweep Run Configuration ---")
-    config_options = {
-        "Number of Random Configs": ("num_configs", int),
-        "Max Epochs per Trial": ("max_epochs", int),
-        "Early Stopping Patience": ("patience", int),
-    }
-
-    for prompt, (key, _) in config_options.items():
-        print(f"    - {prompt:<25}: {getattr(args, key)}")
-    print("-" * 39)
-
-    proceed = input("Proceed with these settings? (Y/n): ").lower()
-    if proceed in ["", "y", "yes"]:
-        return args
-
-    print("\nEnter new values or press Enter to keep the default.")
-    for prompt, (key, target_type) in config_options.items():
-        current_value = getattr(args, key)
-        new_value = _prompt_for_value(prompt, target_type, current_value)
-        if new_value is None:  # User cancelled
-            return None
-        setattr(args, key, new_value)
-
-    print("\nSweep settings updated.")
-    return args
-
-
 def handle_collect_command(args: argparse.Namespace):
     """Handles the 'collect' command."""
     print("\n--- Collect Doxascope Data ---")
@@ -112,17 +110,24 @@ def handle_collect_command(args: argparse.Namespace):
         print("No policy URI provided. Aborting collection.")
         return
 
-    print(f"\nRunning evaluation for policy: {policy_uri}")
-    print("Doxascope data logging will be enabled.")
-
-    # We can't use run_terminal_cmd here as it would block and we need to show the output.
-    # Instead, we'll print the command for the user to run.
-    # In a real scenario, we might use subprocess.Popen to stream output.
-    print("\nTo start the data collection, please run the following command in your terminal:")
-    command = (
+    command_str = (
         f'uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri="{policy_uri}" doxascope_enabled=true'
     )
-    print(f"\n  {command}\n")
+
+    print("\nHanding off to evaluation tool...")
+    print(f"  Command: {command_str}\n")
+
+    # Use os.execvp to replace the current process with the new command.
+    # This will stream the output directly to the user's terminal.
+    # shlex.split is used to handle quoted arguments correctly.
+    try:
+        args = shlex.split(command_str)
+        os.execvp(args[0], args)
+    except FileNotFoundError:
+        print(f"\nError: Command '{args[0]}' not found.")
+        print("Please ensure 'uv' is installed and you are running from the repository root.")
+    except Exception as e:
+        print(f"\nAn unexpected error occurred while trying to execute the command: {e}")
 
 
 def _interactive_train_config(args: argparse.Namespace) -> Optional[argparse.Namespace]:
@@ -805,8 +810,20 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    # --- Collect Command ---
+    parser_collect = subparsers.add_parser(
+        "collect",
+        help="Collect training data by running a policy evaluation.",
+        description="Collect training data by running a policy evaluation.",
+    )
+    parser_collect.set_defaults(func=handle_collect_command)
+
     # --- Train Command ---
-    parser_train = subparsers.add_parser("train", help="Train a new Doxascope network.")
+    parser_train = subparsers.add_parser(
+        "train",
+        help="Train a Doxascope network on collected data.",
+        description="Train a Doxascope network on collected data.",
+    )
     parser_train.add_argument(
         "policy_name",
         type=str,
@@ -856,11 +873,14 @@ def main():
     parser_train.add_argument(
         "--force-reprocess", action="store_true", help="Force reprocessing of raw data even if cache exists."
     )
-
     parser_train.set_defaults(func=handle_train_command)
 
     # --- Analyze Command (placeholder) ---
-    parser_analyze = subparsers.add_parser("analyze", help="Analyze a trained Doxascope network.")
+    parser_analyze = subparsers.add_parser(
+        "analyze",
+        help="Analyze a trained network's performance and generate plots.",
+        description="Analyze a trained network's performance and generate plots.",
+    )
     parser_analyze.add_argument(
         "policy_name", type=str, nargs="?", default=None, help="Name of the policy to analyze (optional)."
     )
@@ -879,7 +899,11 @@ def main():
     parser_analyze.set_defaults(func=handle_analyze_command)
 
     # --- Compare Command ---
-    parser_compare = subparsers.add_parser("compare", help="Compare training runs for one or more policies.")
+    parser_compare = subparsers.add_parser(
+        "compare",
+        help="Compare the performance of different policies or training runs.",
+        description="Compare the performance of different policies or training runs.",
+    )
     parser_compare.add_argument("policy_names", nargs="+", help="Name(s) of the policy/policies to compare.")
     parser_compare.add_argument(
         "--data-dir",
@@ -890,7 +914,11 @@ def main():
     parser_compare.set_defaults(func=handle_compare_command)
 
     # --- Sweep Command ---
-    parser_sweep = subparsers.add_parser("sweep", help="Run a hyperparameter sweep.")
+    parser_sweep = subparsers.add_parser(
+        "sweep",
+        help="Run a hyperparameter or architecture sweep to find the best model.",
+        description="Run a hyperparameter or architecture sweep to find the best model.",
+    )
     parser_sweep.add_argument(
         "policy_name", nargs="?", default=None, type=str, help="Name of the policy to sweep (interactive if omitted)."
     )
@@ -930,12 +958,6 @@ def main():
     )
     parser_sweep.set_defaults(func=handle_sweep_command)
 
-    # --- Collect Command ---
-    parser_collect = subparsers.add_parser(
-        "collect", help="Collect Doxascope data for a policy by running an evaluation."
-    )
-    parser_collect.set_defaults(func=handle_collect_command)
-
     args = parser.parse_args()
     # Auto-detect device if not specified
     if hasattr(args, "device") and args.device == "auto":
@@ -943,8 +965,7 @@ def main():
 
     # If no command is given, prompt the user to select one
     if args.command is None:
-        commands = list(subparsers.choices.keys())
-        command_name = _select_string_from_list(commands, "command to run")
+        command_name = _select_command(subparsers.choices)
         if not command_name:
             print("No command selected. Exiting.")
             return
