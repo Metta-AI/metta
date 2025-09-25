@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 import wandb
+from dateutil import parser
 
 from metta.adaptive.models import RunInfo
 from metta.common.util.numpy_helpers import clean_numpy_types
@@ -255,8 +256,6 @@ class WandbStore:
             if isinstance(run.created_at, str):
                 try:
                     # Parse ISO format datetime string
-                    from dateutil import parser
-
                     created_at = parser.parse(run.created_at)
                     # Ensure it has UTC timezone
                     if created_at.tzinfo is None:

@@ -15,6 +15,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
@@ -475,22 +476,6 @@ def evaluate(
     )
 
     simulations = simulations or make_icl_resource_chain_eval_suite()
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri] if policy_uri else None,
-        stats_server_uri="https://api.observatory.softmax-research.net",
-    )
-
-
-def evaluate_test(
-    policy_uri: Optional[str] = None,
-    simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> SimTool:
-    """Test evaluation with only one simulation for quick testing."""
-    if simulations is None:
-        # Use only the first simulation from the suite for testing
-        full_suite = make_icl_resource_chain_eval_suite()
-        simulations = [full_suite[0]]  # Just "2c_1s_small"
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri] if policy_uri else None,
