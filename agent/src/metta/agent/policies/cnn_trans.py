@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 class CNNTransConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _embed_dim = 128
-    _embedding_dim = 32
+    _embed_dim = 16
+    _core_out_dim = 32
 
     components: List[ComponentConfig] = [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_shim_box"),
@@ -34,17 +34,17 @@ class CNNTransConfig(PolicyArchitecture):
             in_key="core",
             out_key="values",
             name="critic",
-            in_features=32,
+            in_features=_core_out_dim,
             out_features=1,
             hidden_features=[1024],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_embed_dim, embed_dim=_embedding_dim),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
+        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
         ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
-            embed_dim=_embedding_dim,
+            embed_dim=_embed_dim,
         ),
     ]
 
