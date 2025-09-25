@@ -256,7 +256,20 @@ class GitHooksSetup(SetupModule):
         if hook_mode == CommitHookMode.NONE:
             sys.exit(0)
 
-        # Run linting - metta lint now handles exclude filtering internally
+        # Get staged Python files
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+            cwd=self.repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
+
+        if not files:
+            # No Python files to lint
+            sys.exit(0)
+
         lint_cmd = ["metta", "lint", "--staged"]
 
         if hook_mode == CommitHookMode.FIX:
@@ -264,6 +277,11 @@ class GitHooksSetup(SetupModule):
 
         try:
             subprocess.run(lint_cmd, cwd=self.repo_root, check=True)
+
+            # If in fix mode, stage the fixed files
+            if hook_mode == CommitHookMode.FIX:
+                subprocess.run(["git", "add"] + files, cwd=self.repo_root, check=True)
+
         except subprocess.CalledProcessError as e:
             if hook_mode == CommitHookMode.CHECK:
                 error("Linting failed. Please fix the issues before committing.")
