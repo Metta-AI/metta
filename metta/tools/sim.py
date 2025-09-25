@@ -17,7 +17,7 @@ from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.uri import ParsedURI
+from metta.utils.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 

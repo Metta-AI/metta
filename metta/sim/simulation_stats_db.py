@@ -9,7 +9,7 @@ import duckdb
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.stats.episode_stats_db import EpisodeStatsDB
-from mettagrid.util.file import exists, local_copy, write_file
+from metta.utils.file import exists, local_copy, write_file
 
 # Tables & indexes
 
