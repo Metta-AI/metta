@@ -69,11 +69,11 @@ class VanillaTransformerConfig(ComponentConfig):
     out_key: str
     name: str = "vanilla_transformer"
     in_dim: int = 128
-    output_dim: int = 32
+    output_dim: int = 16
     num_heads: int = 4
     ff_mult: int = 4
     num_layers: int = 5
-    max_cache_size: int = 8
+    max_cache_size: int = 64
 
     def make_component(self, env=None):
         return VanillaTransformer(config=self, env=env)
