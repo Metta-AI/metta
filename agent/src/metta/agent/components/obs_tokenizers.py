@@ -110,9 +110,11 @@ class ObsAttrEmbedFourier(nn.Module):
     def forward(self, td: TensorDict) -> TensorDict:
         observations = td[self.config.in_key]
 
+        # Attribute embeddings (pad idx 255 stays zeroed by nn.Embedding)
         attr_indices = observations[..., 1].long()
         attr_embeds = self._attr_embeds(attr_indices)
 
+        # Preallocate output to avoid repeated torch.cat
         feat_vectors = torch.empty(
             (*attr_embeds.shape[:-1], self._feat_dim),
             dtype=attr_embeds.dtype,
@@ -120,20 +122,23 @@ class ObsAttrEmbedFourier(nn.Module):
         )
         feat_vectors[..., : self._attr_embed_dim] = attr_embeds
 
+        # coords_byte packs x/y into the high/low nibble
         coords_byte = observations[..., 0].to(torch.uint8)
         x_coord_indices = ((coords_byte >> 4) & 0x0F).float()
         y_coord_indices = (coords_byte & 0x0F).float()
 
+        # Normalize to [-1, 1] using known grid range (0-10)
         x_coords_norm = x_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
         y_coords_norm = y_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
 
+        # Broadcast with frequency tensor
         x_coords_norm = x_coords_norm.unsqueeze(-1)
         y_coords_norm = y_coords_norm.unsqueeze(-1)
-
         frequencies = self.get_buffer("frequencies").view(1, 1, -1)
         x_scaled = x_coords_norm * frequencies
         y_scaled = y_coords_norm * frequencies
 
+        # Populate Fourier blocks: [cos(x), sin(x), cos(y), sin(y)]
         offset = self._attr_embed_dim
         feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
         offset += self._num_freqs
@@ -143,9 +148,9 @@ class ObsAttrEmbedFourier(nn.Module):
         offset += self._num_freqs
         feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
 
-        attr_values = observations[..., 2].float()
+        # Append scalar attribute value
         feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(
-            attr_values, "... -> ... 1"
+            observations[..., 2].float(), "... -> ... 1"
         )
 
         td[self.config.out_key] = feat_vectors

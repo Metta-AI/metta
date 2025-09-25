@@ -241,7 +241,7 @@ class ObsPerceiverLatent(nn.Module):
         if self._feat_dim <= 0:
             raise ValueError("feat_dim must be positive")
         if self._latent_dim % self._num_heads != 0:
-            raise ValueError(f"latent_dim ({self._latent_dim}) must be divisible by num_heads ({self._num_heads})")
+            raise ValueError("latent_dim must be divisible by num_heads")
 
         self.latents = nn.Parameter(torch.randn(1, self._num_latents, self._latent_dim))
         nn.init.trunc_normal_(self.latents, std=0.02)
@@ -272,12 +272,7 @@ class ObsPerceiverLatent(nn.Module):
 
     def forward(self, td: TensorDict) -> TensorDict:
         x_features = td[self.config.in_key]
-        key_mask = None
-        if self._use_mask:
-            key_mask = td.get("obs_mask")
-
-        B = x_features.shape[0]
-
+        key_mask = td.get("obs_mask") if self._use_mask else None
         tokens_norm = self.token_norm(x_features)
         k = self.k_proj(tokens_norm)
         v = self.v_proj(tokens_norm)
@@ -287,25 +282,21 @@ class ObsPerceiverLatent(nn.Module):
 
         attn_bias = None
         if key_mask is not None:
-            key_mask = key_mask.to(torch.bool)
             mask_value = -torch.finfo(k.dtype).max
-            attn_bias = key_mask.unsqueeze(1).unsqueeze(1).to(k.dtype) * mask_value
+            attn_bias = key_mask.to(torch.bool).unsqueeze(1).unsqueeze(1).to(k.dtype) * mask_value
 
-        latents = self.latents.expand(B, -1, -1)
+        latents = self.latents.expand(x_features.shape[0], -1, -1)
 
         for layer in self.layers:
             residual = latents
-            latents_norm = layer["latent_norm"](latents)
-            q = layer["q_proj"](latents_norm)
+            q = layer["q_proj"](layer["latent_norm"](latents))
             q = einops.rearrange(q, "b n (h d) -> b h n d", h=self._num_heads)
 
             attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
             attn_output = einops.rearrange(attn_output, "b h n d -> b n (h d)")
-            attn_output = layer["attn_out_proj"](attn_output)
-            latents = residual + attn_output
+            latents = residual + layer["attn_out_proj"](attn_output)
 
-            residual = latents
-            latents = residual + layer["mlp"](layer["mlp_norm"](latents))
+            latents = latents + layer["mlp"](layer["mlp_norm"](latents))
 
         latents = self.final_norm(latents)
 
@@ -316,7 +307,7 @@ class ObsPerceiverLatent(nn.Module):
         elif self._pool == "none":
             latents = latents.reshape(latents.shape[0], -1)
         else:
-            raise ValueError(f"Unsupported pool mode: {self._pool}")
+            raise ValueError("unsupported pool mode")
 
         td[self.config.out_key] = latents
         return td
