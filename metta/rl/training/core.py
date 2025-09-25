@@ -1,12 +1,12 @@
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import torch
 from pydantic import ConfigDict
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss
+from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from mettagrid.config import Config
 
@@ -18,7 +18,7 @@ class RolloutResult(Config):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    raw_infos: List[Dict[str, Any]]
+    raw_infos: list[dict[str, Any]]
     agent_steps: int
     training_env_id: slice
 
@@ -30,7 +30,7 @@ class CoreTrainingLoop:
         self,
         policy: Policy,
         experience: Experience,
-        losses: Dict[str, Loss],
+        losses: dict[str, Loss],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
         context: ComponentContext,
@@ -54,7 +54,7 @@ class CoreTrainingLoop:
 
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
-        self._metadata_cache: Dict[Tuple[str, Tuple[int, ...], int, str], torch.Tensor] = {}
+        self._metadata_cache: dict[tuple[str, tuple[int, ...], int, str], torch.Tensor] = {}
 
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
@@ -73,7 +73,7 @@ class CoreTrainingLoop:
         Returns:
             RolloutResult with collected info
         """
-        raw_infos: List[Dict[str, Any]] = []
+        raw_infos: list[dict[str, Any]] = []
         self.experience.reset_for_rollout()
 
         # Notify losses of rollout start
@@ -114,7 +114,7 @@ class CoreTrainingLoop:
             # Ship actions to the environment
             env.send_actions(td["actions"].cpu().numpy())
 
-            infos_list: List[Dict[str, Any]] = list(info) if info else []
+            infos_list: list[dict[str, Any]] = list(info) if info else []
             if infos_list:
                 raw_infos.extend(infos_list)
 
@@ -145,7 +145,7 @@ class CoreTrainingLoop:
     def _get_constant_tensor(
         self,
         name: str,
-        shape: Tuple[int, ...],
+        shape: tuple[int, ...],
         value: int,
         device: torch.device,
     ) -> torch.Tensor:
@@ -167,7 +167,7 @@ class CoreTrainingLoop:
         context: ComponentContext,
         update_epochs: int,
         max_grad_norm: float = 0.5,
-    ) -> tuple[Dict[str, float], int]:
+    ) -> tuple[dict[str, float], int]:
         """Perform training phase on collected experience.
 
         Args:

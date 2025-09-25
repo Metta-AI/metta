@@ -1,11 +1,12 @@
 import contextlib
-import logging
+import importlib
 from typing import Any, Callable, Optional
 
 import torch
 
 from metta.agent.policy import Policy
 from metta.agent.util.distribution_utils import configure_sampling_backend
+from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     ComponentContext,
@@ -22,15 +23,15 @@ from metta.rl.training.optimizer import create_optimizer
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
-    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
-except ImportError:
+    importlib.import_module("pufferlib._C")
+except ImportError as exc:
     raise ImportError(
-        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
-        "try installing with --no-build-isolation"
-    ) from None
+        "Failed to import C/CUDA advantage kernel. "
+        "If you have non-default PyTorch, try installing with --no-build-isolation"
+    ) from exc
 
 torch.set_float32_matmul_precision("high")
-logger = logging.getLogger(__name__)
+logger = getRankAwareLogger(__name__)
 
 
 class Trainer:
@@ -74,6 +75,7 @@ class Trainer:
             self._policy = torch.compile(self._policy, mode=self._cfg.compile_mode)
 
         self._policy.train()
+
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
@@ -104,6 +106,10 @@ class Trainer:
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
 
         self._state = TrainerState()
+
+        # Extract curriculum from environment if available
+        curriculum = getattr(self._env, "_curriculum", None)
+
         self._context = ComponentContext(
             state=self._state,
             policy=self._policy,
@@ -114,6 +120,7 @@ class Trainer:
             stopwatch=self.timer,
             distributed=self._distributed_helper,
             run_name=self._run_name,
+            curriculum=curriculum,
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
