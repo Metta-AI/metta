@@ -842,12 +842,6 @@ py::none MettaGrid::set_inventory(GridObjectId agent_id, const std::map<Inventor
   return py::none();
 }
 
-// StatsTracker implementation that needs complete MettaGrid definition
-unsigned int StatsTracker::get_current_step() const {
-  if (!_env) return 0;
-  return static_cast<MettaGrid*>(_env)->current_step;
-}
-
 const std::string& StatsTracker::resource_name(InventoryItem item) const {
   if (!_env) return get_no_env_resource_name();
   return _env->resource_names[item];
