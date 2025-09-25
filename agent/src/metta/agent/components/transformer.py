@@ -11,7 +11,7 @@ from mettagrid.config import Config
 
 class TransformerConfig(Config):
     latent_size: int = 128
-    hidden_size: int = 128
+    hidden_size: int = 32
     num_layers: int = 2
     nhead: int = 4
     ff_mult: int = 4
