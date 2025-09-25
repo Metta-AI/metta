@@ -17,7 +17,7 @@ class CNNTransConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _embed_dim = 128
-    _embedding_dim = 16
+    _embedding_dim = 32
 
     components: List[ComponentConfig] = [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_shim_box"),
@@ -34,7 +34,7 @@ class CNNTransConfig(PolicyArchitecture):
             in_key="core",
             out_key="values",
             name="critic",
-            in_features=_embed_dim,
+            in_features=32,
             out_features=1,
             hidden_features=[1024],
         ),
