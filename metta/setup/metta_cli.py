@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -570,11 +571,48 @@ def cmd_lint(
             check=True,
         )
         files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
+
         if not files:
             return
 
+        # When explicit file paths are passed to ruff, it ignores the exclude patterns
+        # in .ruff.toml. This is by design - ruff assumes if you explicitly specify
+        # files, you want them linted regardless of exclude rules.
+        # So we need to manually filter out excluded paths when using --staged.
+        ruff_config_path = cli.repo_root / ".ruff.toml"
+        excluded_paths = []
+
+        try:
+            if ruff_config_path.exists():
+                with open(ruff_config_path, "rb") as f:
+                    config = tomllib.load(f)
+                excluded_paths = config.get("exclude", [])
+        except Exception:
+            # If we can't read the config, continue without filtering
+            pass
+
+        if excluded_paths:
+            filtered_files = []
+            for f in files:
+                should_exclude = False
+                for excluded in excluded_paths:
+                    # Handle both exact matches and directory prefixes
+                    if f.startswith(excluded.rstrip("/") + "/") or f == excluded:
+                        should_exclude = True
+                        break
+
+                if not should_exclude:
+                    filtered_files.append(f)
+
+            files = filtered_files
+
+            if not files:
+                info("No files to lint after applying exclusions")
+                return
+
     check_cmd = ["uv", "run", "--active", "ruff", "check"]
     format_cmd = ["uv", "run", "--active", "ruff", "format"]
+
     cmds = [format_cmd, check_cmd]
 
     if fix:
