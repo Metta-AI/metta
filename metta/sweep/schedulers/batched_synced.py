@@ -119,9 +119,7 @@ class BatchedSyncedOptimizingScheduler:
         # Only do this if state is completely empty (fresh start or restart)
         if not self._state_initialized:
             is_empty_state = (
-                not self.state.runs_in_training
-                and not self.state.runs_in_eval
-                and not self.state.runs_completed
+                not self.state.runs_in_training and not self.state.runs_in_eval and not self.state.runs_completed
             )
             if is_empty_state and runs:
                 logger.info("[BatchedSyncedOptimizingScheduler] Empty state detected, initializing from observed runs")
