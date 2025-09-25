@@ -40,6 +40,7 @@ class TaskDependencySimulator:
         lambda_forget: float = 0.1,  # Forgetting rate
         performance_threshold: float = 0.9,
         task_seed: Optional[int] = None,
+        dt: float = 0.01,  # Time step scaling for dynamics updates
     ):
         self.num_tasks = num_tasks
         self.num_epochs = num_epochs
@@ -48,6 +49,7 @@ class TaskDependencySimulator:
         self.lambda_forget = lambda_forget
         self.performance_threshold = performance_threshold
         self.task_seed = task_seed or random.randint(0, 2**31 - 1)
+        self.dt = dt
 
         # Initialize task dependency chain (0 -> 1 -> 2 -> ...)
         self._build_task_chain()
@@ -64,6 +66,16 @@ class TaskDependencySimulator:
         # History for analysis
         self.performance_history = [self.P.clone()]
         self.sample_history = []
+
+        # Track individual task rewards for plotting (focus on first task)
+        self.task_reward_history = {i: [] for i in range(num_tasks)}
+        self.task_sample_numbers = {i: [] for i in range(num_tasks)}
+
+        # Track task 0 sampling and learning progress percentile over time
+        self.task_0_cumulative_samples = []
+        self.task_0_lp_percentiles = []
+        self.task_0_lp_scores = []
+        self.epoch_numbers = []
 
     def _build_task_chain(self) -> None:
         """Build the task dependency chain structure."""
@@ -89,6 +101,12 @@ class TaskDependencySimulator:
         self.P = torch.full((self.num_tasks,), 0.01)
         self.performance_history = [self.P.clone()]
         self.sample_history = []
+        self.task_reward_history = {i: [] for i in range(self.num_tasks)}
+        self.task_sample_numbers = {i: [] for i in range(self.num_tasks)}
+        self.task_0_cumulative_samples = []
+        self.task_0_lp_percentiles = []
+        self.task_0_lp_scores = []
+        self.epoch_numbers = []
 
     def sample_task(self, task_id: int) -> float:
         """
@@ -110,6 +128,12 @@ class TaskDependencySimulator:
             base_reward + self.P[task_id].item() + self._task_noise[task_id].item()
         )
         reward = float(np.clip(task_reward, 0.0, 1.0))
+
+        # Track reward history for plotting
+        self.task_reward_history[task_id].append(reward)
+        self.task_sample_numbers[task_id].append(
+            int(self.total_sample_counts[task_id].item())
+        )
 
         return reward
 
@@ -157,8 +181,8 @@ class TaskDependencySimulator:
             forgetting = self.lambda_forget * current_P[i]
             P_dot[i] = growth - forgetting
 
-        # Update performance (normalized by samples per epoch)
-        new_P = current_P + P_dot * (1.0 / self.samples_per_epoch)
+        # Update performance (normalized by samples per epoch and scaled by dt)
+        new_P = current_P + P_dot * (self.dt / self.samples_per_epoch)
         self.P = torch.clamp(new_P, 0, 1)
 
     def _get_epoch_metrics(self) -> Dict[str, Any]:
@@ -178,6 +202,32 @@ class TaskDependencySimulator:
             .item(),
             "task_dependency/total_samples": self.epoch_sample_counts.sum().item(),
         }
+
+        # Add task 0 reward statistics for noise analysis
+        if len(self.task_reward_history[0]) > 0:
+            task_0_rewards = self.task_reward_history[0]
+            metrics.update(
+                {
+                    "task_0_noise/mean_reward": np.mean(task_0_rewards),
+                    "task_0_noise/std_reward": np.std(task_0_rewards),
+                    "task_0_noise/min_reward": np.min(task_0_rewards),
+                    "task_0_noise/max_reward": np.max(task_0_rewards),
+                    "task_0_noise/total_samples": len(task_0_rewards),
+                }
+            )
+
+        # Add task 0 cumulative sample count (for eviction tracking)
+        metrics["task_0_tracking/cumulative_samples"] = int(
+            self.total_sample_counts[0].item()
+        )
+
+        # Add current task 0 LP percentile and score if available
+        if len(self.task_0_lp_percentiles) > 0:
+            metrics["task_0_tracking/current_lp_percentile"] = (
+                self.task_0_lp_percentiles[-1]
+            )
+        if len(self.task_0_lp_scores) > 0:
+            metrics["task_0_tracking/current_lp_score"] = self.task_0_lp_scores[-1]
 
         # Add individual task metrics (limit to first 10 tasks for wandb)
         for i in range(min(self.num_tasks, 10)):
@@ -207,6 +257,9 @@ class TaskDependencySimulator:
 
             # Get learning progress scores for all tasks
             task_scores = algorithm.score_tasks(active_task_ids)
+
+            # Track task 0 percentile in learning progress scores
+            self._track_task_0_percentile(task_scores)
 
             if task_scores:
                 scores = list(task_scores.values())
@@ -299,20 +352,43 @@ class TaskDependencySimulator:
                     for i, count in enumerate(hist):
                         distributions[f"learning_progress/pool_score_bin_{i}"] = count
 
-                    # Store raw scores for wandb histogram creation
+                    # Store raw scores for basic statistics (no longer used for histograms)
                     distributions["_learning_progress_scores_raw"] = scores
-
-                    # Store position-specific scores for histograms
-                    for position, pos_scores in position_scores.items():
-                        if pos_scores:
-                            distributions[
-                                f"_learning_progress_position_{position}_scores"
-                            ] = pos_scores
 
         except Exception as e:
             logger.warning(f"Failed to extract learning progress distributions: {e}")
 
         return distributions
+
+    def _track_task_0_percentile(self, task_scores: Dict[int, float]) -> None:
+        """Track task 0's percentile ranking in learning progress scores."""
+        if not task_scores:
+            return
+
+        # Find task 0's actual task ID (may be different from 0 due to modulo in simulation)
+        task_0_id = None
+        for task_id in task_scores.keys():
+            if task_id % self.num_tasks == 0:
+                task_0_id = task_id
+                break
+
+        if task_0_id is None:
+            return
+
+        task_0_score = task_scores[task_0_id]
+        all_scores = list(task_scores.values())
+
+        # Calculate percentile (what percentage of tasks have lower scores)
+        lower_scores = sum(1 for score in all_scores if score < task_0_score)
+        percentile = (
+            (lower_scores / len(all_scores)) * 100 if len(all_scores) > 0 else 0
+        )
+
+        # Track the data
+        self.task_0_lp_percentiles.append(percentile)
+        self.task_0_lp_scores.append(task_0_score)
+        self.task_0_cumulative_samples.append(int(self.total_sample_counts[0].item()))
+        self.epoch_numbers.append(self.current_epoch)
 
     def is_complete(self) -> bool:
         """Check if simulation is complete."""
@@ -351,10 +427,10 @@ class MockTaskGenerator(TaskGenerator):
 def create_curriculum(
     num_tasks: int = 10,
     enable_detailed_slice_logging: bool = False,
-    ema_timescale: float = 0.1,
-    slow_timescale_factor: float = 0.2,
+    ema_timescale: float = 1,
+    slow_timescale_factor: float = 0.02,
     exploration_bonus: float = 0.1,
-    min_presentations_for_eviction: int = 5,
+    min_presentations_for_eviction: int = 2,
     eviction_threshold_percentile: float = 0.4,
 ) -> CurriculumConfig:
     """Create curriculum configuration for task dependency simulation."""
@@ -376,7 +452,7 @@ def create_curriculum(
     return CurriculumConfig(
         task_generator=task_gen_config,
         algorithm_config=algorithm_config,
-        num_active_tasks=min(16, num_tasks),
+        num_active_tasks=1000,
         min_presentations_for_eviction=min_presentations_for_eviction,
     )
 
@@ -389,13 +465,14 @@ def simulate_task_dependencies(
     lambda_forget: float = 0.1,
     performance_threshold: float = 0.9,
     task_seed: Optional[int] = None,
+    dt: float = 0.1,
     enable_detailed_slice_logging: bool = False,
     ema_timescale: float = 0.001,
     slow_timescale_factor: float = 0.2,
     exploration_bonus: float = 0.1,
     min_presentations_for_eviction: int = 5,
     eviction_threshold_percentile: float = 0.4,
-    wandb_project: str = "task_dependency_simulator",
+    wandb_project: str = "metta",
     wandb_run_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -409,6 +486,7 @@ def simulate_task_dependencies(
         lambda_forget: Forgetting rate
         performance_threshold: Success threshold
         task_seed: Seed for task-specific noise
+        dt: Time step scaling for dynamics updates
         enable_detailed_slice_logging: Enable curriculum slice logging
         wandb_project: Wandb project name
         wandb_run_name: Wandb run name
@@ -425,6 +503,7 @@ def simulate_task_dependencies(
         lambda_forget=lambda_forget,
         performance_threshold=performance_threshold,
         task_seed=task_seed,
+        dt=dt,
     )
 
     # Create curriculum
@@ -508,43 +587,124 @@ def simulate_task_dependencies(
 
         # Log metrics for each epoch
         for epoch, metrics in enumerate(metrics_history):
-            # Extract raw scores for histogram creation
+            # Clean up raw score data that's not needed for logging
             epoch_metrics = metrics.copy()
 
-            # Create wandb histograms from raw data
-            if "_learning_progress_scores_raw" in epoch_metrics:
-                scores = epoch_metrics.pop("_learning_progress_scores_raw")
-                if scores:
-                    # Create main histogram of all learning progress scores
-                    epoch_metrics["learning_progress/pool_score_histogram"] = (
-                        wandb.Histogram(scores)
-                    )
-
-            # Create position-specific histograms
-            position_keys_to_remove = []
+            # Remove raw score arrays from metrics (they're slow to upload and not needed)
+            keys_to_remove = []
             for key in list(epoch_metrics.keys()):
-                if key.startswith("_learning_progress_position_") and key.endswith(
-                    "_scores"
-                ):
-                    # Extract position number and scores
-                    parts = key.split("_")
-                    position = parts[3]  # From "_learning_progress_position_N_scores"
-                    pos_scores = epoch_metrics[key]
+                if key.startswith("_learning_progress") and key.endswith("_scores"):
+                    keys_to_remove.append(key)
+                elif key == "_learning_progress_scores_raw":
+                    keys_to_remove.append(key)
 
-                    if pos_scores:
-                        # Create histogram for this position
-                        epoch_metrics[
-                            f"learning_progress/position_{position}_histogram"
-                        ] = wandb.Histogram(pos_scores)
-
-                    # Mark for removal (don't log raw scores)
-                    position_keys_to_remove.append(key)
-
-            # Remove raw score arrays from metrics
-            for key in position_keys_to_remove:
+            for key in keys_to_remove:
                 epoch_metrics.pop(key, None)
 
             wandb.log(epoch_metrics, step=epoch)
+
+        # Log final summary statistics (without slow histogram plots)
+        final_metrics = metrics_history[-1] if metrics_history else {}
+        if "_learning_progress_scores_raw" in final_metrics:
+            final_scores = final_metrics["_learning_progress_scores_raw"]
+            if final_scores and len(final_scores) > 0:
+                wandb.log(
+                    {
+                        "final_summary/total_tasks": len(final_scores),
+                        "final_summary/mean_score": np.mean(final_scores),
+                        "final_summary/std_score": np.std(final_scores),
+                    }
+                )
+
+        # Create reward history plot for first task
+        if len(simulator.task_reward_history[0]) > 0:
+            # Create table for task 0 reward history
+            task_0_data = [
+                [sample_num, reward]
+                for sample_num, reward in zip(
+                    simulator.task_sample_numbers[0], simulator.task_reward_history[0]
+                )
+            ]
+
+            if task_0_data:
+                task_0_table = wandb.Table(
+                    data=task_0_data, columns=["sample_number", "reward"]
+                )
+
+                # Create line plot showing reward over samples
+                task_0_plot = wandb.plot.line(
+                    task_0_table,
+                    x="sample_number",
+                    y="reward",
+                    title="Task 0 Reward History (by Sample Number)",
+                )
+
+                wandb.log({"task_0_reward_history": task_0_plot})
+
+        # Create task 0 learning progress percentile plot over time
+        if len(simulator.task_0_lp_percentiles) > 0:
+            # Create table for task 0 LP percentile and scores over epochs
+            percentile_data = [
+                [epoch, percentile, cumulative_samples, lp_score]
+                for epoch, percentile, cumulative_samples, lp_score in zip(
+                    simulator.epoch_numbers,
+                    simulator.task_0_lp_percentiles,
+                    simulator.task_0_cumulative_samples,
+                    simulator.task_0_lp_scores,
+                )
+            ]
+
+            if percentile_data:
+                # Plot percentile vs epoch
+                percentile_table = wandb.Table(
+                    data=percentile_data,
+                    columns=[
+                        "epoch",
+                        "lp_percentile",
+                        "cumulative_samples",
+                        "lp_score",
+                    ],
+                )
+
+                percentile_plot = wandb.plot.line(
+                    percentile_table,
+                    x="epoch",
+                    y="lp_percentile",
+                    title="Task 0 Learning Progress Percentile Over Time",
+                )
+
+                # Plot percentile vs cumulative samples (for eviction analysis)
+                samples_plot = wandb.plot.line(
+                    percentile_table,
+                    x="cumulative_samples",
+                    y="lp_percentile",
+                    title="Task 0 LP Percentile vs Cumulative Samples (Eviction Analysis)",
+                )
+
+                # Plot LP score over time
+                lp_score_plot = wandb.plot.line(
+                    percentile_table,
+                    x="epoch",
+                    y="lp_score",
+                    title="Task 0 Learning Progress Score Over Time",
+                )
+
+                # Plot LP score vs cumulative samples
+                lp_score_samples_plot = wandb.plot.line(
+                    percentile_table,
+                    x="cumulative_samples",
+                    y="lp_score",
+                    title="Task 0 LP Score vs Cumulative Samples",
+                )
+
+                wandb.log(
+                    {
+                        "task_0_lp_percentile_vs_epoch": percentile_plot,
+                        "task_0_lp_percentile_vs_samples": samples_plot,
+                        "task_0_lp_score_vs_epoch": lp_score_plot,
+                        "task_0_lp_score_vs_samples": lp_score_samples_plot,
+                    }
+                )
 
         # Log final summary
         wandb.log({"simulation_summary": results})
@@ -647,6 +807,7 @@ class TaskDependencySimulationTool(Tool):
     lambda_forget: float = 0.1
     performance_threshold: float = 0.9
     task_seed: Optional[int] = None
+    dt: float = 0.1
     enable_detailed_slice_logging: bool = False
 
     # Learning progress parameters
@@ -675,6 +836,7 @@ class TaskDependencySimulationTool(Tool):
                 lambda_forget=self.lambda_forget,
                 performance_threshold=self.performance_threshold,
                 task_seed=self.task_seed,
+                dt=self.dt,
                 enable_detailed_slice_logging=self.enable_detailed_slice_logging,
                 ema_timescale=self.ema_timescale,
                 slow_timescale_factor=self.slow_timescale_factor,
