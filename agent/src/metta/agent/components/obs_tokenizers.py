@@ -60,6 +60,10 @@ class ObsAttrCoordEmbed(nn.Module):
         feat_vectors[..., : self._attr_embed_dim] = combined_embeds
         feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
 
+        mask = td.get("obs_mask")
+        if mask is not None:
+            feat_vectors = feat_vectors.masked_fill(mask.to(torch.bool).unsqueeze(-1), 0.0)
+
         td[self.config.out_key] = feat_vectors
 
         return td
@@ -153,6 +157,10 @@ class ObsAttrEmbedFourier(nn.Module):
             observations[..., 2].float(), "... -> ... 1"
         )
 
+        mask = td.get("obs_mask")
+        if mask is not None:
+            feat_vectors = feat_vectors.masked_fill(mask.to(torch.bool).unsqueeze(-1), 0.0)
+
         td[self.config.out_key] = feat_vectors
 
         return td
@@ -209,6 +217,10 @@ class ObsAttrCoordValueEmbed(nn.Module):
         val_embeds = self._val_embeds(val_indices)
 
         combined_embeds = attr_embeds + coord_pair_embedding + val_embeds
+
+        mask = td.get("obs_mask")
+        if mask is not None:
+            combined_embeds = combined_embeds.masked_fill(mask.to(torch.bool).unsqueeze(-1), 0.0)
 
         td[self.config.out_key] = combined_embeds
         return td

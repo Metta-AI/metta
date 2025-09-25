@@ -24,10 +24,17 @@ class ObsTokenPadStrip(nn.Module):
     dense tokens than the average sequence so there is room for improvement by computing attention over ragged tensors.
     """
 
-    def __init__(self, env, in_key: str = "env_obs", out_key: str = "obs_token_pad_strip") -> None:
+    def __init__(
+        self,
+        env,
+        in_key: str = "env_obs",
+        out_key: str = "obs_token_pad_strip",
+        max_tokens: int | None = None,
+    ) -> None:
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
+        self._max_tokens = max_tokens
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
@@ -121,6 +128,9 @@ class ObsTokenPadStrip(nn.Module):
         # find the global max flip‐point as a 0‐d tensor
         max_flip = row_lengths.max()
 
+        if self._max_tokens is not None:
+            max_flip = max_flip.clamp(max=self._max_tokens)
+
         # build a 1‐D "positions" row [0,1,2,…,L−1]
         if self._positions_cache.numel() < M:
             self._positions_cache = torch.arange(M, dtype=torch.int64, device=obs_mask.device)
@@ -191,6 +201,7 @@ class ObsAttrValNorm(nn.Module):
 class ObsShimTokensConfig(ComponentConfig):
     in_key: str
     out_key: str
+    max_tokens: int | None = None
     name: str = "obs_shim_tokens"
 
     def make_component(self, env):
@@ -202,7 +213,7 @@ class ObsShimTokens(nn.Module):
         super().__init__()
         self.in_key = config.in_key
         self.out_key = config.out_key
-        self.token_pad_striper = ObsTokenPadStrip(env, in_key=self.in_key)
+        self.token_pad_striper = ObsTokenPadStrip(env, in_key=self.in_key, max_tokens=config.max_tokens)
         self.attr_val_normer = ObsAttrValNorm(env, out_key=self.out_key)
 
     def initialize_to_environment(
