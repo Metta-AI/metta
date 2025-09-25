@@ -9,16 +9,8 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-try:
-    from metta.rl.training import EnvironmentMetaData
-except ImportError:
-    # Mock for when the import isn't available
-    class EnvironmentMetaData:
-        def __init__(self):
-            self.action_names = ['noop', 'move', 'attack']
-
-# Import Policy from the proper location
 from metta.agent.policy import Policy
+from metta.rl.training import EnvironmentMetaData
 
 # ------------------
 # Utility functions
