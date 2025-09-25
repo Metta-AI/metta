@@ -23,7 +23,13 @@ class CNNTransConfig(PolicyArchitecture):
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_shim_box"),
         CNNEncoderConfig(in_key="obs_shim_box", out_key="obs_cnn_encoder"),
         # VanillaTransformerConfig(in_key="obs_cnn_encoder", out_key="core", embed_dim=_embed_dim),
-        LSTMConfig(in_key="obs_cnn_encoder", out_key="core", embed_dim=_embed_dim),
+        LSTMConfig(
+            in_key="obs_cnn_encoder",
+            out_key="core",
+            latent_size=128,
+            hidden_size=32,
+            num_layers=1,
+        ),
         MLPConfig(
             in_key="core",
             out_key="values",
