@@ -489,7 +489,7 @@ def evaluate(
     simulations = simulations or make_icl_resource_chain_eval_suite()
     policy_uris = []
     for curriculum_style in curriculum_styles:
-        policy_uris.append(f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24")
+        policy_uris.append(f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24/icl_resource_chain_{curriculum_style}.2.2025-09-24:latest.pt")
     return SimTool(
         simulations=simulations,
         policy_uris=policy_uris,

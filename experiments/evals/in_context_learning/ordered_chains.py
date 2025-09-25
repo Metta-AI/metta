@@ -1,6 +1,6 @@
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
-
+import random
 from experiments.recipes.in_context_learning.ordered_chains import (
     OrderedChainsTaskGenerator,
     make_task_generator_cfg,
@@ -37,7 +37,7 @@ def make_icl_resource_chain_eval_env(
     )
     task_generator = OrderedChainsTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
-    return task_generator.get_task(0)
+    return task_generator.get_task(random.randint(0, 1000000))
 
 
 def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
