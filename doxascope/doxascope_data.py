@@ -82,14 +82,15 @@ class DoxascopeLogger:
 
     def __init__(
         self,
-        doxascope_config: dict,
+        enabled: bool,
         simulation_id: str,
+        output_dir: str = "./train_dir/doxascope/raw_data/",
     ):
-        self.enabled = doxascope_config.get("enabled", False)
+        self.enabled = enabled
         if not self.enabled:
             return
 
-        self.base_dir = Path(doxascope_config.get("output_dir", "./train_dir/doxascope/raw_data/"))
+        self.base_dir = Path(output_dir)
         self.simulation_id = simulation_id
         self.data: List = []
         self.timestep = 0

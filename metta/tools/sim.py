@@ -38,6 +38,8 @@ class SimTool(Tool):
     policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
+    doxascope_enabled: bool = False
+
     wandb: WandbConfig = auto_wandb_config()
 
     stats_dir: str | None = None  # The (local) directory where stats should be stored
@@ -48,6 +50,10 @@ class SimTool(Tool):
     push_metrics_to_wandb: bool = False
 
     def invoke(self, args: dict[str, str]) -> int | None:
+        if self.doxascope_enabled:
+            for sim in self.simulations:
+                sim.doxascope_enabled = True
+
         if self.policy_uris is None:
             raise ValueError("policy_uris is required")
 

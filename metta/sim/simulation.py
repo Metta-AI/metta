@@ -157,9 +157,9 @@ class Simulation:
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
         # ---------------- doxascope setup ---------------------------- #
-        self._doxascope_logger = DoxascopeLogger(config.doxascope or {}, self._id)
+        self._doxascope_logger = DoxascopeLogger(enabled=cfg.doxascope_enabled, simulation_id=self._id)
         if self._doxascope_logger.enabled:
-            base_policy_name = self._policy_pr.run_name.split(":")[0]
+            base_policy_name = Path(self._policy_uri).stem.split(":")[0]
             policy_name = base_policy_name.replace("/", "_")
             self._doxascope_logger.configure(
                 policy_name=policy_name,
@@ -304,7 +304,7 @@ class Simulation:
             metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
             assert isinstance(metta_grid_env, MettaGridEnv)
             grid_objects = metta_grid_env.grid_objects
-            self._doxascope_logger.log_timestep(self._policy_state, self._policy_idxs, grid_objects)
+            self._doxascope_logger.log_timestep(self.get_policy_state(), self._policy_idxs, grid_objects)
 
     def _maybe_generate_thumbnail(self) -> str | None:
         """Generate thumbnail if this is the first run for this eval_name."""

@@ -15,6 +15,8 @@ class SimulationConfig(Config):
     name: str = Field(description="Name of the simulation")
     env: MettaGridConfig
 
+    doxascope_enabled: bool = Field(default=False, description="Enable Doxascope logger")
+
     # Core simulation config
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
     max_time_s: int = Field(default=120, description="Maximum time in seconds to run the simulation", ge=0)
