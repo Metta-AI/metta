@@ -177,7 +177,7 @@ public:
       if (inv_it != this->inventory.end()) {
         current_amount = inv_it->second;
       }
-      this->stats.set(this->stats.resource_name(item), current_amount);
+      this->stats.set(this->stats.resource_name(item) + ".amount", current_amount);
     }
 
     return delta;

@@ -28,10 +28,10 @@ constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
 namespace TestItemStrings {
-constexpr const char* ORE = "ore_red";
-constexpr const char* LASER = "laser";
-constexpr const char* ARMOR = "armor";
-constexpr const char* HEART = "heart";
+const std::string ORE = "ore_red";
+const std::string LASER = "laser";
+const std::string ARMOR = "armor";
+const std::string HEART = "heart";
 }  // namespace TestItemStrings
 
 namespace TestRewards {
@@ -60,20 +60,20 @@ protected:
 
   std::map<std::string, RewardType> create_test_stats_rewards() {
     std::map<std::string, RewardType> rewards;
-    rewards[TestItemStrings::ORE] = TestRewards::ORE;
-    rewards[TestItemStrings::LASER] = TestRewards::LASER;
-    rewards[TestItemStrings::ARMOR] = TestRewards::ARMOR;
-    rewards[TestItemStrings::HEART] = TestRewards::HEART;
+    rewards[TestItemStrings::ORE + ".amount"] = TestRewards::ORE;
+    rewards[TestItemStrings::LASER + ".amount"] = TestRewards::LASER;
+    rewards[TestItemStrings::ARMOR + ".amount"] = TestRewards::ARMOR;
+    rewards[TestItemStrings::HEART + ".amount"] = TestRewards::HEART;
     return rewards;
   }
 
-  // Helper function to create test resource_reward_max map
+  // Helper function to create test stats_reward_max map
   std::map<std::string, RewardType> create_test_stats_reward_max() {
-    std::map<std::string, RewardType> resource_reward_max;
-    resource_reward_max[TestItemStrings::ORE] = 10.0f;
-    resource_reward_max[TestItemStrings::LASER] = 10.0f;
-    resource_reward_max[TestItemStrings::ARMOR] = 10.0f;
-    return resource_reward_max;
+    std::map<std::string, RewardType> stats_reward_max;
+    stats_reward_max[TestItemStrings::ORE + ".amount"] = 10.0f;
+    stats_reward_max[TestItemStrings::LASER + ".amount"] = 10.0f;
+    stats_reward_max[TestItemStrings::ARMOR + ".amount"] = 10.0f;
+    return stats_reward_max;
   }
 
   std::vector<std::string> create_test_resource_names() {
@@ -102,10 +102,10 @@ TEST_F(MettaGridCppTest, AgentRewards) {
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
 
   // Test reward values
-  EXPECT_FLOAT_EQ(agent->stat_rewards[TestItemStrings::ORE], 0.125f);
-  EXPECT_FLOAT_EQ(agent->stat_rewards[TestItemStrings::LASER], 0.0f);
-  EXPECT_FLOAT_EQ(agent->stat_rewards[TestItemStrings::ARMOR], 0.0f);
-  EXPECT_FLOAT_EQ(agent->stat_rewards[TestItemStrings::HEART], 1.0f);
+  EXPECT_FLOAT_EQ(agent->stat_rewards[TestItemStrings::ORE + ".amount"], 0.125f);
+  EXPECT_FLOAT_EQ(agent->stat_rewards[TestItemStrings::LASER + ".amount"], 0.0f);
+  EXPECT_FLOAT_EQ(agent->stat_rewards[TestItemStrings::ARMOR + ".amount"], 0.0f);
+  EXPECT_FLOAT_EQ(agent->stat_rewards[TestItemStrings::HEART + ".amount"], 1.0f);
 }
 
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
@@ -157,7 +157,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   // Set a lower cap for ORE so we can actually test capping
   std::map<std::string, RewardType> stats_reward_max;
-  stats_reward_max[TestItemStrings::ORE] = 2.0f;  // Cap at 2.0 instead of 10.0
+  stats_reward_max[TestItemStrings::ORE + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, stats_reward_max, 0.0f, {});
 
@@ -223,8 +223,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
 
   // Set different caps for different items
   std::map<std::string, RewardType> stats_reward_max;
-  stats_reward_max[TestItemStrings::ORE] = 2.0f;     // Low cap for ORE
-  stats_reward_max[TestItemStrings::HEART] = 30.0f;  // Cap for HEART
+  stats_reward_max[TestItemStrings::ORE + ".amount"] = 2.0f;     // Low cap for ORE
+  stats_reward_max[TestItemStrings::HEART + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, stats_reward_max, 0.0f, {});
