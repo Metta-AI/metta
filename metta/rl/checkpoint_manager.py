@@ -477,8 +477,15 @@ class CheckpointManager:
         curriculum_state: Optional[Dict[str, Any]] = None,
         loss_states: Optional[Dict[str, Any]] = None,
     ):
+        from metta.rl.training.optimizer import is_schedulefree_optimizer
+
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
+
+        # For ScheduleFree optimizers, ensure we're in eval mode to get correct state
+        if is_schedulefree_optimizer(optimizer):
+            optimizer.eval()
+
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
