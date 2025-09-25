@@ -2,7 +2,7 @@ import random
 import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import (
@@ -10,10 +10,12 @@ from metta.cogworks.curriculum.task_generator import (
     TaskGeneratorConfig,
 )
 from metta.rl.trainer_config import LossConfig, TrainerConfig
+
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building
 from mettagrid.builder.envs import make_icl_assembler
@@ -140,7 +142,6 @@ curriculum_args = {
         "widths": list(range(7, 14, 2)),
         "heights": list(range(7, 14, 2)),
     },
-<<<<<<< HEAD
         "two_agent_two_altars_progressive_pattern": {
         "num_agents": [2],
         "num_altars": [2],
@@ -166,9 +167,6 @@ curriculum_args = {
         "altar_positions": [["Any"]],
     },
     "three_agents_two_altars": {
-=======
-    "three_agents_2_4_altars": {
->>>>>>> ba5d273edf1141a4fd38b773e765ea638e71c827
         "num_agents": [3],
         "num_altars": [2, 4],
         "num_generators": [0],
@@ -430,6 +428,29 @@ def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
+def evaluate(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    # Local import to avoid circular import at module load time
+    from experiments.evals.in_context_learning.assemblers import (
+        make_assembler_eval_suite,
+    )
+
+    policy_uris = []
+    for curriculum_style in curriculum_args:
+        policy_uris.append(
+            f"s3://softmax-public/policies/george.icl_assemblers_{curriculum_style}.2025-09-25/george.icl_assemblers_{curriculum_style}.2025-09-25:latest.pt"
+        )
+
+    simulations = simulations or make_assembler_eval_suite()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=policy_uris,
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
+
+# command tor un evalution: ./tools/run.py experiments.recipes.in_context_learning.assemblers.evaluate
+
 
 def play_eval() -> PlayTool:
     env = make_assembler_env(
@@ -475,11 +496,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.assemblers.train",
-<<<<<<< HEAD
-                f"run=icl_assemblers4_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
-=======
                 f"run=george.icl_assemblers_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
->>>>>>> ba5d273edf1141a4fd38b773e765ea638e71c827
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
