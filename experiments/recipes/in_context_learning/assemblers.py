@@ -39,6 +39,7 @@ from mettagrid.config.mettagrid_config import (
     Position,
     RecipeConfig,
 )
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from pydantic import Field
 
 """
@@ -286,8 +287,6 @@ class AssemblerTaskGenerator(TaskGenerator):
         else:
             altar_cooldown = 1
 
-        print(f"Altar cooldown: {altar_cooldown}")
-
         altar = building.assembler_altar.copy()
         if num_converters == 0:
             input_resources = {}
@@ -444,14 +443,15 @@ def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
     curriculum = make_curriculum(
         **make_curriculum_args(**curriculum_args[curriculum_style])
     )
+    policy_config = FastLSTMResetConfig()
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
-    trainer_cfg.batch_size = 4177920
-    trainer_cfg.bptt_horizon = 512
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        policy_architecture=policy_config,
+        stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
 
@@ -496,13 +496,7 @@ def replay(curriculum_style: str = "single_agent_two_altars") -> ReplayTool:
 
 
 def experiment():
-    curriculum_styles = [
-        "single_agent_two_altars",
-        "two_agent_two_altars_pattern",
-        "two_agent_two_altars_any",
-    ]
-
-    for curriculum_style in curriculum_styles:
+    for curriculum_style in curriculum_args:
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
