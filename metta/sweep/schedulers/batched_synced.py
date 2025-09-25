@@ -88,6 +88,7 @@ class BatchedSyncedOptimizingScheduler:
         self.config = config
         self.optimizer = ProteinOptimizer(config.protein_config)
         self.state = state or SchedulerState()
+        self._state_initialized = False  # Track if we've initialized state from runs
         logger.info(
             "[BatchedSyncedOptimizingScheduler] Initialized with max_trials=%s, batch_size=%s",
             config.max_trials,
@@ -112,6 +113,28 @@ class BatchedSyncedOptimizingScheduler:
 
         # Build a map of run_id to status for easy lookup
         run_status_map = {run.run_id: run.status for run in runs}
+
+        # On first call after restart, rebuild state from observed run statuses
+        # This ensures we don't lose track of IN_EVAL runs after a restart
+        if not self._state_initialized:
+            logger.info("[BatchedSyncedOptimizingScheduler] Initializing state from observed runs")
+            for run_id, status in run_status_map.items():
+                if status == JobStatus.IN_TRAINING:
+                    self.state.runs_in_training.add(run_id)
+                    logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in training")
+                elif status == JobStatus.IN_EVAL:
+                    self.state.runs_in_eval.add(run_id)
+                    logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in evaluation")
+                elif status == JobStatus.COMPLETED:
+                    self.state.runs_completed.add(run_id)
+                    logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} completed")
+            self._state_initialized = True
+            logger.info(
+                f"[BatchedSyncedOptimizingScheduler] State initialized: "
+                f"{len(self.state.runs_in_training)} training, "
+                f"{len(self.state.runs_in_eval)} evaluating, "
+                f"{len(self.state.runs_completed)} completed"
+            )
 
         # Update runs that have moved from training to completed/failed
         for run_id in list(self.state.runs_in_training):

@@ -120,11 +120,10 @@ def build_eval_overrides(
     """
     eval_overrides = dict(additional_overrides) if additional_overrides else {}
 
-    # WandB configuration
+    # WandB configuration - simplified to match new setup
     eval_overrides["push_metrics_to_wandb"] = "True"
-    eval_overrides["wandb.name"] = run_id
-    eval_overrides["wandb.run_id"] = run_id
-    eval_overrides["wandb.group"] = experiment_id
+    # Use 'group' instead of 'wandb.group' to match train.py pattern
+    eval_overrides["group"] = experiment_id
 
     # Stats server configuration
     if stats_server_uri:
@@ -150,9 +149,9 @@ def build_train_overrides(
 
     if stats_server_uri:
         overrides["stats_server_uri"] = stats_server_uri
-        overrides["trainer.evaluation.evaluate_remote"] = "True"
-        overrides["trainer.evaluation.evaluate_local"] = "False"
-        overrides["trainer.evaluation.skip_git_check"] = "True"
+        overrides["evaluator.evaluate_remote"] = "True"
+        overrides["evaluator.evaluate_local"] = "False"
+        overrides["evaluator.skip_git_check"] = "True"
 
     return overrides
 
