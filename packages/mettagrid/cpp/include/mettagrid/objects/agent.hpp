@@ -29,6 +29,8 @@ public:
   std::map<InventoryItem, InventoryQuantity> resource_limits;
   float action_failure_penalty;
   std::string group_name;
+  // We expect only a small number (single-digit) of soul-bound resources.
+  std::vector<InventoryItem> soul_bound_resources;
   ObservationType color;
   ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
@@ -56,6 +58,7 @@ public:
         resource_limits(config.resource_limits),
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
+        soul_bound_resources(config.soul_bound_resources),
         color(0),
         glyph(0),
         agent_id(0),
@@ -117,6 +120,33 @@ public:
       counts[4] = get_visitation_count(location.r, location.c + 1);  // right
     }
     return counts;
+  }
+
+  void set_inventory(const std::map<InventoryItem, InventoryQuantity>& inventory) {
+    // First, remove items that are not present in the provided inventory map
+    // Make a copy of current item keys to avoid iterator invalidation
+    std::vector<InventoryItem> existing_items;
+    existing_items.reserve(this->inventory.size());
+    for (const auto& [existing_item, existing_amount] : this->inventory) {
+      if (existing_amount > 0) {
+        existing_items.push_back(existing_item);
+      }
+    }
+
+    for (const auto& existing_item : existing_items) {
+      auto it = this->inventory.find(existing_item);
+      assert(it != this->inventory.end());
+      InventoryQuantity current_amount = it->second;
+      if (current_amount > 0) {
+        this->update_inventory(existing_item, -static_cast<InventoryDelta>(current_amount));
+      }
+    }
+
+    // Then, set provided items to their specified amounts
+    for (const auto& [item, amount] : inventory) {
+      // Go through update_inventory to handle limits, deal with rewards, etc.
+      this->update_inventory(item, amount - this->inventory[item]);
+    }
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
