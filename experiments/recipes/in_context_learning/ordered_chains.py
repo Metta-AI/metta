@@ -3,8 +3,7 @@ import os
 import random
 import subprocess
 import time
-from dataclasses import dataclass, field
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
@@ -12,7 +11,6 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
@@ -21,64 +19,14 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from mettagrid.builder import empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from pydantic import Field
-
-from experiments.evals.in_context_learning.ordered_chains import (
-    make_icl_resource_chain_eval_suite,
+from experiments.recipes.in_context_learning.icl_resource_chain import (
+    ICLTaskGenerator,
+    LPParams,
+    _BuildCfg,
+    calculate_avg_hop,
 )
-
-CONVERTER_TYPES = {
-    "mine_red": empty_converters.mine_red,
-    "mine_blue": empty_converters.mine_blue,
-    "mine_green": empty_converters.mine_green,
-    "generator_red": empty_converters.generator_red,
-    "generator_blue": empty_converters.generator_blue,
-    "generator_green": empty_converters.generator_green,
-    "altar": empty_converters.altar,
-    "lab": empty_converters.lab,
-    "lasery": empty_converters.lasery,
-    "factory": empty_converters.factory,
-    "temple": empty_converters.temple,
-    "armory": empty_converters.armory,
-}
-
-RESOURCE_TYPES = [
-    "ore_red",
-    "ore_blue",
-    "ore_green",
-    "battery_red",
-    "battery_blue",
-    "battery_green",
-    "laser",
-    "blueprint",
-    "armor",
-]
-
-
-class LPParams:
-    def __init__(
-        self,
-        ema_timescale: float = 0.001,
-        exploration_bonus: float = 0.15,
-        max_memory_tasks: int = 1000,
-        max_slice_axes: int = 3,
-        progress_smoothing: float = 0.15,
-        enable_detailed_slice_logging: bool = False,
-        num_active_tasks: int = 1000,
-        rand_task_rate: float = 0.25,
-    ):
-        self.ema_timescale = ema_timescale
-        self.exploration_bonus = exploration_bonus
-        self.max_memory_tasks = max_memory_tasks
-        self.max_slice_axes = max_slice_axes
-        self.progress_smoothing = progress_smoothing
-        self.enable_detailed_slice_logging = enable_detailed_slice_logging
-        self.num_active_tasks = num_active_tasks
-        self.rand_task_rate = rand_task_rate
-
 
 curriculum_args = {
     "level_0": {
@@ -153,25 +101,23 @@ curriculum_args = {
     },
 }
 
-size_ranges: dict[str, tuple[int, int]] = {
-    "tiny": (5, 8),
-    "small": (8, 12),
-    "medium": (12, 16),
-    "large": (16, 25),
-}
 
-
-def calculate_avg_hop(room_size: str) -> float:
-    return (size_ranges[room_size][0] + size_ranges[room_size][1]) / 2
-
-
-@dataclass
-class _BuildCfg:
-    used_objects: list[str] = field(default_factory=list)
-    all_input_resources: list[str] = field(default_factory=list)
-    converters: list[str] = field(default_factory=list)
-    game_objects: dict[str, Any] = field(default_factory=dict)
-    map_builder_objects: dict[str, int] = field(default_factory=dict)
+def make_task_generator_cfg(
+    chain_lengths,
+    num_sinks,
+    room_sizes,
+    map_dir,
+    obstacle_types=[],
+    densities=[],
+):
+    return ICLTaskGenerator.Config(
+        num_resources=[c - 1 for c in chain_lengths],
+        num_converters=num_sinks,
+        obstacle_types=obstacle_types,
+        densities=densities,
+        room_sizes=room_sizes,
+        map_dir=map_dir,
+    )
 
 
 def get_reward_estimates(
@@ -263,42 +209,10 @@ def calculate_max_steps(avg_hop: float, chain_length: int, num_sinks: int) -> in
     return int(sink_exploration_cost + target_completions * chain_completion_cost)
 
 
-class ConverterChainTaskGenerator(TaskGenerator):
-    class Config(TaskGeneratorConfig["ConverterChainTaskGenerator"]):
-        """Configuration for ConverterChainTaskGenerator."""
-
-        chain_lengths: list[int] = Field(
-            default_factory=list, description="Chain lengths to sample from"
-        )
-        num_sinks: list[int] = Field(
-            default_factory=list, description="Number of sinks to sample from"
-        )
-        room_sizes: list[str] = Field(
-            default=["small"], description="Room size to sample from"
-        )
-        obstacle_types: list[str] = Field(
-            default=[], description="Obstacle types to sample from"
-        )
-        densities: list[str] = Field(default=[], description="Density to sample from")
-
-        map_dir: str | None = Field(
-            default="icl_ordered_chains",
-            description="Directory to load environments from",
-        )
-
-    def __init__(self, config: "ConverterChainTaskGenerator.Config"):
+class OrderedChainsTaskGenerator(ICLTaskGenerator):
+    def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
-        self.config = config
-        self.resource_types = RESOURCE_TYPES.copy()
-        self.converter_types = CONVERTER_TYPES.copy()
-
-    def _choose_converter_name(
-        self, pool: dict[str, Any], used: set[str], rng: random.Random
-    ) -> str:
-        choices = [name for name in pool.keys() if name not in used]
-        if not choices:
-            raise ValueError("No available converter names left to choose from.")
-        return str(rng.choice(choices))
+        self.map_dir = getattr(config, "map_dir", "icl_ordered_chains")
 
     def _add_converter(
         self,
@@ -345,6 +259,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
         resources,
         num_sinks,
         room_size,
+        width,
+        height,
         obstacle_type,
         density,
         avg_hop,
@@ -367,11 +283,11 @@ class ConverterChainTaskGenerator(TaskGenerator):
         for obj in cfg.converters:
             cfg.game_objects[obj].cooldown = int(cooldown)
 
-        if self.config.map_dir is not None:  # load from s3
+        if self.map_dir is not None:  # load from s3
             from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
-            dir = f"{self.config.map_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
+            dir = f"{self.map_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
             env = make_icl_with_numpy(
                 num_agents=1,
                 num_instances=24,
@@ -388,12 +304,6 @@ class ConverterChainTaskGenerator(TaskGenerator):
                 env.game.reward_estimates = reward_estimates[dir]
             return env
 
-        size_range = size_ranges[room_size]
-
-        width, height = (
-            rng.randint(size_range[0], size_range[1]),
-            rng.randint(size_range[0], size_range[1]),
-        )
         return make_in_context_chains(
             num_agents=24,
             max_steps=max_steps,
@@ -413,30 +323,19 @@ class ConverterChainTaskGenerator(TaskGenerator):
         rng: random.Random,
         estimate_max_rewards: bool = False,
     ) -> MettaGridConfig:
-        num_resources = (
-            rng.choice(self.config.chain_lengths) - 1
-        )  # not including the heart
-        num_sinks = rng.choice(self.config.num_sinks)
-        resources = rng.sample(self.resource_types, num_resources)
-        room_size = rng.choice(self.config.room_sizes)
-        obstacle_type = (
-            rng.choice(self.config.obstacle_types)
-            if len(self.config.obstacle_types) > 0
-            else None
-        )
-        density = (
-            rng.choice(self.config.densities)
-            if len(self.config.densities) > 0
-            else None
+        resources, num_sinks, room_size, obstacle_type, density, width, height, _ = (
+            self._setup_task(rng)
         )
 
         # estimate average hop for cooldowns
         avg_hop = calculate_avg_hop(room_size)
-        max_steps = calculate_max_steps(avg_hop, num_resources + 1, num_sinks)
+        max_steps = calculate_max_steps(avg_hop, len(resources) + 1, num_sinks)
         icl_env = self._make_env_cfg(
             resources,
             num_sinks,
             room_size,
+            width,
+            height,
             obstacle_type=obstacle_type,
             density=density,
             avg_hop=avg_hop,
@@ -445,17 +344,17 @@ class ConverterChainTaskGenerator(TaskGenerator):
         )
 
         # for numpy generated maps, we just load these rewards from a file
-        if self.config.map_dir is None and estimate_max_rewards:
+        if self.map_dir is None and estimate_max_rewards:
             # optimal reward estimates for the task, to be used in evaluation
             best_case_optimal_reward, worst_case_optimal_reward = get_reward_estimates(
-                num_resources, num_sinks, max_steps, avg_hop
+                len(resources), num_sinks, max_steps, avg_hop
             )
             icl_env.game.reward_estimates = {
                 "best_case_optimal_reward": best_case_optimal_reward,
                 "worst_case_optimal_reward": worst_case_optimal_reward,
             }
 
-        icl_env.label = f"{num_resources}resources_{num_sinks}sinks_{room_size}"
+        icl_env.label = f"{len(resources)}resources_{num_sinks}sinks_{room_size}"
         icl_env.label += "_terrain" if obstacle_type else ""
         icl_env.label += f"_{density}" if density else ""
 
@@ -463,11 +362,10 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
 
 def make_mettagrid(curriculum_style: str, map_dir=None) -> MettaGridConfig:
-    task_generator_cfg = ConverterChainTaskGenerator.Config(
-        **curriculum_args[curriculum_style],
-        map_dir=map_dir,  # for play and replay, generate the environments
+    # Update config to support map_dir from main
+    task_generator = OrderedChainsTaskGenerator(
+        make_task_generator_cfg(**curriculum_args[curriculum_style], map_dir=map_dir)
     )
-    task_generator = ConverterChainTaskGenerator(task_generator_cfg)
 
     env_cfg = task_generator.get_task(random.randint(0, 1000000))
 
@@ -479,7 +377,7 @@ def make_curriculum(
     lp_params: LPParams = LPParams(),
     map_dir: str = "icl_ordered_chains",
 ) -> CurriculumConfig:
-    task_generator_cfg = ConverterChainTaskGenerator.Config(
+    task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=map_dir
     )
     algorithm_config = LearningProgressConfig(**lp_params.__dict__)
@@ -496,6 +394,11 @@ def train(
     use_fast_lstm_reset: bool = True,
     map_dir: str = "icl_ordered_chains",
 ) -> TrainTool:
+    # Local import to avoid circular import at module load time
+    from experiments.evals.in_context_learning.ordered_chains import (
+        make_icl_resource_chain_eval_suite,
+    )
+
     curriculum = make_curriculum(curriculum_style, lp_params, map_dir)
 
     trainer_cfg = TrainerConfig(
@@ -555,6 +458,11 @@ def replay(
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
+    # Local import to avoid circular import at module load time
+    from experiments.evals.in_context_learning.ordered_chains import (
+        make_icl_resource_chain_eval_suite,
+    )
+
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
         simulations=simulations,
@@ -607,7 +515,7 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                                 obstacle_type = random.choice(["square", "cross", "L"])
                             else:
                                 obstacle_type = ""
-                            task_generator_cfg = ConverterChainTaskGenerator.Config(
+                            task_generator_cfg = make_task_generator_cfg(
                                 chain_lengths=[chain_length],
                                 num_sinks=[n_sinks],
                                 room_sizes=[room_size],
@@ -615,8 +523,8 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                                 densities=[density],
                                 map_dir=None,
                             )
-                            task_generator = ConverterChainTaskGenerator(
-                                task_generator_cfg
+                            task_generator = OrderedChainsTaskGenerator(
+                                config=task_generator_cfg
                             )
                             env_cfg = task_generator._generate_task(i, random.Random(i))
                             map_builder = env_cfg.game.map_builder.create()

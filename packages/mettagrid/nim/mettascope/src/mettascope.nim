@@ -28,8 +28,6 @@ proc updateReplayHeader(replayPath: string) =
   let titleNode = find("**/GlobalTitle")
   titleNode.text = display
 
-
-
 proc parseArgs() =
   ## Parse command line arguments.
   var p = initOptParser(commandLineParams())
@@ -47,8 +45,6 @@ proc parseArgs() =
         discard
     of cmdArgument:
       discard
-
-
 
 find "/UI/Main":
 
@@ -72,12 +68,6 @@ find "/UI/Main":
 
   onLoad:
     echo "onLoad"
-
-    # Build the atlas.
-    for path in walkDirRec(dataDir):
-      if path.endsWith(".png") and "fidget" notin path:
-        echo path
-        bxy.addImage(path.replace(dataDir & "/", "").replace(".png", ""), readImage(path))
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
@@ -186,6 +176,8 @@ when isMainModule:
     windowStyle = DecoratedResizable,
     dataDir = "packages/mettagrid/nim/mettascope/data"
   )
+
+  buildAtlas()
 
   when defined(emscripten):
     # Emscripten can't block so it will call this callback instead.
