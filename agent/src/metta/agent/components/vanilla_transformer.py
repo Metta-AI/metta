@@ -1,4 +1,5 @@
 import math
+from typing import Literal
 
 import torch
 import torch.nn as nn
@@ -74,6 +75,7 @@ class VanillaTransformerConfig(ComponentConfig):
     ff_mult: int = 4
     num_layers: int = 5
     max_cache_size: int = 64
+    pool: Literal["cls", "mean", "none"] = "mean"
 
     def make_component(self, env=None):
         return VanillaTransformer(config=self, env=env)
@@ -266,8 +268,15 @@ class VanillaTransformer(nn.Module):
             td.set("transformer_position", current_pos.detach())
 
             output = self.final_norm(x)
-            cls_output = output[:, 0, :]  # Select CLS token output
-            td.set(self.out_key, cls_output)
+            if self.config.pool == "cls":
+                pooled_output = output[:, 0, :]  # Select CLS token output
+            elif self.config.pool == "mean":
+                pooled_output = output.mean(dim=1)
+            elif self.config.pool == "none":
+                pooled_output = rearrange(output, "b s d -> b (s d)")
+            else:
+                raise ValueError(f"Unsupported pool mode: {self.config.pool}")
+            td.set(self.out_key, pooled_output)
 
             # 5. Update and reset position counter
             self.position_counter[training_env_ids] += 1
@@ -331,9 +340,17 @@ class VanillaTransformer(nn.Module):
             # 4. Get final output
             output = self.final_norm(x)
             output = rearrange(output, "b (tt s) d -> b tt s d", tt=TT)
-            cls_output = output[:, :, 0, :]  # Select CLS token
-            cls_output = rearrange(cls_output, "b tt d -> (b tt) d")
-            td.set(self.out_key, cls_output)
+            if self.config.pool == "cls":
+                pooled_output = output[:, :, 0, :]  # Select CLS token
+            elif self.config.pool == "mean":
+                pooled_output = output.mean(dim=2)  # pool over S dimension
+            elif self.config.pool == "none":
+                pooled_output = rearrange(output, "b tt s d -> b tt (s d)")
+            else:
+                raise ValueError(f"Unsupported pool mode: {self.config.pool}")
+
+            pooled_output = rearrange(pooled_output, "b tt ... -> (b tt) ...")
+            td.set(self.out_key, pooled_output)
 
             return td
 
