@@ -68,7 +68,8 @@ class VanillaTransformerConfig(ComponentConfig):
     in_key: str
     out_key: str
     name: str = "vanilla_transformer"
-    embed_dim: int = 128
+    in_dim: int = 128
+    embed_dim: int = 32
     num_heads: int = 4
     ff_mult: int = 4
     num_layers: int = 2
@@ -90,6 +91,12 @@ class VanillaTransformer(nn.Module):
 
         self.embed_dim = self.config.embed_dim
         self.num_layers = self.config.num_layers
+
+        in_dim = self.config.in_dim
+        if in_dim == self.embed_dim:
+            self.input_proj = nn.Identity()
+        else:
+            self.input_proj = nn.Linear(in_dim, self.embed_dim)
 
         # Transformer blocks
         self.blocks = nn.ModuleList(
@@ -180,6 +187,8 @@ class VanillaTransformer(nn.Module):
 
         # 1. Read inputs and prepare them for the transformer
         x = td[self.in_key]  # observation token(s)
+
+        x = self.input_proj(x)
 
         empty_tensor = torch.zeros(B * TT, device=td.device)
         reward = td.get("reward", empty_tensor)  # scalar
