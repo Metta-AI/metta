@@ -170,6 +170,13 @@ find "/UI/Main":
 
 when isMainModule:
 
+  # Check if the data directory exists.
+  let dataDir = "packages/mettagrid/nim/mettascope/data"
+  if not dirExists(dataDir):
+    echo "Data directory does not exist: ", dataDir
+    echo "Please run it from the root of the project."
+    quit(1)
+
   parseArgs()
 
   initFidget(
@@ -177,7 +184,7 @@ when isMainModule:
     windowTitle = "MetaScope V2",
     entryFrame = "UI/Main",
     windowStyle = DecoratedResizable,
-    dataDir = "packages/mettagrid/nim/mettascope/data"
+    dataDir = dataDir
   )
 
   when defined(emscripten):
