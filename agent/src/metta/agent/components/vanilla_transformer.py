@@ -69,7 +69,7 @@ class VanillaTransformerConfig(ComponentConfig):
     in_key: str
     out_key: str
     name: str = "vanilla_transformer"
-    in_dim: int = 128
+    input_dim: int = 64
     output_dim: int
     num_heads: int = 1
     ff_mult: int = 4
@@ -94,11 +94,11 @@ class VanillaTransformer(nn.Module):
         self.output_dim = self.config.output_dim
         self.num_layers = self.config.num_layers
 
-        in_dim = self.config.in_dim
-        if in_dim == self.output_dim:
+        input_dim = self.config.input_dim
+        if input_dim == self.output_dim:
             self.input_proj = nn.Identity()
         else:
-            self.input_proj = nn.Linear(in_dim, self.output_dim)
+            self.input_proj = nn.Linear(input_dim, self.output_dim)
 
         # Transformer blocks
         self.blocks = nn.ModuleList(
