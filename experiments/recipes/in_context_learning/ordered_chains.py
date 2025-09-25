@@ -8,8 +8,6 @@ from typing import Optional, Sequence
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
-from metta.rl.training.evaluator import EvaluatorConfig
 from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,

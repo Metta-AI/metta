@@ -73,9 +73,8 @@ class ProteinOptimizer:
         else:
             # Multiple suggestions case
             # GP-based path - got list of (suggestion, info) tuples
-            logger.debug(
-                f"Protein.suggest returned result type: {type(result)}, length: {len(result) if hasattr(result, '__len__') else 'N/A'}"
-            )
+            result_len = len(result) if hasattr(result, "__len__") else "N/A"
+            logger.debug(f"Protein.suggest returned result type: {type(result)}, length: {result_len}")
             if result:
                 logger.debug(f"First element type: {type(result[0])}, value: {result[0]}")
 
