@@ -70,7 +70,7 @@ class Simulation:
         self._replay_writer = S3ReplayWriter(replay_dir)
         self._device = device
 
-        self._display_name = f"{cfg.suite}/{cfg.name}"
+        self._full_name = f"{cfg.suite}/{cfg.name}"
 
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
@@ -190,7 +190,7 @@ class Simulation:
         """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
-            self._display_name,
+            self._full_name,
             self._num_envs,
             self._agents_per_env,
             100 * self._policy_agents_per_env / self._agents_per_env,
@@ -293,12 +293,12 @@ class Simulation:
         try:
             # Skip synthetic evaluation framework simulations
             if self._config.suite == SYNTHETIC_EVAL_SUITE:
-                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._display_name}")
+                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._full_name}")
                 return None
 
             # Get any replay data from this simulation
             if not self._replay_writer.episodes:
-                logger.warning(f"No replay data available for thumbnail generation: {self._display_name}")
+                logger.warning(f"No replay data available for thumbnail generation: {self._full_name}")
                 return None
 
             # Use first available episode replay and get its ID
@@ -316,7 +316,7 @@ class Simulation:
                 return None
 
         except Exception as e:
-            logger.error(f"Thumbnail generation failed for {self._display_name}: {e}")
+            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}")
             return None
 
     def end_simulation(self) -> SimulationResults:
@@ -329,7 +329,7 @@ class Simulation:
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
-            self._display_name,
+            self._full_name,
             int(self._episode_counters.sum()),
             time.time() - self._t0,
         )
@@ -464,8 +464,8 @@ class Simulation:
         return None
 
     @property
-    def name(self) -> str:
-        return self._display_name
+    def full_name(self) -> str:
+        return self._full_name
 
     def get_envs(self):
         """Returns a list of all envs in the simulation."""
