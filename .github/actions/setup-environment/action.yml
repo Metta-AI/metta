@@ -45,12 +45,8 @@ runs:
     - name: Ensure Git history is available
       shell: bash
       run: |
-        if git rev-parse --git-dir >/dev/null 2>&1; then
-          git fetch --tags --force --prune --unshallow 2>/dev/null || \
-          git fetch --tags --force --prune 2>/dev/null || true
-        else
-          echo "Git metadata not available; skipping history fetch"
-        fi
+        git fetch --tags --force --prune --unshallow 2>/dev/null || \
+        git fetch --tags --force --prune 2>/dev/null || true
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'

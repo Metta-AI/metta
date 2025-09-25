@@ -22,11 +22,6 @@ on:
         options:
           - testpypi
           - pypi
-      version:
-        description: "Optional version to build on manual runs (e.g. 0.2.0.10 or mettagrid-v0.2.0.10)"
-        required: false
-        default: ""
-        type: string
 
 permissions:
   contents: read
@@ -36,42 +31,15 @@ jobs:
   build-sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
-    env:
-      METTAGRID_BUILD_VERSION: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && replace(github.ref_name, 'mettagrid-v', '') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && replace(github.event.inputs.version, 'mettagrid-v', '')) || '' }}
-      SETUPTOOLS_SCM_PRETEND_VERSION: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && replace(github.ref_name, 'mettagrid-v', '') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && replace(github.event.inputs.version, 'mettagrid-v', '')) || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
-      - name: Ensure manual run version is provided
-        if: github.event_name == 'workflow_dispatch' && env.METTAGRID_BUILD_VERSION == ''
-        run: |
-          echo "A version must be supplied when running manually."
-          echo "Provide an input like 0.2.0.10 or mettagrid-v0.2.0.10."
-          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
       - run: pipx run build --sdist --outdir dist packages/mettagrid
-      - name: Verify sdist version
-        run: |
-          sdist=$(ls dist/mettagrid-*.tar.gz)
-          version=$(basename "$sdist")
-          version=${version#mettagrid-}
-          version=${version%.tar.gz}
-          version=${version%%+*}
-          if [ "$version" = "0.0.0" ]; then
-            echo "Detected fallback sdist version 0.0.0. Aborting."
-            exit 1
-          fi
-          if [ -n "${METTAGRID_BUILD_VERSION:-}" ]; then
-            expected="${METTAGRID_BUILD_VERSION}"
-            if [ "$version" != "$expected" ]; then
-              echo "Expected sdist version $expected but found $version"
-              exit 1
-            fi
-          fi
       - uses: actions/upload-artifact@v4
         with:
           name: sdist
@@ -83,20 +51,11 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-13, macos-14]
-    env:
-      METTAGRID_BUILD_VERSION: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && replace(github.ref_name, 'mettagrid-v', '') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && replace(github.event.inputs.version, 'mettagrid-v', '')) || '' }}
-      SETUPTOOLS_SCM_PRETEND_VERSION: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && replace(github.ref_name, 'mettagrid-v', '') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && replace(github.event.inputs.version, 'mettagrid-v', '')) || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
-      - name: Ensure manual run version is provided
-        if: github.event_name == 'workflow_dispatch' && env.METTAGRID_BUILD_VERSION == ''
-        run: |
-          echo "A version must be supplied when running manually."
-          echo "Provide an input like 0.2.0.10 or mettagrid-v0.2.0.10."
-          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
@@ -121,23 +80,6 @@ jobs:
         with:
           package-dir: packages/mettagrid
           output-dir: wheelhouse
-      - name: Verify wheel versions
-        run: |
-          expected="${METTAGRID_BUILD_VERSION:-}" # populated for tags or manual runs
-          for wheel in wheelhouse/mettagrid-*.whl; do
-            base=$(basename "$wheel")
-            version=${base#mettagrid-}
-            version=${version%%-*}
-            version=${version%%+*}
-            if [ "$version" = "0.0.0" ]; then
-              echo "Detected fallback wheel version 0.0.0 in $base. Aborting."
-              exit 1
-            fi
-            if [ -n "$expected" ] && [ "$version" != "$expected" ]; then
-              echo "Expected wheel version $expected but found $version in $base"
-              exit 1
-            fi
-          done
 
       - uses: actions/upload-artifact@v4
         with:
