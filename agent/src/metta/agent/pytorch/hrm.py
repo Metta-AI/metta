@@ -9,40 +9,16 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-# Temporarily comment out mixin until it's available
-# from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+try:
+    from metta.rl.training import EnvironmentMetaData
+except ImportError:
+    # Mock for when the import isn't available
+    class EnvironmentMetaData:
+        def __init__(self):
+            self.action_names = ['noop', 'move', 'attack']
 
-# Mock PyTorchAgentMixin for testing
-class PyTorchAgentMixin:
-    def __init__(self, env, policy, input_size, hidden_size, num_layers=1):
-        super().__init__()
-        self.env = env
-        self.policy = policy
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
-    def extract_mixin_params(self, kwargs):
-        return {}
-
-    def init_mixin(self, **kwargs):
-        pass
-
-    def set_tensordict_fields(self, td, observations):
-        pass
-
-    def forward_inference(self, td, logits_list, value):
-        # Mock implementation for testing
-        td['action_logits'] = logits_list
-        td['value'] = value
-        return td
-
-    def forward_training(self, td, action, logits_list, value):
-        # Mock implementation for testing
-        td['action_logits'] = logits_list
-        td['value'] = value
-        td['action'] = action
-        return td
+# Import Policy from the proper location
+from metta.agent.policy import Policy
 
 # ------------------
 # Utility functions
@@ -591,102 +567,105 @@ class HRMBackbone(nn.Module):
         }, outputs
 
 
-class HRM(PyTorchAgentMixin, HRMMemory, nn.Module):
-    """Hierarchical Reasoning Model with LSTM using PyTorchAgentMixin for shared functionality."""
+class HRM(Policy, HRMMemory):
+    """Hierarchical Reasoning Model using Metta Policy framework."""
 
-    def __init__(self, env, policy=None, input_size=64, hidden_size=64, num_layers=1, **kwargs):
-        """Initialize HRM policy with mixin support."""
-        # Initialize nn.Module first
-        nn.Module.__init__(self)
-
-        # Extract mixin parameters before passing to parent
-        mixin_params = self.extract_mixin_params(kwargs)
-
-        if policy is None:
-            policy = Policy(env, input_size=input_size, hidden_size=hidden_size)
-
-        # Initialize mixin and memory
-        PyTorchAgentMixin.__init__(self, env, policy, input_size, hidden_size, num_layers=num_layers)
+    def __init__(self, env, config=None):
+        """Initialize HRM policy following Metta policy pattern."""
+        super().__init__()
         HRMMemory.__init__(self)
 
-        # Initialize mixin with configuration parameters
-        self.init_mixin(**mixin_params)
+        self.env = env
+        self.config = config
+        self.is_continuous = False
 
-    def initialize_to_environment(self, features, action_names, action_max_params, device, is_training=True):
+        # Store action space info
+        self.action_space = getattr(env, 'action_space', None)
+        self.active_action_names = []
+        self.num_active_actions = 100
+
+        # Get environment dimensions
+        self.out_width = getattr(env, 'obs_width', 11)
+        self.out_height = getattr(env, 'obs_height', 11)
+        self.num_layers = 25  # Default for mettagrid
+
+        # Create the internal policy components
+        self.policy = HRMPolicyInner(env)
+
+        # Set up device tracking
+        self._device = torch.device('cpu')
+
+    def initialize_to_environment(self, env_metadata, device: torch.device):
         """Initialize policy to environment - required by training framework."""
+        # Extract action names from environment metadata
+        action_names = getattr(env_metadata, 'action_names', ['noop', 'move', 'attack'])
+
         # Initialize action embeddings in the policy
         self.policy.initialize_to_environment(action_names, device)
 
         # Store environment metadata
-        self.features = features
-        self.action_names = action_names
-        self.action_max_params = action_max_params
-        self.device = device
-        self.is_training = is_training
+        self.env_metadata = env_metadata
+        self._device = device
 
         # Move model to device
         self.to(device)
 
+    @property
+    def device(self) -> torch.device:
+        """Device property required by the Policy interface."""
+        return getattr(self, '_device', torch.device('cpu'))
+
+    def reset_memory(self):
+        """Reset memory state - required by Policy interface."""
+        HRMMemory.reset_memory(self)  # Use HRMMemory's reset_memory method
+
+    def get_agent_experience_spec(self):
+        """Get experience spec - required by Policy interface."""
+        from torchrl.data import Composite, UnboundedDiscrete
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+        )
+
     @torch._dynamo.disable
     def forward(self, td: TensorDict, state=None, action=None):
+        """Forward pass following Metta policy pattern."""
         observations = td["env_obs"]
 
-        # Determine dimensions from observations before any reshaping
-        if observations.dim() == 4:  # Training: [B, TT, obs_tokens, 3]
-            B = observations.shape[0]
-            TT = observations.shape[1]
-            # Reshape TD for training if needed
-            if td.batch_dims > 1:
-                td = td.reshape(B * TT)
-        else:  # Inference: [B, obs_tokens, 3]
-            B = observations.shape[0]
-            TT = 1
-
-        # Now set TensorDict fields with mixin (TD is already reshaped if needed)
-        self.set_tensordict_fields(td, observations)
-
-        # Encode obs - pass self (HRM) as the memory manager
+        # Encode observations using HRM backbone
         hidden = self.policy.encode_observations(observations, td, memory_manager=self)
 
-        # Decode - use the actual batch size from the hidden tensor
-        if td.batch_dims > 1:
-            # For training, hidden should be flattened to match the reshaped TD
-            flat_hidden = hidden
-            batch_size = B * TT
-        else:
-            # For inference
-            flat_hidden = hidden
-            batch_size = B
+        # Decode actions and values
+        logits, value = self.policy.decode_actions(hidden.to(torch.float32))
 
-        logits_list, value = self.policy.decode_actions(flat_hidden.to(torch.float32), batch_size)
-
-        # Use mixin for mode-specific processing
-        if action is None:
-            # Mixin handles inference mode
-            td = self.forward_inference(td, logits_list, value)
-        else:
-            # Mixin handles training mode with proper reshaping
-            td = self.forward_training(td, action, logits_list, value)
+        # Set outputs in TensorDict
+        td["logits"] = logits
+        td["values"] = value.flatten()
 
         return td
 
 
-class Policy(nn.Module):
+class HRMPolicyInner(nn.Module):
     def __init__(self, env, input_size=64, hidden_size=64):
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.is_continuous = False
-        self.action_space = env.single_action_space
 
-        self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
-        self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
-
-        # Dynamically determine num_layers from environment features
-        if hasattr(env, "feature_normalizations"):
-            self.num_layers = 25
+        # Handle both EnvironmentMetaData and legacy env objects
+        if hasattr(env, 'single_action_space'):
+            self.action_space = env.single_action_space
         else:
-            self.num_layers = 25
+            # Default action space for EnvironmentMetaData
+            from gymnasium.spaces import MultiDiscrete
+            self.action_space = MultiDiscrete([9, 10])  # Default arena actions
+
+        self.out_width = getattr(env, "obs_width", 11)
+        self.out_height = getattr(env, "obs_height", 11)
+
+        # Default to 25 layers for mettagrid environments
+        self.num_layers = 25
 
         # HRM Backbone
         self.backbone = HRMBackbone(
@@ -806,7 +785,7 @@ class Policy(nn.Module):
         # Return hidden state
         return outputs["hidden_state"]
 
-    def decode_actions(self, hidden, batch_size):
+    def decode_actions(self, hidden):
         """Decode actions using bilinear interaction to match MettaActorSingleHead."""
         # Critic branch
         critic_features = torch.tanh(self.critic_1(hidden))
