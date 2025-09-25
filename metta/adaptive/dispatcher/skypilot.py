@@ -82,20 +82,40 @@ class SkypilotDispatcher(Dispatcher):
         dispatch_id = str(uuid.uuid4())
 
         try:
-            # Launch the process with fire-and-forget approach
-            # Use DEVNULL for stdout/stderr (no output capture)
+            # Launch the process and capture output for logging
             process = subprocess.Popen(
                 cmd_parts,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
             )
 
-            logger.info(f"Launched {display_id} on Skypilot with PID {process.pid}")
+            # Wait for the launch script to complete and capture output
+            stdout, stderr = process.communicate(timeout=300)  # 5 minute timeout for launch
+
+            # Log the output
+            if stdout:
+                logger.info(f"Skypilot launch output for {display_id}:\n{stdout}")
+            if stderr:
+                logger.warning(f"Skypilot launch stderr for {display_id}:\n{stderr}")
+
+            # Check if the launch was successful
+            if process.returncode != 0:
+                error_msg = f"Skypilot launch failed with return code {process.returncode}"
+                if stderr:
+                    error_msg += f": {stderr}"
+                logger.error(f"Failed to launch {display_id} on Skypilot: {error_msg}")
+                raise RuntimeError(error_msg)
+
+            logger.info(f"Successfully launched {display_id} on Skypilot")
 
             # Return the UUID as dispatch_id
             return dispatch_id
 
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"Skypilot launch timed out for {job.run_id}")
+            process.kill()
+            raise RuntimeError(f"Skypilot launch timed out after 5 minutes for {job.run_id}") from e
         except Exception as e:
             logger.error(f"Failed to launch Skypilot job {job.run_id}: {e}")
             raise
