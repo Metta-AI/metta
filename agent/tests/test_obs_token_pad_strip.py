@@ -86,6 +86,28 @@ def test_obs_token_pad_strip_keeps_dense_sequences():
     assert dense_row[3, 0].item() == 0x33
 
 
+def test_obs_token_pad_strip_zeroes_padding():
+    feature_map = {"hp": (2, 30.0)}
+    env = _make_env_metadata(feature_map)
+    pad_strip = ObsTokenPadStrip(env)
+
+    tokens = torch.tensor(
+        [
+            [[0x00, 2, 10], [0x12, 2, 20], [0xFF, 0xFF, 0xFF]],
+            [[0x00, 2, 10], [0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF]],
+        ],
+        dtype=torch.uint8,
+    )
+    td = TensorDict({"env_obs": tokens}, batch_size=[2])
+
+    output = pad_strip(td)
+
+    padded_row = output[pad_strip.out_key][1]
+    mask = output["obs_mask"][1]
+
+    assert torch.equal(padded_row[mask], torch.zeros_like(padded_row[mask]))
+
+
 def test_obs_token_pad_strip_enforces_max_tokens():
     feature_map = {"hp": (2, 30.0)}
     env = _make_env_metadata(feature_map)
