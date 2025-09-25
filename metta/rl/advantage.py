@@ -1,5 +1,6 @@
 """Advantage computation functions for Metta training."""
 
+import importlib
 from contextlib import nullcontext
 
 import einops
@@ -7,7 +8,11 @@ import torch
 from torch import Tensor
 
 from metta.rl import mps
-from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+
+try:
+    importlib.import_module("pufferlib._C")
+except ImportError:
+    raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
 
 
 def compute_advantage(
@@ -61,8 +66,8 @@ def normalize_advantage_distributed(adv: Tensor, norm_adv: bool = True) -> Tenso
     if torch.distributed.is_initialized():
         # Compute local statistics
         adv_flat = adv.view(-1)
-        local_sum = einops.rearrange(adv_flat.sum(), "-> 1")
-        local_sq_sum = einops.rearrange((adv_flat * adv_flat).sum(), "-> 1")
+        local_sum = einops.rearrange(adv_flat.sum(), "-> ()")
+        local_sq_sum = einops.rearrange((adv_flat * adv_flat).sum(), "-> ()")
         local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
 
         # Combine statistics for single all_reduce

@@ -10,7 +10,7 @@ def _zero_masked_features(td: TensorDict, features: torch.Tensor) -> torch.Tenso
     mask = td.get("obs_mask")
     if mask is not None:
         mask_bool = mask.to(torch.bool)
-        features = features.masked_fill(mask_bool.unsqueeze(-1), 0.0)
+        features = features.masked_fill(einops.rearrange(mask_bool, "... -> ... ()"), 0.0)
     return features
 
 
@@ -58,7 +58,7 @@ class ObsAttrCoordEmbed(nn.Module):
         combined_embeds = attr_embeds + coord_pair_embedding
 
         attr_values = observations[..., 2].float()
-        attr_values = einops.rearrange(attr_values, "... -> ... 1")
+        attr_values = einops.rearrange(attr_values, "... -> ... ()")
 
         feat_vectors = torch.empty(
             (*attr_embeds.shape[:-1], self._feat_dim),
@@ -140,8 +140,8 @@ class ObsAttrEmbedFourier(nn.Module):
         y_coords_norm = y_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
 
         # Broadcast with frequency tensor
-        x_coords_norm = x_coords_norm.unsqueeze(-1)
-        y_coords_norm = y_coords_norm.unsqueeze(-1)
+        x_coords_norm = einops.rearrange(x_coords_norm, "... -> ... ()")
+        y_coords_norm = einops.rearrange(y_coords_norm, "... -> ... ()")
         frequencies = self.get_buffer("frequencies").view(1, 1, -1)
         x_scaled = x_coords_norm * frequencies
         y_scaled = y_coords_norm * frequencies

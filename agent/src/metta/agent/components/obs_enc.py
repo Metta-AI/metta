@@ -173,7 +173,7 @@ class ObsLatentAttn(nn.Module):
         if key_mask is not None:
             key_mask = key_mask.to(torch.bool)
             mask_value = -torch.finfo(k_p.dtype).max
-            attn_bias = key_mask.unsqueeze(1).unsqueeze(1).to(k_p.dtype) * mask_value
+            attn_bias = einops.rearrange(key_mask, "b m -> b () () m").to(k_p.dtype) * mask_value
 
         for layer in self.layers:
             # Attention block
@@ -283,7 +283,7 @@ class ObsPerceiverLatent(nn.Module):
         attn_bias = None
         if key_mask is not None:
             mask_value = -torch.finfo(k.dtype).max
-            attn_bias = key_mask.to(torch.bool).unsqueeze(1).unsqueeze(1).to(k.dtype) * mask_value
+            attn_bias = einops.rearrange(key_mask.to(torch.bool), "b m -> b () () m").to(k.dtype) * mask_value
 
         latents = self.latents.expand(x_features.shape[0], -1, -1)
 
@@ -305,7 +305,7 @@ class ObsPerceiverLatent(nn.Module):
         elif self._pool == "first":
             latents = latents[:, 0]
         elif self._pool == "none":
-            latents = latents.reshape(latents.shape[0], -1)
+            latents = einops.rearrange(latents, "b n d -> b (n d)")
         else:
             raise ValueError("unsupported pool mode")
 
@@ -384,7 +384,7 @@ class ObsSelfAttn(nn.Module):
                 cls_pad = torch.zeros(key_mask.shape[0], 1, device=key_mask.device, dtype=torch.bool)
                 key_mask = torch.cat([cls_pad, key_mask], dim=1)
             mask_value = -torch.finfo(x_features.dtype).max
-            attn_bias = key_mask.unsqueeze(1).unsqueeze(1).to(x_features.dtype) * mask_value
+            attn_bias = einops.rearrange(key_mask, "b m -> b () () m").to(x_features.dtype) * mask_value
 
         x = x_features
 
