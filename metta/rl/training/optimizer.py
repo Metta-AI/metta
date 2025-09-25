@@ -55,12 +55,7 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
     #         logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
     # For ScheduleFree optimizers, put them in train mode immediately
-    if is_schedulefree_optimizer(optimizer):
-        optimizer.train()
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info("ScheduleFree optimizer created and set to train mode")
-
+    
     return optimizer
 
 
