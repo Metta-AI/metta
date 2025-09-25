@@ -43,74 +43,74 @@ def make_icl_resource_chain_eval_env(
 def make_icl_resource_chain_eval_suite() -> list[SimulationConfig]:
     return [
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="2c_2s_medium",
             env=make_icl_resource_chain_eval_env(2, 2, "medium"),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="2c_2s_medium_terrain",
             env=make_icl_resource_chain_eval_env(
                 2, 2, "medium", ["square"], ["balanced"]
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="3c_1s_medium",
             env=make_icl_resource_chain_eval_env(3, 1, "medium"),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="3c_2s_medium",
             env=make_icl_resource_chain_eval_env(3, 2, "medium"),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="4c_1s_medium_terrain_dense",
             env=make_icl_resource_chain_eval_env(4, 1, "medium", ["cross"], ["dense"]),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="4c_1s_medium_terrain",
             env=make_icl_resource_chain_eval_env(
                 4, 1, "medium", ["cross"], ["balanced"]
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="4c_2s_medium_terrain",
             env=make_icl_resource_chain_eval_env(
                 4, 2, "medium", ["cross"], ["balanced"]
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="4c_2s_large_terrain",
             env=make_icl_resource_chain_eval_env(
                 4, 2, "large", ["cross"], ["balanced"]
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="5c_1s_medium",
             env=make_icl_resource_chain_eval_env(5, 1, "medium"),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="5c_1s_medium_terrain",
             env=make_icl_resource_chain_eval_env(
                 5, 1, "medium", ["cross"], ["balanced"]
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="5c_2s_medium_terrain",
             env=make_icl_resource_chain_eval_env(
                 5, 2, "medium", ["cross"], ["balanced"]
             ),
         ),
         SimulationConfig(
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="5c_2s_large_terrain_dense",
             env=make_icl_resource_chain_eval_env(5, 2, "large", ["cross"], ["dense"]),
         ),

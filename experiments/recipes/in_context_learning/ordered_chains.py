@@ -460,7 +460,7 @@ def replay(
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="eval",
         ),
         policy_uri=default_policy_uri,
