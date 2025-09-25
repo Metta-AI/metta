@@ -6,18 +6,10 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.util.profile import PROFILER
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
 # for token-based observation shaping. Or you can manipulate the two classes below directly in your policy.
-
-
-def _is_compiling() -> bool:
-    dynamo = getattr(torch, "_dynamo", None)
-    if dynamo is None:
-        return False
-    return bool(dynamo.is_compiling())
 
 
 class ObsTokenPadStrip(nn.Module):
@@ -39,8 +31,7 @@ class ObsTokenPadStrip(nn.Module):
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
-        # Cache positions on CPU so torch.compile / cudagraph capture stays safe.
-        self._positions_cache: Optional[torch.Tensor] = None
+        self.register_buffer("_positions_cache", torch.empty(0, dtype=torch.int64), persistent=False)
 
     def initialize_to_environment(
         self,
@@ -131,13 +122,9 @@ class ObsTokenPadStrip(nn.Module):
         max_flip = row_lengths.max()
 
         # build a 1‐D "positions" row [0,1,2,…,L−1]
-        cache = self._positions_cache
-        if cache is None or cache.numel() < M:
-            new_cache = torch.arange(M, dtype=torch.int64)
-            if not _is_compiling():
-                self._positions_cache = new_cache
-            cache = new_cache
-        positions = cache[:M].to(obs_mask.device)
+        if self._positions_cache.numel() < M:
+            self._positions_cache = torch.arange(M, dtype=torch.int64, device=obs_mask.device)
+        positions = self._positions_cache[:M]
 
         # make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
@@ -185,17 +172,16 @@ class ObsAttrValNorm(nn.Module):
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
                 norm_tensor[i] = val
             else:
-                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
+                raise ValueError("feature normalization index exceeds embedding size")
         self.register_buffer("_norm_factors", norm_tensor)
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
-        with PROFILER.section("obs_attr_val_norm"):
-            observations = td[self.in_key]
-            attr_indices = observations[..., 1].long()
-            norm_factors = self._norm_factors[attr_indices]
-            observations = observations.to(torch.float32)
-            observations[..., 2] = observations[..., 2] / norm_factors
+        observations = td[self.in_key]
+        attr_indices = observations[..., 1].long()
+        norm_factors = self._norm_factors[attr_indices]
+        observations = observations.to(torch.float32)
+        observations[..., 2] = observations[..., 2] / norm_factors
 
         td[self.out_key] = observations
 

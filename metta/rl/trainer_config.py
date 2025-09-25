@@ -32,7 +32,6 @@ class InitialPolicyConfig(Config):
 class TorchProfilerConfig(Config):
     interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
     profile_dir: str | None = Field(default=None)
-    collect_component_stats: bool = Field(default=False)
 
     @property
     def enabled(self) -> bool:

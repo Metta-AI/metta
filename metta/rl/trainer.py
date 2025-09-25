@@ -200,11 +200,6 @@ class Trainer:
         # registered on other ranks.
         self._invoke_callback(TrainerCallback.EPOCH_END)
 
-        from metta.agent.util.profile import PROFILER
-
-        logger.info(PROFILER.summary(include_memory=True))
-        PROFILER.reset()
-
         # Progress logging handled by ProgressLogger component
 
     @staticmethod

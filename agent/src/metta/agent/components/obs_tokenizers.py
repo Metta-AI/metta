@@ -4,7 +4,6 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.util.profile import PROFILER
 
 
 class ObsAttrCoordEmbedConfig(ComponentConfig):
@@ -41,26 +40,25 @@ class ObsAttrCoordEmbed(nn.Module):
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
-        with PROFILER.section("coord_embed"):
-            observations = td[self.config.in_key]
+        observations = td[self.config.in_key]
 
-            coord_indices = observations[..., 0].long()
-            coord_pair_embedding = self._coord_embeds(coord_indices)
+        coord_indices = observations[..., 0].long()
+        coord_pair_embedding = self._coord_embeds(coord_indices)
 
-            attr_indices = observations[..., 1].long()
-            attr_embeds = self._attr_embeds(attr_indices)
-            combined_embeds = attr_embeds + coord_pair_embedding
+        attr_indices = observations[..., 1].long()
+        attr_embeds = self._attr_embeds(attr_indices)
+        combined_embeds = attr_embeds + coord_pair_embedding
 
-            attr_values = observations[..., 2].float()
-            attr_values = einops.rearrange(attr_values, "... -> ... 1")
+        attr_values = observations[..., 2].float()
+        attr_values = einops.rearrange(attr_values, "... -> ... 1")
 
-            feat_vectors = torch.empty(
-                (*attr_embeds.shape[:-1], self._feat_dim),
-                dtype=attr_embeds.dtype,
-                device=attr_embeds.device,
-            )
-            feat_vectors[..., : self._attr_embed_dim] = combined_embeds
-            feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
+        feat_vectors = torch.empty(
+            (*attr_embeds.shape[:-1], self._feat_dim),
+            dtype=attr_embeds.dtype,
+            device=attr_embeds.device,
+        )
+        feat_vectors[..., : self._attr_embed_dim] = combined_embeds
+        feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
 
         td[self.config.out_key] = feat_vectors
 
@@ -110,46 +108,45 @@ class ObsAttrEmbedFourier(nn.Module):
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
-        with PROFILER.section("fourier_embed"):
-            observations = td[self.config.in_key]
+        observations = td[self.config.in_key]
 
-            attr_indices = observations[..., 1].long()
-            attr_embeds = self._attr_embeds(attr_indices)
+        attr_indices = observations[..., 1].long()
+        attr_embeds = self._attr_embeds(attr_indices)
 
-            feat_vectors = torch.empty(
-                (*attr_embeds.shape[:-1], self._feat_dim),
-                dtype=attr_embeds.dtype,
-                device=attr_embeds.device,
-            )
-            feat_vectors[..., : self._attr_embed_dim] = attr_embeds
+        feat_vectors = torch.empty(
+            (*attr_embeds.shape[:-1], self._feat_dim),
+            dtype=attr_embeds.dtype,
+            device=attr_embeds.device,
+        )
+        feat_vectors[..., : self._attr_embed_dim] = attr_embeds
 
-            coords_byte = observations[..., 0].to(torch.uint8)
-            x_coord_indices = ((coords_byte >> 4) & 0x0F).float()
-            y_coord_indices = (coords_byte & 0x0F).float()
+        coords_byte = observations[..., 0].to(torch.uint8)
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).float()
+        y_coord_indices = (coords_byte & 0x0F).float()
 
-            x_coords_norm = x_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
-            y_coords_norm = y_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
+        x_coords_norm = x_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
+        y_coords_norm = y_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
 
-            x_coords_norm = x_coords_norm.unsqueeze(-1)
-            y_coords_norm = y_coords_norm.unsqueeze(-1)
+        x_coords_norm = x_coords_norm.unsqueeze(-1)
+        y_coords_norm = y_coords_norm.unsqueeze(-1)
 
-            frequencies = self.get_buffer("frequencies").view(1, 1, -1)
-            x_scaled = x_coords_norm * frequencies
-            y_scaled = y_coords_norm * frequencies
+        frequencies = self.get_buffer("frequencies").view(1, 1, -1)
+        x_scaled = x_coords_norm * frequencies
+        y_scaled = y_coords_norm * frequencies
 
-            offset = self._attr_embed_dim
-            feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
-            offset += self._num_freqs
-            feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(x_scaled)
-            offset += self._num_freqs
-            feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(y_scaled)
-            offset += self._num_freqs
-            feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
+        offset = self._attr_embed_dim
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
+        offset += self._num_freqs
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(x_scaled)
+        offset += self._num_freqs
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(y_scaled)
+        offset += self._num_freqs
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
 
-            attr_values = observations[..., 2].float()
-            feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(
-                attr_values, "... -> ... 1"
-            )
+        attr_values = observations[..., 2].float()
+        feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(
+            attr_values, "... -> ... 1"
+        )
 
         td[self.config.out_key] = feat_vectors
 

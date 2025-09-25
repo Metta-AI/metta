@@ -10,7 +10,6 @@ from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.util.profile import PROFILER
 from mettagrid.config import Config
 
 logger = logging.getLogger("metta_agent")
@@ -45,7 +44,6 @@ class PolicyAutoBuilder(nn.Module):
 
         self.network = TensorDictSequential(self.components, inplace=True)
         self._sdpa_context = ExitStack()
-        self._component_profiling = False
 
         # PyTorch's nn.Module no longer exposes count_params(); defer to manual
         # aggregation to avoid AttributeError during policy construction.
@@ -56,15 +54,8 @@ class PolicyAutoBuilder(nn.Module):
         )
 
     def forward(self, td: TensorDict, action: torch.Tensor = None):
-        with PROFILER.section("network"):
-            if self._component_profiling:
-                for name, module in self.components.items():
-                    with PROFILER.section(name):
-                        module(td)
-            else:
-                self.network(td)
-        with PROFILER.section("action_head"):
-            self.action_probs(td, action)
+        self.network(td)
+        self.action_probs(td, action)
         td["values"] = td["values"].flatten()  # could update Experience to not need this line but need to update ppo.py
         return td
 
@@ -126,12 +117,10 @@ class PolicyAutoBuilder(nn.Module):
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
-                with PROFILER.section(f"init_{value.__class__.__name__}"):
-                    logs.append(value.initialize_to_environment(env, device))
+                logs.append(value.initialize_to_environment(env, device))
         if hasattr(self, "action_probs"):
             if hasattr(self.action_probs, "initialize_to_environment"):
-                with PROFILER.section("init_action_probs"):
-                    self.action_probs.initialize_to_environment(env, device)
+                self.action_probs.initialize_to_environment(env, device)
 
         for log in logs:
             if log is not None:
@@ -151,9 +140,6 @@ class PolicyAutoBuilder(nn.Module):
         for _, value in self.components.items():
             if hasattr(value, "reset_memory"):
                 value.reset_memory()
-
-    def enable_component_profiling(self):
-        self._component_profiling = True
 
     @property
     def total_params(self):

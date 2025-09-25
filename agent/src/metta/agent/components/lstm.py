@@ -5,7 +5,6 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.util.profile import PROFILER
 
 
 class LSTMConfig(ComponentConfig):
@@ -74,57 +73,56 @@ class LSTM(nn.Module):
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict):
-        with PROFILER.section("lstm"):
-            latent = td[self.in_key]
+        latent = td[self.in_key]
 
-            if "bptt" not in td.keys():
-                raise KeyError("TensorDict is missing required 'bptt' metadata")
+        if "bptt" not in td.keys():
+            raise KeyError("TensorDict is missing required 'bptt' metadata")
 
-            TT = int(td["bptt"][0].item())
-            if TT <= 0:
-                raise ValueError("bptt entries must be positive")
+        TT = int(td["bptt"][0].item())
+        if TT <= 0:
+            raise ValueError("bptt entries must be positive")
 
-            total_batch = latent.shape[0]
-            B, remainder = divmod(total_batch, TT)
-            if remainder != 0:
-                raise ValueError("latent batch size must be divisible by bptt")
+        total_batch = latent.shape[0]
+        B, remainder = divmod(total_batch, TT)
+        if remainder != 0:
+            raise ValueError("latent batch size must be divisible by bptt")
 
-            if "batch" in td.keys():
-                B = int(td["batch"][0].item())
+        if "batch" in td.keys():
+            B = int(td["batch"][0].item())
 
-            latent = latent.reshape(B, TT, self.latent_size)
+        latent = latent.reshape(B, TT, self.latent_size)
 
-            # Ensure cuDNN keeps weights in a fused fast-path layout after transfers/checkpoints.
-            self.net.flatten_parameters()
+        # Ensure cuDNN keeps weights in a fused fast-path layout after transfers/checkpoints.
+        self.net.flatten_parameters()
 
-            training_env_ids = td.get("training_env_ids", None)
-            if training_env_ids is not None:
-                flat_env_ids = training_env_ids.reshape(-1)
-            else:
-                flat_env_ids = torch.arange(B, device=latent.device)
+        training_env_ids = td.get("training_env_ids", None)
+        if training_env_ids is not None:
+            flat_env_ids = training_env_ids.reshape(-1)
+        else:
+            flat_env_ids = torch.arange(B, device=latent.device)
 
-            training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
+        training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
 
-            if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
-                h_0 = self.lstm_h[training_env_id_start]
-                c_0 = self.lstm_c[training_env_id_start]
-                # reset the hidden state if the episode is done or truncated
-                dones = td.get("dones", None)
-                truncateds = td.get("truncateds", None)
-                if dones is not None and truncateds is not None:
-                    reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
-                    h_0 = h_0.masked_fill(reset_mask, 0)
-                    c_0 = c_0.masked_fill(reset_mask, 0)
-            else:
-                h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
-                c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
+            h_0 = self.lstm_h[training_env_id_start]
+            c_0 = self.lstm_c[training_env_id_start]
+            # reset the hidden state if the episode is done or truncated
+            dones = td.get("dones", None)
+            truncateds = td.get("truncateds", None)
+            if dones is not None and truncateds is not None:
+                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+                h_0 = h_0.masked_fill(reset_mask, 0)
+                c_0 = c_0.masked_fill(reset_mask, 0)
+        else:
+            h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
+            c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
 
-            hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
+        hidden, (h_n, c_n) = self.net(latent, (h_0, c_0))
 
-            self.lstm_h[training_env_id_start] = h_n.detach()
-            self.lstm_c[training_env_id_start] = c_n.detach()
+        self.lstm_h[training_env_id_start] = h_n.detach()
+        self.lstm_c[training_env_id_start] = c_n.detach()
 
-            hidden = hidden.reshape(B * TT, self.hidden_size)
+        hidden = hidden.reshape(B * TT, self.hidden_size)
 
         td[self.out_key] = hidden
 

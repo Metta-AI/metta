@@ -120,7 +120,7 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(collect_component_stats=True),
+        torch_profiler=TorchProfilerConfig(),
     )
 
 
