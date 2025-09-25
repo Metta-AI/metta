@@ -44,7 +44,7 @@ class TrainingEnvironmentConfig(Config):
     auto_workers: bool = Field(default=True)
     """Whether to auto-tune worker count based on available CPU/GPU resources"""
 
-    forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
+    forward_pass_minibatch_target_size: int = Field(default=1024, gt=0)  # 4096
     """Target size for forward pass minibatches"""
 
     zero_copy: bool = Field(default=True)
@@ -152,6 +152,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             async_factor=async_factor,
         )
 
+        print(f"forward_pass_minibatch_target_size: {cfg.forward_pass_minibatch_target_size}")
         print(f"num_envs: {self._num_envs}")
         print(f"batch_size: {self._batch_size}")
         print(f"target_batch_size: {self._target_batch_size}")
