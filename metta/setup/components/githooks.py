@@ -273,27 +273,22 @@ class GitHooksSetup(SetupModule):
 
         # Filter out excluded paths based on .ruff.toml
         ruff_config_path = self.repo_root / ".ruff.toml"
-        try:
-            if ruff_config_path.exists():
-                with open(ruff_config_path, "rb") as f:
-                    config = tomllib.load(f)
-                excluded_paths = config.get("exclude", [])
+        with open(ruff_config_path, "rb") as f:
+            config = tomllib.load(f)
+        excluded_paths = config.get("exclude", [])
 
-                if excluded_paths:
-                    filtered_files = []
-                    for f in files:
-                        file_path = Path(f)
-                        should_exclude = any(
-                            file_path == Path(excluded) or file_path.is_relative_to(Path(excluded))
-                            for excluded in excluded_paths
-                        )
-                        if not should_exclude:
-                            filtered_files.append(f)
+        if excluded_paths:
+            filtered_files = []
+            for f in files:
+                file_path = Path(f)
+                should_exclude = any(
+                    file_path == Path(excluded) or file_path.is_relative_to(Path(excluded))
+                    for excluded in excluded_paths
+                )
+                if not should_exclude:
+                    filtered_files.append(f)
 
-                    files = filtered_files
-        except Exception:
-            # Continue without filtering if config can't be read
-            pass
+            files = filtered_files
 
         if not files:
             # No files to lint after exclusions
