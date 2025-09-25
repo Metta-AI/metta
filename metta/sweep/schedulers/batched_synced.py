@@ -114,27 +114,34 @@ class BatchedSyncedOptimizingScheduler:
         # Build a map of run_id to status for easy lookup
         run_status_map = {run.run_id: run.status for run in runs}
 
-        # On first call after restart, rebuild state from observed run statuses
+        # On first call after restart with empty state, rebuild from observed run statuses
         # This ensures we don't lose track of IN_EVAL runs after a restart
+        # Only do this if state is completely empty (fresh start or restart)
         if not self._state_initialized:
-            logger.info("[BatchedSyncedOptimizingScheduler] Initializing state from observed runs")
-            for run_id, status in run_status_map.items():
-                if status == JobStatus.IN_TRAINING:
-                    self.state.runs_in_training.add(run_id)
-                    logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in training")
-                elif status == JobStatus.IN_EVAL:
-                    self.state.runs_in_eval.add(run_id)
-                    logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in evaluation")
-                elif status == JobStatus.COMPLETED:
-                    self.state.runs_completed.add(run_id)
-                    logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} completed")
-            self._state_initialized = True
-            logger.info(
-                f"[BatchedSyncedOptimizingScheduler] State initialized: "
-                f"{len(self.state.runs_in_training)} training, "
-                f"{len(self.state.runs_in_eval)} evaluating, "
-                f"{len(self.state.runs_completed)} completed"
+            is_empty_state = (
+                not self.state.runs_in_training
+                and not self.state.runs_in_eval
+                and not self.state.runs_completed
             )
+            if is_empty_state and runs:
+                logger.info("[BatchedSyncedOptimizingScheduler] Empty state detected, initializing from observed runs")
+                for run_id, status in run_status_map.items():
+                    if status == JobStatus.IN_TRAINING:
+                        self.state.runs_in_training.add(run_id)
+                        logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in training")
+                    elif status == JobStatus.IN_EVAL:
+                        self.state.runs_in_eval.add(run_id)
+                        logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in evaluation")
+                    elif status == JobStatus.COMPLETED:
+                        self.state.runs_completed.add(run_id)
+                        logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} completed")
+                logger.info(
+                    f"[BatchedSyncedOptimizingScheduler] State initialized: "
+                    f"{len(self.state.runs_in_training)} training, "
+                    f"{len(self.state.runs_in_eval)} evaluating, "
+                    f"{len(self.state.runs_completed)} completed"
+                )
+            self._state_initialized = True
 
         # Update runs that have moved from training to completed/failed
         for run_id in list(self.state.runs_in_training):
