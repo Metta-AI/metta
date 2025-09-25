@@ -16,8 +16,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-
-from metta.agent.policy_state import PolicyState
+from tensordict import TensorDict
 
 logger = logging.getLogger(__name__)
 
@@ -130,41 +129,46 @@ class DoxascopeLogger:
 
     def log_timestep(
         self,
-        policy_state: PolicyState,
+        policy_state: TensorDict,
         policy_idxs: torch.Tensor,
         env_grid_objects: Dict,
     ):
         """Log memory vectors and positions for policy agents at current timestep."""
-        if not self.enabled:
+        if not self.enabled or policy_state is None:
             return
 
         if self.agent_id_map is None:
             self.agent_id_map = self._build_agent_id_map(env_grid_objects)
 
         timestep_data = {"timestep": self.timestep, "agents": []}
+        recurrent_state = policy_state.get("recurrent_state")
 
-        if policy_state.lstm_h is not None and policy_state.lstm_c is not None:
-            memory_vectors = torch.cat([policy_state.lstm_h, policy_state.lstm_c], dim=0)
+        if recurrent_state is not None:
+            lstm_h = recurrent_state.get("lstm_h")
+            lstm_c = recurrent_state.get("lstm_c")
 
-            for i, agent_idx in enumerate(policy_idxs):
-                agent_idx_int = int(agent_idx.item())
-                memory_vector = memory_vectors[:, i].flatten().cpu()
+            if lstm_h is not None and lstm_c is not None:
+                memory_vectors = torch.cat([lstm_h, lstm_c], dim=0)
 
-                if agent_idx_int in self.agent_id_map:
-                    grid_obj_id = self.agent_id_map[agent_idx_int]
-                    grid_obj = env_grid_objects[grid_obj_id]
-                    position = (grid_obj["r"], grid_obj["c"])
-                else:
-                    logger.warning(f"Agent {agent_idx_int} not found in grid objects")
-                    continue
+                for i, agent_idx in enumerate(policy_idxs):
+                    agent_idx_int = int(agent_idx.item())
+                    memory_vector = memory_vectors[:, i].flatten().cpu()
 
-                timestep_data["agents"].append(
-                    {
-                        "agent_id": agent_idx_int,
-                        "memory_vector": memory_vector.tolist(),
-                        "position": position,
-                    }
-                )
+                    if agent_idx_int in self.agent_id_map:
+                        grid_obj_id = self.agent_id_map[agent_idx_int]
+                        grid_obj = env_grid_objects[grid_obj_id]
+                        position = (grid_obj["r"], grid_obj["c"])
+                    else:
+                        logger.warning(f"Agent {agent_idx_int} not found in grid objects")
+                        continue
+
+                    timestep_data["agents"].append(
+                        {
+                            "agent_id": agent_idx_int,
+                            "memory_vector": memory_vector.tolist(),
+                            "position": position,
+                        }
+                    )
 
         self.data.append(timestep_data)
         self.timestep += 1
