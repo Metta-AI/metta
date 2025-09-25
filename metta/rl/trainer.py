@@ -167,10 +167,6 @@ class Trainer:
         # Start new epoch
         self.core_loop.on_epoch_start(self._context)
 
-        # Set optimizer to training mode for ScheduleFree optimizers
-        if self._is_schedulefree:
-            self.optimizer.train()
-
         # Rollout phase
         with self.timer("_rollout"):
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
