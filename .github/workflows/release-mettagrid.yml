@@ -37,28 +37,18 @@ jobs:
     name: Build source distribution
     runs-on: ubuntu-latest
     env:
-      METTAGRID_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && github.ref_name || '' }}
-      METTAGRID_MANUAL_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
+      METTAGRID_BUILD_VERSION: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && replace(github.ref_name, 'mettagrid-v', '') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && replace(github.event.inputs.version, 'mettagrid-v', '')) || '' }}
+      SETUPTOOLS_SCM_PRETEND_VERSION: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && replace(github.ref_name, 'mettagrid-v', '') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && replace(github.event.inputs.version, 'mettagrid-v', '')) || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Export release version
-        if: github.event_name == 'workflow_dispatch' || env.METTAGRID_RELEASE_TAG != '' || env.METTAGRID_MANUAL_VERSION != ''
+      - name: Ensure manual run version is provided
+        if: github.event_name == 'workflow_dispatch' && env.METTAGRID_BUILD_VERSION == ''
         run: |
-          version=""
-          if [[ -n "$METTAGRID_RELEASE_TAG" ]]; then
-            version="${METTAGRID_RELEASE_TAG#mettagrid-v}"
-          elif [[ -n "$METTAGRID_MANUAL_VERSION" ]]; then
-            version="${METTAGRID_MANUAL_VERSION#mettagrid-v}"
-          fi
-          if [[ -z "$version" ]]; then
-            echo "A version must be supplied when running manually."
-            echo "Provide an input like 0.2.0.10 or mettagrid-v0.2.0.10."
-            exit 1
-          fi
-          echo "METTAGRID_BUILD_VERSION=$version" >> "$GITHUB_ENV"
-          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
+          echo "A version must be supplied when running manually."
+          echo "Provide an input like 0.2.0.10 or mettagrid-v0.2.0.10."
+          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
@@ -93,28 +83,18 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-13, macos-14]
     env:
-      METTAGRID_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && github.ref_name || '' }}
-      METTAGRID_MANUAL_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
+      METTAGRID_BUILD_VERSION: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && replace(github.ref_name, 'mettagrid-v', '') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && replace(github.event.inputs.version, 'mettagrid-v', '')) || '' }}
+      SETUPTOOLS_SCM_PRETEND_VERSION: ${{ startsWith(github.ref, 'refs/tags/mettagrid-v') && replace(github.ref_name, 'mettagrid-v', '') || (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' && replace(github.event.inputs.version, 'mettagrid-v', '')) || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Export release version
-        if: github.event_name == 'workflow_dispatch' || env.METTAGRID_RELEASE_TAG != '' || env.METTAGRID_MANUAL_VERSION != ''
+      - name: Ensure manual run version is provided
+        if: github.event_name == 'workflow_dispatch' && env.METTAGRID_BUILD_VERSION == ''
         run: |
-          version=""
-          if [[ -n "$METTAGRID_RELEASE_TAG" ]]; then
-            version="${METTAGRID_RELEASE_TAG#mettagrid-v}"
-          elif [[ -n "$METTAGRID_MANUAL_VERSION" ]]; then
-            version="${METTAGRID_MANUAL_VERSION#mettagrid-v}"
-          fi
-          if [[ -z "$version" ]]; then
-            echo "A version must be supplied when running manually."
-            echo "Provide an input like 0.2.0.10 or mettagrid-v0.2.0.10."
-            exit 1
-          fi
-          echo "METTAGRID_BUILD_VERSION=$version" >> "$GITHUB_ENV"
-          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
+          echo "A version must be supplied when running manually."
+          echo "Provide an input like 0.2.0.10 or mettagrid-v0.2.0.10."
+          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"

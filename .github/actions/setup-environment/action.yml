@@ -42,75 +42,48 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
-    - name: Derive MettaGrid version
+    - name: Ensure MettaGrid version context
       shell: bash
       run: |
         if [ -n "${SETUPTOOLS_SCM_PRETEND_VERSION+x}" ]; then
-          echo "Using preset SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          echo "MettaGrid version preset via SETUPTOOLS_SCM_PRETEND_VERSION"
           exit 0
         fi
 
         if ! git rev-parse --git-dir >/dev/null 2>&1; then
-          echo "Git metadata not available; skipping version inference"
+          echo "Git metadata not available; skipping MettaGrid version setup"
           exit 0
         fi
-        derive_version() {
-          local tag base distance sha version
-          tag=$(git describe --tags --match 'mettagrid-v*' --abbrev=0 2>/dev/null || true)
-          if [ -n "$tag" ]; then
-            base="${tag#mettagrid-v}"
-          else
-            base="0.0.0"
-          fi
 
-          if [ -n "$tag" ]; then
-            distance=$(git rev-list "$tag"..HEAD --count 2>/dev/null || echo "")
-          fi
+        git fetch --tags --quiet 2>/dev/null || true
 
-          if [ -z "$distance" ]; then
-            distance=$(git rev-list HEAD --count 2>/dev/null || echo "")
-          fi
-
-          if [ -z "$distance" ]; then
-            return 1
-          fi
-
-          sha=$(git rev-parse --short HEAD 2>/dev/null || echo "")
-          if [ -z "$sha" ]; then
-            return 1
-          fi
-
-          if [ "$distance" -gt 0 ]; then
-            version="${base}.dev${distance}+g${sha}"
-          else
+        describe=$(git describe --tags --match 'mettagrid-v*' --long 2>/dev/null || true)
+        if [ -n "$describe" ]; then
+          describe=${describe#mettagrid-v}
+          IFS='-' read -r base distance gsha _ <<EOF
+$describe
+EOF
+          sha=${gsha#g}
+          if [ "$distance" = "0" ]; then
             version="$base"
+          elif [ -n "$base" ] && [ -n "$distance" ] && [ -n "$sha" ]; then
+            version="${base}.dev${distance}+${sha}"
           fi
+        else
+          sha=$(git rev-parse --short HEAD 2>/dev/null || true)
+          distance=$(git rev-list HEAD --count 2>/dev/null || true)
+          if [ -n "$sha" ] && [ -n "$distance" ]; then
+            version="0.0.0.dev${distance}+g${sha}"
+          fi
+        fi
 
+        if [ -n "$version" ]; then
           echo "METTAGRID_BUILD_VERSION=$version" >> "$GITHUB_ENV"
           echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
-          echo "Derived MettaGrid version: $version"
-          return 0
-        }
-
-        if derive_version; then
-          exit 0
+          echo "Using MettaGrid derived version $version"
+        else
+          echo "MettaGrid version still unresolved; relying on setuptools_scm defaults"
         fi
-
-        echo "Initial MettaGrid version inference failed; fetching tags and retrying"
-        git fetch origin --tags --depth=100 >/dev/null 2>&1 || true
-
-        if derive_version; then
-          exit 0
-        fi
-
-        echo "MettaGrid version still unresolved; deepening history"
-        git fetch origin --deepen=500 >/dev/null 2>&1 || true
-
-        if derive_version; then
-          exit 0
-        fi
-
-        echo "Warning: unable to derive MettaGrid version even after fetching additional history"
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
