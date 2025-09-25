@@ -1,4 +1,5 @@
 import math
+from typing import Sequence
 
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
@@ -35,7 +36,7 @@ def recursive_update(d, u):
     return d
 
 
-def expand_position_patterns(positions: list[Position]) -> list[int]:
+def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
     """Convert from a list of string positions to a list of matching bit patterns.
 
     Args:
@@ -178,6 +179,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # Convert tag names to IDs for first agent in team
         tag_ids = [tag_name_to_id[tag] for tag in first_agent.tags if tag in tag_name_to_id]
 
+        # Convert soul bound resources from names to IDs
+        soul_bound_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("soul_bound_resources", [])
+            if resource_name in resource_name_to_id
+        ]
+
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
             "group_id": team_id,
@@ -196,6 +204,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_name": "agent",
             "initial_inventory": initial_inventory,
             "tag_ids": tag_ids,
+            "soul_bound_resources": soul_bound_resources,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -300,8 +309,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id,
                 type_name=object_type,
                 resource_type=resource_type_id,
-                deposit_positions=set(object_config.deposit_positions),
-                withdrawal_positions=set(object_config.withdrawal_positions),
+                deposit_positions=set(expand_position_patterns(object_config.deposit_positions)),
+                withdrawal_positions=set(expand_position_patterns(object_config.withdrawal_positions)),
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config

@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import sys
@@ -17,7 +18,7 @@ from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.uri import ParsedURI
+from metta.utils.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class SimTool(Tool):
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = WandbConfig.Unconfigured()
+    group: str | None = None  # Separate group parameter like in train.py
 
     stats_dir: str | None = None  # The (local) directory where stats should be stored
     stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
@@ -100,18 +102,10 @@ class SimTool(Tool):
             raise ValueError("Either 'run' or 'policy_uris' is required")
 
         # Configure wandb using run name if unconfigured, preserving existing settings
-        if self.wandb == WandbConfig.Unconfigured() and self.run:
+        if self.run:
             self.wandb = auto_wandb_config(self.run)
-        elif self.run and self.wandb.enabled:
-            # Override auto config with existing wandb settings
-            auto_config = auto_wandb_config(self.run)
-            if self.wandb.run_id:
-                auto_config.run_id = self.wandb.run_id
-            if self.wandb.group:
-                auto_config.group = self.wandb.group
-            if self.wandb.data_dir:
-                auto_config.data_dir = self.wandb.data_dir
-            self.wandb = auto_config
+            if self.group:
+                self.wandb.group = self.group
 
         if isinstance(self.policy_uris, str):
             self.policy_uris = [self.policy_uris]
@@ -131,16 +125,13 @@ class SimTool(Tool):
         all_results = {"simulations": [sim.name for sim in self.simulations], "policies": []}
         device = torch.device(self.system.device)
 
-        wandb_run = None
-        wandb_context = None
+        # Build WandB context manager (like train.py does)
+        wandb_manager = self._build_wandb_manager()
 
-        if self.wandb and self.wandb.enabled:
-            wandb_context = WandbContext(self.wandb, self)
-            wandb_context.__enter__()
-            wandb_run = wandb_context.run
-            logger.info(f"Initialized wandb run: {wandb_run.id if wandb_run else 'None'}")
+        with wandb_manager as wandb_run:
+            if wandb_run:
+                logger.info(f"Initialized wandb run: {wandb_run.id}")
 
-        try:
             # Get eval_task_id from config if provided
             eval_task_id = None
             if self.eval_task_id:
@@ -173,11 +164,14 @@ class SimTool(Tool):
                     stats_client=stats_client,
                     eval_task_id=eval_task_id,
                 )
+
+                # Log to WandB if configured
                 if self.push_metrics_to_wandb and wandb_run:
                     try:
                         rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run)
                     except Exception as e:
                         logger.error(f"Error logging evaluation results to wandb: {e}")
+
                 results["checkpoints"].append(
                     {
                         "name": metadata.get("run_name", "unknown"),
@@ -191,21 +185,19 @@ class SimTool(Tool):
                     }
                 )
                 all_results["policies"].append(results)
-        finally:
-            # Properly close wandb context
-            if wandb_context:
-                try:
-                    wandb_context.__exit__(None, None, None)
-                except Exception as e:
-                    logger.warning(f"Error closing wandb context: {e}")
 
-            # Always output JSON results to stdout
-            # Ensure all logging is flushed before printing JSON
+        # Output JSON results to stdout
+        # Ensure all logging is flushed before printing JSON
+        sys.stderr.flush()
+        sys.stdout.flush()
 
-            sys.stderr.flush()
-            sys.stdout.flush()
+        # Print JSON with a marker for easier extraction
+        print("===JSON_OUTPUT_START===")
+        print(json.dumps(all_results, indent=2))
+        print("===JSON_OUTPUT_END===")
 
-            # Print JSON with a marker for easier extraction
-            print("===JSON_OUTPUT_START===")
-            print(json.dumps(all_results, indent=2))
-            print("===JSON_OUTPUT_END===")
+    def _build_wandb_manager(self):
+        """Build WandB context manager, consistent with train.py pattern."""
+        if self.wandb and self.wandb.enabled:
+            return WandbContext(self.wandb, self)
+        return contextlib.nullcontext(None)

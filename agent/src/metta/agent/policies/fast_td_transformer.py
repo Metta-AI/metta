@@ -2,12 +2,12 @@ import logging
 from typing import Optional
 
 import numpy as np
-import pufferlib.pytorch
 import torch
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 
+import pufferlib.pytorch
 from metta.agent.lib_td.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.lib_td.actor import ActorKey, ActorKeyConfig, ActorQuery, ActorQueryConfig
 from metta.agent.lib_td.cnn_encoder import CNNEncoder, CNNEncoderConfig
