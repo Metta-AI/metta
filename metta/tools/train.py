@@ -7,7 +7,7 @@ from typing import Optional
 import torch
 from pydantic import Field, model_validator
 
-from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -58,7 +58,7 @@ class TrainTool(Tool):
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
+    policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None
     uploader: UploaderConfig = Field(default_factory=UploaderConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
