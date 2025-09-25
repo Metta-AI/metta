@@ -5,9 +5,9 @@ from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.cnn_encoder import CNNEncoderConfig
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.components.lstm import LSTMConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_shim import ObsShimBoxConfig
-from metta.agent.components.vanilla_transformer import VanillaTransformerConfig
 from metta.agent.policy import PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,8 @@ class CNNTransConfig(PolicyArchitecture):
     components: List[ComponentConfig] = [
         ObsShimBoxConfig(in_key="env_obs", out_key="obs_shim_box"),
         CNNEncoderConfig(in_key="obs_shim_box", out_key="obs_cnn_encoder"),
-        VanillaTransformerConfig(in_key="obs_cnn_encoder", out_key="core", embed_dim=_embed_dim),
+        # VanillaTransformerConfig(in_key="obs_cnn_encoder", out_key="core", embed_dim=_embed_dim),
+        LSTMConfig(in_key="obs_cnn_encoder", out_key="core", embed_dim=_embed_dim),
         MLPConfig(
             in_key="core",
             out_key="values",
