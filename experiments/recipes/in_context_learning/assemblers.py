@@ -501,7 +501,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.assemblers.train",
-                f"run=icl_assemblers3_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=george.icl_assemblers_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
