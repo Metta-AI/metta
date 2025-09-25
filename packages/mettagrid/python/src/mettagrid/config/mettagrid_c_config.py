@@ -1,4 +1,5 @@
 import math
+from typing import Sequence
 
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
@@ -35,7 +36,7 @@ def recursive_update(d, u):
     return d
 
 
-def expand_position_patterns(positions: list[Position]) -> list[int]:
+def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
     """Convert from a list of string positions to a list of matching bit patterns.
 
     Args:
@@ -308,8 +309,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id,
                 type_name=object_type,
                 resource_type=resource_type_id,
-                deposit_positions=set(object_config.deposit_positions),
-                withdrawal_positions=set(object_config.withdrawal_positions),
+                deposit_positions=set(expand_position_patterns(object_config.deposit_positions)),
+                withdrawal_positions=set(expand_position_patterns(object_config.withdrawal_positions)),
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config

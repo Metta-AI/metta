@@ -7,6 +7,8 @@ from typing import Optional, Sequence
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+
+from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -15,9 +17,11 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -380,7 +384,14 @@ def make_curriculum(
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=map_dir
     )
-    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
+    # Handle both LPParams Config object and dict
+    if isinstance(lp_params, LPParams):
+        algorithm_config = LearningProgressConfig(**lp_params.model_dump())
+    elif isinstance(lp_params, dict):
+        algorithm_config = LearningProgressConfig(**lp_params)
+    else:
+        # If lp_params is None or something else, use default
+        algorithm_config = LearningProgressConfig()
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
@@ -456,7 +467,8 @@ def replay(
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: Optional[str] = None,
+    simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
@@ -466,7 +478,7 @@ def evaluate(
     simulations = simulations or make_icl_resource_chain_eval_suite()
     return SimTool(
         simulations=simulations,
-        policy_uris=[policy_uri],
+        policy_uris=[policy_uri] if policy_uri else None,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
@@ -564,6 +576,63 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     # Save the reward_estimates dictionary to a JSON file
     with open(f"{dir}/reward_estimates.json", "w") as f:
         json.dump(reward_estimates, f, indent=2)
+
+
+def sweep(
+    total_timesteps: int = 1000000,
+) -> SweepTool:
+    lp_protein_config = make_custom_protein_config(
+        base_config=PPO_CORE,
+        parameters={
+            "lp_params.progress_smoothing": ParameterConfig(
+                distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
+                min=0.05,
+                max=0.15,
+                mean=0.1,
+                scale="auto",
+            ),
+            "lp_params.exploration_bonus": ParameterConfig(
+                distribution="uniform",  # Changed from logit_normal - more appropriate for 0.03-0.15 range
+                min=0.03,
+                max=0.15,
+                mean=0.09,
+                scale="auto",
+            ),
+            "lp_params.ema_timescale": ParameterConfig(
+                distribution="log_normal",  # Changed to log_normal for better exploration of small values
+                min=0.001,
+                max=0.01,
+                mean=0.00316,  # Geometric mean: sqrt(0.001 * 0.01) ≈ 0.00316
+                scale="auto",
+            ),
+            "lp_params.num_active_tasks": ParameterConfig(
+                distribution="int_uniform",  # Changed to int_uniform since this is a count of tasks
+                min=1000,
+                max=5000,
+                mean=3000,  # Arithmetic mean for uniform distribution
+                scale="auto",
+            ),
+            "lp_params.rand_task_rate": ParameterConfig(
+                distribution="uniform",
+                min=0.1,
+                max=0.25,
+                mean=0.175,
+                scale="auto",
+            ),
+        },
+    )
+
+    lp_protein_config.metric = "evaluator/eval_in_context_learning/in_context_learning"
+
+    return SweepTool(
+        protein_config=lp_protein_config,
+        recipe_module="experiments.recipes.in_context_learning.ordered_chains",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate",
+        train_overrides={
+            "trainer.total_timesteps": total_timesteps,
+        },
+    )
 
 
 if __name__ == "__main__":
