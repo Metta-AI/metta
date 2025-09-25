@@ -76,6 +76,10 @@ protected:
     return resource_reward_max;
   }
 
+  std::vector<std::string> create_test_resource_names() {
+    return {TestItemStrings::ORE, TestItemStrings::LASER, TestItemStrings::ARMOR, TestItemStrings::HEART};
+  }
+
   AgentConfig create_test_agent_config() {
     return AgentConfig(0,                               // type_id
                        "agent",                         // type_name
@@ -107,6 +111,9 @@ TEST_F(MettaGridCppTest, AgentRewards) {
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   AgentConfig agent_cfg = create_test_agent_config();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+
+  auto resource_names = create_test_resource_names();
+  agent->stats.set_resource_names(&resource_names);
 
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
@@ -155,6 +162,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, stats_reward_max, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  auto resource_names = create_test_resource_names();
+  agent->stats.set_resource_names(&resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -221,6 +230,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, stats_reward_max, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  auto resource_names = create_test_resource_names();
+  agent->stats.set_resource_names(&resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
