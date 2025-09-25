@@ -19,7 +19,6 @@ from mettagrid.config.mettagrid_config import (
     AttackActionConfig,
     GameConfig,
     MettaGridConfig,
-    StatsRewards,
     WallConfig,
 )
 from mettagrid.envs.benchmarl_env import MettaGridBenchMARLEnv, MettaGridTask
@@ -83,7 +82,7 @@ def make_test_config(num_agents=3, max_steps=100):
                 team_id=i + 1,  # Map has agents 1, 2, 3 not 0, 1, 2
                 rewards=AgentRewards(
                     inventory={"heart": 1.0},
-                    stats=StatsRewards(**{"attack_agent": 0.5}),
+                    stats={"attack_agent": 0.5},
                 ),
             )
         )
