@@ -22,6 +22,7 @@ class ViTSlidingTransConfig(PolicyArchitecture):
     _fourier_freqs = 3
     _embed_dim = 16
     _core_out_dim = 24
+    _num_layers = 2
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
@@ -40,7 +41,9 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=2,
         ),
-        SlidingTransformerConfig(in_key="encoded_obs", out_key="core", output_dim=_core_out_dim),
+        SlidingTransformerConfig(
+            in_key="encoded_obs", out_key="core", output_dim=_core_out_dim, num_layers=_num_layers
+        ),
         MLPConfig(
             in_key="core",
             out_key="values",

@@ -73,7 +73,7 @@ class SlidingTransformerConfig(ComponentConfig):
     input_dim: int = 64
     num_heads: int = 1
     ff_mult: int = 4
-    num_layers: int = 2
+    num_layers: int
     max_cache_size: int = 80
     pool: Literal["cls", "mean", "none"] = "mean"
 
