@@ -41,6 +41,7 @@ class TaskDependencySimulator:
         performance_threshold: float = 0.9,
         task_seed: Optional[int] = None,
         dt: float = 0.01,  # Time step scaling for dynamics updates
+        task_noise_std: float = 0.1,  # Standard deviation of task-specific noise
     ):
         self.num_tasks = num_tasks
         self.num_epochs = num_epochs
@@ -50,6 +51,7 @@ class TaskDependencySimulator:
         self.performance_threshold = performance_threshold
         self.task_seed = task_seed or random.randint(0, 2**31 - 1)
         self.dt = dt
+        self.task_noise_std = task_noise_std
 
         # Initialize task dependency chain (0 -> 1 -> 2 -> ...)
         self._build_task_chain()
@@ -90,7 +92,7 @@ class TaskDependencySimulator:
     def _generate_task_noise(self) -> torch.Tensor:
         """Generate task-specific noise from seed."""
         np.random.seed(self.task_seed)
-        task_noise = np.random.normal(0.0, 0.1, size=self.num_tasks)
+        task_noise = np.random.normal(0.0, self.task_noise_std, size=self.num_tasks)
         return torch.tensor(task_noise, dtype=torch.float32)
 
     def reset(self) -> None:
@@ -137,7 +139,7 @@ class TaskDependencySimulator:
 
         return reward
 
-    def complete_epoch(self) -> Dict[str, Any]:
+    def complete_epoch(self, curriculum=None) -> Dict[str, Any]:
         """Complete epoch and update task dynamics."""
         # Update task performance based on dynamics
         self._update_task_dynamics()
@@ -147,7 +149,7 @@ class TaskDependencySimulator:
         self.sample_history.append(self.epoch_sample_counts.clone())
 
         # Get metrics for logging
-        metrics = self._get_epoch_metrics()
+        metrics = self._get_epoch_metrics(curriculum)
 
         # Advance to next epoch and reset sample counts
         self.current_epoch += 1
@@ -185,7 +187,7 @@ class TaskDependencySimulator:
         new_P = current_P + P_dot * (self.dt / self.samples_per_epoch)
         self.P = torch.clamp(new_P, 0, 1)
 
-    def _get_epoch_metrics(self) -> Dict[str, Any]:
+    def _get_epoch_metrics(self, curriculum=None) -> Dict[str, Any]:
         """Get current epoch metrics for logging."""
         task_completion_probs = torch.sigmoid((self.P - 0.5) * 4)
 
@@ -217,9 +219,28 @@ class TaskDependencySimulator:
             )
 
         # Add task 0 cumulative sample count (for eviction tracking)
-        metrics["task_0_tracking/cumulative_samples"] = int(
-            self.total_sample_counts[0].item()
-        )
+        # This should track the curriculum task that maps to simulator task 0
+        if (
+            hasattr(self, "_current_task_0_curriculum_id")
+            and self._current_task_0_curriculum_id is not None
+            and curriculum is not None
+            and curriculum._algorithm is not None
+        ):
+            # Get the actual completion count for the curriculum task 0
+            task_stats = curriculum._algorithm.task_tracker.get_task_stats(
+                self._current_task_0_curriculum_id
+            )
+            if task_stats:
+                metrics["task_0_tracking/cumulative_samples"] = task_stats[
+                    "completion_count"
+                ]
+            else:
+                metrics["task_0_tracking/cumulative_samples"] = 0
+        else:
+            # Fallback to simulator task 0 samples if curriculum task not identified yet
+            metrics["task_0_tracking/cumulative_samples"] = int(
+                self.total_sample_counts[0].item()
+            )
 
         # Add current task 0 LP percentile and score if available
         if len(self.task_0_lp_percentiles) > 0:
@@ -229,8 +250,8 @@ class TaskDependencySimulator:
         if len(self.task_0_lp_scores) > 0:
             metrics["task_0_tracking/current_lp_score"] = self.task_0_lp_scores[-1]
 
-        # Add individual task metrics (limit to first 10 tasks for wandb)
-        for i in range(min(self.num_tasks, 10)):
+        # Add individual task metrics for all tasks
+        for i in range(self.num_tasks):
             metrics[f"task_dependency/task_{i}_performance"] = self.P[i].item()
             metrics[f"task_dependency/task_{i}_completion_prob"] = (
                 task_completion_probs[i].item()
@@ -259,7 +280,7 @@ class TaskDependencySimulator:
             task_scores = algorithm.score_tasks(active_task_ids)
 
             # Track task 0 percentile in learning progress scores
-            self._track_task_0_percentile(task_scores)
+            self._track_task_0_percentile(task_scores, curriculum)
 
             if task_scores:
                 scores = list(task_scores.values())
@@ -360,7 +381,9 @@ class TaskDependencySimulator:
 
         return distributions
 
-    def _track_task_0_percentile(self, task_scores: Dict[int, float]) -> None:
+    def _track_task_0_percentile(
+        self, task_scores: Dict[int, float], curriculum=None
+    ) -> None:
         """Track task 0's percentile ranking in learning progress scores."""
         if not task_scores:
             return
@@ -384,10 +407,20 @@ class TaskDependencySimulator:
             (lower_scores / len(all_scores)) * 100 if len(all_scores) > 0 else 0
         )
 
+        # Get curriculum task 0 sample count
+        curriculum_samples = 0
+        if curriculum and curriculum._algorithm:
+            task_stats = curriculum._algorithm.task_tracker.get_task_stats(task_0_id)
+            if task_stats:
+                curriculum_samples = task_stats["completion_count"]
+
         # Track the data
         self.task_0_lp_percentiles.append(percentile)
         self.task_0_lp_scores.append(task_0_score)
-        self.task_0_cumulative_samples.append(int(self.total_sample_counts[0].item()))
+        # Store the curriculum task 0 ID for later use
+        self._current_task_0_curriculum_id = task_0_id
+        # Use curriculum task sample count for plotting
+        self.task_0_cumulative_samples.append(curriculum_samples)
         self.epoch_numbers.append(self.current_epoch)
 
     def is_complete(self) -> bool:
@@ -427,32 +460,39 @@ class MockTaskGenerator(TaskGenerator):
 def create_curriculum(
     num_tasks: int = 10,
     enable_detailed_slice_logging: bool = False,
-    ema_timescale: float = 1,
+    ema_timescale: float = 0.1,
     slow_timescale_factor: float = 0.02,
     exploration_bonus: float = 0.1,
-    min_presentations_for_eviction: int = 2,
+    progress_smoothing: float = 0.05,
+    use_bidirectional: bool = True,
+    max_memory_tasks: int = 100000,
+    max_slice_axes: int = 3,
+    num_active_tasks: int = 1000,
+    rand_task_rate: float = 0.01,
+    min_presentations_for_eviction: int = 5,
     eviction_threshold_percentile: float = 0.4,
 ) -> CurriculumConfig:
     """Create curriculum configuration for task dependency simulation."""
     task_gen_config = MockTaskGenerator.Config()
 
     algorithm_config = LearningProgressConfig(
-        use_bidirectional=True,
+        use_bidirectional=use_bidirectional,
         ema_timescale=ema_timescale,
         slow_timescale_factor=slow_timescale_factor,
         exploration_bonus=exploration_bonus,
-        max_memory_tasks=100,
-        max_slice_axes=3,
+        progress_smoothing=progress_smoothing,
+        max_memory_tasks=max_memory_tasks,
+        max_slice_axes=max_slice_axes,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        num_active_tasks=1000,
-        rand_task_rate=0.01,
+        num_active_tasks=num_active_tasks,
+        rand_task_rate=rand_task_rate,
         eviction_threshold_percentile=eviction_threshold_percentile,
     )
 
     return CurriculumConfig(
         task_generator=task_gen_config,
         algorithm_config=algorithm_config,
-        num_active_tasks=1000,
+        num_active_tasks=num_active_tasks,
         min_presentations_for_eviction=min_presentations_for_eviction,
     )
 
@@ -466,10 +506,17 @@ def simulate_task_dependencies(
     performance_threshold: float = 0.9,
     task_seed: Optional[int] = None,
     dt: float = 0.1,
+    task_noise_std: float = 0.1,
     enable_detailed_slice_logging: bool = False,
     ema_timescale: float = 0.001,
     slow_timescale_factor: float = 0.2,
     exploration_bonus: float = 0.1,
+    progress_smoothing: float = 0.05,
+    use_bidirectional: bool = True,
+    max_memory_tasks: int = 100000,
+    max_slice_axes: int = 3,
+    num_active_tasks: int = 1000,
+    rand_task_rate: float = 0.01,
     min_presentations_for_eviction: int = 5,
     eviction_threshold_percentile: float = 0.4,
     wandb_project: str = "metta",
@@ -504,6 +551,7 @@ def simulate_task_dependencies(
         performance_threshold=performance_threshold,
         task_seed=task_seed,
         dt=dt,
+        task_noise_std=task_noise_std,
     )
 
     # Create curriculum
@@ -513,6 +561,12 @@ def simulate_task_dependencies(
         ema_timescale=ema_timescale,
         slow_timescale_factor=slow_timescale_factor,
         exploration_bonus=exploration_bonus,
+        progress_smoothing=progress_smoothing,
+        use_bidirectional=use_bidirectional,
+        max_memory_tasks=max_memory_tasks,
+        max_slice_axes=max_slice_axes,
+        num_active_tasks=num_active_tasks,
+        rand_task_rate=rand_task_rate,
         min_presentations_for_eviction=min_presentations_for_eviction,
         eviction_threshold_percentile=eviction_threshold_percentile,
     )
@@ -535,10 +589,10 @@ def simulate_task_dependencies(
 
             # Update curriculum with task completion
             task.complete(reward)
-            curriculum.update_task_performance(task_id, reward)
+            curriculum.update_task_performance(task._task_id, reward)
 
         # Complete epoch and collect metrics
-        epoch_metrics = simulator.complete_epoch()
+        epoch_metrics = simulator.complete_epoch(curriculum)
         epoch_metrics.update(curriculum.stats())
 
         # Add learning progress score distributions
@@ -808,12 +862,19 @@ class TaskDependencySimulationTool(Tool):
     performance_threshold: float = 0.9
     task_seed: Optional[int] = None
     dt: float = 0.1
+    task_noise_std: float = 0.01
     enable_detailed_slice_logging: bool = False
 
     # Learning progress parameters
-    ema_timescale: float = 0.001
-    slow_timescale_factor: float = 0.2
+    ema_timescale: float = 0.1
+    slow_timescale_factor: float = 1 / 5
     exploration_bonus: float = 0.1
+    progress_smoothing: float = 1e-4
+    use_bidirectional: bool = True
+    max_memory_tasks: int = 10  # effectively remove
+    max_slice_axes: int = 3
+    num_active_tasks: int = 1000
+    rand_task_rate: float = 0.01
 
     # Eviction parameters
     min_presentations_for_eviction: int = 5
@@ -837,10 +898,17 @@ class TaskDependencySimulationTool(Tool):
                 performance_threshold=self.performance_threshold,
                 task_seed=self.task_seed,
                 dt=self.dt,
+                task_noise_std=self.task_noise_std,
                 enable_detailed_slice_logging=self.enable_detailed_slice_logging,
                 ema_timescale=self.ema_timescale,
                 slow_timescale_factor=self.slow_timescale_factor,
                 exploration_bonus=self.exploration_bonus,
+                progress_smoothing=self.progress_smoothing,
+                use_bidirectional=self.use_bidirectional,
+                max_memory_tasks=self.max_memory_tasks,
+                max_slice_axes=self.max_slice_axes,
+                num_active_tasks=self.num_active_tasks,
+                rand_task_rate=self.rand_task_rate,
                 min_presentations_for_eviction=self.min_presentations_for_eviction,
                 eviction_threshold_percentile=self.eviction_threshold_percentile,
                 wandb_project=self.wandb_project,
@@ -881,31 +949,23 @@ def simulate_small_chain(
 
 def simulate_large_chain(
     wandb_run_name: Optional[str] = None,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
 ) -> TaskDependencySimulationTool:
-    """Simulate a large task chain (20 tasks)."""
+    """Simulate a large task chain (25 tasks)."""
     return TaskDependencySimulationTool(
-        num_tasks=20,
+        num_tasks=25,
         num_epochs=2000,
         samples_per_epoch=100,
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
 
 def simulate_high_gamma(
     wandb_run_name: Optional[str] = None,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
 ) -> TaskDependencySimulationTool:
     """Simulate with high parent contribution (gamma=0.3)."""
     return TaskDependencySimulationTool(
         gamma=0.3,  # High parent contribution
         lambda_forget=0.05,  # Lower forgetting
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
     )
 
