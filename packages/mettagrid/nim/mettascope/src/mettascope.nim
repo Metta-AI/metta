@@ -101,7 +101,7 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      bxy.translate(thisNode.position)
+      bxy.translate(worldMapPanel.rect.xy.vec2)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
 
@@ -113,7 +113,7 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      bxy.translate(thisNode.position)
+      bxy.translate(minimapPanel.rect.xy.vec2)
       drawMinimap(minimapPanel)
       bxy.restoreTransform()
 
@@ -125,7 +125,7 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      bxy.translate(thisNode.position)
+      bxy.translate(agentTracesPanel.rect.xy.vec2)
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
