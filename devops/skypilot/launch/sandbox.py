@@ -311,7 +311,7 @@ Examples:
   %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
   %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
-  %(prog)s --new --sweep-controller  # Launch a cheap CPU-only sandbox (t3.medium)
+  %(prog)s --new --sweep-controller  # Launch a CPU-only sandbox (uses config instance_type)
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
 
@@ -344,7 +344,7 @@ Common management commands:
     parser.add_argument(
         "--sweep-controller",
         action="store_true",
-        help="Launch a sweep-controller CPU-only sandbox (t3.medium, ~$0.04/hour)",
+        help="Launch a sweep-controller CPU-only sandbox (instance type from config)",
     )
 
     args = parser.parse_args()
@@ -380,7 +380,7 @@ Common management commands:
 
     # Determine configuration based on --sweep-controller flag
     if args.sweep_controller:
-        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CHEAP MODE')} (CPU-only, t3.medium)")
+        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
         print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
@@ -397,11 +397,26 @@ Common management commands:
     region = resources.get("region", "us-east-1")
 
     if args.sweep_controller:
-        # For cheap mode, we know the instance type from config
-        instance_type = resources.get("instance_type", "t3.medium")
+        # For CPU-only mode, read the instance type from config
+        instance_type = resources.get("instance_type", "m6i.2xlarge")
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
-        # t3.medium is approximately $0.04/hour on-demand
-        print(f"Approximate cost: {green('~$0.04/hour')} (on-demand pricing)")
+
+        # Try to calculate on-demand cost dynamically
+        hourly_cost = None
+        try:
+            with spinner(f"Calculating cost for {instance_type}", style=cyan):
+                hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
+        except Exception:
+            hourly_cost = None
+
+        if hourly_cost is not None:
+            print(f"Approximate cost: {green(f'~${hourly_cost:.3f}/hour')} (on-demand pricing)")
+        else:
+            # Fallback hint when cost API is unavailable
+            if instance_type == "m6i.2xlarge":
+                print(f"Approximate cost: {green('~$0.384/hour')} (on-demand pricing, us-east-1)")
+            else:
+                print("Approximate cost: (unavailable) – check AWS pricing for your region.")
     else:
         # Parse GPU type from the config (e.g., "L4:1" -> "L4")
         accelerators_str = resources.get("accelerators", "L4:1")
