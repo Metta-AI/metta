@@ -93,7 +93,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     # Implementation options
     manual_init: bool | None = None
     strict_attr_indices: bool | None = None
-    use_aux_tokens: bool = True
+    use_aux_tokens: bool = False
     learning_rate_hint: float | None = None
 
     @model_validator(mode="after")
