@@ -62,7 +62,7 @@ def make_arena(
             height=25,
             border_width=6,
             instance_border_width=0,
-            root=mettagrid.mapgen.scenes.random.Random.factory(
+            instance=mettagrid.mapgen.scenes.random.Random.factory(
                 params=mettagrid.mapgen.scenes.random.Random.Params(
                     agents=6,
                     objects={
@@ -197,7 +197,7 @@ def make_in_context_chains(
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_agents,
-                instance_map=PerimeterInContextMapBuilder.Config(
+                instance=PerimeterInContextMapBuilder.Config(
                     agents=1,
                     width=width,
                     height=height,
@@ -247,7 +247,7 @@ def make_icl_assembler(
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_instances,
-                instance_map=AssemblerMapBuilder.Config(
+                instance=AssemblerMapBuilder.Config(
                     agents=num_agents,
                     width=width,
                     height=height,
@@ -281,7 +281,7 @@ def make_icl_with_numpy(
     num_instances: int,
     max_steps,
     game_objects: dict,
-    instance_map: MapBuilderConfig,
+    instance: MapBuilderConfig,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -292,7 +292,7 @@ def make_icl_with_numpy(
             objects=game_objects,
             map_builder=MapGen.Config(
                 instances=num_instances,
-                instance_map=instance_map,
+                instance=instance,
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),

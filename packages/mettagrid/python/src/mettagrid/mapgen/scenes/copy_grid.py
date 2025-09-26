@@ -15,7 +15,7 @@ class CopyGrid(Scene[CopyGridParams]):
     """
     This is a helper scene that allows us to use the preexisting grid as a scene.
 
-    It's main purpose is for MapGen's `instance_map` parameter.
+    It's main purpose is for MapGen's `instance` parameter when it's a MapBuilder config.
     """
 
     def render(self):
