@@ -1,13 +1,9 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces]
+  worldmap, minimap, agenttraces, footer]
 
 var replay = ""
-
-# TODO: Remove with dynamic panels.
-var topArea: Area
-var bottomArea: Area
 
 proc updateReplayHeader(replayPath: string) =
   ## Set the global header's display name for the current replay.
@@ -48,24 +44,6 @@ proc parseArgs() =
 
 find "/UI/Main":
 
-  find "**/PanelHeader":
-    onClick:
-      let title = thisNode.find("**/title")
-      rootArea.select(title.text)
-      echo "Selected panel: ", title.text
-
-  find "AreaHeader":
-    onClick:
-      echo "Clicked: AreaHeader: ", thisNode.name
-
-  find "WorldMapPanel":
-    onClick:
-      echo "Clicked: WorldMapPanel: ", thisNode.name
-
-  find "AgentTracesPanel":
-    onClick:
-      echo "Clicked: AgentTracesPanel: ", thisNode.name
-
   onLoad:
     echo "onLoad"
 
@@ -85,64 +63,80 @@ find "/UI/Main":
           common.replay = loadReplay(response.body, replay)
           updateReplayHeader(replay)
       else:
+        echo "Loading replay from file: ", replay
         common.replay = loadReplay(replay)
         updateReplayHeader(replay)
+
     elif common.replay == nil:
+      echo "Loading built-in replay"
       common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
       updateReplayHeader(dataDir / "replays" / "pens.json.z")
 
-    echo "Creating panels"
-    rootArea = Area(layout: Horizontal, node: find("**/AreaHeader"))
+    rootArea.split(Vertical)
+    rootArea.split = 0.20
 
-    worldMapPanel = Panel(panelType: WorldMap, name: "World Map", node: find("**/WorldMap"))
-    minimapPanel = Panel(panelType: Minimap, name: "Minimap", node: find("**/Minimap"))
-    agentTablePanel = Panel(panelType: AgentTable, name: "Agent Table", node: find("**/AgentTable"))
-    agentTracesPanel = Panel(panelType: AgentTraces, name: "Agent Traces", node: find("**/AgentTraces"))
-    envConfigPanel = Panel(panelType: EnvConfig, name: "Env Config", node: find("**/EnvConfig"))
+    objectInfoPanel = rootArea.areas[0].addPanel(ObjectInfo, "Object")
+    environmentInfoPanel = rootArea.areas[0].addPanel(EnvironmentInfo, "Environment")
+
+    rootArea.areas[1].split(Horizontal)
+    rootArea.areas[1].split = 0.5
+
+    worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
+    minimapPanel = rootArea.areas[1].areas[0].addPanel(Minimap, "Minimap")
+
+    agentTracesPanel = rootArea.areas[1].areas[1].addPanel(AgentTraces, "Agent Traces")
+    agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
+
+    rootArea.refresh()
 
     globalTimelinePanel = Panel(panelType: GlobalTimeline, node: find("GlobalTimeline"))
     globalFooterPanel = Panel(panelType: GlobalFooter, node: find("GlobalFooter"))
     globalHeaderPanel = Panel(panelType: GlobalHeader, node: find("GlobalHeader"))
 
-    topArea = Area(layout: Horizontal, node: rootArea.node.copy())
-    thisNode.addChild(topArea.node)
-    rootArea.add(topArea)
-    bottomArea = Area(layout: Horizontal, node: rootArea.node.copy())
-    # Update the names of the headers.
-    bottomArea.node.children[0].find("title").text = "Agent Traces"
-    bottomArea.node.children[1].find("title").text = "Env Config"
-    bottomArea.node.children[2].remove()
-
-
-    thisNode.addChild(bottomArea.node)
-    rootArea.add(bottomArea)
-
-    topArea.add(worldMapPanel)
-    topArea.add(minimapPanel)
-    topArea.add(agentTablePanel)
-    bottomArea.add(agentTracesPanel)
-    bottomArea.add(envConfigPanel)
-
     worldMapPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      bxy.translate(thisNode.position)
+      worldMapPanel.rect = irect(
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
+        thisNode.size.x,
+        thisNode.size.y
+      )
+      bxy.translate(worldMapPanel.rect.xy.vec2)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
 
     minimapPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      bxy.translate(thisNode.position)
+      minimapPanel.rect = irect(
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
+        thisNode.size.x,
+        thisNode.size.y
+      )
+      bxy.translate(minimapPanel.rect.xy.vec2)
       drawMinimap(minimapPanel)
       bxy.restoreTransform()
 
     agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      bxy.translate(thisNode.position)
+      agentTracesPanel.rect = irect(
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
+        thisNode.size.x,
+        thisNode.size.y
+      )
+      bxy.translate(agentTracesPanel.rect.xy.vec2)
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
+      globalTimelinePanel.rect = irect(
+        thisNode.position.x,
+        thisNode.position.y,
+        thisNode.size.x,
+        thisNode.size.y
+      )
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
@@ -155,15 +149,6 @@ find "/UI/Main":
     if window.buttonReleased[MouseLeft]:
       mouseCaptured = false
       mouseCapturedPanel = nil
-
-    const RibbonHeight = 64
-    const HeaderHeight = 28
-
-    let size = (window.size.vec2 / window.contentScale).ivec2
-    rootArea.rect = irect(0, RibbonHeight, size.x, size.y - RibbonHeight*3)
-    topArea.rect = irect(0, rootArea.rect.y, rootArea.rect.w, (rootArea.rect.h.float32 * 0.75).int32)
-    bottomArea.rect = irect(0, rootArea.rect.y + (rootArea.rect.h.float32 * 0.75).int, rootArea.rect.w, (rootArea.rect.h.float32 * 0.25).int)
-    rootArea.updatePanelsSizes()
 
     if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
       fitFullMap(worldMapPanel)
