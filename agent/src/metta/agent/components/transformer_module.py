@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .transformer_memory import empty_memory, normalize_memory, update_memory_window
+
 # ---------------------------------------------------------------------------
 # Full-context GTrXL-style transformer (legacy working version)
 # ---------------------------------------------------------------------------
@@ -249,7 +251,19 @@ class GTrXLModule(nn.Module):
         device = inputs.device
         dtype = inputs.dtype
 
-        layer_mems = self._prepare_memory(memory, batch_size, device, dtype)
+        stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
+        layer_mems = normalize_memory(
+            self.memory_len,
+            self.n_layers,
+            stored_memory,
+            batch_size,
+            self.d_model,
+            device,
+            dtype,
+        )
+        if layer_mems is None:
+            layer_mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
+        memory_enabled = self.memory_len > 0
 
         core = inputs
         if self.use_input_proj:
@@ -286,63 +300,19 @@ class GTrXLModule(nn.Module):
         if squeeze:
             core = core.squeeze(0)
 
-        new_memory = self._update_memory(layer_outputs, batch_size)
-        return core, {"hidden_states": new_memory}
-
-    def _prepare_memory(
-        self,
-        memory: Optional[Dict[str, Optional[List[torch.Tensor]]]],
-        batch_size: int,
-        device: torch.device,
-        dtype: torch.dtype,
-    ) -> List[torch.Tensor]:
-        zeros = torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype)
-        if self.memory_len <= 0 or memory is None:
-            return [zeros.clone() for _ in range(self.n_layers)]
-
-        stored = memory.get("hidden_states") if isinstance(memory, dict) else None
-        if not stored or len(stored) != self.n_layers:
-            return [zeros.clone() for _ in range(self.n_layers)]
-
-        mems: List[torch.Tensor] = []
-        for tensor in stored:
-            if tensor is None or tensor.numel() == 0:
-                mems.append(zeros.clone())
-                continue
-            mem = tensor.to(device=device, dtype=dtype)
-            if mem.size(1) != batch_size:
-                mem = mem[:, :batch_size].contiguous()
-            mems.append(mem)
-        return mems
-
-    def _update_memory(self, layer_outputs: List[torch.Tensor], batch_size: int) -> Optional[List[torch.Tensor]]:
-        if self.memory_len <= 0:
-            return None
-        new_memory: List[torch.Tensor] = []
-        for layer_out in layer_outputs:
-            if layer_out.numel() == 0:
-                new_memory.append(
-                    torch.zeros(
-                        0,
-                        batch_size,
-                        self.d_model,
-                        device=layer_out.device,
-                        dtype=layer_out.dtype,
-                    )
-                )
-                continue
-            total_len = layer_out.size(0)
-            start_idx = max(total_len - self.memory_len, 0)
-            new_memory.append(layer_out[start_idx:].detach())
-        return new_memory
+        new_memory = update_memory_window(
+            layer_outputs,
+            layer_mems if memory_enabled else None,
+            self.memory_len,
+        )
+        return core, {"hidden_states": new_memory if memory_enabled else None}
 
     def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
         if self.memory_len <= 0:
             return {"hidden_states": None}
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
-        empty = torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype)
-        return {"hidden_states": [empty.clone() for _ in range(self.n_layers)]}
+        return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}
 
 
 # ---------------------------------------------------------------------------
@@ -613,8 +583,20 @@ class TransformerXLModule(nn.Module):
         device = inputs.device
         dtype = inputs.dtype
 
-        mems = self._prepare_memory(memory, batch_size, device, dtype)
-        mlen = mems[0].size(0) if mems is not None else 0
+        stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
+        mems = normalize_memory(
+            self.memory_len,
+            self.n_layers,
+            stored_memory,
+            batch_size,
+            self.d_model,
+            device,
+            dtype,
+        )
+        mem_enabled = mems is not None
+        if mems is None:
+            mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
+        mlen = mems[0].size(0) if mems else 0
         klen = mlen + seq_len
 
         if self.same_length:
@@ -639,73 +621,22 @@ class TransformerXLModule(nn.Module):
         hiddens: List[torch.Tensor] = [core_out]
 
         for layer_id, layer in enumerate(self.layers):
-            mem_layer = None if mems is None else mems[layer_id]
+            mem_layer = mems[layer_id] if mem_enabled else None
             core_out = layer(core_out, pos_emb, self.r_w_bias, self.r_r_bias, attn_mask, mem_layer)
             hiddens.append(core_out)
 
         core_out = self.drop(core_out)
-        new_memory = self._update_memory(hiddens, mems, seq_len)
-        return core_out, {"hidden_states": new_memory}
-
-    def _prepare_memory(
-        self,
-        memory: Optional[Dict[str, List[torch.Tensor]]],
-        batch_size: int,
-        device: torch.device,
-        dtype: torch.dtype,
-    ) -> Optional[List[torch.Tensor]]:
-        if self.memory_len <= 0 or memory is None:
-            return None
-
-        stored = memory.get("hidden_states") if isinstance(memory, dict) else None
-        if not stored:
-            return None
-
-        mems: List[torch.Tensor] = []
-        for tensor in stored:
-            if tensor is None:
-                mems.append(torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype))
-                continue
-            mem = tensor.to(device=device, dtype=dtype)
-            if mem.size(1) != batch_size:
-                mem = mem[:, :batch_size].contiguous()
-            mems.append(mem)
-
-        if len(mems) != self.n_layers:
-            return None
-        return mems
-
-    def _update_memory(
-        self,
-        hiddens: List[torch.Tensor],
-        mems: Optional[List[torch.Tensor]],
-        qlen: int,
-    ) -> Optional[List[torch.Tensor]]:
-        if self.memory_len <= 0:
-            return None
-
-        batch_size = hiddens[0].size(1)
-        device = hiddens[0].device
-        dtype = hiddens[0].dtype
-
-        if mems is None or len(mems) != self.n_layers:
-            mems = [torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype) for _ in range(self.n_layers)]
-
-        with torch.no_grad():
-            mlen = mems[0].size(0)
-            end_idx = mlen + max(0, qlen - self.ext_len)
-            beg_idx = max(0, end_idx - self.memory_len)
-            new_mems = []
-            for layer_idx in range(self.n_layers):
-                prev_mem = mems[layer_idx]
-                cat = torch.cat([prev_mem, hiddens[layer_idx + 1]], dim=0)
-                new_mems.append(cat[beg_idx:end_idx].detach())
-        return new_mems
+        new_memory = update_memory_window(
+            hiddens[1:],
+            mems if mem_enabled else None,
+            self.memory_len,
+            ext_len=self.ext_len,
+        )
+        return core_out, {"hidden_states": new_memory if mem_enabled else None}
 
     def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
         if self.memory_len <= 0:
             return {"hidden_states": None}
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
-        empty = torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype)
-        return {"hidden_states": [empty.clone() for _ in range(self.n_layers)]}
+        return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}

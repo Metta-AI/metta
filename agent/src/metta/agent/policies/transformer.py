@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 from einops import rearrange
-from pydantic import Field
+from pydantic import model_validator
 from tensordict import TensorDict
 from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
@@ -26,8 +26,10 @@ from metta.agent.components.actor import (
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.heads import LinearHead, LinearHeadConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
-from metta.agent.components.transformer_core import GTrXLCoreConfig, TRXLCoreConfig
-from metta.agent.components.transformer_nvidia_module import TransformerNvidiaCoreConfig
+from metta.agent.components.transformer_core import (
+    TransformerBackboneConfig,
+    TransformerBackboneVariant,
+)
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -43,10 +45,19 @@ def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
     )
 
 
-class BaseTransformerPolicyConfig(PolicyArchitecture):
-    """Shared hyperparameters for convolutional transformer policies."""
+_POLICY_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, bool]] = {
+    TransformerBackboneVariant.GTRXL: {"manual_init": False, "strict_attr_indices": False},
+    TransformerBackboneVariant.TRXL: {"manual_init": False, "strict_attr_indices": False},
+    TransformerBackboneVariant.TRXL_NVIDIA: {"manual_init": True, "strict_attr_indices": True},
+}
 
-    class_path: str = "metta.agent.policies.transformer.BaseTransformerPolicy"
+
+class TransformerPolicyConfig(PolicyArchitecture):
+    """Configures the end-to-end transformer policy."""
+
+    class_path: str = "metta.agent.policies.transformer.TransformerPolicy"
+
+    variant: TransformerBackboneVariant = TransformerBackboneVariant.GTRXL
 
     # Observation preprocessing
     obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
@@ -59,8 +70,7 @@ class BaseTransformerPolicyConfig(PolicyArchitecture):
         encoded_obs_cfg={"out_features": 256},
     )
 
-    # Transformer interface dimensions
-    transformer_core: GTrXLCoreConfig = Field(default_factory=GTrXLCoreConfig)
+    transformer: TransformerBackboneConfig | None = None
 
     # Actor / critic head dimensions
     critic_hidden_dim: int = 512
@@ -69,39 +79,32 @@ class BaseTransformerPolicyConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     # Implementation options
-    manual_init: bool = False
-    strict_attr_indices: bool = False
+    manual_init: bool | None = None
+    strict_attr_indices: bool | None = None
+
+    @model_validator(mode="after")
+    def _apply_variant_defaults(self) -> "TransformerPolicyConfig":
+        overrides = {}
+        if self.transformer is not None:
+            overrides = self.transformer.model_dump(exclude_none=True)
+        overrides["variant"] = self.variant
+        self.transformer = TransformerBackboneConfig(**overrides)
+
+        defaults = _POLICY_VARIANT_DEFAULTS[self.variant]
+        if self.manual_init is None:
+            self.manual_init = defaults["manual_init"]
+        if self.strict_attr_indices is None:
+            self.strict_attr_indices = defaults["strict_attr_indices"]
+
+        return self
 
 
-class GTrXLPolicyConfig(BaseTransformerPolicyConfig):
-    """GTrXL variant that mirrors the legacy working implementation."""
-
-    class_path: str = "metta.agent.policies.transformer.GTrXLPolicy"
-    transformer_core: GTrXLCoreConfig = Field(default_factory=GTrXLCoreConfig)
-
-
-class TRXLPolicyConfig(BaseTransformerPolicyConfig):
-    """Vanilla Transformer-XL variant with memory enabled."""
-
-    class_path: str = "metta.agent.policies.transformer.TRXLPolicy"
-    transformer_core: TRXLCoreConfig = Field(default_factory=TRXLCoreConfig)
-
-
-class TRXLNvidiaPolicyConfig(BaseTransformerPolicyConfig):
-    """Matches NVIDIA's reference Transformer-XL implementation."""
-
-    class_path: str = "metta.agent.policies.transformer.TRXLNvidiaPolicy"
-    manual_init: bool = True
-    strict_attr_indices: bool = True
-    transformer_core: TransformerNvidiaCoreConfig = Field(default_factory=TransformerNvidiaCoreConfig)
-
-
-class BaseTransformerPolicy(Policy):
+class TransformerPolicy(Policy):
     """Shared CNN + Transformer policy scaffolding."""
 
-    ConfigClass = BaseTransformerPolicyConfig
+    ConfigClass = TransformerPolicyConfig
 
-    def __init__(self, env, config: Optional[BaseTransformerPolicyConfig] = None) -> None:
+    def __init__(self, env, config: Optional[TransformerPolicyConfig] = None) -> None:
         super().__init__()
         if config is None:
             config = self.ConfigClass()
@@ -111,9 +114,9 @@ class BaseTransformerPolicy(Policy):
         self.is_continuous = False
         self.action_space = env.action_space
 
-        self.transformer_core_cfg = self.config.transformer_core
-        self.latent_size = self.transformer_core_cfg.latent_size
-        self.hidden_size = self.transformer_core_cfg.hidden_size
+        self.transformer_cfg = self.config.transformer
+        self.latent_size = self.transformer_cfg.latent_size
+        self.hidden_size = self.transformer_cfg.hidden_size
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
 
@@ -213,8 +216,8 @@ class BaseTransformerPolicy(Policy):
         self.action_probs = self.config.action_probs_config.make_component()
 
     def _build_transformer(self) -> None:
-        self.transformer_module = self.transformer_core_cfg.make_component(self.env)
-        self._memory_enabled = getattr(self.transformer_core_cfg, "memory_len", 0) > 0
+        self.transformer_module = self.transformer_cfg.make_component(self.env)
+        self._memory_enabled = getattr(self.transformer_cfg, "memory_len", 0) > 0
 
     # ------------------------------------------------------------------
     # Forward path
@@ -551,34 +554,29 @@ class BaseTransformerPolicy(Policy):
         )
 
 
-class GTrXLPolicy(BaseTransformerPolicy):
-    ConfigClass = GTrXLPolicyConfig
+def gtrxl_policy_config() -> TransformerPolicyConfig:
+    """Return a policy config for the GTrXL variant."""
 
-    def __init__(self, env, config: Optional[GTrXLPolicyConfig] = None) -> None:
-        super().__init__(env, config)
-
-
-class TRXLPolicy(BaseTransformerPolicy):
-    ConfigClass = TRXLPolicyConfig
-
-    def __init__(self, env, config: Optional[TRXLPolicyConfig] = None) -> None:
-        super().__init__(env, config)
+    return TransformerPolicyConfig(variant=TransformerBackboneVariant.GTRXL)
 
 
-class TRXLNvidiaPolicy(BaseTransformerPolicy):
-    ConfigClass = TRXLNvidiaPolicyConfig
+def trxl_policy_config() -> TransformerPolicyConfig:
+    """Return a policy config for the vanilla Transformer-XL variant."""
 
-    def __init__(self, env, config: Optional[TRXLNvidiaPolicyConfig] = None) -> None:
-        super().__init__(env, config)
+    return TransformerPolicyConfig(variant=TransformerBackboneVariant.TRXL)
 
 
-# ---------------------------------------------------------------------------
-# Backwards compatibility aliases (legacy names)
-# ---------------------------------------------------------------------------
+def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
+    """Return a policy config for the NVIDIA Transformer-XL variant."""
 
-TransformerPolicyConfig = GTrXLPolicyConfig
-TransformerPolicy = GTrXLPolicy
-TransformerImprovedConfig = TRXLPolicyConfig
-TransformerImprovedPolicy = TRXLPolicy
-TransformerNvidiaConfig = TRXLNvidiaPolicyConfig
-TransformerNvidiaPolicy = TRXLNvidiaPolicy
+    return TransformerPolicyConfig(variant=TransformerBackboneVariant.TRXL_NVIDIA)
+
+
+__all__ = [
+    "TransformerPolicyConfig",
+    "TransformerPolicy",
+    "TransformerBackboneVariant",
+    "gtrxl_policy_config",
+    "trxl_policy_config",
+    "trxl_nvidia_policy_config",
+]

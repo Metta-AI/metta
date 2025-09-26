@@ -6,12 +6,11 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.transformer import (
-    GTrXLPolicy,
-    GTrXLPolicyConfig,
-    TRXLNvidiaPolicy,
-    TRXLNvidiaPolicyConfig,
-    TRXLPolicy,
-    TRXLPolicyConfig,
+    TransformerBackboneVariant,
+    TransformerPolicy,
+    gtrxl_policy_config,
+    trxl_nvidia_policy_config,
+    trxl_policy_config,
 )
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
@@ -47,17 +46,18 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 
 
 @pytest.mark.parametrize(
-    ("config_cls", "expected_cls"),
+    ("config_factory", "variant"),
     [
-        (GTrXLPolicyConfig, GTrXLPolicy),
-        (TRXLPolicyConfig, TRXLPolicy),
-        (TRXLNvidiaPolicyConfig, TRXLNvidiaPolicy),
+        (gtrxl_policy_config, TransformerBackboneVariant.GTRXL),
+        (trxl_policy_config, TransformerBackboneVariant.TRXL),
+        (trxl_nvidia_policy_config, TransformerBackboneVariant.TRXL_NVIDIA),
     ],
 )
-def test_transformer_config_creates_policy(config_cls, expected_cls):
+def test_transformer_config_creates_policy(config_factory, variant):
     env_metadata = _build_env_metadata()
-    policy = config_cls().make_policy(env_metadata)
-    assert isinstance(policy, expected_cls)
+    policy = config_factory().make_policy(env_metadata)
+    assert isinstance(policy, TransformerPolicy)
+    assert policy.config.variant is variant
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 
@@ -74,7 +74,7 @@ def test_transformer_config_creates_policy(config_cls, expected_cls):
 
 def test_transformer_policy_initialization_sets_action_metadata():
     env_metadata = _build_env_metadata()
-    policy = GTrXLPolicyConfig().make_policy(env_metadata)
+    policy = gtrxl_policy_config().make_policy(env_metadata)
 
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
@@ -86,7 +86,7 @@ def test_transformer_policy_initialization_sets_action_metadata():
 
 def test_padding_tokens_do_not_zero_valid_entries():
     env_metadata = _build_env_metadata()
-    policy = GTrXLPolicyConfig().make_policy(env_metadata)
+    policy = gtrxl_policy_config().make_policy(env_metadata)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 

@@ -1,22 +1,19 @@
 # Transformer-XL Architecture Reference
 
-> **Note:** The current `TRXLPolicy` agent now mirrors the original
-> Transformer-XL implementation from [kimiyoung/transformer-xl](https://github.com/kimiyoung/transformer-xl)
+> **Note:** The current `TransformerPolicy` configured with `variant="trxl"`
+> mirrors the original Transformer-XL implementation from [kimiyoung/transformer-xl](https://github.com/kimiyoung/transformer-xl)
 > and no longer applies the additional GRU-style gating that earlier revisions used.
 > Historical notes on GTrXL remain below for context when comparing design choices.
 
-> **Renaming (September 2025):**
-> - (legacy) `TransformerPolicy` → `GTrXLPolicy`
-> - (legacy) `TransformerImprovedPolicy` → `TRXLPolicy`
-> - (legacy) `TransformerNvidiaPolicy` → `TRXLNvidiaPolicy`
->
-> Legacy names remain available as aliases for compatibility, but new experiments should
-> prefer the updated identifiers.
+> **Variants (September 2025):**
+> - `TransformerPolicyConfig(variant="gtrxl")` — gated Transformer without memory
+> - `TransformerPolicyConfig(variant="trxl")` — vanilla Transformer-XL with layer memory
+> - `TransformerPolicyConfig(variant="trxl_nvidia")` — NVIDIA's optimized Transformer-XL core
 
 ### Variant overview (September 2025)
-- **GTrXLPolicy** retains the GRU-style gating and pre-layernorm identity-map stabilization introduced for reinforcement learning stability while running without transformer-XL memory.
-- **TRXLPolicy** mirrors the original Transformer-XL decoder with layer-wise memory caching and relative positional attention but no gating modifications.
-- **TRXLNvidiaPolicy** keeps NVIDIA's optimized Transformer-XL core (including custom bias handling, clamp length and memory window) while sharing the common CNN/actor heads with the other variants.
+- **variant="gtrxl"** retains the GRU-style gating and pre-layernorm identity-map stabilization introduced for reinforcement learning stability while running without transformer-XL memory.
+- **variant="trxl"** mirrors the original Transformer-XL decoder with layer-wise memory caching and relative positional attention but no gating modifications.
+- **variant="trxl_nvidia"** keeps NVIDIA's optimized Transformer-XL core (including custom bias handling, clamp length and memory window) while sharing the common CNN/actor heads with the other variants.
 
 ## Paper Summary
 **Title**: "Stabilizing Transformers for Reinforcement Learning"  
@@ -193,14 +190,14 @@ class GRUGating(nn.Module):
 - **Paper GTrXL**: Emphasizes memory for handling long sequences beyond context window
 
 ## Implementation Status (September 2025)
-- [x] `GTrXLPolicy`: Legacy gating stack retained and audited against the stabilized RL reference implementation.
-- [x] `TRXLPolicy`: Mirrors Transformer-XL decoder with layer memory, relative attention, and pre-norm residual flow.
-- [x] `TRXLNvidiaPolicy`: Wraps NVIDIA's optimized Transformer-XL core with reference-default hyperparameters and bias handling.
+- [x] variant="gtrxl": Legacy gating stack retained and audited against the stabilized RL reference implementation.
+- [x] variant="trxl": Mirrors Transformer-XL decoder with layer memory, relative attention, and pre-norm residual flow.
+- [x] variant="trxl_nvidia": Wraps NVIDIA's optimized Transformer-XL core with reference-default hyperparameters and bias handling.
 - [ ] Extended regression coverage: schedule long-horizon RL smoke tests that exercise memory resets and large batch inference.
 
 ## Variant Feature Matrix
-| Feature | GTrXLPolicy | TRXLPolicy | TRXLNvidiaPolicy |
-|---------|-------------|------------|------------------|
+| Feature | variant="gtrxl" | variant="trxl" | variant="trxl_nvidia" |
+|---------|--------------------|---------------|-------------------------|
 | Residual gating | ✅ GRU-style gates | ❌ | ❌ |
 | Pre-layer normalization | ✅ | ✅ | ❌ (matches NVIDIA post-norm) |
 | Layer count (default) | 6 | 6 | 16 |
@@ -212,8 +209,8 @@ class GRUGating(nn.Module):
 | Attention dropout | 0.1 | 0.1 | 0.0 |
 
 ## Default Hyperparameters (Base Config)
-| Parameter | GTrXLPolicy | TRXLPolicy | TRXLNvidiaPolicy |
-|-----------|-------------|------------|------------------|
+| Parameter | variant="gtrxl" | variant="trxl" | variant="trxl_nvidia" |
+|-----------|--------------------|---------------|-------------------------|
 | `latent_size` / `hidden_size` | 128 | 256 | 512 |
 | `num_layers` | 6 | 6 | 16 |
 | `n_heads` | 8 | 8 | 8 |
@@ -224,10 +221,10 @@ class GRUGating(nn.Module):
 | `manual_init` (policy heads) | False | False | True |
 
 ## Behavioural Notes
-- GTrXL retains gating to stabilize on-policy RL gradients as described by Parisotto et al. and omits Transformer-XL memory to match historically successful training runs.
-- GTrXL now exposes a slimmed-down constructor; legacy keyword arguments such as `dropatt` or `same_length` are ignored with a debug warning to ease migration from the previous `TransformerModule` wrapper.
-- TRXL reinstates layer-wise memory caching and relative attention from the original Transformer-XL formulation for long context handling while keeping the simplified actor/critic heads used internally.
-- TRXLNvidia uses the NVIDIA Megatron-style Transformer-XL block with post-norm residuals, clamp-free relative positional embeddings, and longer default memory to reflect the `wt103_base` recipe.
+- variant="gtrxl" retains gating to stabilize on-policy RL gradients as described by Parisotto et al. and omits Transformer-XL memory to match historically successful training runs.
+- variant="gtrxl" now exposes a slimmed-down constructor; legacy keyword arguments such as `dropatt` or `same_length` are ignored with a debug warning to ease migration from the previous `TransformerModule` wrapper.
+- variant="trxl" reinstates layer-wise memory caching and relative attention from the original Transformer-XL formulation for long context handling while keeping the simplified actor/critic heads used internally.
+- variant="trxl_nvidia" uses the NVIDIA Megatron-style Transformer-XL block with post-norm residuals, clamp-free relative positional embeddings, and longer default memory to reflect the `wt103_base` recipe.
 
 ## Pending Documentation Work
 - Expand the variant overview into a comparison table that includes empirical metrics once new benchmarks finish.

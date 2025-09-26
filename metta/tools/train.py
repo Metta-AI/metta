@@ -2,16 +2,16 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Any, ClassVar, Optional
+from typing import Any, Callable, ClassVar, Optional
 
 import torch
 from pydantic import Field, model_validator
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.transformer import (
-    GTrXLPolicyConfig,
-    TRXLNvidiaPolicyConfig,
-    TRXLPolicyConfig,
+    gtrxl_policy_config,
+    trxl_nvidia_policy_config,
+    trxl_policy_config,
 )
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -60,15 +60,15 @@ logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
-    POLICY_PRESETS: ClassVar[dict[str, type[PolicyArchitecture]]] = {
+    POLICY_PRESETS: ClassVar[dict[str, Callable[[], PolicyArchitecture]]] = {
         "fast": FastConfig,
         "vit": ViTDefaultConfig,
-        "gtrxl": GTrXLPolicyConfig,
-        "transformer": GTrXLPolicyConfig,
-        "trxl": TRXLPolicyConfig,
-        "transformer_improved": TRXLPolicyConfig,
-        "trxl_nvidia": TRXLNvidiaPolicyConfig,
-        "transformer_nvidia": TRXLNvidiaPolicyConfig,
+        "gtrxl": gtrxl_policy_config,
+        "transformer": gtrxl_policy_config,
+        "trxl": trxl_policy_config,
+        "transformer_improved": trxl_policy_config,
+        "trxl_nvidia": trxl_nvidia_policy_config,
+        "transformer_nvidia": trxl_nvidia_policy_config,
     }
 
     @model_validator(mode="before")
@@ -78,11 +78,11 @@ class TrainTool(Tool):
             return data
         value = data.get("policy_architecture")
         if isinstance(value, str) and "." not in value:
-            preset_cls = cls.POLICY_PRESETS.get(value.lower())
-            if preset_cls is None:
+            preset_factory = cls.POLICY_PRESETS.get(value.lower())
+            if preset_factory is None:
                 valid = ", ".join(sorted(cls.POLICY_PRESETS))
                 raise ValueError(f"Unknown policy preset '{value}'. Valid options: {valid}")
-            data["policy_architecture"] = preset_cls()
+            data["policy_architecture"] = preset_factory()
         return data
 
     run: Optional[str] = None
