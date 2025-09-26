@@ -225,271 +225,278 @@ export const UnifiedInstitutionsView: FC<UnifiedInstitutionsViewProps> = ({
   ];
 
   return (
-    <div className="p-4">
-      {/* Header with Create Button */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Institutions</h1>
+    <div className="flex h-full flex-col">
+      {/* Header Section - matches NewPostForm styling */}
+      <div className="border-b border-gray-200 bg-white p-4 md:p-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Institutions</h1>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+            Create Institution
+          </button>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="mb-6">
           <p className="text-gray-600">
             Research institutions, companies, and organizations
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4" />
-          Create Institution
-        </button>
-      </div>
 
-      {/* Filter and Sort Controls */}
-      <div className="mb-6 space-y-4">
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 transform text-gray-400" />
-          <input
-            ref={filterInputRef}
-            type="text"
-            placeholder="Search institutions, categories, or authors..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 py-3 pr-4 pl-10 text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-          />
+        {/* Filter and Sort Controls */}
+        <div className="mb-6 space-y-4">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 transform text-gray-400" />
+            <input
+              ref={filterInputRef}
+              type="text"
+              placeholder="Search institutions, categories, or authors..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 py-3 pr-4 pl-10 text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Sort Options */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Sort by:</span>
+            {sortOptions.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => handleSortClick(option.key)}
+                className={`flex items-center gap-1 rounded-full px-3 py-1 text-sm transition-colors ${
+                  sortBy === option.key
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {option.label}
+                {sortBy === option.key && (
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${
+                      sortDirection === "asc" ? "rotate-180" : ""
+                    }`}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Results Count */}
+          <div className="text-sm text-gray-500">
+            Showing {filteredAndSortedInstitutions.length} of{" "}
+            {allInstitutionsForView.length} institutions
+          </div>
         </div>
 
-        {/* Sort Options */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-gray-700">Sort by:</span>
-          {sortOptions.map((option) => (
-            <button
-              key={option.key}
-              onClick={() => handleSortClick(option.key)}
-              className={`flex items-center gap-1 rounded-full px-3 py-1 text-sm transition-colors ${
-                sortBy === option.key
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
+        {/* Institutions Grid - Original Styling */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredAndSortedInstitutions.map((institution) => (
+            <div
+              key={institution.id}
+              className="cursor-pointer rounded-lg border border-gray-200 bg-white p-6 transition-all hover:border-gray-300 hover:shadow-md"
+              onClick={() => handleInstitutionClick(institution)}
             >
-              {option.label}
-              {sortBy === option.key && (
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${
-                    sortDirection === "asc" ? "rotate-180" : ""
-                  }`}
-                />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Results Count */}
-        <div className="text-sm text-gray-500">
-          Showing {filteredAndSortedInstitutions.length} of{" "}
-          {allInstitutionsForView.length} institutions
-        </div>
-      </div>
-
-      {/* Institutions Grid - Original Styling */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredAndSortedInstitutions.map((institution) => (
-          <div
-            key={institution.id}
-            className="cursor-pointer rounded-lg border border-gray-200 bg-white p-6 transition-all hover:border-gray-300 hover:shadow-md"
-            onClick={() => handleInstitutionClick(institution)}
-          >
-            {/* Institution Header */}
-            <div className="mb-4 flex items-start gap-4">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
-                {getInstitutionInitials(institution.name)}
+              {/* Institution Header */}
+              <div className="mb-4 flex items-start gap-4">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
+                  {getInstitutionInitials(institution.name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="truncate text-lg font-semibold text-gray-900">
+                      {institution.name}
+                    </h3>
+                    <div className="flex items-center gap-1">
+                      {/* Join button for non-members */}
+                      {canJoinInstitution(institution) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleJoinInstitution(institution.id);
+                          }}
+                          disabled={isJoining}
+                          className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-green-50 hover:text-green-600 disabled:opacity-50"
+                          title="Join institution"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </button>
+                      )}
+                      {/* Pending status indicator */}
+                      {institution.currentUserStatus === "PENDING" && (
+                        <div
+                          className="rounded-md p-1.5 text-orange-500"
+                          title="Membership request pending approval"
+                        >
+                          ⏳
+                        </div>
+                      )}
+                      {/* Rejected status indicator */}
+                      {institution.currentUserStatus === "REJECTED" && (
+                        <div
+                          className="rounded-md p-1.5 text-red-500"
+                          title="Membership request was rejected"
+                        >
+                          ❌
+                        </div>
+                      )}
+                      {/* Manage button for admins */}
+                      {institution.currentUserRole === "admin" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedInstitution(
+                              getInstitutionWithMembers(institution)
+                            );
+                          }}
+                          className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                          title="Manage institution"
+                        >
+                          <Users className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {institution.authorCount} authors • {institution.paperCount}{" "}
+                    papers
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="truncate text-lg font-semibold text-gray-900">
-                    {institution.name}
-                  </h3>
-                  <div className="flex items-center gap-1">
-                    {/* Join button for non-members */}
-                    {canJoinInstitution(institution) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleJoinInstitution(institution.id);
-                        }}
-                        disabled={isJoining}
-                        className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-green-50 hover:text-green-600 disabled:opacity-50"
-                        title="Join institution"
-                      >
-                        <UserPlus className="h-4 w-4" />
-                      </button>
-                    )}
-                    {/* Pending status indicator */}
-                    {institution.currentUserStatus === "PENDING" && (
-                      <div
-                        className="rounded-md p-1.5 text-orange-500"
-                        title="Membership request pending approval"
-                      >
-                        ⏳
-                      </div>
-                    )}
-                    {/* Rejected status indicator */}
-                    {institution.currentUserStatus === "REJECTED" && (
-                      <div
-                        className="rounded-md p-1.5 text-red-500"
-                        title="Membership request was rejected"
-                      >
-                        ❌
-                      </div>
-                    )}
-                    {/* Manage button for admins */}
-                    {institution.currentUserRole === "admin" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedInstitution(
-                            getInstitutionWithMembers(institution)
-                          );
-                        }}
-                        className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                        title="Manage institution"
-                      >
-                        <Users className="h-4 w-4" />
-                      </button>
+
+              {/* Statistics */}
+              <div className="mb-4 grid grid-cols-2 gap-4">
+                <div className="rounded-lg bg-gray-50 p-3 text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {institution.paperCount}
+                  </div>
+                  <div className="text-xs text-gray-600">Papers</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3 text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {institution.avgStars.toFixed(1)}
+                  </div>
+                  <div className="text-xs text-gray-600">Avg Stars</div>
+                </div>
+              </div>
+
+              {/* Top Categories */}
+              {institution.topCategories.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="mb-2 text-sm font-medium text-gray-700">
+                    Top Areas
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {institution.topCategories
+                      .slice(0, 3)
+                      .map((category, idx) => (
+                        <span
+                          key={idx}
+                          className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700"
+                        >
+                          {category}
+                        </span>
+                      ))}
+                    {institution.topCategories.length > 3 && (
+                      <span className="text-xs text-gray-500">
+                        +{institution.topCategories.length - 3} more
+                      </span>
                     )}
                   </div>
                 </div>
-                <p className="text-sm text-gray-600">
-                  {institution.authorCount} authors • {institution.paperCount}{" "}
-                  papers
-                </p>
-              </div>
-            </div>
+              )}
 
-            {/* Statistics */}
-            <div className="mb-4 grid grid-cols-2 gap-4">
-              <div className="rounded-lg bg-gray-50 p-3 text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {institution.paperCount}
-                </div>
-                <div className="text-xs text-gray-600">Papers</div>
-              </div>
-              <div className="rounded-lg bg-gray-50 p-3 text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {institution.avgStars.toFixed(1)}
-                </div>
-                <div className="text-xs text-gray-600">Avg Stars</div>
-              </div>
-            </div>
-
-            {/* Top Categories */}
-            {institution.topCategories.length > 0 && (
-              <div className="mb-4">
-                <h4 className="mb-2 text-sm font-medium text-gray-700">
-                  Top Areas
-                </h4>
-                <div className="flex flex-wrap gap-1">
-                  {institution.topCategories
-                    .slice(0, 3)
-                    .map((category, idx) => (
+              {/* User Info (if applicable) */}
+              {(institution.currentUserRole ||
+                institution.currentUserStatus) && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 text-xs">
+                    {institution.currentUserRole && (
                       <span
-                        key={idx}
-                        className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700"
+                        className={`rounded px-2 py-1 font-medium ${
+                          institution.currentUserRole === "admin"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
                       >
-                        {category}
+                        {institution.currentUserRole === "admin"
+                          ? "🛡️ Admin"
+                          : institution.currentUserRole}
                       </span>
-                    ))}
-                  {institution.topCategories.length > 3 && (
-                    <span className="text-xs text-gray-500">
-                      +{institution.topCategories.length - 3} more
-                    </span>
-                  )}
+                    )}
+                    {institution.currentUserStatus === "PENDING" && (
+                      <span className="rounded bg-orange-100 px-2 py-1 font-medium text-orange-700">
+                        ⏳ Pending Approval
+                      </span>
+                    )}
+                    {institution.currentUserStatus === "REJECTED" && (
+                      <span className="rounded bg-red-100 px-2 py-1 font-medium text-red-700">
+                        ❌ Request Rejected
+                      </span>
+                    )}
+                    {institution.memberCount > 0 && (
+                      <span className="text-gray-500">
+                        {institution.memberCount} member
+                        {institution.memberCount !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* User Info (if applicable) */}
-            {(institution.currentUserRole || institution.currentUserStatus) && (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 text-xs">
-                  {institution.currentUserRole && (
-                    <span
-                      className={`rounded px-2 py-1 font-medium ${
-                        institution.currentUserRole === "admin"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {institution.currentUserRole === "admin"
-                        ? "🛡️ Admin"
-                        : institution.currentUserRole}
-                    </span>
-                  )}
-                  {institution.currentUserStatus === "PENDING" && (
-                    <span className="rounded bg-orange-100 px-2 py-1 font-medium text-orange-700">
-                      ⏳ Pending Approval
-                    </span>
-                  )}
-                  {institution.currentUserStatus === "REJECTED" && (
-                    <span className="rounded bg-red-100 px-2 py-1 font-medium text-red-700">
-                      ❌ Request Rejected
-                    </span>
-                  )}
-                  {institution.memberCount > 0 && (
-                    <span className="text-gray-500">
-                      {institution.memberCount} member
-                      {institution.memberCount !== 1 ? "s" : ""}
-                    </span>
-                  )}
-                </div>
+              {/* Recent Activity */}
+              <div className="text-xs text-gray-500">
+                Last activity: {formatDate(institution.recentActivity)}
               </div>
-            )}
-
-            {/* Recent Activity */}
-            <div className="text-xs text-gray-500">
-              Last activity: {formatDate(institution.recentActivity)}
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Empty State */}
-      {filteredAndSortedInstitutions.length === 0 && (
-        <div className="py-8 text-center">
-          <svg
-            className="mx-auto mb-4 h-12 w-12 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0h3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-            />
-          </svg>
-          <p className="text-gray-500">
-            {searchQuery
-              ? "No institutions found matching your search."
-              : "No institutions found."}
-          </p>
+          ))}
         </div>
-      )}
 
-      {/* Modals */}
-      <InstitutionCreateForm
-        isOpen={showCreateForm}
-        onClose={() => setShowCreateForm(false)}
-      />
+        {/* Empty State */}
+        {filteredAndSortedInstitutions.length === 0 && (
+          <div className="py-8 text-center">
+            <svg
+              className="mx-auto mb-4 h-12 w-12 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0h3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+              />
+            </svg>
+            <p className="text-gray-500">
+              {searchQuery
+                ? "No institutions found matching your search."
+                : "No institutions found."}
+            </p>
+          </div>
+        )}
 
-      {selectedInstitution && (
-        <InstitutionManagementModal
-          isOpen={!!selectedInstitution}
-          onClose={() => setSelectedInstitution(null)}
-          institution={selectedInstitution}
-          currentUserRole={selectedInstitution.currentUserRole}
+        {/* Modals */}
+        <InstitutionCreateForm
+          isOpen={showCreateForm}
+          onClose={() => setShowCreateForm(false)}
         />
-      )}
+
+        {selectedInstitution && (
+          <InstitutionManagementModal
+            isOpen={!!selectedInstitution}
+            onClose={() => setSelectedInstitution(null)}
+            institution={selectedInstitution}
+            currentUserRole={selectedInstitution.currentUserRole}
+          />
+        )}
+      </div>
     </div>
   );
 };

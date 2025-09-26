@@ -600,214 +600,337 @@ export function PapersView({
   );
 
   return (
-    <div className="p-4">
-      <div className="w-full max-w-full overflow-hidden px-2">
-        {/* Filter and Sort Controls */}
-        <div className="mb-6 max-w-full space-y-4">
-          {/* Search Input */}
-          <div className="relative max-w-full">
-            {/* Search Icon - positioned absolutely in the left side of the input */}
-            <svg
-              className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 transform text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="m21 21-4.35-4.35"
-              />
-            </svg>
+    <div className="flex h-full flex-col">
+      {/* Header Section - matches NewPostForm styling */}
+      <div className="border-b border-gray-200 bg-white p-4 md:p-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Papers</h1>
+          <span className="text-sm text-gray-500">
+            {filteredAndSortedPapers.length} papers
+          </span>
+        </div>
+      </div>
 
-            {/* Search Input Field */}
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                const value = e.target.value;
-                // Validate input before calling callback
-                if (typeof value === "string") {
-                  setSearchQuery(value);
-                }
-              }}
-              placeholder="Filter..."
-              className="focus:ring-primary-500 w-full rounded-lg border border-gray-300 py-2 pr-10 pl-10 focus:border-transparent focus:ring-2"
-              maxLength={200} // Prevent extremely long search queries
-            />
-
-            {/* Clear Button - only show when there's content */}
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute top-1/2 right-3 h-5 w-5 -translate-y-1/2 transform text-gray-400 transition-colors hover:text-gray-600"
-                aria-label="Clear search"
-                type="button"
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto p-2 md:p-4">
+        <div className="w-full max-w-full overflow-hidden px-1 md:px-2">
+          {/* Filter and Sort Controls */}
+          <div className="mb-6 max-w-full space-y-4">
+            {/* Search Input */}
+            <div className="relative max-w-full">
+              {/* Search Icon - positioned absolutely in the left side of the input */}
+              <svg
+                className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 transform text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
               >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+                <circle cx="11" cy="11" r="8" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="m21 21-4.35-4.35"
+                />
+              </svg>
+
+              {/* Search Input Field */}
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Validate input before calling callback
+                  if (typeof value === "string") {
+                    setSearchQuery(value);
+                  }
+                }}
+                placeholder="Filter..."
+                className="focus:ring-primary-500 w-full rounded-lg border border-gray-300 py-2 pr-10 pl-10 focus:border-transparent focus:ring-2"
+                maxLength={200} // Prevent extremely long search queries
+              />
+
+              {/* Clear Button - only show when there's content */}
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute top-1/2 right-3 h-5 w-5 -translate-y-1/2 transform text-gray-400 transition-colors hover:text-gray-600"
+                  aria-label="Clear search"
+                  type="button"
+                >
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Starred Filter */}
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showOnlyStarred}
+                  onChange={(e) => setShowOnlyStarred(e.target.checked)}
+                  className="text-primary-600 focus:ring-primary-500 rounded border-gray-300"
+                />
+                <span className="text-xs text-gray-700 md:text-sm">
+                  Show only starred (
+                  {
+                    papers.filter((paper) => paper.isStarredByCurrentUser)
+                      .length
+                  }
+                  )
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* Mobile Card View - Hidden on MD+ screens */}
+          <div className="space-y-3 md:hidden">
+            {filteredAndSortedPapers.map((paper) => {
+              if (!paper || typeof paper !== "object" || !paper.id) {
+                return null;
+              }
+
+              const starCount = getStarCountForPaper(paper.id);
+              const readers = getReadersForPaper(paper.id);
+              const queuedUsers = getQueuedForPaper(paper.id);
+
+              return (
+                <div
+                  key={paper.id}
+                  className="rounded-lg border border-gray-200 bg-white p-3"
+                >
+                  {/* Header with title and star */}
+                  <div className="mb-2 flex items-start gap-2">
+                    <StarWidgetQuery
+                      paperId={paper.id}
+                      initialTotalStars={starCount}
+                      initialIsStarredByCurrentUser={
+                        paper.isStarredByCurrentUser
+                      }
+                      size="sm"
+                    />
+                    <button
+                      className="hover:text-primary-600 flex-1 text-left text-sm leading-tight font-medium transition-colors"
+                      onClick={() => handlePaperClick(paper)}
+                    >
+                      {highlightText(paper.title, searchQuery)}
+                    </button>
+                  </div>
+
+                  {/* Tags */}
+                  {paper.tags && paper.tags.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1">
+                      {paper.tags.slice(0, 4).map((tag, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleTagClick(tag)}
+                          className="inline-block cursor-pointer rounded px-2 py-0.5 text-xs font-bold transition-colors hover:bg-gray-200"
+                          style={{
+                            backgroundColor: "#EFF3F9",
+                            color: "#131720",
+                          }}
+                        >
+                          {highlightText(tag, searchQuery)}
+                        </button>
+                      ))}
+                      {paper.tags.length > 4 && (
+                        <span className="text-xs text-gray-500">
+                          +{paper.tags.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Users - Readers and Queued */}
+                  <div className="flex gap-4 text-xs text-gray-600">
+                    {readers.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span>Read by:</span>
+                        <div className="flex gap-0.5">
+                          {readers
+                            .slice(0, 3)
+                            .map((user, index) =>
+                              renderUserAvatar(user, "", "", index)
+                            )}
+                          {readers.length > 3 && (
+                            <span className="text-gray-500">
+                              +{readers.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {queuedUsers.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span>Queued:</span>
+                        <div className="flex gap-0.5">
+                          {queuedUsers
+                            .slice(0, 3)
+                            .map((user, index) =>
+                              renderUserAvatar(user, "", "", index)
+                            )}
+                          {queuedUsers.length > 3 && (
+                            <span className="text-gray-500">
+                              +{queuedUsers.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredAndSortedPapers.length === 0 && (
+              <div className="py-8 text-center text-gray-500">
+                No papers found matching your criteria.
+              </div>
             )}
           </div>
 
-          {/* Starred Filter */}
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={showOnlyStarred}
-                onChange={(e) => setShowOnlyStarred(e.target.checked)}
-                className="text-primary-600 focus:ring-primary-500 rounded border-gray-300"
+          {/* Papers Table Container - Hidden on mobile */}
+          <div className="relative hidden md:block">
+            {/* Loading indicator */}
+            {isLoading && (
+              <div className="bg-opacity-75 absolute inset-0 z-20 flex items-center justify-center bg-white">
+                <div className="text-gray-600">Filtering papers...</div>
+              </div>
+            )}
+
+            {/* Width indicator during drag */}
+            {isDragging && draggedColumnRef.current && (
+              <div
+                className="pointer-events-none fixed z-50 rounded bg-blue-500 px-2 py-1 text-xs text-white"
+                style={{
+                  left: mouseX,
+                  top: 10,
+                }}
+              >
+                {
+                  columnWidths[
+                    draggedColumnRef.current as keyof typeof columnWidths
+                  ]
+                }
+                px
+              </div>
+            )}
+
+            {/* User Card */}
+            {selectedUser && (
+              <UserCard
+                user={selectedUser}
+                allPapers={papers}
+                users={users}
+                interactions={interactions}
+                onClose={handleUserCardClose}
               />
-              <span className="text-sm text-gray-700">
-                Show only starred (
-                {papers.filter((paper) => paper.isStarredByCurrentUser).length})
-              </span>
-            </label>
-          </div>
-        </div>
+            )}
 
-        {/* Papers Table Container */}
-        <div className="relative">
-          {/* Loading indicator */}
-          {isLoading && (
-            <div className="bg-opacity-75 absolute inset-0 z-20 flex items-center justify-center bg-white">
-              <div className="text-gray-600">Filtering papers...</div>
-            </div>
-          )}
-
-          {/* Width indicator during drag */}
-          {isDragging && draggedColumnRef.current && (
-            <div
-              className="pointer-events-none fixed z-50 rounded bg-blue-500 px-2 py-1 text-xs text-white"
-              style={{
-                left: mouseX,
-                top: 10,
-              }}
-            >
-              {
-                columnWidths[
-                  draggedColumnRef.current as keyof typeof columnWidths
-                ]
-              }
-              px
-            </div>
-          )}
-
-          {/* User Card */}
-          {selectedUser && (
-            <UserCard
-              user={selectedUser}
-              allPapers={papers}
-              users={users}
-              interactions={interactions}
-              onClose={handleUserCardClose}
-            />
-          )}
-
-          {/* Scroll Container with Table */}
-          <div className="overflow-auto rounded-lg border border-gray-200">
-            <table
-              ref={tableRef}
-              className="w-full bg-white text-sm"
-              style={{ tableLayout: "fixed" }}
-            >
-              {/* Column Group for Width Management */}
-              <colgroup>
-                {columnConfigs.map((config) => (
-                  <col
-                    key={config.key}
-                    style={{ width: `${config.width}px` }}
-                  />
-                ))}
-              </colgroup>
-
-              {/* Table Header */}
-              <thead>
-                <tr className="bg-gray-50">
+            {/* Scroll Container with Table */}
+            <div className="overflow-auto rounded-lg border border-gray-200">
+              <table
+                ref={tableRef}
+                className="w-full bg-white text-sm"
+                style={{ tableLayout: "fixed" }}
+              >
+                {/* Column Group for Width Management */}
+                <colgroup>
                   {columnConfigs.map((config) => (
-                    <th
+                    <col
                       key={config.key}
-                      className={`relative px-4 py-2 text-left ${
-                        config.sticky ? "sticky left-0 z-10 bg-gray-50" : ""
-                      } ${
-                        config.sortable
-                          ? "cursor-pointer transition-colors hover:bg-gray-100"
-                          : ""
-                      }`}
-                      style={{
-                        position: config.sticky ? "sticky" : "static",
-                        left: config.sticky ? 0 : "auto",
-                        top: 0,
-                        zIndex: config.sticky ? 10 : "auto",
-                      }}
-                      onClick={() => {
-                        if (config.sortable && !isDragging) {
-                          handleSort(config.key);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        {config.renderHeader(renderSortIndicator(config.key))}
-                      </div>
-                      {/* Resize handle */}
-                      <div
-                        className="absolute top-0 right-0 bottom-0 z-20 w-2 cursor-col-resize transition-colors hover:bg-blue-400"
-                        onMouseDown={(e) => handleMouseDown(e, config.key)}
-                        title="Drag to resize column"
-                        style={{
-                          cursor: "col-resize",
-                          userSelect: "none",
-                        }}
-                      />
-                    </th>
+                      style={{ width: `${config.width}px` }}
+                    />
                   ))}
-                </tr>
-              </thead>
+                </colgroup>
 
-              {/* Table Body */}
-              <tbody>
-                {filteredAndSortedPapers.map((paper) => {
-                  // Validate paper object before rendering
-                  if (!paper || typeof paper !== "object" || !paper.id) {
-                    console.warn("Invalid paper object found:", paper);
-                    return null;
-                  }
-
-                  return (
-                    <tr
-                      key={paper.id}
-                      className="border-t border-gray-100 hover:bg-gray-50"
-                    >
-                      {columnConfigs.map((config) => (
-                        <td
-                          key={config.key}
-                          className={`px-4 py-2 ${
-                            config.sticky ? "sticky left-0 z-10 bg-white" : ""
-                          }`}
+                {/* Table Header */}
+                <thead>
+                  <tr className="bg-gray-50">
+                    {columnConfigs.map((config) => (
+                      <th
+                        key={config.key}
+                        className={`relative px-4 py-2 text-left ${
+                          config.sticky ? "sticky left-0 z-10 bg-gray-50" : ""
+                        } ${
+                          config.sortable
+                            ? "cursor-pointer transition-colors hover:bg-gray-100"
+                            : ""
+                        }`}
+                        style={{
+                          position: config.sticky ? "sticky" : "static",
+                          left: config.sticky ? 0 : "auto",
+                          top: 0,
+                          zIndex: config.sticky ? 10 : "auto",
+                        }}
+                        onClick={() => {
+                          if (config.sortable && !isDragging) {
+                            handleSort(config.key);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          {config.renderHeader(renderSortIndicator(config.key))}
+                        </div>
+                        {/* Resize handle */}
+                        <div
+                          className="absolute top-0 right-0 bottom-0 z-20 w-2 cursor-col-resize transition-colors hover:bg-blue-400"
+                          onMouseDown={(e) => handleMouseDown(e, config.key)}
+                          title="Drag to resize column"
                           style={{
-                            position: config.sticky ? "sticky" : "static",
-                            left: config.sticky ? 0 : "auto",
-                            zIndex: config.sticky ? 10 : "auto",
+                            cursor: "col-resize",
+                            userSelect: "none",
                           }}
-                        >
-                          {config.renderCell(paper)}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                {/* Table Body */}
+                <tbody>
+                  {filteredAndSortedPapers.map((paper) => {
+                    // Validate paper object before rendering
+                    if (!paper || typeof paper !== "object" || !paper.id) {
+                      console.warn("Invalid paper object found:", paper);
+                      return null;
+                    }
+
+                    return (
+                      <tr
+                        key={paper.id}
+                        className="border-t border-gray-100 hover:bg-gray-50"
+                      >
+                        {columnConfigs.map((config) => (
+                          <td
+                            key={config.key}
+                            className={`px-4 py-2 ${
+                              config.sticky ? "sticky left-0 z-10 bg-white" : ""
+                            }`}
+                            style={{
+                              position: config.sticky ? "sticky" : "static",
+                              left: config.sticky ? 0 : "auto",
+                              zIndex: config.sticky ? 10 : "auto",
+                            }}
+                          >
+                            {config.renderCell(paper)}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

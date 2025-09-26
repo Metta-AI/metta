@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { LibrarySidebar } from "./LibrarySidebar";
 import { TopMenu } from "@/app/TopMenu";
+import { MobileNavProvider } from "./MobileNavProvider";
 
 /**
  * Library Layout Component
@@ -16,19 +17,24 @@ interface LibraryLayoutProps {
 
 export function LibraryLayout({ children }: LibraryLayoutProps) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top Navigation Bar */}
-      <TopMenu />
+    <MobileNavProvider>
+      <div className="flex h-screen flex-col bg-gray-50">
+        {/* Top Navigation Bar - Sticky */}
+        <div className="sticky top-0 z-30">
+          <TopMenu />
+        </div>
 
-      <div className="flex min-h-screen">
-        {/* Left Sidebar */}
-        <LibrarySidebar />
+        {/* Main Layout Area */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Sidebar */}
+          <LibrarySidebar />
 
-        {/* Main Content Area */}
-        <div className="ml-48 max-w-full flex-1 overflow-hidden">
-          {children}
+          {/* Main Content Area */}
+          <div className="w-full flex-1 overflow-hidden md:ml-48">
+            {children}
+          </div>
         </div>
       </div>
-    </div>
+    </MobileNavProvider>
   );
 }
