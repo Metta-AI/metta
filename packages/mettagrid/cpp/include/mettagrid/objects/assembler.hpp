@@ -65,7 +65,7 @@ private:
   bool can_afford_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) const {
     std::map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
-      for (const auto& [item, amount] : agent->inventory) {
+      for (const auto& [item, amount] : agent->inventory.get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
       }
     }
