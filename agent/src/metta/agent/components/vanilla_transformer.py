@@ -69,8 +69,8 @@ class VanillaTransformerConfig(ComponentConfig):
     in_key: str
     out_key: str
     name: str = "vanilla_transformer"
+    output_dim: int = 16
     input_dim: int = 64
-    output_dim: int
     num_heads: int = 1
     ff_mult: int = 4
     num_layers: int = 2

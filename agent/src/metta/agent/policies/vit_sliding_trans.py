@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 
 class ViTSlidingTransConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-    
+
     _latent_dim = 64
     _token_embed_dim = 8
     _fourier_freqs = 3
     _embed_dim = 16
-    _core_out_dim = 16
+    _core_out_dim = 32
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
