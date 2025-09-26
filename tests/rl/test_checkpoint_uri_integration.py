@@ -18,7 +18,7 @@ from mettagrid.config import Config
 
 
 def checkpoint_filename(run: str, epoch: int) -> str:
-    return f"{run}:v{epoch}.pt"
+    return f"{run}:v{epoch}.mpt"
 
 
 def create_checkpoint(tmp_path: Path, filename: str, payload) -> Path:
@@ -84,24 +84,24 @@ class TestFileURIs:
 
     def test_invalid_file_uri(self):
         with pytest.raises(FileNotFoundError):
-            CheckpointManager.load_from_uri("file:///does/not/exist.pt")
+            CheckpointManager.load_from_uri("file:///does/not/exist.mpt")
 
 
 class TestS3URIs:
     @patch("metta.rl.checkpoint_manager.local_copy")
     def test_s3_download(self, mock_local_copy, mock_policy):
-        mock_local_copy.return_value.__enter__ = Mock(return_value="/tmp/downloaded.pt")
+        mock_local_copy.return_value.__enter__ = Mock(return_value="/tmp/downloaded.mpt")
         mock_local_copy.return_value.__exit__ = Mock(return_value=None)
 
         with patch("torch.load", return_value=mock_policy) as mocked_load:
-            uri = "s3://bucket/run/checkpoints/run:v12.pt"
+            uri = "s3://bucket/run/checkpoints/run:v12.mpt"
             loaded = CheckpointManager.load_from_uri(uri)
 
         mocked_load.assert_called_once()
         assert isinstance(loaded, torch.nn.Module)
 
     def test_key_and_version_parsing(self):
-        key, version = key_and_version("s3://bucket/foo/checkpoints/foo:v9.pt")
+        key, version = key_and_version("s3://bucket/foo/checkpoints/foo:v9.mpt")
         assert key == "foo"
         assert version == 9
 
@@ -142,10 +142,10 @@ class TestCheckpointManagerOperations:
         )
         uris = manager.select_checkpoints(strategy="latest", count=1)
         assert len(uris) == 1
-        assert uris[0].endswith(":v3.pt")
+        assert uris[0].endswith(":v3.mpt")
 
     def test_normalize_uri(self, tmp_path: Path):
-        path = tmp_path / "model.pt"
+        path = tmp_path / "model.mpt"
         torch.save(torch.nn.Linear(1, 1), path)
         normalized = CheckpointManager.normalize_uri(str(path))
         assert normalized == f"file://{path}"

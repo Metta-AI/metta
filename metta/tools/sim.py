@@ -44,9 +44,9 @@ def _get_s3_policy_uri_for_run(run_name: str) -> str:
 
     Example:
         _get_s3_policy_uri_for_run("my_experiment")
-        -> "s3://softmax-public/policies/my_experiment/my_experiment:latest.pt"
+        -> "s3://softmax-public/policies/my_experiment/my_experiment:latest.mpt"
     """
-    return f"{SOFTMAX_S3_POLICY_PREFIX}/{run_name}/{run_name}:latest.pt"
+    return f"{SOFTMAX_S3_POLICY_PREFIX}/{run_name}/{run_name}:latest.mpt"
 
 
 class SimTool(Tool):
@@ -61,7 +61,7 @@ class SimTool(Tool):
         SimTool(simulations=my_sims, run="my_experiment_2024")
 
         # Evaluate specific policy URIs
-        SimTool(simulations=my_sims, policy_uris=["s3://bucket/path/policy:v10.pt"])
+        SimTool(simulations=my_sims, policy_uris=["s3://bucket/path/policy:v10.mpt"])
 
         # Can also be invoked with run parameter
         tool.invoke({"run": "my_experiment_2024"})

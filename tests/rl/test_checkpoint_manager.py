@@ -73,7 +73,7 @@ class TestBasicSaveLoad:
         # Test :latest resolution
         from metta.rl.checkpoint_manager import key_and_version
 
-        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
+        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.mpt"
         run_name, epoch = key_and_version(latest_uri)
 
         assert run_name == "test_run"
@@ -87,7 +87,7 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=3, policy_architecture=mock_policy_architecture)
 
         # Load using :latest selector
-        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
+        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.mpt"
         loaded_agent = CheckpointManager.load_from_uri(latest_uri)
 
         assert loaded_agent is not None
@@ -102,7 +102,7 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=5, policy_architecture=mock_policy_architecture)
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
-        expected_filename = "test_run:v5.pt"
+        expected_filename = "test_run:v5.mpt"
         agent_file = checkpoint_dir / expected_filename
 
         assert agent_file.exists()
@@ -124,7 +124,7 @@ class TestBasicSaveLoad:
         test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
         manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
 
-        expected_filename = "test_run:v3.pt"
+        expected_filename = "test_run:v3.mpt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
         with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
@@ -153,7 +153,7 @@ class TestBasicSaveLoad:
         # Test checkpoint selection
         latest_checkpoints = checkpoint_manager.select_checkpoints("latest", count=1)
         assert len(latest_checkpoints) == 1
-        assert latest_checkpoints[0].endswith("test_run:v10.pt")
+        assert latest_checkpoints[0].endswith("test_run:v10.mpt")
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         # Save agent checkpoint
@@ -276,7 +276,7 @@ class TestCleanup:
             )
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
-        checkpoint_files = [p for p in checkpoint_dir.glob("*.pt") if ":v" in p.stem]
+        checkpoint_files = [p for p in checkpoint_dir.glob("*.mpt") if ":v" in p.stem]
         assert len(checkpoint_files) == 10
 
         # Clean up, keeping only 5
@@ -284,7 +284,7 @@ class TestCleanup:
         assert deleted_count == 5
 
         # Verify only 5 remain (latest ones: epochs 6-10)
-        remaining_files = [p for p in checkpoint_dir.glob("*.pt") if ":v" in p.stem]
+        remaining_files = [p for p in checkpoint_dir.glob("*.mpt") if ":v" in p.stem]
         assert len(remaining_files) == 5
 
         remaining_epochs = sorted(int(f.stem.split(":v")[1]) for f in remaining_files)
@@ -306,13 +306,13 @@ class TestCleanup:
         checkpoint_manager.save_trainer_state(mock_optimizer, epoch=1, agent_step=1000)
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
-        assert (checkpoint_dir / "test_run:v1.pt").exists()
+        assert (checkpoint_dir / "test_run:v1.mpt").exists()
         assert (checkpoint_dir / "trainer_state.pt").exists()
 
         # Cleanup should remove both
         deleted_count = checkpoint_manager.cleanup_old_checkpoints(keep_last_n=0)
         assert deleted_count == 1
-        assert not (checkpoint_dir / "test_run:v1.pt").exists()
+        assert not (checkpoint_dir / "test_run:v1.mpt").exists()
         assert not (checkpoint_dir / "trainer_state.pt").exists()
 
 

@@ -16,7 +16,7 @@ TestEvalStatsDb = tuple[EvalStatsDB, str, str]  # (db, policy_key, policy_versio
 def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
-    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
     metadata = CheckpointManager.get_policy_metadata(CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}"))
     pk, pv = metadata["run_name"], metadata["epoch"]
     _agent_step, _total_time, _score = (
@@ -78,7 +78,7 @@ def test_db():
 
 def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
     policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
     metadata = CheckpointManager.get_policy_metadata(policy_uri)
     pk, pv = metadata["run_name"], metadata["epoch"]
@@ -103,7 +103,7 @@ def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
     policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
 
     scores = db.simulation_scores(policy_uri, "hearts_collected")
@@ -126,19 +126,19 @@ def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
 
 def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
-    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.pt"
+    checkpoint_filename = "test_policy/checkpoints/test_policy:v1.mpt"
     policy_uri = CheckpointManager.normalize_uri(f"/tmp/{checkpoint_filename}")
 
     assert db.get_average_metric("nonexistent", policy_uri) == 0.0
 
-    invalid_uri = CheckpointManager.normalize_uri("/tmp/none/checkpoints/none:v99.pt")
+    invalid_uri = CheckpointManager.normalize_uri("/tmp/none/checkpoints/none:v99.mpt")
     assert db.get_average_metric("hearts_collected", invalid_uri) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        test_uri = CheckpointManager.normalize_uri("/tmp/test/checkpoints/test:v1.pt")
+        test_uri = CheckpointManager.normalize_uri("/tmp/test/checkpoints/test:v1.mpt")
         assert db.get_average_metric("reward", test_uri) is None
         pk, pv = "test", 1
         assert db.potential_samples_for_metric(pk, pv) == 0

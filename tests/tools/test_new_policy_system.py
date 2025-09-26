@@ -23,8 +23,8 @@ class TestNewPolicySystem:
     def test_checkpoint_manager_uri_parsing(self):
         """Test that CheckpointManager can parse different URI formats."""
         test_uris = [
-            "file:///absolute/path/checkpoint.pt",
-            "file://./relative/path/checkpoint.pt",
+            "file:///absolute/path/checkpoint.mpt",
+            "file://./relative/path/checkpoint.mpt",
             "file:///path/to/checkpoints",
             "mock://test_policy",
         ]
@@ -88,7 +88,10 @@ class TestNewPolicySystem:
         )
 
         # Should have converted run name to S3 policy URI with :latest selector
-        expected_uri = "s3://softmax-public/policies/test_experiment_2024/test_experiment_2024:latest.pt"
+        expected_uri = (
+            "s3://softmax-public/policies/test_experiment_2024/"
+            "test_experiment_2024:latest.mpt"
+        )
 
         # Need to call invoke to trigger the conversion
         try:
@@ -136,9 +139,9 @@ class TestNewPolicySystem:
     def test_policy_uri_formats(self):
         """Test different policy URI formats are recognized."""
         uri_formats = [
-            "file://./checkpoints/model.pt",
-            "file:///absolute/path/model.pt",
-            "s3://bucket/path/model.pt",
+            "file://./checkpoints/model.mpt",
+            "file:///absolute/path/model.mpt",
+            "s3://bucket/path/model.mpt",
             "wandb://project/artifact:version",
             "mock://test_policy",
         ]

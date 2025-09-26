@@ -37,10 +37,10 @@ def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
 
     Examples:
-        "file:///tmp/my_run/checkpoints/my_run:v5.pt" -> ("my_run", 5)
-        "s3://bucket/policies/my_run/checkpoints/my_run:v10.pt" -> ("my_run", 10)
-        "file:///tmp/my_run/checkpoints/my_run:latest.pt" -> ("my_run", latest_epoch)
-        "s3://bucket/policies/my_run/checkpoints/my_run:latest.pt" -> ("my_run", latest_epoch)
+        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
+        "file:///tmp/my_run/checkpoints/my_run:latest.mpt" -> ("my_run", latest_epoch)
+        "s3://bucket/policies/my_run/checkpoints/my_run:latest.mpt" -> ("my_run", latest_epoch)
         "mock://test_agent" -> ("test_agent", 0)
 
     The :latest selector automatically resolves to the highest epoch number
@@ -51,7 +51,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
     if parsed.scheme == "file" and parsed.local_path is not None:
         path = parsed.local_path
 
-        if path.suffix == ".pt":
+        if path.suffix == ".mpt":
             run_name, epoch = _extract_run_and_epoch(path)
             if epoch == -1:  # :latest selector
                 epoch = _resolve_latest_epoch(path, run_name)
@@ -65,7 +65,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
     if parsed.scheme == "s3" and parsed.key:
         key_path = Path(parsed.key)
-        if key_path.suffix == ".pt":
+        if key_path.suffix == ".mpt":
             try:
                 run_name, epoch = _extract_run_and_epoch(Path(key_path.name))
                 if epoch == -1:  # :latest selector
@@ -85,8 +85,8 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
     """Infer run name and epoch from a checkpoint path.
 
     The parser is intentionally permissive: it understands the new
-    ``<run_name>:v{epoch}.pt`` format while falling back to directory
-    structure, leading ``v{epoch}.pt}``, or legacy ``run__e{epoch}``
+    ``<run_name>:v{epoch}.mpt`` format while falling back to directory
+    structure, leading ``v{epoch}.mpt}``, or legacy ``run__e{epoch}``
     filenames. Unexpected filenames return epoch ``0`` with a best-effort
     run name instead of failing.
 
@@ -96,7 +96,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
 
     stem = path.stem
 
-    # Prefer run from filename (<run>:v{epoch}.pt) when present.
+    # Prefer run from filename (<run>:v{epoch}.mpt) when present.
     run_name: str | None = None
     epoch = 0
 
@@ -112,7 +112,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
             run_name = candidate_run
             epoch = -1  # Special marker for latest resolution
 
-    # Fall back to directory structure (…/<run>/checkpoints/<file>.pt)
+    # Fall back to directory structure (…/<run>/checkpoints/<file>.mpt)
     if run_name is None:
         if path.parent.name == "checkpoints" and path.parent.parent.name:
             run_name = path.parent.parent.name
@@ -121,7 +121,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
         else:
             run_name = stem
 
-    # Handle filenames like v{epoch}.pt where run name comes from directories
+    # Handle filenames like v{epoch}.mpt where run name comes from directories
     if epoch == 0 and stem.startswith("v") and stem[1:].isdigit():
         epoch = int(stem[1:])
 
@@ -151,7 +151,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
             search_dirs.append(checkpoints_subdir)
 
     for search_dir in search_dirs:
-        checkpoint_files = [ckpt for ckpt in search_dir.glob("*.pt") if ckpt.stem]
+        checkpoint_files: List[Path] = [ckpt for ckpt in search_dir.glob("*.mpt") if ckpt.stem]
         if checkpoint_files:
             try:
                 return max(checkpoint_files, key=lambda p: _extract_run_and_epoch(p)[1])
@@ -204,7 +204,7 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
         for obj in response["Contents"]:
             key = obj["Key"]
             filename = key.split("/")[-1]  # Get just the filename
-            if filename.endswith(".pt") and not filename.endswith("trainer_state.pt"):
+            if filename.endswith(".mpt") and not filename.endswith("trainer_state.pt"):
                 checkpoint_files.append(filename)
 
         if not checkpoint_files:
@@ -345,8 +345,8 @@ class CheckpointManager:
         """Load a policy from a URI (file://, s3://, or mock://).
 
         Supports :latest selector for automatic resolution to the most recent checkpoint:
-            file:///path/to/run/checkpoints/run_name:latest.pt
-            s3://bucket/path/run/checkpoints/run_name:latest.pt
+            file:///path/to/run/checkpoints/run_name:latest.mpt
+            s3://bucket/path/run/checkpoints/run_name:latest.mpt
         """
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
@@ -403,8 +403,10 @@ class CheckpointManager:
             _, version = _extract_run_and_epoch(path)
             return version == epoch
 
-        candidates = [
-            path for path in self.checkpoint_dir.glob("*.pt") if path.name != "trainer_state.pt" and matches_epoch(path)
+        candidates: List[Path] = [
+            path
+            for path in self.checkpoint_dir.glob("*.mpt")
+            if path.name != "trainer_state.pt" and matches_epoch(path)
         ]
 
         candidates.sort(
@@ -472,7 +474,7 @@ class CheckpointManager:
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.run_name}:v{epoch}.pt"
+        filename = f"{self.run_name}:v{epoch}.mpt"
         checkpoint_path = self.checkpoint_dir / filename
 
         # Check if we're overwriting an existing checkpoint for this epoch
