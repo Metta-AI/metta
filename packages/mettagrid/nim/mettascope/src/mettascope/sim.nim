@@ -1,4 +1,6 @@
-import std/[strformat, random, strutils], vmath, jsony
+import
+  std/[strformat, random, strutils],
+  vmath
 
 const
   # From config

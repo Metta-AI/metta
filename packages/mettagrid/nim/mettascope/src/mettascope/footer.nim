@@ -1,7 +1,6 @@
 import
-  std/[strformat, strutils],
-  boxy, vmath, windy, fidget2/[hybridrender, common], fidget2,
-  common, panels, sim, actions, utils, ui
+  std/strutils,
+  fidget2
 
 find "/UI/Main/GlobalFooter":
   find "**/RewindToStart":

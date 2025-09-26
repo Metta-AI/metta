@@ -1,7 +1,7 @@
-import std/[random, os, times, strformat, strutils, parseopt, json],
-  boxy, opengl, windy, windy/http, chroma, vmath, fidget2, fidget2/hybridrender,
-  mettascope/[replays, common, panels, utils, footer, timeline,
-  worldmap, minimap, agenttable, agenttraces, envconfig]
+import std/[os, strutils, parseopt, json],
+  boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
+  mettascope/[replays, common, panels, utils, timeline,
+  worldmap, minimap, agenttraces]
 
 var replay = ""
 
@@ -68,6 +68,9 @@ find "/UI/Main":
 
   onLoad:
     echo "onLoad"
+
+    # We need to build the atlas before loading the replay.
+    buildAtlas()
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
@@ -167,6 +170,13 @@ find "/UI/Main":
 
 when isMainModule:
 
+  # Check if the data directory exists.
+  let dataDir = "packages/mettagrid/nim/mettascope/data"
+  if not dirExists(dataDir):
+    echo "Data directory does not exist: ", dataDir
+    echo "Please run it from the root of the project."
+    quit(1)
+
   parseArgs()
 
   initFidget(
@@ -174,10 +184,8 @@ when isMainModule:
     windowTitle = "MetaScope V2",
     entryFrame = "UI/Main",
     windowStyle = DecoratedResizable,
-    dataDir = "packages/mettagrid/nim/mettascope/data"
+    dataDir = dataDir
   )
-
-  buildAtlas()
 
   when defined(emscripten):
     # Emscripten can't block so it will call this callback instead.
