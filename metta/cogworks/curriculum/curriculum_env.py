@@ -87,7 +87,7 @@ class CurriculumEnv(PufferEnv):
                 info_dict["_viz_data_available"] = 1.0
                 import logging
 
-                logging.getLogger(__name__).info(
+                logging.getLogger(__name__).debug(
                     f"📊 Stored viz data with {len(viz_data)} types for epoch {self._current_epoch}: "
                     f"{list(viz_data.keys())}"
                 )
