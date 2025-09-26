@@ -411,7 +411,8 @@ class PPO(Loss):
             selected_advantages = advantages[idx]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
 
-        minibatch = minibatch_storage.to(self.device, non_blocking=True, copy=True)
+        minibatch = minibatch_storage.to(self.device, non_blocking=True)
+        minibatch = minibatch.clone()
         with torch.no_grad():
             adv_device = selected_advantages.to(self.device, non_blocking=True)
             minibatch["advantages"] = adv_device
