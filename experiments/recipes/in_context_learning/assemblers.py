@@ -330,7 +330,7 @@ class AssemblerTaskGenerator(TaskGenerator):
 
         # positions must be the same length as the number of agents
         recipe_position = rng.choice(
-            [p for p in self.config.positions if len(p) == num_agents]
+            [p for p in self.config.positions if len(p) <= num_agents]
         )
 
         num_altars = rng.choice(self.config.num_altars)
@@ -348,6 +348,10 @@ class AssemblerTaskGenerator(TaskGenerator):
             num_instances = 12
         elif num_agents == 4:
             num_instances = 6
+        elif num_agents == 12:
+            num_instances = 2
+        elif num_agents == 24:
+            num_instances = 1
         else:
             raise ValueError(f"Invalid number of agents: {num_agents}")
 
@@ -453,14 +457,17 @@ def evaluate(
 
 
 def play_eval() -> PlayTool:
+    num_agents = 12
     env = make_assembler_env(
-        num_agents=1,
-        num_altars=2,
+        num_agents=num_agents,
+        num_altars=30,
+        width=30,
+        height=30,
         num_generators=0,
-        width=6,
-        height=6,
-        position=["W"],
+        position=["Any", "Any", "Any"],
     )
+
+
 
     return PlayTool(
         sim=SimulationConfig(
