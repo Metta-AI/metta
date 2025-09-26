@@ -16,9 +16,12 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
+
+from experiments.sweeps.protein_configs import VIT_POLICY_BASE
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -183,4 +186,20 @@ def evaluate_in_sweep(
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
+    )
+
+
+def sweep(total_timesteps: int = 2000000) -> SweepTool:
+    """Create a Protein sweep configuration for the arena easy shaped recipe."""
+
+    protein_config = VIT_POLICY_BASE.model_copy(deep=True)
+
+    return SweepTool(
+        protein_config=protein_config,
+        recipe_module="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        train_overrides={
+            "trainer.total_timesteps": total_timesteps,
+        },
     )
