@@ -114,7 +114,7 @@ def make_task_generator_cfg(
     obstacle_types=[],
     densities=[],
 ):
-    return ICLTaskGenerator.Config(
+    return OrderedChainsTaskGenerator.Config(
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
         obstacle_types=obstacle_types,
@@ -304,9 +304,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
                 ),
             )
             if os.path.exists(f"./train_dir/{dir}/reward_estimates.json"):
-                reward_estimates = json.load(
-                    open(f"./train_dir/{dir}/reward_estimates.json")
-                )
+                reward_estimates = json.load(open(f"./train_dir/{dir}/reward_estimates.json"))
                 env.game.reward_estimates = reward_estimates[dir]
             return env
 
@@ -515,10 +513,10 @@ def experiment():
 
 def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
     for chain_length in range(
-        2, 8
+        2, 10
     ):  # chain length should be equal to the number of converters, which is equal to the number of resources + 1
-        for n_sinks in range(0, 3):
-            for room_size in ["tiny", "small", "medium"]:
+        for n_sinks in range(0, 4):
+            for room_size in ["tiny", "small", "medium", "large"]:
                 for terrain_type in ["", "terrain"]:
                     for density in ["", "balanced", "sparse", "high"]:
                         for i in range(num_envs):
@@ -638,5 +636,5 @@ def sweep(
 
 
 if __name__ == "__main__":
-    experiment()
-    # save_envs_to_numpy()
+    # experiment()
+    save_envs_to_numpy()
