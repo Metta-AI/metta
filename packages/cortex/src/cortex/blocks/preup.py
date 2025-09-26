@@ -14,22 +14,13 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 @register_block(PreUpBlockConfig)
 class PreUpBlock(BaseBlock):
-    """Project up before the cell, apply gated skip, then project down.
-
-    Adapted from temp/xlstm_stateful mLSTMLayer pattern:
-      - in_proj: `d_hidden -> 2 * d_inner`
-      - split into `a` and `z`
-      - `a_act = SiLU(a)`
-      - `y_cell = cell(a)`
-      - `y_skip = y_cell + (learnable_skip * a_act)`
-      - `y_gate = y_skip * SiLU(z)`
-      - out_proj: `d_inner -> d_hidden`
-    """
+    """Project up before the cell, apply gated skip, then project down."""
 
     def __init__(self, config: PreUpBlockConfig, d_hidden: int, cell: MemoryCell) -> None:
         super().__init__(d_hidden=d_hidden, cell=cell)
         self.config = config
         self.d_inner = int(config.proj_factor * d_hidden)
+        self.norm = nn.LayerNorm(d_hidden, elementwise_affine=True, bias=False)
         self.in_proj = nn.Linear(d_hidden, 2 * self.d_inner)
         self.out_proj = nn.Linear(self.d_inner, d_hidden)
         self.act = nn.SiLU()
@@ -47,22 +38,22 @@ class PreUpBlock(BaseBlock):
         is_step = x.dim() == 2
         batch_size = x.shape[0]
 
+        residual = x
+        x_normed = self.norm(x)
+
         # Project input along feature dim and split into (a, z)
         if is_step:
-            x_proj = self.in_proj(x)
+            x_proj = self.in_proj(x_normed)
         else:
             # Always [B, T, H]
-            B, T, H = x.shape
-            x_ = x.reshape(B * T, H)
+            B, T, H = x_normed.shape
+            x_ = x_normed.reshape(B * T, H)
             x_proj = self.in_proj(x_).reshape(B, T, 2 * self.d_inner)
 
         a, z = torch.split(x_proj, split_size_or_sections=self.d_inner, dim=-1)
         a_act = self.act(a)
 
-        # Run cell on `a`
         from tensordict import TensorDict
-
-        # Extract cell state from block state
         cell_state = state.get("cell", None) if state is not None else None
         y_inner, new_cell_state = self.cell(a, cell_state, resets=resets)
 
@@ -79,7 +70,7 @@ class PreUpBlock(BaseBlock):
             y_ = y_gate.reshape(B * T, H)
             y = self.out_proj(y_).reshape(B, T, self.d_hidden)
 
-        # Wrap cell state in block state
+        y = residual + y
         return y, TensorDict({"cell": new_cell_state}, batch_size=[batch_size])
 
 
