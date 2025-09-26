@@ -144,8 +144,8 @@ class SimTool(Tool):
                 # Verify the checkpoint exists
                 try:
                     artifact = CheckpointManager.load_from_uri(normalized_uri, device="cpu")
-                    if artifact.policy is None and artifact.state_dict is None:
-                        raise ValueError("Policy artifact contained neither policy nor weights")
+                    if artifact.state_dict is None:
+                        raise ValueError("Policy artifact contained no weights")
                     metadata = CheckpointManager.get_policy_metadata(normalized_uri)
                     del artifact
                 except Exception as e:

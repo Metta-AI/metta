@@ -71,7 +71,7 @@ class Checkpointer(TrainerComponent):
             try:
                 artifact = self._checkpoint_manager.load_from_uri(normalized_uri)
                 load_device = torch.device(self._distributed.config.device)
-                policy = artifact.policy or artifact.instantiate(env_metadata, load_device)
+                policy = artifact.instantiate(env_metadata, load_device)
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:

@@ -438,7 +438,6 @@ class CheckpointManager:
             policy=agent,
             policy_architecture=policy_architecture,
             state_dict=agent.state_dict(),
-            include_policy=True,
         )
 
         remote_uri = None

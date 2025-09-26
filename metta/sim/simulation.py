@@ -104,12 +104,12 @@ class Simulation:
         self._agents_per_env = cfg.env.game.num_agents
 
         self._policy_artifact = policy_artifact
-        self._policy: Policy | None = policy_artifact.policy
+        self._policy: Policy | None = None
         self._policy_uri = policy_uri
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
             self._npc_artifact = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
-            self._npc_policy: Policy | None = self._npc_artifact.policy
+            self._npc_policy: Policy | None = None
         else:
             self._npc_artifact = None
             self._npc_policy = None

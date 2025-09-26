@@ -67,12 +67,10 @@ class SLKickstarter(Loss):
 
         artifact = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
         env_metadata = getattr(self.env, "meta_data", None)
-        teacher_policy = artifact.policy
-        if teacher_policy is None:
-            if env_metadata is None:
-                raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-            teacher_policy = artifact.instantiate(env_metadata, self.device)
-        teacher_policy = teacher_policy.to(self.device)
+        if env_metadata is None:
+            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
+
+        teacher_policy = artifact.instantiate(env_metadata, self.device)
         self.teacher_policy = teacher_policy
         if hasattr(self.teacher_policy, "initialize_to_environment") and env_metadata is not None:
             driver_env = self.env.driver_env

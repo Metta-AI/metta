@@ -19,11 +19,6 @@ from metta.rl.training import EnvironmentMetaData
 from mettagrid.util.module import load_symbol
 
 
-def _architecture_class_path(policy_architecture: PolicyArchitecture) -> str:
-    architecture_class = policy_architecture.__class__
-    return f"{architecture_class.__module__}.{architecture_class.__qualname__}"
-
-
 def _component_config_to_manifest(component: ComponentConfig) -> dict[str, Any]:
     data = component.model_dump(mode="json")
     data["class_path"] = f"{component.__class__.__module__}.{component.__class__.__qualname__}"
@@ -162,16 +157,11 @@ class PolicyArtifact:
         has_state = self.state_dict is not None
         has_policy = self.policy is not None
 
-        valid_combo = (
-            (has_state and has_arch and not has_policy)
-            or (has_policy and not has_state and not has_arch)
-            or (has_state and has_arch and has_policy)
-        )
+        valid_combo = ((has_state and has_arch and not has_policy) or (has_policy and not has_state and not has_arch))
 
         if not valid_combo:
             msg = (
-                "PolicyArtifact must contain either (policy), "
-                "(state_dict + policy_architecture), or (state_dict + policy_architecture + policy)"
+                "PolicyArtifact must contain either (policy) or (state_dict + policy_architecture)."
             )
             raise ValueError(msg)
 
@@ -244,6 +234,9 @@ def save_policy_artifact(
     if include_policy:
         if policy is None:
             msg = "include_policy=True requires a policy instance"
+            raise ValueError(msg)
+        if has_state_input:
+            msg = "include_policy=True cannot be combined with weights/state_dict"
             raise ValueError(msg)
         buffer = io.BytesIO()
         torch.save(policy, buffer)

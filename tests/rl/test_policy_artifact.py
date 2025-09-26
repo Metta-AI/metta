@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections import OrderedDict
 from pathlib import Path
 
+import pytest
 import torch
 import torch.nn as nn
 from pydantic import Field
@@ -78,7 +78,6 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
         artifact_path,
         policy=policy,
         policy_architecture=architecture,
-        include_policy=False,
     )
 
     assert artifact_path.exists()
@@ -93,27 +92,25 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     instantiated = loaded.instantiate(env_metadata, torch.device("cpu"))
     assert isinstance(instantiated, DummyPolicy)
 
-
-def test_instantiate_prefers_weights_over_embedded_policy() -> None:
+def test_policy_artifact_rejects_policy_and_weights() -> None:
     env_metadata = _env_metadata()
     architecture = DummyPolicyArchitecture()
-    policy_from_weights = architecture.make_policy(env_metadata)
-    policy_from_weights.linear.weight.data.fill_(1.0)
-    policy_from_weights.linear.bias.data.fill_(2.0)
+    policy = architecture.make_policy(env_metadata)
+    state = policy.state_dict()
 
-    saved_state = OrderedDict((k, v.clone()) for k, v in policy_from_weights.state_dict().items())
+    with pytest.raises(ValueError):
+        PolicyArtifact(policy_architecture=architecture, state_dict=state, policy=policy)
 
-    mismatched_policy = architecture.make_policy(env_metadata)
-    for param in mismatched_policy.parameters():
-        param.data.zero_()
 
-    artifact = PolicyArtifact(
-        policy_architecture=architecture,
-        state_dict=saved_state,
-        policy=mismatched_policy,
-    )
+def test_save_policy_artifact_rejects_include_policy_with_weights(tmp_path: Path) -> None:
+    env_metadata = _env_metadata()
+    architecture = DummyPolicyArchitecture()
+    policy = architecture.make_policy(env_metadata)
 
-    instantiated = artifact.instantiate(env_metadata, torch.device("cpu"))
-
-    for name, tensor in saved_state.items():
-        assert torch.allclose(instantiated.state_dict()[name], tensor)
+    with pytest.raises(ValueError):
+        save_policy_artifact(
+            tmp_path / "invalid.mpt",
+            policy=policy,
+            policy_architecture=architecture,
+            include_policy=True,
+        )
