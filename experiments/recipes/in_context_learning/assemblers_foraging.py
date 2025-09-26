@@ -32,6 +32,7 @@ def make_curriculum_args(
     room_sizes: list[str],
     positions: list[list[Position]],
 ) -> dict:
+
     return {
         "num_agents": num_agents,
         "num_altars": num_altars,
@@ -132,12 +133,14 @@ curriculum_args = {
         "num_altars": [1],
         "num_generators": [1],
         "room_sizes": ["small", "medium", "large"],
+
     },
     "multi_agents_1g_1a": {
         "num_agents": [1, 2, 3],
         "num_altars": [1],
         "num_generators": [1],
         "room_sizes": ["small", "medium", "large"],
+
     },
     "multi_agents_1g_1a_with_any": {
         "num_agents": [1, 2, 3],
@@ -229,7 +232,6 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
                 cooldown=altar_cooldown,
                 rng=rng,
             )
-        cfg.map_builder_objects[assembler_name] = num_altars
 
     def make_env_cfg(
         self,
@@ -260,7 +262,7 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
             height=height,
         )
 
-    # TODO
+    #TODO
     def _set_width_and_height(
         self, room_size, num_agents, num_altars, num_generators, rng
     ):
@@ -355,10 +357,9 @@ def train(
     task_generator_cfg = make_task_generator_cfg(
         **make_curriculum_args(**curriculum_args[curriculum_style])
     )
-    from experiments.evals.in_context_learning.assemblers import (
+    from experiments.evals.in_context_learning.assembler_foraging import (
         make_assembler_eval_suite,
     )
-
     return train_icl(task_generator_cfg, make_assembler_eval_suite, lp_params)
 
 
@@ -366,7 +367,7 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.assemblers import (
+    from experiments.evals.in_context_learning.assembler_foraging import (
         make_assembler_eval_suite,
     )
 
@@ -382,7 +383,6 @@ def evaluate(
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
-
 
 def play_eval() -> PlayTool:
     env = make_assembler_env(
@@ -441,3 +441,4 @@ def play(
 
 if __name__ == "__main__":
     experiment()
+

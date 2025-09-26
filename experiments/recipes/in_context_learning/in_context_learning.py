@@ -63,11 +63,11 @@ ASSEMBLER_TYPES = {
 }
 
 size_ranges = {
-    "tiny": (4, 5),
-    "small": (6, 7),
-    "medium": (8, 9),
-    "large": (10, 15),
-    "xlarge": (16, 30),
+    "tiny": (5, 8),
+    "small": (9, 12),
+    "medium": (12, 18),
+    "large": (18, 25),
+    "xlarge": (25, 35),
 }
 
 num_agents_to_positions = {
