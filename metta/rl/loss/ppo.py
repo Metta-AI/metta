@@ -145,7 +145,24 @@ class PPO(Loss):
                 )
 
         if rollout_td is not td:
-            td.update_(rollout_td.to(original_device, non_blocking=True))
+            rollout_on_device = rollout_td.to(original_device, non_blocking=True)
+            td.update_(rollout_on_device)
+        else:
+            rollout_on_device = rollout_td
+
+        # On some backends (e.g. MPS) tensordict.update_ can silently skip
+        # metadata keys that were freshly created during policy.forward().
+        # Ensure that all rollout-produced tensors are copied into the td we
+        # hand back to the experience buffer so downstream losses see them.
+        missing_keys = [
+            key for key in rollout_on_device.keys(include_nested=False) if key not in td.keys(include_nested=False)
+        ]
+        if missing_keys:
+            for key in missing_keys:
+                value = rollout_on_device.get(key)
+                if isinstance(value, torch.Tensor) and value.device != original_device:
+                    value = value.to(original_device)
+                td.set(key, value)
 
         if "actions" not in td.keys(include_nested=False):
             rollout_keys = list(rollout_td.keys(include_nested=False))
