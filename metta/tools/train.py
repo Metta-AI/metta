@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.transformer import (
+    TransformerPolicyConfig,
     gtrxl_policy_config,
     trxl_nvidia_policy_config,
     trxl_policy_config,
@@ -22,7 +23,7 @@ from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import Trainer
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from metta.rl.trainer_config import OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
@@ -113,6 +114,12 @@ class TrainTool(Tool):
                     "evaluator.epoch_interval must be at least as large as checkpointer.epoch_interval "
                     "to ensure policies are saved before evaluation"
                 )
+
+        if isinstance(self.policy_architecture, TransformerPolicyConfig):
+            hint = self.policy_architecture.learning_rate_hint
+            default_lr = OptimizerConfig.model_fields["learning_rate"].default
+            if hint is not None and self.trainer.optimizer.learning_rate == default_lr:
+                self.trainer.optimizer.learning_rate = hint
 
         return self
 

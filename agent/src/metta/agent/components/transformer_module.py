@@ -86,6 +86,7 @@ def update_memory_window(
             updated.append(cat[beg_idx:end_idx].detach())
     return updated
 
+
 # ---------------------------------------------------------------------------
 # Full-context GTrXL-style transformer (legacy working version)
 # ---------------------------------------------------------------------------

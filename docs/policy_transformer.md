@@ -200,25 +200,26 @@ class GRUGating(nn.Module):
 |---------|--------------------|---------------|-------------------------|
 | Residual gating | ✅ GRU-style gates | ❌ | ❌ |
 | Pre-layer normalization | ✅ | ✅ | ❌ (matches NVIDIA post-norm) |
-| Layer count (default) | 6 | 6 | 16 |
-| Hidden size (`d_model`) | 128 | 256 | 512 |
-| Feed-forward size | 512 | 1024 | 2048 |
-| Memory length | 0 (stateless) | 64 | 192 |
+| Layer count (default) | 4 | 4 | 8 |
+| Hidden size (`d_model`) | 64 | 64 | 256 |
+| Feed-forward size | 256 | 256 | 1024 |
+| Memory length | 0 (stateless) | 32 | 96 |
 | Relative positional bias | Sinusoidal, causal mask | Relative bias + memory | NVIDIA partial-relative bias |
-| Dropout | 0.1 | 0.1 | 0.1 |
-| Attention dropout | 0.1 | 0.1 | 0.0 |
+| Dropout | 0.05 | 0.05 | 0.05 |
+| Attention dropout | 0.05 | 0.05 | 0.0 |
 
 ## Default Hyperparameters (Base Config)
 | Parameter | variant="gtrxl" | variant="trxl" | variant="trxl_nvidia" |
 |-----------|--------------------|---------------|-------------------------|
-| `latent_size` / `hidden_size` | 128 | 256 | 512 |
-| `num_layers` | 6 | 6 | 16 |
-| `n_heads` | 8 | 8 | 8 |
-| `d_ff` / `d_inner` | 512 | 1024 | 2048 |
+| `latent_size` / `hidden_size` | 64 | 64 | 256 |
+| `num_layers` | 4 | 4 | 8 |
+| `n_heads` | 4 | 4 | 4 |
+| `d_ff` / `d_inner` | 256 | 256 | 1024 |
 | `max_seq_len` | 256 | 256 | 192 |
-| `memory_len` | 0 | 64 | 192 |
+| `memory_len` | 0 | 32 | 96 |
 | `pre_lnorm` | True | True | False |
 | `manual_init` (policy heads) | False | False | True |
+| Suggested optimizer LR | 7.5e-4 | 9.0e-4 | 3.0e-4 |
 
 ## Behavioural Notes
 - variant="gtrxl" retains gating to stabilize on-policy RL gradients as described by Parisotto et al. and omits Transformer-XL memory to match historically successful training runs.

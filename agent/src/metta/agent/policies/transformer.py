@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import math
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from einops import rearrange
@@ -45,10 +45,22 @@ def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
     )
 
 
-_POLICY_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, bool]] = {
-    TransformerBackboneVariant.GTRXL: {"manual_init": False, "strict_attr_indices": False},
-    TransformerBackboneVariant.TRXL: {"manual_init": False, "strict_attr_indices": False},
-    TransformerBackboneVariant.TRXL_NVIDIA: {"manual_init": True, "strict_attr_indices": True},
+_POLICY_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
+    TransformerBackboneVariant.GTRXL: {
+        "manual_init": False,
+        "strict_attr_indices": False,
+        "learning_rate_hint": 7.5e-4,
+    },
+    TransformerBackboneVariant.TRXL: {
+        "manual_init": False,
+        "strict_attr_indices": False,
+        "learning_rate_hint": 9.0e-4,
+    },
+    TransformerBackboneVariant.TRXL_NVIDIA: {
+        "manual_init": True,
+        "strict_attr_indices": True,
+        "learning_rate_hint": 3.0e-4,
+    },
 }
 
 
@@ -81,6 +93,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     # Implementation options
     manual_init: bool | None = None
     strict_attr_indices: bool | None = None
+    learning_rate_hint: float | None = None
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerPolicyConfig":
@@ -92,9 +105,11 @@ class TransformerPolicyConfig(PolicyArchitecture):
 
         defaults = _POLICY_VARIANT_DEFAULTS[self.variant]
         if self.manual_init is None:
-            self.manual_init = defaults["manual_init"]
+            self.manual_init = defaults.get("manual_init", False)
         if self.strict_attr_indices is None:
-            self.strict_attr_indices = defaults["strict_attr_indices"]
+            self.strict_attr_indices = defaults.get("strict_attr_indices", False)
+        if self.learning_rate_hint is None:
+            self.learning_rate_hint = defaults.get("learning_rate_hint")
 
         return self
 
