@@ -318,7 +318,6 @@ class NvidiaTransformerModule(nn.Module):
         if ext_len != 0:
             raise NotImplementedError("Extended context is not supported in NvidiaTransformerModule.")
 
-        clamp = clamp_len if clamp_len > 0 else max_seq_len
         self.core = NvidiaTransformerCore(
             d_model=d_model,
             n_layers=n_layers,
@@ -328,7 +327,7 @@ class NvidiaTransformerModule(nn.Module):
             dropout=dropout,
             dropatt=dropatt,
             pre_lnorm=pre_lnorm,
-            clamp_len=clamp,
+            clamp_len=clamp_len,
         )
         self.output_dropout = nn.Dropout(dropout)
         self.d_model = d_model
@@ -380,17 +379,17 @@ class TransformerNvidiaCoreConfig(ComponentConfig):
     in_key: str = "encoded_obs"
     out_key: str = "core"
 
-    latent_size: int = 256
-    hidden_size: int = 256
-    num_layers: int = 6
+    latent_size: int = 512
+    hidden_size: int = 512
+    num_layers: int = 16
     n_heads: int = 8
-    d_inner: int = 512
-    max_seq_len: int = 256
-    memory_len: int = 32
+    d_inner: int = 2048
+    max_seq_len: int = 192
+    memory_len: int = 192
     dropout: float = 0.1
-    attn_dropout: float = 0.1
-    clamp_len: int = 256
-    pre_lnorm: bool = True
+    attn_dropout: float = 0.0
+    clamp_len: int = -1
+    pre_lnorm: bool = False
 
     def make_component(self, env: Optional[object] = None) -> NvidiaTransformerModule:
         return NvidiaTransformerModule(

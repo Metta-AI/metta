@@ -13,6 +13,11 @@
 > Legacy names remain available as aliases for compatibility, but new experiments should
 > prefer the updated identifiers.
 
+### Variant overview (September 2025)
+- **GTrXLPolicy** retains the GRU-style gating and pre-layernorm identity-map stabilization introduced for reinforcement learning stability while running without transformer-XL memory.
+- **TRXLPolicy** mirrors the original Transformer-XL decoder with layer-wise memory caching and relative positional attention but no gating modifications.
+- **TRXLNvidiaPolicy** keeps NVIDIA's optimized Transformer-XL core (including custom bias handling, clamp length and memory window) while sharing the common CNN/actor heads with the other variants.
+
 ## Paper Summary
 **Title**: "Stabilizing Transformers for Reinforcement Learning"  
 **Authors**: Emilio Parisotto et al. (2020)  
@@ -187,363 +192,42 @@ class GRUGating(nn.Module):
 - **Our implementation**: Full-context processing without memory mechanism  
 - **Paper GTrXL**: Emphasizes memory for handling long sequences beyond context window
 
-## Recommended Updates
+## Implementation Status (September 2025)
+- [x] `GTrXLPolicy`: Legacy gating stack retained and audited against the stabilized RL reference implementation.
+- [x] `TRXLPolicy`: Mirrors Transformer-XL decoder with layer memory, relative attention, and pre-norm residual flow.
+- [x] `TRXLNvidiaPolicy`: Wraps NVIDIA's optimized Transformer-XL core with reference-default hyperparameters and bias handling.
+- [ ] Extended regression coverage: schedule long-horizon RL smoke tests that exercise memory resets and large batch inference.
 
-### Priority 1: Add Memory Mechanism
-```python
-class GTrXLMemory:
-    def __init__(self, n_layers, d_model, memory_len):
-        # Store previous layer activations
-        # Implement gradient stopping
-        # Handle memory concatenation
-```
+## Variant Feature Matrix
+| Feature | GTrXLPolicy | TRXLPolicy | TRXLNvidiaPolicy |
+|---------|-------------|------------|------------------|
+| Residual gating | ✅ GRU-style gates | ❌ | ❌ |
+| Pre-layer normalization | ✅ | ✅ | ❌ (matches NVIDIA post-norm) |
+| Layer count (default) | 6 | 6 | 16 |
+| Hidden size (`d_model`) | 128 | 256 | 512 |
+| Feed-forward size | 512 | 1024 | 2048 |
+| Memory length | 0 (stateless) | 64 | 192 |
+| Relative positional bias | Sinusoidal, causal mask | Relative bias + memory | NVIDIA partial-relative bias |
+| Dropout | 0.1 | 0.1 | 0.1 |
+| Attention dropout | 0.1 | 0.1 | 0.0 |
 
-### Priority 2: Simplify Action System
-Current action attention system is more complex than needed for GTrXL. Should use standard critic/actor heads.
+## Default Hyperparameters (Base Config)
+| Parameter | GTrXLPolicy | TRXLPolicy | TRXLNvidiaPolicy |
+|-----------|-------------|------------|------------------|
+| `latent_size` / `hidden_size` | 128 | 256 | 512 |
+| `num_layers` | 6 | 6 | 16 |
+| `n_heads` | 8 | 8 | 8 |
+| `d_ff` / `d_inner` | 512 | 1024 | 2048 |
+| `max_seq_len` | 256 | 256 | 192 |
+| `memory_len` | 0 | 64 | 192 |
+| `pre_lnorm` | True | True | False |
+| `manual_init` (policy heads) | False | False | True |
 
-### Priority 3: Add Relative Positional Encoding
-Standard in Transformer-XL variants for better sequence modeling.
+## Behavioural Notes
+- GTrXL retains gating to stabilize on-policy RL gradients as described by Parisotto et al. and omits Transformer-XL memory to match historically successful training runs.
+- TRXL reinstates layer-wise memory caching and relative attention from the original Transformer-XL formulation for long context handling while keeping the simplified actor/critic heads used internally.
+- TRXLNvidia uses the NVIDIA Megatron-style Transformer-XL block with post-norm residuals, clamp-free relative positional embeddings, and longer default memory to reflect the `wt103_base` recipe.
 
-## Implementation Status in Metta
-- [x] Current transformer_improved analysis completed
-- [x] Gating mechanism implementation verified  
-- [x] Pre-norm architecture verified
-- [x] Memory mechanism integration completed
-- [x] Action system simplification completed
-- [x] Code formatting and cleanup completed
-- [ ] Testing and validation (requires separate testing session)
-
-## Changes Made to transformer_improved
-
-### 1. Added GTrXL Memory Mechanism
-- **TransformerModule**: Added `memory_len` parameter and full memory management
-- **Memory initialization**: Each layer maintains `memory_len` previous hidden states
-- **Gradient stopping**: Memory is properly detached to prevent gradient flow
-- **Memory concatenation**: Previous memory concatenated with current input for attention
-
-### 2. Simplified Action System
-- **Removed complex attention**: Eliminated unnecessary multi-head attention for action selection
-- **Standard actor-critic**: Simple linear layers for policy and value heads
-- **Better initialization**: Proper weight initialization for stability
-
-### 3. Updated Architecture Parameters
-- **Added memory_len=64**: Standard Transformer-XL memory length
-- **Maintained all existing parameters**: Backward compatible with current configurations
-- **Enhanced documentation**: Clear GTrXL-specific comments and docstrings
-
-### 4. Code Quality Improvements
-- **Formatted code**: Applied ruff formatting per project standards
-- **Removed unused imports**: Cleaned up unnecessary dependencies
-- **Updated docstrings**: Clear GTrXL-specific documentation
-
----
-
-## Detailed Implementation Comparison: GTrXLPolicy vs TRXLPolicy
-
-### Overview
-
-| Feature | GTrXLPolicy | TRXLPolicy |
-|---------|-------------------|------------------------------|
-| **Base Architecture** | Standard Transformer with GTrXL gating | Full GTrXL with memory mechanism |
-| **Memory System** | ❌ No memory mechanism | ✅ Layer-wise memory with gradient stopping |
-| **Action System** | Bilinear actor with embeddings | Simplified linear actor-critic heads |
-| **Complexity** | Moderate complexity | Simplified and streamlined |
-| **GTrXL Compliance** | Partial (gating only) | Full GTrXL implementation |
-
----
-
-## GTrXLPolicy (Original Implementation)
-
-### Architecture Details
-
-```python
-class ConvolutionalGTrXLPolicy(nn.Module):
-    def __init__(self, env, input_size=128, hidden_size=128, n_heads=8, 
-                 n_layers=6, d_ff=512, max_seq_len=256, dropout=0.1)
-```
-
-#### Key Components
-
-**1. CNN Feature Extraction**
-```python
-self.cnn1 = init_layer(nn.Conv2d(self.num_layers, 64, 5, 3), std=1.0)
-self.cnn2 = init_layer(nn.Conv2d(64, 64, 3, 1), std=1.0)  # 64 output channels
-self.fc1 = init_layer(nn.Linear(self.flattened_size, 128), std=1.0)
-self.encoded_obs = init_layer(nn.Linear(128, input_size), std=1.0)
-```
-
-**2. Transformer Core**
-```python
-self._transformer = TransformerModule(
-    d_model=hidden_size,        # Default: 128
-    n_heads=n_heads,           # Default: 8
-    n_layers=n_layers,         # Default: 6
-    d_ff=d_ff,                 # Default: 512
-    max_seq_len=max_seq_len,   # Default: 256
-    # NO MEMORY_LEN PARAMETER
-    dropout=dropout,
-    dropout=dropout,
-)
-```
-
-**3. Bilinear Actor System**
-```python
-# Complex bilinear action computation
-self.critic_1 = init_layer(nn.Linear(hidden_size, 1024), std=1.0)
-self.value_head = init_layer(nn.Linear(1024, 1), std=0.1)
-self.actor_1 = init_layer(nn.Linear(hidden_size, 512), std=0.5)
-self.action_embeddings = nn.Embedding(100, 16)  # 16-dim embeddings
-self.actor_W = nn.Parameter(torch.Tensor(1, 512, 16))  # Bilinear weights
-```
-
-**4. Action Decoding Process**
-```python
-def decode_actions(self, hidden: torch.Tensor, batch_size: int) -> tuple:
-    # Multi-step bilinear computation
-    value = self.value_head(torch.tanh(self.critic_1(hidden)))
-    actor_features = F.relu(self.actor_1(hidden))  # (B, 512)
-    action_embeds = self.action_embeddings.weight[:self.num_active_actions]  # (A, 16)
-    
-    # Complex tensor operations for bilinear scoring
-    actor_reshaped = actor_features.unsqueeze(1).expand(-1, num_actions, -1)
-    query = torch.tanh(torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W))
-    logits = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)
-```
-
-**5. Memory Interface**
-```python
-def transformer(self, hidden: torch.Tensor, terminations=None, memory=None):
-    return self._transformer(hidden), None  # No memory returned
-
-def initialize_memory(self, batch_size: int) -> dict:
-    return {}  # Empty memory
-```
-
-#### Default Parameters
-- `input_size`: 128
-- `hidden_size`: 128  
-- `d_ff`: 512
-- CNN channels: 64 → 64
-- Actor hidden: 512 → 1024 (critic)
-- Action embeddings: 16 dimensions
-
----
-
-## TRXLPolicy (Transformer-XL Implementation)
-
-### Architecture Details
-
-```python
-class TransformerXLPolicy(nn.Module):
-    def __init__(self, env, input_size=256, hidden_size=256, n_heads=8,
-                 n_layers=6, d_ff=1024, max_seq_len=256, memory_len=64,
-                 dropout=0.1)
-```
-
-#### Key Components
-
-**1. Enhanced CNN Feature Extraction**
-```python
-self.cnn1 = init_layer(nn.Conv2d(self.num_layers, 64, 5, 3), std=1.0)
-self.cnn2 = init_layer(nn.Conv2d(64, 128, 3, 1), std=1.0)  # 128 output channels
-self.fc1 = init_layer(nn.Linear(self.flattened_size, 256), std=1.0)
-self.encoded_obs = init_layer(nn.Linear(256, input_size), std=1.0)
-```
-
-**2. Full GTrXL Transformer**
-```python
-self._transformer = TransformerModule(
-    d_model=hidden_size,        # Default: 256
-    n_heads=n_heads,           # Default: 8
-    n_layers=n_layers,         # Default: 6
-    d_ff=d_ff,                 # Default: 1024
-    max_seq_len=max_seq_len,   # Default: 256
-    memory_len=memory_len,     # NEW: Default: 64
-    dropout=dropout,
-    dropout=dropout,
-)
-```
-
-**3. Simplified Actor-Critic System**
-```python
-# Clean, standard RL heads
-self.critic = nn.Sequential(
-    nn.Linear(hidden_size, hidden_size),  # 256 → 256
-    nn.LayerNorm(hidden_size),
-    nn.ReLU(),
-    nn.Linear(hidden_size, 1)
-)
-
-self.actor = nn.Sequential(
-    nn.Linear(hidden_size, hidden_size),  # 256 → 256
-    nn.LayerNorm(hidden_size), 
-    nn.ReLU(),
-    nn.Linear(hidden_size, 100)          # Direct logits output
-)
-```
-
-**4. Simplified Action Decoding**
-```python
-def decode_actions(self, hidden: torch.Tensor, batch_size: int = None) -> tuple:
-    """Standard Transformer-XL action/value decoding."""
-    # Direct computation - much simpler
-    values = self.critic(hidden).squeeze(-1)           # (B,)
-    full_logits = self.actor(hidden)                   # (B, 100)
-    logits = full_logits[:, :self.num_active_actions]  # (B, A)
-    return logits, values
-```
-
-**5. Transformer-XL Memory Interface**
-```python
-def transformer(self, hidden: torch.Tensor, terminations=None, memory=None):
-    return self._transformer(hidden, memory)  # Returns (output, new_memory)
-
-def initialize_memory(self, batch_size: int) -> dict:
-    return self._transformer.initialize_memory(batch_size)  # Real memory
-```
-
-#### Default Parameters  
-- `input_size`: 256 (+100% vs original)
-- `hidden_size`: 256 (+100% vs original)
-- `d_ff`: 1024 (+100% vs original)
-- `memory_len`: 64 (NEW)
-- CNN channels: 64 → 128 (+100% second layer)
-- Actor/critic hidden: 256 (unified)
-
----
-
-## Core GTrXL Memory Mechanism (transformer_improved only)
-
-### Memory Architecture
-
-```python
-class TransformerModule:
-    def forward(self, x: torch.Tensor, memory: Optional[Dict] = None):
-        # Get past memory for each layer
-        past_memory = memory.get("hidden_states") if memory else None
-        new_memory_states = []
-        
-        current_hidden = x  # Current sequence
-        for i, layer in enumerate(self.layers):
-            layer_memory = past_memory[i] if past_memory is not None else None
-            
-            if layer_memory is not None:
-                # CRITICAL: Stop gradients through memory
-                layer_memory = layer_memory.detach()
-                
-                # Concatenate memory with current input
-                # Shape: (memory_len + seq_len, batch, hidden_size)
-                extended_input = torch.cat([layer_memory, current_hidden], dim=0)
-            else:
-                extended_input = current_hidden
-            
-            # Process through transformer layer with extended context
-            layer_output = layer(extended_input)
-            
-            # Extract current sequence output (last seq_len steps)
-            current_hidden = layer_output[-seq_len:]
-            
-            # Store memory for next iteration (last memory_len steps)  
-            if self.memory_len > 0:
-                memory_to_store = layer_output[-self.memory_len:].detach()
-                new_memory_states.append(memory_to_store)
-        
-        return current_hidden, {"hidden_states": new_memory_states}
-```
-
-### Memory Benefits
-
-1. **Extended Context**: Can attend to information beyond `max_seq_len`
-2. **Gradient Stability**: Memory gradients are stopped to prevent interference
-3. **Efficient**: Only stores last `memory_len` activations per layer
-4. **Scalable**: Memory size independent of sequence length
-
----
-
-## Detailed Feature Comparison
-
-### CNN Feature Extraction
-| Aspect | GTrXLPolicy | TRXLPolicy |
-|--------|-------------------|------------------------------|
-| Conv1 | 64 filters, 5x5 kernel | 64 filters, 5x5 kernel |
-| Conv2 | **64 filters**, 3x3 kernel | **128 filters**, 3x3 kernel |
-| FC1 hidden | 128 dimensions | **256 dimensions** |
-| Final encoding | input_size (default 128) | input_size (default 256) |
-| **Capacity** | Lower | **Higher** |
-
-### Transformer Core
-| Aspect | GTrXLPolicy | TRXLPolicy |
-|--------|-------------------|------------------------------|
-| Hidden size | 128 | **256** |
-| Feed-forward | 512 | **1024** |
-| Memory mechanism | ❌ None | ✅ **64-step memory** |
-| Relative attention | ✅ Transformer-XL core | ✅ Transformer-XL core + memory |
-| Pre-normalization | ✅ Yes | ✅ Yes |
-| **Memory capacity** | Single sequence | **Multi-sequence** |
-
-### Action System Architecture
-| Aspect | GTrXLPolicy | TRXLPolicy |
-|--------|-------------------|------------------------------|
-| Actor type | **Bilinear** with embeddings | **Linear** layers |
-| Action embeddings | 16-dim learned embeddings | None (direct logits) |
-| Actor hidden | 512 dimensions | 256 dimensions |
-| Critic hidden | 1024 dimensions | 256 dimensions |  
-| Computation complexity | **High** (bilinear ops) | **Low** (linear ops) |
-| Parameters | More (embeddings + bilinear) | Fewer (linear only) |
-
-### Memory and State Management
-| Aspect | GTrXLPolicy | TRXLPolicy |
-|--------|-------------------|------------------------------|
-| Memory initialization | `return {}` | **Layer-wise memory tensors** |
-| Memory updates | No-op | **Per-layer gradient-stopped** |
-| Context window | Fixed `max_seq_len` | **Memory + current sequence** |
-| Long-term dependencies | ❌ Limited | ✅ **Unlimited** |
-| Episode boundaries | No special handling | Memory can be reset |
-
-### Computational Efficiency
-| Aspect | GTrXLPolicy | TRXLPolicy |
-|--------|-------------------|------------------------------|
-| Action decoding | Complex einsum operations | Simple matrix multiplies |
-| Memory overhead | Lower | Higher (memory storage) |
-| Forward pass complexity | Bilinear complexity | Linear complexity |
-| Training stability | Good | **Better** (memory reuse) |
-
----
-
-## Performance and Use Case Recommendations
-
-### When to Use GTrXLPolicy
-- **Shorter sequences** (< 256 steps)
-- **Memory-constrained** environments  
-- **Legacy compatibility** needed
-- **Simpler tasks** not requiring long-term memory
-
-### When to Use TRXLPolicy (Transformer-XL)
-- **Long-term dependencies** required
-- **Complex sequential tasks** (navigation, planning)
-- **Higher capacity** needed
-- **State-of-the-art performance** desired
-- **Memory-rich environments** available
-
-### Migration Path
-1. **Drop-in replacement**: Same interface, just add `memory_len` parameter
-2. **Parameter scaling**: Consider increasing batch size to utilize higher capacity
-3. **Memory management**: Monitor memory usage during long episodes  
-4. **Hyperparameter tuning**: Adjust `memory_len` based on task requirements
-
----
-
-## Implementation Files
-
-### GTrXLPolicy Family (current)
-- **Main file**: `agent/src/metta/agent/policies/transformer.py`
-- **Policy classes**: `GTrXLPolicy`, `TRXLPolicy`, `TRXLNvidiaPolicy`
-- **Components**: shared CNN encoder, action heads, and configurable transformer backends
-- **Memory handling**: configurable per policy (Improved/Nvidia variants enable Transformer-XL style memory)
-
-### Legacy PyTorch Agents (removed in September 2025)
-- `agent/src/metta/agent/pytorch/transformer.py`
-- `agent/src/metta/agent/pytorch/transformer_improved.py`
-- `agent/src/metta/agent/pytorch/transformer_nvidia.py`
-
-The new policy implementations consolidate these behaviors behind configuration switches while preserving Transformer-XL compatibility.
+## Pending Documentation Work
+- Expand the variant overview into a comparison table that includes empirical metrics once new benchmarks finish.
+- Add illustrated call-outs that show the memory interface flow for TRXL and TRXLNvidia variants.
