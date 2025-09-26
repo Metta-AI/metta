@@ -506,7 +506,13 @@ class TransformerPolicy(Policy):
         elif use_memory and tt > 1:
             packed_memory = td.get("transformer_memory_pre", None)
             if packed_memory is not None and packed_memory.numel() > 0:
-                packed_memory = packed_memory.view(batch_size, tt, self.num_layers, self.memory_len, self.hidden_size)
+                packed_memory = packed_memory.view(
+                    batch_size,
+                    tt,
+                    self.transformer_cfg.num_layers,
+                    self.memory_len,
+                    self.hidden_size,
+                )
             core_slices: list[torch.Tensor] = []
             for step in range(tt):
                 if packed_memory is not None and self.memory_len > 0 and packed_memory.numel() > 0:
