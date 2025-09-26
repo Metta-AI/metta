@@ -2,7 +2,7 @@
 requires = [
   "setuptools>=61.0",
   "wheel",
-  "numpy>=1.26.4,<2",
+  "numpy>=2",
   "pybind11==2.10.4",
   "setuptools_scm>=8",
 ]
@@ -14,7 +14,7 @@ name = "mettagrid" # Do not change! Has to be 'mettagrid' for our PyPi package
 dynamic = ["version"]
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11"
 license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
@@ -22,8 +22,8 @@ keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environmen
 dependencies = [
   "boto3>=1.38.32",
   "botocore>=1.38.29",
-  "gymnasium==0.29.1",
-  "pettingzoo>=1.24.1,<1.25",
+  "gymnasium>=1.1.1",
+  "pettingzoo>=1.25",
   "pufferlib-core",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
@@ -47,7 +47,6 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 # Exclude the generic Bazel C++ test runner script (not a pytest test)
 addopts = "--ignore=tests/run_test.py"
-filterwarnings = ["ignore:Gym has been unmaintained:UserWarning"]
 
 [tool.uv]
 cache-keys = [
