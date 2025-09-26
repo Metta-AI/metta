@@ -1,6 +1,9 @@
 from metta.sim.simulation_config import SimulationConfig
 
 from experiments.recipes.in_context_learning.assemblers import make_assembler_env
+from experiments.evals.in_context_learning.foraging import (
+    make_foraging_eval_suite as make_foraging_eval_suite,
+)
 
 
 def make_assembler_eval_suite() -> list[SimulationConfig]:
@@ -37,7 +40,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             name="in_context_assemblers/two_agent_two_altars_north_south",
             suite="in_context_learning",
             env=make_assembler_env(
-                num_agents=1,
+                num_agents=2,
                 max_steps=512,
                 num_altars=2,
                 num_converters=0,
