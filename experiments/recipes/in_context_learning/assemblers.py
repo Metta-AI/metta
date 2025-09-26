@@ -93,11 +93,13 @@ foraging_curriculum_args = {
         "map_sizes": {
             "small": {"width": 10, "height": 10, "resource_count": 2},
             "large": {"width": 24, "height": 24, "resource_count": 4},
+            "extra_large": {"width": 32, "height": 32, "resource_count": 5},
+            "huge": {"width": 40, "height": 40, "resource_count": 6},
         },
         "size_weights": None,  # uniform
         "separation_modes": ["strict", "soft"],
-        "separation_weights": [0.5, 0.5],
-        "soft_mode_bias": 0.75,
+        "separation_weights": None,
+        "soft_mode_bias": None,
         "recipe_mode": ["simple", "unordered_chain"],
         "max_recipe_inputs": [1, 2, 3],
         "num_assemblers": [1, 2],
@@ -1370,10 +1372,29 @@ class BiasedForagingTaskGenerator(ICLTaskGenerator):
                 )
             ]
         elif recipe_mode == "directional":
-            # Directional: create multiple recipes bound to specific sides
+            # Directional: create recipes bound to specific sides
+            # Require as many sides as agents (min 1, cap at 2 for now)
             k_cap = max_inputs_cap if max_inputs_cap is not None else 3
             recipes = []
+
+            # Derive base directions from config (flatten unique tokens)
+            base_dirs = []
             for patt in self.config.direction_recipes:
+                for d in patt:
+                    if d not in base_dirs:
+                        base_dirs.append(d)
+
+            required_positions = 2 if num_agents >= 2 else 1
+            if required_positions <= 1:
+                pattern_list = list(self.config.direction_recipes)
+            else:
+                # Build all unique 2-direction combinations from available directions
+                pattern_list: list[list[Position]] = []
+                for i in range(len(base_dirs)):
+                    for j in range(i + 1, len(base_dirs)):
+                        pattern_list.append([base_dirs[i], base_dirs[j]])
+
+            for patt in pattern_list:
                 k = min(k_cap, max(1, len(chosen_resources)))
                 inputs = rng.sample(chosen_resources, k=min(k, len(chosen_resources)))
                 recipes.append(
