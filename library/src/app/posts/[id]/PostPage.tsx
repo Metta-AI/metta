@@ -201,14 +201,24 @@ export const PostPage: FC<{
   }, [postId]);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen flex-col md:flex-row">
+      {/* Mobile: Paper details on top (when selected) */}
+      {selectedPostForPaper?.paper && (
+        <div className="h-1/2 border-b border-gray-300 md:hidden">
+          <PaperSidebar
+            paper={selectedPostForPaper.paper}
+            onClose={handlePaperSidebarClose}
+          />
+        </div>
+      )}
+
       {/* Main feed area */}
       <div className="flex-1 overflow-y-auto">
         {/* Post Composition */}
         <NewPostForm />
 
         {/* Feed with Infinite Scroll */}
-        <div ref={feedRef} className="mt-6 ml-6 max-w-2xl">
+        <div ref={feedRef} className="mx-4 mt-6 max-w-2xl md:ml-6">
           {page.items.length > 0 ? (
             <InfiniteScroll
               loadNext={page.loadNext!}
@@ -304,25 +314,27 @@ export const PostPage: FC<{
             </div>
           )}
         </div>
+
+        {/* User Card Modal */}
+        {selectedUser && (
+          <UserCard
+            user={selectedUser}
+            allPapers={papersData.papers}
+            users={papersData.users}
+            interactions={papersData.interactions}
+            onClose={handleUserCardClose}
+          />
+        )}
       </div>
 
-      {/* User Card Modal */}
-      {selectedUser && (
-        <UserCard
-          user={selectedUser}
-          allPapers={papersData.papers}
-          users={papersData.users}
-          interactions={papersData.interactions}
-          onClose={handleUserCardClose}
-        />
-      )}
-
-      {/* Paper Sidebar */}
-      {selectedPostForPaper && selectedPostForPaper.paper && (
-        <PaperSidebar
-          paper={selectedPostForPaper.paper}
-          onClose={handlePaperSidebarClose}
-        />
+      {/* Desktop: Paper sidebar on right */}
+      {selectedPostForPaper?.paper && (
+        <div className="hidden md:block">
+          <PaperSidebar
+            paper={selectedPostForPaper.paper}
+            onClose={handlePaperSidebarClose}
+          />
+        </div>
       )}
     </div>
   );

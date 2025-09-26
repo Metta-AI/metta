@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { useMobileNav } from "./MobileNavProvider";
+import { useEffect, useRef } from "react";
 
 /**
  * Library Sidebar Component
@@ -166,6 +169,27 @@ const navigationItems = [
       </svg>
     ),
   },
+  {
+    id: "signout",
+    label: "Sign Out",
+    href: "#", // We'll handle this specially
+    icon: (
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        suppressHydrationWarning
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+        />
+      </svg>
+    ),
+  },
 ];
 
 /**
@@ -187,53 +211,92 @@ function getActiveNavFromPath(pathname: string): string {
 export function LibrarySidebar() {
   const pathname = usePathname();
   const activeNav = getActiveNavFromPath(pathname);
+  const { isSidebarOpen, closeSidebar } = useMobileNav();
+
+  // Close sidebar when navigating on mobile
+  const prevPathname = useRef(pathname);
+  useEffect(() => {
+    if (prevPathname.current !== pathname) {
+      closeSidebar();
+      prevPathname.current = pathname;
+    }
+  }, [pathname, closeSidebar]);
 
   return (
-    <div className="fixed top-0 left-0 z-10 flex h-full w-48 flex-col border-r border-gray-200 bg-white">
-      {/* Header Section */}
-      <div className="border-b border-gray-100 px-6 py-6">
-        <div className="flex items-center gap-3">
-          {/* Bookshelf Icon */}
-          <svg
-            className="h-6 w-6 text-gray-500"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            suppressHydrationWarning
-          >
-            <path d="M3 18h18" />
-            <rect x="3" y="8" width="3.6" height="10" />
-            <rect x="6.6" y="6" width="3.6" height="12" />
-            <rect x="10.2" y="9" width="3.6" height="9" />
-            <rect x="13.8" y="7" width="3.6" height="11" />
-            <rect x="17.4" y="5" width="3.6" height="13" />
-          </svg>
-          <h1 className="text-lg font-semibold text-gray-900">
-            Republic of Papers
-          </h1>
-        </div>
-      </div>
+    <>
+      {/* Mobile backdrop - transparent but clickable */}
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" onClick={closeSidebar} />
+      )}
 
-      {/* Navigation Section */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {navigationItems.map((item) => (
-          <Link
-            key={item.id}
-            href={item.href}
-            className={`mx-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
-              activeNav === item.id
-                ? "bg-primary-50 text-primary-700 border-primary-200 border"
-                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-            }`}
-          >
-            {item.icon}
-            <span className="text-sm font-medium">{item.label}</span>
-          </Link>
-        ))}
-      </nav>
-    </div>
+      {/* Sidebar */}
+      <div
+        className={`fixed top-0 left-0 z-50 flex h-full w-48 flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out md:z-10 md:translate-x-0 ${
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
+        {/* Header Section */}
+        <div className="border-b border-gray-100 px-6 py-6">
+          <div className="flex items-center gap-3">
+            {/* Bookshelf Icon */}
+            <svg
+              className="h-6 w-6 text-gray-500"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              suppressHydrationWarning
+            >
+              <path d="M3 18h18" />
+              <rect x="3" y="8" width="3.6" height="10" />
+              <rect x="6.6" y="6" width="3.6" height="12" />
+              <rect x="10.2" y="9" width="3.6" height="9" />
+              <rect x="13.8" y="7" width="3.6" height="11" />
+              <rect x="17.4" y="5" width="3.6" height="13" />
+            </svg>
+            <h1 className="text-lg font-semibold text-gray-900">
+              Republic of Papers
+            </h1>
+          </div>
+        </div>
+
+        {/* Navigation Section */}
+        <nav className="flex-1 space-y-1 px-3 py-4">
+          {navigationItems.map((item) => {
+            // Handle Sign Out specially
+            if (item.id === "signout") {
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => signOut()}
+                  className="mx-1 flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                >
+                  {item.icon}
+                  <span className="text-sm font-medium">{item.label}</span>
+                </button>
+              );
+            }
+
+            // Regular navigation items
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={`mx-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                  activeNav === item.id
+                    ? "bg-primary-50 text-primary-700 border-primary-200 border"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                {item.icon}
+                <span className="text-sm font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    </>
   );
 }

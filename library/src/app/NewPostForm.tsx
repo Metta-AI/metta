@@ -202,12 +202,12 @@ export const NewPostForm: FC = () => {
   };
 
   return (
-    <div className="border-b border-gray-200 bg-white p-6">
+    <div className="border-b border-gray-200 bg-white p-4 md:p-6">
       <div className="flex flex-col gap-3">
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <MentionInput
             wrapperClassName="flex-1"
-            className="max-h-32 min-h-[96px] resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+            className="max-h-32 min-h-[96px] resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-transparent focus:ring-2 focus:ring-blue-500 md:px-4 md:py-3"
             placeholder={`Share your thoughts about a paper...\nMust include an arXiv URL (e.g., https://arxiv.org/abs/2301.12345)\nLaTeX supported: $x^2 + y^2 = z^2$ for inline, $$\\alpha + \\beta = \\gamma$$ for display\nPaste images or attach files below.\n\nTry @-mentioning: @username for users, @/groupname for your institution's groups, @domain.com/groupname for specific institution groups.`}
             value={content}
             onChange={handleContentChange}
@@ -223,10 +223,10 @@ export const NewPostForm: FC = () => {
             }}
           />
 
-          <div className="flex flex-col gap-2">
+          <div className="flex justify-end sm:flex-col sm:gap-2">
             {/* Post button */}
             <button
-              className={`rounded-lg px-6 py-2 text-sm font-medium transition-colors ${
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors md:px-6 ${
                 content.trim() && !isExecuting && !isUploading
                   ? "bg-blue-600 text-white hover:bg-blue-700"
                   : "cursor-not-allowed bg-gray-200 text-gray-500"
