@@ -341,7 +341,7 @@ class HRM_ACTV1_Inner(nn.Module):
         dim_per_layer = self.out_width * self.out_height
         combined_index = atr_indices * dim_per_layer + flat_spatial_index
 
-        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
+        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index)).long()
         safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
 
         # Scale
@@ -557,9 +557,24 @@ class HRM(Policy, HRMMemory):
         # Decode actions and values
         logits, value = self.policy.decode_actions(hidden.to(torch.float32))
 
+        # Sample actions from logits
+        import torch.distributions as dist
+        action_dist = dist.Categorical(logits=logits)
+        actions_flat = action_dist.sample()
+        act_log_prob = action_dist.log_prob(actions_flat.float())  # log_prob needs float input
+        entropy = action_dist.entropy()  # Calculate entropy for PPO loss
+
+        # For MultiDiscrete environments, we need to reshape actions
+        # Assuming 2 action components (typical for arena environments)
+        batch_size = actions_flat.shape[0]
+        actions = actions_flat.view(batch_size, 1).expand(batch_size, 2)
+
         # Set outputs in TensorDict
         td["logits"] = logits
         td["values"] = value.flatten()
+        td["actions"] = actions.to(dtype=torch.int32)  # Match expected dtype in actor.py
+        td["act_log_prob"] = act_log_prob
+        td["entropy"] = entropy  # Required by PPO loss
 
         return td
 
@@ -591,7 +606,7 @@ class HRMPolicyInner(nn.Module):
             hidden_size=hidden_size,
             vocab_size=10,
             batch_size=1,
-            seq_len=20,
+            seq_len=64,  # Reduced from 200 to save memory
             forward_dtype="bfloat16",  # More memory efficient than float16
             H_layers=1,
             L_layers=1,
@@ -668,6 +683,11 @@ class HRMPolicyInner(nn.Module):
 
         if len(observations.shape) == 4:
             observations = observations.reshape(-1, 200, 3)
+
+        # Truncate to model's sequence length (64)
+        seq_len = 64
+        if observations.shape[1] > seq_len:
+            observations = observations[:, :seq_len, :]
 
         # Get environment ID for state tracking
         if td is not None:
