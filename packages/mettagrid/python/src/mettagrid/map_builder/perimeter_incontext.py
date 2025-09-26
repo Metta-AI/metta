@@ -306,6 +306,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         # Place agent in center efficiently
         center_i, center_j = height // 2, width // 2
         grid[center_i, center_j] = agents[0]
+        dir = "icl_ordered_chains"
 
         if dir is not None:
             area = height * width
@@ -322,13 +323,10 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
             random_number = self._rng.integers(1000000)
 
-            converter_indices = np.argwhere((grid != "agent.agent") & (grid != "wall") & (grid != "empty"))
-
-            assert len(converter_indices) == self._config.chain_length + self._config.num_sinks
-
             subdir = f"{size}/{self._config.chain_length}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
             filename = os.path.join(dir, subdir, f"{random_number}.npy")
             os.makedirs(os.path.dirname(filename), exist_ok=True)
+            print(f"Saving to {filename}")
             np.save(filename, grid)
 
         return GameMap(grid)

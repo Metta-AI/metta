@@ -6,6 +6,7 @@ from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGenerato
 from mettagrid.builder import empty_converters
 from pydantic import Field
 
+
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
     "mine_blue": empty_converters.mine_blue,
@@ -41,10 +42,6 @@ size_ranges: dict[str, tuple[int, int]] = {
 }
 
 
-def calculate_avg_hop(room_size: str) -> float:
-    return (size_ranges[room_size][0] + size_ranges[room_size][1]) / 2
-
-
 @dataclass
 class _BuildCfg:
     used_objects: List[str] = field(default_factory=list)
@@ -57,48 +54,54 @@ class _BuildCfg:
     sources: List[str] = field(default_factory=list)
 
 
-class ICLTaskGenerator(TaskGenerator):
-    class Config(TaskGeneratorConfig["ICLTaskGenerator"]):
-        """Configuration for ICLTaskGenerator matching ordered_chains refactor."""
+def calculate_avg_hop(room_size: str) -> float:
+    return (size_ranges[room_size][0] + size_ranges[room_size][1]) / 2
 
+
+class ICLTaskGenerator(TaskGenerator):
+    """
+    Shared superclass for Ordered/Unordered chain generators.
+    Subclasses should implement `_make_env_cfg(...)`.
+    """
+
+    class Config(TaskGeneratorConfig["ICLTaskGenerator"]):
+        # Common knobs
         num_resources: list[int] = Field(
             default_factory=list,
-            description="Number of resources",
+            description="Number of base/intermediate resources to include.",
         )
         num_converters: list[int] = Field(
             default_factory=list,
-            description="Number of converters, which are sinks for ordered chains",
+            description="Ordered: number of sinks; Unordered: number of heart-producing recipe converters.",
         )
         room_sizes: list[str] = Field(
-            default=["small"], description="Room size to sample from"
+            default=["small"], description="Room sizes to sample from."
         )
         obstacle_types: list[str] = Field(
-            default=[], description="Obstacle types to sample from"
+            default_factory=list, description="Terrain obstacle shapes."
         )
-        densities: list[str] = Field(default=[], description="Density to sample from")
-        # obstacle_complexity
-        max_steps: int = Field(default=512, description="Episode length")
+        densities: list[str] = Field(
+            default_factory=list, description="Terrain densities."
+        )
         map_dir: str | None = Field(
             default=None,
-            description="Directory to load environments from",
+            description="Directory for pre-generated maps (None to build procedurally).",
         )
+
+        # Unordered-only (ignored by Ordered subclasses)
         max_recipe_inputs: Optional[list[int]] = Field(
             default=None,
-            description="Maximum resources per converter for unordered chains",
+            description="Max inputs per recipe converter (sampled per env).",
         )
         source_initial_resource_count: Optional[int] = Field(
-            default=None, description="Initial resource count per source"
+            default=None, description="Initial stock per source (None = infinite)."
         )
         source_max_conversions: Optional[int] = Field(
             default=None,
-            description="Max conversions per source (0 for no regeneration)",
+            description="Max regenerations per source (0 for no regen; None for default).",
         )
         source_cooldown: int = Field(
-            default=25, description="Cooldown for source regeneration"
-        )
-        non_reusable_resources: list[str] = Field(
-            default_factory=list,
-            description="List of resource types that are not reusable",
+            default=25, description="Source regeneration cooldown (if used)."
         )
 
     def __init__(self, config: "ICLTaskGenerator.Config"):
@@ -107,37 +110,50 @@ class ICLTaskGenerator(TaskGenerator):
         self.converter_types = CONVERTER_TYPES.copy()
         self.config = config
 
+    # -------- helpers shared by ordered/unordered --------
+
     def _choose_converter_name(
         self, pool: Dict[str, Any], used: set[str], rng: random.Random
     ) -> str:
+        """Pick an unused converter prefab name from the pool."""
         choices = [name for name in pool.keys() if name not in used]
         if not choices:
             raise ValueError("No available converter names left to choose from.")
         return str(rng.choice(choices))
 
-    def _make_env_cfg(self, cfg: _BuildCfg, rng: random.Random):
-        pass
-
     def _setup_task(self, rng: random.Random):
+        """
+        Sample the high-level task spec that both Ordered and Unordered builders use.
+        Returns:
+            resources: List[str]
+            num_converters: int
+            room_size: str
+            obstacle_type: Optional[str]
+            density: Optional[str]
+            width: int
+            height: int
+            max_recipe_inputs: Optional[int]  # (unordered only; pass-thru for ordered)
+        """
         cfg = self.config
-        # Safely determine counts for both ordered and unordered chains
+
+        # counts
         num_resources = rng.choice(cfg.num_resources)
         num_converters = rng.choice(cfg.num_converters)
-        # Clamp to available resource types to avoid ValueError in sampling
+
+        # clamp and draw resource set
+        num_resources = max(1, min(num_resources, len(self.resource_types)))
         resources = rng.sample(self.resource_types, num_resources)
+
+        # geometry & terrain
         room_size = rng.choice(cfg.room_sizes)
-        obstacle_type = (
-            rng.choice(cfg.obstacle_types) if len(cfg.obstacle_types) > 0 else None
-        )
-        density = rng.choice(cfg.densities) if len(cfg.densities) > 0 else None
+        obstacle_type = rng.choice(cfg.obstacle_types) if cfg.obstacle_types else None
+        density = rng.choice(cfg.densities) if cfg.densities else None
 
-        size_range = size_ranges[room_size]
+        lo, hi = size_ranges[room_size]
+        width = rng.randint(lo, hi)
+        height = rng.randint(lo, hi)
 
-        width, height = (
-            rng.randint(size_range[0], size_range[1]),
-            rng.randint(size_range[0], size_range[1]),
-        )
-
+        # unordered-only param (safe to ignore downstream if None)
         max_recipe_inputs = (
             rng.choice(cfg.max_recipe_inputs) if cfg.max_recipe_inputs else None
         )
@@ -152,6 +168,10 @@ class ICLTaskGenerator(TaskGenerator):
             height,
             max_recipe_inputs,
         )
+
+    # Subclasses must implement this to actually build MettaGridConfig:
+    def _make_env_cfg(self, *args, **kwargs):
+        raise NotImplementedError("Subclasses must implement _make_env_cfg(...)")
 
 
 class LPParams:

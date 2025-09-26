@@ -142,7 +142,7 @@ curriculum_args = {
         "widths": list(range(7, 14, 2)),
         "heights": list(range(7, 14, 2)),
     },
-        "two_agent_two_altars_progressive_pattern": {
+    "two_agent_two_altars_progressive_pattern": {
         "num_agents": [2],
         "num_altars": [2],
         "num_converters": [0],
@@ -150,13 +150,19 @@ curriculum_args = {
         "heights": [5, 6, 7, 8],
         "generator_positions": [["Any"]],
         "altar_positions": [
-            ["N", "S", "E"], ["N", "W", "E"], ["S", "E", "W"], ["S", "W", "E"],
+            ["N", "S", "E"],
+            ["N", "W", "E"],
+            ["S", "E", "W"],
+            ["S", "W", "E"],
             ["Any"],
-            ["N", "S"], ["E", "W"],
-            ["N", "E"], ["N", "W"], ["S", "E"], ["S", "W"],
+            ["N", "S"],
+            ["E", "W"],
+            ["N", "E"],
+            ["N", "W"],
+            ["S", "E"],
+            ["S", "W"],
         ],
     },
-
     "two_agent_two_altars_any": {
         "num_agents": [2],
         "num_altars": [2],
@@ -428,6 +434,7 @@ def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
 
+
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
@@ -448,6 +455,7 @@ def evaluate(
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
+
 
 # command tor un evalution: ./tools/run.py experiments.recipes.in_context_learning.assemblers.evaluate
 

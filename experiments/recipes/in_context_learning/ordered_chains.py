@@ -117,9 +117,9 @@ def make_task_generator_cfg(
     return OrderedChainsTaskGenerator.Config(
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
+        room_sizes=room_sizes,
         obstacle_types=obstacle_types,
         densities=densities,
-        room_sizes=room_sizes,
         map_dir=map_dir,
     )
 
@@ -304,7 +304,9 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
                 ),
             )
             if os.path.exists(f"./train_dir/{dir}/reward_estimates.json"):
-                reward_estimates = json.load(open(f"./train_dir/{dir}/reward_estimates.json"))
+                reward_estimates = json.load(
+                    open(f"./train_dir/{dir}/reward_estimates.json")
+                )
                 env.game.reward_estimates = reward_estimates[dir]
             return env
 

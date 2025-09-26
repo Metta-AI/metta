@@ -9,12 +9,12 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             name="in_context_learning_assemblers/single_agent_two_altars_W",
             env=make_assembler_env(
                 num_agents=1,
-                num_altars = 2,
+                num_altars=2,
                 num_generators=0,
                 width=8,
                 height=8,
                 position=["W"],
-        ),
+            ),
         ),
         SimulationConfig(
             suite="in_context_learning_assemblers",
@@ -28,7 +28,6 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
                 position=["Any"],
             ),
         ),
-
         SimulationConfig(
             name="in_context_learning_assemblers/two_agent_two_altars_west_east",
             suite="in_context_learning_assemblers",
@@ -41,7 +40,6 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
                 position=["W", "E"],
             ),
         ),
-
         SimulationConfig(
             suite="in_context_learning_assemblers",
             name="in_context_learning_assemblers/large_three_agent_many_altars_any",
