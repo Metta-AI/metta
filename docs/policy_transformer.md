@@ -1,9 +1,17 @@
 # Transformer-XL Architecture Reference
 
-> **Note:** The current `TransformerImprovedPolicy` agent now mirrors the original
+> **Note:** The current `TRXLPolicy` agent now mirrors the original
 > Transformer-XL implementation from [kimiyoung/transformer-xl](https://github.com/kimiyoung/transformer-xl)
 > and no longer applies the additional GRU-style gating that earlier revisions used.
 > Historical notes on GTrXL remain below for context when comparing design choices.
+
+> **Renaming (September 2025):**
+> - (legacy) `TransformerPolicy` → `GTrXLPolicy`
+> - (legacy) `TransformerImprovedPolicy` → `TRXLPolicy`
+> - (legacy) `TransformerNvidiaPolicy` → `TRXLNvidiaPolicy`
+>
+> Legacy names remain available as aliases for compatibility, but new experiments should
+> prefer the updated identifiers.
 
 ## Paper Summary
 **Title**: "Stabilizing Transformers for Reinforcement Learning"  
@@ -230,11 +238,11 @@ Standard in Transformer-XL variants for better sequence modeling.
 
 ---
 
-## Detailed Implementation Comparison: TransformerPolicy vs TransformerImprovedPolicy
+## Detailed Implementation Comparison: GTrXLPolicy vs TRXLPolicy
 
 ### Overview
 
-| Feature | TransformerPolicy | TransformerImprovedPolicy |
+| Feature | GTrXLPolicy | TRXLPolicy |
 |---------|-------------------|------------------------------|
 | **Base Architecture** | Standard Transformer with GTrXL gating | Full GTrXL with memory mechanism |
 | **Memory System** | ❌ No memory mechanism | ✅ Layer-wise memory with gradient stopping |
@@ -244,12 +252,12 @@ Standard in Transformer-XL variants for better sequence modeling.
 
 ---
 
-## TransformerPolicy (Original Implementation)
+## GTrXLPolicy (Original Implementation)
 
 ### Architecture Details
 
 ```python
-class ConvolutionalTransformerPolicy(nn.Module):
+class ConvolutionalGTrXLPolicy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128, n_heads=8, 
                  n_layers=6, d_ff=512, max_seq_len=256, dropout=0.1)
 ```
@@ -321,7 +329,7 @@ def initialize_memory(self, batch_size: int) -> dict:
 
 ---
 
-## TransformerImprovedPolicy (Transformer-XL Implementation)
+## TRXLPolicy (Transformer-XL Implementation)
 
 ### Architecture Details
 
@@ -455,7 +463,7 @@ class TransformerModule:
 ## Detailed Feature Comparison
 
 ### CNN Feature Extraction
-| Aspect | TransformerPolicy | TransformerImprovedPolicy |
+| Aspect | GTrXLPolicy | TRXLPolicy |
 |--------|-------------------|------------------------------|
 | Conv1 | 64 filters, 5x5 kernel | 64 filters, 5x5 kernel |
 | Conv2 | **64 filters**, 3x3 kernel | **128 filters**, 3x3 kernel |
@@ -464,7 +472,7 @@ class TransformerModule:
 | **Capacity** | Lower | **Higher** |
 
 ### Transformer Core
-| Aspect | TransformerPolicy | TransformerImprovedPolicy |
+| Aspect | GTrXLPolicy | TRXLPolicy |
 |--------|-------------------|------------------------------|
 | Hidden size | 128 | **256** |
 | Feed-forward | 512 | **1024** |
@@ -474,7 +482,7 @@ class TransformerModule:
 | **Memory capacity** | Single sequence | **Multi-sequence** |
 
 ### Action System Architecture
-| Aspect | TransformerPolicy | TransformerImprovedPolicy |
+| Aspect | GTrXLPolicy | TRXLPolicy |
 |--------|-------------------|------------------------------|
 | Actor type | **Bilinear** with embeddings | **Linear** layers |
 | Action embeddings | 16-dim learned embeddings | None (direct logits) |
@@ -484,7 +492,7 @@ class TransformerModule:
 | Parameters | More (embeddings + bilinear) | Fewer (linear only) |
 
 ### Memory and State Management
-| Aspect | TransformerPolicy | TransformerImprovedPolicy |
+| Aspect | GTrXLPolicy | TRXLPolicy |
 |--------|-------------------|------------------------------|
 | Memory initialization | `return {}` | **Layer-wise memory tensors** |
 | Memory updates | No-op | **Per-layer gradient-stopped** |
@@ -493,7 +501,7 @@ class TransformerModule:
 | Episode boundaries | No special handling | Memory can be reset |
 
 ### Computational Efficiency
-| Aspect | TransformerPolicy | TransformerImprovedPolicy |
+| Aspect | GTrXLPolicy | TRXLPolicy |
 |--------|-------------------|------------------------------|
 | Action decoding | Complex einsum operations | Simple matrix multiplies |
 | Memory overhead | Lower | Higher (memory storage) |
@@ -504,13 +512,13 @@ class TransformerModule:
 
 ## Performance and Use Case Recommendations
 
-### When to Use TransformerPolicy
+### When to Use GTrXLPolicy
 - **Shorter sequences** (< 256 steps)
 - **Memory-constrained** environments  
 - **Legacy compatibility** needed
 - **Simpler tasks** not requiring long-term memory
 
-### When to Use TransformerImprovedPolicy (Transformer-XL)
+### When to Use TRXLPolicy (Transformer-XL)
 - **Long-term dependencies** required
 - **Complex sequential tasks** (navigation, planning)
 - **Higher capacity** needed
@@ -527,9 +535,9 @@ class TransformerModule:
 
 ## Implementation Files
 
-### TransformerPolicy Family (current)
+### GTrXLPolicy Family (current)
 - **Main file**: `agent/src/metta/agent/policies/transformer.py`
-- **Policy classes**: `TransformerPolicy`, `TransformerImprovedPolicy`, `TransformerNvidiaPolicy`
+- **Policy classes**: `GTrXLPolicy`, `TRXLPolicy`, `TRXLNvidiaPolicy`
 - **Components**: shared CNN encoder, action heads, and configurable transformer backends
 - **Memory handling**: configurable per policy (Improved/Nvidia variants enable Transformer-XL style memory)
 

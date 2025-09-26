@@ -9,9 +9,9 @@ from pydantic import Field, model_validator
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.transformer import (
-    TransformerImprovedConfig,
-    TransformerNvidiaConfig,
-    TransformerPolicyConfig,
+    GTrXLPolicyConfig,
+    TRXLNvidiaPolicyConfig,
+    TRXLPolicyConfig,
 )
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -63,9 +63,12 @@ class TrainTool(Tool):
     POLICY_PRESETS: ClassVar[dict[str, type[PolicyArchitecture]]] = {
         "fast": FastConfig,
         "vit": ViTDefaultConfig,
-        "transformer": TransformerPolicyConfig,
-        "transformer_improved": TransformerImprovedConfig,
-        "transformer_nvidia": TransformerNvidiaConfig,
+        "gtrxl": GTrXLPolicyConfig,
+        "transformer": GTrXLPolicyConfig,
+        "trxl": TRXLPolicyConfig,
+        "transformer_improved": TRXLPolicyConfig,
+        "trxl_nvidia": TRXLNvidiaPolicyConfig,
+        "transformer_nvidia": TRXLNvidiaPolicyConfig,
     }
 
     @model_validator(mode="before")

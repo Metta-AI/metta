@@ -25,7 +25,8 @@ class FCPositionalEncoding(nn.Module):
         pe = torch.zeros(max_len, d_model)
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        self.register_buffer("pe", pe.unsqueeze(1))  # (max_len, 1, d_model)
+        self.scale_factor = 0.1
+        self.register_buffer("pe", (pe * self.scale_factor).unsqueeze(1))  # (max_len, 1, d_model)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -41,14 +42,14 @@ class FusedGRUGating(nn.Module):
     def __init__(self, d_model: int, bias: float = 2.0) -> None:
         super().__init__()
         self.gate_proj = nn.Linear(2 * d_model, 3 * d_model, bias=False)
-        self.register_buffer("bias", torch.full((d_model,), bias))
-        nn.init.orthogonal_(self.gate_proj.weight, gain=math.sqrt(2))
+        self.bg = nn.Parameter(torch.full((d_model,), bias))
+        nn.init.xavier_uniform_(self.gate_proj.weight, gain=1.0)
 
     def forward(self, residual: torch.Tensor, transformed: torch.Tensor) -> torch.Tensor:
         gates = self.gate_proj(torch.cat([residual, transformed], dim=-1))
         gates = gates.view(*gates.shape[:-1], 3, -1)
         reset = torch.sigmoid(gates[..., 0, :])
-        update = torch.sigmoid(gates[..., 1, :] - self.bias)
+        update = torch.sigmoid(gates[..., 1, :] - self.bg)
         candidate = torch.tanh(gates[..., 2, :] * reset)
         return (1.0 - update) * residual + update * candidate
 
@@ -75,8 +76,8 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         self.out_proj = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(dropout)
 
-        nn.init.orthogonal_(self.qkv_proj.weight, gain=math.sqrt(2))
-        nn.init.orthogonal_(self.out_proj.weight, gain=math.sqrt(2))
+        nn.init.xavier_uniform_(self.qkv_proj.weight, gain=1.0)
+        nn.init.xavier_uniform_(self.out_proj.weight, gain=1.0)
         nn.init.constant_(self.out_proj.bias, 0.0)
 
     def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -117,7 +118,7 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
 
 
 class GTrXLTransformerBlock(nn.Module):
-    """Transformer block with LayerNorm, gating and ReLU activations."""
+    """GTrXL block with pre-layernorm and optional GRU-style gating."""
 
     def __init__(
         self,
@@ -131,6 +132,9 @@ class GTrXLTransformerBlock(nn.Module):
         super().__init__()
         self.use_gating = use_gating
         self.attention = GTrXLMultiHeadSelfAttention(d_model, n_heads, dropout, use_causal_mask)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),
             nn.ReLU(),
@@ -140,33 +144,28 @@ class GTrXLTransformerBlock(nn.Module):
         )
         for module in self.feed_forward:
             if isinstance(module, nn.Linear):
-                nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
+                nn.init.xavier_uniform_(module.weight, gain=1.0)
                 nn.init.constant_(module.bias, 0.0)
 
         if use_gating:
-            self.gate1 = FusedGRUGating(d_model)
-            self.gate2 = FusedGRUGating(d_model)
-
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+            self.gate1 = FusedGRUGating(d_model, bias=2.0)
+            self.gate2 = FusedGRUGating(d_model, bias=2.0)
 
     def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        ln1 = self.norm1(x)
-        attn_out = F.relu(self.attention(ln1, attn_mask))
+        attn_out = self.attention(self.norm1(x), attn_mask)
         if self.use_gating:
             residual = self.gate1(x, attn_out)
         else:
             residual = x + attn_out
 
-        ln2 = self.norm2(residual)
-        ff_out = F.relu(self.feed_forward(ln2))
+        ff_out = self.feed_forward(self.norm2(residual))
         if self.use_gating:
             return self.gate2(residual, ff_out)
         return residual + ff_out
 
 
-class TransformerModule(nn.Module):
-    """GTrXL-style transformer matching the working full-context implementation."""
+class GTrXLModule(nn.Module):
+    """GTrXL module matching the legacy full-context implementation."""
 
     def __init__(
         self,
@@ -204,7 +203,7 @@ class TransformerModule(nn.Module):
         self.positional_encoding = FCPositionalEncoding(d_model, max_len=positional_max, dropout=dropout)
         if self.use_input_proj:
             self.input_proj = nn.Linear(d_model, d_model)
-            nn.init.orthogonal_(self.input_proj.weight, gain=math.sqrt(2))
+            nn.init.xavier_uniform_(self.input_proj.weight, gain=1.0)
             nn.init.constant_(self.input_proj.bias, 0.0)
 
         self.layers = nn.ModuleList(
@@ -495,7 +494,10 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         attn_vec = torch.einsum("ijbn,jbnd->ibnd", (attn_prob, w_head_v))
         attn_vec = attn_vec.contiguous().view(qlen, batch_size, self.n_head * self.d_head)
         attn_out = self.drop(self.o_net(attn_vec))
-        return attn_out
+
+        if self.pre_lnorm:
+            return content + attn_out
+        return self.layer_norm(content + attn_out)
 
 
 class XLRelPartialLearnableDecoderLayer(nn.Module):

@@ -6,10 +6,12 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.transformer import (
-    TransformerImprovedConfig,
-    TransformerNvidiaConfig,
-    TransformerPolicy,
-    TransformerPolicyConfig,
+    GTrXLPolicy,
+    GTrXLPolicyConfig,
+    TRXLNvidiaPolicy,
+    TRXLNvidiaPolicyConfig,
+    TRXLPolicy,
+    TRXLPolicyConfig,
 )
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
@@ -45,13 +47,17 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 
 
 @pytest.mark.parametrize(
-    "config_cls",
-    [TransformerPolicyConfig, TransformerImprovedConfig, TransformerNvidiaConfig],
+    ("config_cls", "expected_cls"),
+    [
+        (GTrXLPolicyConfig, GTrXLPolicy),
+        (TRXLPolicyConfig, TRXLPolicy),
+        (TRXLNvidiaPolicyConfig, TRXLNvidiaPolicy),
+    ],
 )
-def test_transformer_config_creates_policy(config_cls):
+def test_transformer_config_creates_policy(config_cls, expected_cls):
     env_metadata = _build_env_metadata()
     policy = config_cls().make_policy(env_metadata)
-    assert isinstance(policy, TransformerPolicy)
+    assert isinstance(policy, expected_cls)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 
@@ -68,7 +74,7 @@ def test_transformer_config_creates_policy(config_cls):
 
 def test_transformer_policy_initialization_sets_action_metadata():
     env_metadata = _build_env_metadata()
-    policy = TransformerPolicyConfig().make_policy(env_metadata)
+    policy = GTrXLPolicyConfig().make_policy(env_metadata)
 
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
@@ -80,7 +86,7 @@ def test_transformer_policy_initialization_sets_action_metadata():
 
 def test_padding_tokens_do_not_zero_valid_entries():
     env_metadata = _build_env_metadata()
-    policy = TransformerPolicyConfig().make_policy(env_metadata)
+    policy = GTrXLPolicyConfig().make_policy(env_metadata)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 

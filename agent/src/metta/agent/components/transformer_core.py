@@ -1,4 +1,4 @@
-"""Component configs for Transformer-XL based cores."""
+"""Component configs for Transformer-style cores."""
 
 from __future__ import annotations
 
@@ -6,13 +6,14 @@ from typing import Optional
 
 from metta.agent.components.component_config import ComponentConfig
 
-from .transformer_module import TransformerModule, TransformerXLModule
+from .transformer_module import GTrXLModule, TransformerXLModule
+from .transformer_nvidia_module import TransformerNvidiaCoreConfig  # re-export for convenience
 
 
-class TransformerCoreConfig(ComponentConfig):
-    """Default full-context transformer module used by transformer policies."""
+class GTrXLCoreConfig(ComponentConfig):
+    """Default GTrXL module used by the gtrxl policy variant."""
 
-    name: str = "transformer_core"
+    name: str = "gtrxl_core"
     in_key: str = "encoded_obs"
     out_key: str = "core"
 
@@ -30,8 +31,8 @@ class TransformerCoreConfig(ComponentConfig):
     pre_lnorm: bool = True
     ext_len: int = 0
 
-    def make_component(self, env: Optional[object] = None) -> TransformerModule:
-        return TransformerModule(
+    def make_component(self, env: Optional[object] = None) -> GTrXLModule:
+        return GTrXLModule(
             d_model=self.hidden_size,
             n_heads=self.n_heads,
             n_layers=self.num_layers,
@@ -50,8 +51,8 @@ class TransformerCoreConfig(ComponentConfig):
         )
 
 
-class TransformerImprovedCoreConfig(TransformerCoreConfig):
-    """Matches the improved Transformer-XL hyperparameters with memory."""
+class TRXLCoreConfig(GTrXLCoreConfig):
+    """Vanilla Transformer-XL core with memory."""
 
     latent_size: int = 256
     hidden_size: int = 256
@@ -74,3 +75,19 @@ class TransformerImprovedCoreConfig(TransformerCoreConfig):
             ext_len=self.ext_len,
             attn_type=0,
         )
+
+
+# ---------------------------------------------------------------------------
+# Backwards compatibility aliases (legacy names)
+# ---------------------------------------------------------------------------
+
+TransformerCoreConfig = GTrXLCoreConfig
+TransformerImprovedCoreConfig = TRXLCoreConfig
+
+__all__ = [
+    "GTrXLCoreConfig",
+    "TRXLCoreConfig",
+    "TransformerCoreConfig",
+    "TransformerImprovedCoreConfig",
+    "TransformerNvidiaCoreConfig",
+]

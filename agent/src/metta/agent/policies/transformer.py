@@ -7,7 +7,6 @@ import math
 import os
 from typing import Dict, List, Optional, Tuple
 
-import pufferlib.pytorch
 import torch
 from einops import rearrange
 from pydantic import Field
@@ -15,6 +14,7 @@ from tensordict import TensorDict
 from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
 
+import pufferlib.pytorch
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.components.actor import (
     ActionProbsConfig,
@@ -26,7 +26,7 @@ from metta.agent.components.actor import (
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.heads import LinearHead, LinearHeadConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
-from metta.agent.components.transformer_core import TransformerCoreConfig, TransformerImprovedCoreConfig
+from metta.agent.components.transformer_core import GTrXLCoreConfig, TRXLCoreConfig
 from metta.agent.components.transformer_nvidia_module import TransformerNvidiaCoreConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 
@@ -43,10 +43,10 @@ def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
     )
 
 
-class TransformerPolicyConfig(PolicyArchitecture):
-    """Hyperparameters for the legacy convolutional Transformer policy."""
+class BaseTransformerPolicyConfig(PolicyArchitecture):
+    """Shared hyperparameters for convolutional transformer policies."""
 
-    class_path: str = "metta.agent.policies.transformer.TransformerPolicy"
+    class_path: str = "metta.agent.policies.transformer.BaseTransformerPolicy"
 
     # Observation preprocessing
     obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
@@ -60,7 +60,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     )
 
     # Transformer interface dimensions
-    transformer_core: TransformerCoreConfig = Field(default_factory=TransformerCoreConfig)
+    transformer_core: GTrXLCoreConfig = Field(default_factory=GTrXLCoreConfig)
 
     # Actor / critic head dimensions
     critic_hidden_dim: int = 512
@@ -73,28 +73,39 @@ class TransformerPolicyConfig(PolicyArchitecture):
     strict_attr_indices: bool = False
 
 
-class TransformerImprovedConfig(TransformerPolicyConfig):
-    """Matches the legacy Transformer-XL agent implementation."""
+class GTrXLPolicyConfig(BaseTransformerPolicyConfig):
+    """GTrXL variant that mirrors the legacy working implementation."""
 
-    class_path: str = "metta.agent.policies.transformer.TransformerImprovedPolicy"
-    transformer_core: TransformerImprovedCoreConfig = Field(default_factory=TransformerImprovedCoreConfig)
+    class_path: str = "metta.agent.policies.transformer.GTrXLPolicy"
+    transformer_core: GTrXLCoreConfig = Field(default_factory=GTrXLCoreConfig)
 
 
-class TransformerNvidiaConfig(TransformerPolicyConfig):
+class TRXLPolicyConfig(BaseTransformerPolicyConfig):
+    """Vanilla Transformer-XL variant with memory enabled."""
+
+    class_path: str = "metta.agent.policies.transformer.TRXLPolicy"
+    transformer_core: TRXLCoreConfig = Field(default_factory=TRXLCoreConfig)
+
+
+class TRXLNvidiaPolicyConfig(BaseTransformerPolicyConfig):
     """Matches NVIDIA's reference Transformer-XL implementation."""
 
-    class_path: str = "metta.agent.policies.transformer.TransformerNvidiaPolicy"
+    class_path: str = "metta.agent.policies.transformer.TRXLNvidiaPolicy"
     manual_init: bool = True
     strict_attr_indices: bool = True
     transformer_core: TransformerNvidiaCoreConfig = Field(default_factory=TransformerNvidiaCoreConfig)
 
 
-class TransformerPolicy(Policy):
-    """CNN + Transformer policy as implemented in legacy PyTorch agents."""
+class BaseTransformerPolicy(Policy):
+    """Shared CNN + Transformer policy scaffolding."""
 
-    def __init__(self, env, config: Optional[TransformerPolicyConfig] = None) -> None:
+    ConfigClass = BaseTransformerPolicyConfig
+
+    def __init__(self, env, config: Optional[BaseTransformerPolicyConfig] = None) -> None:
         super().__init__()
-        self.config = config or TransformerPolicyConfig()
+        if config is None:
+            config = self.ConfigClass()
+        self.config = config
 
         self.env = env
         self.is_continuous = False
@@ -540,11 +551,34 @@ class TransformerPolicy(Policy):
         )
 
 
-class TransformerImprovedPolicy(TransformerPolicy):
-    def __init__(self, env, config: Optional[TransformerImprovedConfig] = None) -> None:
-        super().__init__(env, config or TransformerImprovedConfig())
+class GTrXLPolicy(BaseTransformerPolicy):
+    ConfigClass = GTrXLPolicyConfig
+
+    def __init__(self, env, config: Optional[GTrXLPolicyConfig] = None) -> None:
+        super().__init__(env, config)
 
 
-class TransformerNvidiaPolicy(TransformerPolicy):
-    def __init__(self, env, config: Optional[TransformerNvidiaConfig] = None) -> None:
-        super().__init__(env, config or TransformerNvidiaConfig())
+class TRXLPolicy(BaseTransformerPolicy):
+    ConfigClass = TRXLPolicyConfig
+
+    def __init__(self, env, config: Optional[TRXLPolicyConfig] = None) -> None:
+        super().__init__(env, config)
+
+
+class TRXLNvidiaPolicy(BaseTransformerPolicy):
+    ConfigClass = TRXLNvidiaPolicyConfig
+
+    def __init__(self, env, config: Optional[TRXLNvidiaPolicyConfig] = None) -> None:
+        super().__init__(env, config)
+
+
+# ---------------------------------------------------------------------------
+# Backwards compatibility aliases (legacy names)
+# ---------------------------------------------------------------------------
+
+TransformerPolicyConfig = GTrXLPolicyConfig
+TransformerPolicy = GTrXLPolicy
+TransformerImprovedConfig = TRXLPolicyConfig
+TransformerImprovedPolicy = TRXLPolicy
+TransformerNvidiaConfig = TRXLNvidiaPolicyConfig
+TransformerNvidiaPolicy = TRXLNvidiaPolicy
