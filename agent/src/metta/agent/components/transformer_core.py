@@ -40,14 +40,9 @@ class GTrXLCoreConfig(ComponentConfig):
             max_seq_len=self.max_seq_len,
             memory_len=self.memory_len,
             dropout=self.dropout,
-            dropatt=self.attn_dropout,
-            pre_lnorm=self.pre_lnorm,
-            same_length=self.same_length,
-            clamp_len=self.clamp_len,
-            ext_len=self.ext_len,
-            attn_type=0,
             use_gating=True,
             use_causal_mask=True,
+            positional_scale=0.1,
         )
 
 

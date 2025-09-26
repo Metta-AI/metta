@@ -225,6 +225,7 @@ class GRUGating(nn.Module):
 
 ## Behavioural Notes
 - GTrXL retains gating to stabilize on-policy RL gradients as described by Parisotto et al. and omits Transformer-XL memory to match historically successful training runs.
+- GTrXL now exposes a slimmed-down constructor; legacy keyword arguments such as `dropatt` or `same_length` are ignored with a debug warning to ease migration from the previous `TransformerModule` wrapper.
 - TRXL reinstates layer-wise memory caching and relative attention from the original Transformer-XL formulation for long context handling while keeping the simplified actor/critic heads used internally.
 - TRXLNvidia uses the NVIDIA Megatron-style Transformer-XL block with post-norm residuals, clamp-free relative positional embeddings, and longer default memory to reflect the `wt103_base` recipe.
 

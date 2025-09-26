@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Dict, List, Optional, Tuple
 
@@ -17,7 +18,14 @@ import torch.nn.functional as F
 class FCPositionalEncoding(nn.Module):
     """Sinusoidal positional encoding with dropout."""
 
-    def __init__(self, d_model: int, max_len: int = 8192, dropout: float = 0.1) -> None:
+    def __init__(
+        self,
+        d_model: int,
+        max_len: int = 8192,
+        dropout: float = 0.1,
+        *,
+        scale_factor: float = 0.1,
+    ) -> None:
         super().__init__()
         position = torch.arange(0, max_len, dtype=torch.float32).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32) * (-math.log(10000.0) / d_model))
@@ -25,8 +33,7 @@ class FCPositionalEncoding(nn.Module):
         pe = torch.zeros(max_len, d_model)
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        self.scale_factor = 0.1
-        self.register_buffer("pe", (pe * self.scale_factor).unsqueeze(1))  # (max_len, 1, d_model)
+        self.register_buffer("pe", (pe * scale_factor).unsqueeze(1))  # (max_len, 1, d_model)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -176,18 +183,17 @@ class GTrXLModule(nn.Module):
         max_seq_len: int = 256,
         memory_len: int = 0,
         dropout: float = 0.1,
-        dropatt: float = 0.1,  # Unused, kept for compatibility
-        pre_lnorm: bool = True,  # Unused flag retained for compatibility
-        same_length: bool = False,  # Unused flag retained for compatibility
-        clamp_len: int = -1,  # Unused flag retained for compatibility
-        ext_len: int = 0,  # Unused flag retained for compatibility
-        attn_type: int = 0,  # Unused flag retained for compatibility
         use_gating: bool = True,
         use_causal_mask: bool = True,
+        *,
+        positional_scale: float = 0.1,
+        **legacy_kwargs: float,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
             raise ValueError("d_model must be divisible by n_heads")
+        if legacy_kwargs:
+            logging.getLogger(__name__).debug("GTrXLModule ignoring legacy kwargs: %s", sorted(legacy_kwargs.keys()))
 
         self.d_model = d_model
         self.n_heads = n_heads
@@ -200,7 +206,12 @@ class GTrXLModule(nn.Module):
         self.use_causal_mask = use_causal_mask
 
         positional_max = max_seq_len + self.memory_len + 1024
-        self.positional_encoding = FCPositionalEncoding(d_model, max_len=positional_max, dropout=dropout)
+        self.positional_encoding = FCPositionalEncoding(
+            d_model,
+            max_len=positional_max,
+            dropout=dropout,
+            scale_factor=positional_scale,
+        )
         if self.use_input_proj:
             self.input_proj = nn.Linear(d_model, d_model)
             nn.init.xavier_uniform_(self.input_proj.weight, gain=1.0)
