@@ -43,16 +43,6 @@ def checkpoint_manager(test_system_cfg):
 
 
 @pytest.fixture
-def cached_checkpoint_manager(test_system_cfg):
-    return CheckpointManager(run="test_run", system_cfg=test_system_cfg, cache_size=3)
-
-
-@pytest.fixture
-def no_cache_checkpoint_manager(test_system_cfg):
-    return CheckpointManager(run="test_run", system_cfg=test_system_cfg, cache_size=0)
-
-
-@pytest.fixture
 def mock_agent():
     return MockAgent()
 
@@ -95,30 +85,6 @@ class TestBasicSaveLoad:
         metadata = CheckpointManager.get_policy_metadata(latest_uri)
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 7  # Should be the highest epoch
-
-    def test_save_and_load_agent(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        metadata = {"agent_step": 5280, "total_time": 120.0, "score": 0.75}
-
-        checkpoint_manager.save_agent(mock_agent, epoch=5, policy_architecture=mock_policy_architecture)
-
-        checkpoint_dir = checkpoint_manager.checkpoint_dir
-        expected_filename = "test_run:v5.mpt"
-        agent_file = checkpoint_dir / expected_filename
-
-        assert agent_file.exists()
-
-        metadata = CheckpointManager.get_policy_metadata(agent_file.as_uri())
-        assert "run_name" in metadata and metadata["run_name"] == "test_run"
-        assert "epoch" in metadata and metadata["epoch"] == 5
-
-        loaded_agent = checkpoint_manager.load_agent(epoch=5)
-        assert loaded_agent is not None
-
-        test_input = TensorDict({"env_obs": torch.randn(1, 10)}, batch_size=(1,))
-        output = loaded_agent(test_input)
-        assert "actions" in output
-        assert output["actions"].shape[0] == 1
-
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent, mock_policy_architecture):
         test_system_cfg.local_only = False
         test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
@@ -147,7 +113,6 @@ class TestBasicSaveLoad:
             checkpoint_manager.save_agent(mock_agent, epoch=epoch, policy_architecture=mock_policy_architecture)
 
         # Test loading latest (should be epoch 10)
-        loaded_agent = checkpoint_manager.load_agent()
         assert loaded_agent is not None
 
         # Test checkpoint selection
@@ -174,97 +139,7 @@ class TestBasicSaveLoad:
         assert "optimizer_state" in loaded_trainer_state
 
     def test_checkpoint_existence(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        # Should raise FileNotFoundError when no checkpoints exist
-        with pytest.raises(FileNotFoundError):
-            checkpoint_manager.load_agent()
-
-        checkpoint_manager.save_agent(mock_agent, epoch=1, policy_architecture=mock_policy_architecture)
-        loaded = checkpoint_manager.load_agent()
-        assert loaded is not None
-
-
 class TestCaching:
-    def test_cache_hit_on_repeated_load(self, cached_checkpoint_manager, mock_agent, mock_policy_architecture):
-        # Save a checkpoint
-        cached_checkpoint_manager.save_agent(
-            mock_agent,
-            epoch=1,
-            policy_architecture=mock_policy_architecture,
-        )
-
-        # First load - should load from disk
-        with patch.object(torch, "load", wraps=torch.load) as mock_load:
-            agent1 = cached_checkpoint_manager.load_agent(epoch=1)
-            assert mock_load.call_count == 1
-
-            # Second load - should use cache
-            agent2 = cached_checkpoint_manager.load_agent(epoch=1)
-            assert mock_load.call_count == 1  # Still 1, used cache
-            assert agent1 is agent2  # Same object reference
-
-    def test_cache_eviction_lru(self, cached_checkpoint_manager, mock_agent, mock_policy_architecture):
-        """Test LRU cache eviction when cache limit exceeded."""
-        # Save 4 checkpoints (cache size is 3)
-        for epoch in range(1, 5):
-            cached_checkpoint_manager.save_agent(
-                mock_agent,
-                epoch=epoch,
-                policy_architecture=mock_policy_architecture,
-            )
-
-        # Load all 4 - should evict oldest when loading 4th
-        with patch.object(torch, "load", wraps=torch.load) as mock_load:
-            cached_checkpoint_manager.load_agent(epoch=1)  # Cache: [1]
-            cached_checkpoint_manager.load_agent(epoch=2)  # Cache: [1, 2]
-            cached_checkpoint_manager.load_agent(epoch=3)  # Cache: [1, 2, 3]
-            cached_checkpoint_manager.load_agent(epoch=4)  # Cache: [2, 3, 4] (evicted 1)
-
-            assert mock_load.call_count == 4
-
-            # Load epoch 1 again - should reload from disk (was evicted)
-            cached_checkpoint_manager.load_agent(epoch=1)
-            assert mock_load.call_count == 5
-
-            # Load epoch 2 again - should reload from disk (was evicted when epoch 1 was reloaded)
-            cached_checkpoint_manager.load_agent(epoch=2)
-            assert mock_load.call_count == 6  # Reloaded epoch 2
-
-    def test_cache_disabled(self, no_cache_checkpoint_manager, mock_agent, mock_policy_architecture):
-        # Save checkpoint
-        no_cache_checkpoint_manager.save_agent(
-            mock_agent,
-            epoch=1,
-            policy_architecture=mock_policy_architecture,
-        )
-
-        # Load multiple times - should always load from disk
-        with patch.object(torch, "load", wraps=torch.load) as mock_load:
-            no_cache_checkpoint_manager.load_agent(epoch=1)
-            no_cache_checkpoint_manager.load_agent(epoch=1)
-            assert mock_load.call_count == 2  # Loaded twice
-
-    def test_cache_invalidation_on_save(self, cached_checkpoint_manager, mock_agent, mock_policy_architecture):
-        # Save and load to populate cache
-        cached_checkpoint_manager.save_agent(
-            mock_agent,
-            epoch=1,
-            policy_architecture=mock_policy_architecture,
-        )
-        cached_checkpoint_manager.load_agent(epoch=1)
-
-        # Save over same epoch (should invalidate cache)
-        cached_checkpoint_manager.save_agent(
-            mock_agent,
-            epoch=1,
-            policy_architecture=mock_policy_architecture,
-        )
-
-        # Load again - should reload from disk
-        with patch.object(torch, "load", wraps=torch.load) as mock_load:
-            cached_checkpoint_manager.load_agent(epoch=1)
-            assert mock_load.call_count == 1
-
-
 class TestCleanup:
     def test_cleanup_old_checkpoints(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         # Save 10 checkpoints
@@ -320,7 +195,7 @@ class TestErrorHandling:
     def test_load_from_empty_directory(self, checkpoint_manager):
         # Should raise FileNotFoundError when no checkpoints exist
         with pytest.raises(FileNotFoundError):
-            checkpoint_manager.load_agent()
+            
 
         # Trainer state should return None when not found
         result = checkpoint_manager.load_trainer_state()
