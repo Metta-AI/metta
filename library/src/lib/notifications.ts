@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { ResolvedMention } from "./mention-resolution";
+import { JobQueueService } from "./job-queue";
+import { getEnabledChannels } from "./notification-preferences";
 
 export type NotificationType =
   | "MENTION"
@@ -26,7 +28,7 @@ interface CreateNotificationParams {
  * Create a single notification record
  */
 export async function createNotification(params: CreateNotificationParams) {
-  return await prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: {
       userId: params.userId,
       type: params.type,
@@ -39,6 +41,51 @@ export async function createNotification(params: CreateNotificationParams) {
       mentionText: params.mentionText,
     },
   });
+
+  // Queue external notifications (email, Discord) if enabled
+  await queueExternalNotifications(
+    notification.id,
+    notification.userId,
+    notification.type
+  );
+
+  return notification;
+}
+
+/**
+ * Queue external notifications for a notification
+ */
+async function queueExternalNotifications(
+  notificationId: string,
+  userId: string,
+  type: NotificationType
+): Promise<void> {
+  try {
+    // Get enabled channels for this user and notification type
+    const enabledChannels = await getEnabledChannels(userId, type);
+
+    if (enabledChannels.length > 0) {
+      // Determine priority based on notification type
+      const priority = type === "SYSTEM" ? 10 : type === "MENTION" ? 5 : 0;
+
+      await JobQueueService.queueExternalNotification(
+        notificationId,
+        enabledChannels,
+        userId,
+        priority
+      );
+
+      console.log(
+        `📤 Queued external notifications for ${notificationId}: ${enabledChannels.join(", ")}`
+      );
+    }
+  } catch (error) {
+    console.error(
+      `❌ Failed to queue external notifications for ${notificationId}:`,
+      error
+    );
+    // Don't throw - we don't want external notification failures to break the main flow
+  }
 }
 
 /**
@@ -49,9 +96,35 @@ export async function createNotifications(
 ) {
   if (notifications.length === 0) return [];
 
-  return await prisma.notification.createMany({
-    data: notifications,
+  // Create notifications and get the IDs back
+  const result = await prisma.$transaction(async (tx) => {
+    const createdNotifications = [];
+
+    for (const notificationData of notifications) {
+      const notification = await tx.notification.create({
+        data: notificationData,
+      });
+      createdNotifications.push(notification);
+    }
+
+    return createdNotifications;
   });
+
+  // Queue external notifications for each created notification
+  const queuePromises = result.map((notification) =>
+    queueExternalNotifications(
+      notification.id,
+      notification.userId,
+      notification.type
+    )
+  );
+
+  // Don't await these - let them run in background
+  Promise.allSettled(queuePromises).catch((error) => {
+    console.error("❌ Some external notification queuing failed:", error);
+  });
+
+  return result;
 }
 
 /**

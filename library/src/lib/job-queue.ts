@@ -37,6 +37,14 @@ export interface BackgroundJobs {
   "auto-tag-paper": {
     paperId: string;
   };
+  "send-external-notification": {
+    notificationId: string;
+    channels: ("email" | "discord")[];
+    userId: string;
+  };
+  "retry-failed-notification": {
+    deliveryId: string;
+  };
 }
 
 // Job queue instances
@@ -88,6 +96,19 @@ export const taggingQueue = new Queue("auto-tagging", {
     backoff: {
       type: "exponential",
       delay: 1000,
+    },
+  },
+});
+
+export const externalNotificationQueue = new Queue("external-notifications", {
+  connection: redisConfig,
+  defaultJobOptions: {
+    removeOnComplete: 200, // Keep more notification jobs for audit
+    removeOnFail: 100,
+    attempts: 3,
+    backoff: {
+      type: "exponential",
+      delay: 2000, // Start with 2s delay for failed notifications
     },
   },
 });
@@ -166,22 +187,68 @@ export class JobQueueService {
   }
 
   /**
+   * Queue external notification sending
+   */
+  static async queueExternalNotification(
+    notificationId: string,
+    channels: ("email" | "discord")[],
+    userId: string,
+    priority: number = 0
+  ): Promise<void> {
+    console.log(
+      `📤 Queuing external notifications for ${notificationId}: ${channels.join(", ")}`
+    );
+
+    await externalNotificationQueue.add(
+      "send-external-notification",
+      { notificationId, channels, userId },
+      {
+        priority, // Higher priority notifications go first
+        delay: 500, // Small delay to allow database to settle
+      }
+    );
+  }
+
+  /**
+   * Queue retry for a failed notification delivery
+   */
+  static async queueNotificationRetry(deliveryId: string): Promise<void> {
+    console.log(`📤 Queuing notification retry for delivery ${deliveryId}`);
+
+    await externalNotificationQueue.add(
+      "retry-failed-notification",
+      { deliveryId },
+      {
+        priority: 5, // Higher priority for retries
+        delay: 5000, // Wait 5 seconds before retry
+      }
+    );
+  }
+
+  /**
    * Get queue statistics for monitoring
    */
   static async getQueueStats() {
-    const [institutionStats, authorStats, llmStats, taggingStats] =
-      await Promise.all([
-        institutionQueue.getJobCounts(),
-        authorQueue.getJobCounts(),
-        llmQueue.getJobCounts(),
-        taggingQueue.getJobCounts(),
-      ]);
+    const [
+      institutionStats,
+      authorStats,
+      llmStats,
+      taggingStats,
+      notificationStats,
+    ] = await Promise.all([
+      institutionQueue.getJobCounts(),
+      authorQueue.getJobCounts(),
+      llmQueue.getJobCounts(),
+      taggingQueue.getJobCounts(),
+      externalNotificationQueue.getJobCounts(),
+    ]);
 
     return {
       institution: institutionStats,
       author: authorStats,
       llm: llmStats,
       tagging: taggingStats,
+      notifications: notificationStats,
     };
   }
 
@@ -195,6 +262,7 @@ export class JobQueueService {
       authorQueue.close(),
       llmQueue.close(),
       taggingQueue.close(),
+      externalNotificationQueue.close(),
     ]);
   }
 }

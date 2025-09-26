@@ -8,33 +8,30 @@ datasource db {
 }
 
 model User {
-  id                    String                 @id @default(cuid())
-  name                  String?
-  email                 String?                @unique(map: "user_email_unique")
-  emailVerified         DateTime?
-  image                 String?
-  accounts              Account[]
-  authenticators        Authenticator[]
-  posts                 Post[]
-  comments              Comment[]
-  sessions              Session[]
-  userPaperInteractions UserPaperInteraction[]
-  userInstitutions      UserInstitution[]
-  createdInstitutions   Institution[]
-  userGroups            UserGroup[]
-  createdGroups         Group[]
-
-  // Ban information
-  isBanned              Boolean                @default(false)
-  bannedAt              DateTime?
-  banReason             String?
-  bannedByUserId        String?
-  bannedBy              User?                  @relation("UserBannedBy", fields: [bannedByUserId], references: [id])
-  bannedUsers           User[]                 @relation("UserBannedBy")
-
-  // Notifications
-  receivedNotifications Notification[]         @relation("NotificationRecipient")
-  triggeredNotifications Notification[]        @relation("NotificationActor")
+  id                      String                   @id @default(cuid())
+  name                    String?
+  email                   String?                  @unique(map: "user_email_unique")
+  emailVerified           DateTime?
+  image                   String?
+  banReason               String?
+  bannedAt                DateTime?
+  bannedByUserId          String?
+  isBanned                Boolean                  @default(false)
+  accounts                Account[]
+  authenticators          Authenticator[]
+  comments                Comment[]
+  createdGroups           Group[]
+  createdInstitutions     Institution[]
+  triggeredNotifications  Notification[]           @relation("NotificationActor")
+  receivedNotifications   Notification[]           @relation("NotificationRecipient")
+  notificationPreferences NotificationPreference[]
+  posts                   Post[]
+  sessions                Session[]
+  bannedBy                User?                    @relation("UserBannedBy", fields: [bannedByUserId], references: [id])
+  bannedUsers             User[]                   @relation("UserBannedBy")
+  userGroups              UserGroup[]
+  userInstitutions        UserInstitution[]
+  userPaperInteractions   UserPaperInteraction[]
 
   @@map("user")
 }
@@ -91,40 +88,40 @@ model Authenticator {
 }
 
 model Post {
-  id        String     @id @default(cuid())
-  authorId  String
-  title     String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @default(now()) @updatedAt
-  content   String?
-  postType  String     @default("user-post")
-  queues    Int        @default(0)
-  replies   Int        @default(0)
-  paperId   String?
-  images    String[]   @default([]) // Array of image URLs
-  author    User       @relation(fields: [authorId], references: [id])
-  paper     Paper?     @relation(fields: [paperId], references: [id])
-  comments  Comment[]
-  notifications Notification[] // Notifications related to this post
+  id            String         @id @default(cuid())
+  authorId      String
+  title         String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
+  content       String?
+  postType      String         @default("user-post")
+  queues        Int            @default(0)
+  replies       Int            @default(0)
+  paperId       String?
+  images        String[]       @default([])
+  comments      Comment[]
+  notifications Notification[]
+  author        User           @relation(fields: [authorId], references: [id])
+  paper         Paper?         @relation(fields: [paperId], references: [id])
 
   @@map("post")
 }
 
 model Comment {
-  id        String    @id @default(cuid())
-  content   String
-  postId    String
-  authorId  String
-  parentId  String?
-  isBot     Boolean   @default(false)
-  botType   String?   // e.g., "library_bot"
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
-  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Comment[] @relation("CommentReplies")
-  notifications Notification[] // Notifications related to this comment
+  id            String         @id @default(cuid())
+  content       String
+  postId        String
+  authorId      String
+  parentId      String?
+  isBot         Boolean        @default(false)
+  botType       String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
+  author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent        Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       Comment[]      @relation("CommentReplies")
+  post          Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  notifications Notification[]
 
   @@map("comment")
 }
@@ -132,15 +129,13 @@ model Comment {
 model Author {
   id              String        @id @default(cuid())
   name            String        @unique
-  username        String?       @unique // "@username" format
+  username        String?       @unique
   email           String?
-  avatar          String?       // Profile image URL or initials
-  institution     String?       // Legacy: will be migrated to institutionId
-  institutionId   String?
-  institutionRef  Institution?  @relation("AuthorInstitution", fields: [institutionId], references: [id])
-  department      String?       // Academic department
-  title           String?       // Academic title
-  expertise       String[]      // Array of expertise tags
+  avatar          String?
+  institution     String?
+  department      String?
+  title           String?
+  expertise       String[]
   hIndex          Int?          @default(0)
   totalCitations  Int?          @default(0)
   claimed         Boolean       @default(false)
@@ -150,31 +145,33 @@ model Author {
   arxivId         String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @default(now()) @updatedAt
+  institutionId   String?
+  institutionRef  Institution?  @relation("AuthorInstitution", fields: [institutionId], references: [id])
   paperAuthors    PaperAuthor[]
 
   @@map("author")
 }
 
 model Paper {
-  id                    String                 @id @default(cuid())
-  title                 String
-  abstract              String?
-  institutions          String[]               // Legacy: will be migrated to PaperInstitution
-  institutionIds        String[]               @default([]) // References to Institution IDs
-  paperInstitutions     PaperInstitution[]     // Many-to-many relation
-  tags                  String[]
-  link                  String?
-  source                String?
-  externalId            String?
-  stars                 Int                    @default(0)
-  starred               Boolean                @default(false)
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @default(now()) @updatedAt
-  llmAbstract           Json?                  // LLM-generated enhanced abstract
-  llmAbstractGeneratedAt DateTime?             // When LLM abstract was generated
-  paperAuthors          PaperAuthor[]
-  posts                 Post[]
-  userPaperInteractions UserPaperInteraction[]
+  id                     String                 @id @default(cuid())
+  title                  String
+  abstract               String?
+  institutions           String[]
+  tags                   String[]
+  link                   String?
+  source                 String?
+  externalId             String?
+  stars                  Int                    @default(0)
+  starred                Boolean                @default(false)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @default(now()) @updatedAt
+  llmAbstract            Json?
+  llmAbstractGeneratedAt DateTime?
+  institutionIds         String[]               @default([])
+  paperAuthors           PaperAuthor[]
+  paperInstitutions      PaperInstitution[]
+  posts                  Post[]
+  userPaperInteractions  UserPaperInteraction[]
 
   @@map("paper")
 }
@@ -204,39 +201,39 @@ model UserPaperInteraction {
 }
 
 model Institution {
-  id               String              @id @default(cuid())
-  name             String              @unique
-  domain           String?             @unique // e.g., "softmax.com"
+  id               String             @id @default(cuid())
+  name             String             @unique
+  domain           String?            @unique
   description      String?
   website          String?
   location         String?
-  type             InstitutionType     @default(COMPANY)
-  isVerified       Boolean             @default(false)
-  requiresApproval Boolean             @default(false) // Whether joining requires admin approval
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @default(now()) @updatedAt
+  type             InstitutionType    @default(COMPANY)
+  isVerified       Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @default(now()) @updatedAt
   createdByUserId  String?
+  requiresApproval Boolean            @default(false)
+  authors          Author[]           @relation("AuthorInstitution")
+  groups           Group[]
+  createdBy        User?              @relation(fields: [createdByUserId], references: [id])
+  papers           PaperInstitution[]
   userInstitutions UserInstitution[]
-  authors          Author[]            @relation("AuthorInstitution") // Authors affiliated with this institution
-  papers           PaperInstitution[]  // Papers from this institution
-  groups           Group[]             // Groups belonging to this institution
-  createdBy        User?               @relation(fields: [createdByUserId], references: [id])
 
   @@map("institution")
 }
 
 model UserInstitution {
-  id            String                     @id @default(cuid())
+  id            String                @id @default(cuid())
   userId        String
   institutionId String
-  role          String?                    // e.g., "researcher", "admin", "student"
+  role          String?
   department    String?
   title         String?
-  status        UserInstitutionStatus      @default(APPROVED) // approval status
-  isActive      Boolean                    @default(true)
-  joinedAt      DateTime                   @default(now())
-  user          User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  institution   Institution                @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  isActive      Boolean               @default(true)
+  joinedAt      DateTime              @default(now())
+  status        UserInstitutionStatus @default(APPROVED)
+  institution   Institution           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, institutionId])
   @@map("user_institution")
@@ -246,8 +243,8 @@ model PaperInstitution {
   id            String      @id @default(cuid())
   paperId       String
   institutionId String
-  paper         Paper       @relation(fields: [paperId], references: [id], onDelete: Cascade)
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  paper         Paper       @relation(fields: [paperId], references: [id], onDelete: Cascade)
 
   @@unique([paperId, institutionId])
   @@map("paper_institution")
@@ -257,16 +254,16 @@ model Group {
   id              String      @id @default(cuid())
   name            String
   description     String?
-  isPublic        Boolean     @default(true) // Public groups can be discovered, private are invite-only
+  isPublic        Boolean     @default(true)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @default(now()) @updatedAt
   createdByUserId String?
   institutionId   String
-  userGroups      UserGroup[]
   createdBy       User?       @relation(fields: [createdByUserId], references: [id])
   institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  userGroups      UserGroup[]
 
-  @@unique([name, institutionId]) // Group names are unique within an institution
+  @@unique([name, institutionId])
   @@map("group")
 }
 
@@ -274,14 +271,77 @@ model UserGroup {
   id       String   @id @default(cuid())
   userId   String
   groupId  String
-  role     String?  @default("member") // admin, member
+  role     String?  @default("member")
   joinedAt DateTime @default(now())
   isActive Boolean  @default(true)
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, groupId])
   @@map("user_group")
+}
+
+model Notification {
+  id          String                 @id @default(cuid())
+  userId      String
+  type        NotificationType
+  isRead      Boolean                @default(false)
+  title       String
+  message     String?
+  actionUrl   String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @default(now()) @updatedAt
+  actorId     String?
+  postId      String?
+  commentId   String?
+  mentionText String?
+  actor       User?                  @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  comment     Comment?               @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  post        Post?                  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user        User                   @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  deliveries  NotificationDelivery[]
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
+  @@map("notification")
+}
+
+model NotificationPreference {
+  id              String           @id @default(cuid())
+  userId          String
+  type            NotificationType
+  emailEnabled    Boolean          @default(true)
+  discordEnabled  Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+  discordLinkedAt DateTime?
+  discordUserId   String?
+  discordUsername String?
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@unique([discordUserId, type])
+  @@index([userId])
+  @@index([discordUserId])
+  @@map("notification_preference")
+}
+
+model NotificationDelivery {
+  id             String       @id @default(cuid())
+  notificationId String
+  channel        String
+  status         String
+  attemptCount   Int          @default(0)
+  lastAttempt    DateTime?
+  errorMessage   String?
+  deliveredAt    DateTime?
+  createdAt      DateTime     @default(now())
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([status])
+  @@index([channel, status])
+  @@map("notification_delivery")
 }
 
 enum InstitutionType {
@@ -294,51 +354,17 @@ enum InstitutionType {
 }
 
 enum UserInstitutionStatus {
-  PENDING   // Awaiting admin approval
-  APPROVED  // Approved and active
-  REJECTED  // Rejected by admin
-}
-
-model Notification {
-  id          String            @id @default(cuid())
-  userId      String            // Who receives the notification
-  type        NotificationType
-  isRead      Boolean           @default(false)
-  title       String
-  message     String?
-  actionUrl   String?           // Optional URL to navigate to
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @default(now()) @updatedAt
-
-  // Actor who triggered the notification (optional)
-  actorId     String?
-  actor       User?             @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
-
-  // Related content (optional)
-  postId      String?
-  post        Post?             @relation(fields: [postId], references: [id], onDelete: Cascade)
-  commentId   String?
-  comment     Comment?          @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  // Mention-specific data (optional)
-  mentionText String?           // The exact mention used (@username, @/group, etc.)
-
-  // Recipient user
-  user        User              @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([userId, isRead])
-  @@map("notification")
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum NotificationType {
-  MENTION           // @-mention in post or comment
-  COMMENT           // Comment on user's post
-  REPLY             // Reply to user's comment
-  LIKE              // Like on post/comment (future)
-  FOLLOW            // User followed (future)
-  PAPER_SUGGESTION  // AI paper suggestion (future)
-  SYSTEM            // System announcements (future)
+  MENTION
+  COMMENT
+  REPLY
+  LIKE
+  FOLLOW
+  PAPER_SUGGESTION
+  SYSTEM
 }
-
-
