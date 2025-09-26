@@ -273,12 +273,6 @@ class StatsReporter(TrainerComponent):
 
             self._latest_payload = payload.copy() if payload else None
 
-            if payload and self._stats_client and self._config.report_to_stats_client:
-                run_id = self._state.stats_run_id
-                if run_id is not None:
-                    attributes: dict[str, Any] = {"metrics": payload, "agent_step": agent_step}
-                    self.create_epoch(run_id, epoch, epoch, attributes=attributes)
-
             # Clear stats after processing
             self.clear_rollout_stats()
             self.clear_grad_stats()
