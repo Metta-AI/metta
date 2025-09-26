@@ -1,9 +1,9 @@
 from metta.sim.simulation_config import SimulationConfig
 
-from experiments.recipes.in_context_learning.assemblers import make_assembler_env
 from experiments.evals.in_context_learning.foraging import (
     make_foraging_eval_suite as make_foraging_eval_suite,
 )
+from experiments.recipes.in_context_learning.assemblers import make_assembler_env
 
 
 def make_assembler_eval_suite() -> list[SimulationConfig]:

@@ -16,9 +16,11 @@ from metta.cogworks.curriculum.learning_progress_algorithm import (
     LearningProgressConfig,
 )
 from metta.rl.trainer_config import LossConfig, TrainerConfig
+from metta.rl.training import EvaluatorConfig
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
+from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder import building, empty_converters
 from mettagrid.config.mettagrid_config import (
@@ -424,6 +426,7 @@ def train(
     agents: int = 1,
     soft_bias: float = 0.75,
     recipe_mode: Optional[list[str]] = None,
+    run_evals: bool = True,
 ) -> TrainTool:
     """Train with configurable separation bias and agent count.
 
@@ -463,9 +466,17 @@ def train(
     trainer_cfg = TrainerConfig(losses=LossConfig())
     trainer_cfg.batch_size = 4177920
     trainer_cfg.bptt_horizon = 512
+
+    evaluator_cfg = (
+        EvaluatorConfig(simulations=make_eval_suite())
+        if run_evals
+        else EvaluatorConfig()
+    )
+
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=evaluator_cfg,
     )
 
 
@@ -505,38 +516,123 @@ def play(
     )
 
 
-def make_eval_suite(suite_type: str = "biased") -> list[SimulationConfig]:
-    """Create evaluation suite."""
-    if suite_type == "directional":
-        return [
-            SimulationConfig(
-                env=make_env(
-                    size="small",
-                    recipe_mode=["directional"],
-                ),
-                name="foraging_directional_small",
-                suite="in_context_learning",
-            ),
-            SimulationConfig(
-                env=make_env(
-                    size="medium",
-                    recipe_mode=["directional"],
-                ),
-                name="foraging_directional_medium",
-                suite="in_context_learning",
-            ),
-        ]
+def make_eval_suite() -> list[SimulationConfig]:
+    """Create a comprehensive foraging evaluation suite."""
+    eval_configs = [
+        # Baseline single agent
+        {
+            "agents": 1,
+            "size": "small",
+            "separation": "strict",
+            "recipe_mode": ["simple"],
+        },
+        {
+            "agents": 1,
+            "size": "medium",
+            "separation": "strict",
+            "recipe_mode": ["simple"],
+        },
+        # Generalization to soft separation
+        {
+            "agents": 1,
+            "size": "medium",
+            "separation": "soft",
+            "recipe_mode": ["simple"],
+        },
+        # Generalization to more complex recipes
+        {
+            "agents": 1,
+            "size": "medium",
+            "separation": "strict",
+            "recipe_mode": ["directional"],
+        },
+        {
+            "agents": 1,
+            "size": "medium",
+            "separation": "strict",
+            "recipe_mode": ["unordered_chain"],
+        },
+        # Generalization to larger maps
+        {
+            "agents": 1,
+            "size": "large",
+            "separation": "strict",
+            "recipe_mode": ["simple"],
+        },
+        # Multi-agent scenarios
+        {
+            "agents": 2,
+            "size": "medium",
+            "separation": "strict",
+            "recipe_mode": ["simple"],
+        },
+        {
+            "agents": 2,
+            "size": "medium",
+            "separation": "soft",
+            "recipe_mode": ["simple"],
+        },
+        {
+            "agents": 2,
+            "size": "large",
+            "separation": "strict",
+            "recipe_mode": ["directional"],
+        },
+        {
+            "agents": 2,
+            "size": "large",
+            "separation": "strict",
+            "recipe_mode": ["unordered_chain"],
+        },
+        # Multi-assembler
+        {
+            "agents": 1,
+            "size": "large",
+            "separation": "strict",
+            "recipe_mode": ["simple"],
+            "num_assemblers": 2,
+        },
+        {
+            "agents": 2,
+            "size": "large",
+            "separation": "soft",
+            "recipe_mode": ["simple"],
+            "num_assemblers": 2,
+        },
+    ]
 
-    # Default to "biased"
     configs = []
-    sizes = ["small", "medium", "large"]
-    for size in sizes:
-        env = make_env(size=size, seed=42)
+    for params in eval_configs:
+        name_parts = [
+            f"{params.get('agents', 1)}a",
+            params["size"],
+            params["separation"],
+            params["recipe_mode"][0],
+        ]
+        if "num_assemblers" in params:
+            name_parts.append(f"{params['num_assemblers']}asm")
+
+        name = f"foraging_eval_{'_'.join(name_parts)}"
+
+        env = make_env(seed=42, **params)
+
         configs.append(
             SimulationConfig(
                 env=env,
-                name=f"biased_foraging_{size}",
+                name=name,
                 suite="in_context_learning",
             )
         )
+
     return configs
+
+
+def evaluate(
+    policy_uri: str | None = None, simulations: list[SimulationConfig] | None = None
+) -> SimTool:
+    """Create a SimTool to run the foraging evaluation suite.
+
+    If `simulations` not provided, uses the comprehensive foraging `make_eval_suite()`.
+    """
+    sims = simulations or make_eval_suite()
+    return SimTool(simulations=sims, policy_uris=[policy_uri] if policy_uri else None)
