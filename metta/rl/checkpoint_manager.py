@@ -1,7 +1,6 @@
 import logging
 import os
 import pickle
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -247,7 +246,6 @@ class CheckpointManager:
         self,
         run: str,
         system_cfg: SystemConfig,
-        cache_size: int = 3,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -265,9 +263,6 @@ class CheckpointManager:
         os.makedirs(system_cfg.data_dir, exist_ok=True)
         os.makedirs(self.run_dir, exist_ok=True)
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-
-        self.cache_size = cache_size
-        self._cache = OrderedDict()
 
         self._remote_prefix = None
         if not system_cfg.local_only:
@@ -313,10 +308,6 @@ class CheckpointManager:
     @property
     def remote_checkpoints_enabled(self) -> bool:
         return self._remote_prefix is not None
-
-    def clear_cache(self):
-        """Clear the instance's LRU cache."""
-        self._cache.clear()
 
     @staticmethod
     def load_from_uri(uri: str, device: str | torch.device = "cpu") -> Policy:
@@ -391,33 +382,6 @@ class CheckpointManager:
         )
         return candidates
 
-    def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
-        """Load agent checkpoint from local directory with LRU caching."""
-        files = self._find_checkpoint_files(epoch)
-        if not files:
-            raise FileNotFoundError(f"No checkpoints found for {self.run_name} epoch={epoch}")
-
-        # Select file: first if epoch specified, latest otherwise
-        agent_file = files[0] if epoch else max(files, key=lambda p: _extract_run_and_epoch(p)[1])
-        cache_key = str(agent_file)
-
-        # Check cache
-        if cache_key in self._cache:
-            self._cache.move_to_end(cache_key)
-            return self._cache[cache_key]
-
-        # Load from disk
-        file_uri = f"file://{agent_file.resolve()}"
-        agent = self.load_from_uri(file_uri, device=device or "cpu")
-
-        # Update cache
-        if self.cache_size > 0:
-            if len(self._cache) >= self.cache_size:
-                self._cache.popitem(last=False)  # Evict oldest
-            self._cache[cache_key] = agent
-
-        return agent
-
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
@@ -445,24 +409,12 @@ class CheckpointManager:
         filename = f"{self.run_name}:v{epoch}.pt"
         checkpoint_path = self.checkpoint_dir / filename
 
-        # Check if we're overwriting an existing checkpoint for this epoch
-        existing_files = self._find_checkpoint_files(epoch)
-
         torch.save(agent, checkpoint_path)
 
         remote_uri = None
         if self._remote_prefix:
             remote_uri = f"{self._remote_prefix}/{filename}"
             write_file(remote_uri, str(checkpoint_path))
-
-        # Only invalidate cache entries if we're overwriting an existing checkpoint
-        if existing_files:
-            keys_to_remove = []
-            for cached_path in self._cache.keys():
-                if Path(cached_path).name.startswith(f"{self.run_name}:v{epoch}"):
-                    keys_to_remove.append(cached_path)
-            for key in keys_to_remove:
-                self._cache.pop(key, None)
 
         if remote_uri:
             return remote_uri

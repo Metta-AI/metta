@@ -188,13 +188,6 @@ class CurriculumAlgorithm(StatsLogger, ABC):
         # Use the StatsLogger implementation
         return super().stats(prefix)
 
-    def get_task_from_pool(self, task_generator, rng) -> "CurriculumTask":
-        """Get a task from the pool. Default implementation creates a simple task."""
-
-        task_id = rng.randint(0, 1000000)
-        env_cfg = task_generator.get_task(task_id)
-        return CurriculumTask(task_id, env_cfg)
-
 
 class DiscreteRandomConfig(CurriculumAlgorithmConfig):
     """Hyperparameters for DiscreteRandomCurriculum."""
