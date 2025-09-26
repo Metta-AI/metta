@@ -15,6 +15,9 @@ class ContrastiveConfig(Config):
 
     temperature: float = Field(default=0.07, gt=0, description="Temperature for contrastive learning")
     contrastive_coef: float = Field(default=0.1, ge=0, description="Coefficient for contrastive loss")
+    discount: float = Field(
+        default=0.977, ge=0, lt=1, description="Discount factor (gamma) used for geometric positive sampling"
+    )
     embedding_dim: int = Field(default=128, gt=0, description="Dimension of contrastive embeddings")
     use_projection_head: bool = Field(default=True, description="Whether to use projection head")
     log_similarities: bool = Field(

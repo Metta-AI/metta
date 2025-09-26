@@ -2,7 +2,6 @@
 from typing import Any
 
 import torch
-import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
@@ -22,6 +21,7 @@ class ContrastiveLoss(Loss):
         "projection_head",
         "_projection_head_input_dim",
         "_value_projection",
+        "discount",
     )
 
     def __init__(
@@ -38,6 +38,7 @@ class ContrastiveLoss(Loss):
         self.temperature = self.loss_cfg.temperature
         self.contrastive_coef = self.loss_cfg.contrastive_coef
         self.embedding_dim = self.loss_cfg.embedding_dim
+        self.discount = self.loss_cfg.discount
 
         # Add projection head if needed
         if self.loss_cfg.use_projection_head:
@@ -75,7 +76,7 @@ class ContrastiveLoss(Loss):
 
             embeddings = self.projection_head(embeddings)
 
-        # Compute InfoNCE contrastive loss (normalization handled internally)
+        # Compute InfoNCE contrastive loss
         contrastive_loss, metrics = self._compute_contrastive_loss(embeddings, minibatch)
 
         # Track metrics
@@ -122,82 +123,136 @@ class ContrastiveLoss(Loss):
             return value
 
     def _compute_contrastive_loss(self, embeddings: Tensor, minibatch: TensorDict) -> tuple[Tensor, dict]:
-        """Compute InfoNCE contrastive loss following standard implementations."""
-        batch_size = embeddings.shape[0]
+        """Compute InfoNCE contrastive loss with geometric future positives and shuffled negatives."""
 
-        # Reshape to (B*T, D) if needed
-        if embeddings.dim() == 3:  # (B, T, D)
-            B, T, D = embeddings.shape
-            embeddings = embeddings.view(B * T, D)
-            batch_size = B * T
+        batch_shape = minibatch.batch_size
+        if len(batch_shape) != 2:
+            raise ValueError("Contrastive loss expects minibatch with 2D batch size (segments, horizon).")
 
-        if batch_size < 4:  # Need minimum samples for contrastive learning
+        segments, horizon = batch_shape
+
+        if embeddings.dim() == 2 and embeddings.shape[0] == segments * horizon:
+            embeddings = embeddings.view(segments, horizon, -1)
+        elif embeddings.dim() == 3 and embeddings.shape[0] == segments and embeddings.shape[1] == horizon:
+            pass
+        else:
+            embeddings = embeddings.view(segments, horizon, -1)
+
+        embedding_dim = embeddings.shape[-1]
+        if embedding_dim == 0:
             return torch.tensor(0.0, device=self.device), {
                 "positive_sim_mean": 0.0,
                 "negative_sim_mean": 0.0,
+                "positive_sim_std": 0.0,
+                "negative_sim_std": 0.0,
                 "num_pairs": 0,
+                "delta_mean": 0.0,
             }
 
-        # L2 normalize embeddings to unit vectors (critical for InfoNCE)
-        embeddings = F.normalize(embeddings, p=2, dim=-1)
+        dones = minibatch.get("dones")
+        if dones is None:
+            raise KeyError("Contrastive loss requires 'dones' in minibatch for trajectory boundaries.")
+        dones = dones.squeeze(-1) if dones.dim() == 3 else dones
+        done_mask = dones.to(dtype=torch.bool)
 
-        # Create temporal positive pairs (consecutive timesteps for RL continuity)
-        anchor_embeddings = embeddings[:-1]  # [N-1, D]
-        positive_embeddings = embeddings[1:]  # [N-1, D] consecutive timesteps
+        truncateds = minibatch.get("truncateds")
+        if truncateds is not None:
+            truncateds = truncateds.squeeze(-1) if truncateds.dim() == 3 else truncateds
+            done_mask = torch.logical_or(done_mask, truncateds.to(dtype=torch.bool))
 
-        # InfoNCE: Use in-batch negatives for efficiency
-        # Each anchor's negatives are all other positives in the batch
-        num_pairs = len(anchor_embeddings)
+        done_mask_cpu = done_mask.detach().to("cpu")
 
+        prob = max(1.0 - float(self.discount), 1e-8)
+        geom_dist = torch.distributions.Geometric(probs=torch.tensor(prob, device=self.device, dtype=embeddings.dtype))
+
+        batch_indices: list[int] = []
+        anchor_steps: list[int] = []
+        positive_steps: list[int] = []
+        sampled_deltas: list[float] = []
+
+        for batch_idx in range(segments):
+            done_row = done_mask_cpu[batch_idx].view(-1)
+            episode_bounds: list[tuple[int, int]] = []
+            start = 0
+            for step, done in enumerate(done_row.tolist()):
+                if done:
+                    episode_bounds.append((start, step))
+                    start = step + 1
+            if start < horizon:
+                episode_bounds.append((start, horizon - 1))
+
+            candidate_anchors: list[tuple[int, int]] = []
+            for episode_start, episode_end in episode_bounds:
+                if episode_end - episode_start < 1:
+                    continue
+                for anchor in range(episode_start, episode_end):
+                    candidate_anchors.append((anchor, episode_end))
+
+            if not candidate_anchors:
+                continue
+
+            choice_idx = int(torch.randint(len(candidate_anchors), (1,), device=self.device).item())
+            anchor_step, episode_end = candidate_anchors[choice_idx]
+            max_future = episode_end - anchor_step
+            if max_future < 1:
+                continue
+
+            delta = int(geom_dist.sample().item())
+            attempts = 0
+            while delta > max_future and attempts < 10:
+                delta = int(geom_dist.sample().item())
+                attempts += 1
+            if delta > max_future:
+                delta = max_future
+
+            positive_step = anchor_step + delta
+
+            batch_indices.append(batch_idx)
+            anchor_steps.append(anchor_step)
+            positive_steps.append(positive_step)
+            sampled_deltas.append(float(delta))
+
+        num_pairs = len(batch_indices)
         if num_pairs < 2:
             return torch.tensor(0.0, device=self.device), {
                 "positive_sim_mean": 0.0,
                 "negative_sim_mean": 0.0,
-                "num_pairs": 0,
+                "positive_sim_std": 0.0,
+                "negative_sim_std": 0.0,
+                "num_pairs": num_pairs,
+                "delta_mean": 0.0,
             }
 
-        # Compute positive similarities: [N-1]
-        positive_sim = torch.sum(anchor_embeddings * positive_embeddings, dim=-1)
+        batch_idx_tensor = torch.tensor(batch_indices, device=self.device, dtype=torch.long)
+        anchor_idx_tensor = torch.tensor(anchor_steps, device=self.device, dtype=torch.long)
+        positive_idx_tensor = torch.tensor(positive_steps, device=self.device, dtype=torch.long)
 
-        # Compute negative similarities: [N-1, N-1]
-        # Each anchor compared with ALL other positives as negatives
-        negative_sim = torch.matmul(anchor_embeddings, positive_embeddings.T)
+        anchor_embeddings = embeddings[batch_idx_tensor, anchor_idx_tensor]
+        positive_embeddings = embeddings[batch_idx_tensor, positive_idx_tensor]
 
-        # Remove self-similarity on diagonal (anchor vs its own positive)
-        mask = torch.eye(num_pairs, device=self.device).bool()
-        negative_sim = negative_sim.masked_fill(mask, float("-inf"))
+        similarities = anchor_embeddings @ positive_embeddings.T
+        positive_logits = similarities.diagonal().unsqueeze(1)
+        mask = torch.eye(num_pairs, device=self.device, dtype=torch.bool)
+        negative_logits = similarities[~mask].view(num_pairs, num_pairs - 1)
 
-        # InfoNCE loss computation
-        # Logits: [positive_sim, negative_sim_1, negative_sim_2, ...]
-        logits = (
-            torch.cat(
-                [
-                    positive_sim.unsqueeze(1),  # [N-1, 1]
-                    negative_sim,  # [N-1, N-1]
-                ],
-                dim=1,
-            )
-            / self.temperature
-        )  # Apply temperature scaling
-
-        # Labels: positive is always index 0
+        logits = torch.cat([positive_logits, negative_logits], dim=1) / self.temperature
         labels = torch.zeros(num_pairs, dtype=torch.long, device=self.device)
 
-        # InfoNCE = CrossEntropy(logits, labels) where positive is at index 0
-        infonce_loss = F.cross_entropy(logits, labels, reduction="mean")
+        infonce_loss = torch.nn.functional.cross_entropy(logits, labels, reduction="mean")
 
-        # Compute metrics for logging
-        positive_sim_mean = positive_sim.mean().item()
-        # For negative similarities, exclude the masked values (-inf)
-        valid_negative_sim = negative_sim[~mask]
-        negative_sim_mean = valid_negative_sim.mean().item()
+        positive_sim_mean = positive_logits.mean().item()
+        negative_sim_mean = negative_logits.mean().item()
+        positive_sim_std = positive_logits.std().item()
+        negative_sim_std = negative_logits.std().item()
+        delta_mean = float(sum(sampled_deltas) / len(sampled_deltas))
 
         metrics = {
             "positive_sim_mean": positive_sim_mean,
             "negative_sim_mean": negative_sim_mean,
+            "positive_sim_std": positive_sim_std,
+            "negative_sim_std": negative_sim_std,
             "num_pairs": num_pairs,
-            "positive_sim_std": positive_sim.std().item(),
-            "negative_sim_std": valid_negative_sim.std().item(),
+            "delta_mean": delta_mean,
         }
 
         return infonce_loss * self.contrastive_coef, metrics
