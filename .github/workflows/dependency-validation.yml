@@ -29,16 +29,21 @@ jobs:
           
       - name: Set up Python
         run: uv python install 3.11.7
-        
+
       - name: Validate uv.lock is up to date
         run: |
           echo "🔍 Checking if uv.lock is synchronized with pyproject.toml files..."
           uv lock --check
-          
+
+      - name: Sync environment
+        run: |
+          echo "📦 Syncing environment with uv.lock..."
+          uv sync
+
       - name: Check for dependency conflicts
         run: |
-          echo "🔍 Resolving dependencies to check for conflicts..."
-          uv sync --frozen --check
+          echo "🔍 Checking that environment stays frozen after sync..."
+          uv sync --frozen
           
       - name: Validate workspace consistency
         run: |
