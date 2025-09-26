@@ -176,6 +176,34 @@ class LSPClient:
             },
         )
 
+    def get_file_symbols(self, file_path: pathlib.Path):
+        with self.with_file(file_path) as uri:
+            req_id = self.next_id()
+            self.send(
+                {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "method": "textDocument/documentSymbol",
+                    "params": {"textDocument": {"uri": uri}},
+                },
+            )
+            resp = self.recv_id(req_id)
+            return resp.get("result")
+
+    def get_hover(self, file_path: pathlib.Path, line: int, column: int):
+        with self.with_file(file_path) as uri:
+            req_id = self.next_id()
+            self.send(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "textDocument/hover",
+                    "id": req_id,
+                    "params": {"textDocument": {"uri": uri}, "position": {"line": line, "character": column}},
+                },
+            )
+            resp = self.recv_id(req_id)
+            return resp.get("result")
+
     def get_hover_bulk(self, file_path: pathlib.Path, positions: list[tuple[int, int]]):
         with self.with_file(file_path) as uri:
             req_ids: list[int] = []
