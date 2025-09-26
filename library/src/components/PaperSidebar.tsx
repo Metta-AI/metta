@@ -122,9 +122,9 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   }
 
   return (
-    <div className="/* Mobile: Takes available height, no special positioning */ /* Desktop: Right sidebar as before */ h-full overflow-y-auto bg-white md:h-screen md:flex-1 md:border-l">
+    <div className="flex h-full flex-col bg-white md:h-screen md:flex-1 md:border-l">
       {/* Mobile header with close button */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:hidden">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:hidden">
         <h2 className="text-lg font-semibold text-gray-900">Paper Details</h2>
         {onClose && (
           <button
@@ -149,7 +149,8 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
         )}
       </div>
 
-      <div className="space-y-4 px-4 py-4">
+      <div className="flex-1 overflow-y-auto">
+        <div className="space-y-4 px-4 py-4">
         {/* Header row: star + title + download */}
         <div className="flex items-start gap-2.5">
           <div className="mt-0.5">
@@ -370,6 +371,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
 
         {/* Spacer to ensure last content isn't flush to bottom */}
         <div className="h-8" />
+        </div>
       </div>
     </div>
   );
