@@ -108,7 +108,7 @@ def train(
     )
 
     eval_simulations = make_evals()
-    optimizer_cfg = OptimizerConfig(learning_rate=0.0013)
+    optimizer_cfg = OptimizerConfig(learning_rate=0.0009)
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         optimizer=optimizer_cfg,
