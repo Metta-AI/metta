@@ -1,5 +1,7 @@
 from typing import List
 
+from pydantic import Field, model_validator
+
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -16,68 +18,84 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _embedding_dim = 16
+    embedding_dim: int = Field(default=16, gt=0, description="Action embedding width")
+    token_embed_dim: int = Field(default=8, gt=0, description="Observation token embedding width")
+    fourier_freqs: int = Field(default=3, ge=1, le=8, description="Number of Fourier frequency pairs")
+    latent_dim: int = Field(default=64, gt=0, description="Perceiver latent dimensionality")
+    lstm_latent: int = Field(default=32, gt=0, description="LSTM hidden size")
+    actor_hidden: int = Field(default=256, gt=0, description="Actor MLP hidden features")
+    critic_hidden: int = Field(default=512, gt=0, description="Critic MLP hidden features")
 
-    _token_embed_dim = 8
-    _fourier_freqs = 3
-    _latent_dim = 64
-    _lstm_latent = 32
-    _actor_hidden = 256
-    _critic_hidden = 512
-
-    components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
-        ObsAttrEmbedFourierConfig(
-            in_key="obs_shim_tokens",
-            out_key="obs_attr_embed",
-            attr_embed_dim=_token_embed_dim,
-            num_freqs=_fourier_freqs,
-        ),
-        ObsPerceiverLatentConfig(
-            in_key="obs_attr_embed",
-            out_key="obs_latent_attn",
-            feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
-            latent_dim=_latent_dim,
-            num_latents=12,
-            num_heads=4,
-            num_layers=2,
-        ),
-        LSTMConfig(
-            in_key="obs_latent_attn",
-            out_key="core",
-            latent_size=_latent_dim,
-            hidden_size=_lstm_latent,
-            num_layers=1,
-        ),
-        MLPConfig(
-            in_key="core",
-            out_key="actor_hidden",
-            name="actor_mlp",
-            in_features=_lstm_latent,
-            hidden_features=[_actor_hidden],
-            out_features=_actor_hidden,
-        ),
-        MLPConfig(
-            in_key="core",
-            out_key="values",
-            name="critic",
-            in_features=_lstm_latent,
-            out_features=1,
-            hidden_features=[_critic_hidden],
-        ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
-            in_key="actor_hidden",
-            out_key="actor_query",
-            hidden_size=_actor_hidden,
-            embed_dim=_embedding_dim,
-        ),
-        ActorKeyConfig(
-            query_key="actor_query",
-            embedding_key="action_embedding",
-            out_key="logits",
-            embed_dim=_embedding_dim,
-        ),
-    ]
+    components: List[ComponentConfig] = Field(default_factory=list)
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
+
+    def _rebuild_components(self) -> None:
+        if self.latent_dim % 4 != 0:
+            raise ValueError("latent_dim must be divisible by num_heads=4")
+
+        feat_dim = self.token_embed_dim + (4 * self.fourier_freqs) + 1
+
+        self.components = [
+            ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+            ObsAttrEmbedFourierConfig(
+                in_key="obs_shim_tokens",
+                out_key="obs_attr_embed",
+                attr_embed_dim=self.token_embed_dim,
+                num_freqs=self.fourier_freqs,
+            ),
+            ObsPerceiverLatentConfig(
+                in_key="obs_attr_embed",
+                out_key="obs_latent_attn",
+                feat_dim=feat_dim,
+                latent_dim=self.latent_dim,
+                num_latents=12,
+                num_heads=4,
+                num_layers=2,
+            ),
+            LSTMConfig(
+                in_key="obs_latent_attn",
+                out_key="core",
+                latent_size=self.latent_dim,
+                hidden_size=self.lstm_latent,
+                num_layers=1,
+            ),
+            MLPConfig(
+                in_key="core",
+                out_key="actor_hidden",
+                name="actor_mlp",
+                in_features=self.lstm_latent,
+                hidden_features=[self.actor_hidden],
+                out_features=self.actor_hidden,
+            ),
+            MLPConfig(
+                in_key="core",
+                out_key="values",
+                name="critic",
+                in_features=self.lstm_latent,
+                out_features=1,
+                hidden_features=[self.critic_hidden],
+            ),
+            ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=self.embedding_dim),
+            ActorQueryConfig(
+                in_key="actor_hidden",
+                out_key="actor_query",
+                hidden_size=self.actor_hidden,
+                embed_dim=self.embedding_dim,
+            ),
+            ActorKeyConfig(
+                query_key="actor_query",
+                embedding_key="action_embedding",
+                out_key="logits",
+                embed_dim=self.embedding_dim,
+            ),
+        ]
+
+    @model_validator(mode="after")
+    def _sync_components(self) -> "ViTDefaultConfig":
+        self._rebuild_components()
+        return self
+
+    def make_policy(self, env_metadata):
+        self._rebuild_components()
+        return super().make_policy(env_metadata)

@@ -3,12 +3,16 @@ import os
 import random
 import subprocess
 import time
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 
-from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
+from experiments.sweeps.protein_configs import (
+    make_custom_protein_config,
+    VIT_POLICY_BASE,
+)
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -397,7 +401,8 @@ def make_curriculum(
 def train(
     curriculum_style: str = "tiny",
     lp_params: LPParams = LPParams(),
-    use_fast_lstm_reset: bool = True,
+    policy_variant: Literal["vit", "fast_lstm_reset", "fast_cnn"] = "vit",
+    use_fast_lstm_reset: bool | None = None,
     map_dir: str = "icl_ordered_chains",
 ) -> TrainTool:
     # Local import to avoid circular import at module load time
@@ -410,12 +415,20 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
-    if use_fast_lstm_reset:
+
+    if use_fast_lstm_reset is not None:
+        policy_variant = "fast_lstm_reset" if use_fast_lstm_reset else "fast_cnn"
+
+    if policy_variant == "fast_lstm_reset":
         policy_config = FastLSTMResetConfig()
-    else:
+    elif policy_variant == "fast_cnn":
         policy_config = FastConfig()
         trainer_cfg.batch_size = 4177920
         trainer_cfg.bptt_horizon = 512
+    elif policy_variant == "vit":
+        policy_config = ViTDefaultConfig()
+    else:
+        raise ValueError(f"Unsupported policy_variant: {policy_variant}")
 
     return TrainTool(
         trainer=trainer_cfg,
@@ -584,7 +597,7 @@ def sweep(
     total_timesteps: int = 1000000,
 ) -> SweepTool:
     lp_protein_config = make_custom_protein_config(
-        base_config=PPO_CORE,
+        base_config=VIT_POLICY_BASE,
         parameters={
             "lp_params.progress_smoothing": ParameterConfig(
                 distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
