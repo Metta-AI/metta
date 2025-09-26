@@ -1,7 +1,7 @@
 import
-  std/[times, math, strformat],
+  std/[times, math],
   boxy, vmath, windy, fidget2, fidget2/[hybridrender, common],
-  common, panels, sim, actions, utils
+  common, panels
 
 const
   BgColor = parseHtmlColor("#1D1D1D")
