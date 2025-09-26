@@ -10,7 +10,6 @@ import torch
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact
-from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.file import local_copy, write_file
@@ -227,33 +226,11 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
 
 def _load_checkpoint_file(path: str, device: str | torch.device) -> PolicyArtifact:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
-    target_device = torch.device(device)
-
     try:
-        artifact = load_policy_artifact(Path(path))
-        return artifact
+        return load_policy_artifact(Path(path))
     except FileNotFoundError:
         raise
-    except (BadZipFile, ValueError, TypeError):
-        pass
-
-    # Legacy fallback: load raw torch checkpoint
-    try:
-        checkpoint_data = torch.load(path, weights_only=False, map_location=target_device)
-
-        if _is_puffer_state_dict(checkpoint_data):
-            policy = load_pufferlib_checkpoint(checkpoint_data, target_device)
-            return PolicyArtifact(policy=policy)
-
-        if isinstance(checkpoint_data, Policy):
-            policy = checkpoint_data.to(target_device)
-            return PolicyArtifact(policy=policy)
-
-        raise TypeError("Unsupported legacy checkpoint format")
-
-    except FileNotFoundError:
-        raise
-    except (pickle.UnpicklingError, RuntimeError, OSError, TypeError) as err:
+    except (BadZipFile, ValueError, TypeError) as err:
         raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
 
 
