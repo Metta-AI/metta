@@ -92,8 +92,13 @@ class BSP(Scene[BSPParams]):
             if zone1.y > zone2.y:
                 (zone1, zone2) = (zone2, zone1)
 
-            surface1 = Surface.from_zone(used_grid, zone1, "up")
-            surface2 = Surface.from_zone(used_grid, zone2, "down")
+            # If no surface is found (e.g., tiny zones), skip gracefully
+            try:
+                surface1 = Surface.from_zone(used_grid, zone1, "up")
+                surface2 = Surface.from_zone(used_grid, zone2, "down")
+            except ValueError:
+                logger.debug("Skipping corridor: no surface found between zones")
+                continue
 
             lines = connect_surfaces(surface1, surface2)
 

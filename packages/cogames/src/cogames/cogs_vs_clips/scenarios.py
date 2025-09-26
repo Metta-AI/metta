@@ -20,6 +20,14 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubParams
+from mettagrid.mapgen.scenes.bsp import BSP, BSPParams
+from mettagrid.mapgen.scenes.make_connected import MakeConnected, MakeConnectedParams
+from mettagrid.mapgen.scenes.quadrant_resources import QuadrantResources, QuadrantResourcesParams
+from mettagrid.mapgen.scenes.quadrants import Quadrants, QuadrantsParams
+from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate, RandomSceneParams
+from mettagrid.mapgen.types import AreaWhere
 
 
 def make_game(
@@ -136,4 +144,192 @@ def games() -> dict[str, MettaGridConfig]:
             num_geranium_extractors=1,
             num_silicon_extractors=1,
         ),
+        "machina_sanctum": machina_sanctum(num_cogs=4),
     }
+
+
+def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
+    """Quadrants map with a protected central base.
+
+    Base: 11x11 area with assembler at center, 4 corner generators, L-shaped exits, and spawn pads.
+    Outer: Four quadrants populated with BSP scenes.
+    """
+
+    cfg = make_game(num_cogs=num_cogs)
+
+    # Swap to scene-based MapGen
+    cfg.game.map_builder = MapGen.Config(
+        width=55,
+        height=55,
+        seed=None,
+        root=Quadrants.factory(
+            params=QuadrantsParams(base_size=11),
+            children_actions=[
+                # Central base
+                dict(
+                    scene=BaseHub.factory(
+                        BaseHubParams(
+                            altar_object="altar",
+                            corner_generator="generator_red",
+                        )
+                    ),
+                    where=AreaWhere(tags=["base"]),
+                    limit=1,
+                    lock="keep",
+                    order_by="first",
+                ),
+                # Quadrant population (randomly choose layout style per quadrant)
+                dict(
+                    scene=RandomScene.factory(
+                        RandomSceneParams(
+                            candidates=[
+                                RandomSceneCandidate(
+                                    scene=BSP.factory(
+                                        BSPParams(
+                                            rooms=10,
+                                            min_room_size=4,
+                                            min_room_size_ratio=0.2,
+                                            max_room_size_ratio=0.55,
+                                        )
+                                    ),
+                                    weight=2.0,
+                                ),
+                                RandomSceneCandidate(
+                                    scene=BSP.factory(
+                                        BSPParams(
+                                            rooms=8,
+                                            min_room_size=5,
+                                            min_room_size_ratio=0.25,
+                                            max_room_size_ratio=0.5,
+                                        )
+                                    ),
+                                    weight=1.0,
+                                ),
+                            ]
+                        )
+                    ),
+                    where=AreaWhere(tags=["quadrant.0"]),
+                    limit=1,
+                    lock="quad",
+                    order_by="first",
+                ),
+                dict(
+                    scene=RandomScene.factory(
+                        RandomSceneParams(
+                            candidates=[
+                                RandomSceneCandidate(
+                                    scene=BSP.factory(
+                                        BSPParams(
+                                            rooms=9,
+                                            min_room_size=4,
+                                            min_room_size_ratio=0.2,
+                                            max_room_size_ratio=0.5,
+                                        )
+                                    ),
+                                    weight=1.0,
+                                ),
+                                RandomSceneCandidate(
+                                    scene=BSP.factory(
+                                        BSPParams(
+                                            rooms=12,
+                                            min_room_size=3,
+                                            min_room_size_ratio=0.15,
+                                            max_room_size_ratio=0.6,
+                                        )
+                                    ),
+                                    weight=1.5,
+                                ),
+                            ]
+                        )
+                    ),
+                    where=AreaWhere(tags=["quadrant.1"]),
+                    limit=1,
+                    lock="quad",
+                    order_by="first",
+                ),
+                dict(
+                    scene=RandomScene.factory(
+                        RandomSceneParams(
+                            candidates=[
+                                RandomSceneCandidate(
+                                    scene=BSP.factory(
+                                        BSPParams(
+                                            rooms=8, min_room_size=4, min_room_size_ratio=0.2, max_room_size_ratio=0.5
+                                        )
+                                    ),
+                                    weight=1.0,
+                                ),
+                                RandomSceneCandidate(
+                                    scene=BSP.factory(
+                                        BSPParams(
+                                            rooms=6, min_room_size=6, min_room_size_ratio=0.3, max_room_size_ratio=0.5
+                                        )
+                                    ),
+                                    weight=1.0,
+                                ),
+                            ]
+                        )
+                    ),
+                    where=AreaWhere(tags=["quadrant.2"]),
+                    limit=1,
+                    lock="quad",
+                    order_by="first",
+                ),
+                dict(
+                    scene=RandomScene.factory(
+                        RandomSceneParams(
+                            candidates=[
+                                RandomSceneCandidate(
+                                    scene=BSP.factory(
+                                        BSPParams(
+                                            rooms=8, min_room_size=4, min_room_size_ratio=0.2, max_room_size_ratio=0.5
+                                        )
+                                    ),
+                                    weight=1.0,
+                                ),
+                                RandomSceneCandidate(
+                                    scene=BSP.factory(
+                                        BSPParams(
+                                            rooms=10,
+                                            min_room_size=5,
+                                            min_room_size_ratio=0.25,
+                                            max_room_size_ratio=0.55,
+                                        )
+                                    ),
+                                    weight=1.0,
+                                ),
+                            ]
+                        )
+                    ),
+                    where=AreaWhere(tags=["quadrant.3"]),
+                    limit=1,
+                    lock="quad",
+                    order_by="first",
+                ),
+                # Randomly assign each quadrant a distinct resource type and place them
+                dict(
+                    scene=QuadrantResources.factory(
+                        QuadrantResourcesParams(
+                            resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
+                            count_per_quadrant=6,
+                            k=2.5,
+                            min_radius=4,
+                            clearance=1,
+                        )
+                    ),
+                    where=AreaWhere(tags=["quadrant"]),
+                    lock="resources",
+                    order_by="first",
+                ),
+                # Ensure connectivity across the whole inner map area
+                dict(
+                    scene=MakeConnected.factory(MakeConnectedParams()),
+                    where="full",
+                    lock="finalize",
+                    order_by="first",
+                ),
+            ],
+        ),
+    )
+
+    return cfg
