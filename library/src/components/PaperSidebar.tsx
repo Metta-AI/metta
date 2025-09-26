@@ -124,12 +124,12 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   return (
     <div className="/* Mobile: Takes available height, no special positioning */ /* Desktop: Right sidebar as before */ h-full overflow-y-auto bg-white md:h-screen md:flex-1 md:border-l">
       {/* Mobile header with close button */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 md:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:hidden">
         <h2 className="text-lg font-semibold text-gray-900">Paper Details</h2>
         {onClose && (
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
             title="Close paper details"
           >
             <svg
