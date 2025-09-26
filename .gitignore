@@ -1,5 +1,3 @@
-transformer*
-!agent/src/metta/agent/components/transformer_core.py
 resources
 
 # Environment and IDE
