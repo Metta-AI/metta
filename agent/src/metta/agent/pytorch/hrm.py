@@ -151,7 +151,8 @@ class ReasoningAttnBlock(nn.Module):
             causal=False,
             cast_to=cast_to,
         )
-        self.mlp = SwiGLU(hidden_size=hidden_size, expansion=4)
+        # self.mlp = SwiGLU(hidden_size=hidden_size, expansion=4)
+        self.mlp = nn.Linear(hidden_size, hidden_size)
         self.norm_eps = 1e-5
 
     def forward(self, hidden_states: torch.Tensor, input_injection: torch.Tensor) -> torch.Tensor:
