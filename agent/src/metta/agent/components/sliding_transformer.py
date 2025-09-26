@@ -127,26 +127,14 @@ class SlidingTransformer(nn.Module):
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.output_dim))
         self.final_norm = nn.LayerNorm(self.output_dim)
 
-        # State buffers (KV cache per layer)
-        # k_cache/v_cache are the "live" caches used for rollouts.
-        # k_cache_training/v_cache_training are used to hold cache state for training batches.
-        self.register_buffer("k_cache_rollout", self._create_cache_buffer())
-        self.register_buffer("v_cache_rollout", self._create_cache_buffer())
-        self.register_buffer("k_cache_training", self._create_cache_buffer())
-        self.register_buffer("v_cache_training", self._create_cache_buffer())
-        self.register_buffer("position_counter", torch.zeros(0, dtype=torch.long))
-
-    def _create_cache_buffer(self) -> torch.Tensor:
-        """Helper to create an empty cache buffer, taking all the shape stuff into account."""
+        # State buffers
         head_dim = self.config.output_dim // self.config.num_heads
-        cache_shape = (
-            0,
-            self.num_layers,
-            self.config.num_heads,
-            self.max_cache_size,
-            head_dim,
-        )
-        return torch.empty(cache_shape)
+        cache_shape = (0, self.num_layers, self.config.num_heads, self.max_cache_size, head_dim)
+        self.register_buffer("k_cache_rollout", torch.empty(cache_shape))
+        self.register_buffer("v_cache_rollout", torch.empty(cache_shape))
+        self.register_buffer("k_cache_training", torch.empty(cache_shape))
+        self.register_buffer("v_cache_training", torch.empty(cache_shape))
+        self.register_buffer("position_counter", torch.zeros(0, dtype=torch.long))
 
     def _get_positional_encoding(self, positions: torch.Tensor, d_model: int) -> torch.Tensor:
         """Generates sinusoidal positional encodings."""
@@ -237,7 +225,7 @@ class SlidingTransformer(nn.Module):
             # this block dynamically builds the cache buffers so that we don't need to know the num of envs upfront
             num_new_envs = max_num_envs - self.position_counter.size(0)
             # Expand all state buffers for new environments
-            filler = self._create_cache_buffer()[0:0].expand(num_new_envs, -1, -1, -1, -1)
+            filler = torch.zeros(num_new_envs, *self.k_cache_rollout.shape[1:], device=self.k_cache_rollout.device)
             self.k_cache_rollout = torch.cat([self.k_cache_rollout, filler])
             self.v_cache_rollout = torch.cat([self.v_cache_rollout, filler])
             self.k_cache_training = self.k_cache_rollout.clone()
