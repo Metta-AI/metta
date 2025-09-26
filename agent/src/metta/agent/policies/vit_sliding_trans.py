@@ -49,8 +49,16 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[1024],
         ),
+        MLPConfig(
+            in_key="core",
+            out_key="actor_hidden",
+            name="actor_mlp",
+            in_features=_core_out_dim,
+            hidden_features=[256],
+            out_features=256,
+        ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
-        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
+        ActorQueryConfig(in_key="actor_hidden", out_key="actor_query", hidden_size=256, embed_dim=_embed_dim),
         ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
