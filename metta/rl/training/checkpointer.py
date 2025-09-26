@@ -119,7 +119,11 @@ class Checkpointer(TrainerComponent):
     def _save_policy(self, epoch: int, *, force: bool = False) -> None:
         policy = self._policy_to_save()
 
-        uri = self._checkpoint_manager.save_agent(policy, epoch)
+        uri = self._checkpoint_manager.save_agent(
+            policy,
+            epoch,
+            policy_architecture=self._policy_architecture,
+        )
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
         try:

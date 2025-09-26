@@ -4,11 +4,13 @@ import pickle
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
+from zipfile import BadZipFile
 
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.agent.policy import Policy
+from metta.agent.policy import Policy, PolicyArchitecture
+from metta.rl.policy_artifact import load_policy_artifact, save_policy_artifact
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
@@ -226,11 +228,31 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
 
 def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
+    target_device = torch.device(device)
+
     try:
-        checkpoint_data = torch.load(path, weights_only=False, map_location=device)
+        artifact = load_policy_artifact(Path(path))
+    except FileNotFoundError:
+        raise
+    except (BadZipFile, ValueError, TypeError):
+        artifact = None
+    else:
+        if artifact.policy is None:
+            raise RuntimeError(
+                "Checkpoint contains weights but no serialized policy. "
+                "Instantiate via PolicyArtifact.instantiate with EnvironmentMetaData."
+            )
+
+        policy = artifact.policy
+        policy.to(target_device)
+        return policy
+
+    # Legacy fallback: load raw torch checkpoint
+    try:
+        checkpoint_data = torch.load(path, weights_only=False, map_location=target_device)
 
         if _is_puffer_state_dict(checkpoint_data):
-            return load_pufferlib_checkpoint(checkpoint_data, device)
+            return load_pufferlib_checkpoint(checkpoint_data, target_device)
 
         return checkpoint_data
 
@@ -436,8 +458,16 @@ class CheckpointManager:
             result["loss_states"] = state["loss_states"]
         return result
 
-    def save_agent(self, agent, epoch: int) -> str:
+    def save_agent(
+        self,
+        agent: Policy,
+        epoch: int,
+        *,
+        policy_architecture: PolicyArchitecture,
+    ) -> str:
         """Save agent checkpoint to disk and upload to remote storage if configured.
+
+        The serialized artifact always includes the policy weights and architecture metadata.
 
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
@@ -448,7 +478,13 @@ class CheckpointManager:
         # Check if we're overwriting an existing checkpoint for this epoch
         existing_files = self._find_checkpoint_files(epoch)
 
-        torch.save(agent, checkpoint_path)
+        save_policy_artifact(
+            checkpoint_path,
+            policy=agent,
+            policy_architecture=policy_architecture,
+            state_dict=agent.state_dict(),
+            include_policy=True,
+        )
 
         remote_uri = None
         if self._remote_prefix:
