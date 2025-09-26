@@ -54,6 +54,9 @@ async function resolveSingleMention(
 ): Promise<ResolvedMention | null> {
   switch (mention.type) {
     case "user":
+    case "institution":
+      // Both user and institution mentions use the same resolution logic
+      // resolveUserMention tries user -> institution -> group in sequence
       return resolveUserMention(mention, currentUserId);
 
     case "group-relative":
@@ -80,17 +83,19 @@ async function resolveUserMention(
   mention: ParsedMention,
   currentUserId: string
 ): Promise<ResolvedMention | null> {
-  if (!mention.username) return null;
+  // Handle both user-type mentions (mention.username) and institution-type mentions (mention.institutionName)
+  const searchTerm = mention.username || mention.institutionName;
+  if (!searchTerm) return null;
 
   // First try to find user by email prefix (since usernames are typically email prefixes)
   const user = await prisma.user.findFirst({
     where: {
       OR: [
-        { email: { startsWith: mention.username + "@" } },
-        { name: { equals: mention.username, mode: "insensitive" } },
+        { email: { startsWith: searchTerm + "@" } },
+        { name: { equals: searchTerm, mode: "insensitive" } },
       ],
     },
-    select: { id: true },
+    select: { id: true, email: true, name: true },
   });
 
   if (user) {
@@ -103,7 +108,7 @@ async function resolveUserMention(
 
   // If no user found, try to find institution with this name
   const institution = await prisma.institution.findUnique({
-    where: { name: mention.username },
+    where: { name: searchTerm },
     select: {
       id: true,
       name: true,
@@ -134,7 +139,7 @@ async function resolveUserMention(
   // If no institution found, try to find a group the user is a member of
   const group = await prisma.group.findFirst({
     where: {
-      name: mention.username,
+      name: searchTerm,
       userGroups: {
         some: {
           userId: currentUserId,
