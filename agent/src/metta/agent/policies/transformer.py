@@ -136,6 +136,7 @@ class TransformerPolicy(Policy):
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
         self.use_aux_tokens = getattr(self.config, "use_aux_tokens", True)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
+        self._memory_len = int(getattr(self.transformer_cfg, "memory_len", 0) or 0)
 
         encoder_out = self.config.cnn_encoder_config.encoded_obs_cfg.get("out_features")
         if encoder_out != self.latent_size:
@@ -164,7 +165,6 @@ class TransformerPolicy(Policy):
         else:
             self.input_projection = nn.Identity()
 
-        self.memory_len = getattr(self.transformer_cfg, "memory_len", 0) or 0
         self.action_dim = self._infer_action_dim()
         if self.use_aux_tokens:
             self.reward_proj = nn.Linear(1, self.hidden_size)
@@ -243,7 +243,7 @@ class TransformerPolicy(Policy):
 
     def _build_transformer(self) -> None:
         self.transformer_module = self.transformer_cfg.make_component(self.env)
-        self._memory_enabled = getattr(self.transformer_cfg, "memory_len", 0) > 0
+        self._memory_enabled = self.memory_len > 0
 
     # ------------------------------------------------------------------
     # Forward path
@@ -738,6 +738,10 @@ class TransformerPolicy(Policy):
     @property
     def device(self) -> torch.device:
         return next(self.parameters()).device
+
+    @property
+    def memory_len(self) -> int:
+        return getattr(self, "_memory_len", 0)
 
     def get_agent_experience_spec(self) -> Composite:
         spec = {
