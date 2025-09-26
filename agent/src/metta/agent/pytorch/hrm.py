@@ -118,36 +118,6 @@ class Attention(nn.Module):
         return self.proj(out)
 
 
-# ------------------
-# Rotary Embeddings
-# ------------------
-
-
-class RotaryEmbedding(nn.Module):
-    def __init__(self, dim, max_position_embeddings=2048, base=10000):
-        super().__init__()
-        self.dim = dim
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
-        t = torch.arange(max_position_embeddings, dtype=torch.float)
-        freqs = torch.einsum("i , j -> i j", t, inv_freq)
-        self.register_buffer("cos", freqs.cos(), persistent=False)
-        self.register_buffer("sin", freqs.sin(), persistent=False)
-
-    def forward(self):
-        return (self.cos, self.sin)
-
-
-def apply_rotary_pos_emb(q, k, cos_sin):
-    cos, sin = cos_sin
-    # cos/sin: (T, dim/2) -> expand to (1, 1, T, dim)
-    cos = cos[:, None, None, :].to(device=q.device, dtype=q.dtype)
-    sin = sin[:, None, None, :].to(device=q.device, dtype=q.dtype)
-
-    def rotary(x):
-        x1, x2 = x[..., ::2], x[..., 1::2]
-        return torch.cat([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
-
-    return rotary(q), rotary(k)
 
 
 # ------------------
@@ -264,12 +234,9 @@ class HRM_ACTV1_Inner(nn.Module):
                 max_position_embeddings=self.seq_len,
                 base=int(self.rope_theta),
             )
-        elif self.pos_encodings == "learned":
-            self.embed_pos = CastedEmbedding(
+            self.rotary_emb = nn.Embedding(
                 self.seq_len,
-                self.hidden_size,
-                init_std=embed_init_std,
-                cast_to=self.forward_dtype,
+                self.hidden_size // self.num_heads,  # Match the head_dim used in Attention
             )
         else:
             raise NotImplementedError()
@@ -662,11 +629,11 @@ class HRMPolicyInner(nn.Module):
         # HRM Backbone
         self.backbone = HRMBackbone(
             hidden_size=hidden_size,
-            vocab_size=100,
+            vocab_size=10,
             batch_size=1,
             pos_encodings="rope",
             rope_theta=100,
-            seq_len=200,
+            seq_len=20,
             forward_dtype="bfloat16",  # More memory efficient than float16
             H_layers=1,
             L_layers=1,
