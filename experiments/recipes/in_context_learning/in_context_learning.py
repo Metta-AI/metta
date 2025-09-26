@@ -3,9 +3,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from mettagrid.builder import empty_converters
 from pydantic import Field
-
+from mettagrid.builder import building, empty_converters
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -34,18 +33,28 @@ RESOURCE_TYPES = [
     "armor",
 ]
 
-size_ranges: dict[str, tuple[int, int]] = {
-    "tiny": (5, 8),
-    "small": (8, 12),
-    "medium": (12, 16),
-    "large": (16, 25),
+ASSEMBLER_TYPES = {
+    "generator_red": building.assembler_generator_red,
+    "generator_blue": building.assembler_generator_blue,
+    "generator_green": building.assembler_generator_green,
+    "mine_red": building.assembler_mine_red,
+    "mine_blue": building.assembler_mine_blue,
+    "mine_green": building.assembler_mine_green,
+}
+
+size_ranges = {
+    "tiny": (4, 5),
+    "small": (6, 7),
+    "medium": (8, 9),
+    "large": (10, 11),
 }
 
 
 @dataclass
 class _BuildCfg:
     used_objects: List[str] = field(default_factory=list)
-    all_input_resources: List[str] = field(default_factory=list)
+    all_input_resources: set[str] = field(default_factory=set)
+    all_output_resources: set[str] = field(default_factory=set)
     converters: List[str] = field(default_factory=list)
     game_objects: Dict[str, Any] = field(default_factory=dict)
     map_builder_objects: Dict[str, int] = field(default_factory=dict)
@@ -89,8 +98,8 @@ class ICLTaskGenerator(TaskGenerator):
         )
 
         # Unordered-only (ignored by Ordered subclasses)
-        max_recipe_inputs: Optional[list[int]] = Field(
-            default=None,
+        max_recipe_inputs: list[int] = Field(
+            default=[1],
             description="Max inputs per recipe converter (sampled per env).",
         )
         source_initial_resource_count: Optional[int] = Field(
@@ -121,6 +130,37 @@ class ICLTaskGenerator(TaskGenerator):
             raise ValueError("No available converter names left to choose from.")
         return str(rng.choice(choices))
 
+    def _add_converter(
+        self,
+        input_resources: list[str],
+        output_resources: list[str],
+        cfg: _BuildCfg,
+        rng: random.Random,
+    ):
+        converter_name = self._choose_converter_name(
+            self.converter_types, set(cfg.used_objects), rng
+        )
+        cfg.used_objects.append(converter_name)
+
+        converter = self.converter_types[converter_name].copy()
+        for output_resource in output_resources:
+            converter.output_resources[output_resource] = 1
+
+            cfg.all_output_resources.add(output_resource)
+
+        for input_resource in input_resources:
+            if input_resource == "nothing":
+                converter.input_resources = {}
+            else:
+                converter.input_resources = {input_resource: 1}
+
+            cfg.all_input_resources.add(input_resource)
+
+        cfg.game_objects[converter_name] = converter
+        cfg.map_builder_objects[converter_name] = 1
+
+        return converter_name
+
     def _setup_task(self, rng: random.Random):
         """
         Sample the high-level task spec that both Ordered and Unordered builders use.
@@ -132,7 +172,7 @@ class ICLTaskGenerator(TaskGenerator):
             density: Optional[str]
             width: int
             height: int
-            max_recipe_inputs: Optional[int]  # (unordered only; pass-thru for ordered)
+            max_recipe_inputs: int
         """
         cfg = self.config
 
@@ -153,10 +193,8 @@ class ICLTaskGenerator(TaskGenerator):
         width = rng.randint(lo, hi)
         height = rng.randint(lo, hi)
 
-        # unordered-only param (safe to ignore downstream if None)
-        max_recipe_inputs = (
-            rng.choice(cfg.max_recipe_inputs) if cfg.max_recipe_inputs else None
-        )
+        # unordered-only param
+        max_recipe_inputs = rng.choice(cfg.max_recipe_inputs)
 
         return (
             resources,

@@ -25,7 +25,7 @@ from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from experiments.recipes.in_context_learning.icl_resource_chain import (
+from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
     _BuildCfg,
@@ -218,46 +218,6 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         super().__init__(config)
         self.map_dir = getattr(config, "map_dir", "icl_ordered_chains")
 
-    def _add_converter(
-        self,
-        input_resource: str,
-        output_resource: str,
-        cfg: _BuildCfg,
-        rng: random.Random,
-    ):
-        converter_name = self._choose_converter_name(
-            self.converter_types, set(cfg.used_objects), rng
-        )
-        cfg.used_objects.append(converter_name)
-        cfg.converters.append(converter_name)
-
-        converter = self.converter_types[converter_name].copy()
-        converter.output_resources = {output_resource: 1}
-
-        if input_resource == "nothing":
-            converter.input_resources = {}
-        else:
-            converter.input_resources = {input_resource: 1}
-
-            cfg.all_input_resources.append(input_resource)
-
-        cfg.game_objects[converter_name] = converter
-        cfg.map_builder_objects[converter_name] = 1
-
-    def _add_sink(self, cfg: _BuildCfg, rng: random.Random):
-        sink_name = self._choose_converter_name(
-            self.converter_types, set(cfg.used_objects), rng
-        )
-        cfg.used_objects.append(sink_name)
-
-        sink = self.converter_types[sink_name].copy()
-
-        for input_resource in cfg.all_input_resources:
-            sink.input_resources[input_resource] = 1
-
-        cfg.game_objects[sink_name] = sink
-        cfg.map_builder_objects[sink_name] = 1
-
     def _make_env_cfg(
         self,
         resources,
@@ -277,10 +237,21 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
 
         for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
-            self._add_converter(input_resource, output_resource, cfg, rng=rng)
+            converter_name = self._add_converter(
+                input_resources=[input_resource],
+                output_resources=[output_resource],
+                cfg=cfg,
+                rng=rng,
+            )
+            cfg.converters.append(converter_name)
 
         for _ in range(num_sinks):
-            self._add_sink(cfg, rng=rng)
+            self._add_converter(
+                input_resources=list(cfg.all_input_resources),
+                output_resources=["heart"],
+                cfg=cfg,
+                rng=rng,
+            )
 
         cooldown = avg_hop * (len(resource_chain) - 1)
 

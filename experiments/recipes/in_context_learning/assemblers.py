@@ -76,6 +76,40 @@ num_agents_to_positions = {
 }
 
 
+CONVERTER_TYPES = {
+    "mine_red": empty_converters.mine_red,
+    "mine_blue": empty_converters.mine_blue,
+    "mine_green": empty_converters.mine_green,
+    "generator_red": empty_converters.generator_red,
+    "generator_blue": empty_converters.generator_blue,
+    "generator_green": empty_converters.generator_green,
+    "altar": empty_converters.altar,
+    "lab": empty_converters.lab,
+    "lasery": empty_converters.lasery,
+    "factory": empty_converters.factory,
+    "temple": empty_converters.temple,
+    "armory": empty_converters.armory,
+}
+RESOURCE_TYPES = [
+    "ore_red",
+    "ore_blue",
+    "ore_green",
+    "battery_red",
+    "battery_blue",
+    "battery_green",
+    "laser",
+    "blueprint",
+    "armor",
+]
+
+size_ranges: dict[str, tuple[int, int]] = {
+    "tiny": (5, 8),
+    "small": (8, 12),
+    "medium": (12, 16),
+    "large": (16, 25),
+}
+
+
 def make_curriculum_args(
     num_agents: list[int],
     num_altars: list[int],

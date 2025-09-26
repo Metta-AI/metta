@@ -17,7 +17,7 @@ from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-from experiments.recipes.in_context_learning.icl_resource_chain import (
+from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
     calculate_avg_hop,
@@ -30,24 +30,32 @@ curriculum_args = {
         "num_converters": [1, 2],
         "room_sizes": ["tiny", "small"],
         "max_recipe_inputs": [1, 2],
+        "source_max_conversions": None,
+        "source_cooldown": None,
     },
     "small_medium": {
         "num_resources": [2, 3, 4],
         "num_converters": [1, 2],
         "room_sizes": ["tiny", "small", "medium"],
         "max_recipe_inputs": [1, 2, 3],
+        "source_max_conversions": None,
+        "source_cooldown": None,
     },
     "all_room_sizes": {
         "num_resources": [3, 4, 5],
         "num_converters": [1, 2],
         "room_sizes": ["tiny", "small", "medium", "large"],
         "max_recipe_inputs": [1, 2, 3],
+        "source_max_conversions": None,
+        "source_cooldown": None,
     },
     "complex_recipes": {
         "num_resources": [2, 3, 4, 5, 6],
         "num_converters": [1, 2, 3],
         "room_sizes": ["tiny", "small", "medium", "large"],
         "max_recipe_inputs": [1, 2, 3, 4],
+        "source_max_conversions": None,
+        "source_cooldown": None,
     },
     "terrain": {
         "num_resources": [2, 3, 4, 5],
@@ -56,6 +64,8 @@ curriculum_args = {
         "densities": ["", "balanced", "sparse", "high"],
         "max_recipe_inputs": [1, 2, 3],
         "room_sizes": ["tiny", "small", "medium", "large"],
+        "source_max_conversions": None,
+        "source_cooldown": None,
     },
 }
 
@@ -63,63 +73,6 @@ curriculum_args = {
 class UnorderedChainTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
-
-    def _add_source(self, output_resource: str, cfg: _BuildCfg, rng: random.Random):
-        """
-        Source: empty-input converter that emits one unit of `output_resource`.
-        """
-        name = self._choose_converter_name(
-            self.converter_types, set(cfg.used_objects), rng
-        )
-        cfg.used_objects.append(name)
-        cfg.sources.append(name)
-
-        conv = self.converter_types[name].copy()
-        conv.input_resources = {}
-        conv.output_resources = {output_resource: 1}
-
-        cfg.all_input_resources.append(output_resource)
-        cfg.game_objects[name] = conv
-        cfg.map_builder_objects[name] = 1
-
-    def _add_recipe_converter(
-        self,
-        cfg: _BuildCfg,
-        rng: random.Random,
-        max_input_resources: Optional[int] = 6,
-        output_resource: str = "heart",
-    ):
-        """
-        Multiset-input converter:
-          - Pick length L in [1, max_input_resources]
-          - Sample L items with replacement from cfg.all_input_resources
-          - Count them into input_resources
-          - Output one `heart`
-        """
-        assert cfg.all_input_resources, "No resources available to build a recipe from."
-        L = rng.randint(1, (max_input_resources or 6))
-
-        # sample with replacement, then count
-        picks = [rng.choice(cfg.all_input_resources) for _ in range(L)]
-        inputs: dict[str, int] = {}
-        for r in picks:
-            inputs[r] = inputs.get(r, 0) + 1
-
-        name = self._choose_converter_name(
-            self.converter_types, set(cfg.used_objects), rng
-        )
-        cfg.used_objects.append(name)
-        cfg.converters.append(name)
-
-        conv = self.converter_types[name].copy()
-        conv.input_resources = inputs
-        conv.output_resources = {output_resource: 1}
-
-        cfg.game_objects[name] = conv
-        cfg.map_builder_objects[name] = 1
-
-        # return L so caller can set cooldown proportional to recipe size
-        return L
 
     def _make_env_cfg(
         self,
@@ -131,8 +84,8 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         obstacle_type: Optional[str],
         density: Optional[str],
         rng: random.Random,
+        max_input_resources: int,
         max_steps: int = 512,
-        max_input_resources: Optional[int] = None,
         # keep explicit overrides if you still want them; otherwise computed below
         source_initial_resource_count: Optional[int] = None,
         source_max_conversions: Optional[int] = None,
@@ -142,7 +95,10 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
 
         # 1) add sources for each base resource
         for r in resources:
-            self._add_source(r, cfg, rng=rng)
+            source_name = self._add_converter(
+                input_resources=["nothing"], output_resources=[r], cfg=cfg, rng=rng
+            )
+            cfg.sources.append(source_name)
 
         # 2) geometry-aware cooldowns
         avg_hop = calculate_avg_hop(room_size)
@@ -150,19 +106,23 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
 
         for s in cfg.sources:
             src = cfg.game_objects[s]
-            if source_initial_resource_count is not None:
-                src.initial_resource_count = source_initial_resource_count
             if source_max_conversions is not None:
                 src.max_conversions = source_max_conversions
             src.cooldown = default_source_cd
 
-        # 3) add N multiset recipe converters producing hearts
         recipe_sizes: list[int] = []
         for _ in range(num_converters):
-            L = self._add_recipe_converter(
-                cfg, rng=rng, max_input_resources=max_input_resources
+            # how many of the resources are used as input to get hearts
+            resource_count = rng.randint(1, max_input_resources)
+            resources = [
+                rng.choice(list(cfg.all_output_resources))
+                for _ in range(resource_count)
+            ]
+            converter_name = self._add_converter(
+                input_resources=resources, output_resources=["heart"], cfg=cfg, rng=rng
             )
-            recipe_sizes.append(L)
+            cfg.converters.append(converter_name)
+            recipe_sizes.append(resource_count)
 
         # 4) set per-recipe cooldown ~ avg_hop and the recipe length
         for name, L in zip(cfg.converters, recipe_sizes):
@@ -280,6 +240,7 @@ def train(
             simulations=make_unordered_chain_eval_suite(),
             evaluate_remote=True,
             evaluate_local=False,
+            skip_git_check=True,
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
