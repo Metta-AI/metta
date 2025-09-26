@@ -87,6 +87,25 @@ class BiasedForagingTaskGenerator(ICLTaskGenerator):
         )  # "simple" | "directional" | "unordered_chain"
         recipe_mode_weights: Optional[list[float]] = Field(default=None)
         max_recipe_inputs: Optional[list[int]] = Field(default=[1, 2, 3])
+        # Number of distinct resource types to include in a map
+        resource_type_counts: list[int] = Field(default=[4])
+        # Regions to sample for resource placement (used when randomize_regions=True)
+        regions: list[str] = Field(
+            default=[
+                "north",
+                "south",
+                "east",
+                "west",
+                "northeast",
+                "northwest",
+                "southeast",
+                "southwest",
+            ]
+        )
+        # Randomize mapping from resource type -> region each task
+        randomize_regions: bool = Field(default=True)
+        # Number of regional clusters to sample per task (controls how many distinct regions used)
+        cluster_counts: list[int] = Field(default=[1, 2, 3, 4])
         non_reusable_resources: list[str] = Field(default=[])
         resource_configs: list[dict] = Field(
             default=[
@@ -94,6 +113,8 @@ class BiasedForagingTaskGenerator(ICLTaskGenerator):
                 {"resource": "ore_blue", "region": "south"},
                 {"resource": "ore_green", "region": "east"},
                 {"resource": "battery_red", "region": "west"},
+                {"resource": "battery_blue", "region": "north"},
+                {"resource": "battery_green", "region": "south"},
             ]
         )
         resource_positions: Optional[list[dict]] = Field(default=None)
@@ -135,9 +156,36 @@ class BiasedForagingTaskGenerator(ICLTaskGenerator):
 
         num_assemblers = rng.choice(self.config.num_assemblers)
 
-        available_configs = list(self.config.resource_configs)
-        rng.shuffle(available_configs)
-        selected_configs = available_configs[:4]
+        base_configs = list(self.config.resource_configs)
+        rng.shuffle(base_configs)
+        # Determine how many distinct resource types to include
+        try:
+            k_types = int(rng.choice(self.config.resource_type_counts))
+        except Exception:
+            k_types = 4
+        k_types = max(1, min(k_types, len(base_configs)))
+
+        selected_base = base_configs[:k_types]
+
+        # Optionally randomize resource->region mapping and cluster regions
+        if self.config.randomize_regions:
+            # Choose how many distinct regions to use as clusters
+            try:
+                k_clusters = int(rng.choice(self.config.cluster_counts))
+            except Exception:
+                k_clusters = min(4, len(self.config.regions))
+            k_clusters = max(1, min(k_clusters, len(self.config.regions)))
+            region_pool = list(self.config.regions)
+            rng.shuffle(region_pool)
+            chosen_regions = region_pool[:k_clusters]
+
+            # Assign each resource a region sampled from chosen clusters
+            selected_configs = []
+            for cfg in selected_base:
+                region = rng.choice(chosen_regions)
+                selected_configs.append({"resource": cfg["resource"], "region": region})
+        else:
+            selected_configs = selected_base
 
         if isinstance(self.config.separation_weights, list) and len(
             self.config.separation_weights
@@ -320,6 +368,8 @@ class BiasedForagingTaskGenerator(ICLTaskGenerator):
                 k = min(3, len(chosen_resources))
             if max_inputs_cap is not None:
                 k = min(k, max_inputs_cap)
+            # Ensure we never sample more inputs than available resource types
+            k = min(k, len(chosen_resources))
             recipe_resources = rng.sample(chosen_resources, k=k)
             recipes = [
                 (
@@ -358,8 +408,8 @@ class BiasedForagingTaskGenerator(ICLTaskGenerator):
                 actions=ActionsConfig(
                     move=ActionConfig(),
                     rotate=ActionConfig(enabled=False),
-                    get_items=ActionConfig(enabled=(recipe_mode != "directional")),
-                    put_items=ActionConfig(enabled=(recipe_mode != "directional")),
+                    get_items=ActionConfig(enabled=False),
+                    put_items=ActionConfig(enabled=False),
                     change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
                 ),
                 agent=AgentConfig(

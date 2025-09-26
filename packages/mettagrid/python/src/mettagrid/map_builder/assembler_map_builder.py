@@ -256,7 +256,8 @@ class RegionAssemblerMapBuilder(MapBuilder):
         else:
             num_agents = sum(self._config.agents.values())
 
-        empties = np.argwhere((grid == "empty") & (~reserved))
+        # Allow agents on any empty cell; reserved mask is for object spacing only
+        empties = np.argwhere(grid == "empty")
         rng.shuffle(empties)
         for k in range(min(num_agents, len(empties))):
             i, j = map(int, empties[k])
