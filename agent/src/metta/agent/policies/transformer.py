@@ -134,9 +134,10 @@ class TransformerPolicy(Policy):
         self.latent_size = self.transformer_cfg.latent_size
         self.hidden_size = self.transformer_cfg.hidden_size
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
-        self.use_aux_tokens = getattr(self.config, "use_aux_tokens", True)
+        self.use_aux_tokens = getattr(self.config, "use_aux_tokens", False)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
         self._memory_len = int(getattr(self.transformer_cfg, "memory_len", 0) or 0)
+        self._transformer_layers = int(getattr(self.transformer_cfg, "num_layers", 0) or 0)
 
         encoder_out = self.config.cnn_encoder_config.encoded_obs_cfg.get("out_features")
         if encoder_out != self.latent_size:
@@ -499,30 +500,28 @@ class TransformerPolicy(Policy):
 
         if use_memory and tt == 1:
             memory_batch = self._gather_memory_batch(env_ids, batch_size, device, dtype)
-            packed_memory = self._pack_memory(memory_batch)
-            if packed_memory is not None:
-                td.set("transformer_memory_pre", packed_memory.detach().to(dtype=torch.float16))
+            if self.memory_len > 0:
+                packed_memory = self._pack_memory(memory_batch)
+                if packed_memory is not None:
+                    td.set("transformer_memory_pre", packed_memory.detach().to(dtype=torch.float16))
             core_out, new_memory = self.transformer_module(latent_seq, memory_batch)
         elif use_memory and tt > 1:
             packed_memory = td.get("transformer_memory_pre", None)
-            if packed_memory is not None and packed_memory.numel() > 0:
-                packed_memory = packed_memory.view(
+            memory_batch = None
+            if (
+                self.memory_len > 0
+                and packed_memory is not None
+                and packed_memory.numel() > 0
+            ):
+                packed_memory = packed_memory.to(device=device).view(
                     batch_size,
-                    tt,
-                    self.transformer_cfg.num_layers,
+                    self.transformer_layers,
                     self.memory_len,
                     self.hidden_size,
                 )
-            core_slices: list[torch.Tensor] = []
-            for step in range(tt):
-                if packed_memory is not None and self.memory_len > 0 and packed_memory.numel() > 0:
-                    step_memory_tensor = packed_memory[:, step]
-                    step_memory = self._unpack_memory(step_memory_tensor, device, dtype)
-                else:
-                    step_memory = None
-                step_out, _ = self.transformer_module(latent_seq[step : step + 1], step_memory)
-                core_slices.append(step_out)
-            core_out = torch.cat(core_slices, dim=0)
+                memory_batch = self._unpack_memory(packed_memory, device, dtype)
+
+            core_out, _ = self.transformer_module(latent_seq, memory_batch)
             new_memory = None
         else:
             core_out, new_memory = self.transformer_module(latent_seq, None)
@@ -742,6 +741,10 @@ class TransformerPolicy(Policy):
     @property
     def memory_len(self) -> int:
         return getattr(self, "_memory_len", 0)
+
+    @property
+    def transformer_layers(self) -> int:
+        return getattr(self, "_transformer_layers", 0)
 
     def get_agent_experience_spec(self) -> Composite:
         spec = {
