@@ -2,6 +2,7 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
+from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
@@ -90,7 +91,7 @@ class LSTM(nn.Module):
         if "batch" in td.keys():
             B = int(td["batch"][0].item())
 
-        latent = latent.reshape(B, TT, self.latent_size)
+        latent = rearrange(latent, "(b t) h -> b t h", b=B, t=TT)
 
         # Ensure cuDNN keeps weights in a fused fast-path layout after transfers/checkpoints.
         self.net.flatten_parameters()
@@ -122,7 +123,7 @@ class LSTM(nn.Module):
         self.lstm_h[training_env_id_start] = h_n.detach()
         self.lstm_c[training_env_id_start] = c_n.detach()
 
-        hidden = hidden.reshape(B * TT, self.hidden_size)
+        hidden = rearrange(hidden, "b t h -> (b t) h")
 
         td[self.out_key] = hidden
 

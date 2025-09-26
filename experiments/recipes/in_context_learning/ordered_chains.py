@@ -7,6 +7,8 @@ from typing import Optional, Sequence
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+
+from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -15,9 +17,11 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
+from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -92,12 +96,12 @@ curriculum_args = {
         "densities": ["", "balanced", "sparse", "high"],
         "room_sizes": ["tiny", "small", "medium"],
     },
-    "hard_eval": {
-        "chain_lengths": [4, 5],
-        "num_sinks": [1, 2],
+    "full": {
+        "chain_lengths": [2, 3, 4, 5, 6],
+        "num_sinks": [0, 1, 2],
         "obstacle_types": ["square", "cross", "L"],
-        "densities": ["high"],
-        "room_sizes": ["medium"],
+        "densities": ["", "balanced", "sparse", "high"],
+        "room_sizes": ["tiny", "small", "medium", "large"],
     },
 }
 
@@ -110,7 +114,7 @@ def make_task_generator_cfg(
     obstacle_types=[],
     densities=[],
 ):
-    return ICLTaskGenerator.Config(
+    return OrderedChainsTaskGenerator.Config(
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
         obstacle_types=obstacle_types,
@@ -299,8 +303,10 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
                     rng=rng,
                 ),
             )
-            if os.path.exists(f"{dir}/reward_estimates.json"):
-                reward_estimates = json.load(open(f"{dir}/reward_estimates.json"))
+            if os.path.exists(f"./train_dir/{dir}/reward_estimates.json"):
+                reward_estimates = json.load(
+                    open(f"./train_dir/{dir}/reward_estimates.json")
+                )
                 env.game.reward_estimates = reward_estimates[dir]
             return env
 
@@ -444,11 +450,12 @@ def replay(
 ) -> ReplayTool:
     eval_env = env or make_mettagrid(curriculum_style, map_dir)
     # Default to the research policy if none specified
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23:v900.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="eval",
         ),
         policy_uri=default_policy_uri,
@@ -456,22 +463,14 @@ def replay(
 
 
 def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: Optional[str] = None,
+    simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.ordered_chains import (
         make_icl_resource_chain_eval_suite,
     )
 
-    simulations = simulations or make_icl_resource_chain_eval_suite()
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri],
-        stats_server_uri="https://api.observatory.softmax-research.net",
-    )
-
-
-def experiment():
     curriculum_styles = [
         "level_1",
         "level_2",
@@ -483,6 +482,21 @@ def experiment():
         "terrain_3",
         "terrain_4",
     ]
+    simulations = simulations or make_icl_resource_chain_eval_suite()
+    policy_uris = []
+    for curriculum_style in curriculum_styles:
+        policy_uris.append(
+            f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24/icl_resource_chain_{curriculum_style}.2.2025-09-24:latest.pt"
+        )
+    return SimTool(
+        simulations=simulations,
+        policy_uris=policy_uris,
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
+
+
+def experiment():
+    curriculum_styles = ["full"]
 
     for curriculum_style in curriculum_styles:
         subprocess.run(
@@ -564,6 +578,63 @@ def generate_reward_estimates(dir="icl_ordered_chains"):
     # Save the reward_estimates dictionary to a JSON file
     with open(f"{dir}/reward_estimates.json", "w") as f:
         json.dump(reward_estimates, f, indent=2)
+
+
+def sweep(
+    total_timesteps: int = 1000000,
+) -> SweepTool:
+    lp_protein_config = make_custom_protein_config(
+        base_config=PPO_CORE,
+        parameters={
+            "lp_params.progress_smoothing": ParameterConfig(
+                distribution="uniform",  # Changed from logit_normal - more appropriate for 0.05-0.15 range
+                min=0.05,
+                max=0.15,
+                mean=0.1,
+                scale="auto",
+            ),
+            "lp_params.exploration_bonus": ParameterConfig(
+                distribution="uniform",  # Changed from logit_normal - more appropriate for 0.03-0.15 range
+                min=0.03,
+                max=0.15,
+                mean=0.09,
+                scale="auto",
+            ),
+            "lp_params.ema_timescale": ParameterConfig(
+                distribution="log_normal",  # Changed to log_normal for better exploration of small values
+                min=0.001,
+                max=0.01,
+                mean=0.00316,  # Geometric mean: sqrt(0.001 * 0.01) ≈ 0.00316
+                scale="auto",
+            ),
+            "lp_params.num_active_tasks": ParameterConfig(
+                distribution="int_uniform",  # Changed to int_uniform since this is a count of tasks
+                min=1000,
+                max=5000,
+                mean=3000,  # Arithmetic mean for uniform distribution
+                scale="auto",
+            ),
+            "lp_params.rand_task_rate": ParameterConfig(
+                distribution="uniform",
+                min=0.1,
+                max=0.25,
+                mean=0.175,
+                scale="auto",
+            ),
+        },
+    )
+
+    lp_protein_config.metric = "evaluator/eval_in_context_learning/in_context_learning"
+
+    return SweepTool(
+        protein_config=lp_protein_config,
+        recipe_module="experiments.recipes.in_context_learning.ordered_chains",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate",
+        train_overrides={
+            "trainer.total_timesteps": total_timesteps,
+        },
+    )
 
 
 if __name__ == "__main__":
