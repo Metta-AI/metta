@@ -67,7 +67,7 @@ def games_cmd(
 def play_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
     policy_class_path: str = typer.Option(
-        "cogames.examples.stateful_policy.StatefulPolicy", "--policy", help="Path to policy class"
+        "cogames.examples.random_policy.RandomPolicy", "--policy", help="Path to policy class"
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
@@ -155,7 +155,7 @@ def make_scenario(
 def train_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
     policy_class_path: str = typer.Option(
-        "cogames.examples.stateful_policy.StatefulPolicy", "--policy", help="Path to policy class"
+        "cogames.examples.random_policy.RandomPolicy", "--policy", help="Path to policy class"
     ),
     initial_weights_path: Optional[str] = typer.Option(
         None, "--initial-weights", help="Path to initial policy weights"
