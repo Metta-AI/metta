@@ -111,7 +111,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
 
   if (!paper) {
     return (
-      <div className="h-screen flex-1 overflow-y-auto border-l bg-neutral-50">
+      <div className="h-full overflow-y-auto bg-neutral-50 md:h-screen md:flex-1 md:border-l">
         <div className="px-4 py-4">
           <div className="text-center text-neutral-500">
             <p className="text-sm">No paper associated with this post</p>
@@ -122,7 +122,33 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   }
 
   return (
-    <div className="h-screen flex-1 overflow-y-auto border-l bg-white">
+    <div className="/* Mobile: Takes available height, no special positioning */ /* Desktop: Right sidebar as before */ h-full overflow-y-auto bg-white md:h-screen md:flex-1 md:border-l">
+      {/* Mobile header with close button */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 md:hidden">
+        <h2 className="text-lg font-semibold text-gray-900">Paper Details</h2>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            title="Close paper details"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        )}
+      </div>
+
       <div className="space-y-4 px-4 py-4">
         {/* Header row: star + title + download */}
         <div className="flex items-start gap-2.5">
@@ -198,11 +224,11 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
               </Button>
             ) : null}
 
-            {/* Close button */}
+            {/* Close button - Desktop only */}
             {onClose && (
               <button
                 onClick={onClose}
-                className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                className="hidden rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 md:block"
                 title="Close paper details"
               >
                 <svg

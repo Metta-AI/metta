@@ -167,298 +167,301 @@ export const GroupsView: FC<GroupsViewProps> = ({
   ];
 
   return (
-    <div className="p-4">
-      {/* Header with Create Button */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Groups</h1>
-          <p className="text-gray-600">
+    <div className="flex h-full flex-col">
+      {/* Header Section - matches NewPostForm styling */}
+      <div className="border-b border-gray-200 bg-white p-4 md:p-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900">Groups</h1>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+            Create Group
+          </button>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* Search and Filter Controls */}
+        <div className="mb-6">
+          <p className="mb-4 text-gray-600">
             Interest groups and teams within institutions
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          disabled={userInstitutions.length === 0}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-          title={
-            userInstitutions.length === 0
-              ? "Join an institution first to create groups"
-              : "Create a new group"
-          }
-        >
-          <Plus className="h-4 w-4" />
-          Create Group
-        </button>
-      </div>
 
-      {/* My Groups Section */}
-      {userGroups.length > 0 && (
-        <div className="mb-8">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">
-            My Groups ({userGroups.length})
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {userGroups.map((group) => (
-              <div
-                key={group.id}
-                className="cursor-pointer rounded-lg border border-blue-200 bg-blue-50 p-4 transition-all hover:border-blue-300 hover:shadow-md"
-                onClick={() => {
-                  // For user groups, we always have member data
-                  setSelectedGroup(group);
-                }}
-              >
-                {/* Group Header */}
-                <div className="mb-3 flex items-start gap-3">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
-                    {getGroupInitials(group.name)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <h3 className="truncate text-base font-semibold text-gray-900">
-                        {group.name}
-                      </h3>
-                      <div className="flex items-center gap-1">
-                        {group.currentUserRole === "admin" && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedGroup(getGroupWithMembers(group));
-                            }}
-                            className="rounded-md p-1 text-gray-400 transition-colors hover:bg-blue-100 hover:text-gray-600"
-                            title="Manage group"
-                          >
-                            <Users className="h-4 w-4" />
-                          </button>
+        {/* My Groups Section */}
+        {userGroups.length > 0 && (
+          <div className="mb-8">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">
+              My Groups ({userGroups.length})
+            </h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {userGroups.map((group) => (
+                <div
+                  key={group.id}
+                  className="cursor-pointer rounded-lg border border-blue-200 bg-blue-50 p-4 transition-all hover:border-blue-300 hover:shadow-md"
+                  onClick={() => {
+                    // For user groups, we always have member data
+                    setSelectedGroup(group);
+                  }}
+                >
+                  {/* Group Header */}
+                  <div className="mb-3 flex items-start gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
+                      {getGroupInitials(group.name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="truncate text-base font-semibold text-gray-900">
+                          {group.name}
+                        </h3>
+                        <div className="flex items-center gap-1">
+                          {group.currentUserRole === "admin" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedGroup(getGroupWithMembers(group));
+                              }}
+                              className="rounded-md p-1 text-gray-400 transition-colors hover:bg-blue-100 hover:text-gray-600"
+                              title="Manage group"
+                            >
+                              <Users className="h-4 w-4" />
+                            </button>
+                          )}
+                          {canJoinGroup(group) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleJoinGroup(group.id);
+                              }}
+                              disabled={isJoining}
+                              className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                              title="Join this group"
+                            >
+                              {isJoining ? "Joining..." : "Join"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        {group.isPublic ? (
+                          <Globe className="h-3 w-3" />
+                        ) : (
+                          <Lock className="h-3 w-3" />
                         )}
-                        {canJoinGroup(group) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleJoinGroup(group.id);
-                            }}
-                            disabled={isJoining}
-                            className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-                            title="Join this group"
-                          >
-                            {isJoining ? "Joining..." : "Join"}
-                          </button>
-                        )}
+                        <span>{group.memberCount} members</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Building className="h-3 w-3" />
+                        <span>{group.institution.name}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      {group.isPublic ? (
-                        <Globe className="h-3 w-3" />
-                      ) : (
-                        <Lock className="h-3 w-3" />
-                      )}
-                      <span>{group.memberCount} members</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Building className="h-3 w-3" />
-                      <span>{group.institution.name}</span>
-                    </div>
                   </div>
-                </div>
 
-                {group.description && (
-                  <p className="mb-3 line-clamp-2 text-sm text-gray-600">
-                    {group.description}
-                  </p>
-                )}
+                  {group.description && (
+                    <p className="mb-3 line-clamp-2 text-sm text-gray-600">
+                      {group.description}
+                    </p>
+                  )}
 
-                {/* User Info */}
-                <div className="flex items-center justify-between text-xs">
-                  <span className="rounded bg-blue-100 px-2 py-1 font-medium text-blue-700">
-                    {group.currentUserRole}
-                  </span>
-                  <span className="text-gray-500">
-                    Created {formatDate(group.createdAt)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* All Groups Section */}
-      <div className="mb-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">
-          Discover Groups
-        </h2>
-
-        {/* Filter and Sort Controls */}
-        <div className="mb-6 space-y-4">
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 transform text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search groups..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 py-3 pr-4 pl-10 text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-
-          {/* Sort Options */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">Sort by:</span>
-            {sortOptions.map((option) => (
-              <button
-                key={option.key}
-                onClick={() => handleSortClick(option.key)}
-                className={`flex items-center gap-1 rounded-full px-3 py-1 text-sm transition-colors ${
-                  sortBy === option.key
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {option.label}
-                {sortBy === option.key && (
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${
-                      sortDirection === "asc" ? "rotate-180" : ""
-                    }`}
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Results Count */}
-          <div className="text-sm text-gray-500">
-            Showing {filteredAndSortedGroups.length} of {allGroups.length}{" "}
-            groups
-          </div>
-        </div>
-
-        {/* Groups Grid */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredAndSortedGroups.map((group) => {
-            const isUserGroup = userGroups.some((ug) => ug.id === group.id);
-
-            return (
-              <div
-                key={group.id}
-                className={`cursor-pointer rounded-lg border p-4 transition-all hover:shadow-md ${
-                  isUserGroup
-                    ? "border-blue-200 bg-blue-50 hover:border-blue-300"
-                    : "border-gray-200 bg-white hover:border-gray-300"
-                }`}
-                onClick={() => {
-                  if (group.currentUserRole) {
-                    setSelectedGroup(getGroupWithMembers(group));
-                  }
-                }}
-              >
-                {/* Group Header */}
-                <div className="mb-3 flex items-start gap-3">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
-                    {getGroupInitials(group.name)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <h3 className="truncate text-base font-semibold text-gray-900">
-                        {group.name}
-                      </h3>
-                      <div className="flex items-center gap-1">
-                        {group.currentUserRole === "admin" && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedGroup(getGroupWithMembers(group));
-                            }}
-                            className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                            title="Manage group"
-                          >
-                            <Users className="h-4 w-4" />
-                          </button>
-                        )}
-                        {canJoinGroup(group) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleJoinGroup(group.id);
-                            }}
-                            disabled={isJoining}
-                            className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-                            title="Join this group"
-                          >
-                            {isJoining ? "Joining..." : "Join"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      {group.isPublic ? (
-                        <Globe className="h-3 w-3" />
-                      ) : (
-                        <Lock className="h-3 w-3" />
-                      )}
-                      <span>{group.memberCount} members</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Building className="h-3 w-3" />
-                      <span>{group.institution.name}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {group.description && (
-                  <p className="mb-3 line-clamp-2 text-sm text-gray-600">
-                    {group.description}
-                  </p>
-                )}
-
-                {/* Footer */}
-                <div className="flex items-center justify-between text-xs">
-                  {group.currentUserRole ? (
+                  {/* User Info */}
+                  <div className="flex items-center justify-between text-xs">
                     <span className="rounded bg-blue-100 px-2 py-1 font-medium text-blue-700">
                       {group.currentUserRole}
                     </span>
-                  ) : (
                     <span className="text-gray-500">
-                      {group.isPublic ? "Public" : "Private"}
+                      Created {formatDate(group.createdAt)}
                     </span>
-                  )}
-                  <span className="text-gray-500">
-                    Created {formatDate(group.createdAt)}
-                  </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Empty State */}
-        {filteredAndSortedGroups.length === 0 && (
-          <div className="py-8 text-center">
-            <Users className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-            <p className="text-gray-500">
-              {searchQuery
-                ? "No groups found matching your search."
-                : "No groups found."}
-            </p>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Modals */}
-      <GroupCreateForm
-        isOpen={showCreateForm}
-        onClose={() => setShowCreateForm(false)}
-        userInstitutions={userInstitutions}
-      />
+        {/* All Groups Section */}
+        <div className="mb-6">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">
+            Discover Groups
+          </h2>
 
-      {selectedGroup && (
-        <GroupManagementModal
-          isOpen={!!selectedGroup}
-          onClose={() => setSelectedGroup(null)}
-          group={selectedGroup}
-          currentUserRole={selectedGroup.currentUserRole}
+          {/* Filter and Sort Controls */}
+          <div className="mb-6 space-y-4">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 transform text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search groups..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 py-3 pr-4 pl-10 text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Sort Options */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">
+                Sort by:
+              </span>
+              {sortOptions.map((option) => (
+                <button
+                  key={option.key}
+                  onClick={() => handleSortClick(option.key)}
+                  className={`flex items-center gap-1 rounded-full px-3 py-1 text-sm transition-colors ${
+                    sortBy === option.key
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  {option.label}
+                  {sortBy === option.key && (
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${
+                        sortDirection === "asc" ? "rotate-180" : ""
+                      }`}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Results Count */}
+            <div className="text-sm text-gray-500">
+              Showing {filteredAndSortedGroups.length} of {allGroups.length}{" "}
+              groups
+            </div>
+          </div>
+
+          {/* Groups Grid */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredAndSortedGroups.map((group) => {
+              const isUserGroup = userGroups.some((ug) => ug.id === group.id);
+
+              return (
+                <div
+                  key={group.id}
+                  className={`cursor-pointer rounded-lg border p-4 transition-all hover:shadow-md ${
+                    isUserGroup
+                      ? "border-blue-200 bg-blue-50 hover:border-blue-300"
+                      : "border-gray-200 bg-white hover:border-gray-300"
+                  }`}
+                  onClick={() => {
+                    if (group.currentUserRole) {
+                      setSelectedGroup(getGroupWithMembers(group));
+                    }
+                  }}
+                >
+                  {/* Group Header */}
+                  <div className="mb-3 flex items-start gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
+                      {getGroupInitials(group.name)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="truncate text-base font-semibold text-gray-900">
+                          {group.name}
+                        </h3>
+                        <div className="flex items-center gap-1">
+                          {group.currentUserRole === "admin" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedGroup(getGroupWithMembers(group));
+                              }}
+                              className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                              title="Manage group"
+                            >
+                              <Users className="h-4 w-4" />
+                            </button>
+                          )}
+                          {canJoinGroup(group) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleJoinGroup(group.id);
+                              }}
+                              disabled={isJoining}
+                              className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                              title="Join this group"
+                            >
+                              {isJoining ? "Joining..." : "Join"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        {group.isPublic ? (
+                          <Globe className="h-3 w-3" />
+                        ) : (
+                          <Lock className="h-3 w-3" />
+                        )}
+                        <span>{group.memberCount} members</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Building className="h-3 w-3" />
+                        <span>{group.institution.name}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {group.description && (
+                    <p className="mb-3 line-clamp-2 text-sm text-gray-600">
+                      {group.description}
+                    </p>
+                  )}
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between text-xs">
+                    {group.currentUserRole ? (
+                      <span className="rounded bg-blue-100 px-2 py-1 font-medium text-blue-700">
+                        {group.currentUserRole}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">
+                        {group.isPublic ? "Public" : "Private"}
+                      </span>
+                    )}
+                    <span className="text-gray-500">
+                      Created {formatDate(group.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Empty State */}
+          {filteredAndSortedGroups.length === 0 && (
+            <div className="py-8 text-center">
+              <Users className="mx-auto mb-4 h-12 w-12 text-gray-400" />
+              <p className="text-gray-500">
+                {searchQuery
+                  ? "No groups found matching your search."
+                  : "No groups found."}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Modals */}
+        <GroupCreateForm
+          isOpen={showCreateForm}
+          onClose={() => setShowCreateForm(false)}
+          userInstitutions={userInstitutions}
         />
-      )}
+
+        {selectedGroup && (
+          <GroupManagementModal
+            isOpen={!!selectedGroup}
+            onClose={() => setSelectedGroup(null)}
+            group={selectedGroup}
+            currentUserRole={selectedGroup.currentUserRole}
+          />
+        )}
+      </div>
     </div>
   );
 };

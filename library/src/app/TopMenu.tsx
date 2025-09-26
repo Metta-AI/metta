@@ -5,8 +5,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { isGlobalAdmin } from "@/lib/adminAuth";
 import { ClientNotificationBell } from "@/components/ClientNotificationBell";
-
-import { SignOutButton } from "./SignOutButton";
+import { MobileMenuButton } from "@/components/MobileMenuButton";
 
 const UserInfo: FC = async () => {
   const session = await auth();
@@ -20,7 +19,6 @@ const UserInfo: FC = async () => {
     <div className="flex items-center gap-2">
       <ClientNotificationBell />
       <span>{session.user.email}</span>
-      <SignOutButton />
     </div>
   );
 };
@@ -30,8 +28,10 @@ export const TopMenu: FC = async () => {
   const isAdmin = await isGlobalAdmin();
 
   return (
-    <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 py-2 pr-8 pl-72">
+    <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 md:pr-8 md:pl-48">
+      {/* Mobile menu button and admin link */}
       <div className="flex items-center gap-4">
+        <MobileMenuButton />
         {isAdmin && (
           <Link
             href="/admin/institutions"
