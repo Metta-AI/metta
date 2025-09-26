@@ -347,7 +347,7 @@ class TransformerPolicy(Policy):
         hidden_states = memory.get("hidden_states")
         if hidden_states is None or not hidden_states:
             return None
-        packed_layers = []
+        packed_layers: List[torch.Tensor] = []
         for layer in hidden_states:
             if layer is None:
                 return None
@@ -365,7 +365,7 @@ class TransformerPolicy(Policy):
             elif current_len > self.memory_len:
                 layer_data = layer_data[:, -self.memory_len :, :]
             packed_layers.append(layer_data)
-        return torch.stack(packed_layers, dim=1)
+        return torch.stack(packed_layers, dim=1)  # (batch, num_layers, mem_len, hidden)
 
     def _unpack_memory(
         self, packed: torch.Tensor, device: torch.device, dtype: torch.dtype
@@ -491,7 +491,7 @@ class TransformerPolicy(Policy):
             memory_batch = self._gather_memory_batch(env_ids, batch_size, device, dtype)
             packed_memory = self._pack_memory(memory_batch)
             if packed_memory is not None:
-                td.set("transformer_memory_pre", packed_memory.detach())
+                td.set("transformer_memory_pre", packed_memory.detach().to(dtype=torch.float16))
             core_out, new_memory = self.transformer_module(latent_seq, memory_batch)
         elif use_memory and tt > 1:
             packed_memory = td.get("transformer_memory_pre", None)
@@ -734,7 +734,7 @@ class TransformerPolicy(Policy):
         if self.memory_len > 0:
             spec["transformer_memory_pre"] = UnboundedDiscrete(
                 shape=torch.Size([self.transformer_cfg.num_layers, self.memory_len, self.hidden_size]),
-                dtype=torch.float32,
+                dtype=torch.float16,
             )
         return Composite(**spec)
 
