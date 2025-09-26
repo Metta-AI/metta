@@ -1,12 +1,19 @@
 import
-  boxy, chroma, fidget2/[common, hybridrender],
-  common, panels
+  std/[json],
+  fidget2,
+  common
 
 proc drawEnvConfig*(panel: Panel) =
+  ## Draw the environment configuration JSON as text inside the panel.
+  var text = "No configuration loaded."
+  if not replay.isNil and not replay.mgConfig.isNil:
+    text = pretty(replay.mgConfig)
 
-  let box = IRect(x: 0, y: 0, w: panel.rect.w, h: panel.rect.h)
+  let wrapper = find("**/ConfigTextWrapper")
+  wrapper.clipsContent = true
+  wrapper.overflowDirection = VerticalScrolling
 
-  bxy.drawRect(
-    rect = box.rect,
-    color = color(0, 1, 0, 1.0)
-  )
+  let cfgText = find("**/ConfigText")
+
+  if cfgText.text != text:
+    cfgText.text = text

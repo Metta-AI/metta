@@ -138,6 +138,12 @@ find "/UI/Main":
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
+    envConfigPanel.node.onRenderCallback = proc(thisNode: Node) =
+      bxy.saveTransform()
+      bxy.translate(thisNode.position)
+      drawEnvConfig(envConfigPanel)
+      bxy.restoreTransform()
+
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
       timeline.drawTimeline(globalTimelinePanel)
