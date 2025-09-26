@@ -122,6 +122,9 @@ class SweepTool(Tool):
     # local test is similar to dry runs
     local_test: bool = False
 
+    # Force re-dispatch of evaluation jobs currently in IN_EVAL state on relaunch
+    force_eval: bool = False
+
     # Override configurations
     train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
     eval_overrides: dict[str, Any] = {}  # Overrides to apply to all evaluation jobs
@@ -249,6 +252,7 @@ class SweepTool(Tool):
             nodes=self.nodes,
             experiment_id=self.sweep_name,
             protein_config=self.protein_config,
+            force_eval=self.force_eval,
         )
 
         # Create scheduler with Bayesian optimization
