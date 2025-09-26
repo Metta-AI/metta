@@ -298,6 +298,12 @@ class ConverterChainTaskGenerator(ICLTaskGenerator):
                 cfg,
                 rng,
             )
+            if os.path.exists(f"./train_dir/{dir}/reward_estimates.json"):
+                reward_estimates = json.load(
+                    open(f"./train_dir/{dir}/reward_estimates.json")
+                )
+                env.game.reward_estimates = reward_estimates[dir]
+            return env
 
         return make_in_context_chains(
             num_agents=24,
