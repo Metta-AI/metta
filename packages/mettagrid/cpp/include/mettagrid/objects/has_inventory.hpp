@@ -7,8 +7,11 @@
 
 #include "objects/constants.hpp"
 #include "objects/inventory.hpp"
+#include "objects/inventory_config.hpp"
 class HasInventory {
 public:
+  HasInventory(const InventoryConfig& inventory_config) : inventory(inventory_config) {}
+  virtual ~HasInventory() = default;
   Inventory inventory;
 
   // Whether the inventory is accessible to an agent.
