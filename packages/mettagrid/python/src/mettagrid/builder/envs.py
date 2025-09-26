@@ -188,6 +188,7 @@ def make_in_context_chains(
     density: Optional[str] = None,
     chain_length: int = 2,
     num_sinks: int = 0,
+    dir: Optional[str] = None,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -207,6 +208,7 @@ def make_in_context_chains(
                     density=density,
                     chain_length=chain_length,
                     num_sinks=num_sinks,
+                    dir=dir,
                 ),
             ),
             actions=ActionsConfig(

@@ -310,6 +310,7 @@ class ConverterChainTaskGenerator(ICLTaskGenerator):
             density=density,
             chain_length=len(resources) + 1,
             num_sinks=num_sinks,
+            dir=self.map_dir,
         )
 
     def _generate_task(
@@ -448,7 +449,7 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
         2, 10
     ):  # chain length should be equal to the number of converters, which is equal to the number of resources + 1
         for n_sinks in range(0, 4):
-            for room_size in ["tiny", "small", "medium", "large"]:
+            for room_size in ["medium", "large"]:
                 for terrain_type in ["", "terrain"]:
                     for density in ["", "balanced", "sparse", "high"]:
                         for i in range(num_envs):

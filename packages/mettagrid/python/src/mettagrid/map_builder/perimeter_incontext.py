@@ -36,6 +36,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         chain_length: int = 2
         num_sinks: int = 0
+        dir: Optional[str] = None
 
     def __init__(self, config: Config):
         self._config = config
@@ -194,7 +195,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         return False
 
-    def build(self, dir=None):
+    def build(self):
         height = self._config.height
         width = self._config.width
 
@@ -307,8 +308,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         center_i, center_j = height // 2, width // 2
         grid[center_i, center_j] = agents[0]
 
-        dir = "icl_ordered_chains"
-        if dir is not None:
+        if self._config.dir is not None:
             area = height * width
 
             if area < 49:
@@ -328,7 +328,6 @@ class PerimeterInContextMapBuilder(MapBuilder):
             subdir = f"{size}/{self._config.chain_length}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
             filename = os.path.join(dir, subdir, f"{random_number}.npy")
             os.makedirs(os.path.dirname(filename), exist_ok=True)
-            print(f"Saving to {filename}")
             np.save(filename, grid)
 
         return GameMap(grid)

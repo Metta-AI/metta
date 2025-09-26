@@ -32,7 +32,6 @@ def make_curriculum_args(
     room_sizes: list[str],
     positions: list[list[Position]],
 ) -> dict:
-
     return {
         "num_agents": num_agents,
         "num_altars": num_altars,
@@ -133,14 +132,12 @@ curriculum_args = {
         "num_altars": [1],
         "num_generators": [1],
         "room_sizes": ["small", "medium", "large"],
-
     },
     "multi_agents_1g_1a": {
         "num_agents": [1, 2, 3],
         "num_altars": [1],
         "num_generators": [1],
         "room_sizes": ["small", "medium", "large"],
-
     },
     "multi_agents_1g_1a_with_any": {
         "num_agents": [1, 2, 3],
@@ -262,7 +259,7 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
             height=height,
         )
 
-    #TODO
+    # TODO
     def _set_width_and_height(
         self, room_size, num_agents, num_altars, num_generators, rng
     ):
@@ -360,6 +357,7 @@ def train(
     from experiments.evals.in_context_learning.assembler_foraging import (
         make_assembler_eval_suite,
     )
+
     return train_icl(task_generator_cfg, make_assembler_eval_suite, lp_params)
 
 
@@ -383,6 +381,7 @@ def evaluate(
         policy_uris=policy_uris,
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
+
 
 def play_eval() -> PlayTool:
     env = make_assembler_env(
@@ -441,4 +440,3 @@ def play(
 
 if __name__ == "__main__":
     experiment()
-
