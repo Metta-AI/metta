@@ -47,9 +47,26 @@ def _run_bazel_build() -> None:
     else:
         config = "dbg" if debug else "opt"
 
+    # Align Bazel's registered Python toolchain with the active interpreter.
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+
+    env = os.environ.copy()
+    env.setdefault("METTAGRID_BAZEL_PYTHON_VERSION", py_version)
+
+    # Provide a writable output root for environments with restricted /var/tmp access.
+    output_user_root = env.get(
+        "METTAGRID_BAZEL_OUTPUT_ROOT",
+        str(PROJECT_ROOT / ".bazel_output"),
+    )
+
+    # Ensure the output root exists before invoking Bazel.
+    Path(output_user_root).mkdir(parents=True, exist_ok=True)
+
     # Build the Python extension with auto-detected parallelism
     cmd = [
         "bazel",
+        "--batch",
+        f"--output_user_root={output_user_root}",
         "build",
         f"--config={config}",
         "--jobs=auto",
@@ -58,7 +75,7 @@ def _run_bazel_build() -> None:
     ]
 
     print(f"Running Bazel build: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, env=env)
 
     if result.returncode != 0:
         print("Bazel build failed. STDERR:", file=sys.stderr)
