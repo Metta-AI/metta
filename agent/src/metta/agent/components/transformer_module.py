@@ -9,6 +9,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+try:  # pragma: no cover - optional dependency
+    from flash_attn.flash_attn_interface import flash_attn_func  # type: ignore
+except ImportError:  # pragma: no cover
+    flash_attn_func = None
+
 
 def empty_memory(
     num_layers: int,
@@ -159,6 +164,8 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)
         self.out_proj = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(dropout)
+        self._flash_available = flash_attn_func is not None
+        self._attn_dropout_p = float(dropout)
 
         nn.init.xavier_uniform_(self.qkv_proj.weight, gain=1.0)
         nn.init.xavier_uniform_(self.out_proj.weight, gain=1.0)
@@ -168,14 +175,49 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         seq_len, batch_size, _ = x.shape
         qkv = self.qkv_proj(x)
         qkv = qkv.view(seq_len, batch_size, 3, self.n_heads, self.d_k)
-        qkv = qkv.permute(2, 3, 1, 0, 4)  # (3, n_heads, batch, seq_len, d_k)
+        qkv = qkv.permute(2, 1, 3, 0, 4)  # (3, batch, heads, seq, d_k)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        q = q.reshape(self.n_heads * batch_size, seq_len, self.d_k)
-        k = k.reshape(self.n_heads * batch_size, seq_len, self.d_k)
-        v = v.reshape(self.n_heads * batch_size, seq_len, self.d_k)
+        if (
+            attn_mask is None
+            and self.use_causal_mask
+            and flash_attn_func is not None
+            and x.is_cuda
+        ):
+            dropout_p = self._attn_dropout_p if self.training else 0.0
+            q_flash = q.permute(0, 3, 1, 2)  # (batch, seq, heads, d)
+            k_flash = k.permute(0, 3, 1, 2)
+            v_flash = v.permute(0, 3, 1, 2)
+            out = flash_attn_func(
+                q_flash,
+                k_flash,
+                v_flash,
+                dropout_p=dropout_p,
+                softmax_scale=None,
+                causal=True,
+            )
+            out = out.permute(1, 0, 2, 3).reshape(seq_len, batch_size, self.d_model)
+            return self.out_proj(out)
 
-        scores = torch.bmm(q, k.transpose(1, 2)) / math.sqrt(self.d_k)
+        if attn_mask is None and hasattr(F, "scaled_dot_product_attention"):
+            dropout_p = self._attn_dropout_p if self.training else 0.0
+            out = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=None,
+                dropout_p=dropout_p,
+                is_causal=self.use_causal_mask,
+            )
+            out = out.permute(2, 0, 1, 3).reshape(seq_len, batch_size, self.d_model)
+            return self.out_proj(out)
+
+        # Fallback path with explicit masking or CPU execution
+        q_2d = q.reshape(batch_size * self.n_heads, seq_len, self.d_k)
+        k_2d = k.reshape(batch_size * self.n_heads, seq_len, self.d_k)
+        v_2d = v.reshape(batch_size * self.n_heads, seq_len, self.d_k)
+
+        scores = torch.bmm(q_2d, k_2d.transpose(1, 2)) / math.sqrt(self.d_k)
 
         if self.use_causal_mask:
             causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool), diagonal=1)
@@ -183,21 +225,25 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
 
         if attn_mask is not None:
             if attn_mask.dim() == 2:
-                expanded = attn_mask.unsqueeze(0).expand(scores.size(0), -1, -1)
+                expanded = attn_mask.unsqueeze(0)
             elif attn_mask.dim() == 3:
                 expanded = attn_mask
                 if expanded.size(0) == 1:
-                    expanded = expanded.expand(scores.size(0), -1, -1)
+                    expanded = expanded.expand(batch_size, -1, -1)
             else:
                 raise ValueError("Attention mask must have dim 2 or 3.")
+            expanded = expanded.to(device=x.device)
+            expanded = expanded.unsqueeze(1).expand(batch_size, self.n_heads, seq_len, seq_len)
+            scores = scores.view(batch_size, self.n_heads, seq_len, seq_len)
             scores = scores.masked_fill(expanded.to(torch.bool), float("-inf"))
+            scores = scores.view(batch_size * self.n_heads, seq_len, seq_len)
 
         weights = F.softmax(scores, dim=-1)
         weights = self.dropout(weights)
 
-        out = torch.bmm(weights, v)
-        out = out.view(self.n_heads, batch_size, seq_len, self.d_k)
-        out = out.permute(2, 1, 0, 3).reshape(seq_len, batch_size, self.d_model)
+        out = torch.bmm(weights, v_2d)
+        out = out.view(batch_size, self.n_heads, seq_len, self.d_k)
+        out = out.permute(2, 0, 1, 3).reshape(seq_len, batch_size, self.d_model)
         return self.out_proj(out)
 
 

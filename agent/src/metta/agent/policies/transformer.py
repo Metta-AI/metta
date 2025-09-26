@@ -155,6 +155,7 @@ class TransformerPolicy(Policy):
         self._build_transformer()
 
         self._memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
+        self._aux_zero_cache: dict[tuple[torch.device, torch.dtype, tuple[int, ...]], torch.Tensor] = {}
 
         self._diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
         self._diag_limit = int(os.getenv("TRANSFORMER_DIAG_STEPS", "5"))
@@ -308,7 +309,7 @@ class TransformerPolicy(Policy):
         total = batch_size * tt
         reward = td.get("rewards", None)
         if reward is None:
-            reward = torch.zeros((total, 1), device=device)
+            reward = self._get_zero_buffer((total, 1), device, torch.float32)
         else:
             reward = reward.view(total, -1).float().to(device=device)
             if reward.size(1) != 1:
@@ -317,7 +318,7 @@ class TransformerPolicy(Policy):
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)
         if dones is None and truncateds is None:
-            resets = torch.zeros((total, 1), device=device)
+            resets = self._get_zero_buffer((total, 1), device, torch.float32)
         else:
             if dones is None:
                 dones = torch.zeros_like(truncateds)
@@ -339,18 +340,33 @@ class TransformerPolicy(Policy):
                     prev_actions[:, 1:] = actions[:, :-1]
                 last_actions = prev_actions.view(total, -1)
             else:
-                last_actions = torch.zeros((total, self.action_dim), device=device)
+                last_actions = self._get_zero_buffer((total, self.action_dim), device, torch.float32)
 
         if last_actions.size(1) != self.action_dim:
             action_dim = last_actions.size(1)
             if action_dim > self.action_dim:
                 last_actions = last_actions[:, : self.action_dim]
             else:
-                pad = torch.zeros((total, self.action_dim - action_dim), device=device)
+                pad = self._get_zero_buffer((total, self.action_dim - action_dim), device, last_actions.dtype)
                 last_actions = torch.cat([last_actions, pad], dim=1)
 
         aux = self.reward_proj(reward) + self.reset_proj(resets) + self.last_action_proj(last_actions)
         return aux
+
+    def _get_zero_buffer(self, shape: tuple[int, ...], device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+        key = (device, dtype, shape)
+        buf = self._aux_zero_cache.get(key)
+        if buf is None:
+            buf = torch.zeros(shape, device=device, dtype=dtype)
+            self._aux_zero_cache[key] = buf
+        else:
+            buf = buf.to(device=device, dtype=dtype)
+            if buf.shape != shape:
+                buf = torch.zeros(shape, device=device, dtype=dtype)
+                self._aux_zero_cache[key] = buf
+            else:
+                buf.zero_()
+        return buf
 
     def _pack_memory(self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]) -> Optional[torch.Tensor]:
         if memory is None or self.memory_len <= 0:
@@ -503,7 +519,10 @@ class TransformerPolicy(Policy):
             if self.memory_len > 0:
                 packed_memory = self._pack_memory(memory_batch)
                 if packed_memory is not None:
-                    td.set("transformer_memory_pre", packed_memory.detach().to(dtype=torch.float16))
+                    td.set(
+                        "transformer_memory_pre",
+                        packed_memory.detach().to(dtype=torch.float16, device=torch.device("cpu")),
+                    )
             core_out, new_memory = self.transformer_module(latent_seq, memory_batch)
         elif use_memory and tt > 1:
             packed_memory = td.get("transformer_memory_pre", None)
@@ -513,13 +532,15 @@ class TransformerPolicy(Policy):
                 and packed_memory is not None
                 and packed_memory.numel() > 0
             ):
-                packed_memory = packed_memory.to(device=device).view(
+                packed_memory = packed_memory.view(
                     batch_size,
+                    tt,
                     self.transformer_layers,
                     self.memory_len,
                     self.hidden_size,
                 )
-                memory_batch = self._unpack_memory(packed_memory, device, dtype)
+                initial_memory = packed_memory[:, 0].to(device=device)
+                memory_batch = self._unpack_memory(initial_memory, device, dtype)
 
             core_out, _ = self.transformer_module(latent_seq, memory_batch)
             new_memory = None
