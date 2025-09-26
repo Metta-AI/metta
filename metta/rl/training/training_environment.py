@@ -44,7 +44,7 @@ class TrainingEnvironmentConfig(Config):
     auto_workers: bool = Field(default=True)
     """Whether to auto-tune worker count based on available CPU/GPU resources"""
 
-    forward_pass_minibatch_target_size: int = Field(default=1024, gt=0)  # 4096
+    forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     """Target size for forward pass minibatches"""
 
     zero_copy: bool = Field(default=True)
