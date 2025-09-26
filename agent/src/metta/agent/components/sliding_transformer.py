@@ -65,10 +65,10 @@ class TransformerBlock(nn.Module):
         return x, k, v
 
 
-class VanillaTransformerConfig(ComponentConfig):
+class SlidingTransformerConfig(ComponentConfig):
     in_key: str
     out_key: str
-    name: str = "vanilla_transformer"
+    name: str = "sliding_transformer"
     output_dim: int = 16
     input_dim: int = 64
     num_heads: int = 1
@@ -78,13 +78,13 @@ class VanillaTransformerConfig(ComponentConfig):
     pool: Literal["cls", "mean", "none"] = "mean"
 
     def make_component(self, env=None):
-        return VanillaTransformer(config=self, env=env)
+        return SlidingTransformer(config=self, env=env)
 
 
-class VanillaTransformer(nn.Module):
+class SlidingTransformer(nn.Module):
     """ """
 
-    def __init__(self, config: VanillaTransformerConfig, env):
+    def __init__(self, config: SlidingTransformerConfig, env):
         super().__init__()
         self.config = config
         self.max_cache_size = self.config.max_cache_size
