@@ -12,8 +12,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from metta.agent.components.agalite_optimized import discounted_sum
 from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
+from metta.agent.components.agalite_optimized import discounted_sum
 
 
 class EnhancedGRUGatingUnit(nn.Module):
@@ -420,6 +420,7 @@ class EnhancedTransformerEncoder(nn.Module):
         self.d_model = d_model
         self.mode = mode
         self.use_dense = use_dense
+        self.kernel = kernel
 
         # Input embedding layer (used for first layer)
         if use_dense:
