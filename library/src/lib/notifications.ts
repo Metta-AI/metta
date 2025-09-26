@@ -138,6 +138,11 @@ export async function createMentionNotifications(
   contentId: string,
   actionUrl: string
 ) {
+  console.log(
+    `🔍 createMentionNotifications called with ${resolvedMentions.length} mentions:`,
+    resolvedMentions
+  );
+
   const notifications: CreateNotificationParams[] = [];
 
   for (const mention of resolvedMentions) {
