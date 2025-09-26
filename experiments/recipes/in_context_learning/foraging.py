@@ -494,7 +494,8 @@ def train(
         sep_weights = [0.5, 0.5]
 
     task_generator_cfg = BiasedForagingTaskGenerator.Config(
-        num_agents=[agents],
+        num_agents=[1, 2],
+        num_assemblers=[1, 2],
         max_steps=512,
         map_sizes={
             "small": {"width": 10, "height": 10, "resource_count": 2},
@@ -503,11 +504,15 @@ def train(
             "extra_large": {"width": 32, "height": 32, "resource_count": 5},
             "extra_extra_large": {"width": 64, "height": 64, "resource_count": 6},
         },
-        size_weights=[0.4, 0.4, 0.2, 0.1, 0.1],
+        size_weights=[0.25, 0.35, 0.25, 0.1, 0.05],
         separation_modes=sep_modes,
         separation_weights=sep_weights,
         soft_mode_bias=soft_bias,
-        recipe_mode=recipe_mode or ["simple"],
+        recipe_mode=recipe_mode or ["simple", "directional", "unordered_chain"],
+        max_recipe_inputs=[1, 2],
+        resource_type_counts=[1, 2, 3, 4],
+        randomize_regions=True,
+        cluster_counts=[1, 2, 3, 4],
     )
     curriculum = CurriculumConfig(
         task_generator=task_generator_cfg,
@@ -567,114 +572,16 @@ def play(
 
 
 def make_eval_suite() -> list[SimulationConfig]:
-    """Create a comprehensive foraging evaluation suite."""
-    eval_configs = [
-        # Baseline single agent
-        {
-            "agents": 1,
-            "size": "small",
-            "separation": "strict",
-            "recipe_mode": ["simple"],
-        },
-        {
-            "agents": 1,
-            "size": "medium",
-            "separation": "strict",
-            "recipe_mode": ["simple"],
-        },
-        # Generalization to soft separation
-        {
-            "agents": 1,
-            "size": "medium",
-            "separation": "soft",
-            "recipe_mode": ["simple"],
-        },
-        # Generalization to more complex recipes
-        {
-            "agents": 1,
-            "size": "medium",
-            "separation": "strict",
-            "recipe_mode": ["directional"],
-        },
-        {
-            "agents": 1,
-            "size": "medium",
-            "separation": "strict",
-            "recipe_mode": ["unordered_chain"],
-        },
-        # Generalization to larger maps
-        {
-            "agents": 1,
-            "size": "large",
-            "separation": "strict",
-            "recipe_mode": ["simple"],
-        },
-        # Multi-agent scenarios
-        {
-            "agents": 2,
-            "size": "medium",
-            "separation": "strict",
-            "recipe_mode": ["simple"],
-        },
-        {
-            "agents": 2,
-            "size": "medium",
-            "separation": "soft",
-            "recipe_mode": ["simple"],
-        },
-        {
-            "agents": 2,
-            "size": "large",
-            "separation": "strict",
-            "recipe_mode": ["directional"],
-        },
-        {
-            "agents": 2,
-            "size": "large",
-            "separation": "strict",
-            "recipe_mode": ["unordered_chain"],
-        },
-        # Multi-assembler
-        {
-            "agents": 1,
-            "size": "large",
-            "separation": "strict",
-            "recipe_mode": ["simple"],
-            "num_assemblers": 2,
-        },
-        {
-            "agents": 2,
-            "size": "large",
-            "separation": "soft",
-            "recipe_mode": ["simple"],
-            "num_assemblers": 2,
-        },
-    ]
+    """Passthrough to the evals module's comprehensive foraging suite.
 
-    configs = []
-    for params in eval_configs:
-        name_parts = [
-            f"{params.get('agents', 1)}a",
-            params["size"],
-            params["separation"],
-            params["recipe_mode"][0],
-        ]
-        if "num_assemblers" in params:
-            name_parts.append(f"{params['num_assemblers']}asm")
+    This avoids duplication and keeps eval scenarios centralized under
+    experiments/evals/in_context_learning/foraging.py.
+    """
+    from experiments.evals.in_context_learning.foraging import (  # local import to avoid circular
+        make_foraging_eval_suite,
+    )
 
-        name = f"foraging_eval_{'_'.join(name_parts)}"
-
-        env = make_env(seed=42, **params)
-
-        configs.append(
-            SimulationConfig(
-                env=env,
-                name=name,
-                suite="in_context_learning",
-            )
-        )
-
-    return configs
+    return make_foraging_eval_suite()
 
 
 def evaluate(
