@@ -1,4 +1,4 @@
-"""Transformer policies that mirror legacy PyTorch agents exactly."""
+"""Transformer policies built on the Metta transformer backbones."""
 
 from __future__ import annotations
 
@@ -137,10 +137,6 @@ class TransformerPolicy(Policy):
 
         self._memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
 
-        # Expose action-metadata placeholders for compatibility with legacy helpers
-        self.cum_action_max_params: Optional[torch.Tensor] = None
-        self.action_index_tensor: Optional[torch.Tensor] = None
-
         self._diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
         self._diag_limit = int(os.getenv("TRANSFORMER_DIAG_STEPS", "5"))
         self._diag_counter = 0
@@ -224,7 +220,7 @@ class TransformerPolicy(Policy):
     # ------------------------------------------------------------------
     @property
     def cnn1(self) -> nn.Module:
-        """Expose first CNN layer for legacy hooks/tests."""
+        """Expose first CNN layer for downstream tests and diagnostics."""
 
         return self.cnn_encoder.cnn1
 
@@ -521,26 +517,11 @@ class TransformerPolicy(Policy):
         log = self.obs_shim.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
-        self.cum_action_max_params = self.action_probs.cum_action_max_params
-        self.action_index_tensor = self.action_probs.action_index_tensor
         self._memory.clear()
         return [log] if log is not None else []
 
     def reset_memory(self) -> None:
         self._memory.clear()
-
-    # ------------------------------------------------------------------
-    # Action helpers (legacy compatibility)
-    # ------------------------------------------------------------------
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Delegate action-to-logit conversion to ActionProbs component."""
-
-        return self.action_probs._convert_action_to_logit_index(flattened_action)
-
-    def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
-        """Delegate logit-to-action conversion to ActionProbs component."""
-
-        return self.action_probs._convert_logit_index_to_action(logit_indices)
 
     @property
     def device(self) -> torch.device:

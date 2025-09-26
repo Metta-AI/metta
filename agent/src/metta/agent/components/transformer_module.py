@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import math
 from typing import Dict, List, Optional, Tuple
 
@@ -189,13 +188,10 @@ class GTrXLModule(nn.Module):
         use_causal_mask: bool = True,
         *,
         positional_scale: float = 0.1,
-        **legacy_kwargs: float,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
             raise ValueError("d_model must be divisible by n_heads")
-        if legacy_kwargs:
-            logging.getLogger(__name__).debug("GTrXLModule ignoring legacy kwargs: %s", sorted(legacy_kwargs.keys()))
 
         self.d_model = d_model
         self.n_heads = n_heads

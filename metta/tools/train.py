@@ -64,11 +64,8 @@ class TrainTool(Tool):
         "fast": FastConfig,
         "vit": ViTDefaultConfig,
         "gtrxl": gtrxl_policy_config,
-        "transformer": gtrxl_policy_config,
         "trxl": trxl_policy_config,
-        "transformer_improved": trxl_policy_config,
         "trxl_nvidia": trxl_nvidia_policy_config,
-        "transformer_nvidia": trxl_nvidia_policy_config,
     }
 
     @model_validator(mode="before")

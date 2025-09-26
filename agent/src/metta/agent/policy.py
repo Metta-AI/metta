@@ -150,8 +150,5 @@ class ExternalPolicyWrapper(Policy):
 
 PolicyArchitecture.register_alias("fast", "metta.agent.policies.fast.FastConfig")
 PolicyArchitecture.register_alias("gtrxl", "metta.agent.policies.transformer.gtrxl_policy_config")
-PolicyArchitecture.register_alias("transformer", "metta.agent.policies.transformer.gtrxl_policy_config")
 PolicyArchitecture.register_alias("trxl", "metta.agent.policies.transformer.trxl_policy_config")
-PolicyArchitecture.register_alias("transformer_improved", "metta.agent.policies.transformer.trxl_policy_config")
 PolicyArchitecture.register_alias("trxl_nvidia", "metta.agent.policies.transformer.trxl_nvidia_policy_config")
-PolicyArchitecture.register_alias("transformer_nvidia", "metta.agent.policies.transformer.trxl_nvidia_policy_config")
