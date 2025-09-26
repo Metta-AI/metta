@@ -1006,7 +1006,10 @@ def _(
             metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
             run_name_from_ckpt = metadata["run_name"]
 
-            trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
+            trained_artifact = CheckpointManager.load_from_uri(checkpoint_uri)
+            trained_policy = trained_artifact.policy
+            if trained_policy is None:
+                raise RuntimeError("Expected serialized policy in artifact for evaluation demo")
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
@@ -1660,7 +1663,10 @@ def _(
         metadata = CheckpointManager.get_policy_metadata(checkpoint_uri)
         run_name_from_ckpt = metadata["run_name"]
 
-        trained_policy = CheckpointManager.load_from_uri(checkpoint_uri)
+        trained_artifact = CheckpointManager.load_from_uri(checkpoint_uri)
+        trained_policy = trained_artifact.policy
+        if trained_policy is None:
+            raise RuntimeError("Expected serialized policy in artifact for evaluation demo")
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):

@@ -19,6 +19,7 @@ from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import PolicyArtifact
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.vecenv import make_vecenv
 from metta.sim.replay_writer import S3ReplayWriter
@@ -46,7 +47,7 @@ class Simulation:
     def __init__(
         self,
         cfg: SimulationConfig,
-        policy: Policy,
+        policy_artifact: PolicyArtifact,
         policy_uri: str,
         device: torch.device,
         vectorization: str,
@@ -102,15 +103,18 @@ class Simulation:
         self._max_time_s = cfg.max_time_s
         self._agents_per_env = cfg.env.game.num_agents
 
-        self._policy = policy
+        self._policy_artifact = policy_artifact
+        self._policy: Policy | None = policy_artifact.policy
         self._policy_uri = policy_uri
         # Load NPC policy if specified
         if cfg.npc_policy_uri:
-            self._npc_policy = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+            self._npc_artifact = CheckpointManager.load_from_uri(cfg.npc_policy_uri)
+            self._npc_policy: Policy | None = self._npc_artifact.policy
         else:
+            self._npc_artifact = None
             self._npc_policy = None
         self._npc_policy_uri = cfg.npc_policy_uri
-        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_policy is not None else 1.0
+        self._policy_agents_pct = cfg.policy_agents_pct if cfg.npc_policy_uri else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -131,14 +135,10 @@ class Simulation:
             feature_normalizations=metta_grid_env.feature_normalizations,
         )
 
-        # Initialize policy to environment
-        self._policy.eval()  # Set to evaluation mode for simulation
-        self._policy.initialize_to_environment(env_metadata, self._device)
+        self._policy = self._materialize_policy(self._policy_artifact, self._policy, env_metadata)
 
-        if self._npc_policy is not None:
-            # Initialize NPC policy to environment
-            self._npc_policy.eval()  # Set to evaluation mode for simulation
-            self._npc_policy.initialize_to_environment(env_metadata, self._device)
+        if self._npc_artifact is not None:
+            self._npc_policy = self._materialize_policy(self._npc_artifact, self._npc_policy, env_metadata)
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -155,6 +155,19 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
+    def _materialize_policy(
+        self,
+        artifact: PolicyArtifact,
+        existing_policy: Policy | None,
+        env_metadata: EnvironmentMetaData,
+    ) -> Policy:
+        policy = existing_policy or artifact.instantiate(env_metadata)
+        policy = policy.to(self._device)
+        policy.eval()
+        if hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(env_metadata, self._device)
+        return policy
+
     @classmethod
     def create(
         cls,
@@ -168,9 +181,9 @@ class Simulation:
         """Create a Simulation with sensible defaults."""
         # Create policy record from URI
         if policy_uri:
-            policy = CheckpointManager.load_from_uri(policy_uri, device=device)
+            policy_artifact = CheckpointManager.load_from_uri(policy_uri, device=device)
         else:
-            policy = MockAgent()
+            policy_artifact = PolicyArtifact(policy=MockAgent())
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
@@ -178,8 +191,8 @@ class Simulation:
         # Create and return simulation
         return cls(
             sim_config,
-            policy,
-            policy_uri or "mock://",
+            policy_artifact=policy_artifact,
+            policy_uri=policy_uri or "mock://",
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,

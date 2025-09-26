@@ -67,7 +67,8 @@ class Checkpointer(TrainerComponent):
         if self._distributed.is_master() and candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             try:
-                policy = self._checkpoint_manager.load_from_uri(normalized_uri)
+                artifact = self._checkpoint_manager.load_from_uri(normalized_uri)
+                policy = artifact.policy or artifact.instantiate(env_metadata)
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:

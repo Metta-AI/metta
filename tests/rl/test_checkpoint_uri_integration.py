@@ -68,8 +68,8 @@ class TestFileURIs:
     def test_load_single_file_uri(self, tmp_path: Path, mock_policy):
         ckpt = create_checkpoint(tmp_path, checkpoint_filename("run", 5), mock_policy)
         uri = f"file://{ckpt}"
-        loaded = CheckpointManager.load_from_uri(uri)
-        assert isinstance(loaded, torch.nn.Module)
+        artifact = CheckpointManager.load_from_uri(uri)
+        assert artifact.policy is not None
 
     def test_load_from_directory(self, tmp_path: Path, mock_policy):
         ckpt_dir = tmp_path / "run" / "checkpoints"
@@ -77,8 +77,8 @@ class TestFileURIs:
         latest = create_checkpoint(ckpt_dir, checkpoint_filename("run", 7), mock_policy)
 
         uri = f"file://{ckpt_dir}"
-        loaded = CheckpointManager.load_from_uri(uri)
-        assert isinstance(loaded, torch.nn.Module)
+        artifact = CheckpointManager.load_from_uri(uri)
+        assert artifact.policy is not None
         assert Path(uri[7:]).is_dir()
         assert latest.exists()
 
@@ -95,10 +95,10 @@ class TestS3URIs:
 
         with patch("torch.load", return_value=mock_policy) as mocked_load:
             uri = "s3://bucket/run/checkpoints/run:v12.mpt"
-            loaded = CheckpointManager.load_from_uri(uri)
+            artifact = CheckpointManager.load_from_uri(uri)
 
         mocked_load.assert_called_once()
-        assert isinstance(loaded, torch.nn.Module)
+        assert artifact.policy is not None
 
     def test_key_and_version_parsing(self):
         key, version = key_and_version("s3://bucket/foo/checkpoints/foo:v9.mpt")

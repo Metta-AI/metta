@@ -9,7 +9,7 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.policy_artifact import load_policy_artifact, save_policy_artifact
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
@@ -225,39 +225,35 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
         return 0
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
+def _load_checkpoint_file(path: str, device: str | torch.device) -> PolicyArtifact:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     target_device = torch.device(device)
 
     try:
         artifact = load_policy_artifact(Path(path))
+        return artifact
     except FileNotFoundError:
         raise
     except (BadZipFile, ValueError, TypeError):
-        artifact = None
-    else:
-        if artifact.policy is None:
-            raise RuntimeError(
-                "Checkpoint contains weights but no serialized policy. "
-                "Instantiate via PolicyArtifact.instantiate with EnvironmentMetaData."
-            )
-
-        policy = artifact.policy
-        policy.to(target_device)
-        return policy
+        pass
 
     # Legacy fallback: load raw torch checkpoint
     try:
         checkpoint_data = torch.load(path, weights_only=False, map_location=target_device)
 
         if _is_puffer_state_dict(checkpoint_data):
-            return load_pufferlib_checkpoint(checkpoint_data, target_device)
+            policy = load_pufferlib_checkpoint(checkpoint_data, target_device)
+            return PolicyArtifact(policy=policy)
 
-        return checkpoint_data
+        if isinstance(checkpoint_data, Policy):
+            policy = checkpoint_data.to(target_device)
+            return PolicyArtifact(policy=policy)
+
+        raise TypeError("Unsupported legacy checkpoint format")
 
     except FileNotFoundError:
         raise
-    except (pickle.UnpicklingError, RuntimeError, OSError) as err:
+    except (pickle.UnpicklingError, RuntimeError, OSError, TypeError) as err:
         raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
 
 
@@ -332,8 +328,8 @@ class CheckpointManager:
         return self._remote_prefix is not None
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> Policy:
-        """Load a policy from a URI (file://, s3://, or mock://).
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> PolicyArtifact:
+        """Load a policy artifact from a URI (file://, s3://, or mock://).
 
         Supports :latest selector for automatic resolution to the most recent checkpoint:
             file:///path/to/run/checkpoints/run_name:latest.mpt
@@ -362,7 +358,7 @@ class CheckpointManager:
                 return _load_checkpoint_file(str(local_path), device)
 
         if parsed.scheme == "mock":
-            return MockAgent()
+            return PolicyArtifact(policy=MockAgent())
 
         raise ValueError(f"Invalid URI: {uri}")
 
@@ -440,9 +436,6 @@ class CheckpointManager:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         filename = f"{self.run_name}:v{epoch}.mpt"
         checkpoint_path = self.checkpoint_dir / filename
-
-        # Check if we're overwriting an existing checkpoint for this epoch
-        existing_files = self._find_checkpoint_files(epoch)
 
         save_policy_artifact(
             checkpoint_path,

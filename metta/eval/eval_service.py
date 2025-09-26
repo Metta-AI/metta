@@ -37,13 +37,10 @@ def evaluate_policy(
     if not is_unique([sim.name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
-    # Load the policy from URI directly to the correct device
-    policy = CheckpointManager.load_from_uri(checkpoint_uri, device=device)
-
     sims = [
         Simulation(
             cfg=sim,
-            policy=policy,
+            policy_artifact=CheckpointManager.load_from_uri(checkpoint_uri, device=device),
             policy_uri=checkpoint_uri,
             device=device,
             vectorization=vectorization,
