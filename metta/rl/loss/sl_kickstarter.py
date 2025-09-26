@@ -71,7 +71,7 @@ class SLKickstarter(Loss):
         if teacher_policy is None:
             if env_metadata is None:
                 raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-            teacher_policy = artifact.instantiate(env_metadata)
+            teacher_policy = artifact.instantiate(env_metadata, self.device)
         teacher_policy = teacher_policy.to(self.device)
         self.teacher_policy = teacher_policy
         if hasattr(self.teacher_policy, "initialize_to_environment") and env_metadata is not None:

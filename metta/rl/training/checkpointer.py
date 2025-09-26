@@ -3,6 +3,8 @@
 import logging
 from typing import Optional
 
+import torch
+
 from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -68,7 +70,8 @@ class Checkpointer(TrainerComponent):
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
             try:
                 artifact = self._checkpoint_manager.load_from_uri(normalized_uri)
-                policy = artifact.policy or artifact.instantiate(env_metadata)
+                load_device = torch.device(self._distributed.config.device)
+                policy = artifact.policy or artifact.instantiate(env_metadata, load_device)
                 self._latest_policy_uri = normalized_uri
                 logger.info("Loaded policy from %s", normalized_uri)
             except FileNotFoundError:

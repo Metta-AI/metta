@@ -78,7 +78,7 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     assert isinstance(loaded.policy_architecture, DummyPolicyArchitecture)
     assert loaded.state_dict is not None
 
-    instantiated = loaded.instantiate(env_metadata)
+    instantiated = loaded.instantiate(env_metadata, torch.device("cpu"))
     assert isinstance(instantiated, DummyPolicy)
 
 
@@ -125,6 +125,5 @@ def test_save_and_load_all_components(tmp_path: Path) -> None:
     assert loaded.state_dict is not None
     assert isinstance(loaded.policy, DummyPolicy)
 
-    instantiated = loaded.instantiate(env_metadata)
+    instantiated = loaded.instantiate(env_metadata, torch.device("cpu"))
     assert isinstance(instantiated, DummyPolicy)
-

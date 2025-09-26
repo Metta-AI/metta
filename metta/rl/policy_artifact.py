@@ -70,8 +70,12 @@ def _load_component_config(
         return default_class.model_validate(payload)
 
     component_class = load_symbol(class_path)
-    if not isinstance(component_class, type) or not issubclass(component_class, ComponentConfig):
-        raise TypeError(f"Loaded symbol {class_path} for {context} is not a ComponentConfig subclass")
+    if not isinstance(component_class, type):
+        raise TypeError(f"Loaded symbol {class_path} for {context} is not a class")
+
+    # Allow any class that has the required methods, not just ComponentConfig subclasses
+    if not (hasattr(component_class, "model_validate") and hasattr(component_class, "model_dump")):
+        raise TypeError(f"Loaded symbol {class_path} for {context} does not have required model methods")
 
     return component_class.model_validate(payload)
 
@@ -178,29 +182,16 @@ class PolicyArtifact:
     def instantiate(
         self,
         env_metadata: EnvironmentMetaData,
+        device: torch.device,
         *,
         strict: bool = True,
-        device: torch.device | None = None,
     ) -> Policy:
         if self.state_dict is not None and self.policy_architecture is not None:
             policy = self.policy_architecture.make_policy(env_metadata)
-            if device is not None:
-                policy = policy.to(device)
+            policy = policy.to(device)
 
-            init_device: torch.device | None = device
-            if init_device is None:
-                if hasattr(policy, "device"):
-                    try:
-                        init_device = policy.device  # type: ignore[assignment]
-                    except Exception:
-                        init_device = None
-                if init_device is None:
-                    first_param = next(policy.parameters(), None)
-                    if first_param is not None:
-                        init_device = first_param.device
-
-            if hasattr(policy, "initialize_to_environment") and init_device is not None:
-                policy.initialize_to_environment(env_metadata, init_device)
+            if hasattr(policy, "initialize_to_environment"):
+                policy.initialize_to_environment(env_metadata, device)
 
             ordered_state = OrderedDict(self.state_dict.items())
             missing, unexpected = policy.load_state_dict(ordered_state, strict=strict)
@@ -212,6 +203,7 @@ class PolicyArtifact:
             return policy
 
         if self.policy is not None:
+            self.policy = self.policy.to(device)
             return self.policy
 
         msg = "Cannot instantiate artifact without weights/architecture or policy"
