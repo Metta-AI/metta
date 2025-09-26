@@ -41,9 +41,9 @@ class TestBasicSaveLoad:
     def test_latest_selector_file_uri(self, checkpoint_manager, mock_agent):
         """Test :latest selector for file:// URIs."""
         # Save multiple checkpoints
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={})
-        checkpoint_manager.save_agent(mock_agent, epoch=5, metadata={})
-        checkpoint_manager.save_agent(mock_agent, epoch=3, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=1)
+        checkpoint_manager.save_agent(mock_agent, epoch=5)
+        checkpoint_manager.save_agent(mock_agent, epoch=3)
 
         # Test :latest resolution
         from metta.rl.checkpoint_manager import key_and_version
@@ -57,9 +57,9 @@ class TestBasicSaveLoad:
     def test_load_from_uri_with_latest(self, checkpoint_manager, mock_agent):
         """Test loading policy with :latest selector."""
         # Save multiple checkpoints
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={})
-        checkpoint_manager.save_agent(mock_agent, epoch=7, metadata={})
-        checkpoint_manager.save_agent(mock_agent, epoch=3, metadata={})
+        checkpoint_manager.save_agent(mock_agent, epoch=1)
+        checkpoint_manager.save_agent(mock_agent, epoch=7)
+        checkpoint_manager.save_agent(mock_agent, epoch=3)
 
         # Load using :latest selector
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
@@ -74,7 +74,7 @@ class TestBasicSaveLoad:
     def test_save_and_load_agent(self, checkpoint_manager, mock_agent):
         metadata = {"agent_step": 5280, "total_time": 120.0, "score": 0.75}
 
-        checkpoint_manager.save_agent(mock_agent, epoch=5, metadata=metadata)
+        checkpoint_manager.save_agent(mock_agent, epoch=5)
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
         expected_filename = "test_run:v5.pt"
@@ -95,8 +95,6 @@ class TestBasicSaveLoad:
         assert output["actions"].shape[0] == 1
 
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent):
-        metadata = {"agent_step": 123, "total_time": 10, "score": 0.5}
-
         test_system_cfg.local_only = False
         test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
         manager = CheckpointManager(run="test_run", system_cfg=test_system_cfg)
@@ -105,7 +103,7 @@ class TestBasicSaveLoad:
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
         with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
-            remote_uri = manager.save_agent(mock_agent, epoch=3, metadata=metadata)
+            remote_uri = manager.save_agent(mock_agent, epoch=3)
 
         assert remote_uri == expected_remote
         mock_write.assert_called_once()
@@ -121,7 +119,7 @@ class TestBasicSaveLoad:
         ]
 
         for epoch, metadata in epochs_data:
-            checkpoint_manager.save_agent(mock_agent, epoch=epoch, metadata=metadata)
+            checkpoint_manager.save_agent(mock_agent, epoch=epoch)
 
         # Test loading latest (should be epoch 10)
         loaded_agent = checkpoint_manager.load_agent()
@@ -134,7 +132,7 @@ class TestBasicSaveLoad:
 
     def test_trainer_state_save_load(self, checkpoint_manager, mock_agent):
         # Save agent checkpoint
-        checkpoint_manager.save_agent(mock_agent, epoch=5, metadata={"agent_step": 1000, "total_time": 60})
+        checkpoint_manager.save_agent(mock_agent, epoch=5)
 
         # Create and save trainer state
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
@@ -155,7 +153,7 @@ class TestBasicSaveLoad:
         with pytest.raises(FileNotFoundError):
             checkpoint_manager.load_agent()
 
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100, "total_time": 30})
+        checkpoint_manager.save_agent(mock_agent, epoch=1)
         loaded = checkpoint_manager.load_agent()
         assert loaded is not None
 
@@ -163,7 +161,7 @@ class TestBasicSaveLoad:
 class TestCaching:
     def test_cache_hit_on_repeated_load(self, cached_checkpoint_manager, mock_agent):
         # Save a checkpoint
-        cached_checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100})
+        cached_checkpoint_manager.save_agent(mock_agent, epoch=1)
 
         # First load - should load from disk
         with patch.object(torch, "load", wraps=torch.load) as mock_load:
@@ -179,7 +177,7 @@ class TestCaching:
         """Test LRU cache eviction when cache limit exceeded."""
         # Save 4 checkpoints (cache size is 3)
         for epoch in range(1, 5):
-            cached_checkpoint_manager.save_agent(mock_agent, epoch=epoch, metadata={"agent_step": epoch * 100})
+            cached_checkpoint_manager.save_agent(mock_agent, epoch=epoch)
 
         # Load all 4 - should evict oldest when loading 4th
         with patch.object(torch, "load", wraps=torch.load) as mock_load:
@@ -200,7 +198,7 @@ class TestCaching:
 
     def test_cache_disabled(self, no_cache_checkpoint_manager, mock_agent):
         # Save checkpoint
-        no_cache_checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100})
+        no_cache_checkpoint_manager.save_agent(mock_agent, epoch=1)
 
         # Load multiple times - should always load from disk
         with patch.object(torch, "load", wraps=torch.load) as mock_load:
@@ -210,11 +208,11 @@ class TestCaching:
 
     def test_cache_invalidation_on_save(self, cached_checkpoint_manager, mock_agent):
         # Save and load to populate cache
-        cached_checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 100})
+        cached_checkpoint_manager.save_agent(mock_agent, epoch=1)
         cached_checkpoint_manager.load_agent(epoch=1)
 
         # Save over same epoch (should invalidate cache)
-        cached_checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 200})
+        cached_checkpoint_manager.save_agent(mock_agent, epoch=1)
 
         # Load again - should reload from disk
         with patch.object(torch, "load", wraps=torch.load) as mock_load:
@@ -226,9 +224,7 @@ class TestCleanup:
     def test_cleanup_old_checkpoints(self, checkpoint_manager, mock_agent):
         # Save 10 checkpoints
         for epoch in range(1, 11):
-            checkpoint_manager.save_agent(
-                mock_agent, epoch=epoch, metadata={"agent_step": epoch * 1000, "total_time": epoch * 30}
-            )
+            checkpoint_manager.save_agent(mock_agent, epoch=epoch)
 
         checkpoint_dir = checkpoint_manager.checkpoint_dir
         checkpoint_files = [p for p in checkpoint_dir.glob("*.pt") if ":v" in p.stem]
@@ -247,7 +243,7 @@ class TestCleanup:
 
     def test_cleanup_with_trainer_state(self, checkpoint_manager, mock_agent):
         # Save checkpoint and trainer state
-        checkpoint_manager.save_agent(mock_agent, epoch=1, metadata={"agent_step": 1000, "total_time": 60})
+        checkpoint_manager.save_agent(mock_agent, epoch=1)
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
         checkpoint_manager.save_trainer_state(mock_optimizer, epoch=1, agent_step=1000)
 

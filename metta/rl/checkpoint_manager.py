@@ -436,7 +436,7 @@ class CheckpointManager:
             result["loss_states"] = state["loss_states"]
         return result
 
-    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
+    def save_agent(self, agent, epoch: int) -> str:
         """Save agent checkpoint to disk and upload to remote storage if configured.
 
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).

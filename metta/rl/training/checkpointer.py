@@ -28,12 +28,14 @@ class Checkpointer(TrainerComponent):
         config: CheckpointerConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
+        policy_architecture: PolicyArchitecture,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
         self._master_only = True
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
+        self._policy_architecture: PolicyArchitecture = policy_architecture
         self._latest_policy_uri: Optional[str] = None
 
     # ------------------------------------------------------------------
@@ -50,7 +52,6 @@ class Checkpointer(TrainerComponent):
     def load_or_create_policy(
         self,
         env_metadata: EnvironmentMetaData,
-        policy_architecture: PolicyArchitecture,
         *,
         policy_uri: Optional[str] = None,
     ) -> Policy:
@@ -79,7 +80,7 @@ class Checkpointer(TrainerComponent):
             return policy
 
         logger.info("Creating new policy for training run")
-        return policy_architecture.make_policy(env_metadata)
+        return self._policy_architecture.make_policy(env_metadata)
 
     def get_latest_policy_uri(self) -> Optional[str]:
         """Return the most recent checkpoint URI tracked by this component."""
@@ -115,30 +116,10 @@ class Checkpointer(TrainerComponent):
             return policy.module  # type: ignore[return-value]
         return policy
 
-    def _collect_metadata(self, epoch: int, *, is_final: bool = False) -> dict:
-        elapsed_breakdown = self.context.stopwatch.get_all_elapsed()
-        metadata = {
-            "epoch": epoch,
-            "agent_step": self.context.agent_step,
-            "total_time": self.context.stopwatch.get_elapsed(),
-            "total_train_time": elapsed_breakdown.get("_rollout", 0) + elapsed_breakdown.get("_train", 0),
-            "is_final": is_final,
-        }
-        eval_scores = self.context.latest_eval_scores
-        if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
-            metadata.update(
-                {
-                    "score": eval_scores.avg_simulation_score,
-                    "avg_reward": eval_scores.avg_category_score,
-                }
-            )
-        return metadata
-
     def _save_policy(self, epoch: int, *, force: bool = False) -> None:
         policy = self._policy_to_save()
-        metadata = self._collect_metadata(epoch, is_final=force)
 
-        uri = self._checkpoint_manager.save_agent(policy, epoch, metadata)
+        uri = self._checkpoint_manager.save_agent(policy, epoch)
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
         try:
