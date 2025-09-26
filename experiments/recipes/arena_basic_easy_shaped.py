@@ -246,7 +246,7 @@ def sweep_async_progressive(
             "trainer.total_timesteps": ParameterConfig(
                 min=min_timesteps,
                 max=max_timesteps,
-                distribution="log_normal",
+                distribution="int_uniform",
                 mean=initial_timesteps,
                 scale="auto",
             )
