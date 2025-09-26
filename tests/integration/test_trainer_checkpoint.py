@@ -115,9 +115,7 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["agent_step"] > 0
         assert trainer_state["epoch"] > 0
 
-        policy_files = [
-            f for f in Path(checkpoint_manager.checkpoint_dir).glob("*.mpt") if f.name != "trainer_state.pt"
-        ]
+        policy_files = list(Path(checkpoint_manager.checkpoint_dir).glob("*.mpt"))
         assert policy_files, "No policy files found in checkpoint directory"
 
         first_run_agent_step = trainer_state["agent_step"]
@@ -142,10 +140,7 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state_2["agent_step"] > first_run_agent_step
         assert trainer_state_2["epoch"] >= first_run_epoch
 
-        policy_files_2 = [
-            f for f in Path(checkpoint_manager_2.checkpoint_dir).glob("*.mpt")
-            if f.name != "trainer_state.pt"
-        ]
+        policy_files_2 = list(Path(checkpoint_manager_2.checkpoint_dir).glob("*.mpt"))
         assert len(policy_files_2) >= len(policy_files)
 
     def test_checkpoint_fields_are_preserved(self) -> None:

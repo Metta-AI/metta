@@ -203,7 +203,7 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
         for obj in response["Contents"]:
             key = obj["Key"]
             filename = key.split("/")[-1]  # Get just the filename
-            if filename.endswith(".mpt") and not filename.endswith("trainer_state.pt"):
+            if filename.endswith(".mpt"):
                 checkpoint_files.append(filename)
 
         if not checkpoint_files:
@@ -390,11 +390,7 @@ class CheckpointManager:
             _, version = _extract_run_and_epoch(path)
             return version == epoch
 
-        candidates: List[Path] = [
-            path
-            for path in self.checkpoint_dir.glob("*.mpt")
-            if path.name != "trainer_state.pt" and matches_epoch(path)
-        ]
+        candidates: List[Path] = [path for path in self.checkpoint_dir.glob("*.mpt") if matches_epoch(path)]
 
         candidates.sort(
             key=lambda p: (_extract_run_and_epoch(p)[1], p.stat().st_mtime),

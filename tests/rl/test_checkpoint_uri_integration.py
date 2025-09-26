@@ -5,14 +5,13 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-import torch
-import torch.nn as nn
 from pydantic import Field
 
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
+from metta.rl.policy_artifact import save_policy_artifact
 from metta.rl.system_config import SystemConfig
 from mettagrid.config import Config
 
@@ -21,18 +20,18 @@ def checkpoint_filename(run: str, epoch: int) -> str:
     return f"{run}:v{epoch}.mpt"
 
 
-def create_checkpoint(tmp_path: Path, filename: str, payload) -> Path:
+def create_checkpoint(tmp_path: Path, filename: str, policy: MockAgent) -> Path:
     checkpoint_path = tmp_path / filename
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(payload, checkpoint_path)
+    save_policy_artifact(checkpoint_path, policy=policy, include_policy=True)
     return checkpoint_path
 
 
 class _MockActionComponentConfig(ComponentConfig):
     name: str = "mock"
 
-    def make_component(self, env=None) -> nn.Module:  # pragma: no cover - simple stub
-        return nn.Identity()
+    def make_component(self, env=None):  # pragma: no cover - simple stub
+        return Mock()
 
 
 class _MockAgentPolicyArchitecture(PolicyArchitecture):
@@ -45,7 +44,7 @@ class _MockAgentPolicyArchitecture(PolicyArchitecture):
 
 @pytest.fixture
 def mock_policy():
-    return torch.nn.Linear(4, 2)
+    return MockAgent()
 
 
 @pytest.fixture
@@ -89,15 +88,15 @@ class TestFileURIs:
 
 class TestS3URIs:
     @patch("metta.rl.checkpoint_manager.local_copy")
-    def test_s3_download(self, mock_local_copy, mock_policy):
-        mock_local_copy.return_value.__enter__ = Mock(return_value="/tmp/downloaded.mpt")
+    def test_s3_download(self, mock_local_copy, mock_policy, tmp_path):
+        checkpoint_file = create_checkpoint(tmp_path, checkpoint_filename("run", 12), mock_policy)
+
+        mock_local_copy.return_value.__enter__ = Mock(return_value=str(checkpoint_file))
         mock_local_copy.return_value.__exit__ = Mock(return_value=None)
 
-        with patch("torch.load", return_value=mock_policy) as mocked_load:
-            uri = "s3://bucket/run/checkpoints/run:v12.mpt"
-            artifact = CheckpointManager.load_from_uri(uri)
+        uri = "s3://bucket/run/checkpoints/run:v12.mpt"
+        artifact = CheckpointManager.load_from_uri(uri)
 
-        mocked_load.assert_called_once()
         assert artifact.policy is not None
 
     def test_key_and_version_parsing(self):
@@ -146,6 +145,6 @@ class TestCheckpointManagerOperations:
 
     def test_normalize_uri(self, tmp_path: Path):
         path = tmp_path / "model.mpt"
-        torch.save(torch.nn.Linear(1, 1), path)
+        save_policy_artifact(path, policy=MockAgent(), include_policy=True)
         normalized = CheckpointManager.normalize_uri(str(path))
         assert normalized == f"file://{path}"

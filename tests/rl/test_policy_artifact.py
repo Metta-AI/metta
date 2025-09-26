@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from pathlib import Path
 
 import torch
@@ -8,7 +9,7 @@ from pydantic import Field
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.policy_artifact import load_policy_artifact, save_policy_artifact
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact
 from metta.rl.training import EnvironmentMetaData
 from mettagrid.config import Config
 
@@ -56,6 +57,17 @@ def _env_metadata() -> EnvironmentMetaData:
     )
 
 
+def test_policy_only_artifact_instantiate() -> None:
+    env_metadata = _env_metadata()
+    policy = DummyPolicy(env_metadata)
+
+    artifact = PolicyArtifact(policy=policy)
+
+    instantiated = artifact.instantiate(env_metadata, torch.device("cpu"))
+    assert instantiated is policy
+    assert instantiated.device.type == "cpu"
+
+
 def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     env_metadata = _env_metadata()
     architecture = DummyPolicyArchitecture()
@@ -82,48 +94,26 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     assert isinstance(instantiated, DummyPolicy)
 
 
-def test_save_and_load_policy_only(tmp_path: Path) -> None:
-    env_metadata = _env_metadata()
-    policy = DummyPolicy(env_metadata)
-
-    artifact_path = tmp_path / "policy_only.zip"
-    artifact = save_policy_artifact(
-        artifact_path,
-        policy=policy,
-        include_policy=True,
-    )
-
-    assert artifact.policy is policy
-    assert artifact_path.exists()
-
-    loaded = load_policy_artifact(artifact_path)
-    assert loaded.policy_architecture is None
-    assert loaded.state_dict is None
-    assert isinstance(loaded.policy, DummyPolicy)
-
-
-def test_save_and_load_all_components(tmp_path: Path) -> None:
+def test_instantiate_prefers_weights_over_embedded_policy() -> None:
     env_metadata = _env_metadata()
     architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(env_metadata)
+    policy_from_weights = architecture.make_policy(env_metadata)
+    policy_from_weights.linear.weight.data.fill_(1.0)
+    policy_from_weights.linear.bias.data.fill_(2.0)
 
-    artifact_path = tmp_path / "full_bundle.zip"
-    artifact = save_policy_artifact(
-        artifact_path,
-        policy=policy,
+    saved_state = OrderedDict((k, v.clone()) for k, v in policy_from_weights.state_dict().items())
+
+    mismatched_policy = architecture.make_policy(env_metadata)
+    for param in mismatched_policy.parameters():
+        param.data.zero_()
+
+    artifact = PolicyArtifact(
         policy_architecture=architecture,
-        include_policy=True,
+        state_dict=saved_state,
+        policy=mismatched_policy,
     )
 
-    assert artifact_path.exists()
-    assert artifact.policy is policy
-    assert artifact.state_dict is not None
-    assert artifact.policy_architecture is architecture
+    instantiated = artifact.instantiate(env_metadata, torch.device("cpu"))
 
-    loaded = load_policy_artifact(artifact_path)
-    assert isinstance(loaded.policy_architecture, DummyPolicyArchitecture)
-    assert loaded.state_dict is not None
-    assert isinstance(loaded.policy, DummyPolicy)
-
-    instantiated = loaded.instantiate(env_metadata, torch.device("cpu"))
-    assert isinstance(instantiated, DummyPolicy)
+    for name, tensor in saved_state.items():
+        assert torch.allclose(instantiated.state_dict()[name], tensor)

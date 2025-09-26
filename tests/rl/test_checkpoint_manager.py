@@ -79,11 +79,14 @@ class TestBasicSaveLoad:
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.mpt"
         artifact = CheckpointManager.load_from_uri(latest_uri)
 
-        assert artifact.policy is not None and isinstance(artifact.policy, MockAgent)
+        assert artifact.policy_architecture is not None and isinstance(
+            artifact.policy_architecture, MockAgentPolicyArchitecture
+        )
         # Verify it loaded the correct checkpoint by checking metadata
         metadata = CheckpointManager.get_policy_metadata(latest_uri)
         assert metadata["run_name"] == "test_run"
         assert metadata["epoch"] == 7  # Should be the highest epoch
+
     def test_remote_prefix_upload(self, test_system_cfg, mock_agent, mock_policy_architecture):
         test_system_cfg.local_only = False
         test_system_cfg.remote_prefix = "s3://bucket/checkpoints"
@@ -129,6 +132,7 @@ class TestBasicSaveLoad:
         assert loaded_trainer_state["stopwatch_state"]["elapsed_time"] == 123.45
         assert loaded_trainer_state.get("loss_states", {}) == {}
         assert "optimizer_state" in loaded_trainer_state
+
 
 class TestCleanup:
     def test_cleanup_old_checkpoints(self, checkpoint_manager, mock_agent, mock_policy_architecture):
