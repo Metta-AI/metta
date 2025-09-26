@@ -212,14 +212,13 @@ class SlidingTransformer(nn.Module):
         # Project inputs to tokens
         reward_token = self.reward_proj(reward)
         reset_token = self.dones_truncateds_proj(resets)
-        action_token = self.last_action_proj(last_actions.float())
-        # Combine reward/reset information into the last action token
-        action_token = (action_token + reward_token + reset_token).view(B, TT, 1, self.output_dim)
+        reward_reset_token = (reward_token + reset_token).view(B, TT, 1, self.output_dim)
+        action_token = self.last_action_proj(last_actions.float()).view(B, TT, 1, self.output_dim)
 
         # Combine all tokens for each timestep
         cls_token = self.cls_token.expand(B, TT, -1, -1)
         # Final sequence shape: [B, TT, S, E] where S is num tokens per step
-        x = torch.cat([cls_token, x, action_token], dim=2)
+        x = torch.cat([cls_token, x, reward_reset_token, action_token], dim=2)
 
         S = x.shape[2]  # Number of tokens per time-step
         x = rearrange(x, "b tt s d -> b (tt s) d")
