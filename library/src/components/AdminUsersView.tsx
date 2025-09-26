@@ -169,9 +169,9 @@ export const AdminUsersView: FC = () => {
   const selectedUserData = users.find((user) => user.id === selectedUser);
 
   return (
-    <div className="p-8">
+    <div className="p-2 pb-16 md:p-8 md:pb-12">
       {/* Header with filters */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between md:mb-6">
         {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
@@ -183,7 +183,7 @@ export const AdminUsersView: FC = () => {
               setSearchQuery(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full rounded-lg border border-gray-300 py-3 pr-4 pl-10 text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-10 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none md:py-3 md:text-base"
           />
         </div>
 
@@ -204,8 +204,8 @@ export const AdminUsersView: FC = () => {
 
       {/* Stats */}
       {pagination && (
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 grid grid-cols-1 gap-3 md:mb-6 md:gap-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm md:p-4">
             <div className="flex items-center gap-3">
               <Users className="h-8 w-8 text-blue-600" />
               <div>
@@ -239,12 +239,12 @@ export const AdminUsersView: FC = () => {
         {users.map((user) => (
           <div
             key={user.id}
-            className={`rounded-lg border bg-white p-6 shadow-sm ${
+            className={`rounded-lg border bg-white p-3 shadow-sm md:p-6 ${
               user.isBanned ? "border-red-200 bg-red-50" : "border-gray-200"
             }`}
           >
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3 md:gap-4">
                 {/* Avatar */}
                 <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
                   {user.name
@@ -254,8 +254,8 @@ export const AdminUsersView: FC = () => {
 
                 {/* User Info */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-semibold text-gray-900 md:text-lg">
                       {user.name || "Unnamed User"}
                     </h3>
                     {user.isBanned && (
@@ -275,7 +275,7 @@ export const AdminUsersView: FC = () => {
                   <p className="text-sm text-gray-600">{user.email}</p>
 
                   {/* Stats */}
-                  <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 md:gap-4">
                     <span className="flex items-center gap-1">
                       <FileText className="h-3 w-3" />
                       {user.postCount} posts
@@ -315,24 +315,28 @@ export const AdminUsersView: FC = () => {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2">
+              <div className="flex justify-end gap-2 sm:justify-start">
                 {user.isBanned ? (
                   <button
                     onClick={() => handleUnbanUser(user.email!)}
                     disabled={isUnbanning}
-                    className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+                    className="flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs text-white transition-colors hover:bg-green-700 disabled:opacity-50 md:px-3 md:py-1.5 md:text-sm"
                   >
-                    <CheckCircle className="h-4 w-4" />
-                    {isUnbanning ? "Unbanning..." : "Unban"}
+                    <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline">
+                      {isUnbanning ? "Unbanning..." : "Unban"}
+                    </span>
+                    <span className="sm:hidden">Unban</span>
                   </button>
                 ) : (
                   <button
                     onClick={() => openBanModal(user.id)}
                     disabled={isBanning}
-                    className="flex items-center gap-1 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                    className="flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-xs text-white transition-colors hover:bg-red-700 disabled:opacity-50 md:px-3 md:py-1.5 md:text-sm"
                   >
-                    <Ban className="h-4 w-4" />
-                    Ban User
+                    <Ban className="h-3 w-3 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline">Ban User</span>
+                    <span className="sm:hidden">Ban</span>
                   </button>
                 )}
               </div>
@@ -343,30 +347,36 @@ export const AdminUsersView: FC = () => {
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="mt-8 flex items-center justify-between">
-          <div className="text-sm text-gray-700">
-            Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-            {Math.min(
-              pagination.page * pagination.limit,
-              pagination.totalCount
-            )}{" "}
-            of {pagination.totalCount} users
+        <div className="mt-6 flex flex-col gap-4 md:mt-8 md:flex-row md:items-center md:justify-between">
+          <div className="text-center text-xs text-gray-700 md:text-left md:text-sm">
+            <span className="hidden md:inline">
+              Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+              {Math.min(
+                pagination.page * pagination.limit,
+                pagination.totalCount
+              )}{" "}
+              of {pagination.totalCount} users
+            </span>
+            <span className="md:hidden">
+              {pagination.totalCount} total users
+            </span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex justify-center gap-2 md:justify-end">
             <button
               onClick={() => setCurrentPage(pagination.page - 1)}
               disabled={!pagination.hasPrevPage}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 md:px-3 md:py-2 md:text-sm"
             >
-              Previous
+              <span className="hidden sm:inline">Previous</span>
+              <span className="sm:hidden">Prev</span>
             </button>
-            <span className="flex items-center px-3 py-2 text-sm text-gray-700">
-              Page {pagination.page} of {pagination.totalPages}
+            <span className="flex items-center px-2 py-1 text-xs text-gray-700 md:px-3 md:py-2 md:text-sm">
+              {pagination.page}/{pagination.totalPages}
             </span>
             <button
               onClick={() => setCurrentPage(pagination.page + 1)}
               disabled={!pagination.hasNextPage}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 md:px-3 md:py-2 md:text-sm"
             >
               Next
             </button>
@@ -376,9 +386,9 @@ export const AdminUsersView: FC = () => {
 
       {/* Ban Modal */}
       {showBanModal && selectedUserData && (
-        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="mb-4 text-lg font-semibold text-gray-900">
+        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl md:p-6">
+            <h3 className="mb-3 text-base font-semibold text-gray-900 md:mb-4 md:text-lg">
               Ban User: {selectedUserData.name || selectedUserData.email}
             </h3>
 
@@ -399,21 +409,21 @@ export const AdminUsersView: FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-2 md:gap-3">
               <button
                 onClick={() => {
                   setShowBanModal(false);
                   setSelectedUser(null);
                   setBanReason("");
                 }}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 md:px-4 md:py-2 md:text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleBanUser(selectedUserData.email!)}
                 disabled={!banReason.trim() || isBanning}
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50 md:px-4 md:py-2 md:text-sm"
               >
                 {isBanning ? "Banning..." : "Ban User"}
               </button>
