@@ -39,7 +39,7 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
 class FastDynamicsConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _hidden_size = 128
+    _hidden_size = 32
     _embedding_dim = 16
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
