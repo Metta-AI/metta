@@ -3,13 +3,88 @@
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .transformer_memory import empty_memory, normalize_memory, update_memory_window
+
+def empty_memory(
+    num_layers: int,
+    batch_size: int,
+    d_model: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> List[torch.Tensor]:
+    """Return a list of empty memory tensors."""
+
+    return [torch.zeros(0, batch_size, d_model, device=device, dtype=dtype) for _ in range(num_layers)]
+
+
+def normalize_memory(
+    memory_len: int,
+    num_layers: int,
+    memory: Optional[Sequence[torch.Tensor]],
+    batch_size: int,
+    d_model: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> Optional[List[torch.Tensor]]:
+    """Normalize previously stored memory tensors to the expected shape."""
+
+    if memory_len <= 0:
+        return None
+
+    if memory is None or len(memory) != num_layers:
+        return empty_memory(num_layers, batch_size, d_model, device, dtype)
+
+    normalized: List[torch.Tensor] = []
+    for tensor in memory:
+        if tensor is None or tensor.numel() == 0:
+            normalized.append(torch.zeros(0, batch_size, d_model, device=device, dtype=dtype))
+            continue
+        mem = tensor.to(device=device, dtype=dtype)
+        if mem.size(1) != batch_size:
+            mem = mem[:, :batch_size].contiguous()
+        normalized.append(mem)
+    return normalized
+
+
+def update_memory_window(
+    layer_outputs: Sequence[torch.Tensor],
+    previous_memory: Optional[Sequence[torch.Tensor]],
+    memory_len: int,
+    ext_len: int = 0,
+) -> Optional[List[torch.Tensor]]:
+    """Return the updated memory window for each layer."""
+
+    if memory_len <= 0:
+        return None
+
+    if not layer_outputs:
+        return [torch.zeros(0)] * 0
+
+    device = layer_outputs[0].device
+    dtype = layer_outputs[0].dtype
+    batch_size = layer_outputs[0].size(1)
+    d_model = layer_outputs[0].size(2)
+    num_layers = len(layer_outputs)
+
+    if previous_memory is None or len(previous_memory) != num_layers:
+        previous_memory = empty_memory(num_layers, batch_size, d_model, device, dtype)
+
+    with torch.no_grad():
+        mlen = previous_memory[0].size(0) if previous_memory else 0
+        qlen = layer_outputs[0].size(0)
+        end_idx = mlen + max(0, qlen - ext_len)
+        beg_idx = max(0, end_idx - memory_len)
+
+        updated: List[torch.Tensor] = []
+        for prev, output in zip(previous_memory, layer_outputs, strict=False):
+            cat = torch.cat([prev, output], dim=0)
+            updated.append(cat[beg_idx:end_idx].detach())
+    return updated
 
 # ---------------------------------------------------------------------------
 # Full-context GTrXL-style transformer (legacy working version)

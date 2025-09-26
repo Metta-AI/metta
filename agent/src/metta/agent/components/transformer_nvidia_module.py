@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .transformer_memory import empty_memory, normalize_memory, update_memory_window
+from .transformer_module import empty_memory, normalize_memory, update_memory_window
 
 
 class NvidiaPositionalEmbedding(nn.Module):
