@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortex"
+version = "0.1.0"
+description = "Memory module library for Metta policies"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Metta AI" }]
+dependencies = ["torch", "pydantic>=2.11.5", "tensordict"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cortex", "cortex.*"]
+
+[tool.setuptools.package-data]
+cortex = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["cortex"]
