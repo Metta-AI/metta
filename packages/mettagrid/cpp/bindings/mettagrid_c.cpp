@@ -178,7 +178,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
-        converter->stats.set_environment(this);
         continue;
       }
 
@@ -211,7 +210,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         Assembler* assembler = new Assembler(r, c, config_with_offsets);
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
-        assembler->stats.set_environment(this);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
         continue;
@@ -222,7 +220,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         Chest* chest = new Chest(r, c, *chest_config);
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
-        chest->stats.set_environment(this);
         chest->set_grid(_grid.get());
         continue;
       }
@@ -777,7 +774,6 @@ py::dict MettaGrid::get_episode_stats() {
   // {
   //   "game": dict[str, float],  // Global game statistics
   //   "agent": list[dict[str, float]],  // Per-agent statistics
-  //   "converter": list[dict[str, float]]  // Per-converter statistics
   // }
   // All stat values are guaranteed to be floats from StatsTracker::to_dict()
 
@@ -790,26 +786,6 @@ py::dict MettaGrid::get_episode_stats() {
   }
   stats["agent"] = agent_stats;
 
-  // Collect converter stats
-  py::list converter_stats;
-  for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-    auto obj = _grid->object(obj_id);
-    if (!obj) continue;
-
-    // Check if this is a converter
-    Converter* converter = dynamic_cast<Converter*>(obj);
-    if (converter) {
-      // Add metadata to the converter's stats tracker BEFORE converting to dict
-      converter->stats.set("type_id", converter->type_id);
-      converter->stats.set("location.r", converter->location.r);
-      converter->stats.set("location.c", converter->location.c);
-
-      // Now convert to dict - all values will be floats
-      py::dict converter_stat = py::cast(converter->stats.to_dict());
-      converter_stats.append(converter_stat);
-    }
-  }
-  stats["converter"] = converter_stats;
   return stats;
 }
 
