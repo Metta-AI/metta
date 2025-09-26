@@ -1,4 +1,4 @@
-import std/[random],
+import
   windy, fidget2,
   common, replays
 
