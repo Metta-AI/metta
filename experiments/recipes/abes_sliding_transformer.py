@@ -108,12 +108,14 @@ def train(
     )
 
     eval_simulations = make_evals()
-    optimizer_cfg = OptimizerConfig(learning_rate=0.0009)
+    optimizer_cfg = OptimizerConfig(
+        learning_rate=0.0008
+    )  # smaller batch size requires smaller learning rate
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
         optimizer=optimizer_cfg,
-        batch_size=131072,
-        minibatch_size=4096,
+        batch_size=131072,  # batch size is a quarter of the default. This hasn't been tuned.
+        minibatch_size=4096,  # minibatch size is a quarter of the default. This hasn't been tuned.
     )
 
     if policy_architecture is None:
@@ -123,7 +125,7 @@ def train(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(
             curriculum=curriculum,
-            forward_pass_minibatch_target_size=1024,
+            forward_pass_minibatch_target_size=1024,  # updated so that we shrink the num of envs to 1/4 of the default.
         ),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
