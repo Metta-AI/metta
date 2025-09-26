@@ -6,12 +6,13 @@ import zipfile
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, MutableMapping
+from typing import Any, Mapping, MutableMapping
 
 import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
+from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.training import EnvironmentMetaData
@@ -23,33 +24,103 @@ def _architecture_class_path(policy_architecture: PolicyArchitecture) -> str:
     return f"{architecture_class.__module__}.{architecture_class.__qualname__}"
 
 
-def _serialize_policy_architecture(policy_architecture: PolicyArchitecture) -> bytes:
-    payload = {
-        "config_class": _architecture_class_path(policy_architecture),
-        "config": policy_architecture.model_dump(mode="json"),
+def _component_config_to_manifest(component: ComponentConfig) -> dict[str, Any]:
+    data = component.model_dump(mode="json")
+    data["class_path"] = f"{component.__class__.__module__}.{component.__class__.__qualname__}"
+    return data
+
+
+def _serialize_policy_architecture(policy_architecture: PolicyArchitecture) -> str:
+    config_data = policy_architecture.model_dump(mode="json")
+
+    if "components" in config_data:
+        config_data["components"] = [
+            _component_config_to_manifest(component) for component in policy_architecture.components
+        ]
+
+    action_probs_config = getattr(policy_architecture, "action_probs_config", None)
+    if action_probs_config is not None:
+        config_data["action_probs_config"] = _component_config_to_manifest(action_probs_config)
+
+    manifest = {
+        "class_path": f"{policy_architecture.__class__.__module__}.{policy_architecture.__class__.__qualname__}",
+        "config": config_data,
     }
-    return json.dumps(payload, indent=2).encode("utf-8")
+    return json.dumps(manifest, indent=2, sort_keys=True)
 
 
-def _deserialize_policy_architecture(blob: bytes) -> PolicyArchitecture:
-    data = json.loads(blob.decode("utf-8"))
+def _load_component_config(
+    data: Any,
+    *,
+    context: str,
+    default_class: type[ComponentConfig] | None = None,
+) -> ComponentConfig:
+    if isinstance(data, ComponentConfig):
+        return data
 
-    config_class_path = data.get("config_class")
-    if not config_class_path:
-        msg = "Missing 'config_class' in policy architecture payload"
-        raise ValueError(msg)
+    if not isinstance(data, Mapping):
+        raise TypeError(f"Component config for {context} must be a mapping, got {type(data)!r}")
 
-    config_data = data.get("config")
-    if config_data is None:
-        msg = "Missing 'config' payload in policy architecture"
-        raise ValueError(msg)
+    class_path = data.get("class_path")
+    payload = {key: value for key, value in data.items() if key != "class_path"}
+
+    if not class_path:
+        if default_class is None:
+            raise ValueError(f"Component config for {context} is missing a class_path attribute")
+        return default_class.model_validate(payload)
+
+    component_class = load_symbol(class_path)
+    if not isinstance(component_class, type) or not issubclass(component_class, ComponentConfig):
+        raise TypeError(f"Loaded symbol {class_path} for {context} is not a ComponentConfig subclass")
+
+    return component_class.model_validate(payload)
+
+
+def _deserialize_policy_architecture(str: str) -> PolicyArchitecture:
+    manifest = json.loads(str)
+    config_class_path = manifest.get("class_path")
+    config_data = manifest.get("config")
+    if not config_class_path or config_data is None:
+        raise ValueError("Invalid model architecture manifest; expected class_path and config fields")
 
     config_class = load_symbol(config_class_path)
     if not isinstance(config_class, type) or not issubclass(config_class, PolicyArchitecture):
-        msg = f"Config class {config_class_path} is not a PolicyArchitecture"
-        raise TypeError(msg)
+        raise TypeError(f"Loaded symbol {config_class_path} is not a PolicyArchitecture subclass")
 
-    return config_class.model_validate(config_data)
+    payload: dict[str, Any] = dict(config_data)
+
+    default_components: list[ComponentConfig] = []
+    default_action_probs: ComponentConfig | None = None
+    try:
+        default_instance = config_class()
+        default_components = list(getattr(default_instance, "components", []) or [])
+        default_action_probs = getattr(default_instance, "action_probs_config", None)
+    except Exception:
+        pass
+
+    components_data = payload.get("components")
+    if components_data is not None:
+        if not isinstance(components_data, list):
+            raise TypeError("Policy architecture components must be provided as a list")
+        payload["components"] = [
+            _load_component_config(
+                component,
+                context=f"component[{index}]",
+                default_class=(default_components[index].__class__ if index < len(default_components) else None),
+            )
+            for index, component in enumerate(components_data)
+        ]
+
+    action_probs_data = payload.get("action_probs_config")
+    if action_probs_data is not None:
+        default_class = default_action_probs.__class__ if default_action_probs is not None else None
+        payload["action_probs_config"] = _load_component_config(
+            action_probs_data,
+            context="action_probs_config",
+            default_class=default_class,
+        )
+
+    return config_class.model_validate(payload)
 
 
 def _to_safetensors_state_dict(
@@ -104,9 +175,33 @@ class PolicyArtifact:
             msg = "state_dict must be a mutable mapping of parameter tensors"
             raise TypeError(msg)
 
-    def instantiate(self, env_metadata: EnvironmentMetaData, strict: bool = True) -> Policy:
+    def instantiate(
+        self,
+        env_metadata: EnvironmentMetaData,
+        *,
+        strict: bool = True,
+        device: torch.device | None = None,
+    ) -> Policy:
         if self.state_dict is not None and self.policy_architecture is not None:
             policy = self.policy_architecture.make_policy(env_metadata)
+            if device is not None:
+                policy = policy.to(device)
+
+            init_device: torch.device | None = device
+            if init_device is None:
+                if hasattr(policy, "device"):
+                    try:
+                        init_device = policy.device  # type: ignore[assignment]
+                    except Exception:
+                        init_device = None
+                if init_device is None:
+                    first_param = next(policy.parameters(), None)
+                    if first_param is not None:
+                        init_device = first_param.device
+
+            if hasattr(policy, "initialize_to_environment") and init_device is not None:
+                policy.initialize_to_environment(env_metadata, init_device)
+
             ordered_state = OrderedDict(self.state_dict.items())
             missing, unexpected = policy.load_state_dict(ordered_state, strict=strict)
             if strict and (missing or unexpected):
@@ -202,7 +297,7 @@ def load_policy_artifact(path: str | Path) -> PolicyArtifact:
                 raise TypeError(msg)
             state_dict = loaded_state
 
-        if "policy.pt" in names:
+        elif "policy.pt" in names:
             buffer = io.BytesIO(archive.read("policy.pt"))
             loaded_policy = torch.load(buffer, map_location="cpu", weights_only=False)
 

@@ -161,10 +161,16 @@ class Simulation:
         existing_policy: Policy | None,
         env_metadata: EnvironmentMetaData,
     ) -> Policy:
-        policy = existing_policy or artifact.instantiate(env_metadata)
+        using_existing = existing_policy is not None
+        if using_existing:
+            policy = existing_policy
+        else:
+            policy = artifact.instantiate(env_metadata, device=self._device)
+
         policy = policy.to(self._device)
         policy.eval()
-        if hasattr(policy, "initialize_to_environment"):
+
+        if using_existing and hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(env_metadata, self._device)
         return policy
 
