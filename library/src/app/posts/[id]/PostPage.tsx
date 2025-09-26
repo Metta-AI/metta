@@ -204,7 +204,7 @@ export const PostPage: FC<{
     <div className="flex h-screen flex-col md:flex-row">
       {/* Mobile: Paper details on top (when selected) */}
       {selectedPostForPaper?.paper && (
-        <div className="h-1/2 border-b border-gray-300 md:hidden">
+        <div className="h-1/2 border-b border-gray-300 pt-14 md:hidden">
           <PaperSidebar
             paper={selectedPostForPaper.paper}
             onClose={handlePaperSidebarClose}
