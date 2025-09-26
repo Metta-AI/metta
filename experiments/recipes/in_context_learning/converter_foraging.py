@@ -253,7 +253,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.converter_foraging.train",
-                f"run=icl_unordered_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=icl_converter_foraging_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
