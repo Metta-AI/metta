@@ -12,19 +12,17 @@ export default async function AdminUsersPage() {
   await getAdminSessionOrRedirect();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            User Administration
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Manage users and moderation actions
-          </p>
-        </div>
-
-        <AdminUsersView />
+    <div className="mx-auto max-w-7xl px-4 py-4 md:py-8">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+          User Administration
+        </h1>
+        <p className="mt-2 text-sm text-gray-600 md:text-base">
+          Manage users and moderation actions
+        </p>
       </div>
+
+      <AdminUsersView />
     </div>
   );
 }
