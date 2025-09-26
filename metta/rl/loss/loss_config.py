@@ -46,16 +46,10 @@ class LossConfig(Config):
     ):
         losses = {}
         for loss_name, loss_config in self.loss_configs.items():
-            # Explicit check with warning for inconsistent config
+            # Explicit check for inconsistent config
             if loss_name == "contrastive":
                 if not self.enable_contrastive:
-                    print(
-                        "WARNING: 'contrastive' found in loss_configs but enable_contrastive=False. "
-                        "Skipping contrastive loss."
-                    )
                     continue
-                else:
-                    print("Initializing contrastive loss (enable_contrastive=True)")
 
             losses[loss_name] = loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
         return losses

@@ -39,17 +39,12 @@ class ContrastiveLoss(Loss):
         self.contrastive_coef = self.loss_cfg.contrastive_coef
         self.embedding_dim = self.loss_cfg.embedding_dim
 
-        print(
-            f"[Contrastive Loss] Initialized with instance_name='{instance_name}', temperature={self.temperature}, coef={self.contrastive_coef}"
-        )
-
         # Add projection head if needed
         if self.loss_cfg.use_projection_head:
             # We'll determine input_dim dynamically during first forward pass
             # This avoids hardcoded assumptions about encoder output dimensions
             self.projection_head = None  # Will be created in first forward pass
             self._projection_head_input_dim = None
-            print("Contrastive loss projection head will be created dynamically based on actual embedding dimensions")
         else:
             self.projection_head = None
 
@@ -64,11 +59,6 @@ class ContrastiveLoss(Loss):
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
         """Compute contrastive loss."""
-        if mb_idx == 0:  # Only log on first minibatch to avoid spam
-            print(
-                f"[Contrastive Loss] run_train called at epoch {context.epoch}, agent_step {context.agent_step}, mb_idx {mb_idx}"
-            )
-
         policy_td = shared_loss_data["policy_td"]
         minibatch = shared_loss_data["sampled_mb"]
 
@@ -82,7 +72,6 @@ class ContrastiveLoss(Loss):
                 actual_input_dim = embeddings.shape[-1]
                 self._projection_head_input_dim = actual_input_dim
                 self.projection_head = torch.nn.Linear(actual_input_dim, self.embedding_dim).to(self.device)
-                print(f"Created contrastive loss projection head: {actual_input_dim} -> {self.embedding_dim}")
 
             embeddings = self.projection_head(embeddings)
 
@@ -97,16 +86,6 @@ class ContrastiveLoss(Loss):
             if key not in self.loss_tracker:
                 self.loss_tracker[key] = []
             self.loss_tracker[key].append(value)
-
-        # Console logging for similarities
-        if self.loss_cfg.log_similarities and context.epoch % self.loss_cfg.log_frequency == 0:
-            print(
-                f"[Contrastive Loss] Epoch {context.epoch}: "
-                f"Positive sim: {metrics['positive_sim_mean']:.4f}±{metrics['positive_sim_std']:.4f}, "
-                f"Negative sim: {metrics['negative_sim_mean']:.4f}±{metrics['negative_sim_std']:.4f}, "
-                f"Pairs: {metrics['num_pairs']}, "
-                f"Loss: {contrastive_loss.item():.6f}"
-            )
 
         return contrastive_loss, shared_loss_data, False
 
@@ -126,10 +105,6 @@ class ContrastiveLoss(Loss):
         else:
             # Fallback: use value as embeddings but warn about suboptimal choice
             # This should only happen if policy doesn't provide proper feature representations
-            print(
-                "WARNING: Contrastive loss using value tensor as embeddings - "
-                "this is suboptimal for representation learning"
-            )
             value = policy_td["values"].squeeze(-1)  # Remove last dimension if it's 1
 
             if value.dim() == 1:
@@ -139,7 +114,6 @@ class ContrastiveLoss(Loss):
                     self._value_projection = torch.nn.Linear(1, self.embedding_dim).to(self.device)
                     # Initialize with small random weights to break symmetry
                     torch.nn.init.xavier_uniform_(self._value_projection.weight)
-                    print(f"Created value->embedding projection: 1 -> {self.embedding_dim}")
 
                 # Project 1D value to embedding_dim with learned transformation
                 value = value.unsqueeze(-1)  # [N] -> [N, 1]
