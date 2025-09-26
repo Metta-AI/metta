@@ -92,13 +92,10 @@ public:
       InventoryQuantity remaining = required_amount;
       for (Agent* agent : surrounding_agents) {
         if (remaining == 0) break;
-        auto it = agent->inventory.find(item);
-        if (it != agent->inventory.end()) {
-          InventoryQuantity available = it->second;
-          InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-          agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-          remaining -= to_consume;
-        }
+        InventoryQuantity available = agent->inventory.amount(item);
+        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
+        agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
+        remaining -= to_consume;
       }
     }
   }
