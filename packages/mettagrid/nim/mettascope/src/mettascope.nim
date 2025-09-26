@@ -137,7 +137,6 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      #bxy.translate(thisNode.position)
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
