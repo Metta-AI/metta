@@ -36634,7 +36634,7 @@
                             ],
                             "fillGeometry": [
                               {
-                                "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                 "windingRule": "NONZERO"
                               }
                             ],
@@ -36695,7 +36695,7 @@
                             ],
                             "fillGeometry": [
                               {
-                                "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                 "windingRule": "NONZERO"
                               }
                             ],
@@ -37500,7 +37500,7 @@
                             ],
                             "fillGeometry": [
                               {
-                                "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                 "windingRule": "NONZERO"
                               }
                             ],
@@ -37561,7 +37561,7 @@
                             ],
                             "fillGeometry": [
                               {
-                                "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                 "windingRule": "NONZERO"
                               }
                             ],
@@ -38366,7 +38366,7 @@
                             ],
                             "fillGeometry": [
                               {
-                                "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                 "windingRule": "NONZERO"
                               }
                             ],
@@ -38427,7 +38427,7 @@
                             ],
                             "fillGeometry": [
                               {
-                                "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                 "windingRule": "NONZERO"
                               }
                             ],
@@ -51855,7 +51855,166 @@
                 "name": "EnvConfig",
                 "type": "FRAME",
                 "scrollBehavior": "SCROLLS",
-                "children": [],
+                "children": [
+                  {
+                    "id": "2425:600",
+                    "name": "ConfigTextWrapper",
+                    "type": "FRAME",
+                    "scrollBehavior": "SCROLLS",
+                    "children": [
+                      {
+                        "id": "2423:596",
+                        "name": "ConfigText",
+                        "type": "TEXT",
+                        "scrollBehavior": "SCROLLS",
+                        "blendMode": "PASS_THROUGH",
+                        "fills": [
+                          {
+                            "blendMode": "NORMAL",
+                            "type": "SOLID",
+                            "color": {
+                              "r": 1.0,
+                              "g": 1.0,
+                              "b": 1.0,
+                              "a": 1.0
+                            }
+                          }
+                        ],
+                        "fillGeometry": [],
+                        "strokes": [],
+                        "strokeWeight": 1.0,
+                        "strokeAlign": "OUTSIDE",
+                        "strokeGeometry": [],
+                        "absoluteBoundingBox": {
+                          "x": 2313.0,
+                          "y": 513.0,
+                          "width": 51.0,
+                          "height": 15.0
+                        },
+                        "absoluteRenderBounds": {
+                          "x": 2313.443115234375,
+                          "y": 515.8636474609375,
+                          "width": 49.925048828125,
+                          "height": 11.72723388671875
+                        },
+                        "constraints": {
+                          "vertical": "TOP",
+                          "horizontal": "LEFT"
+                        },
+                        "relativeTransform": [
+                          [
+                            1.0,
+                            0.0,
+                            10.0
+                          ],
+                          [
+                            0.0,
+                            1.0,
+                            10.0
+                          ]
+                        ],
+                        "size": {
+                          "x": 51.0,
+                          "y": 15.0
+                        },
+                        "layoutAlign": "INHERIT",
+                        "layoutGrow": 0.0,
+                        "layoutSizingHorizontal": "HUG",
+                        "layoutSizingVertical": "HUG",
+                        "characters": "{ config }",
+                        "characterStyleOverrides": [],
+                        "styleOverrideTable": {},
+                        "lineTypes": [
+                          "NONE"
+                        ],
+                        "lineIndentations": [
+                          0
+                        ],
+                        "style": {
+                          "fontFamily": "Inter",
+                          "fontPostScriptName": null,
+                          "fontStyle": "Regular",
+                          "fontWeight": 400,
+                          "textAutoResize": "WIDTH_AND_HEIGHT",
+                          "fontSize": 12.0,
+                          "textAlignHorizontal": "LEFT",
+                          "textAlignVertical": "TOP",
+                          "letterSpacing": 0.0,
+                          "lineHeightPx": 14.522727012634277,
+                          "lineHeightPercent": 100.0,
+                          "lineHeightUnit": "INTRINSIC_%"
+                        },
+                        "layoutVersion": 4,
+                        "effects": [],
+                        "interactions": []
+                      }
+                    ],
+                    "blendMode": "PASS_THROUGH",
+                    "clipsContent": true,
+                    "background": [],
+                    "fills": [],
+                    "strokes": [],
+                    "strokeWeight": 1.0,
+                    "strokeAlign": "INSIDE",
+                    "backgroundColor": {
+                      "r": 0.0,
+                      "g": 0.0,
+                      "b": 0.0,
+                      "a": 0.0
+                    },
+                    "overflowDirection": "HORIZONTAL_AND_VERTICAL_SCROLLING",
+                    "layoutMode": "VERTICAL",
+                    "paddingLeft": 10.0,
+                    "paddingRight": 10.0,
+                    "paddingTop": 10.0,
+                    "paddingBottom": 10.0,
+                    "itemSpacing": 10.0,
+                    "layoutWrap": "NO_WRAP",
+                    "fillGeometry": [
+                      {
+                        "path": "M0 0L71 0L71 35L0 35L0 0Z",
+                        "windingRule": "NONZERO"
+                      }
+                    ],
+                    "strokeGeometry": [],
+                    "absoluteBoundingBox": {
+                      "x": 2303.0,
+                      "y": 503.0,
+                      "width": 71.0,
+                      "height": 35.0
+                    },
+                    "absoluteRenderBounds": {
+                      "x": 2303.0,
+                      "y": 503.0,
+                      "width": 71.0,
+                      "height": 35.0
+                    },
+                    "constraints": {
+                      "vertical": "TOP",
+                      "horizontal": "LEFT"
+                    },
+                    "relativeTransform": [
+                      [
+                        1.0,
+                        0.0,
+                        0.0
+                      ],
+                      [
+                        0.0,
+                        1.0,
+                        0.0
+                      ]
+                    ],
+                    "size": {
+                      "x": 71.0,
+                      "y": 35.0
+                    },
+                    "layoutSizingHorizontal": "HUG",
+                    "layoutSizingVertical": "HUG",
+                    "effects": [],
+                    "interactions": []
+                  }
+                ],
                 "blendMode": "PASS_THROUGH",
                 "clipsContent": true,
                 "background": [
@@ -52861,7 +53020,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -52922,7 +53081,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -53720,7 +53879,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -53781,7 +53940,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -54024,7 +54183,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L7 0C7.55228 0 8 0.447715 8 1L8 1C8 1.55228 7.55228 2 7 2L1 2C0.447715 2 0 1.55228 0 1L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L7 0C7.55228 0 8 0.447715 8 1C8 1.55228 7.55228 2 7 2L1 2C0.447715 2 0 1.55228 0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -54085,7 +54244,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L7 0C7.55228 0 8 0.447715 8 1L8 1C8 1.55228 7.55228 2 7 2L1 2C0.447715 2 0 1.55228 0 1L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L7 0C7.55228 0 8 0.447715 8 1C8 1.55228 7.55228 2 7 2L1 2C0.447715 2 0 1.55228 0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -54146,7 +54305,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L8 0C8.55229 0 9 0.447715 9 1L9 1C9 1.55228 8.55229 2 8 2L1 2C0.447715 2 0 1.55228 0 1L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L8 0C8.55229 0 9 0.447715 9 1C9 1.55228 8.55229 2 8 2L1 2C0.447715 2 0 1.55228 0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -54207,7 +54366,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L3 0C3.55228 0 4 0.447715 4 1L4 1C4 1.55228 3.55228 2 3 2L1 2C0.447715 2 0 1.55228 0 1L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L3 0C3.55228 0 4 0.447715 4 1C4 1.55228 3.55228 2 3 2L1 2C0.447715 2 0 1.55228 0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -54268,7 +54427,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 1C2 1.55228 1.55228 2 1 2L1 2C0.447715 2 0 1.55228 0 1L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1C2 1.55228 1.55228 2 1 2C0.447715 2 0 1.55228 0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -54329,7 +54488,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L3 0C3.55228 0 4 0.447715 4 1L4 1C4 1.55228 3.55228 2 3 2L1 2C0.447715 2 0 1.55228 0 1L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L3 0C3.55228 0 4 0.447715 4 1C4 1.55228 3.55228 2 3 2L1 2C0.447715 2 0 1.55228 0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -54536,7 +54695,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -54597,7 +54756,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -55873,7 +56032,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -55934,7 +56093,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -56732,7 +56891,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -56793,7 +56952,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -57591,7 +57750,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -57652,7 +57811,7 @@
                                 ],
                                 "fillGeometry": [
                                   {
-                                    "path": "M0 1C0 0.447715 0.447715 0 1 0L1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12L1 12C0.447715 12 0 11.5523 0 11L0 1Z",
+                                    "path": "M0 1C0 0.447715 0.447715 0 1 0C1.55228 0 2 0.447715 2 1L2 11C2 11.5523 1.55228 12 1 12C0.447715 12 0 11.5523 0 11L0 1Z",
                                     "windingRule": "NONZERO"
                                   }
                                 ],
@@ -95109,9 +95268,9 @@
   "schemaVersion": 0,
   "styles": {},
   "name": "MetaScope V2 Rig",
-  "lastModified": "2025-09-19T22:04:35Z",
-  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/6c8c0876-1904-45e8-b21e-1b92dbd2b164?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC2QGZF2FH%2F20250918%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20250918T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=4444605a1a30e7b3d4462ee70acdc98d979256e4748ab2054cc9ac3e1310ad69",
-  "version": "2265624999897409789",
+  "lastModified": "2025-09-24T22:02:28Z",
+  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/86633096-712e-48a9-9185-fcb8331b3d40?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWCVSWHJJFD%2F20250925%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20250925T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=2764f0193e5c85bc1e6c585f6ebba39d29a7b3a9131b589332da37c70e810dd8",
+  "version": "2267476844340534055",
   "role": "owner",
   "editorType": "figma",
   "linkAccess": "inherit"

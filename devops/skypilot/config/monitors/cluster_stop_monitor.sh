@@ -16,12 +16,13 @@ while true; do
 
   if [ -s "$CLUSTER_STOP_FILE" ]; then
     reason="$(cat "$CLUSTER_STOP_FILE" 2> /dev/null || true)"
-    echo "[INFO] Cluster stop flag detected (${reason:-no-reason}); requesting shutdown"
+    # Note: Don't use monitor_utils::initiate_shutdown here since we're responding to
+    # an existing cluster stop signal, not initiating one
+    echo "[INFO] Cluster stop flag detected (${reason:-no-reason})"
     echo "${reason:-cluster_stop}" > "$TERMINATION_REASON_FILE"
     kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
     break
   fi
-
 done
 
 echo "[INFO] Cluster-stop monitor exiting"

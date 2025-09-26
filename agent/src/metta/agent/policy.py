@@ -4,10 +4,11 @@ Component-driven policies, legacy transformer rebuilds, and any custom policy mu
 implement this API so trainer components can interact with them uniformly."""
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import ClassVar, List
 
 import torch
 import torch.nn as nn
+from pydantic import ConfigDict
 from tensordict import TensorDict
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -28,6 +29,8 @@ class PolicyArchitecture(Config):
     """Policy architecture configuration."""
 
     class_path: str
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
     components: List[ComponentConfig] = []
 
@@ -165,3 +168,7 @@ class ExternalPolicyWrapper(Policy):
 PolicyArchitecture.register_alias("fast", "metta.agent.policies.fast.FastConfig")
 PolicyArchitecture.register_alias("agalite", "metta.agent.policies.agalite.AGaLiTeConfig")
 PolicyArchitecture.register_alias("agalite_improved", "metta.agent.policies.agalite.AGaLiTeImprovedConfig")
+PolicyArchitecture.register_alias("memory_free", "metta.agent.policies.memory_free.MemoryFreeConfig")
+PolicyArchitecture.register_alias("puffer", "metta.agent.policies.puffer.PufferPolicyConfig")
+PolicyArchitecture.register_alias("vit", "metta.agent.policies.vit.ViTDefaultConfig")
+PolicyArchitecture.register_alias("vit_sliding_trans", "metta.agent.policies.vit_sliding_trans.ViTSlidingTransConfig")

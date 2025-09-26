@@ -6,6 +6,14 @@ from tensordict import TensorDict
 from metta.agent.components.component_config import ComponentConfig
 
 
+def _zero_masked_features(td: TensorDict, features: torch.Tensor) -> torch.Tensor:
+    mask = td.get("obs_mask")
+    if mask is not None:
+        mask_bool = mask.to(torch.bool)
+        features = features.masked_fill(einops.rearrange(mask_bool, "... -> ... 1"), 0.0)
+    return features
+
+
 class ObsAttrCoordEmbedConfig(ComponentConfig):
     in_key: str
     out_key: str
@@ -37,7 +45,6 @@ class ObsAttrCoordEmbed(nn.Module):
 
         self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
-
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
@@ -46,27 +53,23 @@ class ObsAttrCoordEmbed(nn.Module):
         coord_indices = observations[..., 0].long()
         coord_pair_embedding = self._coord_embeds(coord_indices)
 
-        attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-
-        attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
-
+        attr_indices = observations[..., 1].long()
+        attr_embeds = self._attr_embeds(attr_indices)
         combined_embeds = attr_embeds + coord_pair_embedding
 
-        attr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        attr_values = observations[..., 2].float()
         attr_values = einops.rearrange(attr_values, "... -> ... 1")
 
-        # Assemble feature vectors
-        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
         feat_vectors = torch.empty(
             (*attr_embeds.shape[:-1], self._feat_dim),
             dtype=attr_embeds.dtype,
             device=attr_embeds.device,
         )
-        # Combined embedding portion
         feat_vectors[..., : self._attr_embed_dim] = combined_embeds
         feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
 
-        td[self.config.out_key] = feat_vectors
+        td[self.config.out_key] = _zero_masked_features(td, feat_vectors)
+
         return td
 
 
@@ -110,19 +113,16 @@ class ObsAttrEmbedFourier(nn.Module):
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
         self.register_buffer("frequencies", 2.0 ** torch.arange(self._num_freqs))
-
         return None
 
     def forward(self, td: TensorDict) -> TensorDict:
         observations = td[self.config.in_key]
 
-        # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
-        attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
+        # Attribute embeddings (pad idx 255 stays zeroed by nn.Embedding)
+        attr_indices = observations[..., 1].long()
+        attr_embeds = self._attr_embeds(attr_indices)
 
-        # Assemble feature vectors
-        # Pre-allocating the tensor and filling it avoids multiple `torch.cat` calls,
-        # which can be more efficient on GPU.
+        # Preallocate output to avoid repeated torch.cat
         feat_vectors = torch.empty(
             (*attr_embeds.shape[:-1], self._feat_dim),
             dtype=attr_embeds.dtype,
@@ -130,30 +130,23 @@ class ObsAttrEmbedFourier(nn.Module):
         )
         feat_vectors[..., : self._attr_embed_dim] = attr_embeds
 
-        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
+        # coords_byte packs x/y into the high/low nibble
         coords_byte = observations[..., 0].to(torch.uint8)
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).float()
+        y_coord_indices = (coords_byte & 0x0F).float()
 
-        # Extract x and y coordinate indices (0-15 range)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).float()  # Shape: [B_TT, M]
-        y_coord_indices = (coords_byte & 0x0F).float()  # Shape: [B_TT, M]
-
-        # Normalize coordinates to [-1, 1] based on the data range [0, 10]
+        # Normalize to [-1, 1] using known grid range (0-10)
         x_coords_norm = x_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
         y_coords_norm = y_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
 
-        # Expand dims for broadcasting with frequencies
-        x_coords_norm = x_coords_norm.unsqueeze(-1)  # [B_TT, M, 1]
-        y_coords_norm = y_coords_norm.unsqueeze(-1)  # [B_TT, M, 1]
-
-        # Get frequencies and reshape for broadcasting
-        # self.frequencies is [f], reshape to [1, 1, f]
+        # Broadcast with frequency tensor
+        x_coords_norm = einops.rearrange(x_coords_norm, "... -> ... 1")
+        y_coords_norm = einops.rearrange(y_coords_norm, "... -> ... 1")
         frequencies = self.get_buffer("frequencies").view(1, 1, -1)
-
-        # Compute scaled coordinates for Fourier features
         x_scaled = x_coords_norm * frequencies
         y_scaled = y_coords_norm * frequencies
 
-        # Compute and place Fourier features directly into the feature vector
+        # Populate Fourier blocks: [cos(x), sin(x), cos(y), sin(y)]
         offset = self._attr_embed_dim
         feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
         offset += self._num_freqs
@@ -163,12 +156,13 @@ class ObsAttrEmbedFourier(nn.Module):
         offset += self._num_freqs
         feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
 
-        attr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        # Append scalar attribute value
+        feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(
+            observations[..., 2].float(), "... -> ... 1"
+        )
 
-        # Place normalized attribute values in the feature vector
-        feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(attr_values, "... -> ... 1")
+        td[self.config.out_key] = _zero_masked_features(td, feat_vectors)
 
-        td[self.config.out_key] = feat_vectors
         return td
 
 
@@ -224,7 +218,7 @@ class ObsAttrCoordValueEmbed(nn.Module):
 
         combined_embeds = attr_embeds + coord_pair_embedding + val_embeds
 
-        td[self.config.out_key] = combined_embeds
+        td[self.config.out_key] = _zero_masked_features(td, combined_embeds)
         return td
 
 

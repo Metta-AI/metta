@@ -69,7 +69,11 @@ class SkyPilotTestLauncher:
         """Generate a descriptive run name with timestamp."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = f"_{extra_suffix}" if extra_suffix else ""
-        return f"{self.base_name}_{test_name}{suffix}_{timestamp}"
+
+        # Replace slashes with underscores for Sky compatibility
+        safe_test_name = test_name.replace("/", "_")
+
+        return f"{self.base_name}_{safe_test_name}{suffix}_{timestamp}"
 
     def check_git_state(self) -> bool:
         """Check if git state is clean. Returns True if clean or check is skipped."""
@@ -923,60 +927,73 @@ Examples:
         print(f"{cyan('Launch time:')} {test_info.get('launch_time', 'Unknown')}")
         print(f"{cyan('Jobs to kill:')} {', '.join(job_ids)}")
 
-        # Kill each job with retry
+        # Kill each job
         print(f"\n{cyan('Killing jobs...')}")
-        successful_kills = []
+        killed_count = 0
+        completed_count = 0
         failed_kills = []
 
         for i, job_id in enumerate(job_ids):
             print(f"  [{i + 1}/{len(job_ids)}] Killing job {yellow(job_id)}...", end="", flush=True)
 
-            success, error = self._kill_job_with_retry(job_id)
+            success, status = self._kill_job_with_retry(job_id)
 
             if success:
-                successful_kills.append(job_id)
-                print(f" {green('✓ Killed')}")
+                if status == "Killed":
+                    killed_count += 1
+                    print(f" {red('✗')} {status}")
+                else:  # "Already completed" or "Not found"
+                    completed_count += 1
+                    print(f" {green('✓')} {status}")
             else:
-                failed_kills.append((job_id, error))
-                print(f" {red('✗ Failed')}")
-                print(f"       {red('Error:')} {error}")
+                failed_kills.append((job_id, status))
+                print(f" {red('✗ Failed')}: {status}")
 
         # Summary
-        print(f"\n{bold('=== Kill Summary ===')}")
-        if successful_kills:
-            print(f"{green('Successfully killed:')} {len(successful_kills)} jobs")
+        print(f"\n{bold('=== Summary ===')}")
+        if killed_count > 0:
+            print(f"{yellow('Killed:')} {killed_count} jobs")
+        if completed_count > 0:
+            print(f"{green('Already completed:')} {completed_count} jobs")
         if failed_kills:
-            print(f"{red('Failed to kill:')} {len(failed_kills)} jobs")
-            for job_id, error in failed_kills:
-                print(f"  • {job_id}: {error}")
+            print(f"{red('Failed:')} {len(failed_kills)} jobs")
 
         # Exit with error if any kills failed
         if failed_kills:
             sys.exit(1)
 
     def _kill_job_with_retry(self, job_id: str, max_attempts: int = 3) -> tuple[bool, str]:
-        """Kill a single job with retry logic. Returns (success, error_message)."""
+        """Kill a single job with retry logic. Returns (success, status_message)."""
 
         def execute_kill():
             cmd = ["sky", "jobs", "cancel", "-y", job_id]
             result = subprocess.run(cmd, capture_output=True, text=True)
 
+            # Check stderr first, regardless of return code
+            stdout_lower = result.stdout.lower()
+
+            # Check if already terminated
+            if "already in terminal state" in stdout_lower:
+                return True, "Already completed"
+
+            # Check if not found
+            if "not found" in stdout_lower:
+                return True, "Not found"
+
+            # If return code is 0, it was actually killed
             if result.returncode == 0:
-                return True
+                return True, "Killed"
 
-            # Check if job is already terminated
-            if "already in terminal state" in result.stderr.lower() or "not found" in result.stderr.lower():
-                return True
-
-            raise Exception(result.stderr.strip() or f"Command failed with code {result.returncode}")
+            # Otherwise it's an error
+            raise Exception(result.stdout.strip() or "Failed")
 
         try:
-            retry_function(
+            success, status = retry_function(
                 execute_kill,
                 max_retries=max_attempts - 1,
                 initial_delay=1.0,
             )
-            return True, ""
+            return success, status
         except Exception as e:
             return False, str(e)
 

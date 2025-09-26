@@ -29,7 +29,9 @@ runs:
       uses: ./.github/actions/setup-environment
       with:
         install-mode: minimal
-        extra-dependencies: requests>=2.31.0
+        extra-dependencies: |
+          requests>=2.31.0
+          rich
 
     - name: Post to Discord
       run: |

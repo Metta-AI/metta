@@ -9,7 +9,7 @@ import pandas as pd
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.file import local_copy
+from metta.utils.file import local_copy
 
 # --------------------------------------------------------------------------- #
 #   Views                                                                     #

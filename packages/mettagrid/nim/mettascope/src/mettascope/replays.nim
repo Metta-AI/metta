@@ -1,4 +1,5 @@
 import std/[json],
+  boxy, fidget2/[hybridrender],
   zippy, vmath, jsony
 
 type
@@ -60,10 +61,18 @@ type
     traceImages*: seq[string]
     objects*: seq[Entity]
     rewardSharingMatrix*: seq[seq[float]]
+
     agents*: seq[Entity]
-    attackActionId*: int
+
     drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
+
+    noopActionId*: int
+    moveActionId*: int
+    putItemsActionId*: int
+    getItemsActionId*: int
+    attackActionId*: int
+    changeGlyphActionId*: int
 
   ReplayEntity* = ref object
     ## Replay entity does not have time series and only has the current step value.
@@ -354,7 +363,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
   return data
 
 proc computeGainMap(replay: Replay) =
-  #$ Compute gain/loss for agents.
+  ## Compute gain/loss for agents.
   var items = [
     newSeq[int](replay.itemNames.len),
     newSeq[int](replay.itemNames.len)
@@ -363,28 +372,31 @@ proc computeGainMap(replay: Replay) =
     agent.gainMap = newSeq[seq[ItemAmount]](replay.maxSteps)
 
     # Gain map for step 0.
-    let inventory = agent.inventory[0]
-    var gainMap = newSeq[ItemAmount]()
-    for i in 0 ..< items[0].len:
-      items[0][i] = 0
-    for item in inventory:
-      gainMap.add(item)
-      items[0][item.itemId] = item.count
-    agent.gainMap[0] = gainMap
+    if agent.inventory.len == 1:
+      let inventory = agent.inventory[0]
+      var gainMap = newSeq[ItemAmount]()
+      if inventory.len > 0:
+        for i in 0 ..< items[0].len:
+          items[0][i] = 0
+        for item in inventory:
+          gainMap.add(item)
+          items[0][item.itemId] = item.count
+      agent.gainMap[0] = gainMap
 
     # Gain map for step > 1.
     for i in 1 ..< replay.maxSteps:
-      let inventory = agent.inventory[i]
       var gainMap = newSeq[ItemAmount]()
-      let n = i mod 2
-      for j in 0 ..< items[n].len:
-        items[n][j] = 0
-      for item in inventory:
-        items[n][item.itemId] = item.count
-      let m = 1 - n
-      for j in 0..<replay.itemNames.len:
-        if items[n][j] != items[m][j]:
-          gainMap.add(ItemAmount(itemId: j, count: items[n][j] - items[m][j]))
+      if agent.inventory.len > i:
+        let inventory = agent.inventory[i]
+        let n = i mod 2
+        for j in 0 ..< items[n].len:
+          items[n][j] = 0
+        for item in inventory:
+          items[n][item.itemId] = item.count
+        let m = 1 - n
+        for j in 0 ..< replay.itemNames.len:
+          if items[n][j] != items[m][j]:
+            gainMap.add(ItemAmount(itemId: j, count: items[n][j] - items[m][j]))
       agent.gainMap[i] = gainMap
 
 proc loadReplayString*(jsonData: string, fileName: string): Replay =
@@ -409,10 +421,14 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   replay.typeImages = newSeq[string](replay.typeNames.len)
   for i in 0 ..< replay.typeNames.len:
     replay.typeImages[i] = "objects/" & replay.typeNames[i]
+    if replay.typeImages[i] notin bxy:
+      replay.typeImages[i] = "objects/unknown"
 
   replay.actionImages = newSeq[string](replay.actionNames.len)
   for i in 0 ..< replay.actionNames.len:
     replay.actionImages[i] = "actions/" & replay.actionNames[i]
+    if replay.actionImages[i] notin bxy:
+      replay.actionImages[i] = "actions/unknown"
 
   replay.actionAttackImages = newSeq[string](9)
   for i in 0 ..< 9:
@@ -421,20 +437,25 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   replay.actionIconImages = newSeq[string](replay.actionNames.len)
   for i in 0 ..< replay.actionNames.len:
     replay.actionIconImages[i] = "actions/icons/" & replay.actionNames[i]
+    if replay.actionIconImages[i] notin bxy:
+      replay.actionIconImages[i] = "actions/icons/unknown"
 
   replay.traceImages = newSeq[string](replay.actionNames.len)
   for i in 0 ..< replay.actionNames.len:
     replay.traceImages[i] = "trace/" & replay.actionNames[i]
+    if replay.traceImages[i] notin bxy:
+      replay.traceImages[i] = "trace/unknown"
 
   replay.itemImages = newSeq[string](replay.itemNames.len)
   for i in 0 ..< replay.itemNames.len:
     replay.itemImages[i] = "resources/" & replay.itemNames[i]
+    if replay.itemImages[i] notin bxy:
+      replay.itemImages[i] = "resources/unknown"
 
   for actionName in drawnAgentActionNames:
     let idx = replay.actionNames.find(actionName)
     if idx != -1:
       replay.drawnAgentActionMask = replay.drawnAgentActionMask or (1'u64 shl idx)
-
   replay.attackActionId = replay.actionNames.find("attack")
 
   if "file_name" in jsonObj:
@@ -530,6 +551,16 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "agent_id" in obj:
       replay.agents.add(entity)
 
+  # compute gain maps for static replays.
+  computeGainMap(replay)
+
+  replay.noopActionId = replay.actionNames.find("noop")
+  replay.moveActionId = replay.actionNames.find("move")
+  replay.putItemsActionId = replay.actionNames.find("put_items")
+  replay.getItemsActionId = replay.actionNames.find("get_items")
+  replay.attackActionId = replay.actionNames.find("attack")
+  replay.changeGlyphActionId = replay.actionNames.find("change_glyph")
+
   return replay
 
 proc loadReplay*(data: string, fileName: string): Replay =
@@ -580,9 +611,17 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.cooldownProgress.add(obj.cooldownProgress)
     entity.cooldownTime = obj.cooldownTime
 
-  computeGainMap(replay)
-
+  # Extend the max steps.
   replay.maxSteps = max(replay.maxSteps, step + 1)
+
+  # Populate the agents field for agent entities
+  if replay.agents.len == 0:
+    for obj in replay.objects:
+      if obj.typeId == agentTypeIndex:
+        replay.agents.add(obj)
+    doAssert replay.agents.len == replay.numAgents, "Agents and numAgents mismatch"
+
+  computeGainMap(replay)
 
 proc apply*(replay: Replay, replayStepJsonData: string) =
   ## Apply a replay step to the replay.

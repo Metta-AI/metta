@@ -55,6 +55,10 @@ type
     showObservations* = -1
     lockFocus* = false
 
+  PlayMode* = enum
+    Historical
+    Realtime
+
 var
   rootArea*: Area
   frame*: int
@@ -78,9 +82,14 @@ var
   play*: bool
   playSpeed*: float32 = 0.1
   lastSimTime*: float64 = epochTime()
+  playMode* = Historical
 
   ## Signals when we want to give control back to Python (DLL mode only).
   requestPython*: bool = false
+  requestAction*: bool = false
+  requestActionAgentId*: int
+  requestActionActionId*: int
+  requestActionArgument*: int
 
   followSelection*: bool = false
   mouseCaptured*: bool = false

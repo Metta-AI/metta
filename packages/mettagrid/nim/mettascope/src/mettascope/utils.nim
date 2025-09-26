@@ -1,7 +1,5 @@
 import
-  std/[os],
-  boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, sim
+  boxy, vmath, windy, fidget2/hybridrender
 
 var
   typeface*: Typeface

@@ -50,7 +50,7 @@ class WandbAborter(TrainerComponent):
                 except Exception as exc:  # noqa: BLE001 - we only log the failure
                     logger.warning("Failed to update wandb config with abort timesteps: %s", exc, exc_info=True)
 
-        if distributed_helper.is_distributed():
+        if distributed_helper.is_distributed:
             target_timesteps = distributed_helper.broadcast_from_master(target_timesteps)
 
         if target_timesteps is not None:
