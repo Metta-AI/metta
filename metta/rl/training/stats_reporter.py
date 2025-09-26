@@ -13,12 +13,8 @@ from pydantic import Field
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.stats import (
-    accumulate_rollout_stats,
-    compute_timing_stats,
-    process_training_stats,
-)
-from metta.rl.training import TrainerComponent
+from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
+from metta.rl.training.component import TrainerComponent
 from metta.rl.utils import should_run
 from mettagrid.config import Config
 
@@ -32,7 +28,7 @@ class Timer(Protocol):
 def _to_scalar(value: Any) -> Optional[float]:
     """Convert supported numeric types to float, skipping non-scalars."""
 
-    if isinstance(value, (int, float, bool)):
+    if isinstance(value, (int, float, bool, np.number)):
         return float(value)
     if isinstance(value, np.ndarray):
         if value.size == 1:
@@ -89,7 +85,11 @@ def build_wandb_payload(
 
     _update(overview, prefix="overview/")
     _update(processed_stats.get("losses_stats", {}), prefix="losses/")
-    _update(processed_stats.get("experience_stats", {}), prefix="experience/")
+
+    # Get experience stats and compute area under reward
+    experience_stats = processed_stats.get("experience_stats", {})
+    _update(experience_stats, prefix="experience/")
+
     _update(processed_stats.get("environment_stats", {}))
     _update(parameters, prefix="parameters/")
     _update(hyperparameters, prefix="hyperparameters/")
@@ -130,6 +130,8 @@ class StatsReporterState(Config):
     grad_stats: dict = Field(default_factory=dict)
     eval_scores: EvalRewardSummary = Field(default_factory=EvalRewardSummary)
     stats_run_id: Optional[UUID] = None
+    area_under_reward: float = 0.0
+    """Cumulative area under the reward curve"""
 
 
 class NoOpStatsReporter(TrainerComponent):
@@ -259,16 +261,17 @@ class StatsReporter(TrainerComponent):
                 optimizer=optimizer,
             )
 
+            # Update area under reward curve
+            # Uses the current reward value and accumulates it over time
+            if "experience/rewards" in payload:
+                # Assuming each epoch represents a fixed time interval
+                self._state.area_under_reward += payload["experience/rewards"]
+                payload["experience/area_under_reward"] = self._state.area_under_reward
+
             if self._wandb_run and self._config.report_to_wandb and payload:
                 self._wandb_run.log(payload, step=agent_step)
 
             self._latest_payload = payload.copy() if payload else None
-
-            if payload and self._stats_client and self._config.report_to_stats_client:
-                run_id = self._state.stats_run_id
-                if run_id is not None:
-                    attributes: dict[str, Any] = {"metrics": payload, "agent_step": agent_step}
-                    self.create_epoch(run_id, epoch, epoch, attributes=attributes)
 
             # Clear stats after processing
             self.clear_rollout_stats()

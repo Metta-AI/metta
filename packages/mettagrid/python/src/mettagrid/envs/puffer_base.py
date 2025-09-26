@@ -27,7 +27,6 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
-from pufferlib import PufferEnv
 from typing_extensions import override
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -39,6 +38,7 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+from pufferlib import PufferEnv
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
