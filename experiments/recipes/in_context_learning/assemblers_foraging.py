@@ -159,6 +159,15 @@ curriculum_args = {
         "room_sizes": ["xlarge"],
         "positions": [["N", "S"]],
     },
+    "terrain": {
+        "num_agents": [1, 2, 3],
+        "num_altars": [10, 20, 30, 40],
+        "num_generators": [0],
+        "room_sizes": ["xlarge"],
+        "positions": [["Any"]],
+        "obstacle_types": ["cross"],
+        "densities": ["high"],
+    },
 }
 
 
@@ -258,17 +267,6 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
             width=width,
             height=height,
         )
-
-    # TODO
-    def _set_width_and_height(
-        self, room_size, num_agents, num_altars, num_generators, rng
-    ):
-        width, height = self._get_width_and_height(room_size, rng)
-        area = width * height
-        minimum_area = (num_agents + num_altars + num_generators) * 2
-        if area < minimum_area:
-            width, height = minimum_area // 2, minimum_area // 2
-        return width, height
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         num_agents = rng.choice(self.config.num_agents)

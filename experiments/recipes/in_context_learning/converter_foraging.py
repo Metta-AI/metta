@@ -129,7 +129,6 @@ class ConverterForagingTaskGenerator(ICLTaskGenerator):
         )
 
     def _generate_task(self, task_id: int, rng: random.Random):
-        cfg = self.config
         (
             resources,
             num_converters,

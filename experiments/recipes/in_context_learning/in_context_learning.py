@@ -246,6 +246,17 @@ class ICLTaskGenerator(TaskGenerator):
         height = rng.randint(lo, hi)
         return width, height
 
+    def _set_width_and_height(
+        self, room_size, num_agents, num_altars, num_generators, rng
+    ):
+        """Set the width and height of the environment to be at least the minimum area required for the number of agents, altars, and generators."""
+        width, height = self._get_width_and_height(room_size, rng)
+        area = width * height
+        minimum_area = (num_agents + num_altars + num_generators) * 2
+        if area < minimum_area:
+            width, height = minimum_area // 2, minimum_area // 2
+        return width, height
+
     def _setup_task(self, rng: random.Random):
         """
         Sample the high-level task spec that both Ordered and Unordered builders use.

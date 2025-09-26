@@ -160,6 +160,7 @@ class AssemblerConverterChainTaskGenerator(ConverterChainTaskGenerator):
                 rng=rng,
             )
         num_instances = 24 // num_agents
+
         return make_icl_assembler(
             num_agents=num_agents,
             num_instances=num_instances,
@@ -179,6 +180,10 @@ class AssemblerConverterChainTaskGenerator(ConverterChainTaskGenerator):
         resources, num_sinks, room_size, obstacle_type, density, width, height, _ = (
             self._setup_task(rng)
         )
+        width, height = self._set_width_and_height(
+            room_size, num_agents, len(resources) + 1, num_sinks, rng
+        )
+
         position = rng.choice(self.config.positions)
 
         avg_hop = calculate_avg_hop(room_size)
