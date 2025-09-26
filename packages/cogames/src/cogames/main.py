@@ -155,7 +155,7 @@ def make_scenario(
 def train_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
     policy_class_path: str = typer.Option(
-        "cogames.examples.random_policy.RandomPolicy", "--policy", help="Path to policy class"
+        "cogames.examples.simple_policy.SimplePolicy", "--policy", help="Path to policy class"
     ),
     initial_weights_path: Optional[str] = typer.Option(
         None, "--initial-weights", help="Path to initial policy weights"
