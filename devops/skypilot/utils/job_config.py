@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-
-
-from dataclasses import dataclass, fields
-from typing import Optional
+from dataclasses import asdict, dataclass
+from typing import Any, Optional
 
 from metta.common.util.log_config import getRankAwareLogger
 
@@ -28,6 +26,7 @@ class JobConfig:
     heartbeat_timeout: Optional[int] = None
     restart_count: int = 0
     test_nccl: bool = False
+    test_job_restart: bool = False
     start_time: Optional[int] = None
 
     # File paths
@@ -52,9 +51,30 @@ class JobConfig:
     wandb_entity: Optional[str] = None
     enable_wandb_notification: bool = True
 
+    def to_filtered_dict(self, filtered_field_names: list[str] | None = None) -> dict[str, Any]:
+        """Convert to dictionary with sensitive fields redacted."""
+        if filtered_field_names is None:
+            filtered_field_names = ["discord_webhook_url", "github_pat"]
+
+        result = asdict(self)
+        for field_name in result:
+            if field_name in filtered_field_names and result[field_name] is not None:
+                result[field_name] = "REDACTED"
+            elif result[field_name] is None:
+                result[field_name] = "<not set>"
+        return result
+
 
 def log_job_config(jc: JobConfig):
+    """Log job configuration with sensitive values redacted."""
     logger.info("Run Configuration:")
-    for field in fields(jc):
-        value = getattr(jc, field.name)
-        logger.info(f"  - {field.name}: {value}")
+    for field_name, value in jc.to_filtered_dict().items():  # Need .items() here
+        logger.info(f"  - {field_name}: {value}")
+
+
+def __repr__(self):
+    """Return a string representation with sensitive fields redacted."""
+    # Use the same redaction logic
+    safe_dict = self.to_filtered_dict()
+    params = ", ".join(f"{k}={v!r}" for k, v in safe_dict.items())
+    return f"JobConfig({params})"

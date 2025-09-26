@@ -1,13 +1,32 @@
-import std/[random, os, times, strformat, strutils, parseopt],
-  boxy, opengl, windy, windy/http, chroma, vmath, fidget2, fidget2/hybridrender,
-  mettascope/[replays, common, panels, utils, footer, timeline,
-  worldmap, minimap, agenttable, agenttraces, envconfig]
+import std/[os, strutils, parseopt, json],
+  boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
+  mettascope/[replays, common, panels, utils, timeline,
+  worldmap, minimap, agenttraces]
 
 var replay = ""
 
 # TODO: Remove with dynamic panels.
 var topArea: Area
 var bottomArea: Area
+
+proc updateReplayHeader(replayPath: string) =
+  ## Set the global header's display name for the current replay.
+  if common.replay.isNil:
+    return
+  var display = ""
+  if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
+    let node = common.replay.mgConfig["label"]
+    if node.kind == JString:
+      display = node.getStr
+  if display.len == 0 and common.replay.fileName.len > 0:
+    display = common.replay.fileName
+  if display.len == 0 and replayPath.len > 0:
+    display = extractFilename(replayPath)
+  if display.len == 0:
+    display = "unknown"
+
+  let titleNode = find("**/GlobalTitle")
+  titleNode.text = display
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -26,8 +45,6 @@ proc parseArgs() =
         discard
     of cmdArgument:
       discard
-
-
 
 find "/UI/Main":
 
@@ -52,11 +69,8 @@ find "/UI/Main":
   onLoad:
     echo "onLoad"
 
-    # Build the atlas.
-    for path in walkDirRec(dataDir):
-      if path.endsWith(".png") and "fidget" notin path:
-        echo path
-        bxy.addImage(path.replace(dataDir & "/", "").replace(".png", ""), readImage(path))
+    # We need to build the atlas before loading the replay.
+    buildAtlas()
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
@@ -69,10 +83,13 @@ find "/UI/Main":
         req.onResponse = proc(response: HttpResponse) =
           echo "onResponse: code=", $response.code, ", len=", response.body.len
           common.replay = loadReplay(response.body, replay)
+          updateReplayHeader(replay)
       else:
         common.replay = loadReplay(replay)
+        updateReplayHeader(replay)
     elif common.replay == nil:
       common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
+      updateReplayHeader(dataDir / "replays" / "pens.json.z")
 
     echo "Creating panels"
     rootArea = Area(layout: Horizontal, node: find("**/AreaHeader"))
@@ -124,7 +141,6 @@ find "/UI/Main":
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
-
     globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
       timeline.drawTimeline(globalTimelinePanel)
@@ -154,6 +170,13 @@ find "/UI/Main":
 
 when isMainModule:
 
+  # Check if the data directory exists.
+  let dataDir = "packages/mettagrid/nim/mettascope/data"
+  if not dirExists(dataDir):
+    echo "Data directory does not exist: ", dataDir
+    echo "Please run it from the root of the project."
+    quit(1)
+
   parseArgs()
 
   initFidget(
@@ -161,7 +184,7 @@ when isMainModule:
     windowTitle = "MetaScope V2",
     entryFrame = "UI/Main",
     windowStyle = DecoratedResizable,
-    dataDir = "mettascope2/data"
+    dataDir = dataDir
   )
 
   when defined(emscripten):

@@ -8,7 +8,7 @@ from metta.app_backend.eval_task_orchestrator import AutoScaler
 from metta.app_backend.routes.eval_task_routes import TaskAvgRuntimeResponse, TaskCountResponse
 
 # Query constants used by AutoScaler
-UNPROCESSED_QUERY = "status = 'unprocessed'"
+UNPROCESSED_QUERY = "status = 'unprocessed' OR status = 'running'"
 TASKS_CREATED_LAST_DAY_QUERY = "created_at > NOW() - INTERVAL '1 day'"
 DONE_TASKS_LAST_DAY_QUERY = "status = 'done' AND created_at > NOW() - INTERVAL '1 day'"
 

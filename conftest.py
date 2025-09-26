@@ -1,14 +1,12 @@
-import warnings
+# conftest.py
+import logging
 
 import pytest
 
 from metta.common.test_support import docker_client_fixture
 
-# Load custom pytest plugins
-pytest_plugins = ["pytest_plugins.suppress_gym_warning"]
-
-# Suppress Gym warnings about being unmaintained at test collection time
-warnings.filterwarnings("ignore", message=".*Gym has been unmaintained.*", category=UserWarning)
+# Suppress PyTorch distributed warnings
+logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
 
 
 def pytest_configure(config):
