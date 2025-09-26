@@ -57,7 +57,7 @@ def make_env(num_agents: int = 4) -> MettaGridConfig:
         instances=num_agents,
         border_width=6,
         instance_border_width=3,
-        instance_map=TerrainFromNumpy.Config(
+        instance=TerrainFromNumpy.Config(
             agents=1,
             objects={"altar": 15, "mine_red": 15, "generator_red": 15},
             dir="varied_terrain/dense_large",
@@ -82,15 +82,11 @@ def make_curriculum(
         for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
             maps.append(f"varied_terrain/{terrain}_{size}")
 
-    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(15, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.objects.mine_red", [Span(15, 50)])
     dense_tasks.add_bucket(
-        "game.map_builder.instance_map.objects.altar", [Span(15, 50)]
-    )
-    dense_tasks.add_bucket(
-        "game.map_builder.instance_map.objects.mine_red", [Span(15, 50)]
-    )
-    dense_tasks.add_bucket(
-        "game.map_builder.instance_map.objects.generator_red", [Span(15, 50)]
+        "game.map_builder.instance.objects.generator_red", [Span(15, 50)]
     )
     dense_tasks.add_bucket("game.objects.altar.initial_resource_count", [0, 1])
     sparse_nav_env = nav_env.model_copy()

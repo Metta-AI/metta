@@ -31,7 +31,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
         instances=num_instances,
         border_width=6,
         instance_border_width=3,
-        instance_map=NavigationFromNumpy.Config(
+        instance=NavigationFromNumpy.Config(
             agents=num_agents,
             objects={"altar": 10},
             dir="varied_terrain/dense_large",
@@ -55,8 +55,8 @@ def make_curriculum(
         for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
             maps.append(f"varied_terrain/{terrain}_{size}")
 
-    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(3, 50)])
 
     # sparse environments are just random maps
     sparse_nav_env = nav_env.model_copy()

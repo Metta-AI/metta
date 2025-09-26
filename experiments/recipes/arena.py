@@ -35,7 +35,7 @@ def make_curriculum(
 
     arena_tasks = cc.bucketed(arena_env)
 
-    # arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6])
+    # arena_tasks.add_bucket("game.map_builder.instance.params.agents", [1, 2, 3, 4, 6])
     # arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30, 40])
     # arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30, 40])
     # arena_tasks.add_bucket("game.map_builder.instance_border_width", [0, 6])

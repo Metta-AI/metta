@@ -7,8 +7,6 @@ from typing import Optional, Sequence
 
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-
-from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
@@ -25,12 +23,14 @@ from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
+
 from experiments.recipes.in_context_learning.icl_resource_chain import (
     ICLTaskGenerator,
     LPParams,
     _BuildCfg,
     calculate_avg_hop,
 )
+from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 
 curriculum_args = {
     "level_0": {
@@ -297,7 +297,7 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
                 num_instances=24,
                 max_steps=max_steps,
                 game_objects=cfg.game_objects,
-                instance_map=InContextLearningFromNumpy.Config(
+                instance=InContextLearningFromNumpy.Config(
                     dir=dir,
                     object_names=cfg.used_objects,
                     rng=rng,
