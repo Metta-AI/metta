@@ -9,7 +9,7 @@ Cortex implements a modular stack-based memory architecture with three core abst
 1. **Cells**: Stateless memory units (LSTM, GRU, etc.) that process sequences
    - Purpose: Encapsulate recurrent computation logic (gates, state updates, memory mechanisms)
    - Interface: Accepts input tensor and state, returns output and updated state
-   - Examples: LSTM for long-term dependencies, GRU for simpler gated memory
+   - Examples: LSTM, mLSTM, sLSTM, AGaLiTe style memory, self-attention, or pretty much any other memory cell!
 
 2. **Blocks**: Wrappers around cells that handle projections and transformations
    - Purpose: Control information flow, stabilize gradients, and manage dimensionality
