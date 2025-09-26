@@ -114,7 +114,7 @@ def make_task_generator_cfg(
     obstacle_types=[],
     densities=[],
 ):
-    return ICLTaskGenerator.Config(
+    return OrderedChainsTaskGenerator.Config(
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
         obstacle_types=obstacle_types,
