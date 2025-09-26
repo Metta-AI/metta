@@ -317,49 +317,49 @@ VIT_POLICY_BASE = make_custom_protein_config(
             mean=32,  # 2^5
             scale="auto",
         ),
-        "policy_architecture.embedding_dim": ParameterConfig(
+        "policy_architecture._embedding_dim": ParameterConfig(
             distribution="uniform_pow2",
             min=8,
             max=32,
             mean=16,
             scale="auto",
         ),
-        "policy_architecture.token_embed_dim": ParameterConfig(
+        "policy_architecture._token_embed_dim": ParameterConfig(
             distribution="int_uniform",
             min=8,
             max=16,
             mean=12,
             scale="auto",
         ),
-        "policy_architecture.fourier_freqs": ParameterConfig(
+        "policy_architecture._fourier_freqs": ParameterConfig(
             distribution="int_uniform",
             min=2,
             max=6,
             mean=4,
             scale="auto",
         ),
-        "policy_architecture.latent_dim": ParameterConfig(
+        "policy_architecture._latent_dim": ParameterConfig(
             distribution="uniform_pow2",
             min=32,
             max=128,
             mean=64,
             scale="auto",
         ),
-        "policy_architecture.lstm_latent": ParameterConfig(
+        "policy_architecture._lstm_latent": ParameterConfig(
             distribution="uniform_pow2",
             min=32,
             max=128,
             mean=64,
             scale="auto",
         ),
-        "policy_architecture.actor_hidden": ParameterConfig(
+        "policy_architecture._actor_hidden": ParameterConfig(
             distribution="uniform_pow2",
             min=128,
             max=512,
             mean=256,
             scale="auto",
         ),
-        "policy_architecture.critic_hidden": ParameterConfig(
+        "policy_architecture._critic_hidden": ParameterConfig(
             distribution="uniform_pow2",
             min=256,
             max=1024,
