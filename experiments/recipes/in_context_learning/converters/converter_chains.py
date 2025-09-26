@@ -439,7 +439,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.converter_chains.train",
+                "experiments.recipes.in_context_learning.converters.converter_chains.train",
                 f"run=icl_resource_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
