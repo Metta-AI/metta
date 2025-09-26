@@ -1,4 +1,6 @@
-from experiments.recipes.in_context_learning.assemblers import make_assembler_env
+from experiments.recipes.in_context_learning.assemblers_foraging import (
+    make_assembler_env,
+)
 from metta.sim.simulation_config import SimulationConfig
 
 
@@ -11,8 +13,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
                 num_agents=1,
                 num_altars=2,
                 num_generators=0,
-                width=8,
-                height=8,
+                room_size="small",
                 position=["W"],
             ),
         ),
@@ -23,8 +24,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
                 num_agents=1,
                 num_altars=2,
                 num_generators=0,
-                width=8,
-                height=8,
+                room_size="small",
                 position=["Any"],
             ),
         ),
@@ -35,8 +35,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
                 num_agents=2,
                 num_altars=2,
                 num_generators=0,
-                width=8,
-                height=8,
+                room_size="small",
                 position=["W", "E"],
             ),
         ),
@@ -46,8 +45,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             env=make_assembler_env(
                 num_agents=3,
                 num_altars=30,
-                width=30,
-                height=30,
+                room_size="large",
                 num_generators=0,
                 position=["Any"],
             ),
@@ -58,8 +56,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             env=make_assembler_env(
                 num_agents=3,
                 num_altars=30,
-                width=30,
-                height=30,
+                room_size="large",
                 num_generators=0,
                 position=["N", "S", "E"],
             ),

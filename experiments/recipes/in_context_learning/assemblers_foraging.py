@@ -1,134 +1,42 @@
 import random
 import subprocess
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Sequence
+from typing import Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import (
-    TaskGenerator,
-    TaskGeneratorConfig,
-)
-from metta.rl.trainer_config import LossConfig, TrainerConfig
-
-from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from mettagrid.builder import building
 from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
-    RecipeConfig,
 )
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from pydantic import Field
-
-
-CONVERTER_TYPES = {
-    "generator_red": building.assembler_generator_red,
-    "generator_blue": building.assembler_generator_blue,
-    "generator_green": building.assembler_generator_green,
-    "mine_red": building.assembler_mine_red,
-    "mine_blue": building.assembler_mine_blue,
-    "mine_green": building.assembler_mine_green,
-}
-
-RESOURCE_TYPES = [
-    "ore_red",
-    "ore_blue",
-    "ore_green",
-    "battery_red",
-    "battery_blue",
-    "battery_green",
-    "laser",
-    "blueprint",
-    "armor",
-]
-
-num_agents_to_positions = {
-    1: [["N"], ["S"], ["E"], ["W"]],
-    2: [
-        ["N", "S"],
-        ["E", "W"],
-        ["N", "E"],  # one agent must be north, the other agent must be east
-        ["N", "W"],  # one agent must be north, the other agent must be west
-        ["S", "E"],
-        ["S", "W"],
-    ],
-    3: [
-        ["N", "S", "E"],
-        ["E", "W", "N"],
-        ["W", "E", "S"],
-        ["N", "S", "W"],
-        ["S", "N", "E"],
-    ],
-    4: [
-        ["N", "S", "E", "W"],
-        ["E", "W", "N", "S"],
-        ["W", "E", "S", "N"],
-        ["N", "S", "W", "E"],
-        ["S", "N", "E", "W"],
-    ],
-}
-
-
-CONVERTER_TYPES = {
-    "mine_red": empty_converters.mine_red,
-    "mine_blue": empty_converters.mine_blue,
-    "mine_green": empty_converters.mine_green,
-    "generator_red": empty_converters.generator_red,
-    "generator_blue": empty_converters.generator_blue,
-    "generator_green": empty_converters.generator_green,
-    "altar": empty_converters.altar,
-    "lab": empty_converters.lab,
-    "lasery": empty_converters.lasery,
-    "factory": empty_converters.factory,
-    "temple": empty_converters.temple,
-    "armory": empty_converters.armory,
-}
-RESOURCE_TYPES = [
-    "ore_red",
-    "ore_blue",
-    "ore_green",
-    "battery_red",
-    "battery_blue",
-    "battery_green",
-    "laser",
-    "blueprint",
-    "armor",
-]
-
-size_ranges: dict[str, tuple[int, int]] = {
-    "tiny": (5, 8),
-    "small": (8, 12),
-    "medium": (12, 16),
-    "large": (16, 25),
-}
+from experiments.recipes.in_context_learning.in_context_learning import (
+    ICLTaskGenerator,
+    LPParams,
+    train_icl,
+    play_icl,
+    replay_icl,
+    _BuildCfg,
+    num_agents_to_positions,
+)
 
 
 def make_curriculum_args(
     num_agents: list[int],
     num_altars: list[int],
     num_generators: list[int],
-    widths: list[int],
-    heights: list[int],
-    include_Any=False,
+    room_sizes: list[str],
+    positions: list[list[Position]],
 ) -> dict:
-    positions = []  # currently altar and converter positions are the same
-    for n in num_agents:
-        positions.extend(num_agents_to_positions[n])
-    if include_Any:
-        positions.extend((["Any"] * n for n in num_agents))
     return {
         "num_agents": num_agents,
         "num_altars": num_altars,
         "num_generators": num_generators,
-        "widths": widths,
-        "heights": heights,
+        "room_sizes": room_sizes,
         "positions": positions,
     }
 
@@ -144,44 +52,38 @@ curriculum_args = {
         "num_agents": [1],
         "num_altars": [2],
         "num_generators": [0],
-        "widths": [5, 6, 7, 8],
-        "heights": [5, 6, 7, 8],
+        "room_sizes": ["small"],
     },
     "single_agent_many_altars": {
         "num_agents": [1],
         "num_altars": list(range(4, 16, 2)),
         "num_generators": [0],
-        "widths": list(range(7, 16, 2)),
-        "heights": list(range(7, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
     },
     "single_agent_many_altars_with_any": {
         "num_agents": [1],
         "num_altars": list(range(4, 16, 2)),
         "num_generators": [0],
-        "widths": list(range(7, 16, 2)),
-        "heights": list(range(7, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
         "include_Any": True,
     },
     "two_agent_5_altars_pattern": {
         "num_agents": [2],
         "num_altars": [5],
         "num_generators": [0],
-        "widths": list(range(7, 16, 2)),
-        "heights": list(range(7, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
     },
     "two_agent_two_altars_pattern": {
         "num_agents": [2],
         "num_altars": [2],
         "num_generators": [0],
-        "widths": list(range(7, 14, 2)),
-        "heights": list(range(7, 14, 2)),
+        "room_sizes": ["small", "medium", "large"],
     },
     "two_agent_two_altars_progressive_pattern": {
         "num_agents": [2],
         "num_altars": [2],
-        "num_converters": [0],
-        "widths": [5, 6, 7, 8],
-        "heights": [5, 6, 7, 8],
+        "num_generators": [0],
+        "room_sizes": ["small"],
         "generator_positions": [["Any"]],
         "altar_positions": [
             ["N", "S", "E"],
@@ -200,9 +102,8 @@ curriculum_args = {
     "two_agent_two_altars_any": {
         "num_agents": [2],
         "num_altars": [2],
-        "num_converters": [0],
-        "widths": [5, 6, 7, 8],
-        "heights": [5, 6, 7, 8],
+        "num_generators": [0],
+        "room_sizes": ["small"],
         "generator_positions": [["Any"]],
         "altar_positions": [["Any"]],
     },
@@ -210,124 +111,125 @@ curriculum_args = {
         "num_agents": [3],
         "num_altars": [2, 4],
         "num_generators": [0],
-        "widths": list(range(7, 16, 2)),
-        "heights": list(range(7, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
         "include_Any": False,
     },
     "three_agent_many_altars_with_any": {
         "num_agents": [3],
         "num_altars": list(range(4, 16, 2)),
         "num_generators": [0],
-        "widths": list(range(7, 16, 2)),
-        "heights": list(range(7, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
         "include_Any": True,
     },
     "multi_agent_multi_altars": {
         "num_agents": [1, 2, 3],
         "num_altars": list(range(4, 16, 2)),
         "num_generators": [0],
-        "widths": list(range(7, 16, 2)),
-        "heights": list(range(7, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
     },
     "two_agents_1g_1a": {
         "num_agents": [2],
         "num_altars": [1],
         "num_generators": [1],
-        "widths": list(range(5, 10)),
-        "heights": list(range(5, 10)),
+        "room_sizes": ["small", "medium", "large"],
     },
     "multi_agents_1g_1a": {
         "num_agents": [1, 2, 3],
         "num_altars": [1],
         "num_generators": [1],
-        "widths": list(range(5, 16, 2)),
-        "heights": list(range(5, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
     },
     "multi_agents_1g_1a_with_any": {
         "num_agents": [1, 2, 3],
         "num_altars": [1],
         "num_generators": [1],
-        "widths": list(range(5, 16, 2)),
-        "heights": list(range(5, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
         "include_Any": True,
     },
     "three_agents_1g_1a": {
         "num_agents": [3],
         "num_altars": [1],
         "num_generators": [1],
-        "widths": list(range(5, 16, 2)),
-        "heights": list(range(5, 16, 2)),
+        "room_sizes": ["small", "medium", "large"],
+    },
+    "test": {
+        "num_agents": [10],
+        "num_altars": [10],
+        "num_generators": [0],
+        "room_sizes": ["xlarge"],
+        "positions": [["N", "S"]],
     },
 }
 
 
-@dataclass
-class _BuildCfg:
-    game_objects: Dict[str, Any] = field(default_factory=dict)
-    map_builder_objects: Dict[str, int] = field(default_factory=dict)
+def make_task_generator_cfg(
+    num_agents: list[int],
+    num_altars: list[int],
+    num_generators: list[int],
+    room_sizes: list[str],
+    positions: list[list[Position]],
+) -> ICLTaskGenerator.Config:
+    return AssemblerTaskGenerator.Config(
+        num_agents=num_agents,
+        num_converters=num_altars,
+        num_resources=num_generators,
+        positions=positions,
+        room_sizes=room_sizes,
+        obstacle_types=[],
+        densities=[],
+        map_dir=None,
+    )
 
 
-class AssemblerTaskGenerator(TaskGenerator):
-    class Config(TaskGeneratorConfig["AssemblerTaskGenerator"]):
-        num_agents: list[int] = Field(default=[1])
-        num_altars: list[int] = Field(default=[2])
-        num_generators: list[int] = Field(default=[0])
-        positions: list[list[Position]]
-        widths: list[int] = Field(default=[6])
-        heights: list[int] = Field(default=[6])
-
-    def __init__(self, config: "AssemblerTaskGenerator.Config"):
+class AssemblerTaskGenerator(ICLTaskGenerator):
+    def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
-        self.converter_types = CONVERTER_TYPES.copy()
-        self.resource_types = RESOURCE_TYPES.copy()
+        self.num_altars = config.num_converters
+        self.num_generators = config.num_resources
 
     def _make_generators(self, num_generators, cfg, position, rng: random.Random):
         """Make generators that input nothing and output resources for the altar"""
-        generator_names = rng.sample(list(self.converter_types.keys()), num_generators)
-        resources = rng.sample(self.resource_types, num_generators)
-        for i, generator_name in enumerate(generator_names):
-            cfg.map_builder_objects[generator_name] = 1
-            generator = self.converter_types[generator_name].copy()
-            recipe = (
-                position,
-                RecipeConfig(
-                    input_resources={}, output_resources={resources[i]: 1}, cooldown=20
-                ),
+
+        for _ in range(num_generators):
+            resource = rng.choice(self.resource_types)
+            self._add_assembler(
+                input_resources={},
+                output_resources={resource: 1},
+                position=position,
+                cfg=cfg,
+                rng=rng,
             )
-            generator.recipes = [recipe]
-            cfg.game_objects[generator_name] = generator
 
     def _make_altars(
         self, num_altars, cfg, position, num_generators, rng: random.Random
     ):
-        cfg.map_builder_objects["altar"] = num_altars
-
         altar_cooldown = 25 + num_altars * 10 if num_generators == 0 else 1
 
-        altar = building.assembler_altar.copy()
-        # input recipe will either be nothing (if no generator) or some subset of generator resources
-        input_resources = (
-            {}
-            if num_generators == 0
-            else {
+        if num_generators == 0:
+            input_resources = {}
+            assembler_name = "altar"
+        else:
+            input_resources = {
                 resource: 1
                 for resource in rng.sample(
                     self.resource_types, rng.randint(1, len(self.resource_types))
                 )
             }
-        )
+            # if we want multiple altars with different recipes, we need to give them different names
+            assembler_name = "altar" if num_generators == 1 else None
 
-        recipe = (
-            position,
-            RecipeConfig(
+        for _ in range(num_altars):
+            self._add_assembler(
                 input_resources=input_resources,
                 output_resources={"heart": 1},
+                position=position,
+                cfg=cfg,
+                assembler_name=assembler_name,
                 cooldown=altar_cooldown,
-            ),
-        )
-        altar.recipes = [recipe]
-        cfg.game_objects["altar"] = altar
+                rng=rng,
+            )
+        cfg.map_builder_objects[assembler_name] = num_altars
 
     def make_env_cfg(
         self,
@@ -344,6 +246,8 @@ class AssemblerTaskGenerator(TaskGenerator):
         cfg = _BuildCfg()
         self._make_generators(num_generators, cfg, recipe_position, rng)
 
+        print(f"Num altars: {num_altars}")
+
         self._make_altars(num_altars, cfg, recipe_position, num_generators, rng)
 
         return make_icl_assembler(
@@ -356,9 +260,11 @@ class AssemblerTaskGenerator(TaskGenerator):
             height=height,
         )
 
-    def _get_width_and_height(self, num_agents, num_altars, num_generators, rng):
-        width = rng.choice(self.config.widths)
-        height = rng.choice(self.config.heights)
+    # TODO
+    def _set_width_and_height(
+        self, room_size, num_agents, num_altars, num_generators, rng
+    ):
+        width, height = self._get_width_and_height(room_size, rng)
         area = width * height
         minimum_area = (num_agents + num_altars + num_generators) * 2
         if area < minimum_area:
@@ -370,26 +276,20 @@ class AssemblerTaskGenerator(TaskGenerator):
 
         # positions must be the same length as the number of agents
         recipe_position = rng.choice(
-            [p for p in self.config.positions if len(p) == num_agents]
+            [p for p in self.config.positions if len(p) <= num_agents]
         )
 
-        num_altars = rng.choice(self.config.num_altars)
-        num_generators = rng.choice(self.config.num_generators)
-        width, height = self._get_width_and_height(
-            num_agents, num_altars, num_generators, rng
+        num_altars = rng.choice(self.num_altars)
+        num_generators = rng.choice(self.num_generators)
+        room_size = rng.choice(self.config.room_sizes)
+        width, height = self._set_width_and_height(
+            room_size, num_agents, num_altars, num_generators, rng
         )
         max_steps = calculate_max_steps(
             num_agents + num_altars + num_generators, width, height
         )
 
-        if num_agents == 1:
-            num_instances = 24
-        elif num_agents == 2:
-            num_instances = 12
-        elif num_agents == 4:
-            num_instances = 6
-        else:
-            raise ValueError(f"Invalid number of agents: {num_agents}")
+        num_instances = 24 // num_agents
 
         return self.make_env_cfg(
             num_agents,
@@ -418,17 +318,15 @@ def make_assembler_env(
     num_agents: int,
     num_altars: int,
     num_generators: int,
-    width: int,
-    height: int,
+    room_size: str,
     position: list[Position] = ["Any"],
 ) -> MettaGridConfig:
-    task_generator_cfg = AssemblerTaskGenerator.Config(
+    task_generator_cfg = make_task_generator_cfg(
         num_agents=[num_agents],
         num_altars=[num_altars],
         num_generators=[num_generators],
         positions=[position],
-        widths=[width],
-        heights=[height],
+        room_sizes=[room_size],
     )
     task_generator = AssemblerTaskGenerator(task_generator_cfg)
     return task_generator.get_task(random.randint(0, 1000000))
@@ -438,35 +336,30 @@ def make_curriculum(
     num_agents: list[int] = [1, 2],
     num_altars: list[int] = [2],
     num_generators: list[int] = [0, 1, 2],
-    widths: list[int] = [4, 6, 8, 10],
-    heights: list[int] = [4, 6, 8, 10],
+    room_sizes: list[str] = ["small", "medium", "large"],
     positions: list[list[Position]] = [["Any"], ["Any", "Any"]],
 ) -> CurriculumConfig:
-    task_generator_cfg = AssemblerTaskGenerator.Config(
+    task_generator_cfg = make_task_generator_cfg(
         num_agents=num_agents,
         num_altars=num_altars,
         num_generators=num_generators,
-        widths=widths,
-        heights=heights,
+        room_sizes=room_sizes,
         positions=positions,
     )
     return CurriculumConfig(task_generator=task_generator_cfg)
 
 
-def train(curriculum_style: str = "single_agent_two_altars") -> TrainTool:
-    curriculum = make_curriculum(
+def train(
+    curriculum_style: str = "single_agent_two_altars", lp_params: LPParams = LPParams()
+) -> TrainTool:
+    task_generator_cfg = make_task_generator_cfg(
         **make_curriculum_args(**curriculum_args[curriculum_style])
     )
-    policy_config = FastLSTMResetConfig()
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+    from experiments.evals.in_context_learning.assemblers import (
+        make_assembler_eval_suite,
     )
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        policy_architecture=policy_config,
-        stats_server_uri="https://api.observatory.softmax-research.net",
-    )
+
+    return train_icl(task_generator_cfg, make_assembler_eval_suite, lp_params)
 
 
 def evaluate(
@@ -491,16 +384,12 @@ def evaluate(
     )
 
 
-# command tor un evalution: ./tools/run.py experiments.recipes.in_context_learning.assemblers.evaluate
-
-
 def play_eval() -> PlayTool:
     env = make_assembler_env(
         num_agents=1,
         num_altars=2,
         num_generators=0,
-        width=6,
-        height=6,
+        room_size="small",
         position=["W"],
     )
 
@@ -514,22 +403,13 @@ def play_eval() -> PlayTool:
 
 
 def replay(curriculum_style: str = "single_agent_two_altars") -> ReplayTool:
-    eval_env = make_mettagrid(curriculum_style)
-    # Default to the research policy if none specified
-    default_policy_uri = (
-        "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/"
-        "icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
+    task_generator = AssemblerTaskGenerator(
+        make_task_generator_cfg(
+            **make_curriculum_args(**curriculum_args[curriculum_style])
+        )
     )
-    default_policy_uri = "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
-
-    return ReplayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            suite="in_context_learning",
-            name="in_context_assemblers",
-        ),
-        policy_uri=default_policy_uri,
-    )
+    policy_uri = "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
+    return replay_icl(task_generator, policy_uri)
 
 
 def experiment():
@@ -549,21 +429,15 @@ def experiment():
 
 
 def play(
-    env: Optional[MettaGridConfig] = None,
-    curriculum_style: str = "three_agents_2_4_altars",
+    curriculum_style: str = "multi_agent_multi_altars",
 ) -> PlayTool:
-    eval_env = env or make_mettagrid(curriculum_style)
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            suite="in_context_learning",
-            name="eval",
-        ),
+    task_generator = AssemblerTaskGenerator(
+        make_task_generator_cfg(
+            **make_curriculum_args(**curriculum_args[curriculum_style])
+        )
     )
+    return play_icl(task_generator)
 
 
 if __name__ == "__main__":
     experiment()
-
-
-# ./tools/run.py experiments.recipes.in_context_learning.assemblers.replay curriculum_style=two_agent_two_altars_pattern policy_uri=s3://softmax-public/policies/icl_assemblers4_single_agent_two_altars.2025-09-23/icl_assemblers4_single_agent_two_altars.2025-09-23:v100.pt

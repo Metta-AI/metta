@@ -3,25 +3,22 @@ import subprocess
 import time
 from typing import List, Optional, Sequence
 
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_in_context_chains
-from mettagrid.config.mettagrid_config import MettaGridConfig
-
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
     calculate_avg_hop,
     _BuildCfg,
+    train_icl,
+    play_icl,
+    replay_icl,
 )
 
 curriculum_args = {
@@ -30,32 +27,24 @@ curriculum_args = {
         "num_converters": [1, 2],
         "room_sizes": ["tiny", "small"],
         "max_recipe_inputs": [1, 2],
-        "source_max_conversions": None,
-        "source_cooldown": None,
     },
     "small_medium": {
         "num_resources": [2, 3, 4],
         "num_converters": [1, 2],
         "room_sizes": ["tiny", "small", "medium"],
         "max_recipe_inputs": [1, 2, 3],
-        "source_max_conversions": None,
-        "source_cooldown": None,
     },
     "all_room_sizes": {
         "num_resources": [3, 4, 5],
         "num_converters": [1, 2],
         "room_sizes": ["tiny", "small", "medium", "large"],
         "max_recipe_inputs": [1, 2, 3],
-        "source_max_conversions": None,
-        "source_cooldown": None,
     },
     "complex_recipes": {
         "num_resources": [2, 3, 4, 5, 6],
         "num_converters": [1, 2, 3],
         "room_sizes": ["tiny", "small", "medium", "large"],
         "max_recipe_inputs": [1, 2, 3, 4],
-        "source_max_conversions": None,
-        "source_cooldown": None,
     },
     "terrain": {
         "num_resources": [2, 3, 4, 5],
@@ -64,13 +53,19 @@ curriculum_args = {
         "densities": ["", "balanced", "sparse", "high"],
         "max_recipe_inputs": [1, 2, 3],
         "room_sizes": ["tiny", "small", "medium", "large"],
-        "source_max_conversions": None,
-        "source_cooldown": None,
+    },
+    "test": {
+        "num_resources": [4],
+        "num_converters": [3],
+        "room_sizes": ["medium"],
+        "obstacle_types": ["L"],
+        "densities": ["high"],
+        "max_recipe_inputs": [2],
     },
 }
 
 
-class UnorderedChainTaskGenerator(ICLTaskGenerator):
+class ConverterForagingTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
 
@@ -88,27 +83,20 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         max_steps: int = 512,
         # keep explicit overrides if you still want them; otherwise computed below
         source_initial_resource_count: Optional[int] = None,
-        source_max_conversions: Optional[int] = None,
-        source_cooldown: Optional[int] = None,
     ):
         cfg = _BuildCfg()
+        avg_hop = calculate_avg_hop(room_size)
 
         # 1) add sources for each base resource
         for r in resources:
             source_name = self._add_converter(
-                input_resources=["nothing"], output_resources=[r], cfg=cfg, rng=rng
+                input_resources={},
+                output_resources={r: 1},
+                cfg=cfg,
+                rng=rng,
+                cooldown=int(avg_hop),
             )
             cfg.sources.append(source_name)
-
-        # 2) geometry-aware cooldowns
-        avg_hop = calculate_avg_hop(room_size)
-        default_source_cd = int(avg_hop) if source_cooldown is None else source_cooldown
-
-        for s in cfg.sources:
-            src = cfg.game_objects[s]
-            if source_max_conversions is not None:
-                src.max_conversions = source_max_conversions
-            src.cooldown = default_source_cd
 
         recipe_sizes: list[int] = []
         for _ in range(num_converters):
@@ -119,16 +107,16 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
                 for _ in range(resource_count)
             ]
             converter_name = self._add_converter(
-                input_resources=resources, output_resources=["heart"], cfg=cfg, rng=rng
+                input_resources={resource: 1 for resource in resources},
+                output_resources={"heart": 1},
+                cfg=cfg,
+                rng=rng,
+                cooldown=int(avg_hop * (1 + 0.5 * resource_count)),
             )
             cfg.converters.append(converter_name)
             recipe_sizes.append(resource_count)
 
-        # 4) set per-recipe cooldown ~ avg_hop and the recipe length
-        for name, L in zip(cfg.converters, recipe_sizes):
-            cfg.game_objects[name].cooldown = int(avg_hop * (1 + 0.5 * L))
-
-        # 5) build env
+        # build env
         return make_in_context_chains(
             num_agents=24,
             max_steps=max_steps,
@@ -167,10 +155,6 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
             rng=rng,
             max_steps=max_steps,
             max_input_resources=max_input_resources,
-            # optional explicit overrides still honored
-            source_initial_resource_count=cfg.source_initial_resource_count,
-            source_max_conversions=cfg.source_max_conversions,
-            source_cooldown=cfg.source_cooldown,
         )
 
         env.label = f"{len(resources)}resources_{num_converters}recipes_{room_size}"
@@ -179,12 +163,6 @@ class UnorderedChainTaskGenerator(ICLTaskGenerator):
         env.label += "_terrain" if obstacle_type else ""
         env.label += f"_{density}" if density else ""
         return env
-
-
-def make_mettagrid(curriculum_style: str = "complex_recipes") -> MettaGridConfig:
-    task_generator_cfg = ICLTaskGenerator.Config(**curriculum_args[curriculum_style])
-    task_generator = UnorderedChainTaskGenerator(task_generator_cfg)
-    return task_generator.get_task(0)
 
 
 def make_curriculum(
@@ -196,7 +174,7 @@ def make_curriculum(
     max_recipe_inputs=[1, 2, 3],
     lp_params: LPParams = LPParams(),
 ) -> CurriculumConfig:
-    task_generator_cfg = UnorderedChainTaskGenerator.Config(
+    task_generator_cfg = ConverterForagingTaskGenerator.Config(
         num_resources=num_resources,
         num_converters=num_converters,
         room_sizes=room_sizes,
@@ -213,69 +191,43 @@ def make_curriculum(
 
 
 def train(
-    curriculum: Optional[CurriculumConfig] = None,
     curriculum_style: str = "small",
     lp_params: LPParams = LPParams(),
 ) -> TrainTool:
-    # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.unordered_chains import (
+    task_generator_cfg = ConverterForagingTaskGenerator.Config(
+        **curriculum_args[curriculum_style]
+    )
+    from experiments.evals.in_context_learning.converter_foraging import (
         make_unordered_chain_eval_suite,
     )
 
-    curriculum = make_curriculum(
-        **curriculum_args[curriculum_style], lp_params=lp_params
+    return train_icl(task_generator_cfg, make_unordered_chain_eval_suite, lp_params)
+
+
+def play(curriculum_style: str = "complex_recipes") -> PlayTool:
+    task_generator_cfg = ConverterForagingTaskGenerator.Config(
+        **curriculum_args[curriculum_style]
     )
+    task_generator = ConverterForagingTaskGenerator(task_generator_cfg)
+    return play_icl(task_generator)
 
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
+
+def replay(
+    curriculum_style: str = "complex_recipes",
+    policy_uri: str = "s3://softmax-public/policies/icl_unordered_chain_all_room_sizes_seed456/icl_unordered_chain_all_room_sizes_seed456:v900.pt",
+) -> ReplayTool:
+    task_generator_cfg = ConverterForagingTaskGenerator.Config(
+        **curriculum_args[curriculum_style]
     )
-    policy_config = FastLSTMResetConfig()
-
-    training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=training_env_cfg,
-        policy_architecture=policy_config,
-        evaluator=EvaluatorConfig(
-            simulations=make_unordered_chain_eval_suite(),
-            evaluate_remote=True,
-            evaluate_local=False,
-            skip_git_check=True,
-        ),
-        stats_server_uri="https://api.observatory.softmax-research.net",
-    )
-
-
-def play(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "complex_recipes"
-) -> PlayTool:
-    eval_env = env or make_mettagrid(curriculum_style)
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="in_context_unordered_resource_chain",
-            suite="in_context_learning",
-        ),
-    )
-
-
-def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
-    eval_env = env or make_mettagrid()
-    return ReplayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="in_context_unordered_resource_chain",
-            suite="in_context_learning",
-        ),
-        policy_uri="s3://softmax-public/policies/icl_unordered_chain_all_room_sizes_seed456/icl_unordered_chain_all_room_sizes_seed456:v900.pt",
-    )
+    task_generator = ConverterForagingTaskGenerator(task_generator_cfg)
+    return replay_icl(task_generator, policy_uri)
 
 
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     # Local import to   avoid circular import at module load time
-    from experiments.evals.in_context_learning.unordered_chains import (
+    from experiments.evals.in_context_learning.converter_foraging import (
         make_unordered_chain_eval_suite,
     )
 
@@ -300,7 +252,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.unordered_chains.train",
+                "experiments.recipes.in_context_learning.converter_foraging.train",
                 f"run=icl_unordered_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",

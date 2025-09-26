@@ -5,6 +5,25 @@ from typing import Any, Dict, List, Optional
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from pydantic import Field
 from mettagrid.builder import building, empty_converters
+from mettagrid.config.mettagrid_config import (
+    Position,
+    RecipeConfig,
+)
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.tools.train import TrainTool
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from typing import Callable
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from metta.tools.sim import SimTool
+from metta.tools.train import TrainTool
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -40,13 +59,41 @@ ASSEMBLER_TYPES = {
     "mine_red": building.assembler_mine_red,
     "mine_blue": building.assembler_mine_blue,
     "mine_green": building.assembler_mine_green,
+    "altar": building.assembler_altar,
 }
 
 size_ranges = {
     "tiny": (4, 5),
     "small": (6, 7),
     "medium": (8, 9),
-    "large": (10, 11),
+    "large": (10, 15),
+    "xlarge": (16, 30),
+}
+
+num_agents_to_positions = {
+    1: [["N"], ["S"], ["E"], ["W"], ["Any"]],
+    2: [
+        ["N", "S"],
+        ["E", "W"],
+        ["N", "E"],  # one agent must be north, the other agent must be east
+        ["N", "W"],  # one agent must be north, the other agent must be west
+        ["S", "E"],
+        ["S", "W"],
+    ],
+    3: [
+        ["N", "S", "E"],
+        ["E", "W", "N"],
+        ["W", "E", "S"],
+        ["N", "S", "W"],
+        ["S", "N", "E"],
+    ],
+    4: [
+        ["N", "S", "E", "W"],
+        ["E", "W", "N", "S"],
+        ["W", "E", "S", "N"],
+        ["N", "S", "W", "E"],
+        ["S", "N", "E", "W"],
+    ],
 }
 
 
@@ -75,6 +122,11 @@ class ICLTaskGenerator(TaskGenerator):
 
     class Config(TaskGeneratorConfig["ICLTaskGenerator"]):
         # Common knobs
+        num_agents: list[int] = Field(
+            default=[1],
+            description="Number of agents to include.",
+        )
+
         num_resources: list[int] = Field(
             default_factory=list,
             description="Number of base/intermediate resources to include.",
@@ -102,21 +154,17 @@ class ICLTaskGenerator(TaskGenerator):
             default=[1],
             description="Max inputs per recipe converter (sampled per env).",
         )
-        source_initial_resource_count: Optional[int] = Field(
-            default=None, description="Initial stock per source (None = infinite)."
-        )
-        source_max_conversions: Optional[int] = Field(
-            default=None,
-            description="Max regenerations per source (0 for no regen; None for default).",
-        )
-        source_cooldown: int = Field(
-            default=25, description="Source regeneration cooldown (if used)."
+        # assembler specific
+        positions: list[list[Position]] = Field(
+            default=[["Any"]],
+            description="Positions for assemblers.",
         )
 
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
         self.resource_types = RESOURCE_TYPES.copy()
         self.converter_types = CONVERTER_TYPES.copy()
+        self.assembler_types = ASSEMBLER_TYPES.copy()
         self.config = config
 
     # -------- helpers shared by ordered/unordered --------
@@ -132,10 +180,11 @@ class ICLTaskGenerator(TaskGenerator):
 
     def _add_converter(
         self,
-        input_resources: list[str],
-        output_resources: list[str],
+        input_resources: dict[str, int],
+        output_resources: dict[str, int],
         cfg: _BuildCfg,
         rng: random.Random,
+        cooldown: int = 10,
     ):
         converter_name = self._choose_converter_name(
             self.converter_types, set(cfg.used_objects), rng
@@ -143,23 +192,59 @@ class ICLTaskGenerator(TaskGenerator):
         cfg.used_objects.append(converter_name)
 
         converter = self.converter_types[converter_name].copy()
-        for output_resource in output_resources:
-            converter.output_resources[output_resource] = 1
 
-            cfg.all_output_resources.add(output_resource)
-
-        for input_resource in input_resources:
-            if input_resource == "nothing":
-                converter.input_resources = {}
-            else:
-                converter.input_resources = {input_resource: 1}
-
-            cfg.all_input_resources.add(input_resource)
+        converter.output_resources = output_resources
+        converter.input_resources = input_resources
+        converter.cooldown = int(cooldown)
+        cfg.all_output_resources.update(output_resources)
+        cfg.all_input_resources.update(input_resources)
 
         cfg.game_objects[converter_name] = converter
         cfg.map_builder_objects[converter_name] = 1
 
         return converter_name
+
+    def _add_assembler(
+        self,
+        input_resources: dict[str, int],
+        output_resources: dict[str, int],
+        position,
+        cfg: _BuildCfg,
+        rng: random.Random,
+        cooldown: int = 10,
+        assembler_name: str | None = None,
+    ):
+        assembler_name = (
+            self._choose_converter_name(
+                self.assembler_types, set(cfg.used_objects), rng
+            )
+            if assembler_name is None
+            else assembler_name
+        )
+        cfg.used_objects.append(assembler_name)
+        assembler = self.assembler_types[assembler_name].copy()
+
+        recipe = (
+            position,
+            RecipeConfig(
+                input_resources=input_resources,
+                output_resources=output_resources,
+                cooldown=int(cooldown),
+            ),
+        )
+
+        assembler.recipes = [recipe]
+        cfg.game_objects[assembler_name] = assembler
+        if assembler_name in cfg.map_builder_objects:
+            cfg.map_builder_objects[assembler_name] += 1
+        else:
+            cfg.map_builder_objects[assembler_name] = 1
+
+    def _get_width_and_height(self, room_size: str, rng: random.Random):
+        lo, hi = size_ranges[room_size]
+        width = rng.randint(lo, hi)
+        height = rng.randint(lo, hi)
+        return width, height
 
     def _setup_task(self, rng: random.Random):
         """
@@ -189,9 +274,7 @@ class ICLTaskGenerator(TaskGenerator):
         obstacle_type = rng.choice(cfg.obstacle_types) if cfg.obstacle_types else None
         density = rng.choice(cfg.densities) if cfg.densities else None
 
-        lo, hi = size_ranges[room_size]
-        width = rng.randint(lo, hi)
-        height = rng.randint(lo, hi)
+        width, height = self._get_width_and_height(room_size, rng)
 
         # unordered-only param
         max_recipe_inputs = rng.choice(cfg.max_recipe_inputs)
@@ -232,3 +315,59 @@ class LPParams:
         self.enable_detailed_slice_logging = enable_detailed_slice_logging
         self.num_active_tasks = num_active_tasks
         self.rand_task_rate = rand_task_rate
+
+
+def setup_curriculum(task_generator_cfg, lp_params: LPParams) -> CurriculumConfig:
+    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
+    return CurriculumConfig(
+        task_generator=task_generator_cfg,
+        algorithm_config=algorithm_config,
+    )
+
+
+def train_icl(
+    task_generator_cfg,
+    evaluator_fn: Callable[[], list[SimulationConfig]],
+    lp_params: LPParams = LPParams(),
+) -> TrainTool:
+    curriculum = setup_curriculum(task_generator_cfg, lp_params)
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+    policy_config = FastLSTMResetConfig()
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        policy_architecture=policy_config,
+        evaluator=EvaluatorConfig(
+            simulations=evaluator_fn(),
+            evaluate_remote=True,
+            evaluate_local=False,
+        ),
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
+
+
+def make_mettagrid(task_generator) -> MettaGridConfig:
+    return task_generator.get_task(random.randint(0, 1000000))
+
+
+def play_icl(task_generator) -> PlayTool:
+    return PlayTool(
+        sim=SimulationConfig(
+            env=make_mettagrid(task_generator),
+            suite="in_context_learning",
+            name="eval",
+        ),
+    )
+
+
+def replay_icl(task_generator, policy_uri: str) -> ReplayTool:
+    return ReplayTool(
+        sim=SimulationConfig(
+            env=make_mettagrid(task_generator),
+            suite="in_context_learning",
+            name="eval",
+        ),
+        policy_uri=policy_uri,
+    )

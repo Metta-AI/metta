@@ -4,18 +4,7 @@ import random
 import subprocess
 import time
 from typing import Optional, Sequence
-
-from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-
 from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
-from metta.cogworks.curriculum.curriculum import (
-    CurriculumConfig,
-)
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
@@ -28,8 +17,11 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
+    train_icl,
     _BuildCfg,
     calculate_avg_hop,
+    play_icl,
+    replay_icl,
 )
 
 curriculum_args = {
@@ -103,6 +95,11 @@ curriculum_args = {
         "densities": ["", "balanced", "sparse", "high"],
         "room_sizes": ["tiny", "small", "medium", "large"],
     },
+    "test": {
+        "chain_lengths": [4],
+        "num_sinks": [2],
+        "room_sizes": ["medium"],
+    },
 }
 
 
@@ -114,7 +111,7 @@ def make_task_generator_cfg(
     obstacle_types=[],
     densities=[],
 ):
-    return OrderedChainsTaskGenerator.Config(
+    return ConverterChainTaskGenerator.Config(
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
         room_sizes=room_sizes,
@@ -213,10 +210,43 @@ def calculate_max_steps(avg_hop: float, chain_length: int, num_sinks: int) -> in
     return int(sink_exploration_cost + target_completions * chain_completion_cost)
 
 
-class OrderedChainsTaskGenerator(ICLTaskGenerator):
+class ConverterChainTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
         self.map_dir = getattr(config, "map_dir", "icl_ordered_chains")
+
+    def load_from_numpy(
+        self,
+        room_size,
+        obstacle_type,
+        density,
+        resources,
+        num_sinks,
+        max_steps,
+        cfg,
+        rng,
+    ) -> MettaGridConfig:
+        from metta.map.terrain_from_numpy import InContextLearningFromNumpy
+
+        terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
+        dir = f"{self.map_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
+        env = make_icl_with_numpy(
+            num_agents=1,
+            num_instances=24,
+            max_steps=max_steps,
+            game_objects=cfg.game_objects,
+            instance_map=InContextLearningFromNumpy.Config(
+                dir=dir,
+                object_names=cfg.used_objects,
+                rng=rng,
+            ),
+        )
+        if os.path.exists(f"./train_dir/{dir}/reward_estimates.json"):
+            reward_estimates = json.load(
+                open(f"./train_dir/{dir}/reward_estimates.json")
+            )
+            env.game.reward_estimates = reward_estimates[dir]
+        return env
 
     def _make_env_cfg(
         self,
@@ -234,52 +264,40 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         cfg = _BuildCfg()
 
         resource_chain = ["nothing"] + list(resources) + ["heart"]
+        cooldown = avg_hop * (len(resource_chain) - 1)
 
         for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
             converter_name = self._add_converter(
-                input_resources=[input_resource],
-                output_resources=[output_resource],
+                input_resources={input_resource: 1},
+                output_resources={output_resource: 1},
                 cfg=cfg,
                 rng=rng,
+                cooldown=cooldown,
             )
             cfg.converters.append(converter_name)
 
         for _ in range(num_sinks):
             self._add_converter(
-                input_resources=list(cfg.all_input_resources),
-                output_resources=["heart"],
+                input_resources={
+                    input_resource: 1 for input_resource in cfg.all_input_resources
+                },
+                output_resources={},
                 cfg=cfg,
                 rng=rng,
             )
 
-        cooldown = avg_hop * (len(resource_chain) - 1)
-
-        for obj in cfg.converters:
-            cfg.game_objects[obj].cooldown = int(cooldown)
-
         if self.map_dir is not None:  # load from s3
-            from metta.map.terrain_from_numpy import InContextLearningFromNumpy
-
-            terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
-            dir = f"{self.map_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"
-            env = make_icl_with_numpy(
-                num_agents=1,
-                num_instances=24,
-                max_steps=max_steps,
-                game_objects=cfg.game_objects,
-                instance_map=InContextLearningFromNumpy.Config(
-                    dir=dir,
-                    object_names=cfg.used_objects,
-                    rng=rng,
-                ),
+            return self.load_from_numpy(
+                room_size,
+                obstacle_type,
+                density,
+                resources,
+                num_sinks,
+                max_steps,
+                cfg,
+                rng,
             )
-            if os.path.exists(f"./train_dir/{dir}/reward_estimates.json"):
-                reward_estimates = json.load(
-                    open(f"./train_dir/{dir}/reward_estimates.json")
-                )
-                env.game.reward_estimates = reward_estimates[dir]
-            return env
 
         return make_in_context_chains(
             num_agents=24,
@@ -338,108 +356,49 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
         return icl_env
 
 
-def make_mettagrid(curriculum_style: str, map_dir=None) -> MettaGridConfig:
-    # Update config to support map_dir from main
-    task_generator = OrderedChainsTaskGenerator(
-        make_task_generator_cfg(**curriculum_args[curriculum_style], map_dir=map_dir)
-    )
-
-    env_cfg = task_generator.get_task(random.randint(0, 1000000))
-
-    return env_cfg
-
-
-def make_curriculum(
-    curriculum_style: str,
-    lp_params: LPParams = LPParams(),
-    map_dir: str = "icl_ordered_chains",
-) -> CurriculumConfig:
-    task_generator_cfg = make_task_generator_cfg(
-        **curriculum_args[curriculum_style], map_dir=map_dir
-    )
-    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
-
-    return CurriculumConfig(
-        task_generator=task_generator_cfg,
-        algorithm_config=algorithm_config,
-    )
-
-
 def train(
     curriculum_style: str = "tiny",
     lp_params: LPParams = LPParams(),
-    use_fast_lstm_reset: bool = True,
     map_dir: str = "icl_ordered_chains",
 ) -> TrainTool:
-    # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.ordered_chains import (
-        make_icl_resource_chain_eval_suite,
+    task_generator_cfg = make_task_generator_cfg(
+        **curriculum_args[curriculum_style], map_dir=map_dir
+    )
+    from experiments.evals.in_context_learning.converter_chains import (
+        make_converter_chain_eval_suite,
     )
 
-    curriculum = make_curriculum(curriculum_style, lp_params, map_dir)
-
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-    )
-    if use_fast_lstm_reset:
-        policy_config = FastLSTMResetConfig()
-    else:
-        policy_config = FastConfig()
-        trainer_cfg.batch_size = 4177920
-        trainer_cfg.bptt_horizon = 512
-
-    return TrainTool(
-        trainer=trainer_cfg,
-        policy_architecture=policy_config,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(
-            simulations=make_icl_resource_chain_eval_suite(),
-            evaluate_remote=True,
-            evaluate_local=False,
-        ),
-        stats_server_uri="https://api.observatory.softmax-research.net",
+    return train_icl(
+        task_generator_cfg,
+        evaluator_fn=make_converter_chain_eval_suite,
+        lp_params=lp_params,
     )
 
 
-def play(
-    env: Optional[MettaGridConfig] = None, curriculum_style: str = "tiny", map_dir=None
-) -> PlayTool:
-    eval_env = env or make_mettagrid(curriculum_style, map_dir)
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            suite="in_context_learning",
-            name="eval",
-        ),
+def play(curriculum_style: str = "tiny", map_dir="icl_ordered_chains") -> PlayTool:
+    task_generator = ConverterChainTaskGenerator(
+        make_task_generator_cfg(**curriculum_args[curriculum_style], map_dir=map_dir)
     )
+    return play_icl(task_generator)
 
 
 def replay(
-    env: Optional[MettaGridConfig] = None,
     curriculum_style: str = "hard_eval",
     map_dir=None,
+    policy_uri: str = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt",
 ) -> ReplayTool:
-    eval_env = env or make_mettagrid(curriculum_style, map_dir)
-    # Default to the research policy if none specified
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt"
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
-    return ReplayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            suite="in_context_ordered_chains",
-            name="eval",
-        ),
-        policy_uri=default_policy_uri,
+    task_generator = ConverterChainTaskGenerator(
+        make_task_generator_cfg(**curriculum_args[curriculum_style], map_dir=map_dir)
     )
+    return replay_icl(task_generator, policy_uri)
 
 
 def evaluate(
-    policy_uri: Optional[str] = None,
     simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.ordered_chains import (
-        make_icl_resource_chain_eval_suite,
+    from experiments.evals.in_context_learning.converter_chains import (
+        make_converter_chain_eval_suite,
     )
 
     curriculum_styles = [
@@ -453,7 +412,7 @@ def evaluate(
         "terrain_3",
         "terrain_4",
     ]
-    simulations = simulations or make_icl_resource_chain_eval_suite()
+    simulations = simulations or make_converter_chain_eval_suite()
     policy_uris = []
     for curriculum_style in curriculum_styles:
         policy_uris.append(
@@ -473,7 +432,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.ordered_chains.train",
+                "experiments.recipes.in_context_learning.converter_chains.train",
                 f"run=icl_resource_chain_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
@@ -508,7 +467,7 @@ def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
                                 densities=[density],
                                 map_dir=None,
                             )
-                            task_generator = OrderedChainsTaskGenerator(
+                            task_generator = ConverterChainTaskGenerator(
                                 config=task_generator_cfg
                             )
                             env_cfg = task_generator._generate_task(i, random.Random(i))
