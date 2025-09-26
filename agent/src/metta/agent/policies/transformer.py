@@ -327,16 +327,26 @@ class TransformerPolicy(Policy):
                 resets = resets[:, :1]
 
         last_actions = td.get("last_actions", None)
-        if last_actions is None:
-            last_actions = torch.zeros((total, self.action_dim), device=device)
-        else:
+        if last_actions is not None:
             last_actions = last_actions.view(total, -1).float().to(device=device)
-            if last_actions.size(1) != self.action_dim:
-                if last_actions.size(1) > self.action_dim:
-                    last_actions = last_actions[:, : self.action_dim]
-                else:
-                    pad = torch.zeros((total, self.action_dim - last_actions.size(1)), device=device)
-                    last_actions = torch.cat([last_actions, pad], dim=1)
+        else:
+            actions = td.get("actions", None)
+            if actions is not None:
+                actions = actions.view(batch_size, tt, -1).float().to(device=device)
+                prev_actions = torch.zeros_like(actions)
+                if tt > 1:
+                    prev_actions[:, 1:] = actions[:, :-1]
+                last_actions = prev_actions.view(total, -1)
+            else:
+                last_actions = torch.zeros((total, self.action_dim), device=device)
+
+        if last_actions.size(1) != self.action_dim:
+            action_dim = last_actions.size(1)
+            if action_dim > self.action_dim:
+                last_actions = last_actions[:, : self.action_dim]
+            else:
+                pad = torch.zeros((total, self.action_dim - action_dim), device=device)
+                last_actions = torch.cat([last_actions, pad], dim=1)
 
         aux = self.reward_proj(reward) + self.reset_proj(resets) + self.last_action_proj(last_actions)
         return aux
@@ -729,8 +739,6 @@ class TransformerPolicy(Policy):
             "dones": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
             "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         }
-        if self.use_aux_tokens:
-            spec["last_actions"] = UnboundedDiscrete(shape=torch.Size([self.action_dim]), dtype=torch.float32)
         if self.memory_len > 0:
             spec["transformer_memory_pre"] = UnboundedDiscrete(
                 shape=torch.Size([self.transformer_cfg.num_layers, self.memory_len, self.hidden_size]),
