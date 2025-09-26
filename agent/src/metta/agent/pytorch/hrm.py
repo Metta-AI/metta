@@ -256,14 +256,14 @@ class HRM_ACTV1_Inner(nn.Module):
     def empty_carry(self, batch_size: int, device: torch.device):
         z_H = torch.empty(batch_size, self.seq_len, self.hidden_size, dtype=self.forward_dtype, device=device)
         z_L = torch.empty(batch_size, self.seq_len, self.hidden_size, dtype=self.forward_dtype, device=device)
-        return type("Carry", (), {"z_H": z_H, "z_L": z_L})()
+        return {"z_H": z_H, "z_L": z_L}
 
     def reset_carry(self, reset_flag: torch.Tensor, carry):
-        H_init = self.H_init.to(device=carry.z_H.device, dtype=carry.z_H.dtype)
-        L_init = self.L_init.to(device=carry.z_L.device, dtype=carry.z_L.dtype)
-        z_H = torch.where(reset_flag.view(-1, 1, 1), H_init, carry.z_H)
-        z_L = torch.where(reset_flag.view(-1, 1, 1), L_init, carry.z_L)
-        return type("Carry", (), {"z_H": z_H, "z_L": z_L})()
+        H_init = self.H_init.to(device=carry["z_H"].device, dtype=carry["z_H"].dtype)
+        L_init = self.L_init.to(device=carry["z_L"].device, dtype=carry["z_L"].dtype)
+        z_H = torch.where(reset_flag.view(-1, 1, 1), H_init, carry["z_H"])
+        z_L = torch.where(reset_flag.view(-1, 1, 1), L_init, carry["z_L"])
+        return {"z_H": z_H, "z_L": z_L}
 
     def forward(
         self, carry, batch: Dict[str, torch.Tensor]
@@ -273,7 +273,7 @@ class HRM_ACTV1_Inner(nn.Module):
 
         # Forward iterations
         with torch.no_grad():
-            z_H, z_L = carry.z_H, carry.z_L
+            z_H, z_L = carry["z_H"], carry["z_L"]
 
             for _H_step in range(self.H_cycles):
                 for _L_step in range(self.L_cycles):
@@ -290,7 +290,7 @@ class HRM_ACTV1_Inner(nn.Module):
         z_H = self.H_level(z_H, z_L)
 
         # New carry no grad and hidden state output
-        new_carry = type("Carry", (), {"z_H": z_H.detach(), "z_L": z_L.detach()})()
+        new_carry = {"z_H": z_H.detach(), "z_L": z_L.detach()}
         hidden_state = z_H.mean(dim=1)
 
         # Q head
