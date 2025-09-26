@@ -10,7 +10,6 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.policy import Policy
-from metta.rl.training import EnvironmentMetaData
 
 # ------------------
 # Utility functions
@@ -50,15 +49,10 @@ class HRMMemory:
 
     def reset_memory(self):
         self.carry = {}
-    
+
     def reset_env_memory(self, env_id):
         if env_id in self.carry:
             del self.carry[env_id]
-
-
-    
-
-    
 
 
 # ------------------
@@ -80,7 +74,7 @@ class SwiGLU(nn.Module):
 
 
 class Attention(nn.Module):
-    """Multi-head self-attention w/ optional rotary embeddings."""
+    """Multi-head self-attention."""
 
     def __init__(self, hidden_size, head_dim, num_heads, num_key_value_heads=None, causal=False, cast_to=torch.float32):
         super().__init__()
@@ -94,7 +88,7 @@ class Attention(nn.Module):
         self.qkv = CastedLinear(hidden_size, 3 * num_heads * head_dim, cast_to=cast_to)
         self.proj = CastedLinear(num_heads * head_dim, hidden_size, cast_to=cast_to)
 
-    def forward(self, hidden_states, cos_sin=None):
+    def forward(self, hidden_states):
         B, T, C = hidden_states.size()
         qkv = self.qkv(hidden_states)  # (B, T, 3*H*D)
         q, k, v = qkv.chunk(3, dim=-1)
@@ -102,10 +96,6 @@ class Attention(nn.Module):
         q = q.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)  # (B, nh, T, d)
         k = k.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
         v = v.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
-
-        # Apply rotary embeddings if passed
-        if cos_sin is not None:
-            q, k = apply_rotary_pos_emb(q, k, cos_sin)
 
         attn_scores = (q @ k.transpose(-2, -1)) * self.scale
         if self.causal:
@@ -116,8 +106,6 @@ class Attention(nn.Module):
         attn = attn_scores.softmax(dim=-1)
         out = (attn @ v).transpose(1, 2).contiguous().view(B, T, C)
         return self.proj(out)
-
-
 
 
 # ------------------
@@ -166,9 +154,7 @@ class ReasoningAttnBlock(nn.Module):
         self.mlp = SwiGLU(hidden_size=hidden_size, expansion=4)
         self.norm_eps = 1e-5
 
-    def forward(
-        self, hidden_states: torch.Tensor, input_injection: torch.Tensor, cos_sin=None, **kwargs
-    ) -> torch.Tensor:
+    def forward(self, hidden_states: torch.Tensor, input_injection: torch.Tensor) -> torch.Tensor:
         # Simple linear layer for simplicity
         batch_size, seq_len, hidden_dim = hidden_states.shape
         hidden_states = hidden_states.view(batch_size * seq_len, hidden_dim)
@@ -184,9 +170,9 @@ class ReasoningBlock(nn.Module):
 
         self.layers = torch.nn.ModuleList(layers)
 
-    def forward(self, hidden_states: torch.Tensor, input_injection: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, hidden_states: torch.Tensor, input_injection: torch.Tensor) -> torch.Tensor:
         for layer in self.layers:
-            hidden_states = layer(hidden_states=hidden_states, input_injection=input_injection, **kwargs)
+            hidden_states = layer(hidden_states=hidden_states, input_injection=input_injection)
 
         return hidden_states
 
@@ -197,8 +183,6 @@ class HRM_ACTV1_Inner(nn.Module):
         hidden_size: int,
         vocab_size: int,
         batch_size: int,
-        pos_encodings: str,
-        rope_theta: float,
         seq_len: int,
         forward_dtype: str,
         H_layers: int,
@@ -211,8 +195,6 @@ class HRM_ACTV1_Inner(nn.Module):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
         self.batch_size = batch_size
-        self.pos_encodings = pos_encodings
-        self.rope_theta = rope_theta
         self.seq_len = seq_len
         self.H_layers = H_layers
         self.L_layers = L_layers
@@ -222,24 +204,7 @@ class HRM_ACTV1_Inner(nn.Module):
         self.forward_dtype = getattr(torch, forward_dtype)
 
         # I/O
-        self.embed_scale = math.sqrt(self.hidden_size)
-        embed_init_std = 1.0 / self.embed_scale
-
         self.q_head = CastedLinear(self.hidden_size, 2, bias=True, cast_to=self.forward_dtype)
-
-        # LM Blocks
-        if self.pos_encodings == "rope":
-            self.rotary_emb = RotaryEmbedding(
-                dim=self.hidden_size // self.num_heads,  # Match the head_dim used in Attention
-                max_position_embeddings=self.seq_len,
-                base=int(self.rope_theta),
-            )
-            self.rotary_emb = nn.Embedding(
-                self.seq_len,
-                self.hidden_size // self.num_heads,  # Match the head_dim used in Attention
-            )
-        else:
-            raise NotImplementedError()
 
         # Reasoning Layers
         self.H_level = ReasoningBlock(
@@ -302,10 +267,6 @@ class HRM_ACTV1_Inner(nn.Module):
     def forward(
         self, carry, batch: Dict[str, torch.Tensor]
     ) -> Tuple[object, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        seq_info = dict(
-            cos_sin=self.rotary_emb() if hasattr(self, "rotary_emb") else None,
-        )
-
         # Input encoding
         input_embeddings = self._input_embeddings(batch["env_obs"])
 
@@ -316,16 +277,16 @@ class HRM_ACTV1_Inner(nn.Module):
             for _H_step in range(self.H_cycles):
                 for _L_step in range(self.L_cycles):
                     if not ((_H_step == self.H_cycles - 1) and (_L_step == self.L_cycles - 1)):
-                        z_L = self.L_level(z_L, z_H + input_embeddings, **seq_info)
+                        z_L = self.L_level(z_L, z_H + input_embeddings)
 
                 if not (_H_step == self.H_cycles - 1):
-                    z_H = self.H_level(z_H, z_L, **seq_info)
+                    z_H = self.H_level(z_H, z_L)
 
         assert not z_H.requires_grad and not z_L.requires_grad
 
         # 1-step grad
-        z_L = self.L_level(z_L, z_H + input_embeddings, **seq_info)
-        z_H = self.H_level(z_H, z_L, **seq_info)
+        z_L = self.L_level(z_L, z_H + input_embeddings)
+        z_H = self.H_level(z_H, z_L)
 
         # New carry no grad and hidden state output
         new_carry = type("Carry", (), {"z_H": z_H.detach(), "z_L": z_L.detach()})()
@@ -410,8 +371,6 @@ class HRMBackbone(nn.Module):
         hidden_size: int,
         vocab_size: int,
         batch_size: int,
-        pos_encodings: str,
-        rope_theta: float,
         seq_len: int,
         forward_dtype: str,
         H_layers: int,
@@ -431,8 +390,6 @@ class HRMBackbone(nn.Module):
             hidden_size=hidden_size,
             vocab_size=vocab_size,
             batch_size=batch_size,
-            pos_encodings=pos_encodings,
-            rope_theta=rope_theta,
             seq_len=seq_len,
             forward_dtype=forward_dtype,
             H_layers=H_layers,
@@ -539,25 +496,25 @@ class HRM(Policy, HRMMemory):
         self.is_continuous = False
 
         # Store action space info
-        self.action_space = getattr(env, 'action_space', None)
+        self.action_space = getattr(env, "action_space", None)
         self.active_action_names = []
         self.num_active_actions = 100
 
         # Get environment dimensions
-        self.out_width = getattr(env, 'obs_width', 11)
-        self.out_height = getattr(env, 'obs_height', 11)
+        self.out_width = getattr(env, "obs_width", 11)
+        self.out_height = getattr(env, "obs_height", 11)
         self.num_layers = 25  # Default for mettagrid
 
         # Create the internal policy components
         self.policy = HRMPolicyInner(env)
 
         # Set up device tracking
-        self._device = torch.device('cpu')
+        self._device = torch.device("cpu")
 
     def initialize_to_environment(self, env_metadata, device: torch.device):
         """Initialize policy to environment - required by training framework."""
         # Extract action names from environment metadata
-        action_names = getattr(env_metadata, 'action_names', ['noop', 'move', 'attack'])
+        action_names = getattr(env_metadata, "action_names", ["noop", "move", "attack"])
 
         # Initialize action embeddings in the policy
         self.policy.initialize_to_environment(action_names, device)
@@ -572,7 +529,7 @@ class HRM(Policy, HRMMemory):
     @property
     def device(self) -> torch.device:
         """Device property required by the Policy interface."""
-        return getattr(self, '_device', torch.device('cpu'))
+        return getattr(self, "_device", torch.device("cpu"))
 
     def reset_memory(self):
         """Reset memory state - required by Policy interface."""
@@ -581,6 +538,7 @@ class HRM(Policy, HRMMemory):
     def get_agent_experience_spec(self):
         """Get experience spec - required by Policy interface."""
         from torchrl.data import Composite, UnboundedDiscrete
+
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
@@ -613,11 +571,12 @@ class HRMPolicyInner(nn.Module):
         self.is_continuous = False
 
         # Handle both EnvironmentMetaData and legacy env objects
-        if hasattr(env, 'single_action_space'):
+        if hasattr(env, "single_action_space"):
             self.action_space = env.single_action_space
         else:
             # Default action space for EnvironmentMetaData
             from gymnasium.spaces import MultiDiscrete
+
             self.action_space = MultiDiscrete([9, 10])  # Default arena actions
 
         self.out_width = getattr(env, "obs_width", 11)
@@ -631,8 +590,6 @@ class HRMPolicyInner(nn.Module):
             hidden_size=hidden_size,
             vocab_size=10,
             batch_size=1,
-            pos_encodings="rope",
-            rope_theta=100,
             seq_len=20,
             forward_dtype="bfloat16",  # More memory efficient than float16
             H_layers=1,
