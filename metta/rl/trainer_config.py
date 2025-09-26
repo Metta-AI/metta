@@ -58,8 +58,7 @@ class TrainerConfig(Config):
     update_epochs: int = Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
 
-    compile: bool = False
-    compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
+    compile: Literal["disabled", "default", "reduce-overhead", "max-autotune"] = "disabled"
     amp: bool = True
     precision: Literal["float32", "float16", "bfloat16"] = "float32"
     cpu_offload: bool = False

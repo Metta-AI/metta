@@ -69,10 +69,14 @@ class Trainer:
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
 
-        configure_sampling_backend(self._cfg.compile, self._cfg.compile_mode)
+        compile_mode = self._cfg.compile
+        use_compile = compile_mode != "disabled"
+        effective_mode = compile_mode if use_compile else "reduce-overhead"
 
-        if self._cfg.compile:
-            self._policy = torch.compile(self._policy, mode=self._cfg.compile_mode)
+        configure_sampling_backend(use_compile, effective_mode)
+
+        if use_compile:
+            self._policy = torch.compile(self._policy, mode=effective_mode)
 
         self._policy.train()
 
