@@ -12,6 +12,7 @@ from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.context import WandbContext
+from metta.eval.eval_request_config import EvalResults
 from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -60,6 +61,51 @@ class SimTool(Tool):
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
+
+    def _log_to_wandb(self, policy_uri: str, eval_results: EvalResults, stats_client: StatsClient | None):
+        if stats_client is None:
+            logger.info("Stats client is not set, skipping wandb logging")
+            return
+
+        if not self.push_metrics_to_wandb:
+            logger.info("Push metrics to wandb is not set, skipping wandb logging")
+            return
+
+        run_name = CheckpointManager.get_policy_metadata(policy_uri).get("run_name")
+        if run_name is None:
+            logger.info("Could not determine run name, skipping wandb logging")
+            return
+
+        wandb = auto_wandb_config(run_name)
+        if self.group:
+            wandb.group = self.group
+
+        if not wandb.enabled:
+            logger.info("WandB is not enabled, skipping wandb logging")
+            return
+
+        wandb_context = WandbContext(wandb, self)
+        with wandb_context as wandb_run:
+            if not wandb_run:
+                logger.info("Failed to initialize wandb run, skipping wandb logging")
+                return
+
+            logger.info(f"Initialized wandb run: {wandb_run.id}")
+
+            try:
+                (epoch, attributes) = stats_client.sql_query(
+                    f"""SELECT e.end_training_epoch, e.attributes
+                          FROM policies p join epochs e ON p.epoch_id = e.id
+                          WHERE p.url = '{policy_uri}'"""
+                ).rows[0]
+                agent_step = attributes.get("agent_step")
+                if agent_step is None:
+                    logger.info("Agent step is not set, skipping wandb logging")
+                    return
+
+                rl_stats.process_policy_evaluator_stats(policy_uri, eval_results, wandb_run, epoch, agent_step, False)
+            except Exception as e:
+                logger.error(f"Error logging evaluation results to wandb: {e}")
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
@@ -116,38 +162,7 @@ class SimTool(Tool):
                 eval_task_id=eval_task_id,
             )
 
-            # Log to WandB if configured
-            if self.push_metrics_to_wandb and stats_client is not None:
-                run_name = CheckpointManager.get_policy_metadata(policy_uri).get("run_name")
-                if run_name:
-                    wandb = auto_wandb_config(run_name)
-                    if self.group:
-                        wandb.group = self.group
-
-                    if wandb.enabled:
-                        wandb_context = WandbContext(wandb, self)
-                        with wandb_context as wandb_run:
-                            if wandb_run:
-                                logger.info(f"Initialized wandb run: {wandb_run.id}")
-                                try:
-                                    (epoch, attributes) = stats_client.sql_query(
-                                        f"""SELECT e.end_training_epoch, e.attributes
-                                                  FROM policies p join epochs e ON p.epoch_id = e.id
-                                                  WHERE p.url = '{policy_uri}'"""
-                                    ).rows[0]
-                                    agent_step = attributes.get("agent_step")
-                                    if agent_step is None:
-                                        raise ValueError("Agent step is not set")
-
-                                    rl_stats.process_policy_evaluator_stats(
-                                        policy_uri, eval_results, wandb_run, epoch, agent_step, False
-                                    )
-                                except Exception as e:
-                                    logger.error(f"Error logging evaluation results to wandb: {e}")
-                    else:
-                        logger.info("WandB is not enabled, skipping wandb logging")
-                else:
-                    logger.info("Failed to get run name from policy URI, skipping wandb logging")
+            self._log_to_wandb(normalized_uri, eval_results, stats_client)
 
             results["checkpoints"].append(
                 {
