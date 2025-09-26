@@ -59,7 +59,7 @@ def main() -> int:
         for issue in issues:
             print(f"  {issue}")
         print("\nℹ️ Consider consolidating these dependencies to avoid conflicts")
-        return 0
+        return 1  # Return non-zero to indicate failure
 
     print("✅ No dependency version inconsistencies found")
     return 0
