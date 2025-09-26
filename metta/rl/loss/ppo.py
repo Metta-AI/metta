@@ -96,6 +96,7 @@ class PPO(Loss):
         "burn_in_steps",
         "burn_in_steps_iter",
         "_diag_batch_logged",
+        "last_action",
     )
 
     def __init__(
@@ -115,6 +116,7 @@ class PPO(Loss):
             self.burn_in_steps = self.policy.burn_in_steps
         self.burn_in_steps_iter = 0
         self._diag_batch_logged = False
+        self.last_action = None
         self.register_state_attr("anneal_beta", "burn_in_steps_iter")
 
     def get_experience_spec(self) -> Composite:

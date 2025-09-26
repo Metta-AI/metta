@@ -93,6 +93,7 @@ class TransformerPolicyConfig(PolicyArchitecture):
     # Implementation options
     manual_init: bool | None = None
     strict_attr_indices: bool | None = None
+    use_aux_tokens: bool = True
     learning_rate_hint: float | None = None
 
     @model_validator(mode="after")
@@ -133,6 +134,7 @@ class TransformerPolicy(Policy):
         self.latent_size = self.transformer_cfg.latent_size
         self.hidden_size = self.transformer_cfg.hidden_size
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
+        self.use_aux_tokens = getattr(self.config, "use_aux_tokens", True)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
 
         encoder_out = self.config.cnn_encoder_config.encoded_obs_cfg.get("out_features")
@@ -161,6 +163,19 @@ class TransformerPolicy(Policy):
             self.input_projection = pufferlib.pytorch.layer_init(nn.Linear(self.latent_size, self.hidden_size), std=1.0)
         else:
             self.input_projection = nn.Identity()
+
+        self.memory_len = getattr(self.transformer_cfg, "memory_len", 0) or 0
+        self.action_dim = self._infer_action_dim()
+        if self.use_aux_tokens:
+            self.reward_proj = nn.Linear(1, self.hidden_size)
+            self.reset_proj = nn.Linear(1, self.hidden_size)
+            self.last_action_proj = nn.Linear(self.action_dim, self.hidden_size)
+            nn.init.xavier_uniform_(self.reward_proj.weight, gain=1.0)
+            nn.init.constant_(self.reward_proj.bias, 0.0)
+            nn.init.xavier_uniform_(self.reset_proj.weight, gain=1.0)
+            nn.init.constant_(self.reset_proj.bias, 0.0)
+            nn.init.xavier_uniform_(self.last_action_proj.weight, gain=1.0)
+            nn.init.constant_(self.last_action_proj.bias, 0.0)
 
     def _build_heads(self) -> None:
         manual = self.config.manual_init
