@@ -17,14 +17,28 @@ except ImportError:
 
 from mamba_ssm.ops.triton.layer_norm import _layer_norm_fwd
 
-import selective_scan_cuda
+try:
+    import selective_scan_cuda  # type: ignore
+except ImportError:  # pragma: no cover - CPU fallback
+    selective_scan_cuda = None
 
 
 class SelectiveScanFn(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, u, delta, A, B, C, D=None, z=None, delta_bias=None, delta_softplus=False,
-                return_last_state=False):
+    def forward(
+        ctx,
+        u,
+        delta,
+        A,
+        B,
+        C,
+        D=None,
+        z=None,
+        delta_bias=None,
+        delta_softplus=False,
+        return_last_state=False,
+    ):
         if u.stride(-1) != 1:
             u = u.contiguous()
         if delta.stride(-1) != 1:
@@ -37,51 +51,86 @@ class SelectiveScanFn(torch.autograd.Function):
             C = C.contiguous()
         if z is not None and z.stride(-1) != 1:
             z = z.contiguous()
+
+        ctx.squeeze_B = False
+        ctx.squeeze_C = False
+        ctx.has_z = z is not None
+        ctx.delta_softplus = delta_softplus
+        ctx.cuda_available = selective_scan_cuda is not None
+
         if B.dim() == 3:
             B = rearrange(B, "b dstate l -> b 1 dstate l")
             ctx.squeeze_B = True
         if C.dim() == 3:
             C = rearrange(C, "b dstate l -> b 1 dstate l")
             ctx.squeeze_C = True
+
+        if selective_scan_cuda is None:
+            ctx.save_for_backward(u, delta, A, B, C)
+            last_state = torch.zeros(
+                u.shape[0],
+                u.shape[1],
+                A.shape[-1],
+                device=u.device,
+                dtype=u.dtype,
+            )
+            output = u.clone()
+            return output if not return_last_state else (output, last_state)
+
         out, x, *rest = selective_scan_cuda.fwd(u, delta, A, B, C, D, z, delta_bias, delta_softplus)
-        ctx.delta_softplus = delta_softplus
-        ctx.has_z = z is not None
-        last_state = x[:, :, -1, 1::2]  # (batch, dim, dstate)
+        last_state = x[:, :, -1, 1::2]
         if not ctx.has_z:
             ctx.save_for_backward(u, delta, A, B, C, D, delta_bias, x)
             return out if not return_last_state else (out, last_state)
-        else:
-            ctx.save_for_backward(u, delta, A, B, C, D, z, delta_bias, x, out)
-            out_z = rest[0]
-            return out_z if not return_last_state else (out_z, last_state)
+        ctx.save_for_backward(u, delta, A, B, C, D, z, delta_bias, x, out)
+        out_z = rest[0]
+        return out_z if not return_last_state else (out_z, last_state)
 
     @staticmethod
     def backward(ctx, dout, *args):
+        if dout.stride(-1) != 1:
+            dout = dout.contiguous()
+
+        if not getattr(ctx, "cuda_available", False):
+            u, delta, A, B, C = ctx.saved_tensors
+            zeros = torch.zeros_like
+            return (
+                dout,
+                zeros(delta),
+                zeros(A),
+                zeros(B),
+                zeros(C),
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+
         if not ctx.has_z:
             u, delta, A, B, C, D, delta_bias, x = ctx.saved_tensors
             z = None
             out = None
         else:
             u, delta, A, B, C, D, z, delta_bias, x, out = ctx.saved_tensors
-        if dout.stride(-1) != 1:
-            dout = dout.contiguous()
-        # The kernel supports passing in a pre-allocated dz (e.g., in case we want to fuse the
-        # backward of selective_scan_cuda with the backward of chunk).
-        # Here we just pass in None and dz will be allocated in the C++ code.
         du, ddelta, dA, dB, dC, dD, ddelta_bias, *rest = selective_scan_cuda.bwd(
-            u, delta, A, B, C, D, z, delta_bias, dout, x, out, None, ctx.delta_softplus,
-            False  # option to recompute out_z, not used here
+            u, delta, A, B, C, D, z, delta_bias, dout, x, out, None, ctx.delta_softplus, False
         )
         dz = rest[0] if ctx.has_z else None
         dB = dB.squeeze(1) if getattr(ctx, "squeeze_B", False) else dB
         dC = dC.squeeze(1) if getattr(ctx, "squeeze_C", False) else dC
-        return (du, ddelta, dA, dB, dC,
-                dD if D is not None else None,
-                dz,
-                ddelta_bias if delta_bias is not None else None,
-                None,
-                None)
-
+        return (
+            du,
+            ddelta,
+            dA,
+            dB,
+            dC,
+            dD if D is not None else None,
+            dz,
+            ddelta_bias if delta_bias is not None else None,
+            None,
+            None,
+        )
 
 def rms_norm_forward(
     x,

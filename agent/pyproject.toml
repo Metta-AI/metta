@@ -19,7 +19,6 @@ dependencies = [
   "kornia>=0.7.0",
   "pytorch-warmup>=0.1.1",
   "line-profiler>=4.1.0",
-  "causal-conv1d>=1.2.0",
   "transformers>=4.40.0",
 ]
 
@@ -35,11 +34,12 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.agent"]
+include = ["metta.agent", "mamba_ssm"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
 "metta.agent" = ["py.typed"]
+"mamba_ssm" = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

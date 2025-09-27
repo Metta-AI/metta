@@ -2,7 +2,7 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit_sliding_trans import MambaSlidingConfig
+from metta.agent.policies.mamba_sliding import MambaSlidingConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
