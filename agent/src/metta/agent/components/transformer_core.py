@@ -9,7 +9,7 @@ from pydantic import Field, model_validator
 
 from metta.agent.components.component_config import ComponentConfig
 
-from .transformer_module import GTrXLModule, TransformerXLModule
+from .transformer_module import SlidingTransformerModule
 from .transformer_nvidia_module import NvidiaTransformerModule
 
 
