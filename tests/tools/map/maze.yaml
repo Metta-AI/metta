@@ -3,7 +3,7 @@ _target_: mettagrid.mapgen.mapgen.MapGen
 width: 40
 height: 40
 
-root:
+instance:
   type: mettagrid.mapgen.scenes.room_grid.RoomGrid
   params:
     rows: 2
