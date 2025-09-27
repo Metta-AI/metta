@@ -8,7 +8,7 @@ from metta.agent.policies.smollm2 import SmolLM2Config
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid import MettaGridConfig
 from metta.rl.loss import LossConfig, PPOConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.rl.trainer_config import EvaluationConfig, TorchProfilerConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -132,7 +132,14 @@ def train(
 ) -> TrainTool:
     policy_cfg = SmolLM2Config(freeze_llm=freeze_llm)
     trainer_cfg = _default_trainer_config(curriculum)
-    return TrainTool(trainer=trainer_cfg, policy_architecture=policy_cfg)
+    return TrainTool(
+        trainer=trainer_cfg,
+        policy_architecture=policy_cfg,
+        torch_profiler=TorchProfilerConfig(
+            interval_epochs=1,
+            profile_dir="${run_dir}/torch_traces",
+        ),
+    )
 
 
 def train_frozen() -> TrainTool:
@@ -171,7 +178,14 @@ def train_high_throughput(
             evaluate_interval=100,
         ),
     )
-    return TrainTool(trainer=trainer_cfg, policy_architecture=policy_cfg)
+    return TrainTool(
+        trainer=trainer_cfg,
+        policy_architecture=policy_cfg,
+        torch_profiler=TorchProfilerConfig(
+            interval_epochs=1,
+            profile_dir="${run_dir}/torch_traces",
+        ),
+    )
 
 
 def train_cpu_debug(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
@@ -199,7 +213,14 @@ def train_cpu_debug(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
             evaluate_interval=200,
         ),
     )
-    return TrainTool(trainer=trainer_cfg, policy_architecture=policy_cfg)
+    return TrainTool(
+        trainer=trainer_cfg,
+        policy_architecture=policy_cfg,
+        torch_profiler=TorchProfilerConfig(
+            interval_epochs=1,
+            profile_dir="${run_dir}/torch_traces",
+        ),
+    )
 
 
 def evaluate(
