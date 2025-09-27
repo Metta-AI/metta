@@ -21,6 +21,7 @@ class SmolLM2BackboneConfig(ComponentConfig):
     """Configuration for the SmolLM2 backbone component."""
 
     in_key: str
+    name: str = "smollm2_backbone"
     logits_key: str = "smollm2_logits"
     values_key: str = "values"
     hidden_key: Optional[str] = None
