@@ -20,7 +20,7 @@ private:
   std::map<InventoryItem, SharedInventoryLimit*> _limits;
 
 public:
-  Inventory(const InventoryConfig& cfg) : _inventory(), _limits() {
+  explicit Inventory(const InventoryConfig& cfg) : _inventory(), _limits() {
     for (const auto& limit_pair : cfg.limits) {
       const auto& resources = limit_pair.first;
       const auto& limit_value = limit_pair.second;

@@ -10,7 +10,7 @@
 #include "objects/inventory_config.hpp"
 class HasInventory {
 public:
-  HasInventory(const InventoryConfig& inventory_config) : inventory(inventory_config) {}
+  explicit HasInventory(const InventoryConfig& inventory_config) : inventory(inventory_config) {}
   virtual ~HasInventory() = default;
   Inventory inventory;
 
