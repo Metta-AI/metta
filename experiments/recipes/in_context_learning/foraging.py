@@ -280,16 +280,18 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
             recipe_position,
         ) = self._setup_task(rng)
         # Find the smallest value in templates["num_objects"] that is >= num_objects for correct dir
-        num_object_reference = min(
-            obj
-            for obj in room_size_templates[room_size]["num_objects"]
-            if obj >= (num_altars + len(generators))
-        )
-        dir = (
-            f"./train_dir/{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
-            if self.config.map_dir is not None
-            else None
-        )
+
+        if self.config.map_dir is not None:
+            num_object_reference = min(
+                obj
+                for obj in room_size_templates[room_size]["num_objects"]
+                if obj >= (num_altars + len(generators))
+            )
+            dir = (
+                f"./train_dir/{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
+            )
+        else:
+            dir = None
 
         icl_env = self._make_env_cfg(
             num_agents=num_agents,
