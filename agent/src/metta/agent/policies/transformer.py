@@ -12,7 +12,7 @@ from einops import rearrange
 from pydantic import model_validator
 from tensordict import TensorDict
 from torch import nn
-from torchrl.data import Composite, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 import pufferlib.pytorch
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
@@ -532,6 +532,7 @@ class TransformerPolicy(Policy):
                 and packed_memory is not None
                 and packed_memory.numel() > 0
             ):
+                packed_memory = packed_memory.to(device=torch.device("cpu"))
                 packed_memory = packed_memory.view(
                     batch_size,
                     tt,
@@ -539,7 +540,7 @@ class TransformerPolicy(Policy):
                     self.memory_len,
                     self.hidden_size,
                 )
-                initial_memory = packed_memory[:, 0].to(device=device)
+                initial_memory = packed_memory[:, 0].to(device=device, dtype=dtype)
                 memory_batch = self._unpack_memory(initial_memory, device, dtype)
 
             core_out, _ = self.transformer_module(latent_seq, memory_batch)
@@ -774,7 +775,7 @@ class TransformerPolicy(Policy):
             "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         }
         if self.memory_len > 0:
-            spec["transformer_memory_pre"] = UnboundedDiscrete(
+            spec["transformer_memory_pre"] = UnboundedContinuous(
                 shape=torch.Size([self.transformer_cfg.num_layers, self.memory_len, self.hidden_size]),
                 dtype=torch.float16,
             )
