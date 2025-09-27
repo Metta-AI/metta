@@ -326,65 +326,66 @@ class TransformerPolicy(Policy):
             return None
 
         total = batch_size * tt
+        proj_dtype = self.reward_proj.weight.dtype
+        action_dtype = self.last_action_proj.weight.dtype
+
         reward = td.get("rewards", None)
         if reward is None:
-            reward = self._get_zero_buffer((total, 1), device, torch.float32)
+            reward = self._get_zero_buffer((total, 1), device, proj_dtype)
         else:
-            reward = reward.view(total, -1).float().to(device=device)
+            reward = reward.view(total, -1).to(device=device, dtype=proj_dtype)
             if reward.size(1) != 1:
                 reward = reward[:, :1]
 
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)
         if dones is None and truncateds is None:
-            resets = self._get_zero_buffer((total, 1), device, torch.float32)
+            resets = self._get_zero_buffer((total, 1), device, proj_dtype)
         else:
             if dones is None:
                 dones = torch.zeros_like(truncateds)
             if truncateds is None:
                 truncateds = torch.zeros_like(dones)
-            resets = torch.logical_or(dones.bool(), truncateds.bool()).float().view(total, -1).to(device=device)
+            resets = torch.logical_or(dones.bool(), truncateds.bool()).view(total, -1)
+            resets = resets.to(device=device, dtype=proj_dtype)
             if resets.size(1) != 1:
                 resets = resets[:, :1]
 
         last_actions = td.get("last_actions", None)
         if last_actions is not None:
-            last_actions = last_actions.view(total, -1).float().to(device=device)
+            last_actions = last_actions.view(total, -1).to(device=device, dtype=action_dtype)
         else:
             actions = td.get("actions", None)
             if actions is not None:
-                actions = actions.view(batch_size, tt, -1).float().to(device=device)
-                prev_actions = torch.zeros_like(actions)
+                actions = actions.view(batch_size, tt, -1).to(device=device, dtype=action_dtype)
+                prev_actions = self._get_zero_buffer((batch_size, tt, actions.size(-1)), device, action_dtype)
                 if tt > 1:
                     prev_actions[:, 1:] = actions[:, :-1]
                 last_actions = prev_actions.view(total, -1)
             else:
-                last_actions = self._get_zero_buffer((total, self.action_dim), device, torch.float32)
+                last_actions = self._get_zero_buffer((total, self.action_dim), device, action_dtype)
 
         if last_actions.size(1) != self.action_dim:
             action_dim = last_actions.size(1)
             if action_dim > self.action_dim:
                 last_actions = last_actions[:, : self.action_dim]
             else:
-                pad = self._get_zero_buffer((total, self.action_dim - action_dim), device, last_actions.dtype)
+                pad = self._get_zero_buffer((total, self.action_dim - action_dim), device, action_dtype)
                 last_actions = torch.cat([last_actions, pad], dim=1)
 
-        aux = self.reward_proj(reward) + self.reset_proj(resets) + self.last_action_proj(last_actions)
+        aux = self.reward_proj(reward)
+        aux.add_(self.reset_proj(resets))
+        aux.add_(self.last_action_proj(last_actions))
         return aux
 
     def _get_zero_buffer(self, shape: tuple[int, ...], device: torch.device, dtype: torch.dtype) -> torch.Tensor:
         key = (device, dtype, shape)
         buf = self._aux_zero_cache.get(key)
-        if buf is None:
+        if buf is None or buf.shape != shape or buf.device != device or buf.dtype != dtype:
             buf = torch.zeros(shape, device=device, dtype=dtype)
             self._aux_zero_cache[key] = buf
         else:
-            buf = buf.to(device=device, dtype=dtype)
-            if buf.shape != shape:
-                buf = torch.zeros(shape, device=device, dtype=dtype)
-                self._aux_zero_cache[key] = buf
-            else:
-                buf.zero_()
+            buf.zero_()
         return buf
 
     def _pack_memory(self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]) -> Optional[torch.Tensor]:
@@ -784,10 +785,18 @@ class TransformerPolicy(Policy):
         log = self.obs_shim.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
-        self._memory.clear()
+        self.clear_memory()
         return [log] if log is not None else []
 
     def reset_memory(self) -> None:
+        # Transformer policies rely on cached hidden state across minibatches; clearing
+        # here would defeat that behaviour. Keep as a no-op to mirror the sliding
+        # transformer fix on main.
+        return
+
+    def clear_memory(self) -> None:
+        """Explicitly clear cached transformer memory."""
+
         self._memory.clear()
 
     @property
