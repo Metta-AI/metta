@@ -170,6 +170,8 @@ class SweepTool(Tool):
             # The keys include the full path "trainer.batch_size" not just "batch_size"
             self.protein_config.parameters.pop("trainer.batch_size", None)
             self.protein_config.parameters.pop("trainer.minibatch_size", None)
+            # Also ensure total_timesteps isn't optimized during local tests
+            self.protein_config.parameters.pop("trainer.total_timesteps", None)
 
         # Handle sweep_name being passed via cmd line
         if "sweep_name" in args:
