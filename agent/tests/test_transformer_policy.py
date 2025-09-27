@@ -106,3 +106,17 @@ def test_padding_tokens_do_not_zero_valid_entries():
     assert "grid" in captured
     # Confirm that the valid token's value survives padding tokens (channel 0, location (0, 0)).
     assert captured["grid"][0, 0, 0, 0].item() == pytest.approx(10.0)
+
+
+def test_transformer_reset_memory_is_noop():
+    env_metadata = _build_env_metadata()
+    policy = gtrxl_policy_config().make_policy(env_metadata)
+    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+
+    policy._memory[0] = {"hidden_states": [torch.ones(1, 1, policy.hidden_size)]}
+    policy.reset_memory()
+
+    assert 0 in policy._memory  # reset_memory should not clear transformer caches
+
+    policy.clear_memory()
+    assert policy._memory == {}
