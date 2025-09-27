@@ -2,12 +2,23 @@ import contextlib
 import os
 import platform
 from datetime import timedelta
-from typing import Optional
+from typing import Any, Callable, ClassVar, Optional
 
 import torch
 from pydantic import Field, model_validator
 
+from metta.agent.policies.agalite import AGaLiTeConfig, AGaLiTeImprovedConfig
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.memory_free import MemoryFreeConfig
+from metta.agent.policies.puffer import PufferPolicyConfig
+from metta.agent.policies.transformer import (
+    TransformerPolicyConfig,
+    gtrxl_policy_config,
+    trxl_nvidia_policy_config,
+    trxl_policy_config,
+)
 from metta.agent.policies.vit import ViTDefaultConfig
+from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -16,7 +27,7 @@ from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import Trainer
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from metta.rl.trainer_config import OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
@@ -54,10 +65,38 @@ logger = getRankAwareLogger(__name__)
 
 
 class TrainTool(Tool):
+    POLICY_PRESETS: ClassVar[dict[str, Callable[[], PolicyArchitecture]]] = {
+        "agalite": AGaLiTeConfig,
+        "agalite_improved": AGaLiTeImprovedConfig,
+        "fast": FastConfig,
+        "gtrxl": gtrxl_policy_config,
+        "memory_free": MemoryFreeConfig,
+        "puffer": PufferPolicyConfig,
+        "transformer": TransformerPolicyConfig,
+        "trxl": trxl_policy_config,
+        "trxl_nvidia": trxl_nvidia_policy_config,
+        "vit": ViTDefaultConfig,
+        "vit_sliding_trans": ViTSlidingTransConfig,
+    }
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_policy_preset(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        value = data.get("policy_architecture")
+        if isinstance(value, str) and "." not in value:
+            preset_factory = cls.POLICY_PRESETS.get(value.lower())
+            if preset_factory is None:
+                valid = ", ".join(sorted(cls.POLICY_PRESETS))
+                raise ValueError(f"Unknown policy preset '{value}'. Valid options: {valid}")
+            data["policy_architecture"] = preset_factory()
+        return data
+
     run: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
-    training_env: TrainingEnvironmentConfig
+    training_env: TrainingEnvironmentConfig = Field(default_factory=TrainingEnvironmentConfig)
     policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None
     uploader: UploaderConfig = Field(default_factory=UploaderConfig)
@@ -86,6 +125,12 @@ class TrainTool(Tool):
                     "to ensure policies are saved before evaluation"
                 )
 
+        if isinstance(self.policy_architecture, TransformerPolicyConfig):
+            hint = self.policy_architecture.learning_rate_hint
+            default_lr = OptimizerConfig.model_fields["learning_rate"].default
+            if hint is not None and self.trainer.optimizer.learning_rate == default_lr:
+                self.trainer.optimizer.learning_rate = hint
+
         return self
 
     def invoke(self, args: dict[str, str]) -> int | None:
@@ -95,6 +140,10 @@ class TrainTool(Tool):
 
         if self.run is None:
             self.run = auto_run_name(prefix="local")
+
+        group_override = args.get("group")
+        if group_override:
+            self.group = group_override
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
@@ -115,6 +164,8 @@ class TrainTool(Tool):
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
+
+        self._configure_torch_backends()
 
         checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
 
@@ -332,3 +383,16 @@ class TrainTool(Tool):
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)
+
+    def _configure_torch_backends(self) -> None:
+        if not torch.cuda.is_available():
+            return
+
+        try:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            sdp_kernel = getattr(torch.backends.cuda, "sdp_kernel", None)
+            if sdp_kernel is not None:
+                sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=True)
+        except Exception as exc:  # pragma: no cover - backend feature gating
+            logger.debug("Skipping CUDA backend configuration: %s", exc)

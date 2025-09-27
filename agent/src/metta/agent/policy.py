@@ -1,7 +1,7 @@
-"""PolicyInterface: Abstract base class defining the required interface for all policies.
+"""Policy interface shared by all Metta agent implementations.
 
-This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.)
-implement the required methods that MettaAgent depends on."""
+Component-driven policies, legacy transformer rebuilds, and any custom policy must
+implement this API so trainer components can interact with them uniformly."""
 
 from abc import ABC, abstractmethod
 from typing import ClassVar, List
@@ -78,6 +78,23 @@ class Policy(ABC, nn.Module):
     def reset_memory(self):
         pass
 
+    def consume_segment_memory_records(self) -> list:
+        """Return any segment memory snapshots captured during rollout.
+
+        Policies that do not maintain explicit transformer memory can rely on the
+        default empty implementation.
+        """
+
+        return []
+
+    def prepare_memory_batch(self, snapshots, device: torch.device):
+        """Convert serialized memory snapshots back into runtime state.
+
+        Stateless policies can ignore the snapshots entirely by returning ``None``.
+        """
+
+        return None
+
 
 class DistributedPolicy(DistributedDataParallel):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
@@ -146,3 +163,15 @@ class ExternalPolicyWrapper(Policy):
 
     def reset_memory(self):
         pass
+
+
+PolicyArchitecture.register_alias("fast", "metta.agent.policies.fast.FastConfig")
+PolicyArchitecture.register_alias("agalite", "metta.agent.policies.agalite.AGaLiTeConfig")
+PolicyArchitecture.register_alias("agalite_improved", "metta.agent.policies.agalite.AGaLiTeImprovedConfig")
+PolicyArchitecture.register_alias("memory_free", "metta.agent.policies.memory_free.MemoryFreeConfig")
+PolicyArchitecture.register_alias("puffer", "metta.agent.policies.puffer.PufferPolicyConfig")
+PolicyArchitecture.register_alias("vit", "metta.agent.policies.vit.ViTDefaultConfig")
+PolicyArchitecture.register_alias("vit_sliding_trans", "metta.agent.policies.vit_sliding_trans.ViTSlidingTransConfig")
+PolicyArchitecture.register_alias("gtrxl", "metta.agent.policies.transformer.gtrxl_policy_config")
+PolicyArchitecture.register_alias("trxl", "metta.agent.policies.transformer.trxl_policy_config")
+PolicyArchitecture.register_alias("trxl_nvidia", "metta.agent.policies.transformer.trxl_nvidia_policy_config")

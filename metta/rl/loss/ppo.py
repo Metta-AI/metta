@@ -1,4 +1,6 @@
-from typing import Any, Tuple
+import logging
+import os
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -93,6 +95,7 @@ class PPO(Loss):
         "anneal_beta",
         "burn_in_steps",
         "burn_in_steps_iter",
+        "_diag_batch_logged",
         "last_action",
     )
 
@@ -112,6 +115,7 @@ class PPO(Loss):
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
         self.burn_in_steps_iter = 0
+        self._diag_batch_logged = False
         self.last_action = None
         self.register_state_attr("anneal_beta", "burn_in_steps_iter")
 
@@ -145,7 +149,9 @@ class PPO(Loss):
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is required for PPO rollout")
-        self.replay.store(data_td=td, env_id=env_slice)
+
+        segment_records = self.policy.consume_segment_memory_records()
+        self.replay.store(data_td=td, env_id=env_slice, segment_records=segment_records or None)
 
         return
 
@@ -167,7 +173,7 @@ class PPO(Loss):
             self.advantages, self.anneal_beta = self._on_first_mb(context)
 
         # Then sample from the buffer (this happens at every minibatch)
-        minibatch, indices, prio_weights = self._sample_minibatch(
+        minibatch, indices, prio_weights, memory_snapshots = self._sample_minibatch(
             advantages=self.advantages,
             prio_alpha=config.prioritized_experience_replay.prio_alpha,
             prio_beta=self.anneal_beta,
@@ -179,14 +185,39 @@ class PPO(Loss):
         # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         B, TT = policy_td.batch_size
+        if os.getenv("TRANSFORMER_DIAG", "0") == "1" and not getattr(self, "_diag_batch_logged", False):
+            logger = logging.getLogger(__name__)
+            logger.info("[TRANSFORMER_DIAG] PPO minibatch shape B=%s TT=%s", B, TT)
+            self._diag_batch_logged = True
         policy_td = policy_td.reshape(B * TT)
         policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
         policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
 
+        if memory_snapshots and any(snapshot is not None for snapshot in memory_snapshots):
+            policy_td.set("segment_memory_snapshots", NonTensorData(memory_snapshots))
+
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
 
         policy_td = self.policy.forward(policy_td, action=flat_actions)
+        if "segment_memory_snapshots" in policy_td.keys():
+            del policy_td["segment_memory_snapshots"]
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
+
+        if os.getenv("TRANSFORMER_DIAG", "0") == "1":
+            logger = logging.getLogger(__name__)
+            adv = self.advantages if isinstance(self.advantages, torch.Tensor) else torch.tensor(self.advantages)
+            values_tensor = minibatch["values"].float()
+            ratio_tensor = minibatch.get("ratio", torch.ones_like(values_tensor)).float()
+            logger.info(
+                "[TRANSFORMER_DIAG] PPO rollout stats: values_mean=%s values_std=%s "
+                "advantages_mean=%s advantages_std=%s ratio_mean=%s ratio_std=%s",
+                float(values_tensor.mean().item()),
+                float(values_tensor.std().item()),
+                float(adv.float().mean().item()),
+                float(adv.float().std().item()),
+                float(ratio_tensor.mean().item()),
+                float(ratio_tensor.std().item()),
+            )
 
         # Finally, calculate the loss!
         loss = self._process_minibatch_update(
@@ -251,6 +282,14 @@ class PPO(Loss):
         newvalue = policy_td["values"]
 
         importance_sampling_ratio = self._importance_ratio(new_logprob, old_logprob)
+        if os.getenv("TRANSFORMER_DIAG", "0") == "1":
+            logger = logging.getLogger(__name__)
+            logger.info(
+                "[TRANSFORMER_DIAG] logprob_stats: old_mean=%s new_mean=%s diff_mean=%s",
+                float(old_logprob.mean().item()),
+                float(new_logprob.mean().item()),
+                float((new_logprob - old_logprob).mean().item()),
+            )
 
         # Re-compute advantages with new ratios (V-trace)
         adv = compute_advantage(
@@ -351,7 +390,12 @@ class PPO(Loss):
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
-    ) -> tuple[TensorDict, Tensor, Tensor]:
+    ) -> tuple[
+        TensorDict,
+        Tensor,
+        Tensor,
+        List[Optional[Dict[str, Optional[List[torch.Tensor]]]]],
+    ]:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
         adv_magnitude = advantages.abs().sum(dim=1)
@@ -367,7 +411,8 @@ class PPO(Loss):
             minibatch["advantages"] = advantages[idx]
             minibatch["returns"] = advantages[idx] + minibatch["values"]
             prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
-        return minibatch.clone(), idx, prio_weights
+        memory_snapshots = self.replay.get_segment_memory(idx)
+        return minibatch.clone(), idx, prio_weights, memory_snapshots
 
     def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)

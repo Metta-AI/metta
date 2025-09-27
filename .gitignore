@@ -1,3 +1,5 @@
+packages/mettagrid/.bazel_output/
+external
 resources
 
 # Environment and IDE
@@ -117,3 +119,6 @@ cluster_test_jobs.json
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
+
+# Native extensions
+agent/src/metta/ops/agalite_kernels/_build/
