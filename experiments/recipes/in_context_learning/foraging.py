@@ -287,9 +287,7 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
                 for obj in room_size_templates[room_size]["num_objects"]
                 if obj >= (num_altars + len(generators))
             )
-            dir = (
-                f"./train_dir/{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
-            )
+            dir = f"./train_dir/{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
         else:
             dir = None
 
