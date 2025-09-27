@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import os
@@ -12,7 +13,7 @@ from einops import rearrange
 from pydantic import model_validator
 from tensordict import TensorDict
 from torch import nn
-from torchrl.data import Composite, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 import pufferlib.pytorch
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
@@ -161,6 +162,14 @@ class TransformerPolicy(Policy):
         self._diag_limit = int(os.getenv("TRANSFORMER_DIAG_STEPS", "5"))
         self._diag_counter = 0
         self._diag_train_logged = False
+
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.allow_tf32 = True
+            self._autocast_enabled = True
+            self._autocast_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        else:
+            self._autocast_enabled = False
+            self._autocast_dtype = torch.float16
 
         if self.latent_size != self.hidden_size:
             self.input_projection = pufferlib.pytorch.layer_init(nn.Linear(self.latent_size, self.hidden_size), std=1.0)
@@ -461,32 +470,42 @@ class TransformerPolicy(Policy):
         if self.strict_attr_indices:
             self._enforce_strict_attr_indices(td)
 
-        self.obs_shim(td)
-        self.cnn_encoder(td)
+        device_type = self.device.type
+        use_autocast = self._autocast_enabled and device_type == "cuda"
+        autocast_ctx = (
+            torch.autocast(device_type=device_type, dtype=self._autocast_dtype)
+            if use_autocast
+            else contextlib.nullcontext()
+        )
 
-        encoded_key = self.config.cnn_encoder_config.out_key
-        latent = td[encoded_key]
-        latent = self.input_projection(latent)
-        aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
-        if aux_tokens is not None:
-            latent = latent + aux_tokens
+        with autocast_ctx:
+            self.obs_shim(td)
+            self.cnn_encoder(td)
 
-        if self._diag_enabled and self._diag_counter < self._diag_limit:
-            logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(latent, "latent"))
+            encoded_key = self.config.cnn_encoder_config.out_key
+            latent = td[encoded_key]
+            latent = self.input_projection(latent)
+            aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
+            if aux_tokens is not None:
+                latent = latent + aux_tokens
 
-        core = self._forward_transformer(td, latent, batch_size, tt)
-        td["core"] = core
+            if self._diag_enabled and self._diag_counter < self._diag_limit:
+                logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(latent, "latent"))
 
-        self.actor_head(td)
-        self.critic_head(td)
-        self.value_head(td)
-        td["values"] = td["values"].flatten()
+            core = self._forward_transformer(td, latent, batch_size, tt)
+            td["core"] = core
 
-        self.action_embeddings(td)
-        self.actor_query(td)
-        self.actor_key(td)
+            self.actor_head(td)
+            self.critic_head(td)
+            self.value_head(td)
+            td["values"] = td["values"].flatten()
 
-        td = self.action_probs(td, action)
+            self.action_embeddings(td)
+            self.actor_query(td)
+            self.actor_key(td)
+
+            td = self.action_probs(td, action)
+        self._cast_floating_tensors(td)
         if self._diag_enabled and self._diag_counter < self._diag_limit:
             logits = td.get("logits")
             if logits is not None:
@@ -498,6 +517,14 @@ class TransformerPolicy(Policy):
         if original_shape is not None:
             td = td.reshape(original_shape)
         return td
+
+    def _cast_floating_tensors(self, td: TensorDict) -> None:
+        for key, value in td.items(include_nested=True):
+            if isinstance(value, torch.Tensor) and value.is_floating_point() and value.dtype != torch.float32:
+                leaf_key = key[-1] if isinstance(key, tuple) else key
+                if leaf_key == "transformer_memory_pre":
+                    continue
+                td[key] = value.to(dtype=torch.float32)
 
     def _forward_transformer(self, td: TensorDict, latent: torch.Tensor, batch_size: int, tt: int) -> torch.Tensor:
         if tt <= 0:
@@ -532,6 +559,7 @@ class TransformerPolicy(Policy):
                 and packed_memory is not None
                 and packed_memory.numel() > 0
             ):
+                packed_memory = packed_memory.to(device=torch.device("cpu"))
                 packed_memory = packed_memory.view(
                     batch_size,
                     tt,
@@ -539,7 +567,7 @@ class TransformerPolicy(Policy):
                     self.memory_len,
                     self.hidden_size,
                 )
-                initial_memory = packed_memory[:, 0].to(device=device)
+                initial_memory = packed_memory[:, 0].to(device=device, dtype=dtype)
                 memory_batch = self._unpack_memory(initial_memory, device, dtype)
 
             core_out, _ = self.transformer_module(latent_seq, memory_batch)
@@ -774,7 +802,7 @@ class TransformerPolicy(Policy):
             "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         }
         if self.memory_len > 0:
-            spec["transformer_memory_pre"] = UnboundedDiscrete(
+            spec["transformer_memory_pre"] = UnboundedContinuous(
                 shape=torch.Size([self.transformer_cfg.num_layers, self.memory_len, self.hidden_size]),
                 dtype=torch.float16,
             )

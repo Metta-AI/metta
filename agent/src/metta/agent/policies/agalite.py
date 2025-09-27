@@ -85,15 +85,15 @@ class AGaLiTeConfig(PolicyArchitecture):
 
     components: List[ComponentConfig] = Field(
         default_factory=lambda: _build_components(
-            hidden_size=192,
+            hidden_size=64,
             embedding_dim=16,
-            n_layers=2,
+            n_layers=4,
             n_heads=4,
-            feedforward_size=768,
+            feedforward_size=256,
             eta=4,
             r=8,
             mode="agalite",
-            dropout=0.0,
+            dropout=0.05,
             kernel=AGaLiTeKernelConfig(name="relu", nu=4),
         )
     )
@@ -106,15 +106,15 @@ class AGaLiTeImprovedConfig(PolicyArchitecture):
 
     components: List[ComponentConfig] = Field(
         default_factory=lambda: _build_components(
-            hidden_size=256,
+            hidden_size=128,
             embedding_dim=16,
-            n_layers=4,
-            n_heads=8,
-            feedforward_size=1024,
+            n_layers=6,
+            n_heads=4,
+            feedforward_size=512,
             eta=4,
             r=16,
             mode="agalite",
-            dropout=0.1,
+            dropout=0.05,
             kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
         )
     )
