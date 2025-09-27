@@ -22,6 +22,7 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubParams
+from mettagrid.mapgen.scenes.distance_balance import DistanceBalance, DistanceBalanceParams
 from mettagrid.mapgen.scenes.make_connected import MakeConnected, MakeConnectedParams
 from mettagrid.mapgen.scenes.quadrant_layout import QuadrantLayout, QuadrantLayoutParams
 from mettagrid.mapgen.scenes.quadrant_resources import QuadrantResources, QuadrantResourcesParams
@@ -181,11 +182,11 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                 dict(
                     scene=QuadrantLayout.factory(
                         QuadrantLayoutParams(
-                            weight_bsp10=0.6,
-                            weight_bsp8=0.4,
-                            weight_maze=1.5,
+                            weight_bsp10=0.8,
+                            weight_bsp8=0.6,
+                            weight_maze=1.6,
                             weight_terrain_balanced=0.0,
-                            weight_terrain_maze=3.0,
+                            weight_terrain_maze=0.0,
                         )
                     ),
                     where=AreaWhere(tags=["quadrant"]),
@@ -197,9 +198,10 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     scene=QuadrantResources.factory(
                         QuadrantResourcesParams(
                             resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
-                            count_per_quadrant=3,
+                            forced_type="generator_red",
+                            count_per_quadrant=2,
                             k=2.5,
-                            min_radius=4,
+                            min_radius=6,
                             clearance=1,
                         )
                     ),
@@ -211,9 +213,10 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     scene=QuadrantResources.factory(
                         QuadrantResourcesParams(
                             resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
-                            count_per_quadrant=3,
+                            forced_type="generator_blue",
+                            count_per_quadrant=2,
                             k=2.5,
-                            min_radius=4,
+                            min_radius=6,
                             clearance=1,
                         )
                     ),
@@ -225,9 +228,10 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     scene=QuadrantResources.factory(
                         QuadrantResourcesParams(
                             resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
-                            count_per_quadrant=3,
+                            forced_type="generator_green",
+                            count_per_quadrant=2,
                             k=2.5,
-                            min_radius=4,
+                            min_radius=6,
                             clearance=1,
                         )
                     ),
@@ -239,9 +243,10 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     scene=QuadrantResources.factory(
                         QuadrantResourcesParams(
                             resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
-                            count_per_quadrant=3,
+                            forced_type="lab",
+                            count_per_quadrant=2,
                             k=2.5,
-                            min_radius=4,
+                            min_radius=6,
                             clearance=1,
                         )
                     ),
@@ -254,6 +259,21 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     scene=MakeConnected.factory(MakeConnectedParams()),
                     where="full",
                     lock="finalize",
+                    order_by="first",
+                ),
+                # Analyze and optionally balance converter distances from the altar
+                dict(
+                    scene=DistanceBalance.factory(
+                        DistanceBalanceParams(
+                            converter_types=["generator_red", "generator_blue", "generator_green", "lab"],
+                            tolerance=8.0,
+                            balance=True,
+                            carves_per_type=1,
+                            carve_width=1,
+                        )
+                    ),
+                    where="full",
+                    lock="post",
                     order_by="first",
                 ),
             ],
