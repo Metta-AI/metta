@@ -9,6 +9,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .transformer_module import empty_memory, normalize_memory, update_memory_window
+
 
 class NvidiaPositionalEmbedding(nn.Module):
     """Sinusoidal positional embedding identical to NVIDIA's Transformer-XL."""
@@ -239,14 +241,19 @@ class NvidiaTransformerCore(nn.Module):
         device = inputs.device
         dtype = inputs.dtype
 
-        if memory is None or len(memory) != self.n_layers:
-            mems: List[torch.Tensor] = [
-                torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype) for _ in range(self.n_layers)
-            ]
-        else:
-            mems = [m.to(device=device, dtype=dtype) for m in memory]
-            if mems and mems[0].size(1) != batch_size:
-                mems = [m[:, :batch_size].contiguous() for m in mems]
+        stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
+        mems = normalize_memory(
+            self.mem_len,
+            self.n_layers,
+            stored_memory,
+            batch_size,
+            self.d_model,
+            device,
+            dtype,
+        )
+        mem_enabled = mems is not None
+        if mems is None:
+            mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
 
         mlen = mems[0].size(0) if mems else 0
         klen = mlen + seq_len
@@ -263,30 +270,18 @@ class NvidiaTransformerCore(nn.Module):
         attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mlen)
 
         for layer_idx, layer in enumerate(self.layers):
-            mem_layer = mems[layer_idx] if mems else None
+            mem_layer = mems[layer_idx] if mem_enabled else None
             core_out = layer(core_out, pos_emb, self.r_w_bias, self.r_r_bias, attn_mask, mem_layer)
             layer_outputs.append(core_out.detach())
 
         output = self.final_norm(core_out)
-        new_memory = self._update_memory(layer_outputs, mems, seq_len)
+        new_memory = update_memory_window(layer_outputs, mems if mem_enabled else None, self.mem_len) or []
         return output, new_memory
-
-    def _update_memory(self, hids: List[torch.Tensor], mems: List[torch.Tensor], qlen: int) -> List[torch.Tensor]:
-        if self.mem_len <= 0 or not mems:
-            return []
-
-        new_mems: List[torch.Tensor] = []
-        with torch.no_grad():
-            for hid, mem in zip(hids, mems, strict=False):
-                cat = torch.cat([mem, hid], dim=0) if mem.size(0) else hid
-                new_mems.append(cat[-self.mem_len :].detach())
-        return new_mems
 
     def initialize_memory(self, batch_size: int, device: torch.device, dtype: torch.dtype) -> List[torch.Tensor]:
         if self.mem_len <= 0:
             return []
-        empty = torch.zeros(0, batch_size, self.d_model, device=device, dtype=dtype)
-        return [empty.clone() for _ in range(self.n_layers)]
+        return empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
 
 
 class NvidiaTransformerModule(nn.Module):
@@ -316,7 +311,6 @@ class NvidiaTransformerModule(nn.Module):
         if ext_len != 0:
             raise NotImplementedError("Extended context is not supported in NvidiaTransformerModule.")
 
-        clamp = clamp_len if clamp_len > 0 else max_seq_len
         self.core = NvidiaTransformerCore(
             d_model=d_model,
             n_layers=n_layers,
@@ -326,7 +320,7 @@ class NvidiaTransformerModule(nn.Module):
             dropout=dropout,
             dropatt=dropatt,
             pre_lnorm=pre_lnorm,
-            clamp_len=clamp,
+            clamp_len=clamp_len,
         )
         self.output_dropout = nn.Dropout(dropout)
         self.d_model = d_model
@@ -343,24 +337,22 @@ class NvidiaTransformerModule(nn.Module):
         if inputs.dim() != 3:
             raise ValueError(f"Expected tensor of shape (T, B, D), received {inputs.shape}")
 
-        mem_list: Optional[List[torch.Tensor]]
-        if memory is None:
-            mem_list = None
-        else:
-            hidden_states = memory.get("hidden_states")
-            if hidden_states is None or len(hidden_states) != self.n_layers:
-                mem_list = None
-            else:
-                mem_list = [
-                    m
-                    if m is not None
-                    else torch.zeros(0, inputs.size(1), self.d_model, device=inputs.device, dtype=inputs.dtype)
-                    for m in hidden_states
-                ]
+        stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
+        normalized = normalize_memory(
+            self.memory_len,
+            self.n_layers,
+            stored_memory,
+            inputs.size(1),
+            self.d_model,
+            inputs.device,
+            inputs.dtype,
+        )
+        mem_enabled = normalized is not None
+        mem_list = normalized if mem_enabled else None
 
         core_out, new_memory = self.core(inputs, mem_list)
         core_out = self.output_dropout(core_out)
-        return core_out, {"hidden_states": new_memory if new_memory else None}
+        return core_out, {"hidden_states": new_memory if mem_enabled and new_memory else None}
 
     def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
         if self.memory_len <= 0:
@@ -369,3 +361,6 @@ class NvidiaTransformerModule(nn.Module):
         dtype = next(self.parameters()).dtype
         hidden_states = self.core.initialize_memory(batch_size, device=device, dtype=dtype)
         return {"hidden_states": hidden_states if hidden_states else None}
+
+
+__all__ = ["NvidiaPositionalEmbedding", "NvidiaTransformerModule"]

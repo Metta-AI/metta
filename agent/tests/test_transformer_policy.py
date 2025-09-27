@@ -6,10 +6,11 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.transformer import (
-    TransformerImprovedConfig,
-    TransformerNvidiaConfig,
+    TransformerBackboneVariant,
     TransformerPolicy,
-    TransformerPolicyConfig,
+    gtrxl_policy_config,
+    trxl_nvidia_policy_config,
+    trxl_policy_config,
 )
 from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
@@ -45,13 +46,18 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
 
 
 @pytest.mark.parametrize(
-    "config_cls",
-    [TransformerPolicyConfig, TransformerImprovedConfig, TransformerNvidiaConfig],
+    ("config_factory", "variant"),
+    [
+        (gtrxl_policy_config, TransformerBackboneVariant.GTRXL),
+        (trxl_policy_config, TransformerBackboneVariant.TRXL),
+        (trxl_nvidia_policy_config, TransformerBackboneVariant.TRXL_NVIDIA),
+    ],
 )
-def test_transformer_config_creates_policy(config_cls):
+def test_transformer_config_creates_policy(config_factory, variant):
     env_metadata = _build_env_metadata()
-    policy = config_cls().make_policy(env_metadata)
+    policy = config_factory().make_policy(env_metadata)
     assert isinstance(policy, TransformerPolicy)
+    assert policy.config.variant is variant
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 
@@ -68,19 +74,17 @@ def test_transformer_config_creates_policy(config_cls):
 
 def test_transformer_policy_initialization_sets_action_metadata():
     env_metadata = _build_env_metadata()
-    policy = TransformerPolicyConfig().make_policy(env_metadata)
+    policy = gtrxl_policy_config().make_policy(env_metadata)
 
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
     assert policy.action_probs.action_index_tensor is not None
     assert policy.action_probs.cum_action_max_params is not None
-    assert policy.action_index_tensor is policy.action_probs.action_index_tensor
-    assert policy.cum_action_max_params is policy.action_probs.cum_action_max_params
 
 
 def test_padding_tokens_do_not_zero_valid_entries():
     env_metadata = _build_env_metadata()
-    policy = TransformerPolicyConfig().make_policy(env_metadata)
+    policy = gtrxl_policy_config().make_policy(env_metadata)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
     policy.eval()
 

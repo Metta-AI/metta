@@ -172,3 +172,6 @@ PolicyArchitecture.register_alias("memory_free", "metta.agent.policies.memory_fr
 PolicyArchitecture.register_alias("puffer", "metta.agent.policies.puffer.PufferPolicyConfig")
 PolicyArchitecture.register_alias("vit", "metta.agent.policies.vit.ViTDefaultConfig")
 PolicyArchitecture.register_alias("vit_sliding_trans", "metta.agent.policies.vit_sliding_trans.ViTSlidingTransConfig")
+PolicyArchitecture.register_alias("gtrxl", "metta.agent.policies.transformer.gtrxl_policy_config")
+PolicyArchitecture.register_alias("trxl", "metta.agent.policies.transformer.trxl_policy_config")
+PolicyArchitecture.register_alias("trxl_nvidia", "metta.agent.policies.transformer.trxl_nvidia_policy_config")

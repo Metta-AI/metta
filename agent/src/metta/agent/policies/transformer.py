@@ -1,20 +1,20 @@
-"""Transformer policies that mirror legacy PyTorch agents exactly."""
+"""Transformer policies built on the Metta transformer backbones."""
 
 from __future__ import annotations
 
 import logging
 import math
 import os
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple
 
-import pufferlib.pytorch
 import torch
 from einops import rearrange
+from pydantic import model_validator
 from tensordict import TensorDict
-from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
 
+import pufferlib.pytorch
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.components.actor import (
     ActionProbsConfig,
@@ -24,9 +24,12 @@ from metta.agent.components.actor import (
     ActorQueryConfig,
 )
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
+from metta.agent.components.heads import LinearHead, LinearHeadConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
-from metta.agent.components.transformer_module import TransformerModule
-from metta.agent.components.transformer_nvidia_module import NvidiaTransformerModule
+from metta.agent.components.transformer_core import (
+    TransformerBackboneConfig,
+    TransformerBackboneVariant,
+)
 from metta.agent.policy import Policy, PolicyArchitecture
 
 logger = logging.getLogger(__name__)
@@ -42,10 +45,31 @@ def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
     )
 
 
+_POLICY_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
+    TransformerBackboneVariant.GTRXL: {
+        "manual_init": False,
+        "strict_attr_indices": False,
+        "learning_rate_hint": 7.5e-4,
+    },
+    TransformerBackboneVariant.TRXL: {
+        "manual_init": False,
+        "strict_attr_indices": False,
+        "learning_rate_hint": 9.0e-4,
+    },
+    TransformerBackboneVariant.TRXL_NVIDIA: {
+        "manual_init": True,
+        "strict_attr_indices": True,
+        "learning_rate_hint": 3.0e-4,
+    },
+}
+
+
 class TransformerPolicyConfig(PolicyArchitecture):
-    """Hyperparameters for the legacy convolutional Transformer policy."""
+    """Configures the end-to-end transformer policy."""
 
     class_path: str = "metta.agent.policies.transformer.TransformerPolicy"
+
+    variant: TransformerBackboneVariant = TransformerBackboneVariant.GTRXL
 
     # Observation preprocessing
     obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
@@ -53,74 +77,67 @@ class TransformerPolicyConfig(PolicyArchitecture):
         in_key="obs_normalizer",
         out_key="encoded_obs",
         cnn1_cfg={"out_channels": 64, "kernel_size": 5, "stride": 3},
-        cnn2_cfg={"out_channels": 128, "kernel_size": 3, "stride": 1},
-        fc1_cfg={"out_features": 512},
+        cnn2_cfg={"out_channels": 64, "kernel_size": 3, "stride": 1},
+        fc1_cfg={"out_features": 256},
         encoded_obs_cfg={"out_features": 256},
     )
 
-    # Transformer interface dimensions
-    latent_size: int = 256
-    hidden_size: int = 256
-
-    # Transformer hyperparameters
-    transformer_num_layers: int = 6
-    transformer_num_heads: int = 8
-    transformer_ff_size: int = 512
-    transformer_max_seq_len: int = 256
-    transformer_memory_len: int = 64
-    transformer_dropout: float = 0.1
-    transformer_attn_dropout: float = 0.1
-    transformer_clamp_len: int = -1
-    transformer_module_cls: Type[nn.Module] = TransformerModule
+    transformer: TransformerBackboneConfig | None = None
 
     # Actor / critic head dimensions
-    critic_hidden_dim: int = 1024
-    actor_hidden_dim: int = 512
+    critic_hidden_dim: int = 512
+    actor_hidden_dim: int = 256
     action_embedding_dim: int = 16
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     # Implementation options
-    manual_init: bool = False
-    strict_attr_indices: bool = False
+    manual_init: bool | None = None
+    strict_attr_indices: bool | None = None
+    use_aux_tokens: bool = False
+    learning_rate_hint: float | None = None
 
+    @model_validator(mode="after")
+    def _apply_variant_defaults(self) -> "TransformerPolicyConfig":
+        overrides = {}
+        if self.transformer is not None:
+            overrides = self.transformer.model_dump(exclude_none=True)
+        overrides["variant"] = self.variant
+        self.transformer = TransformerBackboneConfig(**overrides)
 
-class TransformerImprovedConfig(TransformerPolicyConfig):
-    """Matches the legacy Transformer-XL agent implementation."""
+        defaults = _POLICY_VARIANT_DEFAULTS[self.variant]
+        if self.manual_init is None:
+            self.manual_init = defaults.get("manual_init", False)
+        if self.strict_attr_indices is None:
+            self.strict_attr_indices = defaults.get("strict_attr_indices", False)
+        if self.learning_rate_hint is None:
+            self.learning_rate_hint = defaults.get("learning_rate_hint")
 
-    class_path: str = "metta.agent.policies.transformer.TransformerImprovedPolicy"
-    transformer_ff_size: int = 1024
-    transformer_memory_len: int = 64
-
-
-class TransformerNvidiaConfig(TransformerPolicyConfig):
-    """Matches NVIDIA's reference Transformer-XL implementation."""
-
-    class_path: str = "metta.agent.policies.transformer.TransformerNvidiaPolicy"
-    transformer_ff_size: int = 512
-    transformer_memory_len: int = 32
-    transformer_dropout: float = 0.1
-    transformer_attn_dropout: float = 0.1
-    transformer_clamp_len: int = 256
-    transformer_module_cls: Type[nn.Module] = NvidiaTransformerModule
-    manual_init: bool = True
-    strict_attr_indices: bool = True
+        return self
 
 
 class TransformerPolicy(Policy):
-    """CNN + Transformer policy as implemented in legacy PyTorch agents."""
+    """Shared CNN + Transformer policy scaffolding."""
+
+    ConfigClass = TransformerPolicyConfig
 
     def __init__(self, env, config: Optional[TransformerPolicyConfig] = None) -> None:
         super().__init__()
-        self.config = config or TransformerPolicyConfig()
+        if config is None:
+            config = self.ConfigClass()
+        self.config = config
 
         self.env = env
         self.is_continuous = False
         self.action_space = env.action_space
 
-        self.latent_size = self.config.latent_size
-        self.hidden_size = self.config.hidden_size
+        self.transformer_cfg = self.config.transformer
+        self.latent_size = self.transformer_cfg.latent_size
+        self.hidden_size = self.transformer_cfg.hidden_size
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
+        self.use_aux_tokens = getattr(self.config, "use_aux_tokens", False)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
+        self._memory_len = int(getattr(self.transformer_cfg, "memory_len", 0) or 0)
+        self._transformer_layers = int(getattr(self.transformer_cfg, "num_layers", 0) or 0)
 
         encoder_out = self.config.cnn_encoder_config.encoded_obs_cfg.get("out_features")
         if encoder_out != self.latent_size:
@@ -138,10 +155,7 @@ class TransformerPolicy(Policy):
         self._build_transformer()
 
         self._memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
-
-        # Expose action-metadata placeholders for compatibility with legacy helpers
-        self.cum_action_max_params: Optional[torch.Tensor] = None
-        self.action_index_tensor: Optional[torch.Tensor] = None
+        self._aux_zero_cache: dict[tuple[torch.device, torch.dtype, tuple[int, ...]], torch.Tensor] = {}
 
         self._diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
         self._diag_limit = int(os.getenv("TRANSFORMER_DIAG_STEPS", "5"))
@@ -153,34 +167,59 @@ class TransformerPolicy(Policy):
         else:
             self.input_projection = nn.Identity()
 
+        self.action_dim = self._infer_action_dim()
+        if self.use_aux_tokens:
+            self.reward_proj = nn.Linear(1, self.hidden_size)
+            self.reset_proj = nn.Linear(1, self.hidden_size)
+            self.last_action_proj = nn.Linear(self.action_dim, self.hidden_size)
+            nn.init.xavier_uniform_(self.reward_proj.weight, gain=1.0)
+            nn.init.constant_(self.reward_proj.bias, 0.0)
+            nn.init.xavier_uniform_(self.reset_proj.weight, gain=1.0)
+            nn.init.constant_(self.reset_proj.bias, 0.0)
+            nn.init.xavier_uniform_(self.last_action_proj.weight, gain=1.0)
+            nn.init.constant_(self.last_action_proj.bias, 0.0)
+
     def _build_heads(self) -> None:
         manual = self.config.manual_init
+        actor_init_std = 1.0
+        critic_init_std = math.sqrt(2)
+        value_init_std = 1.0
 
-        if manual:
-            self.critic_1 = nn.Linear(self.hidden_size, self.config.critic_hidden_dim)
-            nn.init.orthogonal_(self.critic_1.weight, math.sqrt(2))
-            nn.init.zeros_(self.critic_1.bias)
-            self.value_head = nn.Linear(self.config.critic_hidden_dim, 1)
-            nn.init.orthogonal_(self.value_head.weight, 1.0)
-            nn.init.zeros_(self.value_head.bias)
-
-            self.actor_1 = nn.Linear(self.hidden_size, self.config.actor_hidden_dim)
-            nn.init.orthogonal_(self.actor_1.weight, 1.0)
-            nn.init.zeros_(self.actor_1.bias)
-        else:
-            self.critic_1 = pufferlib.pytorch.layer_init(
-                nn.Linear(self.hidden_size, self.config.critic_hidden_dim), std=math.sqrt(2)
+        self.actor_head = LinearHead(
+            LinearHeadConfig(
+                in_key="core",
+                out_key="actor_1",
+                in_features=self.hidden_size,
+                out_features=self.config.actor_hidden_dim,
+                activation="ReLU",
+                manual_init=manual,
+                init_std=actor_init_std,
             )
-            self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
-            self.actor_1 = pufferlib.pytorch.layer_init(
-                nn.Linear(self.hidden_size, self.config.actor_hidden_dim), std=1.0
+        )
+
+        self.critic_head = LinearHead(
+            LinearHeadConfig(
+                in_key="core",
+                out_key="critic_1",
+                in_features=self.hidden_size,
+                out_features=self.config.critic_hidden_dim,
+                activation="Tanh",
+                manual_init=manual,
+                init_std=critic_init_std,
             )
+        )
 
-        self.critic_activation = nn.Tanh()
-
-        self.actor_module = TDM(self.actor_1, in_keys=["core"], out_keys=["actor_1"])
-        self.critic_module = TDM(self.critic_1, in_keys=["core"], out_keys=["critic_1"])
-        self.value_module = TDM(self.value_head, in_keys=["critic_1"], out_keys=["values"])
+        self.value_head = LinearHead(
+            LinearHeadConfig(
+                in_key="critic_1",
+                out_key="values",
+                in_features=self.config.critic_hidden_dim,
+                out_features=1,
+                activation=None,
+                manual_init=manual,
+                init_std=value_init_std,
+            )
+        )
 
         self.action_embeddings = ActionEmbedding(
             ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=self.config.action_embedding_dim)
@@ -205,31 +244,15 @@ class TransformerPolicy(Policy):
         self.action_probs = self.config.action_probs_config.make_component()
 
     def _build_transformer(self) -> None:
-        module_cls = self.config.transformer_module_cls
-        clamp_len = self.config.transformer_clamp_len
-        if clamp_len < 0 and module_cls is NvidiaTransformerModule:
-            clamp_len = self.config.transformer_max_seq_len
-
-        self.transformer_module = module_cls(
-            d_model=self.hidden_size,
-            n_heads=self.config.transformer_num_heads,
-            n_layers=self.config.transformer_num_layers,
-            d_ff=self.config.transformer_ff_size,
-            max_seq_len=self.config.transformer_max_seq_len,
-            memory_len=self.config.transformer_memory_len,
-            dropout=self.config.transformer_dropout,
-            dropatt=self.config.transformer_attn_dropout,
-            pre_lnorm=True,
-            clamp_len=clamp_len,
-            attn_type=0,
-        )
+        self.transformer_module = self.transformer_cfg.make_component(self.env)
+        self._memory_enabled = self.memory_len > 0
 
     # ------------------------------------------------------------------
     # Forward path
     # ------------------------------------------------------------------
     @property
     def cnn1(self) -> nn.Module:
-        """Expose first CNN layer for legacy hooks/tests."""
+        """Expose first CNN layer for downstream tests and diagnostics."""
 
         return self.cnn_encoder.cnn1
 
@@ -271,6 +294,166 @@ class TransformerPolicy(Policy):
         self.cnn_encoder(td)
         return td
 
+    def _infer_action_dim(self) -> int:
+        space = self.action_space
+        if hasattr(space, "nvec"):
+            return int(len(space.nvec))
+        if hasattr(space, "shape") and space.shape:
+            return int(space.shape[0])
+        return 1
+
+    def _build_aux_tokens(self, td: TensorDict, batch_size: int, tt: int, device: torch.device) -> torch.Tensor | None:
+        if not self.use_aux_tokens:
+            return None
+
+        total = batch_size * tt
+        reward = td.get("rewards", None)
+        if reward is None:
+            reward = self._get_zero_buffer((total, 1), device, torch.float32)
+        else:
+            reward = reward.view(total, -1).float().to(device=device)
+            if reward.size(1) != 1:
+                reward = reward[:, :1]
+
+        dones = td.get("dones", None)
+        truncateds = td.get("truncateds", None)
+        if dones is None and truncateds is None:
+            resets = self._get_zero_buffer((total, 1), device, torch.float32)
+        else:
+            if dones is None:
+                dones = torch.zeros_like(truncateds)
+            if truncateds is None:
+                truncateds = torch.zeros_like(dones)
+            resets = torch.logical_or(dones.bool(), truncateds.bool()).float().view(total, -1).to(device=device)
+            if resets.size(1) != 1:
+                resets = resets[:, :1]
+
+        last_actions = td.get("last_actions", None)
+        if last_actions is not None:
+            last_actions = last_actions.view(total, -1).float().to(device=device)
+        else:
+            actions = td.get("actions", None)
+            if actions is not None:
+                actions = actions.view(batch_size, tt, -1).float().to(device=device)
+                prev_actions = torch.zeros_like(actions)
+                if tt > 1:
+                    prev_actions[:, 1:] = actions[:, :-1]
+                last_actions = prev_actions.view(total, -1)
+            else:
+                last_actions = self._get_zero_buffer((total, self.action_dim), device, torch.float32)
+
+        if last_actions.size(1) != self.action_dim:
+            action_dim = last_actions.size(1)
+            if action_dim > self.action_dim:
+                last_actions = last_actions[:, : self.action_dim]
+            else:
+                pad = self._get_zero_buffer((total, self.action_dim - action_dim), device, last_actions.dtype)
+                last_actions = torch.cat([last_actions, pad], dim=1)
+
+        aux = self.reward_proj(reward) + self.reset_proj(resets) + self.last_action_proj(last_actions)
+        return aux
+
+    def _get_zero_buffer(self, shape: tuple[int, ...], device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+        key = (device, dtype, shape)
+        buf = self._aux_zero_cache.get(key)
+        if buf is None:
+            buf = torch.zeros(shape, device=device, dtype=dtype)
+            self._aux_zero_cache[key] = buf
+        else:
+            buf = buf.to(device=device, dtype=dtype)
+            if buf.shape != shape:
+                buf = torch.zeros(shape, device=device, dtype=dtype)
+                self._aux_zero_cache[key] = buf
+            else:
+                buf.zero_()
+        return buf
+
+    def _pack_memory(self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]) -> Optional[torch.Tensor]:
+        if memory is None or self.memory_len <= 0:
+            return None
+        hidden_states = memory.get("hidden_states")
+        if hidden_states is None or not hidden_states:
+            return None
+        packed_layers: List[torch.Tensor] = []
+        for layer in hidden_states:
+            if layer is None:
+                return None
+            layer_data = layer.transpose(0, 1)  # (batch, mem_len, hidden)
+            current_len = layer_data.size(1)
+            if current_len < self.memory_len:
+                pad = torch.zeros(
+                    layer_data.size(0),
+                    self.memory_len - current_len,
+                    layer_data.size(2),
+                    device=layer_data.device,
+                    dtype=layer_data.dtype,
+                )
+                layer_data = torch.cat([layer_data, pad], dim=1)
+            elif current_len > self.memory_len:
+                layer_data = layer_data[:, -self.memory_len :, :]
+            packed_layers.append(layer_data)
+        return torch.stack(packed_layers, dim=1)  # (batch, num_layers, mem_len, hidden)
+
+    def _unpack_memory(
+        self, packed: torch.Tensor, device: torch.device, dtype: torch.dtype
+    ) -> Optional[Dict[str, List[torch.Tensor]]]:
+        if self.memory_len <= 0 or packed.numel() == 0:
+            empty_layer = torch.zeros(0, packed.shape[0], self.hidden_size, device=device, dtype=dtype)
+            return {"hidden_states": [empty_layer.clone() for _ in range(self.transformer_cfg.num_layers)]}
+        packed_layers = packed.transpose(0, 1)  # (num_layers, batch, mem_len, hidden)
+        hidden_states: List[torch.Tensor] = []
+        for layer in packed_layers:
+            if layer.size(2) > self.memory_len:
+                layer = layer[:, -self.memory_len :, :]
+            hidden_states.append(layer.transpose(0, 1).contiguous().to(device=device, dtype=dtype))
+        return {"hidden_states": hidden_states}
+
+    def _gather_memory_batch(
+        self,
+        env_ids: List[int],
+        batch_size: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> Optional[Dict[str, Optional[List[torch.Tensor]]]]:
+        if not env_ids:
+            return None
+        base_memory = None
+        for _batch_idx, env_id in enumerate(env_ids):
+            env_memory = self._memory.get(env_id)
+            if env_memory is None or env_memory.get("hidden_states") is None:
+                env_memory = self.transformer_module.initialize_memory(1)
+            hidden_states = env_memory.get("hidden_states")
+            if hidden_states is None:
+                return {"hidden_states": None}
+            if base_memory is None:
+                base_memory = []
+                for layer in hidden_states:
+                    if layer is None or layer.numel() == 0:
+                        zeros = torch.zeros((0, 1, self.hidden_size), device=device, dtype=dtype)
+                        base_memory.append(zeros)
+                    else:
+                        base_memory.append(layer[:, :1].detach().to(device=device, dtype=dtype).contiguous())
+            else:
+                for idx, layer in enumerate(hidden_states):
+                    if layer is None or layer.numel() == 0:
+                        addition = torch.zeros(
+                            (base_memory[idx].size(0), 1, self.hidden_size), device=device, dtype=dtype
+                        )
+                    else:
+                        addition = layer[:, :1].detach().to(device=device, dtype=dtype).contiguous()
+                    base_memory[idx] = torch.cat([base_memory[idx], addition], dim=1)
+        return {"hidden_states": base_memory}
+
+    def _extract_env_id_list(self, td: TensorDict, batch_size: int) -> List[int]:
+        training_env_ids = td.get("training_env_ids", None)
+        if training_env_ids is None or training_env_ids.numel() == 0:
+            return list(range(batch_size))
+        flat = training_env_ids.view(-1)
+        if flat.numel() >= batch_size:
+            return [int(flat[idx].item()) for idx in range(batch_size)]
+        start = int(flat[0].item())
+        return [start + idx for idx in range(batch_size)]
+
     @torch._dynamo.disable
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None):
         td, observations, batch_size, tt, original_shape = self._prepare_observations(td)
@@ -284,6 +467,9 @@ class TransformerPolicy(Policy):
         encoded_key = self.config.cnn_encoder_config.out_key
         latent = td[encoded_key]
         latent = self.input_projection(latent)
+        aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
+        if aux_tokens is not None:
+            latent = latent + aux_tokens
 
         if self._diag_enabled and self._diag_counter < self._diag_limit:
             logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(latent, "latent"))
@@ -291,12 +477,9 @@ class TransformerPolicy(Policy):
         core = self._forward_transformer(td, latent, batch_size, tt)
         td["core"] = core
 
-        self.actor_module(td)
-        td["actor_1"] = torch.relu(td["actor_1"])
-
-        self.critic_module(td)
-        td["critic_1"] = self.critic_activation(td["critic_1"])
-        self.value_module(td)
+        self.actor_head(td)
+        self.critic_head(td)
+        self.value_head(td)
         td["values"] = td["values"].flatten()
 
         self.action_embeddings(td)
@@ -326,14 +509,43 @@ class TransformerPolicy(Policy):
 
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
-        use_memory = self.config.transformer_memory_len > 0
-        memory = None
-        env_key: Optional[int] = None
-        if use_memory and tt == 1:
-            env_key = self._get_env_start(td)
-            memory = self._memory.get(env_key)
+        use_memory = self._memory_enabled
+        env_ids = self._extract_env_id_list(td, batch_size) if use_memory else []
+        device = latent.device
+        dtype = latent.dtype
 
-        core_out, new_memory = self.transformer_module(latent_seq, memory)
+        if use_memory and tt == 1:
+            memory_batch = self._gather_memory_batch(env_ids, batch_size, device, dtype)
+            if self.memory_len > 0:
+                packed_memory = self._pack_memory(memory_batch)
+                if packed_memory is not None:
+                    td.set(
+                        "transformer_memory_pre",
+                        packed_memory.detach().to(dtype=torch.float16, device=torch.device("cpu")),
+                    )
+            core_out, new_memory = self.transformer_module(latent_seq, memory_batch)
+        elif use_memory and tt > 1:
+            packed_memory = td.get("transformer_memory_pre", None)
+            memory_batch = None
+            if (
+                self.memory_len > 0
+                and packed_memory is not None
+                and packed_memory.numel() > 0
+            ):
+                packed_memory = packed_memory.view(
+                    batch_size,
+                    tt,
+                    self.transformer_layers,
+                    self.memory_len,
+                    self.hidden_size,
+                )
+                initial_memory = packed_memory[:, 0].to(device=device)
+                memory_batch = self._unpack_memory(initial_memory, device, dtype)
+
+            core_out, _ = self.transformer_module(latent_seq, memory_batch)
+            new_memory = None
+        else:
+            core_out, new_memory = self.transformer_module(latent_seq, None)
         core_flat = core_out.transpose(0, 1).reshape(batch_size * tt, self.hidden_size)
 
         if self._diag_enabled and self._diag_counter < self._diag_limit:
@@ -349,33 +561,41 @@ class TransformerPolicy(Policy):
                             mem_norms.append(float(layer_mem.float().norm().item()))
                     logger.info("[TRANSFORMER_DIAG] memory_norms=%s", mem_norms)
 
-        if use_memory and tt == 1 and env_key is not None:
+        if use_memory and tt == 1 and env_ids:
             updated_memory = self._detach_memory(new_memory)
             if updated_memory is not None:
                 dones = td.get("dones", None)
                 truncateds = td.get("truncateds", None)
                 reset_mask = self._compute_reset_mask(dones, truncateds, batch_size)
-                if reset_mask is not None and reset_mask.any():
-                    if self._diag_enabled and self._diag_counter < self._diag_limit:
-                        logger.info(
-                            "[TRANSFORMER_DIAG] reset_mask true_count=%s",
-                            int(reset_mask.sum().item()),
-                        )
-                    hidden_states = updated_memory.get("hidden_states")
-                    if hidden_states:
-                        for idx, layer_mem in enumerate(hidden_states):
+                hidden_states = updated_memory.get("hidden_states")
+                if hidden_states:
+                    if reset_mask is not None and reset_mask.any():
+                        if self._diag_enabled and self._diag_counter < self._diag_limit:
+                            logger.info(
+                                "[TRANSFORMER_DIAG] reset_mask true_count=%s",
+                                int(reset_mask.sum().item()),
+                            )
+                        for idx_layer, layer_mem in enumerate(hidden_states):
                             if layer_mem is None or layer_mem.numel() == 0:
                                 continue
                             masked_layer = layer_mem.clone()
                             masked_layer[:, reset_mask] = 0
-                            hidden_states[idx] = masked_layer
-                self._memory[env_key] = updated_memory
+                            hidden_states[idx_layer] = masked_layer
+                    for batch_idx, env_id in enumerate(env_ids):
+                        per_env_layers: List[torch.Tensor] = []
+                        for layer_mem in hidden_states:
+                            if layer_mem is None or layer_mem.numel() == 0:
+                                per_env_layers.append(layer_mem)
+                            else:
+                                per_env_layers.append(layer_mem[:, batch_idx : batch_idx + 1].clone())
+                        self._memory[env_id] = {"hidden_states": per_env_layers}
                 if self._diag_enabled and self._diag_counter < self._diag_limit:
-                    logger.info("[TRANSFORMER_DIAG] memory cached for env %s", env_key)
-        elif use_memory and tt > 1 and env_key is not None:
-            self._memory.pop(env_key, None)
+                    logger.info("[TRANSFORMER_DIAG] memory cached for envs %s", env_ids)
+        elif use_memory and tt > 1 and env_ids:
+            for env_id in env_ids:
+                self._memory.pop(env_id, None)
             if self._diag_enabled and self._diag_counter < self._diag_limit:
-                logger.info("[TRANSFORMER_DIAG] cleared cached memory for env %s (tt=%s)", env_key, tt)
+                logger.info("[TRANSFORMER_DIAG] cleared cached memory for envs %s (tt=%s)", env_ids, tt)
 
         return core_flat
 
@@ -393,9 +613,7 @@ class TransformerPolicy(Policy):
                 observations = td["env_obs"]
             original_shape = torch.Size([batch_size, tt]) if tt > 1 else None
             if self._diag_enabled and self._diag_counter < self._diag_limit:
-                logger.info(
-                    "[TRANSFORMER_DIAG] prepare_obs meta batch=%s tt=%s", batch_size, tt
-                )
+                logger.info("[TRANSFORMER_DIAG] prepare_obs meta batch=%s tt=%s", batch_size, tt)
         elif observations.dim() == 4:
             batch_size, tt = observations.shape[:2]
             total_batch = batch_size * tt
@@ -409,9 +627,7 @@ class TransformerPolicy(Policy):
                 td.set("batch", torch.full((total_batch,), batch_size, device=device, dtype=torch.long))
             original_shape: Optional[torch.Size] = torch.Size([batch_size, tt])
             if self._diag_enabled and self._diag_counter < self._diag_limit:
-                logger.info(
-                    "[TRANSFORMER_DIAG] prepare_obs sequence batch=%s tt=%s", batch_size, tt
-                )
+                logger.info("[TRANSFORMER_DIAG] prepare_obs sequence batch=%s tt=%s", batch_size, tt)
         else:
             batch_size = observations.shape[0]
             tt = 1
@@ -509,7 +725,10 @@ class TransformerPolicy(Policy):
             if self._diag_enabled and self._diag_counter < self._diag_limit:
                 env_ids = training_env_ids.reshape(-1)
                 logger.info(
-                    "[TRANSFORMER_DIAG] env_ids start=%s min=%s max=%s", env_start, int(env_ids.min()), int(env_ids.max())
+                    "[TRANSFORMER_DIAG] env_ids start=%s min=%s max=%s",
+                    env_start,
+                    int(env_ids.min()),
+                    int(env_ids.max()),
                 )
             return env_start
         training_env_id = td.get("training_env_id", None)
@@ -530,44 +749,61 @@ class TransformerPolicy(Policy):
         log = self.obs_shim.initialize_to_environment(env, device)
         self.action_embeddings.initialize_to_environment(env, device)
         self.action_probs.initialize_to_environment(env, device)
-        self.cum_action_max_params = self.action_probs.cum_action_max_params
-        self.action_index_tensor = self.action_probs.action_index_tensor
         self._memory.clear()
         return [log] if log is not None else []
 
     def reset_memory(self) -> None:
         self._memory.clear()
 
-    # ------------------------------------------------------------------
-    # Action helpers (legacy compatibility)
-    # ------------------------------------------------------------------
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Delegate action-to-logit conversion to ActionProbs component."""
-
-        return self.action_probs._convert_action_to_logit_index(flattened_action)
-
-    def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
-        """Delegate logit-to-action conversion to ActionProbs component."""
-
-        return self.action_probs._convert_logit_index_to_action(logit_indices)
-
     @property
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
+    @property
+    def memory_len(self) -> int:
+        return getattr(self, "_memory_len", 0)
+
+    @property
+    def transformer_layers(self) -> int:
+        return getattr(self, "_transformer_layers", 0)
+
     def get_agent_experience_spec(self) -> Composite:
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-            truncateds=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
-        )
+        spec = {
+            "env_obs": UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            "dones": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            "truncateds": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+        }
+        if self.memory_len > 0:
+            spec["transformer_memory_pre"] = UnboundedDiscrete(
+                shape=torch.Size([self.transformer_cfg.num_layers, self.memory_len, self.hidden_size]),
+                dtype=torch.float16,
+            )
+        return Composite(**spec)
 
 
-class TransformerImprovedPolicy(TransformerPolicy):
-    def __init__(self, env, config: Optional[TransformerImprovedConfig] = None) -> None:
-        super().__init__(env, config or TransformerImprovedConfig())
+def gtrxl_policy_config() -> TransformerPolicyConfig:
+    """Return a policy config for the GTrXL variant."""
+
+    return TransformerPolicyConfig(variant=TransformerBackboneVariant.GTRXL)
 
 
-class TransformerNvidiaPolicy(TransformerPolicy):
-    def __init__(self, env, config: Optional[TransformerNvidiaConfig] = None) -> None:
-        super().__init__(env, config or TransformerNvidiaConfig())
+def trxl_policy_config() -> TransformerPolicyConfig:
+    """Return a policy config for the vanilla Transformer-XL variant."""
+
+    return TransformerPolicyConfig(variant=TransformerBackboneVariant.TRXL)
+
+
+def trxl_nvidia_policy_config() -> TransformerPolicyConfig:
+    """Return a policy config for the NVIDIA Transformer-XL variant."""
+
+    return TransformerPolicyConfig(variant=TransformerBackboneVariant.TRXL_NVIDIA)
+
+
+__all__ = [
+    "TransformerPolicyConfig",
+    "TransformerPolicy",
+    "TransformerBackboneVariant",
+    "gtrxl_policy_config",
+    "trxl_policy_config",
+    "trxl_nvidia_policy_config",
+]

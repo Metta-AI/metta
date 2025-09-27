@@ -1,9 +1,15 @@
-from typing import Dict, List, Optional, Sequence, Type
+from typing import Callable, Dict, List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.transformer import (
+    TransformerPolicyConfig,
+    gtrxl_policy_config,
+    trxl_nvidia_policy_config,
+    trxl_policy_config,
+)
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -23,9 +29,13 @@ from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
 
-_POLICY_PRESETS: Dict[str, Type[PolicyArchitecture]] = {
-    "fast": FastConfig,
+_POLICY_PRESETS: Dict[str, Callable[[], PolicyArchitecture]] = {
     "agalite": AGaLiTeConfig,
+    "fast": FastConfig,
+    "gtrxl": gtrxl_policy_config,
+    "trxl": trxl_policy_config,
+    "trxl_nvidia": trxl_nvidia_policy_config,
+    "transformer": TransformerPolicyConfig,
     "vit": ViTDefaultConfig,
 }
 
@@ -136,7 +146,7 @@ def train(
         if agent is not None:
             policy_architecture = _policy_from_name(agent)
         else:
-            policy_architecture = ViTDefaultConfig()
+            policy_architecture = TransformerPolicyConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
