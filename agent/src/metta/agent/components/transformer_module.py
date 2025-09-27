@@ -345,7 +345,7 @@ class GTrXLModule(nn.Module):
                     d_ff=d_ff,
                     dropout=dropout,
                     use_causal_mask=use_causal_mask,
-                    use_gating=use_gating,
+                    use_gating=False,
                 )
                 for _ in range(n_layers)
             ]
@@ -578,6 +578,46 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         w_head_k = w_head_k.view(klen, batch_size, self.n_head, self.d_head)
         w_head_v = w_head_v.view(klen, batch_size, self.n_head, self.d_head)
         r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)
+
+        if hasattr(F, "scaled_dot_product_attention") and w_head_q.is_cuda:
+            try:
+                q_tilde = w_head_q + r_w_bias[None, None, :, :]
+                q_sdpa = q_tilde.permute(1, 2, 0, 3).contiguous()
+                k_sdpa = w_head_k.permute(1, 2, 0, 3).contiguous()
+                v_sdpa = w_head_v.permute(1, 2, 0, 3).contiguous()
+
+                rr_head_q = w_head_q + r_r_bias[None, None, :, :]
+                BD = torch.einsum("ibnd,jnd->ijbn", rr_head_q, r_head_k)
+                BD = self._rel_shift(BD)
+                attn_bias = BD.permute(2, 3, 0, 1).contiguous() * self.scale
+
+                if attn_mask is not None:
+                    if attn_mask.dim() == 2:
+                        mask = attn_mask[None, None, :, :]
+                    elif attn_mask.dim() == 3:
+                        mask = attn_mask[:, None, :, :]
+                    else:
+                        raise ValueError("Attention mask must have dim 2 or 3.")
+                    attn_bias = attn_bias.masked_fill(mask.to(attn_bias.device).bool(), float("-inf"))
+
+                dropout_p = self.dropatt.p if self.training else 0.0
+                attn_out = F.scaled_dot_product_attention(
+                    q_sdpa,
+                    k_sdpa,
+                    v_sdpa,
+                    attn_mask=None,
+                    dropout_p=dropout_p,
+                    is_causal=False,
+                    attn_bias=attn_bias,
+                )
+                attn_out = attn_out.permute(2, 0, 1, 3).reshape(qlen, batch_size, self.n_head * self.d_head)
+                attn_out = self.drop(self.o_net(attn_out))
+
+                if self.pre_lnorm:
+                    return content + attn_out
+                return self.layer_norm(content + attn_out)
+            except RuntimeError:
+                pass
 
         rw_head_q = w_head_q + r_w_bias
         AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))
