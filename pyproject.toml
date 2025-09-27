@@ -59,6 +59,7 @@ dependencies = [
   "tensordict>=0.8.3",
   "termcolor>=2.4.0",
   "tiktoken>=0.9.0",
+  "transformers>=4.56.1",
   "torch>=2.7.1",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
