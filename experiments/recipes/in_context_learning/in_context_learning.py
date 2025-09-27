@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from pydantic import Field
@@ -8,6 +8,7 @@ from mettagrid.builder import building, empty_converters
 from mettagrid.config.mettagrid_config import (
     Position,
     RecipeConfig,
+    MettaGridConfig,
 )
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
@@ -20,10 +21,7 @@ from typing import Callable
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
-from metta.tools.train import TrainTool
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.builder.envs import make_icl_with_numpy
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -101,31 +99,31 @@ room_size_templates = {
         "room_size": ["tiny"],
         "num_agents": [2],
         "num_objects": [2],
-        "terrain": [""],
+        "terrain": ["no-terrain"],
     },
     "small": {
         "room_size": ["small"],
         "num_agents": [12],
         "num_objects": [5, 10],
-        "terrain": ["", "sparse"],
+        "terrain": ["no-terrain", "sparse"],
     },
     "medium": {
         "room_size": ["medium"],
         "num_agents": [12],
         "num_objects": [10, 20, 30],
-        "terrain": ["", "sparse", "balanced"],
+        "terrain": ["sparse"],
     },
     "large": {
         "room_size": ["large"],
         "num_agents": [12],
         "num_objects": [10, 20, 30, 50],
-        "terrain": ["", "sparse", "balanced", "dense"],
+        "terrain": ["no-terrain", "sparse", "balanced"],
     },
     "xlarge": {
         "room_size": ["xlarge"],
         "num_agents": [2, 6, 12],
         "num_objects": [10, 20, 30, 50],
-        "terrain": ["", "sparse", "balanced", "dense"],
+        "terrain": ["no-terrain", "sparse", "balanced", "dense"],
     },
 }
 
@@ -138,9 +136,6 @@ class _BuildCfg:
     converters: List[str] = field(default_factory=list)
     game_objects: Dict[str, Any] = field(default_factory=dict)
     map_builder_objects: Dict[str, int] = field(default_factory=dict)
-
-    # unordered chain variables
-    sources: List[str] = field(default_factory=list)
 
 
 def calculate_avg_hop(room_size: str) -> float:
@@ -170,12 +165,6 @@ class ICLTaskGenerator(TaskGenerator):
         )
         room_sizes: list[str] = Field(
             default=["small"], description="Room sizes to sample from."
-        )
-        obstacle_types: list[str] = Field(
-            default_factory=list, description="Terrain obstacle shapes."
-        )
-        densities: list[str] = Field(
-            default_factory=list, description="Terrain densities."
         )
         map_dir: str | None = Field(
             default=None,
@@ -287,16 +276,19 @@ class ICLTaskGenerator(TaskGenerator):
         height = rng.randint(lo, hi)
         return width, height
 
-    def _set_width_and_height(
-        self, room_size, num_agents, num_altars, num_generators, rng
-    ):
+    def _set_width_and_height(self, room_size, num_agents, num_objects, rng):
         """Set the width and height of the environment to be at least the minimum area required for the number of agents, altars, and generators."""
         width, height = self._get_width_and_height(room_size, rng)
         area = width * height
-        minimum_area = (num_agents + num_altars + num_generators) * 2
+        minimum_area = (num_agents + num_objects) * 2
         if area < minimum_area:
             width, height = minimum_area // 2, minimum_area // 2
         return width, height
+
+    def calculate_max_steps(
+        self, num_resources: int, num_converters: int, width: int, height: int
+    ) -> int:
+        raise NotImplementedError("Subclasses must implement calculate_max_steps(...)")
 
     def _setup_task(self, rng: random.Random):
         """
@@ -305,8 +297,6 @@ class ICLTaskGenerator(TaskGenerator):
             resources: List[str]
             num_converters: int
             room_size: str
-            obstacle_type: Optional[str]
-            density: Optional[str]
             width: int
             height: int
             max_recipe_inputs: int
@@ -314,32 +304,69 @@ class ICLTaskGenerator(TaskGenerator):
         cfg = self.config
 
         # counts
+        num_agents = rng.choice(cfg.num_agents)
         num_resources = rng.choice(cfg.num_resources)
         num_converters = rng.choice(cfg.num_converters)
 
-        # clamp and draw resource set
-        num_resources = max(1, min(num_resources, len(self.resource_types)))
-        resources = rng.sample(self.resource_types, num_resources)
+        if num_resources == 0:
+            resources = []
+        else:
+            num_resources = max(1, min(num_resources, len(self.resource_types)))
+            resources = rng.sample(self.resource_types, num_resources)
 
         room_size = rng.choice(cfg.room_sizes)
-        obstacle_type = rng.choice(cfg.obstacle_types) if cfg.obstacle_types else None
-        density = rng.choice(cfg.densities) if cfg.densities else None
+        terrain_density = (
+            rng.choice(room_size_templates[room_size]["terrain"]) or "no-terrain"
+        )
+        print(f"Terrain density: {terrain_density}")
 
-        width, height = self._get_width_and_height(room_size, rng)
+        width, height = self._set_width_and_height(
+            room_size, num_agents, num_resources + num_converters, rng
+        )
 
-        # unordered-only param
-        max_recipe_inputs = rng.choice(cfg.max_recipe_inputs)
-
+        recipe_position = rng.choice(
+            [p for p in self.config.positions if len(p) <= num_agents]
+        )
+        max_steps = self.calculate_max_steps(
+            num_resources, num_converters, width, height
+        )
         return (
+            num_agents,
             resources,
             num_converters,
             room_size,
-            obstacle_type,
-            density,
+            terrain_density,
             width,
             height,
-            max_recipe_inputs,
+            max_steps,
+            recipe_position,
         )
+
+    def load_from_numpy(
+        self,
+        num_agents,
+        max_steps,
+        game_objects,
+        map_builder_objects,
+        dir,
+        rng,
+        num_instances=24,
+    ) -> MettaGridConfig:
+        from metta.map.terrain_from_numpy import InContextLearningFromNumpy
+
+        env = make_icl_with_numpy(
+            num_agents=num_agents,
+            num_instances=num_instances,
+            max_steps=max_steps,
+            game_objects=game_objects,
+            instance_map=InContextLearningFromNumpy.Config(
+                agents=num_agents,
+                dir=dir,
+                objects=map_builder_objects,
+                rng=rng,
+            ),
+        )
+        return env
 
     # Subclasses must implement this to actually build MettaGridConfig:
     def _make_env_cfg(self, *args, **kwargs):

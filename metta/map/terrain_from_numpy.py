@@ -61,7 +61,6 @@ class TerrainFromNumpy(MapBuilder):
         dir: str
         file: Optional[str] = None
         remove_altars: bool = False
-        object_names: list[str] = Field(default_factory=list)
         rng: random.Random = Field(default_factory=random.Random, exclude=True)
 
     def __init__(self, config: Config):

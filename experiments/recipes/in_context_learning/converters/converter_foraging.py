@@ -14,7 +14,6 @@ from mettagrid.builder.envs import make_in_context_chains
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
-    calculate_avg_hop,
     _BuildCfg,
     train_icl,
     play_icl,
@@ -49,8 +48,6 @@ curriculum_args = {
     "terrain": {
         "num_resources": [2, 3, 4, 5],
         "num_converters": [1, 2, 3],
-        "obstacle_types": ["square", "cross", "L"],
-        "densities": ["", "balanced", "sparse", "high"],
         "max_recipe_inputs": [1, 2, 3],
         "room_sizes": ["tiny", "small", "medium", "large"],
     },
@@ -58,8 +55,6 @@ curriculum_args = {
         "num_resources": [4],
         "num_converters": [3],
         "room_sizes": ["medium"],
-        "obstacle_types": ["L"],
-        "densities": ["high"],
         "max_recipe_inputs": [2],
     },
 }
@@ -69,6 +64,13 @@ class ConverterForagingTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
 
+    def calculate_max_steps(
+        self, num_altars: int, num_generators: int, width: int, height: int
+    ) -> int:
+        area = width * height
+        max_steps = max(150, area * (num_altars + num_generators) * 2)
+        return min(max_steps, 1800)
+
     def _make_env_cfg(
         self,
         resources: List[str],
@@ -76,8 +78,7 @@ class ConverterForagingTaskGenerator(ICLTaskGenerator):
         room_size: str,
         width: int,
         height: int,
-        obstacle_type: Optional[str],
-        density: Optional[str],
+        density: str,
         rng: random.Random,
         max_input_resources: int,
         max_steps: int = 512,
@@ -85,18 +86,17 @@ class ConverterForagingTaskGenerator(ICLTaskGenerator):
         source_initial_resource_count: Optional[int] = None,
     ):
         cfg = _BuildCfg()
-        avg_hop = calculate_avg_hop(room_size)
+        avg_hop = width + height / 2
 
         # 1) add sources for each base resource
         for r in resources:
-            source_name = self._add_converter(
+            self._add_converter(
                 input_resources={},
                 output_resources={r: 1},
                 cfg=cfg,
                 rng=rng,
                 cooldown=int(avg_hop),
             )
-            cfg.sources.append(source_name)
 
         recipe_sizes: list[int] = []
         for _ in range(num_converters):
@@ -124,24 +124,23 @@ class ConverterForagingTaskGenerator(ICLTaskGenerator):
             map_builder_objects=cfg.map_builder_objects,
             width=width,
             height=height,
-            obstacle_type=obstacle_type,
-            density=density,
+            terrain=density,
         )
 
     def _generate_task(self, task_id: int, rng: random.Random):
         (
+            _,
             resources,
             num_converters,
             room_size,
-            obstacle_type,
             density,
             width,
             height,
-            max_input_resources,
+            max_steps,
+            _,
         ) = super()._setup_task(rng)
 
-        # hardcode this for now
-        max_steps = 512
+        max_input_resources = rng.choice(self.config.max_recipe_inputs)
 
         env = self._make_env_cfg(
             resources=resources,
@@ -149,7 +148,6 @@ class ConverterForagingTaskGenerator(ICLTaskGenerator):
             room_size=room_size,
             width=width,
             height=height,
-            obstacle_type=obstacle_type,
             density=density,
             rng=rng,
             max_steps=max_steps,
@@ -159,7 +157,6 @@ class ConverterForagingTaskGenerator(ICLTaskGenerator):
         env.label = f"{len(resources)}resources_{num_converters}recipes_{room_size}"
         if max_input_resources:
             env.label += f"_maxinputs{max_input_resources}"
-        env.label += "_terrain" if obstacle_type else ""
         env.label += f"_{density}" if density else ""
         return env
 
@@ -168,8 +165,6 @@ def make_curriculum(
     num_resources=[2, 3, 4],
     num_converters=[1, 2, 3],
     room_sizes=["small"],
-    obstacle_types=[],
-    densities=[],
     max_recipe_inputs=[1, 2, 3],
     lp_params: LPParams = LPParams(),
 ) -> CurriculumConfig:
@@ -177,8 +172,6 @@ def make_curriculum(
         num_resources=num_resources,
         num_converters=num_converters,
         room_sizes=room_sizes,
-        obstacle_types=obstacle_types,
-        densities=densities,
         max_recipe_inputs=max_recipe_inputs,
     )
     algorithm_config = LearningProgressConfig(**lp_params.__dict__)
@@ -203,7 +196,7 @@ def train(
     return train_icl(task_generator_cfg, make_unordered_chain_eval_suite, lp_params)
 
 
-def play(curriculum_style: str = "complex_recipes") -> PlayTool:
+def play(curriculum_style: str = "test") -> PlayTool:
     task_generator_cfg = ConverterForagingTaskGenerator.Config(
         **curriculum_args[curriculum_style]
     )

@@ -1,18 +1,12 @@
-from mettagrid.builder.envs import make_icl_assembler, make_icl_with_numpy
+from mettagrid.builder.envs import make_icl_assembler
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     _BuildCfg,
-    calculate_avg_hop,
     train_icl,
     play_icl,
     replay_icl,
     room_size_templates,
 )
-from experiments.recipes.in_context_learning.converters.converter_chains import (
-    calculate_max_steps,
-    curriculum_args,
-)
-from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
@@ -99,6 +93,44 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
 
+    def _make_resource_chain(
+        self,
+        resources: list[str],
+        avg_hop: float,
+        position: list[Position],
+        cfg: _BuildCfg,
+        rng: random.Random,
+    ):
+        cooldown = avg_hop * (len(resources) + 1)
+        resource_chain = ["nothing"] + list(resources) + ["heart"]
+        for i in range(len(resource_chain) - 1):
+            input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
+            input_resources = {} if input_resource == "nothing" else {input_resource: 1}
+            self._add_assembler(
+                input_resources=input_resources,
+                output_resources={output_resource: 1},
+                position=position,
+                cfg=cfg,
+                cooldown=int(cooldown),
+                rng=rng,
+            )
+
+    def _make_sinks(
+        self,
+        num_sinks: int,
+        position: list[Position],
+        cfg: _BuildCfg,
+        rng: random.Random,
+    ) -> list[str]:
+        for _ in range(num_sinks):
+            self._add_assembler(
+                input_resources={},
+                output_resources={},
+                position=position,
+                cfg=cfg,
+                rng=rng,
+            )
+
     def _make_env_cfg(
         self,
         num_agents,
@@ -108,7 +140,6 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
         height,
         position,
         terrain,
-        avg_hop,
         max_steps,
         num_instances,
         rng,
@@ -116,48 +147,19 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
 
-        resource_chain = ["nothing"] + list(resources) + ["heart"]
+        self._make_resource_chain(resources, width + height / 2, position, cfg, rng)
+        self._make_sinks(num_sinks, position, cfg, rng)
 
-        cooldown = avg_hop * (len(resource_chain) - 1)
-
-        for i in range(len(resource_chain) - 1):
-            input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
-            input_resources = {} if input_resource == "nothing" else {input_resource: 1}
-            self._add_assembler(
-                input_resources=input_resources,
-                output_resources={output_resource: 1},
-                position=position,
-                cfg=cfg,
-                cooldown=cooldown,
-                rng=rng,
+        if dir is not None and os.path.exists(dir):
+            return self.load_from_numpy(
+                num_agents,
+                max_steps,
+                cfg.game_objects,
+                cfg.map_builder_objects,
+                dir,
+                rng,
+                num_instances,
             )
-
-        for _ in range(num_sinks):
-            self._add_assembler(
-                input_resources={
-                    input_resource: 1 for input_resource in cfg.all_input_resources
-                },
-                output_resources={},
-                position=position,
-                cfg=cfg,
-                rng=rng,
-            )
-        num_instances = 24 // num_agents if num_instances is None else num_instances
-
-        if dir is not None:
-            if os.path.exists(dir):
-                return make_icl_with_numpy(
-                    num_agents=num_agents,
-                    num_instances=num_instances,
-                    max_steps=max_steps,
-                    game_objects=cfg.game_objects,
-                    instance_map=InContextLearningFromNumpy.Config(
-                        agents=num_agents,
-                        dir=dir,
-                        objects=cfg.map_builder_objects,
-                        rng=rng,
-                    ),
-                )
 
         return make_icl_assembler(
             num_agents=num_agents,
@@ -170,23 +172,35 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
             terrain=terrain,
         )
 
+    def calculate_max_steps(
+        self, chain_length: int, num_sinks: int, width: int, height: int
+    ) -> int:
+        avg_hop = width + height / 2
+
+        steps_per_attempt = 4 * avg_hop
+        sink_exploration_cost = steps_per_attempt * num_sinks
+        chain_completion_cost = steps_per_attempt * chain_length
+        target_completions = 10
+
+        return int(sink_exploration_cost + target_completions * chain_completion_cost)
+
     def _generate_task(
         self,
         task_id: int,
         rng: random.Random,
         num_instances: Optional[int] = None,
     ) -> MettaGridConfig:
-        num_agents = rng.choice(self.config.num_agents)
-        resources, num_sinks, room_size, _, _, width, height, _ = self._setup_task(rng)
-        terrain = rng.choice(room_size_templates[room_size]["terrain"])
-        width, height = self._set_width_and_height(
-            room_size, num_agents, len(resources) + 1, num_sinks, rng
-        )
-
-        position = rng.choice(self.config.positions)
-
-        avg_hop = calculate_avg_hop(room_size)
-        max_steps = calculate_max_steps(avg_hop, len(resources) + 1, num_sinks)
+        (
+            num_agents,
+            resources,
+            num_sinks,
+            room_size,
+            terrain,
+            width,
+            height,
+            max_steps,
+            position,
+        ) = self._setup_task(rng)
 
         dir = (
             f"{self.config.map_dir}/{room_size}/{len(resources)}chain/{num_sinks}sinks/{terrain}"
@@ -194,20 +208,22 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
             else None
         )
 
-        return self._make_env_cfg(
-            num_agents,
-            resources,
-            num_sinks,
-            width,
-            height,
-            position,
-            terrain,
-            avg_hop,
-            max_steps,
-            num_instances,
-            rng,
-            dir,
+        icl_env = self._make_env_cfg(
+            num_agents=num_agents,
+            resources=resources,
+            num_sinks=num_sinks,
+            width=width,
+            height=height,
+            position=position,
+            terrain=terrain,
+            max_steps=max_steps,
+            num_instances=num_instances or 24 // num_agents,
+            rng=rng,
+            dir=dir,
         )
+
+        icl_env.label = f"{room_size}_{len(resources)}chain_{num_sinks}sinks_{terrain}"
+        return icl_env
 
 
 def train(
@@ -240,13 +256,13 @@ def replay(
     return replay_icl(task_generator, default_policy_uri)
 
 
-def save_envs_to_numpy(dir="in_context_assembly_lines/", num_envs: int = 100):
+def save_envs_to_numpy(dir="in_context_assembly_lines/", num_envs: int = 500):
     import os
     import numpy as np
 
-    for chain_length in range(2, 7):
+    for chain_length in range(2, 6):
         for num_sinks in range(0, 3):
-            for room_size in room_size_templates:
+            for room_size in ["tiny", "small", "medium"]:
                 for terrain_type in room_size_templates[room_size]["terrain"]:
                     for i in range(num_envs):
                         task_generator_cfg = make_task_generator_cfg(

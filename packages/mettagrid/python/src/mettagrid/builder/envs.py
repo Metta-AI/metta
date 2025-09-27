@@ -184,8 +184,7 @@ def make_in_context_chains(
     map_builder_objects: dict,
     width: int = 6,
     height: int = 6,
-    obstacle_type: Optional[str] = None,
-    density: Optional[str] = None,
+    terrain: str = "no-terrain",
     chain_length: int = 2,
     num_sinks: int = 0,
     dir: Optional[str] = None,
@@ -204,8 +203,7 @@ def make_in_context_chains(
                     width=width,
                     height=height,
                     objects=map_builder_objects,
-                    obstacle_type=obstacle_type,
-                    density=density,
+                    density=terrain,
                     chain_length=chain_length,
                     num_sinks=num_sinks,
                     dir=dir,
@@ -239,7 +237,7 @@ def make_icl_assembler(
     map_builder_objects: dict,
     width: int = 6,
     height: int = 6,
-    terrain: str = "",
+    terrain: str = "no-terrain",
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(

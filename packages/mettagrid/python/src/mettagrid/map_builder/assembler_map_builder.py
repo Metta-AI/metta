@@ -1,4 +1,5 @@
 from typing import Optional
+
 import numpy as np
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
@@ -17,7 +18,7 @@ class AssemblerMapBuilder(MapBuilder):
         border_object: str = "wall"
 
         # New: terrain density controller: "", "sparse", "balanced", "dense"
-        terrain: str = ""
+        terrain: str = "no-terrain"
 
     def __init__(self, config: Config):
         self._config = config
@@ -73,7 +74,7 @@ class AssemblerMapBuilder(MapBuilder):
         return self._get_shape(kind, size)
 
     def _get_num_obstacles(self, inner_area: int) -> int:
-        t = getattr(self._config, "terrain", "") or ""
+        t = getattr(self._config, "terrain", "no-terrain") or "no-terrain"
         if t == "sparse":
             return max(1, inner_area // 40)
         if t == "balanced":

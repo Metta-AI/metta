@@ -14,8 +14,6 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
-from mettagrid.builder.envs import make_icl_with_numpy
-from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
@@ -42,12 +40,6 @@ def make_curriculum_args(
         "room_sizes": room_sizes,
         "positions": positions,
     }
-
-
-def calculate_max_steps(num_objects: int, width: int, height: int) -> int:
-    area = width * height
-    max_steps = max(150, area * num_objects * 2)
-    return min(max_steps, 1800)
 
 
 curriculum_args = {
@@ -172,8 +164,6 @@ def make_task_generator_cfg(
         num_resources=num_generators,
         positions=positions,
         room_sizes=room_sizes,
-        obstacle_types=[],
-        densities=[],
         map_dir=map_dir,
     )
 
@@ -226,47 +216,35 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
                 rng=rng,
             )
 
-    def make_env_cfg(
+    def _make_env_cfg(
         self,
         num_agents,
         num_instances,
         num_altars,
         num_generators,
         terrain,
-        room_size,
         width,
         height,
         recipe_position,
         max_steps,
         rng: random.Random = random.Random(),
+        dir=None,
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
         self._make_generators(num_generators, cfg, recipe_position, rng)
 
         self._make_altars(num_altars, cfg, recipe_position, num_generators, rng)
 
-        if self.config.map_dir is not None:
-            templates = room_size_templates[room_size]
-            num_objects = num_altars + num_generators
-            # Find the smallest value in templates["num_objects"] that is >= num_objects for correct dir
-            num_object_reference = min(
-                obj for obj in templates["num_objects"] if obj >= num_objects
+        if dir is not None and os.path.exists(dir):
+            return self.load_from_numpy(
+                num_agents,
+                max_steps,
+                cfg.game_objects,
+                cfg.map_builder_objects,
+                dir,
+                rng,
+                num_instances,
             )
-            terrain = "simple" if terrain == "" else terrain
-            dir = f"{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
-            if os.path.exists(dir):
-                return make_icl_with_numpy(
-                    num_agents=num_agents,
-                    num_instances=num_instances,
-                    max_steps=max_steps,
-                    game_objects=cfg.game_objects,
-                    instance_map=InContextLearningFromNumpy.Config(
-                        agents=num_agents,
-                        dir=dir,
-                        objects=cfg.map_builder_objects,
-                        rng=rng,
-                    ),
-                )
 
         return make_icl_assembler(
             num_agents=num_agents,
@@ -279,43 +257,57 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
             terrain=terrain,
         )
 
+    def calculate_max_steps(
+        self, num_altars: int, num_generators: int, width: int, height: int
+    ) -> int:
+        area = width * height
+        max_steps = max(150, area * (num_altars + num_generators) * 2)
+        return min(max_steps, 1800)
+
     def _generate_task(
         self, task_id: int, rng: random.Random, num_instances: Optional[int] = None
     ) -> MettaGridConfig:
-        num_agents = rng.choice(self.config.num_agents)
-
-        # positions must be the same length as the number of agents
-        recipe_position = rng.choice(
-            [p for p in self.config.positions if len(p) <= num_agents]
+        (
+            num_agents,
+            generators,
+            num_altars,
+            room_size,
+            terrain,
+            width,
+            height,
+            max_steps,
+            recipe_position,
+        ) = self._setup_task(rng)
+        # Find the smallest value in templates["num_objects"] that is >= num_objects for correct dir
+        num_object_reference = min(
+            obj
+            for obj in room_size_templates[room_size]["num_objects"]
+            if obj >= (num_altars + len(generators))
+        )
+        dir = (
+            f"{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
+            if self.config.map_dir is not None
+            else None
         )
 
-        num_altars = rng.choice(self.config.num_converters)
-        num_generators = rng.choice(self.config.num_resources)
-        room_size = rng.choice(self.config.room_sizes)
-        width, height = self._set_width_and_height(
-            room_size, num_agents, num_altars, num_generators, rng
-        )
-        max_steps = calculate_max_steps(
-            num_agents + num_altars + num_generators, width, height
-        )
-        terrain = rng.choice(room_size_templates[room_size]["terrain"])
-
-        if num_instances is None:
-            num_instances = 24 // num_agents
-
-        return self.make_env_cfg(
+        icl_env = self._make_env_cfg(
             num_agents=num_agents,
-            num_instances=num_instances,
+            num_instances=num_instances or 24 // num_agents,
             num_altars=num_altars,
-            num_generators=num_generators,
+            num_generators=len(generators),
             terrain=terrain,
-            room_size=room_size,
             width=width,
             height=height,
             recipe_position=recipe_position,
             max_steps=max_steps,
             rng=rng,
+            dir=dir,
         )
+
+        icl_env.label = (
+            f"{room_size}_{num_altars}altars_{len(generators)}generators_{terrain}"
+        )
+        return icl_env
 
 
 def make_mettagrid(
@@ -417,7 +409,7 @@ def play_eval() -> PlayTool:
     )
 
 
-def replay(curriculum_style: str = "single_agent_two_altars") -> ReplayTool:
+def replay(curriculum_style: str = "test") -> ReplayTool:
     task_generator = AssemblerTaskGenerator(
         make_task_generator_cfg(
             **make_curriculum_args(**curriculum_args[curriculum_style])
@@ -444,7 +436,7 @@ def experiment():
 
 
 def play(
-    curriculum_style: str = "multi_agent_multi_altars",
+    curriculum_style: str = "test",
 ) -> PlayTool:
     task_generator = AssemblerTaskGenerator(
         make_task_generator_cfg(
@@ -469,7 +461,6 @@ def save_envs_to_numpy(dir="in_context_foraging/", num_envs: int = 100):
                             num_generators=[0],
                             room_sizes=[room_size],
                             positions=[["Any"]],
-                            terrains=[terrain_type],
                             map_dir=None,
                         )
                         task_generator = AssemblerTaskGenerator(
@@ -477,7 +468,9 @@ def save_envs_to_numpy(dir="in_context_foraging/", num_envs: int = 100):
                         )
 
                         random_number = random.randint(0, 1000000)
-                        terrain_type = "simple" if terrain_type == "" else terrain_type
+                        terrain_type = (
+                            "no-terrain" if terrain_type == "" else terrain_type
+                        )
                         filename = f"{dir}/{room_size}/{n_altars}objects/{terrain_type}/{random_number}.npy"
                         os.makedirs(os.path.dirname(filename), exist_ok=True)
                         env_cfg = task_generator._generate_task(
@@ -490,7 +483,7 @@ def save_envs_to_numpy(dir="in_context_foraging/", num_envs: int = 100):
                             ~np.isin(grid, ("agent.agent", "wall", "empty"))
                         )
                         if len(num_objs) < n_altars:
-                            print(f"Num objs required amount, skipping")
+                            print("Num objs required amount, skipping")
                         else:
                             np.save(filename, grid)
 

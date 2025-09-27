@@ -2,7 +2,7 @@ from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from experiments.recipes.in_context_learning.in_context_learning import ICLTaskGenerator
-from experiments.recipes.in_context_learning.converter_foraging import (
+from experiments.recipes.in_context_learning.converters.converter_foraging import (
     ConverterForagingTaskGenerator,
 )
 
@@ -18,7 +18,6 @@ def make_unordered_chain_eval_env(
     num_converters: int,
     max_recipe_inputs: int,
     room_size: str = "small",
-    singleto_resources: bool = False,
 ) -> MettaGridConfig:
     # Unordered chain uses explicit converter count
     task_generator_cfg = ICLTaskGenerator.Config(
