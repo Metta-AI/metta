@@ -36,6 +36,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         chain_length: int = 2
         num_sinks: int = 0
+        dir: Optional[str] = None
 
     def __init__(self, config: Config):
         self._config = config
@@ -194,7 +195,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         return False
 
-    def build(self, dir=None):
+    def build(self):
         height = self._config.height
         width = self._config.width
 
@@ -307,24 +308,22 @@ class PerimeterInContextMapBuilder(MapBuilder):
         center_i, center_j = height // 2, width // 2
         grid[center_i, center_j] = agents[0]
 
-        if dir is not None:
+        if self._config.dir is not None:
             area = height * width
 
             if area < 49:
                 size = "tiny"
             elif area < 144:
                 size = "small"
-            else:
+            elif area < 400:
                 size = "medium"
+            else:
+                size = "large"
 
             terrain = "terrain" if obstacle_type else "simple"
             density = density if obstacle_type else ""
 
             random_number = self._rng.integers(1000000)
-
-            converter_indices = np.argwhere((grid != "agent.agent") & (grid != "wall") & (grid != "empty"))
-
-            assert len(converter_indices) == self._config.chain_length + self._config.num_sinks
 
             subdir = f"{size}/{self._config.chain_length}chains_{self._config.num_sinks}sinks/{terrain}-{density}"
             filename = os.path.join(dir, subdir, f"{random_number}.npy")
