@@ -2,7 +2,7 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -10,7 +10,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig, OptimizerConfig
+from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -108,30 +108,22 @@ def train(
     )
 
     eval_simulations = make_evals()
-    optimizer_cfg = OptimizerConfig(
-        learning_rate=0.0011
-    )  # smaller batch size requires smaller learning rate
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
-        optimizer=optimizer_cfg,
-        batch_size=131072,  # batch size is a quarter of the default. This hasn't been tuned.
-        minibatch_size=4096,  # minibatch size is a quarter of the default. This hasn't been tuned.
     )
 
     if policy_architecture is None:
-        policy_architecture = ViTSlidingTransConfig()
+        policy_architecture = ViTDefaultConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(
-            curriculum=curriculum,
-            forward_pass_minibatch_target_size=1024,  # updated so that we shrink the num of envs to 1/4 of the default.
-        ),
-        evaluator=EvaluatorConfig(
-            simulations=eval_simulations, epoch_interval=0
-        ),  # disabled evaluation
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(),
+        torch_profiler=TorchProfilerConfig(
+            interval_epochs=1,
+            profile_dir="${run_dir}/torch_traces",
+        ),
     )
 
 

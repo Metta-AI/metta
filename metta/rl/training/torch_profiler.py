@@ -40,10 +40,20 @@ class TorchProfileSession:
         self._profile_filename_base: str | None = None
         self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
 
-    def on_epoch_end(self, epoch: int) -> None:
-        force = (epoch == self._first_profile_epoch) if not self._active else False
-        if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
-            self._setup_profiler(epoch)
+    def prepare_for_epoch(self, epoch: int) -> None:
+        """Arm the profiler if the upcoming epoch should be captured."""
+
+        if self._active:
+            return
+
+        interval = getattr(self._profiler_config, "interval_epochs", 0)
+        if interval <= 0:
+            return
+
+        target_epoch = epoch + 1
+        force = target_epoch == self._first_profile_epoch
+        if should_run(target_epoch, interval, force=force):
+            self._setup_profiler(target_epoch)
 
     def _setup_profiler(self, epoch: int) -> None:
         if self._active:
@@ -57,7 +67,7 @@ class TorchProfileSession:
         self._start_epoch = epoch
         run_basename = os.path.basename(self._run_dir) if self._run_dir else "unknown_run"
         self._profile_filename_base = f"trace_{run_basename}_epoch_{self._start_epoch}"
-        logger.info("Torch profiler armed for epoch %s", epoch)
+        logger.info("Torch profiler scheduled for epoch %s", epoch)
 
     def __enter__(self):
         if not self._active:
@@ -94,6 +104,10 @@ class TorchProfileSession:
             self._profile_filename_base = None
 
         return False
+
+    @property
+    def is_active(self) -> bool:
+        return self._active
 
     # Internal helpers -------------------------------------------------
     def _save_profile(self, prof: torch.profiler.profile) -> None:
@@ -179,6 +193,8 @@ class TorchProfiler(TrainerComponent):
         def wrapped_train_epoch():
             if self._session is None:
                 return original_train_epoch()
+            current_epoch = self.context.epoch
+            self._session.prepare_for_epoch(current_epoch)
             with self._session:
                 return original_train_epoch()
 
@@ -186,8 +202,10 @@ class TorchProfiler(TrainerComponent):
         self._original_train_epoch = original_train_epoch
 
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        if self._session:
-            self._session.on_epoch_end(epoch)
+        # Profiling sessions are scoped to the epoch via the context manager, so
+        # no additional teardown is required here. This hook is retained for
+        # compatibility with the TrainerComponent interface.
+        return
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if self._original_train_epoch is not None:

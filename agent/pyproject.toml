@@ -12,7 +12,15 @@ license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
-dependencies = ["pufferlib-core"]
+dependencies = [
+  "pufferlib-core",
+  "einops>=0.7.0",
+  "torchtune>=0.3.0",
+  "kornia>=0.7.0",
+  "pytorch-warmup>=0.1.1",
+  "line-profiler>=4.1.0",
+  "transformers>=4.40.0",
+]
 
 [dependency-groups]
 dev = [
@@ -26,11 +34,12 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.agent"]
+include = ["metta.agent", "mamba_ssm"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
 "metta.agent" = ["py.typed"]
+"mamba_ssm" = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
