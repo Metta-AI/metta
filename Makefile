@@ -72,26 +72,14 @@ format: install
 	cd packages/mettagrid && make format-fix
 
 clean:
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info
-	rm -rf .pytest_cache/
-	rm -rf .coverage
-	rm -rf htmlcov/
-	cd packages/mettagrid && make clean
+	rm -rf build dist htmlcov .pytest_cache .coverage ./*.egg-info || true
 
-	# Safely remove Python caches, excluding all .bazel_output/* and similar
-	find . -type d -name __pycache__ \
-		! -path "*/.bazel_output/*" \
-		! -path "*/bazel-out/*" \
-		! -path "*/bazel-bin/*" \
-		-exec rm -rf {} +
+	$(MAKE) -C packages/mettagrid clean
 
-	find . -type f -name "*.pyc" \
-		! -path "*/.bazel_output/*" \
-		! -path "*/bazel-out/*" \
-		! -path "*/bazel-bin/*" \
-		-delete
+	@PRUNES='-name .git -o -name .venv -o -name node_modules -o -name .bazel_output -o -name "bazel-*" -o -name bazel-out -o -name bazel-bin -o -name bazel-testlogs'; \
+	find . \( $$PRUNES \) -prune -o \
+	  \( -type d -name __pycache__ -print0 -o -type f -name '*.pyc' -print0 \) | xargs -0r rm -rf
+
 
 # Full development setup
 dev:
