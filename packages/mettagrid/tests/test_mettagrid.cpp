@@ -16,6 +16,7 @@
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
+#include "objects/inventory_config.hpp"
 #include "objects/wall.hpp"
 
 // Test-specific inventory item type constants
@@ -49,13 +50,15 @@ protected:
   void TearDown() override {}
 
   // Helper function to create test resource_limits map
-  std::map<uint8_t, InventoryQuantity> create_test_resource_limits() {
-    std::map<uint8_t, InventoryQuantity> resource_limits;
-    resource_limits[TestItems::ORE] = 50;
-    resource_limits[TestItems::LASER] = 50;
-    resource_limits[TestItems::ARMOR] = 50;
-    resource_limits[TestItems::HEART] = 50;
-    return resource_limits;
+  InventoryConfig create_test_inventory_config() {
+    InventoryConfig inventory_config;
+    inventory_config.limits = {
+        {{TestItems::ORE}, 50},
+        {{TestItems::LASER}, 50},
+        {{TestItems::ARMOR}, 50},
+        {{TestItems::HEART}, 50},
+    };
+    return inventory_config;
   }
 
   std::map<std::string, RewardType> create_test_stats_rewards() {
@@ -87,7 +90,7 @@ protected:
                        "test_group",                    // group_name
                        100,                             // freeze_duration
                        0.0f,                            // action_failure_penalty
-                       create_test_resource_limits(),   // resource_limits
+                       create_test_inventory_config(),  // resource_limits
                        create_test_stats_rewards(),     // stats_rewards
                        create_test_stats_reward_max(),  // stats_reward_max
                        0.0f,                            // group_reward_pct
@@ -152,14 +155,14 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
 // Test for reward capping behavior with a lower cap to actually hit it
 TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   // Create a custom config with a lower ore reward cap that we can actually hit
-  auto resource_limits = create_test_resource_limits();
+  auto inventory_config = create_test_inventory_config();
   auto rewards = create_test_stats_rewards();
 
   // Set a lower cap for ORE so we can actually test capping
   std::map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, stats_reward_max, 0.0f, {});
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
@@ -218,7 +221,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
 // Test multiple item types with different caps
 TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
-  auto resource_limits = create_test_resource_limits();
+  auto inventory_config = create_test_inventory_config();
   auto rewards = create_test_stats_rewards();
 
   // Set different caps for different items
@@ -227,7 +230,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   stats_reward_max[std::string(TestItemStrings::HEART) + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, stats_reward_max, 0.0f, {});
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
@@ -270,6 +273,79 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 25);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 25.625f);  // 0.625 + 25.0
+}
+
+// Test shared inventory limits between multiple resources
+TEST_F(MettaGridCppTest, SharedInventoryLimits) {
+  // Create an inventory config where ORE and LASER share a combined limit
+  InventoryConfig inventory_config;
+  inventory_config.limits = {
+      {{TestItems::ORE, TestItems::LASER}, 30},  // ORE and LASER share a limit of 30 total
+      {{TestItems::ARMOR}, 50},                  // ARMOR has its own separate limit
+      {{TestItems::HEART}, 50},                  // HEART has its own separate limit
+  };
+
+  auto rewards = create_test_stats_rewards();
+  auto stats_reward_max = create_test_stats_reward_max();
+
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
+
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  auto resource_names = create_test_resource_names();
+  agent->stats.set_resource_names(&resource_names);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+
+  // Add ORE up to 20
+  int delta = agent->update_inventory(TestItems::ORE, 20);
+  EXPECT_EQ(delta, 20);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 20);
+
+  // Try to add 20 LASER - should only add 10 due to shared limit
+  delta = agent->update_inventory(TestItems::LASER, 20);
+  EXPECT_EQ(delta, 10);  // Only 10 can be added (20 ORE + 10 LASER = 30 total)
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 10);
+
+  // Try to add more ORE - should fail as we're at the shared limit
+  delta = agent->update_inventory(TestItems::ORE, 5);
+  EXPECT_EQ(delta, 0);  // Can't add any more
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 20);
+
+  // Remove some LASER
+  delta = agent->update_inventory(TestItems::LASER, -5);
+  EXPECT_EQ(delta, -5);
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 5);
+
+  // Now we can add more ORE since we freed up shared space
+  delta = agent->update_inventory(TestItems::ORE, 5);
+  EXPECT_EQ(delta, 5);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 25);
+
+  // ARMOR should work independently with its own limit
+  delta = agent->update_inventory(TestItems::ARMOR, 40);
+  EXPECT_EQ(delta, 40);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 40);
+
+  // Can still add more ARMOR up to its limit
+  delta = agent->update_inventory(TestItems::ARMOR, 20);
+  EXPECT_EQ(delta, 10);  // Should cap at 50
+  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 50);
+
+  // Remove all ORE
+  delta = agent->update_inventory(TestItems::ORE, -25);
+  EXPECT_EQ(delta, -25);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);
+
+  // Now we can add up to 25 more LASER (5 existing + 25 = 30)
+  delta = agent->update_inventory(TestItems::LASER, 30);
+  EXPECT_EQ(delta, 25);
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 30);
+
+  // Verify final state
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 30);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 50);
+  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 0);
 }
 
 // ==================== Grid Tests ====================

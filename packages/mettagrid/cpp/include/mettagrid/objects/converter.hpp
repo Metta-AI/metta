@@ -85,7 +85,9 @@ public:
   unsigned short conversions_completed;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
-      : input_resources(cfg.input_resources),
+      : GridObject(),
+        HasInventory(InventoryConfig()),  // Converts have nothing to configure in their inventory. Yet.
+        input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
         max_output(cfg.max_output),
         max_conversions(cfg.max_conversions),

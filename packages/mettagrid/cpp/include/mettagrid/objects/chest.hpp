@@ -98,7 +98,9 @@ public:
   class Grid* grid;
 
   Chest(GridCoord r, GridCoord c, const ChestConfig& cfg)
-      : resource_type(cfg.resource_type),
+      : GridObject(),
+        HasInventory(InventoryConfig()),  // Chests have nothing to configure in their inventory. Yet.
+        resource_type(cfg.resource_type),
         deposit_positions(cfg.deposit_positions),
         withdrawal_positions(cfg.withdrawal_positions),
         grid(nullptr) {
