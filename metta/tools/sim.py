@@ -76,8 +76,13 @@ class SimTool(Tool):
             logger.info("Could not determine run name, skipping wandb logging")
             return
 
-        wandb = auto_wandb_config(run_name)
+        # Resume the existing training run without overriding its group
+        wandb = auto_wandb_config()
+        wandb.run_id = run_name  # resume existing
+        # Do not set wandb.group here to preserve the existing group metadata
+        # Allow explicit override if provided by the caller
         if self.group:
+            print("FOUND GROUP ", self.group)
             wandb.group = self.group
 
         if not wandb.enabled:
