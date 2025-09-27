@@ -505,6 +505,7 @@ class TransformerPolicy(Policy):
             self.actor_key(td)
 
             td = self.action_probs(td, action)
+        self._cast_floating_tensors(td)
         if self._diag_enabled and self._diag_counter < self._diag_limit:
             logits = td.get("logits")
             if logits is not None:
@@ -516,6 +517,14 @@ class TransformerPolicy(Policy):
         if original_shape is not None:
             td = td.reshape(original_shape)
         return td
+
+    def _cast_floating_tensors(self, td: TensorDict) -> None:
+        for key, value in td.items(include_nested=True):
+            if isinstance(value, torch.Tensor) and value.is_floating_point() and value.dtype != torch.float32:
+                leaf_key = key[-1] if isinstance(key, tuple) else key
+                if leaf_key == "transformer_memory_pre":
+                    continue
+                td[key] = value.to(dtype=torch.float32)
 
     def _forward_transformer(self, td: TensorDict, latent: torch.Tensor, batch_size: int, tt: int) -> torch.Tensor:
         if tt <= 0:
