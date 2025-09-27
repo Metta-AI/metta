@@ -480,6 +480,13 @@ def cmd_publish(
     prefix = PACKAGE_TAG_PREFIXES[package]
 
     try:
+        info(f"Fetching tags from {remote}...")
+        _run_git_command(["fetch", remote, "--tags"], capture_output=False)
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to fetch tags from {remote}: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    try:
         status_output = _get_git_output(["status", "--porcelain"])
     except subprocess.CalledProcessError as exc:
         error(f"Failed to read git status: {exc}")
