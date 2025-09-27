@@ -598,17 +598,17 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
                         mask = attn_mask[:, None, :, :]
                     else:
                         raise ValueError("Attention mask must have dim 2 or 3.")
-                    attn_bias = attn_bias.masked_fill(mask.to(attn_bias.device).bool(), float("-inf"))
+                    mask = mask.to(attn_bias.device)
+                    attn_bias = attn_bias.masked_fill(mask.bool(), float("-inf"))
 
                 dropout_p = self.dropatt.p if self.training else 0.0
                 attn_out = F.scaled_dot_product_attention(
                     q_sdpa,
                     k_sdpa,
                     v_sdpa,
-                    attn_mask=None,
+                    attn_mask=attn_bias,
                     dropout_p=dropout_p,
                     is_causal=False,
-                    attn_bias=attn_bias,
                 )
                 attn_out = attn_out.permute(2, 0, 1, 3).reshape(qlen, batch_size, self.n_head * self.d_head)
                 attn_out = self.drop(self.o_net(attn_out))

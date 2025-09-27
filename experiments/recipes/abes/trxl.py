@@ -125,7 +125,10 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(),
+        torch_profiler=TorchProfilerConfig(
+            interval_epochs=1,
+            profile_dir="${run_dir}/torch_traces",
+        ),
     )
 
 

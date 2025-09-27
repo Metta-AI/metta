@@ -24,9 +24,10 @@ from metta.agent.components.actor import (
     ActorQuery,
     ActorQueryConfig,
 )
-from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.heads import LinearHead, LinearHeadConfig
-from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
+from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
+from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
+from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrEmbedFourierConfig
 from metta.agent.components.transformer_core import (
     TransformerBackboneConfig,
     TransformerBackboneVariant,
@@ -73,14 +74,22 @@ class TransformerPolicyConfig(PolicyArchitecture):
     variant: TransformerBackboneVariant = TransformerBackboneVariant.GTRXL
 
     # Observation preprocessing
-    obs_shim_config: ObsShimBoxConfig = ObsShimBoxConfig(in_key="env_obs", out_key="obs_normalizer")
-    cnn_encoder_config: CNNEncoderConfig = CNNEncoderConfig(
-        in_key="obs_normalizer",
+    obs_shim_config: ObsShimTokensConfig = ObsShimTokensConfig(in_key="env_obs", out_key="obs_tokens", max_tokens=48)
+    obs_tokenizer: ObsAttrEmbedFourierConfig = ObsAttrEmbedFourierConfig(
+        in_key="obs_tokens",
+        out_key="obs_attr_embed",
+        num_freqs=3,
+        attr_embed_dim=8,
+    )
+
+    obs_encoder: ObsPerceiverLatentConfig = ObsPerceiverLatentConfig(
+        in_key="obs_attr_embed",
         out_key="encoded_obs",
-        cnn1_cfg={"out_channels": 64, "kernel_size": 5, "stride": 3},
-        cnn2_cfg={"out_channels": 64, "kernel_size": 3, "stride": 1},
-        fc1_cfg={"out_features": 256},
-        encoded_obs_cfg={"out_features": 256},
+        feat_dim=8 + (4 * 3) + 1,
+        latent_dim=32,
+        num_latents=12,
+        num_heads=4,
+        num_layers=1,
     )
 
     transformer: TransformerBackboneConfig | None = None
@@ -140,17 +149,18 @@ class TransformerPolicy(Policy):
         self._memory_len = int(getattr(self.transformer_cfg, "memory_len", 0) or 0)
         self._transformer_layers = int(getattr(self.transformer_cfg, "num_layers", 0) or 0)
 
-        encoder_out = self.config.cnn_encoder_config.encoded_obs_cfg.get("out_features")
+        encoder_out = self.config.obs_encoder.latent_dim
         if encoder_out != self.latent_size:
             logger.info(
-                "Adjusting CNN encoder output from %s to match transformer latent size %s.",
+                "Adjusting token encoder latent dim from %s to match transformer latent size %s.",
                 encoder_out,
                 self.latent_size,
             )
-            self.config.cnn_encoder_config.encoded_obs_cfg["out_features"] = self.latent_size
+            self.config.obs_encoder.latent_dim = self.latent_size
 
-        self.obs_shim = ObsShimBox(env=env, config=self.config.obs_shim_config)
-        self.cnn_encoder = CNNEncoder(config=self.config.cnn_encoder_config, env=env)
+        self.obs_shim = ObsShimTokens(env, config=self.config.obs_shim_config)
+        self.obs_tokenizer = ObsAttrEmbedFourier(config=self.config.obs_tokenizer)
+        self.obs_encoder = ObsPerceiverLatent(config=self.config.obs_encoder)
 
         self._build_heads()
         self._build_transformer()
@@ -263,7 +273,7 @@ class TransformerPolicy(Policy):
     def cnn1(self) -> nn.Module:
         """Expose first CNN layer for downstream tests and diagnostics."""
 
-        return self.cnn_encoder.cnn1
+        raise AttributeError("cnn1 is not available when using token-based encoder")
 
     def _encode_observations(self, observations: torch.Tensor) -> TensorDict:
         """Run raw observations through preprocessing and CNN encoder."""
@@ -480,9 +490,10 @@ class TransformerPolicy(Policy):
 
         with autocast_ctx:
             self.obs_shim(td)
-            self.cnn_encoder(td)
+            self.obs_tokenizer(td)
+            self.obs_encoder(td)
 
-            encoded_key = self.config.cnn_encoder_config.out_key
+            encoded_key = self.config.obs_encoder.out_key
             latent = td[encoded_key]
             latent = self.input_projection(latent)
             aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
@@ -554,11 +565,7 @@ class TransformerPolicy(Policy):
         elif use_memory and tt > 1:
             packed_memory = td.get("transformer_memory_pre", None)
             memory_batch = None
-            if (
-                self.memory_len > 0
-                and packed_memory is not None
-                and packed_memory.numel() > 0
-            ):
+            if self.memory_len > 0 and packed_memory is not None and packed_memory.numel() > 0:
                 packed_memory = packed_memory.to(device=torch.device("cpu"))
                 packed_memory = packed_memory.view(
                     batch_size,
