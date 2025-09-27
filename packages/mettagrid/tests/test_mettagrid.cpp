@@ -1217,3 +1217,61 @@ TEST_F(MettaGridCppTest, AssemblerRecipeObservationsEnabled) {
   const Recipe* current_recipe = assembler->get_current_recipe();
   EXPECT_EQ(current_recipe, recipe0.get());
 }
+
+TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
+  // Create a recipe that requires 10 ore
+  std::map<InventoryItem, InventoryQuantity> input_resources;
+  input_resources[TestItems::ORE] = 10;
+
+  std::map<InventoryItem, InventoryQuantity> output_resources;
+  output_resources[TestItems::LASER] = 1;
+
+  auto recipe = std::make_shared<Recipe>(input_resources, output_resources, 0);
+
+  // Create assembler with the recipe
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.recipes = {recipe};
+  Assembler assembler(5, 5, config);
+  // Create agents
+  AgentConfig agent_config(0,         // type_id
+                           "agent",   // type_name
+                           0,         // group_id
+                           "agent");  // group_name
+  Agent agent1(0, 0, agent_config);
+  Agent agent2(0, 0, agent_config);
+  Agent agent3(0, 0, agent_config);
+
+  agent1.update_inventory(TestItems::ORE, 3);
+  agent2.update_inventory(TestItems::ORE, 4);
+  agent3.update_inventory(TestItems::ORE, 5);
+
+  std::vector<Agent*> surrounding_agents = {&agent1, &agent2, &agent3};
+
+  // Record initial ore amounts
+  InventoryQuantity initial_ore1 = agent1.inventory[TestItems::ORE];
+  InventoryQuantity initial_ore2 = agent2.inventory[TestItems::ORE];
+  InventoryQuantity initial_ore3 = agent3.inventory[TestItems::ORE];
+
+  // Call consume_resources_for_recipe - this should consume exactly 10 ore total
+  assembler.consume_resources_for_recipe(*recipe, surrounding_agents);
+
+  // Check that the fix works: only consume what's needed (10 total)
+  InventoryQuantity final_ore1 = agent1.inventory[TestItems::ORE];
+  InventoryQuantity final_ore2 = agent2.inventory[TestItems::ORE];
+  InventoryQuantity final_ore3 = agent3.inventory[TestItems::ORE];
+
+  // With the fix: consume exactly 10 ore total
+  // Agent 1: 3 -> 0 (loses 3)
+  // Agent 2: 4 -> 0 (loses 4)
+  // Agent 3: 5 -> 2 (loses 3, keeps 2)
+  // Total consumed: 10 (correct!)
+
+  EXPECT_EQ(final_ore1, 0) << "Agent 1 should lose all ore (3)";
+  EXPECT_EQ(final_ore2, 0) << "Agent 2 should lose all ore (4)";
+  EXPECT_EQ(final_ore3, 2) << "Agent 3 should keep 2 ore (lose 3)";
+
+  // Verify total consumption is correct (10)
+  InventoryQuantity total_consumed =
+      (initial_ore1 - final_ore1) + (initial_ore2 - final_ore2) + (initial_ore3 - final_ore3);
+  EXPECT_EQ(total_consumed, 10) << "Should consume exactly 10 ore, consumed " << total_consumed;
+}
