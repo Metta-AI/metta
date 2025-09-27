@@ -20,6 +20,7 @@ dependencies = [
   "pytorch-warmup>=0.1.1",
   "line-profiler>=4.1.0",
   "causal-conv1d>=1.2.0",
+  "transformers>=4.40.0",
 ]
 
 [dependency-groups]
