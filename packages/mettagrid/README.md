@@ -169,6 +169,7 @@ Lightweight wrappers around `MettaGridCore` to maintain compatibility with other
 - **`MettaGridGymEnv`** - Gymnasium compatibility for research workflows
 - **`MettaGridPettingZooEnv`** - PettingZoo compatibility for multi-agent research
 - **`MettaGridPufferEnv`** - PufferLib compatibility for high-performance external training
+- **`MettaGridBenchMARLEnv`** - BenchMARL/TorchRL compatibility for MARL benchmarking
 
 **Important**: These adapters are **only used with their respective training systems**, not with the Metta trainer.
 
@@ -192,6 +193,9 @@ python -m mettagrid.demos.demo_train_puffer
 
 # Verify Gymnasium compatibility
 python -m mettagrid.demos.demo_train_gym
+
+# Verify BenchMARL compatibility (requires: pip install benchmarl)
+python -m mettagrid.demos.benchmarl_demo
 ```
 
 The demos serve as regression tests to catch compatibility issues during core development, ensuring external users can

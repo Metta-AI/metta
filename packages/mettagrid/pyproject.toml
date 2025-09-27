@@ -25,6 +25,9 @@ dependencies = [
   "gymnasium>=1.1.1",
   "pettingzoo>=1.25",
   "pufferlib-core",
+  "benchmarl>=1.5.0,<1.6.0",
+  "torchrl>=0.8.0",
+  "tensordict>=0.8.0",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
 ]
