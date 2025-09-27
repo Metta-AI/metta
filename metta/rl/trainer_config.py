@@ -52,8 +52,12 @@ class TrainerConfig(Config):
     require_contiguous_env_ids: bool = False
     verbose: bool = True
 
-    batch_size: int = Field(default=524288, gt=0)
-    minibatch_size: int = Field(default=16384, gt=0)
+    # Batch configuration
+    # Batch size: Type 2 default chosen from sweep - reduced for memory
+    batch_size: int = Field(default=65536, gt=0)  # Reduced from 524288
+    # Minibatch: Type 2 default chosen from sweep - reduced for memory
+    minibatch_size: int = Field(default=2048, gt=0)  # Reduced from 16384
+    # BPTT horizon: Type 2 default chosen arbitrarily
     bptt_horizon: int = Field(default=64, gt=0)
     update_epochs: int = Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
