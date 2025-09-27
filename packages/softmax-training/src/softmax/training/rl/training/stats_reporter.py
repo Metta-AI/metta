@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import StatsClient
+from softmax.orchestrator.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.shared.eval_config import EvalRewardSummary
 from mettagrid.config import Config

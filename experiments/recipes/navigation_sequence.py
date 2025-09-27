@@ -13,7 +13,7 @@ from softmax.cogworks.curriculum.learning_progress_algorithm import (
     LearningProgressConfig,
 )
 from softmax.cogworks.curriculum.task_generator import Span
-from metta.map.terrain_from_numpy import TerrainFromNumpy
+from softmax.maptools.map.terrain_from_numpy import TerrainFromNumpy
 from softmax.training.rl.loss import LossConfig
 from softmax.training.rl.trainer_config import TrainerConfig
 from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig

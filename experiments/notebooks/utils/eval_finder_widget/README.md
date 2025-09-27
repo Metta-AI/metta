@@ -21,7 +21,7 @@ metta install notebookwidgets
 ### Prerequisites
 
 Make sure you're in the Metta repository root directory and have the proper Python environment activated (with
-`metta.app_backend` available).
+`softmax.orchestrator` available).
 
 ### Quick Installation (Recommended)
 

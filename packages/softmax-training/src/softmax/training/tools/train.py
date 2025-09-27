@@ -9,7 +9,7 @@ from pydantic import Field, model_validator
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.app_backend.clients.stats_client import StatsClient
+from softmax.orchestrator.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging

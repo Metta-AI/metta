@@ -144,7 +144,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 - `packages/mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
 - `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
-- `gridworks/`: Next.js web interface
+- `packages/softmax-maptools/src/softmax/maptools/gridworks/`: Next.js web interface
 - `app_backend/`: FastAPI backend server for stats and data services
 
 ### Architecture Overview

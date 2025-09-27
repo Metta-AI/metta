@@ -11,8 +11,8 @@ from typing import Any, Callable, Dict, List, Literal
 
 import anywidget
 import traitlets
-from metta.app_backend.clients.scorecard_client import ScorecardClient
-from metta.app_backend.routes.scorecard_routes import ScorecardData
+from softmax.orchestrator.clients.scorecard_client import ScorecardClient
+from softmax.orchestrator.routes.scorecard_routes import ScorecardData
 
 # FIXME: we need something like `dotenv` and `.env.local` files up in here.
 _DEV = False

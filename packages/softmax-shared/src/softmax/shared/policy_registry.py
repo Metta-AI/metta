@@ -8,7 +8,7 @@ from typing import Any, Iterable, Tuple
 
 from bidict import bidict
 
-from metta.app_backend.clients.stats_client import StatsClient
+from softmax.orchestrator.clients.stats_client import StatsClient
 
 
 def _resolve_policy_metadata(uri: str) -> dict[str, Any]:

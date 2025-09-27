@@ -14,7 +14,7 @@ import wandb
 from sky.server.common import RequestId, get_server_url
 
 import gitta as git
-from metta.app_backend.clients.base_client import get_machine_token
+from softmax.orchestrator.clients.base_client import get_machine_token
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 

@@ -56,8 +56,11 @@ def build_policy_evaluator_img(
 
 @app.command(name="build-app-backend-img")
 def build_app_backend_img():
-    _build_img("metta-app-backend:latest", repo_root / "app_backend" / "Dockerfile")
-    console.print("[green]Built app backend image: metta-app-backend:latest[/green]")
+    _build_img(
+        "softmax-orchestrator:latest",
+        repo_root / "packages" / "softmax-orchestrator" / "Dockerfile",
+    )
+    console.print("[green]Built orchestrator image: softmax-orchestrator:latest[/green]")
 
 
 @app.command(name="stats-server", context_settings={"allow_extra_args": True})

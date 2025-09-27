@@ -15,7 +15,7 @@ from einops import rearrange
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
 from metta.agent.utils import obs_to_td
-from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
+from softmax.orchestrator.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.util.heartbeat import record_heartbeat
 from mettagrid import MettaGridEnv, dtype_actions
 from softmax.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig

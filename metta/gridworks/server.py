@@ -7,8 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
 from metta.common.util.log_config import init_logging
-from metta.gridworks.routes.configs import make_configs_router
-from metta.gridworks.routes.stored_maps import make_stored_maps_router
+from softmax.maptools.gridworks.routes.configs import make_configs_router
+from softmax.maptools.gridworks.routes.stored_maps import make_stored_maps_router
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def make_app():
 def main() -> None:
     init_logging()
     uvicorn.run(
-        "metta.gridworks.server:make_app",
+        "softmax.maptools.gridworks.server:make_app",
         port=8001,
         factory=True,
         reload=True,

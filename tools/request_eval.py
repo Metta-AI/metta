@@ -9,10 +9,10 @@ from bidict import bidict
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
-from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.metta_repo import TaskStatus
-from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
+from softmax.orchestrator.clients.eval_task_client import EvalTaskClient
+from softmax.orchestrator.clients.stats_client import StatsClient
+from softmax.orchestrator.metta_repo import TaskStatus
+from softmax.orchestrator.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
 from metta.common.util.collections import group_by
 from metta.common.util.constants import (
     DEV_OBSERVATORY_FRONTEND_URL,

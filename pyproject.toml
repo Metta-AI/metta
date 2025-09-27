@@ -30,7 +30,7 @@ dependencies = [
   "jmespath>=1.0.1",
   "matplotlib>=3.10.3",
   "metta-agent",
-  "metta-app-backend",
+  "softmax-orchestrator",
   "metta-common",
   "numpy>=2",
   "nvidia-ml-py",
@@ -60,6 +60,7 @@ dependencies = [
   "softmax-lib",
   "softmax-shared",
   "softmax-training",
+  "softmax-maptools",
   "sympy>=1.13.3",
   "tabulate>=0.9.0",
   "tensordict>=0.8.3",
@@ -120,7 +121,7 @@ source = [
   "mettagrid",
   "metta.common",
   "metta.agent",
-  "metta.app_backend",
+  "softmax.orchestrator",
   "pufferlib-core",
   "softmax.training",
   "softmax.cogworks",
@@ -155,7 +156,6 @@ default-groups = ["interactive", "dev"]
 [tool.uv.workspace]
 members = [
   "agent",
-  "app_backend",
   "codebot",
   "common",
   "experiments",
@@ -165,10 +165,12 @@ members = [
   "packages/pufferlib-core",
   "packages/softmax-cli",
   "packages/softmax-cogworks",
+  "packages/softmax-maptools",
   "packages/softmax-config",
   "packages/softmax-lib",
   "packages/softmax-shared",
   "packages/softmax-training",
+  "packages/softmax-orchestrator",
   "softmax",
 ]
 
@@ -177,13 +179,14 @@ codebot = { workspace = true }
 cogames = { workspace = true }
 gitta = { workspace = true }
 metta-agent = { workspace = true }
-metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
 pufferlib-core = { workspace = true }
 softmax = { workspace = true }
 softmax-cli = { workspace = true }
 softmax-cogworks = { workspace = true }
+softmax-maptools = { workspace = true }
 softmax-config = { workspace = true }
 softmax-lib = { workspace = true }
 softmax-shared = { workspace = true }
 softmax-training = { workspace = true }
+softmax-orchestrator = { workspace = true }

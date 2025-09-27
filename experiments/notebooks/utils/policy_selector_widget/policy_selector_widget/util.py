@@ -3,7 +3,7 @@ Utility functions for the Policy Selector Widget
 """
 
 from typing import Dict, List, Any
-from metta.app_backend.clients.scorecard_client import ScorecardClient
+from softmax.orchestrator.clients.scorecard_client import ScorecardClient
 
 
 async def fetch_policies_from_backend(

@@ -8,7 +8,7 @@ dependencies, and migration steps requested in the latest review cycle.
 - Packages shipping today (with `pyproject.toml` in workspace): `agent/`, `app_backend/`, `codebot/`, `common/`,
   `config/`, `experiments/`, `gitta/`, `packages/cogames/`, `packages/mettagrid/`, `packages/pufferlib-core/`,
   `shared/`, and `softmax/`.
-- Monolithic `metta/` namespace still hosts `adaptive/`, `cogworks/`, `common/`, `config/`, `eval/`, `gridworks/`, `map/`,
+- Monolithic `metta/` namespace still hosts `adaptive/`, `cogworks/`, `common/`, `config/`, `eval/`, `maptools`,
   `rl/`, `setup/`, `shared/`, `sim/`, `sweep/`, `tests_support/`, `tools/`, and `utils/`. Shims under `metta.common`
   continue to protect downstream consumers until we ship the new `softmax.lib` surface.
 - Dependency hot spots we just mitigated: `setup → tools` cycle removed, `metta.shared` introduced as shared data hub,
@@ -50,7 +50,7 @@ dependencies, and migration steps requested in the latest review cycle.
 | softmax-shared | `packages/softmax-shared` | `softmax.shared` | Evaluation/simulation schemas, registries | none | Already stands alone; fold policy registry here |
 | softmax-training | `packages/softmax-training` | `softmax.training` | RL loops, simulation drivers, orchestration CLI, training tools | `softmax.lib`, `softmax.config`, `softmax.shared`, `packages/mettagrid` | Absorbs `rl/`, `sim/`, `tools/`, training slices of `adaptive/` & `sweep/` |
 | softmax-cogworks | `packages/softmax-cogworks` | `softmax.cogworks` | Content authoring SDK, asset validators, scenario packaging | `softmax.lib`, `softmax.shared` | Only gameplay content code lives here |
-| softmax-maptools | `packages/softmax-maptools` | `softmax.maptools` | Grid/map editors, browser clients, static asset pipeline | `softmax.lib` | Hosts former `gridworks/`, `map/`, relevant front-ends |
+| softmax-maptools | `packages/softmax-maptools` | `softmax.maptools` | Grid/map editors, browser clients, static asset pipeline | `softmax.lib` | Hosts former `gridworks/` Next.js app and `metta/map` modules |
 | softmax-cli | `packages/softmax-cli` | `softmax.cli` | Developer setup, local orchestration commands, bootstrap scripts | `softmax.lib`, `softmax.config`, `softmax.training` | Supersedes `setup/` & CLI glue |
 | softmax-orchestrator | `packages/softmax-orchestrator` | `softmax.orchestrator` | Task scheduling, adaptive dispatch, integrations | `softmax.lib`, `softmax.training` | Optional deployable service |
 | Packages under `packages/` (external) | `packages/*` | varies | Third-party engines (`cogames`, `mettagrid`, `pufferlib_core`) | - | Continue to vendor here with `src/` layout |
@@ -95,7 +95,7 @@ dependencies, and migration steps requested in the latest review cycle.
   - Relocate orchestration services into `softmax-orchestrator` and retire any `softmax.cli.*` runners.
   - Migrate map/grid tooling and web assets into `softmax-maptools`; update build pipelines to reference the new package
     names exclusively.
-  - After the package moves, delete the remaining `softmax.cli`, `metta.gridworks`, and related directories, leaving the
+  - After the package moves, delete the remaining `metta/setup`, `metta/gridworks`, and related directories, leaving the
     `metta/` namespace as compatibility-only stubs until Phase 4 cleans them up entirely.
 
 ## Action Checklist

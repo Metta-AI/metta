@@ -8,7 +8,7 @@ from typing import Sequence
 import torch
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
+from softmax.orchestrator.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.context import WandbContext

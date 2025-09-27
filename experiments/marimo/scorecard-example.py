@@ -21,7 +21,7 @@ def _(mo):
 def _():
     import altair as alt
     import pandas as pd
-    from metta.app_backend.clients.scorecard_client import ScorecardClient
+    from softmax.orchestrator.clients.scorecard_client import ScorecardClient
     from metta.common.util.collections import group_by
 
     client = ScorecardClient()

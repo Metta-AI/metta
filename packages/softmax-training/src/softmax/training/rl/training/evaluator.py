@@ -8,7 +8,7 @@ import torch
 from pydantic import Field
 
 import gitta as git
-from metta.app_backend.clients.stats_client import StatsClient
+from softmax.orchestrator.clients.stats_client import StatsClient
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_service import evaluate_policy
 from metta.shared.eval_config import EvalResults, EvalRewardSummary

@@ -42,7 +42,7 @@ def _():
 
 @app.cell
 def _():
-    from metta.app_backend.clients.scorecard_client import ScorecardClient
+    from softmax.orchestrator.clients.scorecard_client import ScorecardClient
 
     client = ScorecardClient()  # production data
     # client = ScorecardClient("http://localhost:8000")  # development mode

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Callable, Literal, cast, get_args
 
 from metta.common.util.fs import get_repo_root
-from metta.gridworks.configs.lsp import LSPClient
+from softmax.maptools.gridworks.configs.lsp import LSPClient
 from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
 

@@ -134,7 +134,7 @@
     },
     "vim.textwidth": 120,
     "eslint.useFlatConfig": true,
-    "eslint.workingDirectories": ["./mettascope", "./observatory", "./gridworks"],
+    "eslint.workingDirectories": ["./mettascope", "./observatory", "./packages/softmax-maptools/src/softmax/maptools/gridworks"],
     "[typescriptreact]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
     },

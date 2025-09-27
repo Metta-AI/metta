@@ -4,7 +4,7 @@ from pathlib import Path
 
 import torch
 
-from metta.app_backend.clients.stats_client import StatsClient
+from softmax.orchestrator.clients.stats_client import StatsClient
 from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_stats_db import EvalStatsDB
