@@ -281,14 +281,11 @@ class MambaBackboneComponent(nn.Module):
         hidden = hidden.reshape(batch, tt, S, -1)
         pooled = self._pool_output(hidden, tt=tt)
         flat = rearrange(pooled, "b tt ... -> (b tt) ...")
+        flat = flat.reshape(-1, flat.shape[-1])
         if flat.shape[0] != td.batch_size.numel():
-            print("[MambaBackbone] shape mismatch", flat.shape, td.batch_size, flush=True)
-            repeats = td.batch_size.numel() // flat.shape[0]
-            if repeats == 0:
-                flat = flat[:td.batch_size.numel()]
-            else:
-                flat = flat.repeat(repeats, 1)
-        print("[MambaBackbone] setting core", flat.shape, td.batch_size, flush=True)
+            raise RuntimeError(
+                f"mamba backbone batch mismatch: got {flat.shape[0]}, expected {td.batch_size.numel()}"
+            )
         td.set(self.out_key, flat)
 
         # update caches
