@@ -282,35 +282,10 @@ class TransformerPolicy(Policy):
             raise ValueError("Expected observations with shape (batch, tokens, features).")
 
         batch_size = observations.shape[0]
-        device = observations.device
         td = TensorDict({"env_obs": observations}, batch_size=[batch_size])
-
-        coords_byte = observations[..., 0].to(torch.long)
-        attr_indices = observations[..., 1].to(torch.long)
-        attr_values = observations[..., 2].to(torch.float32)
-
-        valid_tokens = coords_byte != 0xFF
-        valid_attr = attr_indices < self.num_layers
-        valid_mask = valid_tokens & valid_attr
-
-        x_indices = (coords_byte >> 4) & 0x0F
-        y_indices = coords_byte & 0x0F
-        flat_spatial_index = x_indices * self.env.obs_height + y_indices
-        dim_per_layer = self.env.obs_width * self.env.obs_height
-        combined_index = attr_indices * dim_per_layer + flat_spatial_index
-
-        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
-        safe_values = torch.where(valid_mask, attr_values, torch.zeros_like(attr_values))
-
-        grid_flat = torch.zeros((batch_size, self.num_layers * dim_per_layer), dtype=torch.float32, device=device)
-        grid_flat.scatter_add_(1, safe_index, safe_values)
-        box_obs = grid_flat.view(batch_size, self.num_layers, self.env.obs_width, self.env.obs_height)
-
-        norm = self.obs_shim.observation_normalizer.obs_norm.to(device=device, dtype=box_obs.dtype)
-        normalized = box_obs / norm
-
-        td[self.obs_shim.out_key] = normalized
-        self.cnn_encoder(td)
+        self.obs_shim(td)
+        self.obs_tokenizer(td)
+        self.obs_encoder(td)
         return td
 
     def _infer_action_dim(self) -> int:
