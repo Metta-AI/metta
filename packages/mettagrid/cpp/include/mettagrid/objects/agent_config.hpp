@@ -19,7 +19,7 @@ struct AgentConfig : public GridObjectConfig {
               const std::string& group_name,
               unsigned char freeze_duration = 0,
               float action_failure_penalty = 0,
-              const InventoryConfig& inventory_config = InventoryConfig({}),
+              const InventoryConfig& inventory_config = InventoryConfig(),
               const std::map<std::string, RewardType>& stat_rewards = {},
               const std::map<std::string, RewardType>& stat_reward_max = {},
               float group_reward_pct = 0,

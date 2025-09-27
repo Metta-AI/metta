@@ -144,8 +144,7 @@ public:
       } else if (delta < 0) {
         this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
       }
-      InventoryQuantity current_amount = this->inventory.amount(item);
-      this->stats.set(this->stats.resource_name(item) + ".amount", current_amount);
+      this->stats.set(this->stats.resource_name(item) + ".amount", this->inventory.amount(item));
     }
 
     return delta;
