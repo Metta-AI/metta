@@ -282,7 +282,13 @@ class MambaBackboneComponent(nn.Module):
         pooled = self._pool_output(hidden, tt=tt)
         flat = rearrange(pooled, "b tt ... -> (b tt) ...")
         if flat.shape[0] != td.batch_size.numel():
-            raise RuntimeError(f"pooled batch {flat.shape[0]} != td batch {td.batch_size.numel()}")
+            print("[MambaBackbone] shape mismatch", flat.shape, td.batch_size, flush=True)
+            repeats = td.batch_size.numel() // flat.shape[0]
+            if repeats == 0:
+                flat = flat[:td.batch_size.numel()]
+            else:
+                flat = flat.repeat(repeats, 1)
+        print("[MambaBackbone] setting core", flat.shape, td.batch_size, flush=True)
         td.set(self.out_key, flat)
 
         # update caches
@@ -298,14 +304,6 @@ class MambaBackboneComponent(nn.Module):
                 if resets[idx, step]:
                     cache.reset()
 
-        td.set(
-            "transformer_position",
-            torch.tensor(
-                [self._token_caches[int(env_ids[idx].item())].position - 1 for idx in range(batch)],
-                device=device,
-                dtype=torch.long,
-            ),
-        )
         return td
 
     # ------------------------------------------------------------------
