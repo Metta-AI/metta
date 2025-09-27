@@ -54,11 +54,9 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
             width=60,
             height=60,
             border_width=3,
-            instance=MeanDistance.factory(
-                params=MeanDistance.Params(
-                    mean_distance=30,
-                    objects={"altar": 3},
-                )
+            instance=MeanDistance.Config(
+                mean_distance=30,
+                objects={"altar": 3},
             ),
         ),
     )

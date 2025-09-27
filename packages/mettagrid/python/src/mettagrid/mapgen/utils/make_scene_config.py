@@ -7,22 +7,18 @@ from mettagrid.mapgen.scenes.wfc import WFC
 
 
 def make_convchain_config_from_pattern(pattern: str) -> SceneConfig:
-    return ConvChain.factory(
-        ConvChain.Params(
-            pattern_size=3,
-            iterations=10,
-            temperature=1,
-            pattern=pattern,
-        ),
+    return ConvChain.Config(
+        pattern_size=3,
+        iterations=10,
+        temperature=1,
+        pattern=pattern,
     )
 
 
 def make_wfc_config_from_pattern(pattern: str) -> Optional[SceneConfig]:
-    scene_config = WFC.factory(
-        WFC.Params(
-            pattern_size=3,
-            pattern=pattern,
-        ),
+    scene_config = WFC.Config(
+        pattern_size=3,
+        pattern=pattern,
     )
 
     # Some WFC patterns are invalid, so we need to check that they are valid.

@@ -62,18 +62,16 @@ def make_arena(
             height=25,
             border_width=6,
             instance_border_width=0,
-            instance=mettagrid.mapgen.scenes.random.Random.factory(
-                params=mettagrid.mapgen.scenes.random.Random.Params(
-                    agents=6,
-                    objects={
-                        "wall": 10,
-                        "altar": 5,
-                        "mine_red": 10,
-                        "generator_red": 5,
-                        "lasery": 1,
-                        "armory": 1,
-                    },
-                ),
+            instance=mettagrid.mapgen.scenes.random.Random.Config(
+                agents=6,
+                objects={
+                    "wall": 10,
+                    "altar": 5,
+                    "mine_red": 10,
+                    "generator_red": 5,
+                    "lasery": 1,
+                    "armory": 1,
+                },
             ),
         )
 

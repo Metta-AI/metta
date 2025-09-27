@@ -7,22 +7,20 @@ from mettagrid.test_support.mapgen import assert_grid, render_scene
 
 def test_basic():
     scene = render_scene(
-        Nop.factory(
-            children_actions=[
+        Nop.Config(
+            children=[
                 ChildrenAction(
-                    scene=InlineAscii.factory(
-                        InlineAscii.Params(
-                            data="""
+                    scene=InlineAscii.Config(
+                        data="""
                             ###
                             @@.
                             ###
                         """
-                        )
                     ),
                     where="full",
                 ),
                 ChildrenAction(
-                    scene=RemoveAgents.factory(),
+                    scene=RemoveAgents.Config(),
                     where="full",
                 ),
             ],

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
-from pydantic import Field, model_validator
+from pydantic import Field, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from mettagrid.map_builder import AnyMapBuilderConfig, GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.map_builder import validate_any_map_builder
 from mettagrid.map_builder.utils import create_grid
-from mettagrid.mapgen.scene import ChildrenAction, SceneConfig
+from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig, load_symbol, validate_any_scene_config
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
 from mettagrid.mapgen.scenes.room_grid import RoomGrid
 from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
@@ -61,6 +64,29 @@ class MapGen(MapBuilder):
                 del data["root"]
 
             return data
+
+        @field_validator("instance", mode="wrap")
+        @classmethod
+        def _validate_instance(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> SceneConfig | AnyMapBuilderConfig:
+            if isinstance(v, SceneConfig):
+                return v
+            elif isinstance(v, MapBuilderConfig):
+                return v
+            elif isinstance(v, dict):
+                # We need to decide whether it's a scene config or a MapBuilder config.
+                # Either of them can be polymorphic, so Pydantic won't decide this for us.
+                t = v.get("type")
+                if t is None:
+                    raise ValueError("'type' is required")
+                target = load_symbol(t) if isinstance(t, str) else t
+                if isinstance(target, type) and issubclass(target, Scene):
+                    return validate_any_scene_config(v)
+                elif isinstance(target, type) and issubclass(target, MapBuilder):
+                    return validate_any_map_builder(v)
+                else:
+                    raise ValueError(f"Invalid instance type: {target!r}")
+            else:
+                raise ValueError(f"Invalid instance configuration: {v!r}")
 
         # Inner grid size. Doesn't take outer border into account.
         # If `instance` is a MapBuilder config, these fields must be None; otherwise, they must be set.
@@ -184,7 +210,7 @@ class MapGen(MapBuilder):
             if isinstance(self.config.instance, SceneConfig):
                 instance_scene_config = self.config.instance
                 if not self.width or not self.height:
-                    intrinsic_size = instance_scene_config.type.intrinsic_size(self.config.instance.params)
+                    intrinsic_size = instance_scene_config.scene_cls.intrinsic_size(self.config.instance)
                     if not intrinsic_size:
                         raise ValueError(
                             "width and height must be provided if the instance scene has no intrinsic size"
@@ -196,11 +222,9 @@ class MapGen(MapBuilder):
                 instance_scene = instance_scene_config.create(instance_area, self.rng)
                 instance_scene.render_with_children()
                 self.instance_scene_factories.append(
-                    TransplantScene.factory(
-                        params=TransplantScene.Params(
-                            scene=instance_scene,
-                            get_grid=self.guarded_grid,
-                        )
+                    TransplantScene.Config(
+                        scene=instance_scene,
+                        get_grid=self.guarded_grid,
                     )
                 )
             else:
@@ -216,8 +240,8 @@ class MapGen(MapBuilder):
 
                 self.instance_scene_factories.append(
                     # TODO - if the instance class is MapGen, we want to transplant its scene tree too.
-                    CopyGrid.factory(
-                        params=CopyGrid.Params(grid=instance_grid),
+                    CopyGrid.Config(
+                        grid=instance_grid,
                     )
                 )
                 self.width = max(self.width or 0, instance_grid.shape[1])
@@ -326,13 +350,11 @@ class MapGen(MapBuilder):
                 )
             )
 
-        return RoomGrid.factory(
-            RoomGrid.Params(
-                rows=self.instance_rows,
-                columns=self.instance_cols,
-                border_width=self.config.instance_border_width,
-            ),
-            children_actions=children_actions,
+        return RoomGrid.Config(
+            rows=self.instance_rows,
+            columns=self.instance_cols,
+            border_width=self.config.instance_border_width,
+            children=children_actions,
         )
 
     def build(self):

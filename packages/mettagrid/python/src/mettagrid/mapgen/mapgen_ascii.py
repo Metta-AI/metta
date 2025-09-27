@@ -44,8 +44,8 @@ class MapGenAscii(MapGen):
         super().__init__(
             config=MapGen.Config(
                 border_width=ascii_params.border_width,
-                instance=Ascii.factory(
-                    Ascii.Params(uri=ascii_params.uri),
+                instance=Ascii.Config(
+                    uri=ascii_params.uri,
                 ),
             ),
         )

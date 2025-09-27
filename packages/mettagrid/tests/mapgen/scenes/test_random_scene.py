@@ -10,13 +10,11 @@ def test_objects():
     # 1 / 2^30 chance of failure
     for _ in range(30):
         scene = render_scene(
-            RandomScene.factory(
-                RandomScene.Params(
-                    candidates=[
-                        RandomSceneCandidate(scene=InlineAscii.factory(InlineAscii.Params(data="#")), weight=1),
-                        RandomSceneCandidate(scene=InlineAscii.factory(InlineAscii.Params(data="_")), weight=1),
-                    ]
-                )
+            RandomScene.Config(
+                candidates=[
+                    RandomSceneCandidate(scene=InlineAscii.Config(data="#"), weight=1),
+                    RandomSceneCandidate(scene=InlineAscii.Config(data="_"), weight=1),
+                ]
             ),
             (1, 1),
         )
