@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "softmax-lib"
+version = "0.0.1"
+description = "Foundational Softmax utilities and compatibility shims"
+requires-python = ">=3.11.7"
+dependencies = [
+  "boto3>=1.38.32",
+  "botocore>=1.38.32",
+  "metta-common",
+  "psycopg[binary]>=3.2.9",
+]
+
+[project.optional-dependencies]
+test = [
+  "docker>=7.1.0",
+  "pytest>=8.3.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+metta-common = { workspace = true }

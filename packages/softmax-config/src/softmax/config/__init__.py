@@ -1,0 +1,41 @@
+"""Softmax configuration facade for setup-aware helpers."""
+
+from .auto_config import (  # noqa: F401
+    AWSSetup,
+    AwsSetupFactoryType,
+    ObservatoryKeySetup,
+    ObservatorySetupFactoryType,
+    PolicyStorageDecision,
+    SupportedAwsEnvOverrides,
+    SupportedObservatoryEnvOverrides,
+    SupportedWandbEnvOverrides,
+    WandbSetup,
+    WandbSetupFactoryType,
+    auto_policy_storage_decision,
+    auto_replay_dir,
+    auto_run_name,
+    auto_stats_server_uri,
+    auto_wandb_config,
+    register_setup_factories,
+    reset_setup_factories,
+)
+
+__all__ = [
+    "AWSSetup",
+    "AwsSetupFactoryType",
+    "ObservatoryKeySetup",
+    "ObservatorySetupFactoryType",
+    "PolicyStorageDecision",
+    "SupportedAwsEnvOverrides",
+    "SupportedObservatoryEnvOverrides",
+    "SupportedWandbEnvOverrides",
+    "WandbSetup",
+    "WandbSetupFactoryType",
+    "auto_policy_storage_decision",
+    "auto_replay_dir",
+    "auto_run_name",
+    "auto_stats_server_uri",
+    "auto_wandb_config",
+    "register_setup_factories",
+    "reset_setup_factories",
+]

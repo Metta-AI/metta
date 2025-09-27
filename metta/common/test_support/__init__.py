@@ -1,5 +1,13 @@
-from .fixtures import docker_client_fixture
-from .pytest_shard import pytest_collection_modifyitems
-from .schema_isolation_functions import isolated_test_schema_uri
+"""Compatibility wrapper around ``softmax.lib.test_support``."""
 
-__all__ = [docker_client_fixture, pytest_collection_modifyitems, isolated_test_schema_uri]
+from softmax.lib.test_support import (
+    docker_client_fixture,
+    isolated_test_schema_uri,
+    pytest_collection_modifyitems,
+)
+
+__all__ = [
+    "docker_client_fixture",
+    "isolated_test_schema_uri",
+    "pytest_collection_modifyitems",
+]

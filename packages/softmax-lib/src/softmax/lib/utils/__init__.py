@@ -1,9 +1,10 @@
-"""Compatibility entrypoint for utilities maintained in ``softmax.lib``."""
+"""Utility helpers that back both legacy ``metta`` tooling and new softmax packages."""
 
-from softmax.lib.utils import (  # re-export canonical helpers
-    ParsedURI,
+from .batch import (
     calculate_batch_sizes,
     calculate_prioritized_sampling_params,
+)
+from .file import (
     exists,
     http_url,
     is_public_uri,
@@ -12,6 +13,7 @@ from softmax.lib.utils import (  # re-export canonical helpers
     write_data,
     write_file,
 )
+from .uri import ParsedURI
 
 __all__ = [
     "ParsedURI",

@@ -19,6 +19,9 @@ members = [
     "mettagrid",
     "pufferlib-core",
     "softmax",
+    "softmax-config",
+    "softmax-lib",
+    "softmax-shared",
 ]
 
 [[package]]
@@ -2029,6 +2032,9 @@ dependencies = [
     { name = "simple-term-menu" },
     { name = "skypilot" },
     { name = "softmax" },
+    { name = "softmax-config" },
+    { name = "softmax-lib" },
+    { name = "softmax-shared" },
     { name = "sympy" },
     { name = "tabulate" },
     { name = "tensordict" },
@@ -2132,6 +2138,9 @@ requires-dist = [
     { name = "simple-term-menu", specifier = ">=1.6.4" },
     { name = "skypilot", specifier = "==0.10.3" },
     { name = "softmax", editable = "softmax" },
+    { name = "softmax-config", editable = "packages/softmax-config" },
+    { name = "softmax-lib", editable = "packages/softmax-lib" },
+    { name = "softmax-shared", editable = "packages/softmax-shared" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensordict", specifier = ">=0.8.3" },
@@ -4121,6 +4130,68 @@ requires-dist = [
     { name = "metta-common", editable = "common" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "typer", specifier = ">=0.16.1" },
+]
+
+[[package]]
+name = "softmax-config"
+version = "0.0.1"
+source = { editable = "packages/softmax-config" }
+dependencies = [
+    { name = "metta-common" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "metta-common", editable = "common" },
+    { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "pydantic-settings", specifier = ">=2.10.1" },
+]
+
+[[package]]
+name = "softmax-lib"
+version = "0.0.1"
+source = { editable = "packages/softmax-lib" }
+dependencies = [
+    { name = "boto3" },
+    { name = "botocore" },
+    { name = "metta-common" },
+    { name = "psycopg", extra = ["binary"] },
+]
+
+[package.optional-dependencies]
+test = [
+    { name = "docker" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.38.32" },
+    { name = "botocore", specifier = ">=1.38.32" },
+    { name = "docker", marker = "extra == 'test'", specifier = ">=7.1.0" },
+    { name = "metta-common", editable = "common" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3" },
+]
+provides-extras = ["test"]
+
+[[package]]
+name = "softmax-shared"
+version = "0.0.1"
+source = { editable = "packages/softmax-shared" }
+dependencies = [
+    { name = "metta-common" },
+    { name = "mettagrid" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "metta-common", editable = "common" },
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "pydantic", specifier = ">=2.11.5" },
 ]
 
 [[package]]
