@@ -360,7 +360,6 @@ def make_curriculum(
         num_generators=num_generators,
         room_sizes=room_sizes,
         positions=positions,
-        terrains=terrains,
     )
     return CurriculumConfig(task_generator=task_generator_cfg)
 
@@ -371,7 +370,7 @@ def train(
     task_generator_cfg = make_task_generator_cfg(
         **make_curriculum_args(**curriculum_args[curriculum_style])
     )
-    from experiments.evals.in_context_learning.assembler_foraging import (
+    from experiments.evals.in_context_learning.foraging import (
         make_assembler_eval_suite,
     )
 
@@ -382,7 +381,7 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.assembler_foraging import (
+    from experiments.evals.in_context_learning.foraging import (
         make_assembler_eval_suite,
     )
 
