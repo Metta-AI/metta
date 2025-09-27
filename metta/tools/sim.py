@@ -12,13 +12,16 @@ from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.common.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.context import WandbContext
-from softmax.config.auto_config import auto_wandb_config
 from metta.eval.eval_service import evaluate_policy
 from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.shared.eval_config import EvalResults
 from metta.shared.simulation_config import SimulationConfig
+from softmax.config.auto_config import auto_wandb_config
+from softmax.config.bootstrap import ensure_setup_factories_registered
 from softmax.lib.utils import ParsedURI
+
+ensure_setup_factories_registered()
 
 logger = logging.getLogger(__name__)
 

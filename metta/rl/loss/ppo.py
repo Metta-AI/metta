@@ -11,8 +11,8 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss import Loss
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from softmax.lib.utils import calculate_prioritized_sampling_params
 from mettagrid.config import Config
+from softmax.lib.utils import calculate_prioritized_sampling_params
 
 
 class PrioritizedExperienceReplayConfig(Config):

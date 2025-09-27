@@ -11,7 +11,6 @@ import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_repo import REPO_SLUG
-from softmax.config.auto_config import auto_replay_dir
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
@@ -21,6 +20,10 @@ from metta.rl.training import TrainerComponent
 from metta.shared.eval_config import EvalResults, EvalRewardSummary
 from metta.shared.simulation_config import SimulationConfig
 from mettagrid.config import Config
+from softmax.config.auto_config import auto_replay_dir
+from softmax.config.bootstrap import ensure_setup_factories_registered
+
+ensure_setup_factories_registered()
 
 logger = logging.getLogger(__name__)
 

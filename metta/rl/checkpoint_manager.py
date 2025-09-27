@@ -9,11 +9,13 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
-from softmax.config.auto_config import auto_policy_storage_decision
-from softmax.lib.utils import ParsedURI, local_copy, write_file
-
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
+from softmax.config.auto_config import auto_policy_storage_decision
+from softmax.config.bootstrap import ensure_setup_factories_registered
+from softmax.lib.utils import ParsedURI, local_copy, write_file
+
+ensure_setup_factories_registered()
 
 logger = logging.getLogger(__name__)
 

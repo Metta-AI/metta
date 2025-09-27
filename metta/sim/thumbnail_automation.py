@@ -1,8 +1,8 @@
 import logging
 import os
 
-from softmax.lib.utils import file as file_utils
 from mettagrid.mapgen.utils.thumbnail import generate_thumbnail_from_replay
+from softmax.lib.utils import file as file_utils
 
 logger = logging.getLogger(__name__)
 

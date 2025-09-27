@@ -13,13 +13,16 @@ from rich.table import Table
 
 from metta.adaptive.live_run_monitor import app as run_monitor_app
 from metta.common.util.fs import get_repo_root
-from softmax.config.auto_config import auto_policy_storage_decision
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
+from softmax.config.auto_config import auto_policy_storage_decision
+from softmax.config.bootstrap import ensure_setup_factories_registered
 from softmax.dashboard.report import app as softmax_system_health_app
+
+ensure_setup_factories_registered()
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule

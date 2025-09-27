@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from softmax.lib.utils import http_url, write_data
 from mettagrid.util.grid_object_formatter import format_grid_object
 from mettagrid.util.replay_writer import ReplayWriter
+from softmax.lib.utils import http_url, write_data
 
 if TYPE_CHECKING:
     from mettagrid.core import MettaGridCore

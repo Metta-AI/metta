@@ -14,9 +14,12 @@ from metta.adaptive.stores import WandbStore
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
-from softmax.config.auto_config import auto_stats_server_uri, auto_wandb_config
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from softmax.config.auto_config import auto_stats_server_uri, auto_wandb_config
+from softmax.config.bootstrap import ensure_setup_factories_registered
+
+ensure_setup_factories_registered()
 
 logger = logging.getLogger(__name__)
 

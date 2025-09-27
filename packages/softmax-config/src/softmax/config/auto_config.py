@@ -40,6 +40,17 @@ class _SetupFactories:
 
 _factories = _SetupFactories()
 
+
+def factories_registered() -> bool:
+    """Return ``True`` when all core setup factories are present."""
+
+    return (
+        _factories.aws_factory is not None
+        and _factories.observatory_factory is not None
+        and _factories.wandb_factory is not None
+    )
+
+
 AWSSetup: AwsSetupFactoryType | None = None
 ObservatoryKeySetup: ObservatorySetupFactoryType | None = None
 WandbSetup: WandbSetupFactoryType | None = None
@@ -278,6 +289,7 @@ def auto_run_name(prefix: str | None = None) -> str:
 __all__ = [
     "AWSSetup",
     "AwsSetupFactoryType",
+    "factories_registered",
     "ObservatoryKeySetup",
     "ObservatorySetupFactoryType",
     "WandbSetup",

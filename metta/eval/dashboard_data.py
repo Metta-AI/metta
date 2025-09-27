@@ -6,8 +6,8 @@ from typing import Dict, List
 from pydantic import BaseModel
 
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from softmax.lib.utils import write_data
 from mettagrid.config import Config
+from softmax.lib.utils import write_data
 
 logger = logging.getLogger(__name__)
 

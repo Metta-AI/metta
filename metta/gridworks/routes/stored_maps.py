@@ -5,9 +5,9 @@ from urllib.parse import unquote
 from fastapi import APIRouter
 from typing_extensions import TypedDict
 
-from softmax.lib.utils import file as file_utils
 from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
 from mettagrid.mapgen.utils.storable_map_index import StorableMapIndex
+from softmax.lib.utils import file as file_utils
 
 logger = logging.getLogger(__name__)
 

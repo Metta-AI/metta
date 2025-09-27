@@ -11,8 +11,8 @@ import wandb
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
-from softmax.lib.utils import local_copy
 from mettagrid.config import Config
+from softmax.lib.utils import local_copy
 
 logger = logging.getLogger(__name__)
 
