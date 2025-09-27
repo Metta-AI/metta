@@ -86,7 +86,7 @@ class TrainTool(Tool):
     run: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
-    training_env: TrainingEnvironmentConfig
+    training_env: TrainingEnvironmentConfig = Field(default_factory=TrainingEnvironmentConfig)
     policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None
     uploader: UploaderConfig = Field(default_factory=UploaderConfig)
