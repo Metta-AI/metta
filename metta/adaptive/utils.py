@@ -5,6 +5,8 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
+from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
+
 from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
 
 logger = logging.getLogger(__name__)
@@ -132,6 +134,16 @@ def build_eval_overrides(
     return eval_overrides
 
 
+def latest_s3_uri_for_run(run_name: str) -> str:
+    """Return the S3 URI for the latest checkpoint of a training run.
+
+    Example:
+        latest_s3_uri_for_run("my_run") ->
+            "s3://softmax-public/policies/my_run/my_run:latest.pt"
+    """
+    return f"{SOFTMAX_S3_POLICY_PREFIX}/{run_name}/{run_name}:latest.pt"
+
+
 def build_train_overrides(
     stats_server_uri: Optional[str] = None,
     additional_overrides: Optional[Dict[str, Any]] = None,
@@ -187,11 +199,14 @@ def create_eval_job(
         additional_overrides=eval_overrides,
     )
 
+    # Evaluate using explicit policy URI (SimTool no longer accepts run in some contexts)
+    policy_uri = latest_s3_uri_for_run(run_id)
+
     return JobDefinition(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
         type=JobTypes.LAUNCH_EVAL,
-        args={"run": run_id},
+        args={"policy_uri": policy_uri},
         overrides=overrides,
         metadata={},
     )

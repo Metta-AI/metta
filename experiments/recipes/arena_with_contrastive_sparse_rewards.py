@@ -7,7 +7,9 @@ import mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
-)
+)    # Create trainer config with contrastive loss enabled + PPO for actions
+from metta.rl.loss.contrastive_config import ContrastiveConfig
+from metta.rl.loss.ppo import PPOConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -101,32 +103,33 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    losses: Optional[LossConfig] = None,
     enable_contrastive: bool = False,
 ) -> TrainTool:
     """Train with sparse rewards and optional contrastive loss."""
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
+    if not losses:
+        contrastive_config = ContrastiveConfig(
+            temperature=0.07,
+            contrastive_coef=0.1,
+            embedding_dim=128,
+            use_projection_head=True,
+            log_similarities=True,
+            log_frequency=1,  # Log every epoch instead of every 100 epochs
+        )
 
-    # Create trainer config with contrastive loss enabled + PPO for actions
-    from metta.rl.loss.contrastive_config import ContrastiveConfig
-    from metta.rl.loss.ppo import PPOConfig
+        ppo_config = PPOConfig()  # Default PPO config for action generation
 
-    contrastive_config = ContrastiveConfig(
-        temperature=0.07,
-        contrastive_coef=0.1,
-        embedding_dim=128,
-        use_projection_head=True,
-        log_similarities=True,
-        log_frequency=1,  # Log every epoch instead of every 100 epochs
-    )
-
-    ppo_config = PPOConfig()  # Default PPO config for action generation
-
-    loss_configs = {"ppo": ppo_config}  # PPO generates actions
-    if enable_contrastive:
-        loss_configs["contrastive"] = (
-            contrastive_config  # Only add contrastive if enabled
+        loss_configs = {"ppo": ppo_config}  # PPO generates actions
+        if enable_contrastive:
+            loss_configs["contrastive"] = (
+                contrastive_config  # Only add contrastive if enabled
+            )
+        losses = LossConfig(
+            enable_contrastive=enable_contrastive,
+            loss_configs=loss_configs,
         )
 
     trainer_config = TrainerConfig(
@@ -180,20 +183,6 @@ def evaluate_remote(
         policy_uri=policy_uri,
     )
 
-
-def evaluate_in_sweep(
-    simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
-    """Sweep-optimized evaluation that accepts a training run name.
-    # TODO: We can maybe improve this a bit.
-    """
-    simulations = simulations or make_evals()
-
-    return SimTool(
-        simulations=simulations,
-    )
-
-
 def sweep_async_progressive(
     min_timesteps: int,
     max_timesteps: int,
@@ -223,14 +212,14 @@ def sweep_async_progressive(
                 scale="auto",
             ),
             # Contrastive hyperparameters
-            "trainer.losses.loss_configs.contrastive.temperature": ParameterConfig(
+            "losses.loss_configs.contrastive.temperature": ParameterConfig(
                 min=0.02,
                 max=0.5,
                 distribution="log_normal",
                 mean=0.1,
                 scale="auto",
             ),
-            "trainer.losses.loss_configs.contrastive.contrastive_coef": ParameterConfig(
+            "losses.loss_configs.contrastive.contrastive_coef": ParameterConfig(
                 min=0.01,
                 max=1.0,
                 distribution="log_normal",
@@ -244,10 +233,10 @@ def sweep_async_progressive(
         protein_config=protein_cfg,
         recipe_module="experiments.recipes.arena_with_contrastive_sparse_rewards",
         train_entrypoint="train",
-        eval_entrypoint="evaluate_in_sweep",
+        eval_entrypoint="evaluate_remote",
         # Turn on contrastive loss during training; specifics remain default unless swept
         train_overrides={
-            "trainer.losses.enable_contrastive": "True",
+            "losses.enable_contrastive": "True",
         },
         scheduler_type=SweepSchedulerType.ASYNC_CAPPED,
         max_concurrent_evals=max_concurrent_evals,

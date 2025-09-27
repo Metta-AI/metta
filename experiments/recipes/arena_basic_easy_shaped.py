@@ -151,7 +151,7 @@ def evaluate(
 
 
 def evaluate_in_sweep(
-    run: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     """Evaluation function optimized for sweep runs.
 
@@ -187,7 +187,7 @@ def evaluate_in_sweep(
     # Provide run to SimTool so it resolves the latest checkpoint for that run
     return SimTool(
         simulations=simulations,
-        run=run,
+        policy_uris=[policy_uri],
     )
 
 
