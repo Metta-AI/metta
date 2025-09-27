@@ -127,7 +127,9 @@ def train(
             curriculum=curriculum,
             forward_pass_minibatch_target_size=1024,  # updated so that we shrink the num of envs to 1/4 of the default.
         ),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        evaluator=EvaluatorConfig(
+            simulations=eval_simulations, epoch_interval=0
+        ),  # disabled evaluation
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
