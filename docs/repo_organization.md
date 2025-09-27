@@ -39,13 +39,13 @@ dependencies, and migration steps requested in the latest review cycle.
   must go through the published API and declare the dependency.
 - Every package supplies `py.typed`, type-checks with `mypy`, formats with `ruff format`, linted by `ruff check`, and
   tests via `uv run --exact` in CI.
-- Compatibility shims (`metta.*`) live only inside `packages/softmax-lib` and surface deprecation warnings.
+- Compatibility shims (`metta.*`) live only inside `packages/softmax-lib` during Phase 2; Phase 3 removes them outright as a deliberate breaking change.
 
 ## Target Package Inventory & Responsibilities
 
 | Package | Location | Namespace | Responsibilities | Depends On | Notes |
 | --- | --- | --- | --- | --- | --- |
-| softmax-lib | `packages/softmax-lib` | `softmax.lib` (`metta.common` shim) | Core runtime helpers, data models, test support; hosts compatibility exports | `softmax.config`, `softmax.shared` | Replaces `metta/common`; ships `metta.common = softmax.lib` shim |
+| softmax-lib | `packages/softmax-lib` | `softmax.lib` (`metta.common` shim) | Core runtime helpers, data models, test support; hosts compatibility exports | `softmax.config`, `softmax.shared` | Replaces `metta/common`; Phase 3 deletes the shim + legacy namespace |
 | softmax-config | `packages/softmax-config` | `softmax.config` | Auto-configuration, environment detection, credential plumbing | none | Break lazy imports; expose typed interfaces |
 | softmax-shared | `packages/softmax-shared` | `softmax.shared` | Evaluation/simulation schemas, registries | none | Already stands alone; fold policy registry here |
 | softmax-training | `packages/softmax-training` | `softmax.training` | RL loops, simulation drivers, orchestration CLI, training tools | `softmax.lib`, `softmax.config`, `softmax.shared`, `packages/mettagrid` | Absorbs `rl/`, `sim/`, `tools/`, training slices of `adaptive/` & `sweep/` |
@@ -85,9 +85,10 @@ dependencies, and migration steps requested in the latest review cycle.
   - Move `metta/utils`, `metta/tests_support`, and shim logic into `packages/softmax-lib/src/softmax/lib`.
   - Break residual `softmax.config` ↔ `setup` couplings; surface interfaces in `softmax.config`.
   - Validate `softmax-lib`, `softmax-config`, and `softmax-shared` independently with `uv run --exact -m pytest`.
-- **Phase 3 – Carve Out Training & Cogworks**
-  - Relocate `rl/`, `sim/`, `tools/`, and training portions of `adaptive/` & `sweep/` into `packages/softmax-training`.
-  - Migrate gameplay authoring modules into `packages/softmax-cogworks`; remove any runtime code from that package.
+- **Phase 3 – Carve Out Training & Cogworks (breaking change)**
+  - Relocate `rl/`, `sim/`, `tools/`, and training portions of `adaptive/` & `sweep/` into `packages/softmax-training` with no residual modules left in `metta/`.
+  - Migrate gameplay authoring modules into `packages/softmax-cogworks`; keep only content authoring APIs there.
+  - Remove every `metta.*` shim related to these packages and accept the breaking import change across the monorepo.
   - Update dependency declarations and enforce public-entry-point imports.
 - **Phase 4 – Surface Apps & Tooling**
   - Graduate `setup/` to `packages/softmax-cli`; move orchestration services into `softmax-orchestrator`.
@@ -98,12 +99,12 @@ dependencies, and migration steps requested in the latest review cycle.
 ## Action Checklist
 - [ ] File rename & tooling: update repo metadata, CI, and documentation to reference `softmax`.
 - [ ] Create `packages/softmax-lib`, `packages/softmax-config`, and `packages/softmax-shared` with `src/` layout; migrate
-      code and wire `metta.common` shim.
+      code and wire `metta.common` shim (to be deleted in Phase 3).
 - [ ] Define dependency allow-list rules and codify them in CI (import linter + `uv run --exact`).
 - [ ] Pilot PEP 420 by removing `__init__.py` from `metta/` shim directories once the new packages export equivalents.
 - [ ] Draft `softmax.cogworks` charter and audit modules to move; schedule migrations in Phase 3 tasks.
 - [ ] Update onboarding docs so teams install/test packages using `uv run --exact` commands per package.
-- [ ] Track downstream adoption; remove compatibility layers after external consumers confirm migration.
+- [ ] Track downstream adoption; delete the remaining shims as part of the Phase 3 breaking change and broadcast the new import paths.
 
 ## Open Questions
 - Do we want a dedicated vendor strategy for `mettagrid` artifacts (wheel vs. submodule) before we cut
