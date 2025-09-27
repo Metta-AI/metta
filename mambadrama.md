@@ -14,8 +14,8 @@
 - `agent/src/metta/agent/components/mamba/model.py`: localized `MixerModel` (and optional slim `MambaLMHeadModel`) adapted to TensorDict inputs, configurable token packing (CLS/reward/action tokens), and cache helpers consistent with sliding transformer API.
 - `agent/src/metta/agent/components/mamba/modules/`: copied selective state-space modules trimmed to required APIs.
   - `block.py`, `mamba.py` (from `mamba_simple`), `mamba2.py`, `mamba2_simple.py`, `mha.py`, `mlp.py`, `ssd_minimal.py` (if needed) with inference cache logic and kernel hooks intact.
-  - `kernels/ops/`: Triton launchers (layer norm, selective scan, selective state update) copied from `external/mamba/mamba_ssm/ops`.
-  - `kernels/csrc/`: CUDA sources from `external/mamba/csrc` for causal conv1d and fused kernels, retained for builds.
+  - `kernels/ops/`: Triton launchers (layer norm, selective scan, selective state update) copied from `upstream mamba/mamba_ssm/ops`.
+  - `kernels/csrc/`: CUDA sources from `upstream mamba/csrc` for causal conv1d and fused kernels, retained for builds.
 - `agent/src/metta/agent/components/drama/__init__.py`: exports for DRAMA-specific components.
 - `agent/src/metta/agent/components/drama/config.py`: `DramaWorldModelConfig` aggregating structural parameters (categorical dims, hidden sizes, dropout) plus sub-configs for encoder/decoder, reward head, etc., with hooks for cache lengths and auxiliary tokens.
 - `agent/src/metta/agent/components/drama/world_model.py`: `DramaWorldModelComponent` orchestrating encoder, stochastic latent heads, action-conditioned Mamba stack, reward/termination/value heads; exposes outputs keyed for `ActionProbs`, and mirrors rollout/training cache management (positions + KV) akin to `SlidingTransformer`.
@@ -30,13 +30,13 @@
 - `agent/src/metta/agent/policies/mamba_sliding.py` / `drama_sliding.py` (optional): PolicyAutoBuilder configs similar to `ViTSlidingTransConfig` for turnkey usage.
 
 ## Code Relocation & Manifests
-1. Copy `external/mamba/mamba_ssm/modules/{block.py,mamba_simple.py→mamba.py,mamba2.py,mamba2_simple.py,mha.py,mlp.py}` into `components/mamba/modules/`, adjusting imports to local paths and keeping kernel guards.
-2. Copy `external/mamba/mamba_ssm/models/mixer_seq_simple.py` into `components/mamba/model.py`; remove HF `from_pretrained/save_pretrained` helpers, adapt to TensorDict inputs, and add token packing/caching functions parallel to `SlidingTransformer`.
+1. Copy `upstream mamba/mamba_ssm/modules/{block.py,mamba_simple.py→mamba.py,mamba2.py,mamba2_simple.py,mha.py,mlp.py}` into `components/mamba/modules/`, adjusting imports to local paths and keeping kernel guards.
+2. Copy `upstream mamba/mamba_ssm/models/mixer_seq_simple.py` into `components/mamba/model.py`; remove HF `from_pretrained/save_pretrained` helpers, adapt to TensorDict inputs, and add token packing/caching functions parallel to `SlidingTransformer`.
 3. Recreate minimal `InferenceParams`/`update_graph_cache` locally (or import from copied `generation.py`) to preserve inference cache support and align with rollout/training split.
-4. Mirror upstream kernels: `external/mamba/mamba_ssm/ops` → `components/mamba/modules/kernels/ops/`; `external/mamba/csrc` → `components/mamba/modules/kernels/csrc/`. Provide build wrapper under the `agent` package for CUDA/Triton extensions.
+4. Mirror upstream kernels: `upstream mamba/mamba_ssm/ops` → `components/mamba/modules/kernels/ops/`; `upstream mamba/csrc` → `components/mamba/modules/kernels/csrc/`. Provide build wrapper under the `agent` package for CUDA/Triton extensions.
 5. Copy DRAMA’s `mamba_ssm/models/mixer_seq_simple.py` and `config_mamba.py` into `components/drama/mamba_wrapper.py` and `components/drama/config.py`, renaming classes to avoid collisions and wiring in sliding-style positional/caching options.
-6. Split `external/drama/sub_models/world_models.py` into module files under `components/drama/modules/`, ensuring each class/function has a focused location with local imports and TensorDict-friendly signatures.
-7. Extract relevant structures from `external/drama/agents.py` (VecNormalize, ActorCritic, two-hot loss integration) into `components/drama/modules/actor_head.py`, adapting to TensorDict outputs and our action/value keys.
+6. Split `upstream drama/sub_models/world_models.py` into module files under `components/drama/modules/`, ensuring each class/function has a focused location with local imports and TensorDict-friendly signatures.
+7. Extract relevant structures from `upstream drama/agents.py` (VecNormalize, ActorCritic, two-hot loss integration) into `components/drama/modules/actor_head.py`, adapting to TensorDict outputs and our action/value keys.
 8. Retain DRAMA’s kernel directory if it differs; otherwise reference the shared Mamba kernel package.
 9. Update `agent/pyproject.toml` (and `uv.lock`) with dependencies: `einops`, `kornia`, `pytorch-warmup`, `line-profiler` (optional), `torchtune` (if RMSNorm import kept), Triton-compatible version pins, `causal-conv1d`.
 10. Add build steps/documentation in `agent/README.md` for compiling CUDA/Triton kernels during install, including environment prerequisites (PyTorch ≥ 2.1, CUDA toolkit) and noting optional CPU fallbacks.
@@ -46,6 +46,12 @@
 
 ## Follow-Up Tasks
 - Inventory Triton and CUDA kernels to confirm build steps and runtime flags, ensuring both Mamba and DRAMA variants share compiled artifacts where possible.
-- Validate dependency additions locally (formatting, type checking, unit tests) before wiring policies into training loops.
+- Validate dependency additions locally (formatting, type checking, unit tests) before wiring policies into training loops (smoke tests added in `agent/tests/test_mamba_drama.py`).
 - Revisit modularization after initial integration to expose sharable components (encoders, latent heads, backbone) for future policies, aligning with the sliding transformer component boundaries.
 - Evaluate whether common positional encoding/token packing code can be abstracted across Sliding Transformer, Mamba backbone, and DRAMA world model to reduce duplication.
+
+## Implemented Components
+- `MambaBackboneComponent` and `MambaSlidingConfig` added for sliding-token policies.
+- `DramaWorldModelComponent` and `DramaPolicyConfig` wrap the DRAMA Mamba backbone with TensorDict integration.
+- Bundled `mamba_ssm` implementation (Python + Triton/CUDA) vendored under `agent/src/metta/agent/components/mamba_ssm/` with compatibility shim `agent/src/mamba_ssm/`.
+- Added dependency updates and smoke tests (`agent/tests/test_mamba_drama.py`).
