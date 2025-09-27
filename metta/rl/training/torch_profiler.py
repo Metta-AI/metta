@@ -109,13 +109,6 @@ class TorchProfileSession:
     def is_active(self) -> bool:
         return self._active
 
-    def force_stop(self) -> None:
-        """Ensure the profiler is stopped, even if the context manager was not exited cleanly."""
-
-        if not self._active:
-            return
-        self.__exit__(None, None, None)
-
     # Internal helpers -------------------------------------------------
     def _save_profile(self, prof: torch.profiler.profile) -> None:
         if self._profile_filename_base is None:
@@ -209,12 +202,10 @@ class TorchProfiler(TrainerComponent):
         self._original_train_epoch = original_train_epoch
 
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
-        if self._session is not None and self._session.is_active:
-            logger.warning("Torch profiler still active at epoch end; forcing stop")
-            try:
-                self._session.force_stop()
-            except Exception:  # pragma: no cover - defensive
-                logger.exception("Failed to stop torch profiler during epoch cleanup")
+        # Profiling sessions are scoped to the epoch via the context manager, so
+        # no additional teardown is required here. This hook is retained for
+        # compatibility with the TrainerComponent interface.
+        return
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if self._original_train_epoch is not None:
