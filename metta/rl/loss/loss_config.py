@@ -17,6 +17,7 @@ class LossSchedule(Config):
 
 class LossConfig(Config):
     loss_configs: Dict[str, Any] = Field(default_factory=dict)
+    enable_contrastive: bool = Field(default=False, description="Whether to enable contrastive loss")
 
     def model_post_init(self, __context: Any) -> None:
         """Called after the model is initialized."""
@@ -29,6 +30,13 @@ class LossConfig(Config):
 
             self.loss_configs = {"ppo": PPOConfig()}
 
+        # Add contrastive config only if enabled to avoid inconsistent behavior
+        if self.enable_contrastive and "contrastive" not in self.loss_configs:
+            # Import here to avoid circular dependency
+            from metta.rl.loss.contrastive_config import ContrastiveConfig
+
+            self.loss_configs["contrastive"] = ContrastiveConfig()
+
     def init_losses(
         self,
         policy: Policy,
@@ -36,7 +44,12 @@ class LossConfig(Config):
         env: "TrainingEnvironment",
         device: torch.device,
     ):
-        return {
-            loss_name: loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
-            for loss_name, loss_config in self.loss_configs.items()
-        }
+        losses = {}
+        for loss_name, loss_config in self.loss_configs.items():
+            # Explicit check for inconsistent config
+            if loss_name == "contrastive":
+                if not self.enable_contrastive:
+                    continue
+
+            losses[loss_name] = loss_config.create(policy, trainer_cfg, env, device, loss_name, loss_config)
+        return losses
