@@ -1,5 +1,5 @@
 import logging
-from typing import Sequence
+from typing import Sequence, Optional
 
 from gitta import get_git_hash_for_remote_task
 from metta.app_backend.clients.stats_client import HttpStatsClient
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class EvalRemoteTool(Tool):
     stats_server_uri: str = PROD_STATS_SERVER_URI
-
+    group: Optional[str] = None
     policy_uri: str
     simulations: Sequence[SimulationConfig]
 
