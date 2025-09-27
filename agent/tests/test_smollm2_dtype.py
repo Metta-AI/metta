@@ -63,7 +63,7 @@ def test_smollm2_dtype_consistency():
     env_metadata = _make_env_metadata()
     config = SmolLM2Config(model_name="dummy", freeze_llm=False)
 
-    with patch("metta.agent.policies.smollm2.AutoModelForCausalLM.from_pretrained", return_value=DummyLLM(576)):
+    with patch("metta.agent.components.smollm.AutoModelForCausalLM.from_pretrained", return_value=DummyLLM(576)):
         policy = SmolLM2Policy(env_metadata, config)
 
     device = torch.device("cpu")
