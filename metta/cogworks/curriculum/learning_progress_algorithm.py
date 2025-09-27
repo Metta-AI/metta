@@ -5,7 +5,6 @@ Provides intelligent task selection based on bidirectional learning progress ana
 using fast and slow exponential moving averages to detect learning opportunities.
 """
 
-import random
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -77,16 +76,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Cache for expensive statistics computation
         self._stats_cache: Dict[str, Any] = {}
         self._stats_cache_valid = False
-
-    @property
-    def lp_scorer(self):
-        """Compatibility property for tests that expect lp_scorer attribute."""
-        return self
-
-    @property
-    def exploration_bonus(self):
-        """Compatibility property for tests that expect exploration_bonus attribute."""
-        return self.hypers.exploration_bonus
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic statistics that all algorithms must provide."""
@@ -317,31 +306,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Invalidate stats cache
         self.invalidate_cache()
-
-    def _choose_task_from_list(self, task_ids: List[int]) -> int:
-        """Choose a task from the provided list based on scores."""
-        if not task_ids:
-            raise ValueError("Cannot choose from empty task list")
-
-        scores = self.score_tasks(task_ids)
-        if not scores:
-            return random.choice(task_ids)
-
-        # Convert scores to probabilities for sampling
-        total_score = sum(scores.values())
-        if total_score <= 0:
-            return random.choice(task_ids)
-
-        # Create weighted probability distribution
-        weights = [scores.get(task_id, 0.0) for task_id in task_ids]
-        return random.choices(task_ids, weights=weights)[0]
-
-    def get_learning_progress_score(self, task_id: int, task_tracker=None) -> float:
-        """Get learning progress score for a specific task (compatibility method for tests)."""
-        if self.hypers.use_bidirectional:
-            return self._get_bidirectional_learning_progress_score(task_id)
-        else:
-            return self._get_basic_learning_progress_score(task_id)
 
     def get_stats(self) -> Dict[str, float]:
         """Get learning progress statistics (compatibility method for tests)."""

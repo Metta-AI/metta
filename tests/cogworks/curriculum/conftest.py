@@ -106,7 +106,10 @@ def bucketed_task_generator_config(arena_env):
 @pytest.fixture(scope="function")
 def task_generator_set_config(arena_env):
     """Create a task generator set configuration."""
-    return cc.multi_task(arena_env)
+    return cc.TaskGeneratorSet.Config(
+        task_generators=[cc.single_task(arena_env)],
+        weights=[1.0],
+    )
 
 
 @pytest.fixture(scope="function")
