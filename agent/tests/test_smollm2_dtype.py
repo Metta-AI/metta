@@ -7,6 +7,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
+from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.rl.training import EnvironmentMetaData
 
 
@@ -68,6 +69,9 @@ def test_smollm2_dtype_consistency():
 
     device = torch.device("cpu")
     policy.initialize_to_environment(env_metadata, device)
+
+    assert isinstance(policy.config.components[0], ObsShimTokensConfig)
+    assert policy.config.components[0].max_tokens == policy.config.max_sequence_length
 
     batch_size = 2
     seq_len = 10

@@ -38,7 +38,11 @@ class SmolLM2Config(PolicyArchitecture):
 
     def build_components(self) -> List[ComponentConfig]:
         return [
-            ObsShimTokensConfig(in_key="env_obs", out_key=self.tokens_key),
+            ObsShimTokensConfig(
+                in_key="env_obs",
+                out_key=self.tokens_key,
+                max_tokens=self.max_sequence_length,
+            ),
             SmolLM2BackboneConfig(
                 in_key=self.tokens_key,
                 logits_key=self.logits_key,
