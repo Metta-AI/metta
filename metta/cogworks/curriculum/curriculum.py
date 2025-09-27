@@ -310,27 +310,43 @@ class Curriculum(StatsLogger):
         if len(self._tasks) < self._config.num_active_tasks:
             task = self._create_task()
         else:
-            # At capacity - check if any task meets eviction criteria first
-            task = None
-            if self._algorithm is not None:
-                evictable_tasks = [
-                    tid
-                    for tid in self._tasks.keys()
-                    if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
-                ]
-                if evictable_tasks:
-                    # Evict a task that meets the criteria and create a new one
-                    evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
-                    if evict_candidate is not None:
-                        self._evict_specific_task(evict_candidate)
-                        task = self._create_task()
-
-            # If no eviction happened, choose from existing tasks
-            if task is None:
-                task = self._choose_task()
+            # At capacity - just choose from existing tasks
+            # Eviction will be handled separately via process_evictions()
+            task = self._choose_task()
 
         task._num_scheduled += 1
         return task
+
+    def process_evictions(self) -> int:
+        """Process evictions for all eligible tasks. Returns number of evictions."""
+        if self._algorithm is None:
+            return 0
+
+        evictions_count = 0
+
+        # Find all evictable tasks
+        evictable_tasks = [
+            tid
+            for tid in self._tasks.keys()
+            if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
+        ]
+
+        # Evict eligible tasks and replace them with new ones
+        for evict_candidate in evictable_tasks:
+            if evict_candidate % 10 == 0:  # Debug logging for task 0
+                print(f"PROCESS_EVICTIONS: Evicting task {evict_candidate}")
+            self._evict_specific_task(evict_candidate)
+            evictions_count += 1
+
+            # Create new task to replace evicted one
+            new_task = self._create_task()
+            if new_task._task_id % 10 == 0:  # Debug logging for task 0
+                print(f"PROCESS_EVICTIONS: Created new task {new_task._task_id}")
+
+        if evictions_count > 0:
+            print(f"PROCESS_EVICTIONS: Total evictions this epoch: {evictions_count}")
+
+        return evictions_count
 
     def _initialize_at_capacity(self) -> None:
         """Initialize the task pool to full capacity."""

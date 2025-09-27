@@ -231,9 +231,16 @@ class TaskDependencySimulator:
                 self._current_task_0_curriculum_id
             )
             if task_stats:
-                metrics["task_0_tracking/cumulative_samples"] = task_stats[
-                    "completion_count"
-                ]
+                curriculum_samples = task_stats["completion_count"]
+                simulator_samples = int(self.total_sample_counts[0].item())
+                metrics["task_0_tracking/cumulative_samples"] = curriculum_samples
+
+                # Debug logging to compare curriculum vs simulator samples
+                if self.current_epoch % 100 == 0:
+                    task_class = self._current_task_0_curriculum_id % self.num_tasks
+                    print(
+                        f"Epoch {self.current_epoch}: Curriculum task 0 ID {self._current_task_0_curriculum_id} (task class: {task_class}) samples: {curriculum_samples}, Simulator task 0 samples: {simulator_samples}"
+                    )
             else:
                 metrics["task_0_tracking/cumulative_samples"] = 0
         else:
@@ -260,7 +267,71 @@ class TaskDependencySimulator:
                 i
             ].item()
 
+        # Calculate sampling imbalance metrics
+        sampling_imbalance = self._calculate_sampling_imbalance()
+        metrics.update(sampling_imbalance)
+
         return metrics
+
+    def _calculate_sampling_imbalance(self) -> Dict[str, float]:
+        """Calculate metrics to quantify how unbalanced sampling is across task classes."""
+        import numpy as np
+
+        # Get sample counts for each task class
+        total_samples = self.total_sample_counts.numpy().astype(float)
+
+        # Avoid division by zero
+        if np.sum(total_samples) == 0:
+            return {
+                "sampling/coefficient_of_variation": 0.0,
+                "sampling/entropy_normalized": 1.0,
+                "sampling/max_min_ratio": 1.0,
+                "sampling/gini_coefficient": 0.0,
+            }
+
+        # Normalize to get proportions
+        proportions = total_samples / np.sum(total_samples)
+        1.0 / self.num_tasks
+
+        # 1. Coefficient of Variation (CV) - std/mean of sample counts
+        # Higher CV = more imbalanced (0 = perfectly balanced)
+        mean_samples = np.mean(total_samples)
+        std_samples = np.std(total_samples)
+        cv = std_samples / mean_samples if mean_samples > 0 else 0.0
+
+        # 2. Normalized Entropy - measures uniformity of distribution
+        # Higher entropy = more balanced (1.0 = perfectly uniform, 0 = maximally imbalanced)
+        epsilon = 1e-10  # Avoid log(0)
+        entropy = -np.sum(proportions * np.log(proportions + epsilon))
+        max_entropy = np.log(
+            self.num_tasks
+        )  # Maximum possible entropy (uniform distribution)
+        normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
+
+        # 3. Max/Min Ratio - ratio of most sampled to least sampled task
+        # Higher ratio = more imbalanced (1.0 = perfectly balanced)
+        max_samples = np.max(total_samples)
+        min_samples = np.min(total_samples)
+        max_min_ratio = max_samples / (min_samples + epsilon)
+
+        # 4. Gini Coefficient - measures inequality
+        # Higher Gini = more imbalanced (0 = perfectly balanced, 1 = maximally imbalanced)
+        sorted_samples = np.sort(total_samples)
+        n = len(sorted_samples)
+        if n == 0:
+            gini = 0.0
+        else:
+            cumsum = np.cumsum(sorted_samples)
+            gini = (
+                (n + 1 - 2 * np.sum(cumsum) / cumsum[-1]) / n if cumsum[-1] > 0 else 0.0
+            )
+
+        return {
+            "sampling/coefficient_of_variation": float(cv),
+            "sampling/entropy_normalized": float(normalized_entropy),
+            "sampling/max_min_ratio": float(max_min_ratio),
+            "sampling/gini_coefficient": float(gini),
+        }
 
     def _get_learning_progress_distributions(self, curriculum) -> Dict[str, Any]:
         """Extract learning progress score distributions from curriculum algorithm."""
@@ -413,6 +484,13 @@ class TaskDependencySimulator:
             task_stats = curriculum._algorithm.task_tracker.get_task_stats(task_0_id)
             if task_stats:
                 curriculum_samples = task_stats["completion_count"]
+                # Debug logging to verify tracking
+                if self.current_epoch % 50 == 0:  # Log every 50 epochs
+                    # Get task class (simulator task position) for better debugging
+                    task_class = task_0_id % self.num_tasks
+                    print(
+                        f"Epoch {self.current_epoch}: Task 0 curriculum ID {task_0_id} (task class: {task_class}) has {curriculum_samples} cumulative samples"
+                    )
 
         # Track the data
         self.task_0_lp_percentiles.append(percentile)
@@ -595,6 +673,10 @@ def simulate_task_dependencies(
         epoch_metrics = simulator.complete_epoch(curriculum)
         epoch_metrics.update(curriculum.stats())
 
+        # Process evictions after all samples for the epoch
+        evictions_count = curriculum.process_evictions()
+        epoch_metrics["curriculum/evictions_this_epoch"] = evictions_count
+
         # Add learning progress score distributions
         lp_distributions = simulator._get_learning_progress_distributions(curriculum)
         epoch_metrics.update(lp_distributions)
@@ -603,8 +685,11 @@ def simulate_task_dependencies(
 
         # Log progress
         if epoch % 10 == 0:
+            # Get sampling entropy for logging
+            sampling_entropy = epoch_metrics.get("sampling/entropy_normalized", 1.0)
             logger.info(
-                f"Epoch {epoch}: Mean performance = {epoch_metrics['task_dependency/mean_performance']:.3f}"
+                f"Epoch {epoch}: Mean performance = {epoch_metrics['task_dependency/mean_performance']:.3f}, "
+                f"Sampling entropy = {sampling_entropy:.3f}"
             )
 
     # Get final summary
@@ -760,6 +845,73 @@ def simulate_task_dependencies(
                     }
                 )
 
+        # Create sampling imbalance charts over time
+        if metrics_history:
+            # Extract sampling imbalance metrics over time
+            imbalance_data = []
+            for epoch, metrics in enumerate(metrics_history):
+                normalized_entropy = metrics.get("sampling/entropy_normalized", 1.0)
+                cv = metrics.get("sampling/coefficient_of_variation", 0.0)
+                max_min_ratio = metrics.get("sampling/max_min_ratio", 1.0)
+                gini_coeff = metrics.get("sampling/gini_coefficient", 0.0)
+
+                imbalance_data.append(
+                    [epoch, normalized_entropy, cv, max_min_ratio, gini_coeff]
+                )
+
+            if imbalance_data:
+                imbalance_table = wandb.Table(
+                    data=imbalance_data,
+                    columns=[
+                        "epoch",
+                        "normalized_entropy",
+                        "coefficient_of_variation",
+                        "max_min_ratio",
+                        "gini_coefficient",
+                    ],
+                )
+
+                # Plot normalized entropy over time (main balance metric)
+                entropy_plot = wandb.plot.line(
+                    imbalance_table,
+                    x="epoch",
+                    y="normalized_entropy",
+                    title="Task Sampling Balance: Normalized Entropy Over Time",
+                )
+
+                # Plot coefficient of variation over time
+                cv_plot = wandb.plot.line(
+                    imbalance_table,
+                    x="epoch",
+                    y="coefficient_of_variation",
+                    title="Task Sampling Imbalance: Coefficient of Variation Over Time",
+                )
+
+                # Plot max/min ratio over time
+                ratio_plot = wandb.plot.line(
+                    imbalance_table,
+                    x="epoch",
+                    y="max_min_ratio",
+                    title="Task Sampling Imbalance: Max/Min Ratio Over Time",
+                )
+
+                # Plot Gini coefficient over time
+                gini_plot = wandb.plot.line(
+                    imbalance_table,
+                    x="epoch",
+                    y="gini_coefficient",
+                    title="Task Sampling Inequality: Gini Coefficient Over Time",
+                )
+
+                wandb.log(
+                    {
+                        "sampling_balance_entropy": entropy_plot,
+                        "sampling_imbalance_cv": cv_plot,
+                        "sampling_imbalance_ratio": ratio_plot,
+                        "sampling_inequality_gini": gini_plot,
+                    }
+                )
+
         # Log final summary
         wandb.log({"simulation_summary": results})
         wandb.finish()
@@ -862,23 +1014,23 @@ class TaskDependencySimulationTool(Tool):
     performance_threshold: float = 0.9
     task_seed: Optional[int] = None
     dt: float = 0.1
-    task_noise_std: float = 0.01
+    task_noise_std: float = 1e-5
     enable_detailed_slice_logging: bool = False
 
     # Learning progress parameters
-    ema_timescale: float = 0.1
+    ema_timescale: float = 0.05
     slow_timescale_factor: float = 1 / 5
     exploration_bonus: float = 0.1
     progress_smoothing: float = 1e-4
     use_bidirectional: bool = True
-    max_memory_tasks: int = 10  # effectively remove
+    max_memory_tasks: int = 100000  # Large enough to avoid cleanup
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
     rand_task_rate: float = 0.01
 
     # Eviction parameters
-    min_presentations_for_eviction: int = 5
-    eviction_threshold_percentile: float = 0.4
+    min_presentations_for_eviction: int = 30
+    eviction_threshold_percentile: float = 0.2
 
     # Wandb parameters
     wandb_project: str = "task_dependency_simulator"
@@ -941,6 +1093,7 @@ def simulate_small_chain(
         num_tasks=5,
         num_epochs=500,
         samples_per_epoch=25,
+        num_active_tasks=1000,  # Smaller pool for 5 simulator tasks
         min_presentations_for_eviction=min_presentations_for_eviction,
         eviction_threshold_percentile=eviction_threshold_percentile,
         wandb_run_name=wandb_run_name,
@@ -955,6 +1108,27 @@ def simulate_large_chain(
         num_tasks=25,
         num_epochs=2000,
         samples_per_epoch=100,
+        num_active_tasks=1000,  # Much smaller pool to reduce eviction overhead
+        min_presentations_for_eviction=30,
+        wandb_run_name=wandb_run_name,
+    )
+
+
+def simulate_large_chain_focused(
+    wandb_run_name: Optional[str] = None,
+) -> TaskDependencySimulationTool:
+    """Simulate a large task chain with focused sampling (low entropy ~0.5)."""
+    return TaskDependencySimulationTool(
+        num_tasks=25,
+        num_epochs=2000,
+        samples_per_epoch=100,
+        num_active_tasks=200,  # Smaller pool for more focus
+        exploration_bonus=0.01,  # Much lower exploration
+        ema_timescale=0.2,  # Slower adaptation
+        rand_task_rate=0.001,  # Minimal randomness
+        progress_smoothing=0.0001,  # Sharper preferences
+        use_bidirectional=False,  # Simpler scoring
+        min_presentations_for_eviction=30,
         wandb_run_name=wandb_run_name,
     )
 

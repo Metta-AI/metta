@@ -265,7 +265,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if task_stats is None:
             return False
 
-        if task_stats["completion_count"] < min_presentations:
+        completion_count = task_stats["completion_count"]
+        if completion_count < min_presentations:
             return False
 
         # Check if this task has low learning progress compared to others
@@ -286,6 +287,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def on_task_evicted(self, task_id: int) -> None:
         """Clean up when a task is evicted."""
+        # Debug logging for task 0 eviction
+        if task_id % 10 == 0:  # Log for tasks that map to simulator task 0
+            task_stats = self.task_tracker.get_task_stats(task_id)
+            completion_count = task_stats["completion_count"] if task_stats else 0
+            print(f"EVICTION DEBUG: Task {task_id} EVICTED with {completion_count} completions")
+
         # Remove from task tracker
         self.task_tracker.remove_task(task_id)
 
