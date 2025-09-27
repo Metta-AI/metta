@@ -63,11 +63,11 @@ ASSEMBLER_TYPES = {
 }
 
 size_ranges = {
-    "tiny": (5, 8),
-    "small": (9, 12),
-    "medium": (12, 18),
-    "large": (18, 25),
-    "xlarge": (25, 35),
+    "tiny": (5, 10),  # 2 objects 2 agents max for assemblers
+    "small": (10, 20),  # 9 objects, 5 agents max
+    "medium": (20, 30),
+    "large": (30, 40),
+    "xlarge": (40, 50),
 }
 
 num_agents_to_positions = {
@@ -94,6 +94,39 @@ num_agents_to_positions = {
         ["N", "S", "W", "E"],
         ["S", "N", "E", "W"],
     ],
+}
+
+room_size_templates = {
+    "tiny": {
+        "room_size": ["tiny"],
+        "num_agents": [2],
+        "num_objects": [2],
+        "terrain": [""],
+    },
+    "small": {
+        "room_size": ["small"],
+        "num_agents": [12],
+        "num_objects": [5, 10],
+        "terrain": ["", "sparse"],
+    },
+    "medium": {
+        "room_size": ["medium"],
+        "num_agents": [12],
+        "num_objects": [10, 20, 30],
+        "terrain": ["", "sparse", "balanced"],
+    },
+    "large": {
+        "room_size": ["large"],
+        "num_agents": [12],
+        "num_objects": [10, 20, 30, 50],
+        "terrain": ["", "sparse", "balanced", "dense"],
+    },
+    "xlarge": {
+        "room_size": ["xlarge"],
+        "num_agents": [2, 6, 12],
+        "num_objects": [10, 20, 30, 50],
+        "terrain": ["", "sparse", "balanced", "dense"],
+    },
 }
 
 
@@ -213,14 +246,22 @@ class ICLTaskGenerator(TaskGenerator):
         rng: random.Random,
         cooldown: int = 10,
         assembler_name: str | None = None,
+        replacement=False,
     ):
-        assembler_name = (
-            self._choose_converter_name(
-                self.assembler_types, set(cfg.used_objects), rng
+        if replacement:
+            assembler_name = (
+                rng.choice(list(self.assembler_types.keys()))
+                if assembler_name is None
+                else assembler_name
             )
-            if assembler_name is None
-            else assembler_name
-        )
+        else:
+            assembler_name = (
+                self._choose_converter_name(
+                    self.assembler_types, set(cfg.used_objects), rng
+                )
+                if assembler_name is None
+                else assembler_name
+            )
         cfg.used_objects.append(assembler_name)
         assembler = self.assembler_types[assembler_name].copy()
 
@@ -280,7 +321,6 @@ class ICLTaskGenerator(TaskGenerator):
         num_resources = max(1, min(num_resources, len(self.resource_types)))
         resources = rng.sample(self.resource_types, num_resources)
 
-        # geometry & terrain
         room_size = rng.choice(cfg.room_sizes)
         obstacle_type = rng.choice(cfg.obstacle_types) if cfg.obstacle_types else None
         density = rng.choice(cfg.densities) if cfg.densities else None
@@ -346,6 +386,7 @@ def train_icl(
         losses=LossConfig(),
     )
     policy_config = FastLSTMResetConfig()
+    # TODO change to VIT DEFAULT LSTM CONFIG
     return TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),

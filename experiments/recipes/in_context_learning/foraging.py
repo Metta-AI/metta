@@ -1,8 +1,8 @@
 import random
 import subprocess
 import time
+import os
 from typing import Optional, Sequence
-
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -14,6 +14,8 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
+from mettagrid.builder.envs import make_icl_with_numpy
+from metta.map.terrain_from_numpy import InContextLearningFromNumpy
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
@@ -22,6 +24,7 @@ from experiments.recipes.in_context_learning.in_context_learning import (
     replay_icl,
     _BuildCfg,
     num_agents_to_positions,
+    room_size_templates,
 )
 
 
@@ -52,121 +55,105 @@ curriculum_args = {
         "num_agents": [1],
         "num_altars": [2],
         "num_generators": [0],
-        "room_sizes": ["small"],
+        "room_sizes": ["small", "medium"],
+        "positions": num_agents_to_positions[1],
     },
     "single_agent_many_altars": {
         "num_agents": [1],
-        "num_altars": list(range(4, 16, 2)),
+        "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[1],
     },
-    "single_agent_many_altars_with_any": {
+    "single_agent_many_altars_terrain": {
         "num_agents": [1],
-        "num_altars": list(range(4, 16, 2)),
+        "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
-        "include_Any": True,
+        "positions": num_agents_to_positions[1],
     },
-    "two_agent_5_altars_pattern": {
-        "num_agents": [2],
-        "num_altars": [5],
-        "num_generators": [0],
-        "room_sizes": ["small", "medium", "large"],
-    },
-    "two_agent_two_altars_pattern": {
+    "two_agent_two_altars": {
         "num_agents": [2],
         "num_altars": [2],
         "num_generators": [0],
+        "room_sizes": ["small", "medium"],
+        "positions": num_agents_to_positions[2],
+    },
+    "two_agent_many_altars_terrain": {
+        "num_agents": [2],
+        "num_altars": list(range(5, 20, 5)),
+        "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[2],
     },
-    "two_agent_two_altars_progressive_pattern": {
-        "num_agents": [2],
-        "num_altars": [2],
-        "num_generators": [0],
-        "room_sizes": ["small"],
-        "generator_positions": [["Any"]],
-        "altar_positions": [
-            ["N", "S", "E"],
-            ["N", "W", "E"],
-            ["S", "E", "W"],
-            ["S", "W", "E"],
-            ["Any"],
-            ["N", "S"],
-            ["E", "W"],
-            ["N", "E"],
-            ["N", "W"],
-            ["S", "E"],
-            ["S", "W"],
-        ],
-    },
-    "two_agent_two_altars_any": {
-        "num_agents": [2],
-        "num_altars": [2],
-        "num_generators": [0],
-        "room_sizes": ["small"],
-        "generator_positions": [["Any"]],
-        "altar_positions": [["Any"]],
-    },
-    "three_agents_two_altars": {
+    "three_agents_2_altars": {
         "num_agents": [3],
-        "num_altars": [2, 4],
+        "num_altars": [2],
         "num_generators": [0],
-        "room_sizes": ["small", "medium", "large"],
-        "include_Any": False,
+        "room_sizes": ["small", "medium"],
+        "positions": num_agents_to_positions[3],
     },
-    "three_agent_many_altars_with_any": {
+    "three_agent_many_altars": {
         "num_agents": [3],
-        "num_altars": list(range(4, 16, 2)),
+        "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
-        "include_Any": True,
+        "positions": num_agents_to_positions[3],
     },
     "multi_agent_multi_altars": {
         "num_agents": [1, 2, 3],
-        "num_altars": list(range(4, 16, 2)),
+        "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
     },
-    "two_agents_1g_1a": {
+    "multi_agent_multi_altars_terrain": {
+        "num_agents": [1, 2, 3],
+        "num_altars": list(range(5, 20, 5)),
+        "num_generators": [0],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
+    },
+    "two_agents_1g_1a_small": {
         "num_agents": [2],
         "num_altars": [1],
         "num_generators": [1],
-        "room_sizes": ["small", "medium", "large"],
+        "room_sizes": ["small", "medium"],
+        "positions": num_agents_to_positions[2],
+    },
+    "two_agents_1g_1a_medium": {
+        "num_agents": [2],
+        "num_altars": [1, 2, 5],
+        "num_generators": [1, 2, 5],
+        "room_sizes": ["medium", "large"],
+        "positions": num_agents_to_positions[2],
     },
     "multi_agents_1g_1a": {
         "num_agents": [1, 2, 3],
-        "num_altars": [1],
-        "num_generators": [1],
+        "num_altars": [5],
+        "num_generators": [5],
         "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
     },
-    "multi_agents_1g_1a_with_any": {
+    "multi_agents_1g_1a_terrain": {
         "num_agents": [1, 2, 3],
-        "num_altars": [1],
-        "num_generators": [1],
+        "num_altars": list(range(5, 20, 5)),
+        "num_generators": list(range(5, 20, 5)),
         "room_sizes": ["small", "medium", "large"],
-        "include_Any": True,
-    },
-    "three_agents_1g_1a": {
-        "num_agents": [3],
-        "num_altars": [1],
-        "num_generators": [1],
-        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[1] + num_agents_to_positions[2],
     },
     "test": {
-        "num_agents": [10],
+        "num_agents": [12],
         "num_altars": [10],
         "num_generators": [0],
-        "room_sizes": ["xlarge"],
+        "room_sizes": ["small"],
         "positions": [["N", "S"]],
-    },
-    "terrain": {
-        "num_agents": [1, 2, 3],
-        "num_altars": [10, 20, 30, 40],
-        "num_generators": [0],
-        "room_sizes": ["xlarge"],
-        "positions": [["Any"]],
-        "obstacle_types": ["cross"],
-        "densities": ["high"],
     },
 }
 
@@ -177,6 +164,7 @@ def make_task_generator_cfg(
     num_generators: list[int],
     room_sizes: list[str],
     positions: list[list[Position]],
+    map_dir: Optional[str] = "in_context_foraging",
 ) -> ICLTaskGenerator.Config:
     return AssemblerTaskGenerator.Config(
         num_agents=num_agents,
@@ -186,7 +174,7 @@ def make_task_generator_cfg(
         room_sizes=room_sizes,
         obstacle_types=[],
         densities=[],
-        map_dir=None,
+        map_dir=map_dir,
     )
 
 
@@ -194,8 +182,6 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
-        self.num_altars = config.num_converters
-        self.num_generators = config.num_resources
 
     def _make_generators(self, num_generators, cfg, position, rng: random.Random):
         """Make generators that input nothing and output resources for the altar"""
@@ -208,6 +194,7 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
                 position=position,
                 cfg=cfg,
                 rng=rng,
+                replacement=True,
             )
 
     def _make_altars(
@@ -245,6 +232,8 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
         num_instances,
         num_altars,
         num_generators,
+        terrain,
+        room_size,
         width,
         height,
         recipe_position,
@@ -254,9 +243,30 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
         cfg = _BuildCfg()
         self._make_generators(num_generators, cfg, recipe_position, rng)
 
-        print(f"Num altars: {num_altars}")
-
         self._make_altars(num_altars, cfg, recipe_position, num_generators, rng)
+
+        if self.config.map_dir is not None:
+            templates = room_size_templates[room_size]
+            num_objects = num_altars + num_generators
+            # Find the smallest value in templates["num_objects"] that is >= num_objects for correct dir
+            num_object_reference = min(
+                obj for obj in templates["num_objects"] if obj >= num_objects
+            )
+            terrain = "simple" if terrain == "" else terrain
+            dir = f"{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
+            if os.path.exists(dir):
+                return make_icl_with_numpy(
+                    num_agents=num_agents,
+                    num_instances=num_instances,
+                    max_steps=max_steps,
+                    game_objects=cfg.game_objects,
+                    instance_map=InContextLearningFromNumpy.Config(
+                        agents=num_agents,
+                        dir=dir,
+                        objects=cfg.map_builder_objects,
+                        rng=rng,
+                    ),
+                )
 
         return make_icl_assembler(
             num_agents=num_agents,
@@ -266,9 +276,12 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
             map_builder_objects=cfg.map_builder_objects,
             width=width,
             height=height,
+            terrain=terrain,
         )
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+    def _generate_task(
+        self, task_id: int, rng: random.Random, num_instances: Optional[int] = None
+    ) -> MettaGridConfig:
         num_agents = rng.choice(self.config.num_agents)
 
         # positions must be the same length as the number of agents
@@ -276,8 +289,8 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
             [p for p in self.config.positions if len(p) <= num_agents]
         )
 
-        num_altars = rng.choice(self.num_altars)
-        num_generators = rng.choice(self.num_generators)
+        num_altars = rng.choice(self.config.num_converters)
+        num_generators = rng.choice(self.config.num_resources)
         room_size = rng.choice(self.config.room_sizes)
         width, height = self._set_width_and_height(
             room_size, num_agents, num_altars, num_generators, rng
@@ -285,19 +298,23 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
         max_steps = calculate_max_steps(
             num_agents + num_altars + num_generators, width, height
         )
+        terrain = rng.choice(room_size_templates[room_size]["terrain"])
 
-        num_instances = 24 // num_agents
+        if num_instances is None:
+            num_instances = 24 // num_agents
 
         return self.make_env_cfg(
-            num_agents,
-            num_instances,
-            num_altars,
-            num_generators,
-            width,
-            height,
-            recipe_position,
-            max_steps,
-            rng,
+            num_agents=num_agents,
+            num_instances=num_instances,
+            num_altars=num_altars,
+            num_generators=num_generators,
+            terrain=terrain,
+            room_size=room_size,
+            width=width,
+            height=height,
+            recipe_position=recipe_position,
+            max_steps=max_steps,
+            rng=rng,
         )
 
 
@@ -335,6 +352,7 @@ def make_curriculum(
     num_generators: list[int] = [0, 1, 2],
     room_sizes: list[str] = ["small", "medium", "large"],
     positions: list[list[Position]] = [["Any"], ["Any", "Any"]],
+    terrains: list[str] = [""],
 ) -> CurriculumConfig:
     task_generator_cfg = make_task_generator_cfg(
         num_agents=num_agents,
@@ -342,6 +360,7 @@ def make_curriculum(
         num_generators=num_generators,
         room_sizes=room_sizes,
         positions=positions,
+        terrains=terrains,
     )
     return CurriculumConfig(task_generator=task_generator_cfg)
 
@@ -405,7 +424,7 @@ def replay(curriculum_style: str = "single_agent_two_altars") -> ReplayTool:
             **make_curriculum_args(**curriculum_args[curriculum_style])
         )
     )
-    policy_uri = "s3://softmax-public/policies/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22/icl_assemblers3_two_agent_two_altars_pattern.2025-09-22:v500.pt"
+    policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt"
     return replay_icl(task_generator, policy_uri)
 
 
@@ -436,5 +455,47 @@ def play(
     return play_icl(task_generator)
 
 
+def save_envs_to_numpy(dir="in_context_foraging/", num_envs: int = 100):
+    import os
+    import numpy as np
+
+    for room_size, args in room_size_templates.items():
+        for n_agents in args["num_agents"]:
+            for n_altars in args["num_objects"]:
+                for terrain_type in args["terrain"]:
+                    for i in range(num_envs):
+                        task_generator_cfg = make_task_generator_cfg(
+                            num_agents=[n_agents],
+                            num_altars=[n_altars],
+                            num_generators=[0],
+                            room_sizes=[room_size],
+                            positions=[["Any"]],
+                            terrains=[terrain_type],
+                            map_dir=None,
+                        )
+                        task_generator = AssemblerTaskGenerator(
+                            config=task_generator_cfg
+                        )
+
+                        random_number = random.randint(0, 1000000)
+                        terrain_type = "simple" if terrain_type == "" else terrain_type
+                        filename = f"{dir}/{room_size}/{n_altars}objects/{terrain_type}/{random_number}.npy"
+                        os.makedirs(os.path.dirname(filename), exist_ok=True)
+                        env_cfg = task_generator._generate_task(
+                            i, random.Random(i), num_instances=1
+                        )
+                        map_builder = env_cfg.game.map_builder.create()
+                        grid = map_builder.build().grid
+                        print(f"saving to {filename}")
+                        num_objs = np.argwhere(
+                            ~np.isin(grid, ("agent.agent", "wall", "empty"))
+                        )
+                        if len(num_objs) < n_altars:
+                            print(f"Num objs required amount, skipping")
+                        else:
+                            np.save(filename, grid)
+
+
 if __name__ == "__main__":
-    experiment()
+    save_envs_to_numpy()
+    # experiment()

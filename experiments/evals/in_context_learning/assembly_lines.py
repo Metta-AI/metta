@@ -1,8 +1,8 @@
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig, Position
 import random
-from experiments.recipes.in_context_learning.assembler_chains import (
-    ConverterChainTaskGenerator,
+from experiments.recipes.in_context_learning.assembly_lines import (
+    AssemblerConverterChainTaskGenerator,
     make_task_generator_cfg,
 )
 
@@ -13,19 +13,15 @@ def make_icl_assembler_chain_eval_env(
     num_sinks: int,
     room_size: str,
     positions: list[list[Position]],
-    obstacle_types: list[str] = [],
-    densities: list[str] = [],
 ) -> MettaGridConfig:
     task_generator_cfg = make_task_generator_cfg(
         num_agents=[num_agents],
         chain_lengths=[chain_length],
         num_sinks=[num_sinks],
         room_sizes=[room_size],
-        obstacle_types=obstacle_types,
-        densities=densities,
         positions=positions,
     )
-    task_generator = ConverterChainTaskGenerator(task_generator_cfg)
+    task_generator = AssemblerConverterChainTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
     return task_generator.get_task(random.randint(0, 1000000))
 

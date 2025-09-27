@@ -239,6 +239,7 @@ def make_icl_assembler(
     map_builder_objects: dict,
     width: int = 6,
     height: int = 6,
+    terrain: str = "",
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
@@ -254,6 +255,7 @@ def make_icl_assembler(
                     width=width,
                     height=height,
                     objects=map_builder_objects,
+                    terrain=terrain,
                 ),
             ),
             actions=ActionsConfig(

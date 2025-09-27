@@ -1,5 +1,4 @@
 from typing import Optional
-
 import numpy as np
 
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
@@ -17,104 +16,251 @@ class AssemblerMapBuilder(MapBuilder):
         border_width: int = 0
         border_object: str = "wall"
 
+        # New: terrain density controller: "", "sparse", "balanced", "dense"
+        terrain: str = ""
+
     def __init__(self, config: Config):
         self._config = config
         self._rng = np.random.default_rng(self._config.seed)
+        self._shape_cache: dict[tuple[str, int], np.ndarray] = {}
 
+    # ---------- obstacle shapes ----------
+    def _shape_square(self, size: int = 2) -> np.ndarray:
+        return np.full((size, size), "wall", dtype="<U50")
+
+    def _shape_cross(self, size: int = 2) -> np.ndarray:
+        s = size * 2 - 1
+        out = np.full((s, s), "empty", dtype="<U50")
+        mid = size - 1
+        out[mid, :] = "wall"
+        out[:, mid] = "wall"
+        return out
+
+    def _shape_L(self, size: int = 2) -> np.ndarray:
+        out = np.full((size, size), "empty", dtype="<U50")
+        out[:, 0] = "wall"
+        out[size - 1, :] = "wall"
+        return out
+
+    def _get_shape(self, kind: str, size: int) -> np.ndarray:
+        key = (kind, size)
+        if key in self._shape_cache:
+            return self._shape_cache[key]
+        if kind == "square":
+            arr = self._shape_square(size)
+        elif kind == "cross":
+            arr = self._shape_cross(size)
+        elif kind == "L":
+            arr = self._shape_L(size)
+        elif kind == "block":
+            arr = np.array([["wall"]], dtype="<U50")
+        else:
+            arr = np.array([["wall"]], dtype="<U50")
+        self._shape_cache[key] = arr
+        return arr
+
+    def _choose_random_obstacle(self) -> np.ndarray:
+        """
+        Randomly pick a shape with a slight bias toward small, varied pieces.
+        Balanced for diversity and packability.
+        """
+        # Probabilities tuned to avoid over-blocking tiny maps
+        kinds = np.array(["block", "square", "L", "cross"])
+        probs = np.array([0.40, 0.30, 0.20, 0.10])
+        kind = self._rng.choice(kinds, p=probs)
+        # size 2 is visually meaningful yet compact; blocks ignore size
+        size = 2
+        return self._get_shape(kind, size)
+
+    def _get_num_obstacles(self, inner_area: int) -> int:
+        t = getattr(self._config, "terrain", "") or ""
+        if t == "sparse":
+            return max(1, inner_area // 40)
+        if t == "balanced":
+            return max(2, inner_area // 22)
+        if t == "dense":
+            return max(3, inner_area // 14)
+        return 0
+
+    # ---------- small utils ----------
+    @staticmethod
+    def _dilate_bool(mask: np.ndarray, radius: int = 1) -> np.ndarray:
+        """
+        Fast Chebyshev dilation using boolean shifts (no scipy).
+        """
+        h, w = mask.shape
+        out = np.zeros_like(mask, dtype=bool)
+        for di in range(-radius, radius + 1):
+            si0 = max(0, -di)
+            ti0 = max(0, di)
+            ih = h - abs(di)
+            if ih <= 0:
+                continue
+            for dj in range(-radius, radius + 1):
+                sj0 = max(0, -dj)
+                tj0 = max(0, dj)
+                jw = w - abs(dj)
+                if jw <= 0:
+                    continue
+                out[ti0 : ti0 + ih, tj0 : tj0 + jw] |= mask[si0 : si0 + ih, sj0 : sj0 + jw]
+        return out
+
+    # ---------- main ----------
     def build(self):
-        # Reset RNG to ensure deterministic builds across multiple calls
+        # Reset RNG for deterministic builds across calls
         if self._config.seed is not None:
             self._rng = np.random.default_rng(self._config.seed)
 
-        height = self._config.height
-        width = self._config.width
+        H = self._config.height
+        W = self._config.width
+        bw = self._config.border_width
 
-        # Create empty grid
-        grid = np.full((height, width), "empty", dtype="<U50")
+        # Empty grid
+        grid = np.full((H, W), "empty", dtype="<U50")
 
-        # Draw border first if needed
-        if self._config.border_width > 0:
-            draw_border(grid, self._config.border_width, self._config.border_object)
+        # Border
+        if bw > 0:
+            draw_border(grid, bw, self._config.border_object)
 
-        # Calculate inner area where objects can be placed
-        if self._config.border_width > 0:
-            inner_height = max(0, height - 2 * self._config.border_width)
-            inner_width = max(0, width - 2 * self._config.border_width)
-        else:
-            inner_height = height
-            inner_width = width
-
-        # If inner area is too small for a 1-cell padding around objects, return as is
-        if inner_height < 3 or inner_width < 3:
+        # Inner dims
+        inner_h = max(0, H - 2 * bw)
+        inner_w = max(0, W - 2 * bw)
+        if inner_h < 1 or inner_w < 1:
             return GameMap(grid)
 
-        # Prepare agent symbols (placed after objects)
+        # ---------- Place terrain obstacles first ----------
+        inner_area = inner_h * inner_w
+        n_obs = self._get_num_obstacles(inner_area)
+
+        if n_obs > 0:
+            # To avoid expensive full candidate scans each time, do bounded random trials.
+            # We also prevent obstacles from “spilling” outside the 1-cell halo area we
+            # reserve for objects later, by placing obstacles within [bw : H - bw), but
+            # we allow them up to the inner border; objects themselves will enforce a +1 margin.
+            # For safe padding checks during placement, we’ll keep candidates inside [bw : H), etc.
+            for _ in range(n_obs):
+                shape = self._choose_random_obstacle()
+                sh, sw = shape.shape
+                # valid upper-left corners so that entire shape fits inside grid
+                # (no extra halo required around terrain itself)
+                i_min = bw
+                j_min = bw
+                i_max = H - bw - sh
+                j_max = W - bw - sw
+                if i_max < i_min or j_max < j_min:
+                    break
+
+                # Try up to K random placements
+                K = 200
+                placed = False
+                for _try in range(K):
+                    i = int(self._rng.integers(i_min, i_max + 1))
+                    j = int(self._rng.integers(j_min, j_max + 1))
+                    region = grid[i : i + sh, j : j + sw]
+                    # place only on empty cells
+                    if np.any(region != "empty"):
+                        continue
+                    # stamp walls where shape == wall
+                    mask = shape == "wall"
+                    if not mask.any():
+                        continue
+                    region[mask] = "wall"
+                    placed = True
+                    break
+                if not placed:
+                    # give up on this obstacle; continue to next
+                    continue
+
+        # ---------- Prepare object placement with halo constraints ----------
+        # Objects must:
+        # 1) be inside a 1-cell margin from all borders (so their 3x3 neighborhood is in-bounds),
+        # 2) have their 3x3 neighborhood entirely empty,
+        # 3) not be adjacent to terrain (wall) — enforced by dilating walls and forbidding those cells.
+
+        # forbid cells on/next-to walls
+        walls = grid == "wall"
+        forbidden = self._dilate_bool(walls, radius=1)  # walls + Moore-1 neighborhood
+
+        # Keep track of object halos in same mask
+        blocked = forbidden.copy()
+
+        # bounds that keep the 3x3 fully in-bounds
+        top = bw + 1
+        left = bw + 1
+        bottom = H - bw - 2
+        right = W - bw - 2
+        if bottom < top or right < left:
+            # No room to place any objects with required halo; just place agents & return
+            self._place_agents(grid)
+            return GameMap(grid)
+
+        # Precompute candidate coordinates once, shuffled
+        cand_rows = np.arange(top, bottom + 1)
+        cand_cols = np.arange(left, right + 1)
+        candidates = np.stack(np.meshgrid(cand_rows, cand_cols, indexing="ij"), axis=-1).reshape(-1, 2)
+        self._rng.shuffle(candidates)
+
+        # Flatten object symbols list
+        object_symbols: list[str] = []
+        for name, count in self._config.objects.items():
+            if count > 0:
+                object_symbols.extend([name] * count)
+
+        # Efficient local checks via slicing
+        def is_clear_3x3(i: int, j: int) -> bool:
+            # center empty and whole 3x3 empty & unblocked
+            if grid[i, j] != "empty":
+                return False
+            i0, i1 = i - 1, i + 2
+            j0, j1 = j - 1, j + 2
+            # both conditions at once minimizes cache misses
+            region_block = blocked[i0:i1, j0:j1]
+            region_grid = grid[i0:i1, j0:j1]
+            return (not region_block.any()) and (region_grid == "empty").all()
+
+        def reserve_halo(i: int, j: int):
+            blocked[i - 1 : i + 2, j - 1 : j + 2] = True
+
+        if object_symbols and len(candidates) > 0:
+            # Greedy placement honoring constraints; O(N) over candidates
+            idx = 0
+            for symbol in object_symbols:
+                placed = False
+                # advance through candidates until we find a legal slot
+                while idx < len(candidates):
+                    i, j = int(candidates[idx][0]), int(candidates[idx][1])
+                    idx += 1
+                    if is_clear_3x3(i, j):
+                        grid[i, j] = symbol
+                        reserve_halo(i, j)
+                        placed = True
+                        break
+                if not placed:
+                    # no more valid slots under constraints
+                    break
+
+        # ---------- Place agents (no special padding) ----------
+        self._place_agents(grid)
+
+        return GameMap(grid)
+
+    # ---------- helpers ----------
+    def _place_agents(self, grid: np.ndarray) -> None:
         if isinstance(self._config.agents, int):
             agent_symbols = ["agent.agent"] * self._config.agents
         elif isinstance(self._config.agents, dict):
-            agent_symbols = ["agent." + agent for agent, na in self._config.agents.items() for _ in range(na)]
+            agent_symbols = ["agent." + a for a, n in self._config.agents.items() for _ in range(n)]
         else:
             raise ValueError(f"Invalid agents configuration: {self._config.agents}")
 
-        # Prepare object symbols
-        object_symbols = []
-        for obj_name, count in self._config.objects.items():
-            object_symbols.extend([obj_name] * count)
+        if not agent_symbols:
+            return
 
-        # Compute valid placement bounds that guarantee a 1-cell padding from any border
-        top = self._config.border_width + 1
-        left = self._config.border_width + 1
-        bottom = height - self._config.border_width - 2
-        right = width - self._config.border_width - 2
-
-        if bottom < top or right < left:
-            return GameMap(grid)
-
-        # Keep a mask of reserved cells (objects and their padding)
-        reserved = np.zeros((height, width), dtype=bool)
-
-        # Helper to mark a 3x3 neighborhood as reserved around (i, j)
-        def reserve_with_padding(i: int, j: int):
-            for di in (-1, 0, 1):
-                for dj in (-1, 0, 1):
-                    ii, jj = i + di, j + dj
-                    if 0 <= ii < height and 0 <= jj < width:
-                        reserved[ii, jj] = True
-
-        # Generate all candidate centers that satisfy border padding
-        cand_rows = np.arange(top, bottom + 1)
-        cand_cols = np.arange(left, right + 1)
-        candidates = [(i, j) for i in cand_rows for j in cand_cols]
-        self._rng.shuffle(candidates)
-
-        # Place objects greedily with padding constraint
-        for symbol in object_symbols:
-            placed = False
-            for idx in range(len(candidates)):
-                i, j = candidates[idx]
-                # Check 3x3 neighborhood is unreserved
-                if reserved[i - 1 : i + 2, j - 1 : j + 2].any():
-                    continue
-                # Place object
-                grid[i, j] = symbol
-                reserve_with_padding(i, j)
-                # Remove this candidate to avoid reusing exact cell
-                candidates.pop(idx)
-                placed = True
-                break
-            if not placed:
-                # No valid spot left; stop placing remaining objects
-                break
-
-        # Now place agents in remaining empty cells (no special padding required)
-        if agent_symbols:
-            empty_mask = grid == "empty"
-            empty_indices = np.argwhere(empty_mask)
-            if len(empty_indices) > 0:
-                self._rng.shuffle(empty_indices)
-                num_placeable = min(len(agent_symbols), len(empty_indices))
-                for k in range(num_placeable):
-                    i, j = empty_indices[k]
-                    grid[i, j] = agent_symbols[k]
-
-        return GameMap(grid)
+        empties = np.argwhere(grid == "empty")
+        if len(empties) == 0:
+            return
+        self._rng.shuffle(empties)
+        k = min(len(agent_symbols), len(empties))
+        for t in range(k):
+            i, j = int(empties[t][0]), int(empties[t][1])
+            grid[i, j] = agent_symbols[t]

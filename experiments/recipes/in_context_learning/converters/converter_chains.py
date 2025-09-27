@@ -213,7 +213,7 @@ def calculate_max_steps(avg_hop: float, chain_length: int, num_sinks: int) -> in
 class ConverterChainTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
-        self.map_dir = getattr(config, "map_dir", "icl_ordered_chains")
+        self.map_dir = config.map_dir
 
     def load_from_numpy(
         self,
