@@ -14,7 +14,7 @@ from metta.rl.training import EnvironmentMetaData
 from .config import MambaBackboneConfig
 from metta.agent.components.mamba_ssm.modules.block import Block
 from metta.agent.components.mamba_ssm.modules.mamba import Mamba
-from metta.agent.components.mamba_ssm.modules.mamba2 import Mamba as Mamba2
+Mamba2 = None
 from metta.agent.components.mamba_ssm.modules.mha import MHA
 from metta.agent.components.mamba_ssm.modules.mlp import GatedMLP
 
@@ -256,7 +256,8 @@ class MambaBackboneComponent(nn.Module):
 
                 hidden = self._run_layers(seq)
                 hidden = hidden.reshape(steps, S, -1)
-                pooled = self._pool_output(hidden[-1:].unsqueeze(0), tt=1)
+                last_hidden = hidden[-1].unsqueeze(0)  # (1, S, D)
+                pooled = self._pool_output(last_hidden, tt=1)
                 outputs.append(pooled.squeeze(0))
 
                 positions.append(torch.tensor(cache.position - 1, device=device, dtype=torch.long))
@@ -279,7 +280,10 @@ class MambaBackboneComponent(nn.Module):
         hidden = self._run_layers(seq)
         hidden = hidden.reshape(batch, tt, S, -1)
         pooled = self._pool_output(hidden, tt=tt)
-        td.set(self.out_key, rearrange(pooled, "b tt ... -> (b tt) ..."))
+        flat = rearrange(pooled, "b tt ... -> (b tt) ...")
+        if flat.shape[0] != td.batch_size.numel():
+            raise RuntimeError(f"pooled batch {flat.shape[0]} != td batch {td.batch_size.numel()}")
+        td.set(self.out_key, flat)
 
         # update caches
         dones = td.get("dones", torch.zeros(batch * tt, device=device))
@@ -311,7 +315,7 @@ class MambaBackboneComponent(nn.Module):
         return Composite({"transformer_position": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)})
 
     def initialize_to_environment(self, env: EnvironmentMetaData, device: torch.device) -> Optional[str]:
-        self._token_caches = [_TokenCache(self.max_cache_size) for _ in range(env.num_envs)]
+        self._token_caches = []
         return None
 
     def reset_memory(self) -> None:

@@ -42,6 +42,8 @@ class ActorQuery(nn.Module):
 
     def forward(self, td: TensorDict):
         hidden = td[self.in_key]  # Shape: [B*TT, hidden]
+        if hidden.dim() > 2:
+            hidden = hidden.reshape(hidden.size(0), -1)
 
         query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)

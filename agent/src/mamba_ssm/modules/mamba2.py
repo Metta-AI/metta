@@ -5,7 +5,7 @@ import torch.nn as nn
 
 
 class Mamba2(nn.Module):
-    """Placeholder implementation used when GPU kernels are unavailable."""
+    """Minimal CPU-friendly stub for the Mamba2 module."""
 
     def __init__(self, d_model: int, **kwargs):
         super().__init__()
