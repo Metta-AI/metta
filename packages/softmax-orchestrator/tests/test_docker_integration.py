@@ -163,7 +163,7 @@ class TestDockerIntegration:
             # Clean up the built image
             try:
                 self.logger.info("Removing built Docker image")
-                client.images.remove("test-app-backend:latest", force=True)
+                client.images.remove("test-softmax-orchestrator:latest", force=True)
                 self.logger.info("Successfully removed Docker image")
             except Exception as e:
                 self.logger.error(f"Failed to remove Docker image: {e}")

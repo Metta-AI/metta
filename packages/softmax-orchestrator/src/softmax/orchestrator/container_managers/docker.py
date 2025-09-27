@@ -2,9 +2,9 @@ import logging
 import os
 import subprocess
 
+from metta.common.datadog.config import datadog_config
 from softmax.orchestrator.container_managers.base import AbstractContainerManager
 from softmax.orchestrator.worker_managers.worker import Worker
-from metta.common.datadog.config import datadog_config
 
 logger = logging.getLogger(__name__)
 

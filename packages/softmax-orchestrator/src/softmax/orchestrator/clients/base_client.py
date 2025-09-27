@@ -5,9 +5,9 @@ import httpx
 import yaml
 from pydantic import BaseModel
 
-from softmax.orchestrator.server import WhoAmIResponse
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
+from softmax.orchestrator.server import WhoAmIResponse
 
 T = TypeVar("T", bound=BaseModel)
 ClientT = TypeVar("ClientT", bound="BaseAppBackendClient")

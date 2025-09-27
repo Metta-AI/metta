@@ -9,10 +9,6 @@ from bidict import bidict
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
-from softmax.orchestrator.clients.eval_task_client import EvalTaskClient
-from softmax.orchestrator.clients.stats_client import StatsClient
-from softmax.orchestrator.metta_repo import TaskStatus
-from softmax.orchestrator.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
 from metta.common.util.collections import group_by
 from metta.common.util.constants import (
     DEV_OBSERVATORY_FRONTEND_URL,
@@ -22,6 +18,10 @@ from metta.common.util.constants import (
 )
 from metta.shared.policy_registry import get_or_create_policy_ids
 from softmax.cli.utils import debug, info, success, warning
+from softmax.orchestrator.clients.eval_task_client import EvalTaskClient
+from softmax.orchestrator.clients.stats_client import StatsClient
+from softmax.orchestrator.metta_repo import TaskStatus
+from softmax.orchestrator.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
 from softmax.training.rl.checkpoint_manager import CheckpointManager
 
 

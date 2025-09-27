@@ -23,6 +23,11 @@ from datetime import datetime
 import boto3
 
 from devops.observatory_login import CLIAuthenticator
+from metta.common.datadog.tracing import init_tracing, trace
+from metta.common.util.collections import remove_none_values
+from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
+from metta.common.util.git_repo import REPO_URL
+from metta.common.util.log_config import init_logging
 from softmax.orchestrator.clients.eval_task_client import EvalTaskClient
 from softmax.orchestrator.routes.eval_task_routes import (
     EvalTaskResponse,
@@ -30,11 +35,6 @@ from softmax.orchestrator.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
-from metta.common.datadog.tracing import init_tracing, trace
-from metta.common.util.collections import remove_none_values
-from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
-from metta.common.util.git_repo import REPO_URL
-from metta.common.util.log_config import init_logging
 from softmax.training.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)

@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING, Any
 
 import wandb
 
-from softmax.orchestrator.clients.stats_client import StatsClient
-from softmax.orchestrator.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.context import WandbRun
 from metta.shared.policy_registry import get_or_create_policy_ids
 from metta.shared.simulation_config import SimulationConfig
+from softmax.orchestrator.clients.stats_client import StatsClient
+from softmax.orchestrator.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from softmax.training.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)

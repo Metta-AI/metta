@@ -1,12 +1,12 @@
 import os
 import subprocess
 
-from softmax.orchestrator.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
 from softmax.cli.components.base import SetupModule
 from softmax.cli.registry import register_module
 from softmax.cli.saved_settings import get_saved_settings
 from softmax.cli.utils import error, info, success, warning
+from softmax.orchestrator.clients.base_client import get_machine_token
 
 
 @register_module

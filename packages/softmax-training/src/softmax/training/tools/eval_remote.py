@@ -2,12 +2,12 @@ import logging
 from typing import Sequence
 
 from gitta import get_git_hash_for_remote_task
-from softmax.orchestrator.clients.stats_client import HttpStatsClient
-from softmax.orchestrator.routes.eval_task_routes import TaskCreateRequest
 from metta.common.tool.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.shared.policy_registry import get_or_create_policy_ids
 from metta.shared.simulation_config import SimulationConfig
+from softmax.orchestrator.clients.stats_client import HttpStatsClient
+from softmax.orchestrator.routes.eval_task_routes import TaskCreateRequest
 from softmax.training.rl.checkpoint_manager import CheckpointManager
 
 logger = logging.getLogger(__name__)

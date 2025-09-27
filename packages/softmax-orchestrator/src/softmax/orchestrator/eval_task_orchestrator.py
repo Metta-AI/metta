@@ -19,6 +19,10 @@ from datetime import datetime, timedelta, timezone
 from ddtrace.trace import tracer
 from pydantic import BaseModel
 
+from metta.common.datadog.tracing import init_tracing, trace
+from metta.common.util.collections import group_by
+from metta.common.util.constants import DEV_STATS_SERVER_URI
+from metta.common.util.log_config import init_logging
 from softmax.orchestrator.clients.eval_task_client import EvalTaskClient
 from softmax.orchestrator.container_managers.factory import create_container_manager
 from softmax.orchestrator.routes.eval_task_routes import (
@@ -30,10 +34,6 @@ from softmax.orchestrator.routes.eval_task_routes import (
 from softmax.orchestrator.worker_managers.base import AbstractWorkerManager
 from softmax.orchestrator.worker_managers.container_manager import ContainerWorkerManager
 from softmax.orchestrator.worker_managers.worker import Worker
-from metta.common.datadog.tracing import init_tracing, trace
-from metta.common.util.collections import group_by
-from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.log_config import init_logging
 
 logger = logging.getLogger(__name__)
 

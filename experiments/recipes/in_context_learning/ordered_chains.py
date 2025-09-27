@@ -290,7 +290,9 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             cfg.game_objects[obj].cooldown = int(cooldown)
 
         if self.map_dir is not None:  # load from s3
-            from softmax.maptools.map.terrain_from_numpy import InContextLearningFromNumpy
+            from softmax.maptools.map.terrain_from_numpy import (
+                InContextLearningFromNumpy,
+            )
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
             dir = f"{self.map_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"

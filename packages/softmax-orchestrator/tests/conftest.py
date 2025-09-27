@@ -7,11 +7,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
+from softmax.lib.test_support import docker_client_fixture, isolated_test_schema_uri
 from softmax.orchestrator.clients.stats_client import StatsClient
 from softmax.orchestrator.metta_repo import MettaRepo
 from softmax.orchestrator.server import create_app
 from softmax.orchestrator.test_support import create_test_stats_client
-from softmax.lib.test_support import docker_client_fixture, isolated_test_schema_uri
 
 # Register the docker_client fixture
 docker_client = docker_client_fixture()

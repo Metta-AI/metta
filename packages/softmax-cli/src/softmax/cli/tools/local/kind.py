@@ -7,10 +7,10 @@ import typer
 from rich.console import Console
 
 from devops.docker.push_image import push_image
-from softmax.orchestrator.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, METTA_AWS_ACCOUNT_ID, METTA_AWS_REGION
 from metta.common.util.fs import get_repo_root
 from softmax.cli.utils import error, info, success
+from softmax.orchestrator.clients.base_client import get_machine_token
 
 repo_root = get_repo_root()
 console = Console()

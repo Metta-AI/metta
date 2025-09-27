@@ -7,8 +7,15 @@ from typing import Any, Optional, Type, TypeVar
 import httpx
 from pydantic import BaseModel
 
+from metta.common.util.collections import remove_none_values
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 from softmax.orchestrator.clients.base_client import NotAuthenticatedError, get_machine_token
-from softmax.orchestrator.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
+from softmax.orchestrator.routes.eval_task_routes import (
+    TaskCreateRequest,
+    TaskFilterParams,
+    TaskResponse,
+    TasksResponse,
+)
 from softmax.orchestrator.routes.score_routes import (
     PolicyScoresData,
     PolicyScoresRequest,
@@ -25,8 +32,6 @@ from softmax.orchestrator.routes.stats_routes import (
     TrainingRunCreate,
     TrainingRunResponse,
 )
-from metta.common.util.collections import remove_none_values
-from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 logger = logging.getLogger("stats_client")
 

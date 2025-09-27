@@ -10,10 +10,10 @@ import numpy as np
 import torch
 from pydantic import Field
 
-from softmax.orchestrator.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
 from metta.shared.eval_config import EvalRewardSummary
 from mettagrid.config import Config
+from softmax.orchestrator.clients.stats_client import StatsClient
 from softmax.training.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from softmax.training.rl.training.component import TrainerComponent
 from softmax.training.rl.utils import should_run

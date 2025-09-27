@@ -236,7 +236,7 @@ feedback. Consider running them in separate terminals outside of Claude Code.
 
 - **MettaScope**: Run `cd mettascope && pnpm run dev` for interactive replay viewer
 - **Observatory**: Run `cd observatory && pnpm run dev` for training dashboard
-- **GridWorks**: Run `cd gridworks && pnpm run dev` for web interface
+- **GridWorks**: Run `cd packages/softmax-maptools/src/softmax/maptools/gridworks && pnpm run dev` for web interface
 
 ### Common Commands
 

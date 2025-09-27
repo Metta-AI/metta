@@ -8,7 +8,6 @@ import torch
 from pydantic import Field
 
 import gitta as git
-from softmax.orchestrator.clients.stats_client import StatsClient
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_service import evaluate_policy
 from metta.shared.eval_config import EvalResults, EvalRewardSummary
@@ -17,6 +16,7 @@ from mettagrid.config import Config
 from softmax.cogworks.curriculum import Curriculum
 from softmax.config.auto_config import auto_replay_dir
 from softmax.config.bootstrap import ensure_setup_factories_registered
+from softmax.orchestrator.clients.stats_client import StatsClient
 from softmax.training.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,

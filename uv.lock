@@ -2114,7 +2114,7 @@ requires-dist = [
     { name = "jmespath", specifier = ">=1.0.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "metta-agent", editable = "agent" },
-    { name = "metta-app-backend", editable = "app_backend" },
+    { name = "softmax-orchestrator", editable = "packages/softmax-orchestrator" },
     { name = "metta-common", editable = "common" },
     { name = "numpy", specifier = ">=2" },
     { name = "nvidia-ml-py" },
@@ -2228,16 +2228,18 @@ dev = [
 ]
 
 [[package]]
-name = "metta-app-backend"
-version = "0.1.0"
-source = { editable = "app_backend" }
+name = "softmax-orchestrator"
+version = "0.0.1"
+source = { editable = "packages/softmax-orchestrator" }
 dependencies = [
     { name = "boto3" },
     { name = "ddtrace" },
     { name = "fastapi" },
     { name = "gitta" },
     { name = "httpx" },
-    { name = "metta-common" },
+    { name = "softmax-config" },
+    { name = "softmax-lib" },
+    { name = "softmax-training" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic" },
     { name = "pytest-asyncio" },

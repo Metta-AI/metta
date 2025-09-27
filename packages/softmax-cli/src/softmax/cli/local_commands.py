@@ -69,15 +69,7 @@ def stats_server(ctx: typer.Context):
         "uv",
         "run",
         "python",
-        str(
-            repo_root
-            / "packages"
-            / "softmax-orchestrator"
-            / "src"
-            / "softmax"
-            / "orchestrator"
-            / "server.py"
-        ),
+        str(repo_root / "packages" / "softmax-orchestrator" / "src" / "softmax" / "orchestrator" / "server.py"),
     ]
     if ctx.args:
         cmd.extend(ctx.args)

@@ -9,7 +9,6 @@ from pydantic import Field, model_validator
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from softmax.orchestrator.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -20,6 +19,7 @@ from softmax.config.auto_config import (
     auto_wandb_config,
 )
 from softmax.config.bootstrap import ensure_setup_factories_registered
+from softmax.orchestrator.clients.stats_client import StatsClient
 from softmax.training.rl.checkpoint_manager import CheckpointManager
 from softmax.training.rl.trainer import Trainer
 from softmax.training.rl.trainer_config import TorchProfilerConfig, TrainerConfig

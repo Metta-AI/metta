@@ -4,13 +4,13 @@ from typing import Optional
 
 import httpx
 
+from metta.common.util.constants import DEV_STATS_SERVER_URI
+from metta.common.util.log_config import init_logging
 from softmax.orchestrator.routes.sweep_routes import (
     RunIdResponse,
     SweepCreateResponse,
     SweepInfo,
 )
-from metta.common.util.constants import DEV_STATS_SERVER_URI
-from metta.common.util.log_config import init_logging
 
 
 class SweepClient:

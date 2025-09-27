@@ -24,13 +24,13 @@ from typing import Dict, List, Optional, TypedDict
 
 import httpx
 
+from metta.common.util.log_config import init_logging
 from softmax.orchestrator.clients.stats_client import StatsClient
 from softmax.orchestrator.routes.stats_routes import (
     EpochResponse,
     PolicyResponse,
     TrainingRunResponse,
 )
-from metta.common.util.log_config import init_logging
 
 
 class EpochConfig(TypedDict):

@@ -6,9 +6,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from softmax.orchestrator.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
 from softmax.cli.utils import error, info
+from softmax.orchestrator.clients.base_client import get_machine_token
 
 
 def main():

@@ -4,11 +4,11 @@ from pathlib import Path
 
 import torch
 
-from softmax.orchestrator.clients.stats_client import StatsClient
 from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.shared.eval_config import EvalResults, EvalRewardSummary
+from softmax.orchestrator.clients.stats_client import StatsClient
 from softmax.training.rl.checkpoint_manager import CheckpointManager
 from softmax.training.sim.simulation import Simulation, SimulationCompatibilityError
 from softmax.training.sim.simulation_config import SimulationConfig
