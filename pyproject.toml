@@ -54,9 +54,11 @@ dependencies = [
   "simple-term-menu>=1.6.4",
   "skypilot==0.10.3",
   "softmax",
+  "softmax-cogworks",
   "softmax-config",
   "softmax-lib",
   "softmax-shared",
+  "softmax-training",
   "sympy>=1.13.3",
   "tabulate>=0.9.0",
   "tensordict>=0.8.3",
@@ -158,9 +160,11 @@ members = [
   "packages/cogames",
   "packages/mettagrid",
   "packages/pufferlib-core",
+  "packages/softmax-cogworks",
   "packages/softmax-config",
   "packages/softmax-lib",
   "packages/softmax-shared",
+  "packages/softmax-training",
   "softmax",
 ]
 
@@ -173,6 +177,8 @@ metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
 pufferlib-core = { workspace = true }
 softmax = { workspace = true }
+softmax-cogworks = { workspace = true }
 softmax-config = { workspace = true }
 softmax-lib = { workspace = true }
 softmax-shared = { workspace = true }
+softmax-training = { workspace = true }
