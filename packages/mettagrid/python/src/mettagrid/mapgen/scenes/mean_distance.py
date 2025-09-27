@@ -1,15 +1,14 @@
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class MeanDistanceParams(Config):
+class MeanDistanceConfig(SceneConfig):
     mean_distance: float  # Mean distance parameter for objects relative to agent.
     objects: dict[str, int]
 
 
-class MeanDistance(Scene[MeanDistanceParams]):
+class MeanDistance(Scene[MeanDistanceConfig]):
     """
     This scene places an agent at the center of the scene and places objects at a mean distance from the agent.
     """
@@ -23,11 +22,11 @@ class MeanDistance(Scene[MeanDistanceParams]):
 
         # Place each object based on a Poisson-distributed distance from the agent.
         # For each object type and the number of instances required:
-        for obj_name, count in self.params.objects.items():
+        for obj_name, count in self.config.objects.items():
             placed = 0
             while placed < count:
                 # Sample a distance from a Poisson distribution.
-                d = self.rng.poisson(lam=self.params.mean_distance)
+                d = self.rng.poisson(lam=self.config.mean_distance)
                 # Ensure a nonzero distance (so objects don't collide with the agent)
                 if d == 0:
                     d = 1
