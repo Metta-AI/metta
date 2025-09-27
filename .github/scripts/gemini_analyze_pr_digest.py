@@ -8,12 +8,14 @@
 
 import json
 import logging
+import re
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from gemini_analyze_pr import PRAnalyzer, PRSummary, load_pr_summary, save_pr_summary
 from gemini_client import GeminiAIClient
@@ -25,6 +27,37 @@ class PreviousReportExtractor:
     def __init__(self, report_type: str = "newsletter", report_dir: str | None = None):
         self.report_type = report_type
         self.report_dir = Path(report_dir or f"previous-{report_type}s")
+
+    def _extract_date_from_content(self, content: str) -> Optional[datetime]:
+        """Extract end date from newsletter content as fallback."""
+
+        # Look for date patterns in the newsletter header
+        # Pattern 1: "• Month DD, YYYY to Month DD, YYYY"
+        pattern1 = r"•\s*(\w+\s+\d{1,2},\s+\d{4})\s+to\s+(\w+\s+\d{1,2},\s+\d{4})"
+        match = re.search(pattern1, content[:500])  # Check first 500 chars
+
+        if match:
+            try:
+                end_date_str = match.group(2)
+                end_date = datetime.strptime(end_date_str, "%B %d, %Y")
+                return end_date
+            except ValueError:
+                logging.debug(f"Failed to parse date from content pattern: {match.group(2)}")
+
+        # Pattern 2: Try ISO date format if present
+        # "Historical: YYYY-MM-DD to YYYY-MM-DD"
+        pattern2 = r"(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})"
+        match = re.search(pattern2, content[:500])
+
+        if match:
+            try:
+                end_date_str = match.group(2)
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+                return end_date
+            except ValueError:
+                logging.debug(f"Failed to parse ISO date from content: {match.group(2)}")
+
+        return None
 
     def extract_report_summaries(self) -> list[dict[str, str]]:
         """Extract summaries from previous report artifacts."""
@@ -44,6 +77,20 @@ class PreviousReportExtractor:
         for zip_path in zip_files:
             try:
                 artifact_name = zip_path.stem
+
+                # Extract date from artifact name if possible
+                # Expected format: newsletter-YYYY-MM-DD-to-YYYY-MM-DD
+                artifact_date = None
+                if "newsletter-" in artifact_name and "-to-" in artifact_name:
+                    try:
+                        # Extract end date from artifact name
+                        date_parts = artifact_name.split("-to-")
+                        if len(date_parts) == 2:
+                            end_date_str = date_parts[1]
+                            artifact_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+                    except ValueError:
+                        logging.debug(f"Could not parse date from artifact name: {artifact_name}")
+
                 run_id = artifact_name.split("_")[-1] if "_" in artifact_name else artifact_name
 
                 with zipfile.ZipFile(zip_path, "r") as zf:
@@ -62,11 +109,18 @@ class PreviousReportExtractor:
                         file_date = file_info.date_time
                         timestamp = datetime(*file_date[:6])
 
+                        # If we couldn't get date from filename, try to extract from content
+                        if not artifact_date:
+                            artifact_date = self._extract_date_from_content(content)
+                            if artifact_date:
+                                logging.debug(f"Extracted date from content for {artifact_name}: {artifact_date}")
+
                         summaries.append(
                             {
                                 "content": content,
                                 "run_id": run_id,
                                 "date": timestamp.isoformat(),
+                                "artifact_date": artifact_date.isoformat() if artifact_date else None,
                                 "artifact_name": artifact_name,
                                 "report_type": self.report_type,
                             }
@@ -80,7 +134,7 @@ class PreviousReportExtractor:
                 logging.error(f"❌ Error processing {zip_path.name}: {e}")
                 continue
 
-        summaries.sort(key=lambda x: x["date"])
+        summaries.sort(key=lambda x: x["artifact_date"] or x["date"])
         logging.info(f"Successfully extracted {len(summaries)} {self.report_type} summaries")
         return summaries
 
@@ -91,8 +145,16 @@ class PreviousReportExtractor:
                 return name
         return None
 
-    def get_recent_summaries(self, max_summaries: int = 3, author: str | None = None) -> list[dict[str, str]]:
-        """Get formatted context from previous summaries for AI prompt."""
+    def get_recent_summaries(
+        self, max_summaries: int = 3, author: str | None = None, end_date: Optional[datetime] = None
+    ) -> list[dict[str, str]]:
+        """Get formatted context from previous summaries for AI prompt.
+
+        Args:
+            max_summaries: Maximum number of summaries to return
+            author: Filter by author (for author reports)
+            end_date: Only include summaries before this date (for historical runs)
+        """
         summaries = self.extract_report_summaries()
 
         if not summaries:
@@ -101,6 +163,23 @@ class PreviousReportExtractor:
         # Filter by author if specified (for author reports)
         if author and self.report_type == "author-report":
             summaries = [s for s in summaries if author.lower() in s["artifact_name"].lower()]
+
+        # Filter by date if specified (for historical runs)
+        if end_date:
+            filtered_summaries = []
+            for summary in summaries:
+                # Use artifact_date if available, otherwise fall back to file date
+                date_str = summary.get("artifact_date") or summary["date"]
+                summary_date = datetime.fromisoformat(date_str)
+
+                # Only include summaries from before the end date
+                if summary_date < end_date:
+                    filtered_summaries.append(summary)
+                else:
+                    logging.debug(f"Excluding future summary from {date_str} (after {end_date})")
+
+            summaries = filtered_summaries
+            logging.info(f"After date filtering: {len(summaries)} summaries remain")
 
         return summaries[-max_summaries:] if len(summaries) > max_summaries else summaries
 
@@ -290,7 +369,7 @@ def create_discord_summary(
         impact_stats[pr.impact_level] = impact_stats.get(pr.impact_level, 0) + 1
 
     lines = [
-        f"📊 ** {github_repository} Newsletter ** • {date_range}",
+        f"📊 **{github_repository} Newsletter** • {date_range}",
         "",
         "**📈 Statistics**",
         f"• Total PRs analyzed: {len(pr_summaries)}",
@@ -298,7 +377,7 @@ def create_discord_summary(
         f"• Previously cached: {stats.get('cached_pr_count', 0)}",
         f"• Categories: {', '.join(f'{k}: {v}' for k, v in category_stats.items())}",
         f"• Impact: {', '.join(f'{k}: {v}' for k, v in impact_stats.items())}",
-        f"• Generated: <t:{int(time.time())}:R> using Gemini 2.5 with full context analysis",
+        f"• Generated: <t:{int(time.time())}:R> using Gemini with full context analysis",
         "",
         newsletter_content,
         "",
