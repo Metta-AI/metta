@@ -134,30 +134,6 @@ PPO_BASIC = ProteinConfig(
             mean=0.010000,  # Geometric mean
             scale="auto",
         ),
-        # 4. GAE lambda - uniform from 0.8 to 0.99
-        "trainer.losses.loss_configs.ppo.gae_lambda": ParameterConfig(
-            min=0.8,
-            max=0.99,
-            distribution="uniform",
-            mean=0.891477,
-            scale="auto",
-        ),
-        # 5. Value function coefficient - uniform from 0.1 to 1.0
-        "trainer.losses.loss_configs.ppo.vf_coef": ParameterConfig(
-            min=0.1,
-            max=1.0,
-            distribution="uniform",
-            mean=0.897619,
-            scale="auto",
-        ),
-        # 6. Adam epsilon - log scale from 1e-8 to 1e-4
-        "trainer.optimizer.eps": ParameterConfig(
-            min=1e-8,
-            max=1e-4,
-            distribution="log_normal",
-            mean=3.186531e-07,  # Geometric mean
-            scale="auto",
-        ),
     },
     settings=ProteinSettings(
         num_random_samples=20,

@@ -151,12 +151,13 @@ def evaluate(
 
 
 def evaluate_in_sweep(
-    simulations: Optional[Sequence[SimulationConfig]] = None
+    run: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     """Evaluation function optimized for sweep runs.
 
-    Accepts training `run` name (so the tool can resolve the latest policy
-    checkpoint), and uses compact simulation settings for faster sweeps.
+    Accepts the training `run` name so SimTool can resolve the latest checkpoint
+    (consistent with ordered_chains evaluate). The dispatcher may also pass the
+    run via CLI args.
     """
     if simulations is None:
         # Create sweep-optimized versions of the standard evaluations
@@ -186,6 +187,7 @@ def evaluate_in_sweep(
     # Provide run to SimTool so it resolves the latest checkpoint for that run
     return SimTool(
         simulations=simulations,
+        run=run,
     )
 
 

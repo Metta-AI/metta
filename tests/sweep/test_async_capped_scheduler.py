@@ -98,6 +98,40 @@ class TestAsyncCappedOptimizingScheduler:
         jobs_2 = scheduler.schedule(runs, available_training_slots=0)
         assert len(jobs_2) == 0
 
+    def test_no_training_when_eval_in_progress(self):
+        config = AsyncCappedSchedulerConfig(
+            max_trials=10,
+            recipe_module="test.module",
+            train_entrypoint="train",
+            eval_entrypoint="evaluate",
+            experiment_id="test_async",
+            protein_config=_basic_protein_config(),
+            max_concurrent_evals=1,
+        )
+        scheduler = AsyncCappedOptimizingScheduler(config)
+        # Stub optimizer
+        scheduler.optimizer.suggest = lambda observations, n_suggestions=1: [
+            {"lr": 0.003} for _ in range(n_suggestions)
+        ]  # type: ignore
+
+        now = datetime.now(timezone.utc)
+        runs = [
+            RunInfo(
+                run_id="rE",
+                has_started_training=True,
+                has_completed_training=True,
+                has_started_eval=True,
+                has_been_evaluated=False,  # In eval
+                has_failed=False,
+                created_at=now,
+                last_updated_at=now,
+            ),
+        ]
+
+        # Any available training slots should be ignored while eval is in progress
+        jobs = scheduler.schedule(runs, available_training_slots=3)
+        assert len(jobs) == 0
+
     def test_fantasies_include_pending(self):
         config = AsyncCappedSchedulerConfig(
             max_trials=10,

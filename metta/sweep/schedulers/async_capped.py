@@ -199,12 +199,20 @@ class AsyncCappedOptimizingScheduler:
                 self.state.runs_in_eval.add(eval_candidate.run_id)
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", eval_candidate.run_id)
 
-        # Training scheduling: fill as slots free up
+        # Training scheduling: fill as slots free up, BUT pause if any evals are running
         total_created = len(runs)
         if total_created >= self.config.max_trials:
             logger.info(
                 "[AsyncCappedOptimizingScheduler] Max trials reached (%s). No further training will be scheduled",
                 self.config.max_trials,
+            )
+            return jobs
+
+        # If we have any evals in progress, do not schedule new training yet
+        if self.state.runs_in_eval:
+            logger.info(
+                "[AsyncCappedOptimizingScheduler] Waiting for %s eval job(s) to complete before scheduling training",
+                len(self.state.runs_in_eval),
             )
             return jobs
 
@@ -353,4 +361,3 @@ class AsyncCappedOptimizingScheduler:
             fantasies.append({"score": liar_score, "cost": liar_cost, "suggestion": dict(suggestion)})
 
         return fantasies
-

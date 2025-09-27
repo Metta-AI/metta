@@ -14,6 +14,9 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval_remote import EvalRemoteTool
+from metta.tools.sweep import SweepTool, SweepSchedulerType
+from experiments.sweeps.protein_configs import PPO_BASIC, make_custom_protein_config
+from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
@@ -158,7 +161,7 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
 
 def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
+    ) -> SimTool:
     """Evaluate with sparse reward environments."""
     simulations = simulations or make_evals()
     return SimTool(
@@ -175,4 +178,78 @@ def evaluate_remote(
     return EvalRemoteTool(
         simulations=simulations,
         policy_uri=policy_uri,
+    )
+
+
+def evaluate_in_sweep(
+    simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    """Sweep-optimized evaluation that accepts a training run name.
+    # TODO: We can maybe improve this a bit.
+    """
+    simulations = simulations or make_evals()
+
+    return SimTool(
+        simulations=simulations,
+    )
+
+
+def sweep_async_progressive(
+    min_timesteps: int,
+    max_timesteps: int,
+    initial_timesteps: int,
+    max_concurrent_evals: int = 1,
+    liar_strategy: str = "best",
+    enable_contrastive: bool = True,
+) -> SweepTool:
+    """Async-capped sweep with progressive timesteps for sparse + contrastive arena.
+
+    - Sweeps over trainer.total_timesteps from [min_timesteps, max_timesteps],
+      starting around initial_timesteps (log-normal).
+    - Uses AsyncCapped scheduler: fills training slots, serializes evals,
+      applies Constant-Liar fantasies.
+    - Enables contrastive loss by default.
+    """
+
+    protein_cfg = make_custom_protein_config(
+        PPO_BASIC,
+        {
+            # Progressive training horizon
+            "trainer.total_timesteps": ParameterConfig(
+                min=min_timesteps,
+                max=max_timesteps,
+                distribution="log_normal",
+                mean=initial_timesteps,
+                scale="auto",
+            ),
+            # Contrastive hyperparameters
+            "trainer.losses.loss_configs.contrastive.temperature": ParameterConfig(
+                min=0.02,
+                max=0.5,
+                distribution="log_normal",
+                mean=0.1,
+                scale="auto",
+            ),
+            "trainer.losses.loss_configs.contrastive.contrastive_coef": ParameterConfig(
+                min=0.01,
+                max=1.0,
+                distribution="log_normal",
+                mean=0.35,
+                scale="auto",
+            ),
+        },
+    )
+
+    return SweepTool(
+        protein_config=protein_cfg,
+        recipe_module="experiments.recipes.arena_with_contrastive_sparse_rewards",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        # Turn on contrastive loss during training; specifics remain default unless swept
+        train_overrides={
+            "trainer.losses.enable_contrastive": "True",
+        },
+        scheduler_type=SweepSchedulerType.ASYNC_CAPPED,
+        max_concurrent_evals=max_concurrent_evals,
+        liar_strategy=liar_strategy,
     )
