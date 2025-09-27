@@ -18,13 +18,16 @@ type
     Minimap
     AgentTable
     AgentTraces
-    EnvConfig
+    EnvironmentInfo
+    ObjectInfo
 
   Panel* = ref object
     panelType*: PanelType
     rect*: IRect
-    name*: string
-    node*: Node
+    name*: string            ## The name of the panel.
+    header*: Node            ## The header of the panel.
+    node*: Node              ## The node of the panel.
+    parentArea*: Area        ## The parent area of the panel.
 
     pos*: Vec2
     vel*: Vec2
@@ -40,12 +43,12 @@ type
     Vertical
 
   Area* = ref object
-    layout*: AreaLayout
-    rect*: IRect
-    node*: Node
-    areas*: seq[Area]
-    selectedPanelNum*: int
-    panels*: seq[Panel]
+    node*: Node              ## The node of the area.
+    layout*: AreaLayout      ## The layout of the area.
+    areas*: seq[Area]        ## The subareas in the area (0 or 2)
+    panels*: seq[Panel]      ## The panels in the area.
+    split*: float32          ## The split percentage of the area.
+    selectedPanelNum*: int   ## The index of the selected panel in the area.
 
   Settings* = object
     showFogOfWar* = false
@@ -55,8 +58,11 @@ type
     showObservations* = -1
     lockFocus* = false
 
+  PlayMode* = enum
+    Historical
+    Realtime
+
 var
-  rootArea*: Area
   frame*: int
 
   globalTimelinePanel*: Panel
@@ -67,7 +73,8 @@ var
   minimapPanel*: Panel
   agentTablePanel*: Panel
   agentTracesPanel*: Panel
-  envConfigPanel*: Panel
+  objectInfoPanel*: Panel
+  environmentInfoPanel*: Panel
 
   settings* = Settings()
   selection*: Entity
@@ -78,6 +85,7 @@ var
   play*: bool
   playSpeed*: float32 = 0.1
   lastSimTime*: float64 = epochTime()
+  playMode* = Historical
 
   ## Signals when we want to give control back to Python (DLL mode only).
   requestPython*: bool = false

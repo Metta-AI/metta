@@ -46,6 +46,7 @@ proc drawAgentTraces*(panel: Panel) =
         if newStep >= 0 and newStep < replay.maxSteps and agentId >= 0 and
             agentId < replay.agents.len:
           step = newStep
+          stepFloat = newStep.float32
           selection = replay.agents[agentId]
           centerAt(worldMapPanel, selection)
 

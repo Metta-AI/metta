@@ -96,12 +96,12 @@ curriculum_args = {
         "densities": ["", "balanced", "sparse", "high"],
         "room_sizes": ["tiny", "small", "medium"],
     },
-    "hard_eval": {
-        "chain_lengths": [4, 5],
-        "num_sinks": [1, 2],
+    "full": {
+        "chain_lengths": [2, 3, 4, 5, 6],
+        "num_sinks": [0, 1, 2],
         "obstacle_types": ["square", "cross", "L"],
-        "densities": ["high"],
-        "room_sizes": ["medium"],
+        "densities": ["", "balanced", "sparse", "high"],
+        "room_sizes": ["tiny", "small", "medium", "large"],
     },
 }
 
@@ -114,7 +114,7 @@ def make_task_generator_cfg(
     obstacle_types=[],
     densities=[],
 ):
-    return ICLTaskGenerator.Config(
+    return OrderedChainsTaskGenerator.Config(
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
         obstacle_types=obstacle_types,
@@ -303,8 +303,10 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
                     rng=rng,
                 ),
             )
-            if os.path.exists(f"{dir}/reward_estimates.json"):
-                reward_estimates = json.load(open(f"{dir}/reward_estimates.json"))
+            if os.path.exists(f"./train_dir/{dir}/reward_estimates.json"):
+                reward_estimates = json.load(
+                    open(f"./train_dir/{dir}/reward_estimates.json")
+                )
                 env.game.reward_estimates = reward_estimates[dir]
             return env
 
@@ -384,14 +386,7 @@ def make_curriculum(
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=map_dir
     )
-    # Handle both LPParams Config object and dict
-    if isinstance(lp_params, LPParams):
-        algorithm_config = LearningProgressConfig(**lp_params.model_dump())
-    elif isinstance(lp_params, dict):
-        algorithm_config = LearningProgressConfig(**lp_params)
-    else:
-        # If lp_params is None or something else, use default
-        algorithm_config = LearningProgressConfig()
+    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
 
     return CurriculumConfig(
         task_generator=task_generator_cfg,
@@ -455,11 +450,12 @@ def replay(
 ) -> ReplayTool:
     eval_env = env or make_mettagrid(curriculum_style, map_dir)
     # Default to the research policy if none specified
-    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23/icl_resource_chain_terrain_4.newarchitectureTrue.2025-09-23:v900.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt"
+    default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            suite="in_context_learning",
+            suite="in_context_ordered_chains",
             name="eval",
         ),
         policy_uri=default_policy_uri,
@@ -475,15 +471,6 @@ def evaluate(
         make_icl_resource_chain_eval_suite,
     )
 
-    simulations = simulations or make_icl_resource_chain_eval_suite()
-    return SimTool(
-        simulations=simulations,
-        policy_uris=[policy_uri] if policy_uri else None,
-        stats_server_uri="https://api.observatory.softmax-research.net",
-    )
-
-
-def experiment():
     curriculum_styles = [
         "level_1",
         "level_2",
@@ -495,6 +482,21 @@ def experiment():
         "terrain_3",
         "terrain_4",
     ]
+    simulations = simulations or make_icl_resource_chain_eval_suite()
+    policy_uris = []
+    for curriculum_style in curriculum_styles:
+        policy_uris.append(
+            f"s3://softmax-public/policies/icl_resource_chain_{curriculum_style}.2.2025-09-24/icl_resource_chain_{curriculum_style}.2.2025-09-24:latest.pt"
+        )
+    return SimTool(
+        simulations=simulations,
+        policy_uris=policy_uris,
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
+
+
+def experiment():
+    curriculum_styles = ["full"]
 
     for curriculum_style in curriculum_styles:
         subprocess.run(
