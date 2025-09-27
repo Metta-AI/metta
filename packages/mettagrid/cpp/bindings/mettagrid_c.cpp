@@ -74,7 +74,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
-  _stats->set_environment(this);
+  _stats->set_resource_names(&resource_names);
 
   _event_manager->init(_grid.get());
   _event_manager->event_handlers.insert(
@@ -178,7 +178,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
-        converter->stats.set_environment(this);
         continue;
       }
 
@@ -190,7 +189,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
           throw std::runtime_error("Too many agents for agent_id type");
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
-        agent->stats.set_environment(this);
+        agent->stats.set_resource_names(&resource_names);
         // Only initialize visitation grid if visitation counts are enabled
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
@@ -211,7 +210,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         Assembler* assembler = new Assembler(r, c, config_with_offsets);
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
-        assembler->stats.set_environment(this);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
         continue;
@@ -222,7 +220,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         Chest* chest = new Chest(r, c, *chest_config);
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
-        chest->stats.set_environment(this);
         chest->set_grid(_grid.get());
         continue;
       }
@@ -777,7 +774,6 @@ py::dict MettaGrid::get_episode_stats() {
   // {
   //   "game": dict[str, float],  // Global game statistics
   //   "agent": list[dict[str, float]],  // Per-agent statistics
-  //   "converter": list[dict[str, float]]  // Per-converter statistics
   // }
   // All stat values are guaranteed to be floats from StatsTracker::to_dict()
 
@@ -790,26 +786,6 @@ py::dict MettaGrid::get_episode_stats() {
   }
   stats["agent"] = agent_stats;
 
-  // Collect converter stats
-  py::list converter_stats;
-  for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
-    auto obj = _grid->object(obj_id);
-    if (!obj) continue;
-
-    // Check if this is a converter
-    Converter* converter = dynamic_cast<Converter*>(obj);
-    if (converter) {
-      // Add metadata to the converter's stats tracker BEFORE converting to dict
-      converter->stats.set("type_id", converter->type_id);
-      converter->stats.set("location.r", converter->location.r);
-      converter->stats.set("location.c", converter->location.c);
-
-      // Now convert to dict - all values will be floats
-      py::dict converter_stat = py::cast(converter->stats.to_dict());
-      converter_stats.append(converter_stat);
-    }
-  }
-  stats["converter"] = converter_stats;
   return stats;
 }
 
@@ -864,17 +840,6 @@ py::none MettaGrid::set_inventory(GridObjectId agent_id, const std::map<Inventor
     this->_agents[agent_id]->set_inventory(inventory);
   }
   return py::none();
-}
-
-// StatsTracker implementation that needs complete MettaGrid definition
-unsigned int StatsTracker::get_current_step() const {
-  if (!_env) return 0;
-  return static_cast<MettaGrid*>(_env)->current_step;
-}
-
-const std::string& StatsTracker::resource_name(InventoryItem item) const {
-  if (!_env) return get_no_env_resource_name();
-  return _env->resource_names[item];
 }
 
 // Pybind11 module definition

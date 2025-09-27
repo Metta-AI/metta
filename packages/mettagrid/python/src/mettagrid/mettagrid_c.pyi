@@ -18,7 +18,6 @@ dtype_success: np.dtype
 class EpisodeStats(TypedDict):
     game: StatsDict
     agent: list[StatsDict]
-    converter: list[StatsDict]
 
 class PackedCoordinate:
     """Packed coordinate encoding utilities."""

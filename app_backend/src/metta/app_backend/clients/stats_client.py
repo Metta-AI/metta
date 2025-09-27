@@ -13,6 +13,7 @@ from metta.app_backend.routes.score_routes import (
     PolicyScoresData,
     PolicyScoresRequest,
 )
+from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     EpisodeCreate,
     EpisodeResponse,
@@ -106,6 +107,10 @@ class StatsClient(ABC):
     ) -> EpisodeResponse:
         pass
 
+    @abstractmethod
+    def sql_query(self, query: str) -> SQLQueryResponse:
+        pass
+
     @staticmethod
     def create(stats_server_uri: Optional[str]) -> "StatsClient":
         if stats_server_uri is None:
@@ -192,6 +197,9 @@ class NoopStatsClient(StatsClient):
         epoch_id: uuid.UUID | None = None,
     ) -> PolicyResponse:
         return PolicyResponse(id=self.id)
+
+    def sql_query(self, query: str) -> SQLQueryResponse:
+        return SQLQueryResponse(columns=[], rows=[], row_count=0)
 
 
 class HttpStatsClient(StatsClient):
@@ -333,3 +341,6 @@ class HttpStatsClient(StatsClient):
         return self._make_sync_request(
             PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
         )
+
+    def sql_query(self, query: str) -> SQLQueryResponse:
+        return self._make_sync_request(SQLQueryResponse, "POST", "/sql/query", json={"query": query})

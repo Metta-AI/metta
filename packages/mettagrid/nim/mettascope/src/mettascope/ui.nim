@@ -1,7 +1,6 @@
 import
-  std/[strformat],
-  boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, utils
+  boxy, vmath, windy, fidget2/hybridrender,
+  utils
 
 
 proc drawIconButton*(
