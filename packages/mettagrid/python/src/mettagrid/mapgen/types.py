@@ -17,11 +17,13 @@ class Area:
     # slice of the outer grid (must match `width` and `height`)
     grid: MapGrid
 
+    abs_grid: MapGrid
+
     tags: list[str]
 
     @classmethod
     def root_area_from_grid(cls, grid: MapGrid) -> "Area":
-        return cls(x=0, y=0, width=grid.shape[1], height=grid.shape[0], grid=grid, tags=[])
+        return cls(x=0, y=0, width=grid.shape[1], height=grid.shape[0], grid=grid, abs_grid=grid, tags=[])
 
     def as_dict(self) -> dict:
         return {
@@ -66,7 +68,15 @@ class Area:
         new_y = self.y + row_start
         new_height, new_width = sliced_grid.shape
 
-        return Area(x=new_x, y=new_y, width=new_width, height=new_height, grid=sliced_grid, tags=self.tags.copy())
+        return Area(
+            x=new_x,
+            y=new_y,
+            width=new_width,
+            height=new_height,
+            grid=sliced_grid,
+            abs_grid=self.abs_grid,
+            tags=self.tags.copy(),
+        )
 
 
 class AreaWhere(Config):
