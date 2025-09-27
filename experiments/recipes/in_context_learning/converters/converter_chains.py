@@ -293,7 +293,7 @@ def train(
     map_dir: str = "icl_ordered_chains",
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(
-        **curriculum_args[curriculum_style], map_dir=map_dir
+        **curriculum_args[curriculum_style], map_dir=None
     )
     from experiments.evals.in_context_learning.converter_chains import (
         make_converter_chain_eval_suite,

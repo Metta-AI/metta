@@ -236,6 +236,7 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
         self._make_altars(num_altars, cfg, recipe_position, num_generators, rng)
 
         if dir is not None and os.path.exists(dir):
+            print(f"Loading from {dir}")
             return self.load_from_numpy(
                 num_agents,
                 max_steps,
@@ -285,7 +286,7 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
             if obj >= (num_altars + len(generators))
         )
         dir = (
-            f"{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
+            f"./train_dir/{self.config.map_dir}/{room_size}/{num_object_reference}objects/{terrain}"
             if self.config.map_dir is not None
             else None
         )
@@ -360,7 +361,7 @@ def train(
     curriculum_style: str = "single_agent_two_altars", lp_params: LPParams = LPParams()
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(
-        **make_curriculum_args(**curriculum_args[curriculum_style])
+        **make_curriculum_args(**curriculum_args[curriculum_style]), map_dir=None
     )
     from experiments.evals.in_context_learning.foraging import (
         make_assembler_eval_suite,

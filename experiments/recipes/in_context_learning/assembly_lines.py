@@ -203,7 +203,7 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
         ) = self._setup_task(rng)
 
         dir = (
-            f"{self.config.map_dir}/{room_size}/{len(resources)}chain/{num_sinks}sinks/{terrain}"
+            f"./train_dir/{self.config.map_dir}/{room_size}/{len(resources)}chain/{num_sinks}sinks/{terrain}"
             if self.config.map_dir is not None
             else None
         )
@@ -229,7 +229,9 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
 def train(
     curriculum_style: str = "multi_agent_easy",
 ) -> TrainTool:
-    task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
+    task_generator_cfg = make_task_generator_cfg(
+        **curriculum_args[curriculum_style], map_dir=None
+    )
     from experiments.evals.in_context_learning.assembly_lines import (
         make_icl_assembler_resource_chain_eval_suite,
     )
