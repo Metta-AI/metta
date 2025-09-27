@@ -24,29 +24,16 @@ class Quadrants(Scene[QuadrantsParams]):
         cx = width // 2
         cy = height // 2
 
+        # Full-map quadrants split by center lines; base will be stamped over later
+        self.make_area(0, 0, cx, cy, tags=["quadrant", "quadrant.0"])  # top-left
+        self.make_area(cx, 0, width - cx, cy, tags=["quadrant", "quadrant.1"])  # top-right
+        self.make_area(0, cy, cx, height - cy, tags=["quadrant", "quadrant.2"])  # bottom-left
+        self.make_area(cx, cy, width - cx, height - cy, tags=["quadrant", "quadrant.3"])  # bottom-right
+
+        # Central base area (for later stamping)
         bx0 = max(0, cx - base_size // 2)
         by0 = max(0, cy - base_size // 2)
-        bx1 = min(width, bx0 + base_size)
-        by1 = min(height, by0 + base_size)
-
-        bw = max(0, bx1 - bx0)
-        bh = max(0, by1 - by0)
-
+        bw = min(base_size, width - bx0)
+        bh = min(base_size, height - by0)
         if bw > 0 and bh > 0:
             self.make_area(bx0, by0, bw, bh, tags=["base"])
-
-        # Top-left
-        if by0 > 0 and bx0 > 0:
-            self.make_area(0, 0, bx0, by0, tags=["quadrant", "quadrant.0"])
-
-        # Top-right
-        if by0 > 0 and bx1 < width:
-            self.make_area(bx1, 0, width - bx1, by0, tags=["quadrant", "quadrant.1"])
-
-        # Bottom-left
-        if by1 < height and bx0 > 0:
-            self.make_area(0, by1, bx0, height - by1, tags=["quadrant", "quadrant.2"])
-
-        # Bottom-right
-        if by1 < height and bx1 < width:
-            self.make_area(bx1, by1, width - bx1, height - by1, tags=["quadrant", "quadrant.3"])

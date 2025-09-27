@@ -165,19 +165,6 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
         root=Quadrants.factory(
             params=QuadrantsParams(base_size=11),
             children_actions=[
-                # Central base
-                dict(
-                    scene=BaseHub.factory(
-                        BaseHubParams(
-                            altar_object="altar",
-                            corner_generator="generator_red",
-                        )
-                    ),
-                    where=AreaWhere(tags=["base"]),
-                    limit=1,
-                    lock="keep",
-                    order_by="first",
-                ),
                 # Quadrant population from a library (BSP/Maze/VariedTerrain)
                 dict(
                     scene=QuadrantLayout.factory(
@@ -259,6 +246,19 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     scene=MakeConnected.factory(MakeConnectedParams()),
                     where="full",
                     lock="finalize",
+                    order_by="first",
+                ),
+                # Stamp the central sanctum/base last so it overrides terrain
+                dict(
+                    scene=BaseHub.factory(
+                        BaseHubParams(
+                            altar_object="altar",
+                            corner_generator="generator_red",
+                        )
+                    ),
+                    where=AreaWhere(tags=["base"]),
+                    limit=1,
+                    lock="keep",
                     order_by="first",
                 ),
                 # Analyze and optionally balance converter distances from the altar

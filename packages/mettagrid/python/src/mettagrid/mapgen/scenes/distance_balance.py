@@ -59,30 +59,34 @@ class DistanceBalance(Scene[DistanceBalanceParams]):
         return dist
 
     def _carve_line(self, x0: int, y0: int, x1: int, y1: int, width: int = 1):
-        # Bresenham-like line carving; only turns walls into empty
-        dx = abs(x1 - x0)
-        dy = -abs(y1 - y0)
-        sx = 1 if x0 < x1 else -1
-        sy = 1 if y0 < y1 else -1
-        err = dx + dy
-        x, y = x0, y0
+        """Carve a 4-connected (Manhattan) corridor from (x0,y0) to (x1,y1).
+
+        We clear a strip of given width while avoiding overwriting the altar tile.
+        """
         h, w = self.height, self.width
-        while True:
-            x0b = max(0, x - width // 2)
-            x1b = min(w, x + width // 2 + 1)
-            y0b = max(0, y - width // 2)
-            y1b = min(h, y + width // 2 + 1)
-            sub = self.grid[y0b:y1b, x0b:x1b]
-            sub[sub == "wall"] = "empty"
-            if x == x1 and y == y1:
-                break
-            e2 = 2 * err
-            if e2 >= dy:
-                err += dy
-                x += sx
-            if e2 <= dx:
-                err += dx
-                y += sy
+
+        def clear_cell(cx: int, cy: int):
+            if not (0 <= cx < w and 0 <= cy < h):
+                return
+            if self.grid[cy, cx] == "altar":
+                return
+            x0b = max(0, cx - width // 2)
+            x1b = min(w, cx + width // 2 + 1)
+            y0b = max(0, cy - width // 2)
+            y1b = min(h, cy + width // 2 + 1)
+            self.grid[y0b:y1b, x0b:x1b] = "empty"
+
+        x, y = x0, y0
+        # Horizontal leg first
+        step_x = 1 if x1 > x else -1
+        while x != x1:
+            x += step_x
+            clear_cell(x, y)
+        # Then vertical leg
+        step_y = 1 if y1 > y else -1
+        while y != y1:
+            y += step_y
+            clear_cell(x, y)
 
     def render(self):
         center = self._find_center()
