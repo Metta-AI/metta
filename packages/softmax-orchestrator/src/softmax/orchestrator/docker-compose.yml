@@ -8,7 +8,7 @@ services:
       - WANDB_API_KEY=${WANDB_API_KEY}
       - DOCKER_IMAGE=${DOCKER_IMAGE:-metta-policy-evaluator-local:latest}
     volumes:
-      - ../../../:/workspace/metta/app_backend
+      - ../../../:/workspace/metta
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["uv", "run", "python", "-m", "softmax.orchestrator.eval_task_orchestrator"]
     restart: unless-stopped

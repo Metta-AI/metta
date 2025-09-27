@@ -12,7 +12,7 @@ from metta.common.util.fs import get_repo_root
 
 @pytest.mark.skip(reason="Skipping Docker integration tests for now")
 class TestDockerIntegration:
-    """Integration tests for the app_backend Docker container."""
+    """Integration tests for the orchestrator Docker container."""
 
     @classmethod
     def setup_class(cls):
@@ -54,20 +54,23 @@ class TestDockerIntegration:
                     self.logger.error(f"Failed to stop PostgreSQL container: {e}")
 
     @pytest.fixture(scope="class")
-    def app_backend_container(self, postgres_container: PostgresContainer, docker_client):
-        """Build and start the app_backend Docker container."""
+    def orchestrator_container(self, postgres_container: PostgresContainer, docker_client):
+        """Build and start the softmax orchestrator Docker container."""
         # Generate a unique network name for this test run
         unique_id = uuid.uuid4().hex[:8]
-        network_name = f"test-app-backend-network-{unique_id}"
+        network_name = f"test-softmax-orchestrator-network-{unique_id}"
 
         try:
             project_root = get_repo_root()
             client = docker_client
 
             # Build the Docker image first
-            self.logger.info("Building Docker image for app_backend")
+            self.logger.info("Building Docker image for softmax-orchestrator")
             image, build_logs = client.images.build(
-                path=str(project_root), dockerfile="app_backend/Dockerfile", tag="test-app-backend:latest", rm=True
+                path=str(project_root),
+                dockerfile="packages/softmax-orchestrator/Dockerfile",
+                tag="test-softmax-orchestrator:latest",
+                rm=True,
             )
             self.logger.info("Successfully built Docker image")
 
@@ -86,9 +89,9 @@ class TestDockerIntegration:
             self.logger.info(f"Database URI: {db_uri}")
 
             # Start the app container
-            self.logger.info("Starting app backend container")
+            self.logger.info("Starting orchestrator container")
             container = (
-                DockerContainer(image="test-app-backend:latest")
+                DockerContainer(image="test-softmax-orchestrator:latest")
                 .with_exposed_ports(8000)
                 .with_env("STATS_DB_URI", db_uri)
                 .with_env(
@@ -99,7 +102,7 @@ class TestDockerIntegration:
             )
 
             container.start()
-            self.logger.info("App backend container started")
+            self.logger.info("Orchestrator container started")
 
             # Wait for the service to be ready
             host = container.get_container_host_ip()
@@ -176,12 +179,12 @@ class TestDockerIntegration:
             except Exception:
                 pass  # Network might not exist
 
-            pytest.fail(f"Failed to start app_backend container: {e}")
+            pytest.fail(f"Failed to start orchestrator container: {e}")
 
     @pytest.mark.slow
-    def test_whoami_endpoint_no_auth(self, app_backend_container):
+    def test_whoami_endpoint_no_auth(self, orchestrator_container):
         """Test /whoami endpoint without authentication returns 'unknown'."""
-        container, host, port = app_backend_container
+        container, host, port = orchestrator_container
 
         response = requests.get(f"http://{host}:{port}/whoami")
 
@@ -190,9 +193,9 @@ class TestDockerIntegration:
         assert data["user_email"] == "unknown"
 
     @pytest.mark.slow
-    def test_whoami_endpoint_with_email_auth(self, app_backend_container):
+    def test_whoami_endpoint_with_email_auth(self, orchestrator_container):
         """Test /whoami endpoint with email authentication."""
-        container, host, port = app_backend_container
+        container, host, port = orchestrator_container
 
         headers = {"X-Auth-Request-Email": "test@example.com"}
         response = requests.get(f"http://{host}:{port}/whoami", headers=headers)
@@ -202,9 +205,9 @@ class TestDockerIntegration:
         assert data["user_email"] == "test@example.com"
 
     @pytest.mark.slow
-    def test_container_health_check(self, app_backend_container):
+    def test_container_health_check(self, orchestrator_container):
         """Test that the container is healthy and responding."""
-        container, host, port = app_backend_container
+        container, host, port = orchestrator_container
 
         # Test basic connectivity
         response = requests.get(f"http://{host}:{port}/whoami")
@@ -216,9 +219,9 @@ class TestDockerIntegration:
         assert isinstance(data["user_email"], str)
 
     @pytest.mark.slow
-    def test_protected_endpoint_without_auth(self, app_backend_container):
+    def test_protected_endpoint_without_auth(self, orchestrator_container):
         """Test that protected endpoints require authentication."""
-        container, host, port = app_backend_container
+        container, host, port = orchestrator_container
 
         # Try to create a token without authentication
         response = requests.post(f"http://{host}:{port}/tokens", json={"name": "test_token"})
@@ -226,9 +229,9 @@ class TestDockerIntegration:
         assert response.status_code == 401
 
     @pytest.mark.slow
-    def test_protected_endpoint_with_auth(self, app_backend_container):
+    def test_protected_endpoint_with_auth(self, orchestrator_container):
         """Test that protected endpoints work with authentication."""
-        container, host, port = app_backend_container
+        container, host, port = orchestrator_container
 
         headers = {"X-Auth-Request-Email": "test@example.com"}
 

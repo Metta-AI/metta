@@ -1,7 +1,8 @@
 # Observatory FE
 
-This is the FE for the app deployed at https://observatory.softmax-research.net/ Talks to the server in `/app_backend` -
-see instructions on how to run it in `/app_backend/README.md`
+This is the FE for the app deployed at https://observatory.softmax-research.net/.
+It talks to the server in `packages/softmax-orchestrator` – see instructions in
+`packages/softmax-orchestrator/README.md`.
 
 ## Setup
 
