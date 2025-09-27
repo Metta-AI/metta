@@ -290,7 +290,6 @@ class ConverterChainTaskGenerator(ICLTaskGenerator):
 def train(
     curriculum_style: str = "tiny",
     lp_params: LPParams = LPParams(),
-    map_dir: str = "icl_ordered_chains",
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None

@@ -140,13 +140,13 @@ curriculum_args = {
         "room_sizes": ["small", "medium", "large"],
         "positions": num_agents_to_positions[1] + num_agents_to_positions[2],
     },
-    "test": {
-        "num_agents": [12],
-        "num_altars": [10],
-        "num_generators": [0],
-        "room_sizes": ["small"],
-        "positions": [["N", "S"]],
-    },
+    # "test": {
+    #     "num_agents": [12],
+    #     "num_altars": [10],
+    #     "num_generators": [0],
+    #     "room_sizes": ["small"],
+    #     "positions": [["N", "S"]],
+    # },
 }
 
 

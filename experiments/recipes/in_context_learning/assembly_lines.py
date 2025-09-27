@@ -61,13 +61,13 @@ curriculum_args = {
         "room_sizes": ["tiny", "small", "medium"],
         "positions": [["Any", "Any"], ["Any"]],
     },
-    "test": {
-        "num_agents": [2],
-        "chain_lengths": [5],
-        "num_sinks": [2],
-        "room_sizes": ["medium"],
-        "positions": [["Any", "Any"]],
-    },
+    # "test": {
+    #     "num_agents": [2],
+    #     "chain_lengths": [5],
+    #     "num_sinks": [2],
+    #     "room_sizes": ["medium"],
+    #     "positions": [["Any", "Any"]],
+    # },
 }
 
 
