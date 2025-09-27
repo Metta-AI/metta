@@ -179,6 +179,8 @@ builds its configuration, and runs it. The current available tasks are:
 - **experiments.recipes.arena.train**: Train on the arena curriculum
 
   `./tools/run.py experiments.recipes.arena.train run=my_experiment`
+  - To enable `torch.compile`, choose a mode via `trainer.compile`. For example:
+    `./tools/run.py experiments.recipes.arena.train run=my_experiment trainer.compile=reduce-overhead`
 
 - **experiments.recipes.navigation.train**: Train on the navigation curriculum
 

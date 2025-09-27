@@ -149,8 +149,16 @@ class PuffeRL:
         # Torch compile
         self.uncompiled_policy = policy
         self.policy = policy
-        if config["compile"]:
-            self.policy = torch.compile(policy, mode=config["compile_mode"], fullgraph=config["compile_fullgraph"])
+        compile_setting = config.get("compile", False)
+        if isinstance(compile_setting, str):
+            compile_enabled = compile_setting != "disabled"
+            compile_mode = compile_setting if compile_enabled else "reduce-overhead"
+        else:
+            compile_enabled = bool(compile_setting)
+            compile_mode = config.get("compile_mode", "reduce-overhead")
+
+        if compile_enabled:
+            self.policy = torch.compile(policy, mode=compile_mode, fullgraph=config["compile_fullgraph"])
 
         # Optimizer
         if config["optimizer"] == "adam":
@@ -166,7 +174,13 @@ class PuffeRL:
             warnings.filterwarnings(action="ignore", category=UserWarning, module=r"heavyball.*")
             import heavyball.utils
 
-            heavyball.utils.compile_mode = config["compile_mode"] if config["compile"] else None
+            if isinstance(compile_setting, str):
+                heavyball.utils.compile_mode = compile_setting if compile_enabled else None
+            else:
+                heavyball.utils.compile_mode = (
+                    config.get("compile_mode", "reduce-overhead") if compile_enabled else None
+                )
+
             optimizer = ForeachMuon(
                 self.policy.parameters(),
                 lr=config["learning_rate"],

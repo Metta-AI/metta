@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, ContextManager, Dict, Optional
 
+import torch
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
@@ -100,6 +102,10 @@ class ComponentContext:
             self.state.training_env_window.to_slice() if self.state.training_env_window else None
         )
 
+        self._autocast_factory: Callable[[], ContextManager[Any]] = contextlib.nullcontext
+        self.amp_enabled: bool = False
+        self.amp_dtype: Any = torch.float32
+
     # ------------------------------------------------------------------
     # Epoch / step tracking
     # ------------------------------------------------------------------
@@ -191,6 +197,16 @@ class ComponentContext:
 
     def update_gradient_stats(self, stats: Dict[str, float]) -> None:
         self.gradient_stats = stats
+
+    def set_autocast_factory(self, factory: Callable[[], ContextManager[Any]]) -> None:
+        """Configure the factory used to construct autocast contexts."""
+
+        self._autocast_factory = factory
+
+    def autocast(self) -> ContextManager[Any]:
+        """Return an autocast context manager for mixed precision training."""
+
+        return self._autocast_factory()
 
     # ------------------------------------------------------------------
     # Epoch lifecycle helpers

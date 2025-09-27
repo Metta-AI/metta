@@ -1,9 +1,11 @@
+import contextlib
 import importlib
 from typing import Any, Callable, Optional
 
 import torch
 
 from metta.agent.policy import Policy
+from metta.agent.util.distribution_utils import configure_sampling_backend
 from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
@@ -22,9 +24,13 @@ from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
     importlib.import_module("pufferlib._C")
-except ImportError:
-    raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
+except ImportError as exc:
+    raise ImportError(
+        "Failed to import C/CUDA advantage kernel. "
+        "If you have non-default PyTorch, try installing with --no-build-isolation"
+    ) from exc
 
+torch.set_float32_matmul_precision("high")
 logger = getRankAwareLogger(__name__)
 
 
@@ -62,6 +68,16 @@ class Trainer:
 
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
+
+        compile_mode = self._cfg.compile
+        use_compile = compile_mode != "disabled"
+        effective_mode = compile_mode if use_compile else "reduce-overhead"
+
+        configure_sampling_backend(use_compile, effective_mode)
+
+        if use_compile:
+            self._policy = torch.compile(self._policy, mode=effective_mode)
+
         self._policy.train()
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
@@ -75,6 +91,9 @@ class Trainer:
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.meta_data.num_agents
 
+        storage_device = torch.device("cpu") if self._cfg.cpu_offload else self._device
+        pin_memory = self._cfg.cpu_offload and self._device.type == "cuda"
+
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
             batch_size=self._cfg.batch_size,
@@ -84,6 +103,8 @@ class Trainer:
             policy_experience_spec=self._policy.get_agent_experience_spec(),
             losses=losses,
             device=self._device,
+            storage_device=storage_device,
+            pin_memory=pin_memory,
         )
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
@@ -108,6 +129,32 @@ class Trainer:
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
 
+        amp_dtype_name = self._cfg.precision
+        amp_dtype = getattr(torch, amp_dtype_name, torch.float32)
+        amp_supported = amp_dtype in (torch.float16, torch.bfloat16)
+        amp_requested = self._cfg.amp and self._device.type == "cuda"
+        amp_enabled = amp_requested and amp_supported
+
+        if amp_requested and not amp_supported:
+            logger.warning(
+                "Disabling AMP: precision '%s' is not supported for CUDA autocast (use 'float16' or 'bfloat16').",
+                amp_dtype_name,
+            )
+
+        if amp_enabled:
+
+            def make_autocast() -> contextlib.AbstractContextManager:
+                return torch.amp.autocast(device_type="cuda", dtype=amp_dtype)
+
+        else:
+
+            def make_autocast() -> contextlib.AbstractContextManager:
+                return contextlib.nullcontext()
+
+        self._context.set_autocast_factory(make_autocast)
+        self._context.amp_enabled = amp_enabled
+        self._context.amp_dtype = amp_dtype if amp_enabled else torch.float32
+
         self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
         self.core_loop = CoreTrainingLoop(
@@ -124,6 +171,12 @@ class Trainer:
 
         for loss in losses.values():
             loss.attach_context(self._context)
+
+        self._lr_scheduler = None
+        if self._cfg.lr_scheduler == "cosine":
+            total_epochs = max(1, self._cfg.total_timesteps // self._cfg.batch_size)
+            self._lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=total_epochs)
+        self._context.lr_scheduler = self._lr_scheduler
 
         self._prev_agent_step_for_step_callbacks: int = 0
 
@@ -179,6 +232,9 @@ class Trainer:
                 max_grad_norm=0.5,
             )
             self._context.advance_epoch(epochs_trained)
+            if self._lr_scheduler is not None and epochs_trained > 0:
+                # Advance the scheduler once per outer training epoch to align with the configured horizon.
+                self._lr_scheduler.step()
 
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
