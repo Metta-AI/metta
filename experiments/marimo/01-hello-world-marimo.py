@@ -1009,7 +1009,9 @@ def _(
             trained_artifact = CheckpointManager.load_from_uri(checkpoint_uri)
             trained_policy = trained_artifact.policy
             if trained_policy is None:
-                raise RuntimeError("Expected serialized policy in artifact for evaluation demo")
+                raise RuntimeError(
+                    "Expected serialized policy in artifact for evaluation demo"
+                )
 
             # Create evaluation environment
             with contextlib.redirect_stdout(io.StringIO()):
@@ -1666,7 +1668,9 @@ def _(
         trained_artifact = CheckpointManager.load_from_uri(checkpoint_uri)
         trained_policy = trained_artifact.policy
         if trained_policy is None:
-            raise RuntimeError("Expected serialized policy in artifact for evaluation demo")
+            raise RuntimeError(
+                "Expected serialized policy in artifact for evaluation demo"
+            )
 
         # Create evaluation environment
         with contextlib.redirect_stdout(io.StringIO()):

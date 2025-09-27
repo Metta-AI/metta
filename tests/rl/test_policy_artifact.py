@@ -92,6 +92,7 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     instantiated = loaded.instantiate(env_metadata, torch.device("cpu"))
     assert isinstance(instantiated, DummyPolicy)
 
+
 def test_policy_artifact_rejects_policy_and_weights() -> None:
     env_metadata = _env_metadata()
     architecture = DummyPolicyArchitecture()

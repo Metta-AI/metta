@@ -221,9 +221,7 @@ def test_get_replay_urls(tmp_path: Path):
     assert replay_urls[1] in policy1_v2_urls
 
     # Test filtering by policy URI (policy2 version 1)
-    policy2_urls = db.get_replay_urls(
-        policy_uri=CheckpointManager.normalize_uri("policy2/checkpoints/policy2:v1.mpt")
-    )
+    policy2_urls = db.get_replay_urls(policy_uri=CheckpointManager.normalize_uri("policy2/checkpoints/policy2:v1.mpt"))
     assert len(policy2_urls) == 1
     assert replay_urls[2] in policy2_urls
 
