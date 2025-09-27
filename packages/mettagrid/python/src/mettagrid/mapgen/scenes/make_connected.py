@@ -2,8 +2,7 @@ import logging
 
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 DIRECTIONS = [(-1, 0), (0, 1), (1, 0), (0, -1)]
 
@@ -13,11 +12,11 @@ logger = logging.getLogger(__name__)
 Cell = tuple[int, int]
 
 
-class MakeConnectedParams(Config):
+class MakeConnectedConfig(SceneConfig):
     pass
 
 
-class MakeConnected(Scene[MakeConnectedParams]):
+class MakeConnected(Scene[MakeConnectedConfig]):
     """
     This scene makes the map connected by digging tunnels.
 

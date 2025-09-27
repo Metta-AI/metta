@@ -3,8 +3,7 @@ from typing import Literal, Tuple
 
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 from mettagrid.mapgen.types import MapGrid
 
 logger = logging.getLogger(__name__)
@@ -12,11 +11,11 @@ logger = logging.getLogger(__name__)
 Direction = Literal["horizontal", "vertical"]
 
 
-class BSPLayoutParams(Config):
+class BSPLayoutConfig(SceneConfig):
     area_count: int
 
 
-class BSPLayout(Scene[BSPLayoutParams]):
+class BSPLayout(Scene[BSPLayoutConfig]):
     """
     This scene doesn't render anything, it just creates areas that can be used by other scenes.
     """
@@ -27,14 +26,14 @@ class BSPLayout(Scene[BSPLayoutParams]):
         tree = BSPTree(
             width=grid.shape[1],
             height=grid.shape[0],
-            leaf_zone_count=self.params.area_count,
+            leaf_zone_count=self.config.area_count,
             rng=self.rng,
         )
         for zone in tree.get_leaf_zones():
             self.make_area(zone.x, zone.y, zone.width, zone.height, tags=["zone"])
 
 
-class BSPParams(Config):
+class BSPConfig(SceneConfig):
     rooms: int
     min_room_size: int
     min_room_size_ratio: float
@@ -42,7 +41,7 @@ class BSPParams(Config):
     skip_corridors: bool = False
 
 
-class BSP(Scene[BSPParams]):
+class BSP(Scene[BSPConfig]):
     """
     Binary Space Partitioning. (Roguelike dungeon generator)
 
@@ -51,14 +50,14 @@ class BSP(Scene[BSPParams]):
 
     def render(self):
         grid = self.grid
-        params = self.params
+        config = self.config
 
         grid[:] = "wall"
 
         bsp_tree = BSPTree(
             width=grid.shape[1],
             height=grid.shape[0],
-            leaf_zone_count=params.rooms,
+            leaf_zone_count=config.rooms,
             rng=self.rng,
         )
 
@@ -66,9 +65,9 @@ class BSP(Scene[BSPParams]):
         rooms: list[Zone] = []
         for zone in bsp_tree.get_leaf_zones():
             room = zone.make_room(
-                min_size=params.min_room_size,
-                min_size_ratio=params.min_room_size_ratio,
-                max_size_ratio=params.max_room_size_ratio,
+                min_size=config.min_room_size,
+                min_size_ratio=config.min_room_size_ratio,
+                max_size_ratio=config.max_room_size_ratio,
             )
             rooms.append(room)
 
@@ -76,7 +75,7 @@ class BSP(Scene[BSPParams]):
             self.make_area(room.x, room.y, room.width, room.height, tags=["room"])
 
         # Make corridors
-        if params.skip_corridors:
+        if config.skip_corridors:
             logger.info("Skipping corridors")
             return
 

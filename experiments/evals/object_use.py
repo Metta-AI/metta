@@ -49,11 +49,9 @@ def make_object_use_env(
                     width=11,
                     height=11,
                     border_width=3,
-                    instance=MeanDistance.factory(
-                        params=MeanDistance.Params(
-                            mean_distance=6,
-                            objects=map_objects,
-                        )
+                    instance=MeanDistance.Config(
+                        mean_distance=6,
+                        objects=map_objects,
                     ),
                 ),
             ),

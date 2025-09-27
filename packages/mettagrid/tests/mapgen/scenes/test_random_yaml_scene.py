@@ -14,13 +14,11 @@ def test_objects():
     # 1 / 2^30 chance of failure
     for _ in range(30):
         scene = render_scene(
-            RandomYamlScene.factory(
-                RandomYamlScene.Params(
-                    candidates=[
-                        RandomYamlSceneCandidate(scene_file=f"{dir}/1.yaml"),
-                        RandomYamlSceneCandidate(scene_file=f"{dir}/2.yaml"),
-                    ]
-                )
+            RandomYamlScene.Config(
+                candidates=[
+                    RandomYamlSceneCandidate(scene_file=f"{dir}/1.yaml"),
+                    RandomYamlSceneCandidate(scene_file=f"{dir}/2.yaml"),
+                ]
             ),
             (1, 1),
         )

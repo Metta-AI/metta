@@ -1,7 +1,6 @@
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import ChildrenAction, Scene
+from mettagrid.mapgen.scene import ChildrenAction, Config, Scene, SceneConfig
 from mettagrid.mapgen.scenes.yaml import YamlScene
 
 
@@ -10,22 +9,22 @@ class RandomYamlSceneCandidate(Config):
     weight: float = 1
 
 
-class RandomYamlSceneParams(Config):
+class RandomYamlSceneConfig(SceneConfig):
     candidates: list[RandomYamlSceneCandidate]
 
 
-class RandomYamlScene(Scene[RandomYamlSceneParams]):
+class RandomYamlScene(Scene[RandomYamlSceneConfig]):
     def get_children(self) -> list[ChildrenAction]:
-        candidates = self.params.candidates
+        candidates = self.config.candidates
         weights = np.array([c.weight for c in candidates], dtype=np.float32)
         weights /= weights.sum()
 
         idx = self.rng.choice(len(candidates), p=weights)
-        scene = YamlScene.factory(YamlScene.Params(file=candidates[idx].scene_file))
+        scene = YamlScene.Config(file=candidates[idx].scene_file)
 
         return [
             ChildrenAction(scene=scene, where="full"),
-            *self.children_actions,
+            *self.config.children,
         ]
 
     def render(self):

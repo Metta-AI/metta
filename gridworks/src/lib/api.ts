@@ -3,9 +3,32 @@ import * as z from "zod/v4";
 import { API_URL } from "../server/constants";
 import { MapIndex, MapMetadata } from "../server/types";
 
-const sceneTreeSchema = z.object({
+const childrenActionSchema = z.object({
+  get scene() {
+    return sceneSchema;
+  },
+  where: z
+    .union([
+      z.literal("full"),
+      z.object({
+        tags: z.array(z.string()),
+      }),
+    ])
+    .nullable(),
+  limit: z.number().nullable(),
+  offset: z.number().nullable(),
+  lock: z.string().nullable(),
+  order_by: z.string().nullable(),
+});
+
+const sceneSchema = z.looseObject({
   type: z.string(),
-  params: z.record(z.string(), z.unknown()),
+  seed: z.number().nullable(),
+  children: z.array(childrenActionSchema),
+});
+
+const sceneTreeSchema = z.object({
+  config: sceneSchema,
   area: z.object({
     x: z.number(),
     y: z.number(),

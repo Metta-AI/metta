@@ -1,16 +1,15 @@
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
-class RandomParams(Config):
+class RandomConfig(SceneConfig):
     objects: dict[str, int] = {}
     agents: int | dict[str, int] = 0
     too_many_is_ok: bool = True
 
 
-class Random(Scene[RandomParams]):
+class Random(Scene[RandomConfig]):
     """
     Fill the grid with random symbols, based on configuration.
 
@@ -18,14 +17,14 @@ class Random(Scene[RandomParams]):
     """
 
     def render(self):
-        height, width, params = self.height, self.width, self.params
+        height, width, config = self.height, self.width, self.config
 
-        if isinstance(params.agents, int):
-            agents = ["agent.agent"] * params.agents
-        elif isinstance(params.agents, dict):
-            agents = ["agent." + str(agent) for agent, na in params.agents.items() for _ in range(na)]
+        if isinstance(config.agents, int):
+            agents = ["agent.agent"] * config.agents
+        elif isinstance(config.agents, dict):
+            agents = ["agent." + str(agent) for agent, na in config.agents.items() for _ in range(na)]
         else:
-            raise ValueError(f"Invalid agents: {params.agents}")
+            raise ValueError(f"Invalid agents: {config.agents}")
 
         # Find empty cells in the grid
         empty_mask = self.grid == "empty"
@@ -34,11 +33,11 @@ class Random(Scene[RandomParams]):
 
         # Add all objects in the proper amounts to a single large array
         symbols = []
-        for obj_name, count in params.objects.items():
+        for obj_name, count in config.objects.items():
             symbols.extend([obj_name] * count)
         symbols.extend(agents)
 
-        if not params.too_many_is_ok and len(symbols) > empty_count:
+        if not config.too_many_is_ok and len(symbols) > empty_count:
             raise ValueError(f"Too many objects for available empty cells: {len(symbols)} > {empty_count}")
         else:
             # everything will be filled with symbols, oh well

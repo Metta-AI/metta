@@ -4,7 +4,7 @@ from mettagrid.test_support.mapgen import render_scene
 
 def test_basic():
     scene = render_scene(
-        RandomDcssScene.factory(RandomDcssScene.Params(wfc=True, dcss=True)),
+        RandomDcssScene.Config(wfc=True, dcss=True),
         (10, 10),
     )
 

@@ -26,12 +26,11 @@ import math
 
 import numpy as np
 
-from mettagrid.config.config import Config
-from mettagrid.mapgen.scene import Scene
+from mettagrid.mapgen.scene import Config, Scene, SceneConfig
 from mettagrid.mapgen.utils.pattern import Pattern, Symmetry, ascii_to_weights_of_all_patterns
 
 
-class ConvChainParams(Config):
+class BaseConvChainConfig(Config):
     pattern: str
     pattern_size: int
     iterations: int
@@ -40,7 +39,11 @@ class ConvChainParams(Config):
     symmetry: Symmetry = "all"
 
 
-class ConvChain(Scene[ConvChainParams]):
+class ConvChainConfig(BaseConvChainConfig, SceneConfig):
+    pass
+
+
+class ConvChain(Scene[ConvChainConfig]):
     """
     ConvChain scene generator, based on https://github.com/mxgmn/ConvChain
     (ConvChainFast.cs version).
@@ -52,10 +55,10 @@ class ConvChain(Scene[ConvChainParams]):
 
     def post_init(self):
         self._weights = ascii_to_weights_of_all_patterns(
-            self.params.pattern,
-            self.params.pattern_size,
-            periodic=self.params.periodic_input,
-            symmetry=self.params.symmetry,
+            self.config.pattern,
+            self.config.pattern_size,
+            periodic=self.config.periodic_input,
+            symmetry=self.config.symmetry,
         )
         # Ensure all weights are positive
         self._weights = np.maximum(self._weights, 0.1)
@@ -63,17 +66,17 @@ class ConvChain(Scene[ConvChainParams]):
     def render(self):
         # Generate the field using the ConvChain algorithm
 
-        params = self.params
+        config = self.config
 
         # Intentionally use a list here, to avoid numpy array overhead.
         # (The code is not vectorized, so numpy is not faster here)
         field = self.rng.choice([False, True], size=self.grid.shape).tolist()
         weights = list(self._weights)
 
-        n = params.pattern_size
+        n = config.pattern_size
 
         r = 0
-        for _ in range(params.iterations * self.width * self.height):
+        for _ in range(config.iterations * self.width * self.height):
             x0 = self.rng.integers(0, self.width, dtype=int)
             y0 = self.rng.integers(0, self.height, dtype=int)
 
@@ -111,8 +114,8 @@ class ConvChain(Scene[ConvChainParams]):
                 field[y0][x0] = not field[y0][x0]
                 continue
 
-            if self.params.temperature != 1:
-                q = q ** (1.0 / self.params.temperature)
+            if self.config.temperature != 1:
+                q = q ** (1.0 / self.config.temperature)
 
             r += 1
             if q > rnd:
@@ -124,7 +127,11 @@ class ConvChain(Scene[ConvChainParams]):
                 self.grid[y, x] = "wall" if field[y][x] else "empty"
 
 
-class ConvChainSlow(Scene[ConvChainParams]):
+class ConvChainSlowConfig(BaseConvChainConfig, SceneConfig):
+    pass
+
+
+class ConvChainSlow(Scene[ConvChainSlowConfig]):
     """
     ConvChain scene generator, naive & slow implementation.
 
@@ -133,10 +140,10 @@ class ConvChainSlow(Scene[ConvChainParams]):
 
     def post_init(self):
         self._weights = ascii_to_weights_of_all_patterns(
-            self.params.pattern,
-            self.params.pattern_size,
-            periodic=self.params.periodic_input,
-            symmetry=self.params.symmetry,
+            self.config.pattern,
+            self.config.pattern_size,
+            periodic=self.config.periodic_input,
+            symmetry=self.config.symmetry,
         )
         # Ensure all weights are positive
         self._weights = np.maximum(self._weights, 0.1)
@@ -144,7 +151,7 @@ class ConvChainSlow(Scene[ConvChainParams]):
     def render(self):
         # Generate the field using the ConvChain algorithm
         field = self.rng.choice([False, True], size=self.grid.shape)
-        n = self.params.pattern_size
+        n = self.config.pattern_size
         weights = self._weights
 
         # Define energy calculation function
@@ -165,11 +172,11 @@ class ConvChainSlow(Scene[ConvChainParams]):
             q = energy_exp(x, y)
 
             # Revert the change with some probability
-            if math.pow(q / p, 1.0 / self.params.temperature) < self.rng.random():
+            if math.pow(q / p, 1.0 / self.config.temperature) < self.rng.random():
                 field[y, x] = not field[y, x]  # Flip back
 
         # Run the Metropolis algorithm
-        for _ in range(self.params.iterations * self.width * self.height):
+        for _ in range(self.config.iterations * self.width * self.height):
             x = self.rng.integers(0, self.width, dtype=int)
             y = self.rng.integers(0, self.height, dtype=int)
             metropolis(x, y)
