@@ -4,9 +4,9 @@ from pydantic import Field
 
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
+from metta.config.auto_config import auto_wandb_config
 from metta.eval.analysis import analyze
-from metta.eval.analysis_config import AnalysisConfig
-from metta.tools.utils.auto_config import auto_wandb_config
+from metta.shared.eval_config import AnalysisConfig
 
 logger = logging.getLogger(__name__)
 

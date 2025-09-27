@@ -8,7 +8,6 @@ import numpy as np
 import torch
 
 from metta.common.wandb.context import WandbRun
-from metta.eval.eval_request_config import EvalResults
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import Experience
@@ -18,6 +17,7 @@ from metta.rl.wandb import (
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
+from metta.shared.eval_config import EvalResults
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.util.dict_utils import unroll_nested_dict
 

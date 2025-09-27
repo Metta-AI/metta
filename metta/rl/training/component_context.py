@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
-from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.training import Experience, TrainingEnvironment
+from metta.shared.eval_config import EvalRewardSummary
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor

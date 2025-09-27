@@ -9,10 +9,10 @@ import mettascope.server as server
 from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
+from metta.config.auto_config import auto_wandb_config
+from metta.shared.simulation_config import SimulationConfig
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
-from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 

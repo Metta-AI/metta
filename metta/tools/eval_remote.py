@@ -7,8 +7,8 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
 from metta.common.tool.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids
+from metta.shared.policy_registry import get_or_create_policy_ids
+from metta.shared.simulation_config import SimulationConfig
 
 logger = logging.getLogger(__name__)
 

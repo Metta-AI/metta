@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
-from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl import stats as rl_stats
 from metta.rl.training.stats_reporter import build_wandb_payload
+from metta.shared.eval_config import EvalRewardSummary
 
 
 class TestMetricsFormattingMain:

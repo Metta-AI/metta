@@ -14,6 +14,11 @@ from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
+from metta.config.auto_config import (
+    auto_run_name,
+    auto_stats_server_uri,
+    auto_wandb_config,
+)
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
@@ -43,11 +48,6 @@ from metta.rl.training import (
     WandbAborter,
     WandbAborterConfig,
     WandbLogger,
-)
-from metta.tools.utils.auto_config import (
-    auto_run_name,
-    auto_stats_server_uri,
-    auto_wandb_config,
 )
 
 logger = getRankAwareLogger(__name__)

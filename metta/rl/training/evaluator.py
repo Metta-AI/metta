@@ -11,15 +11,15 @@ import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_repo import REPO_SLUG
-from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
+from metta.config.auto_config import auto_replay_dir
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
 from metta.rl.training import TrainerComponent
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_replay_dir
+from metta.shared.eval_config import EvalResults, EvalRewardSummary
+from metta.shared.simulation_config import SimulationConfig
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)

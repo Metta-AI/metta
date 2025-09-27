@@ -12,8 +12,8 @@ from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.context import WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.utils import get_or_create_policy_ids
+from metta.shared.policy_registry import get_or_create_policy_ids
+from metta.shared.simulation_config import SimulationConfig
 
 logger = logging.getLogger(__name__)
 

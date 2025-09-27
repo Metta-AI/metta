@@ -32,7 +32,7 @@ Numbers capture import edges between metta subdirectories (self-imports omitted)
   - `tools -> setup` via environment bootstrapping (`metta/tools/utils/auto_config.py:9-11`).
   - `rl <-> sim` through config and execution (`metta/rl/training/evaluator.py:13` ↔ `metta/sim/simulation.py:1-40`).
   - `rl <-> eval` (`metta/rl/training/stats_reporter.py:14` and `metta/eval/eval_service.py:1-20`).
-- **`utils/` not purely foundational**: `metta/utils/live_run_monitor.py:39` pulls in `metta.adaptive.*`, so `utils/` cannot be dropped into a base package without pruning.
+- **`utils/` not purely foundational**: `metta/adaptive/live_run_monitor.py:39` previously lived under `metta/utils` and pulled in `metta.adaptive.*`, so we relocated it to keep the base utilities dependency-light.
 - **External workspace touch points**: `metta/rl` and `metta/sim` call into `metta.agent.*` (19 refs) and `metta.app_backend.*` (10 refs), tying training workflows to agent definitions and service clients (`metta/rl/training/evaluator.py:33-37`, `metta/sim/simulation.py:1-40`).
 - **`mettagrid` dependence**: Training and tooling reference `mettagrid.*` configs and utilities extensively (`metta/rl/trainer_config.py`, `metta/tools/sim.py`, `metta/gridworks/routes/configs.py`), so any package split must carry that dependency graph in lockstep.
 
@@ -64,7 +64,7 @@ Each phase is scoped to a mergeable chunk that keeps the tree buildable; we can 
    - Relocate `metta.tools.utils.auto_config` (and friends) so CLI bootstrapping no longer forms a cycle between `setup/` and `tools/`, nor forces `rl/` to import `tools/` for configuration (`metta/rl/checkpoint_manager.py:1-40`).
    - Move shared evaluation config artifacts (`metta/eval/eval_request_config.py`, `metta/eval/analysis_config.py`) into the training package or a new neutral module to break the `rl -> eval` dependency while keeping `eval/` free to depend on `rl/`.
    - Extract simulation config/data objects (`metta/sim/simulation_config.py`, `metta/sim/utils.py`) that `rl/` consumes into a shared neutral layer so `sim/` can remain downstream of `rl/`.
-   - Split `metta/utils/live_run_monitor.py` (and any other adaptive-aware helpers) into a training/ops-oriented module, keeping the base `utils/` package dependency-light.
+   - Split adaptive-aware helpers (for example the live run monitor now in `metta/adaptive/live_run_monitor.py`) out of the base `utils/` package to keep dependencies minimal.
    - Catalogue and cap the `metta/common` import surface the shim must preserve; add tests guarding `metta.common.test_support` and other exported symbols before we move code.
 3. **Extract packages in dependency order**
    - **`metta-core`**: start with pruned `utils/`, `tests_support/`, and other low-level helpers once they are free of training/adaptive references; keep the `metta/common` shim here until its consumers migrate.

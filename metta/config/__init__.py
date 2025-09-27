@@ -1,15 +1,7 @@
-"""Backward-compatible wrapper for configuration helpers.
+"""Shared configuration helpers used across metta packages."""
 
-The auto-configuration utilities now live in :mod:`metta.config.auto_config`.
-Import from there directly in new code so we can retire this wrapper when the
-package split lands.
-"""
-
-from __future__ import annotations
-
-from warnings import warn
-
-from metta.config.auto_config import (
+from . import auto_config
+from .auto_config import (
     PolicyStorageDecision,
     SupportedAwsEnvOverrides,
     SupportedObservatoryEnvOverrides,
@@ -21,13 +13,8 @@ from metta.config.auto_config import (
     auto_wandb_config,
 )
 
-warn(
-    "metta.tools.utils.auto_config is deprecated; import from metta.config.auto_config instead",
-    DeprecationWarning,
-    stacklevel=2,
-)
-
 __all__ = [
+    "auto_config",
     "PolicyStorageDecision",
     "SupportedAwsEnvOverrides",
     "SupportedObservatoryEnvOverrides",
