@@ -37,11 +37,8 @@ build-debug/
 build-coverage/
 
 # Bazel build artifacts
-.bazel_output/
-bazel-out/
-bazel-bin/
-bazel-testlogs/
-bazel-*
+**/bazel-*
+**/.bazel_output/
 
 # Node.js / Frontend
 node_modules/
