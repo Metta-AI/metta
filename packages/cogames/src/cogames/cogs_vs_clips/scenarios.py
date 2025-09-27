@@ -23,10 +23,12 @@ from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubParams
 from mettagrid.mapgen.scenes.distance_balance import DistanceBalance, DistanceBalanceParams
+from mettagrid.mapgen.scenes.enforce_symmetry import EnforceSymmetry, EnforceSymmetryParams
 from mettagrid.mapgen.scenes.make_connected import MakeConnected, MakeConnectedParams
 from mettagrid.mapgen.scenes.quadrant_layout import QuadrantLayout, QuadrantLayoutParams
 from mettagrid.mapgen.scenes.quadrant_resources import QuadrantResources, QuadrantResourcesParams
 from mettagrid.mapgen.scenes.quadrants import Quadrants, QuadrantsParams
+from mettagrid.mapgen.scenes.relabel_converters import RelabelConverters, RelabelConvertersParams
 from mettagrid.mapgen.types import AreaWhere
 
 
@@ -145,6 +147,7 @@ def games() -> dict[str, MettaGridConfig]:
             num_silicon_extractors=1,
         ),
         "machina_sanctum": machina_sanctum(num_cogs=4),
+        "machina_symmetry_sanctum": machina_symmetry_sanctum(num_cogs=4),
     }
 
 
@@ -180,65 +183,34 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     lock="quad",
                     order_by="first",
                 ),
-                # Randomly assign a single resource type per quadrant
+                # Enforce symmetry over terrain only (before resources)
                 dict(
-                    scene=QuadrantResources.factory(
-                        QuadrantResourcesParams(
-                            resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
-                            forced_type="generator_red",
-                            count_per_quadrant=2,
-                            k=2.5,
-                            min_radius=6,
-                            clearance=1,
-                        )
-                    ),
-                    where=AreaWhere(tags=["quadrant.0"]),
-                    lock="resources.q0",
+                    scene=EnforceSymmetry.factory(EnforceSymmetryParams(horizontal=False, vertical=False)),
+                    where="full",
+                    lock="symmetry",
                     order_by="first",
                 ),
+                # Place a single placeholder converter type everywhere for symmetry
                 dict(
                     scene=QuadrantResources.factory(
                         QuadrantResourcesParams(
-                            resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
-                            forced_type="generator_blue",
-                            count_per_quadrant=2,
-                            k=2.5,
-                            min_radius=6,
-                            clearance=1,
-                        )
-                    ),
-                    where=AreaWhere(tags=["quadrant.1"]),
-                    lock="resources.q1",
-                    order_by="first",
-                ),
-                dict(
-                    scene=QuadrantResources.factory(
-                        QuadrantResourcesParams(
-                            resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
+                            resource_types=["generator_green"],
                             forced_type="generator_green",
-                            count_per_quadrant=2,
+                            count_per_quadrant=3,
                             k=2.5,
                             min_radius=6,
                             clearance=1,
                         )
                     ),
-                    where=AreaWhere(tags=["quadrant.2"]),
-                    lock="resources.q2",
+                    where=AreaWhere(tags=["quadrant"]),
+                    lock="resources",
                     order_by="first",
                 ),
+                # Mirror resource placements so converter positions are symmetric
                 dict(
-                    scene=QuadrantResources.factory(
-                        QuadrantResourcesParams(
-                            resource_types=["generator_red", "generator_blue", "generator_green", "lab"],
-                            forced_type="lab",
-                            count_per_quadrant=2,
-                            k=2.5,
-                            min_radius=6,
-                            clearance=1,
-                        )
-                    ),
-                    where=AreaWhere(tags=["quadrant.3"]),
-                    lock="resources.q3",
+                    scene=EnforceSymmetry.factory(EnforceSymmetryParams(horizontal=True, vertical=True)),
+                    where="full",
+                    lock="symmetry_resources",
                     order_by="first",
                 ),
                 # Ensure connectivity across the whole inner map area
@@ -246,6 +218,22 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     scene=MakeConnected.factory(MakeConnectedParams()),
                     where="full",
                     lock="finalize",
+                    order_by="first",
+                ),
+                # Relabel converters to target mix while keeping symmetric placements
+                dict(
+                    scene=RelabelConverters.factory(
+                        RelabelConvertersParams(
+                            target_counts={
+                                "generator_red": 3,
+                                "generator_blue": 3,
+                                "generator_green": 3,
+                                "lab": 3,
+                            }
+                        )
+                    ),
+                    where="full",
+                    lock="relabel",
                     order_by="first",
                 ),
                 # Stamp the central sanctum/base last so it overrides terrain
@@ -280,4 +268,22 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
         ),
     )
 
+    return cfg
+
+
+def machina_symmetry_sanctum(num_cogs: int = 4) -> MettaGridConfig:
+    """Same as machina_sanctum but enforces both horizontal and vertical symmetry."""
+    cfg = machina_sanctum(num_cogs=num_cogs)
+
+    # Flip the EnforceSymmetry node to both axes
+    children = cfg.game.map_builder.root.children or []
+    for child in children:
+        try:
+            if getattr(child.scene.type, "__name__", "") == "EnforceSymmetry":
+                child.scene.params.horizontal = True
+                child.scene.params.vertical = True
+                break
+        except Exception:
+            pass
+    cfg.game.map_builder.root.children = children
     return cfg
