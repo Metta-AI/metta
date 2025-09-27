@@ -14,7 +14,7 @@ struct InventoryConfig {
 
   InventoryConfig() = default;
 
-  InventoryConfig(const std::vector<std::pair<std::vector<InventoryItem>, InventoryQuantity>>& limits)
+  explicit InventoryConfig(const std::vector<std::pair<std::vector<InventoryItem>, InventoryQuantity>>& limits)
       : limits(limits) {}
 };
 
