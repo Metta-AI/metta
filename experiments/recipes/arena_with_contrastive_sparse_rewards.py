@@ -133,10 +133,7 @@ def train(
         )
 
     trainer_config = TrainerConfig(
-        losses=LossConfig(
-            enable_contrastive=enable_contrastive,
-            loss_configs=loss_configs,
-        )
+        losses=losses
     )
 
     return TrainTool(
