@@ -7,8 +7,8 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_stats_db import SimulationStatsDB
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.sim.simulation_stats_db import SimulationStatsDB
 from softmax.lib.utils import local_copy
 
 # --------------------------------------------------------------------------- #

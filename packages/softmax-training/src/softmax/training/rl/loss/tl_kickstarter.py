@@ -7,9 +7,9 @@ from tensordict import TensorDict
 from torch import Tensor
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import ComponentContext
+from softmax.training.rl.loss import Loss
+from softmax.training.rl.trainer_config import TrainerConfig
+from softmax.training.rl.training import ComponentContext
 from mettagrid.config import Config
 
 
@@ -56,7 +56,7 @@ class TLKickstarter(Loss):
         self.value_loss_coef = self.loss_cfg.value_loss_coef
 
         # load teacher policy
-        from metta.rl.checkpoint_manager import CheckpointManager
+        from softmax.training.rl.checkpoint_manager import CheckpointManager
 
         self.teacher_policy: Policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
         if hasattr(self.teacher_policy, "initialize_to_environment"):

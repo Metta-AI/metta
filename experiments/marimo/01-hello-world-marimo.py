@@ -79,7 +79,7 @@ def _():
         replay_available = False
         print("⚠️ MettaScope replay viewer not available")
 
-    from metta.rl.checkpoint_manager import CheckpointManager
+    from softmax.training.rl.checkpoint_manager import CheckpointManager
 
     from metta.common.wandb.context import WandbConfig
     import wandb
@@ -88,11 +88,11 @@ def _():
     from tensordict import TensorDict
 
     import logging
-    from metta.tools.train import TrainTool
-    from metta.rl.trainer_config import TrainerConfig
-    from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+    from softmax.training.tools.train import TrainTool
+    from softmax.training.rl.trainer_config import TrainerConfig
+    from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 
-    from metta.cogworks.curriculum import (
+    from softmax.cogworks.curriculum import (
         env_curriculum,
         CurriculumConfig,
         SingleTaskGenerator,
@@ -106,7 +106,7 @@ def _():
     )
     from mettagrid.config import Config
     from mettagrid.test_support.actions import generate_valid_random_actions
-    from metta.sim.simulation_config import SimulationConfig
+    from softmax.training.sim.simulation_config import SimulationConfig
     from metta.agent.utils import obs_to_td
     import pprint
     import textwrap
@@ -1527,12 +1527,12 @@ def _(
             # Comprehensive scheduling to prevent unlearning
             hyperparameter_scheduler={
                 "learning_rate_schedule": {
-                    "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+                    "_target_": "softmax.training.rl.hyperparameter_scheduler.LinearSchedule",
                     "initial_value": 0.0004,  # Start high for initial learning
                     "min_value": 0.00005,  # Decay to very low to lock in behavior
                 },
                 "ppo_ent_coef_schedule": {
-                    "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+                    "_target_": "softmax.training.rl.hyperparameter_scheduler.LinearSchedule",
                     "initial_value": 0.02,  # Start with exploration
                     "min_value": 0.001,  # Reduce exploration once learned
                 },

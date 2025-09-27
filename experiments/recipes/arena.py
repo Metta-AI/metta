@@ -1,19 +1,19 @@
 from typing import List, Optional, Sequence
 
-import metta.cogworks.curriculum as cc
+import softmax.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import (
+from softmax.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval_remote import EvalRemoteTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
-from metta.tools.train import TrainTool
+from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.eval_remote import EvalRemoteTool
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
+from softmax.training.tools.sim import SimTool
+from softmax.training.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 

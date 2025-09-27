@@ -16,12 +16,12 @@ import torch
 from torch import nn
 
 from metta.agent.policies.fast import FastConfig
-from metta.cogworks.curriculum import env_curriculum
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.system_config import SystemConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import CheckpointerConfig, ContextCheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
-from metta.tools.train import TrainTool
+from softmax.cogworks.curriculum import env_curriculum
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.system_config import SystemConfig
+from softmax.training.rl.trainer_config import TrainerConfig
+from softmax.training.rl.training import CheckpointerConfig, ContextCheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
+from softmax.training.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 
 

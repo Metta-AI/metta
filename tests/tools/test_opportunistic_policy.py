@@ -10,13 +10,13 @@ from pathlib import Path
 import pytest
 
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
-from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
+from softmax.cogworks.curriculum.curriculum import CurriculumConfig
+from softmax.cogworks.curriculum.task_generator import SingleTaskGenerator
+from softmax.training.sim.simulation import Simulation
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
+from softmax.training.tools.sim import SimTool
 from mettagrid import MettaGridEnv, dtype_observations
 
 

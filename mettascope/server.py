@@ -12,11 +12,11 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
-from metta.sim.simulation import Simulation
+from softmax.training.sim.simulation import Simulation
 from mettagrid.util.grid_object_formatter import format_grid_object
 
 if TYPE_CHECKING:
-    from metta.tools.play import PlayTool
+    from softmax.training.tools.play import PlayTool
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

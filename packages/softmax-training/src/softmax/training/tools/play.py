@@ -10,7 +10,7 @@ from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
 from metta.shared.simulation_config import SimulationConfig
-from metta.sim.simulation import Simulation
+from softmax.training.sim.simulation import Simulation
 from mettagrid.util.grid_object_formatter import format_grid_object
 from softmax.config.auto_config import auto_wandb_config
 from softmax.config.bootstrap import ensure_setup_factories_registered

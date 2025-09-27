@@ -3,12 +3,12 @@
 import logging
 from unittest.mock import MagicMock
 
-from metta.adaptive import AdaptiveConfig
-from metta.adaptive.adaptive_controller import AdaptiveController
-from metta.adaptive.models import JobTypes, RunInfo
-from metta.adaptive.stores.wandb import WandbStore
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from softmax.training.adaptive import AdaptiveConfig
+from softmax.training.adaptive.adaptive_controller import AdaptiveController
+from softmax.training.adaptive.models import JobTypes, RunInfo
+from softmax.training.adaptive.stores.wandb import WandbStore
+from softmax.training.sweep.protein_config import ParameterConfig, ProteinConfig
+from softmax.training.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +187,7 @@ def test_suggestion_not_duplicated_on_eval():
     )
 
     # Create scheduler with state that knows about the training run
-    from metta.sweep.schedulers.batched_synced import SchedulerState
+    from softmax.training.sweep.schedulers.batched_synced import SchedulerState
 
     state = SchedulerState(runs_in_training={"test_sweep_trial_0001"}, runs_in_eval=set(), runs_completed=set())
     scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, state=state)

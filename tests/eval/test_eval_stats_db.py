@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.checkpoint_manager import CheckpointManager
 
 TestEvalStatsDb = tuple[EvalStatsDB, str, str]  # (db, policy_key, policy_version)
 

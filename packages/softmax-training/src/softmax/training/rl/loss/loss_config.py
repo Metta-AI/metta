@@ -7,7 +7,7 @@ from metta.agent.policy import Policy
 from mettagrid.config import Config
 
 if TYPE_CHECKING:
-    from metta.rl.training import TrainingEnvironment
+    from softmax.training.rl.training import TrainingEnvironment
 
 
 class LossSchedule(Config):
@@ -25,7 +25,7 @@ class LossConfig(Config):
         # If loss_configs is empty, add default PPO config
         if not self.loss_configs:
             # Import here to avoid circular dependency
-            from metta.rl.loss.ppo import PPOConfig
+            from softmax.training.rl.loss.ppo import PPOConfig
 
             self.loss_configs = {"ppo": PPOConfig()}
 

@@ -11,12 +11,12 @@ import tempfile
 
 import pytest
 
-from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
-from metta.cogworks.curriculum.task_tracker import TaskTracker
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.system_config import SystemConfig
+from softmax.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
+from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from softmax.cogworks.curriculum.task_generator import SingleTaskGenerator
+from softmax.cogworks.curriculum.task_tracker import TaskTracker
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.system_config import SystemConfig
 from mettagrid.config import GameConfig, MettaGridConfig
 
 

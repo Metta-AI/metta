@@ -39,7 +39,7 @@ from rich.text import Text
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 if TYPE_CHECKING:
-    from metta.adaptive.models import JobStatus, RunInfo
+    from softmax.training.adaptive.models import JobStatus, RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ app = typer.Typer(
 
 def _get_status_color(status: "JobStatus") -> str:
     """Get color for run status."""
-    from metta.adaptive.models import JobStatus
+    from softmax.training.adaptive.models import JobStatus
 
     if status == JobStatus.COMPLETED:
         return "bright_blue"
@@ -248,7 +248,7 @@ def live_monitor_runs(
 
     # Always use adaptive store
     try:
-        from metta.adaptive.stores.wandb import WandbStore
+        from softmax.training.adaptive.stores.wandb import WandbStore
 
         store = WandbStore(entity=entity, project=project)
     except ImportError:
@@ -342,7 +342,7 @@ def live_monitor_runs_test(
     """Test mode for live run monitoring with mock data."""
     from datetime import datetime, timedelta
 
-    from metta.adaptive.models import JobStatus, RunInfo
+    from softmax.training.adaptive.models import JobStatus, RunInfo
 
     console = Console()
 

@@ -9,12 +9,12 @@ from abc import ABC
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
-    from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+    from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
 from pydantic import ConfigDict, Field
 
-from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
-from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
+from softmax.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
+from softmax.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 from mettagrid.config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -485,7 +485,7 @@ class Curriculum(StatsLogger):
 
 # Import concrete config classes at the end to avoid circular imports
 # ruff: noqa: E402
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
 # Rebuild the model to resolve forward references
 CurriculumConfig.model_rebuild()

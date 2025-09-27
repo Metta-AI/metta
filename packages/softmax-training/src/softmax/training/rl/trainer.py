@@ -5,8 +5,8 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import (
+from softmax.training.rl.trainer_config import TrainerConfig
+from softmax.training.rl.training import (
     ComponentContext,
     ContextCheckpointer,
     CoreTrainingLoop,
@@ -17,7 +17,7 @@ from metta.rl.training import (
     TrainerState,
     TrainingEnvironment,
 )
-from metta.rl.training.optimizer import create_optimizer
+from softmax.training.rl.training.optimizer import create_optimizer
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:

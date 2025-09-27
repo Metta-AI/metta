@@ -1,4 +1,4 @@
-from metta.sim.simulation_config import SimulationConfig
+from softmax.training.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from experiments.recipes.in_context_learning.icl_resource_chain import ICLTaskGenerator

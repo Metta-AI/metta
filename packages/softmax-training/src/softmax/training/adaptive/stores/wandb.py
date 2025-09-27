@@ -6,7 +6,7 @@ from typing import Any, List, Optional
 import wandb
 from dateutil import parser
 
-from metta.adaptive.models import RunInfo
+from softmax.training.adaptive.models import RunInfo
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
 

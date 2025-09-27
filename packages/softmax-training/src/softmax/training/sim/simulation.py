@@ -16,17 +16,17 @@ from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
-from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
+from softmax.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.training_environment import EnvironmentMetaData
-from metta.rl.vecenv import make_vecenv
-from metta.sim.replay_writer import S3ReplayWriter
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.sim.stats import DuckDBStatsWriter
-from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
-from metta.sim.utils import get_or_create_policy_ids
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.training.training_environment import EnvironmentMetaData
+from softmax.training.rl.vecenv import make_vecenv
+from softmax.training.sim.replay_writer import S3ReplayWriter
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.sim.simulation_stats_db import SimulationStatsDB
+from softmax.training.sim.stats import DuckDBStatsWriter
+from softmax.training.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
+from softmax.training.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
 
 SYNTHETIC_EVAL_SUITE = "training"

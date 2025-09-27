@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from metta.adaptive.live_run_monitor import app as run_monitor_app
+from softmax.training.adaptive.live_run_monitor import app as run_monitor_app
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app

@@ -8,9 +8,9 @@ import torch.distributed
 
 from metta.agent.policy import DistributedPolicy, Policy
 from metta.common.util.log_config import getRankAwareLogger
-from metta.rl.system_config import SystemConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import TrainingEnvironmentConfig
+from softmax.training.rl.system_config import SystemConfig
+from softmax.training.rl.trainer_config import TrainerConfig
+from softmax.training.rl.training import TrainingEnvironmentConfig
 from mettagrid.config import Config
 
 logger = getRankAwareLogger(__name__)

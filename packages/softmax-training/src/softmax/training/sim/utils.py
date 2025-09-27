@@ -10,7 +10,7 @@ from warnings import warn
 from metta.shared.policy_registry import get_or_create_policy_ids
 
 warn(
-    "metta.sim.utils is deprecated; import get_or_create_policy_ids from metta.shared.policy_registry",
+    "softmax.training.sim.utils is deprecated; import get_or_create_policy_ids from metta.shared.policy_registry",
     DeprecationWarning,
     stacklevel=2,
 )

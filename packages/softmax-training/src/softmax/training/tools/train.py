@@ -14,10 +14,10 @@ from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.trainer import Trainer
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import (
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.trainer import Trainer
+from softmax.training.rl.trainer_config import TorchProfilerConfig, TrainerConfig
+from softmax.training.rl.training import (
     Checkpointer,
     CheckpointerConfig,
     ContextCheckpointer,

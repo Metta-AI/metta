@@ -2,17 +2,17 @@ import os
 from datetime import datetime
 from typing import Optional, Sequence
 
-import metta.cogworks.curriculum as cc
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import Span
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
-from metta.tools.train import TrainTool
+import softmax.cogworks.curriculum as cc
+from softmax.cogworks.curriculum.curriculum import CurriculumConfig
+from softmax.cogworks.curriculum.task_generator import Span
+from softmax.training.rl.loss import LossConfig
+from softmax.training.rl.trainer_config import TrainerConfig
+from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
+from softmax.training.tools.sim import SimTool
+from softmax.training.tools.train import TrainTool
 from mettagrid.builder import building, empty_converters
 from mettagrid.config.mettagrid_config import (
     ActionConfig,

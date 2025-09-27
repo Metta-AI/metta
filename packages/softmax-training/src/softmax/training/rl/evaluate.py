@@ -11,7 +11,7 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskRes
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.context import WandbRun
-from metta.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.checkpoint_manager import CheckpointManager
 from metta.shared.policy_registry import get_or_create_policy_ids
 from metta.shared.simulation_config import SimulationConfig
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Avoid circular import: evaluator.py → evaluate.py → evaluator.py
 # EvaluatorConfig is only used as a type hint, never instantiated here
 if TYPE_CHECKING:
-    from metta.rl.training.evaluator import EvaluatorConfig
+    from softmax.training.rl.training.evaluator import EvaluatorConfig
 
 
 def evaluate_policy_remote_with_checkpoint_manager(

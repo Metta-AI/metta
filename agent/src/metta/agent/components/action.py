@@ -4,7 +4,7 @@ from einops import repeat
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
-from metta.rl.training import EnvironmentMetaData
+from softmax.training.rl.training import EnvironmentMetaData
 
 
 class ActionEmbeddingConfig(ComponentConfig):

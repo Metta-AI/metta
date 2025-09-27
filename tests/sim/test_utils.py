@@ -2,7 +2,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from metta.sim.utils import get_or_create_policy_ids
+from softmax.training.sim.utils import get_or_create_policy_ids
 
 
 def test_get_or_create_policy_ids_uses_epoch_in_policy_name():

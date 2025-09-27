@@ -4,8 +4,8 @@ import logging
 from typing import Any
 
 from metta.common.util.numpy_helpers import clean_numpy_types
-from metta.sweep.protein import Protein
-from metta.sweep.protein_config import ProteinConfig
+from softmax.training.sweep.protein import Protein
+from softmax.training.sweep.protein_config import ProteinConfig
 
 logger = logging.getLogger(__name__)
 

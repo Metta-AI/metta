@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
+from softmax.training.adaptive.models import JobDefinition, JobTypes, RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ def create_eval_job(
     Returns:
         JobDefinition for evaluation
     """
-    from metta.adaptive.models import JobDefinition, JobTypes
+    from softmax.training.adaptive.models import JobDefinition, JobTypes
 
     overrides = build_eval_overrides(
         run_id=run_id,

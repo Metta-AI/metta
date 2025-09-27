@@ -9,8 +9,8 @@ from urllib.parse import urlparse
 import wandb
 
 from metta.common.wandb.context import WandbRun
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training import DistributedHelper, TrainerComponent
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.config import Config
 from softmax.lib.utils import local_copy
 

@@ -31,8 +31,8 @@ For common experiment patterns like hyperparameter sweeps, use an existing speci
 
 ```python
 # Example: Using SweepTool for Bayesian optimization
-from metta.tools.sweep import SweepTool
-from metta.sweep.protein_config import ProteinConfig, ParameterConfig
+from softmax.training.tools.sweep import SweepTool
+from softmax.training.sweep.protein_config import ProteinConfig, ParameterConfig
 
 tool = SweepTool(
     protein_config=ProteinConfig(
@@ -61,8 +61,8 @@ For experiments that don't fit existing tools, use the AdaptiveController direct
 The scheduler is the brain of your experiment. It implements the `ExperimentScheduler` protocol with two required methods:
 
 ```python
-from metta.adaptive.protocols import ExperimentScheduler
-from metta.adaptive.models import JobDefinition, JobTypes, RunInfo, JobStatus
+from softmax.training.adaptive.protocols import ExperimentScheduler
+from softmax.training.adaptive.models import JobDefinition, JobTypes, RunInfo, JobStatus
 
 class MyScheduler(ExperimentScheduler):
     def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
@@ -156,9 +156,9 @@ class MySchedulerConfig(Config):
 Create and run your experiment using AdaptiveController:
 
 ```python
-from metta.adaptive import AdaptiveConfig, AdaptiveController
-from metta.adaptive.stores import WandbStore
-from metta.adaptive.dispatcher import SkypilotDispatcher
+from softmax.training.adaptive import AdaptiveConfig, AdaptiveController
+from softmax.training.adaptive.stores import WandbStore
+from softmax.training.adaptive.dispatcher import SkypilotDispatcher
 
 # Create your scheduler
 config = MySchedulerConfig(max_trials=10)
@@ -205,9 +205,9 @@ For custom experiments, create a Python script:
 
 ```python
 # my_experiment.py
-from metta.adaptive import AdaptiveConfig, AdaptiveController
-from metta.adaptive.stores import WandbStore
-from metta.adaptive.dispatcher import SkypilotDispatcher
+from softmax.training.adaptive import AdaptiveConfig, AdaptiveController
+from softmax.training.adaptive.stores import WandbStore
+from softmax.training.adaptive.dispatcher import SkypilotDispatcher
 from my_schedulers import MyCustomScheduler
 
 if __name__ == "__main__":
@@ -341,7 +341,7 @@ Currently there are very thin guards against duplicate errors, but they are not 
 In the meantime, we recommend implementing your own safety layer through the scheduler state. To do this, simply subclass `ExperimentState` and make it known to your scheduler:
 
 ```python
-from metta.adaptive.protocols import ExperimentState
+from softmax.training.adaptive.protocols import ExperimentState
 
 class MySchedulerState(ExperimentState):
     dispatched_runs: set[str] = set()
@@ -588,9 +588,9 @@ class TrainAndEvalScheduler:
 #### Medium Example: Batched Synchronized Scheduler
 
 ```python
-from metta.adaptive.models import JobStatus
-from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.adaptive.utils import create_training_job, create_eval_job
+from softmax.training.adaptive.models import JobStatus
+from softmax.training.sweep.optimizer.protein import ProteinOptimizer
+from softmax.training.adaptive.utils import create_training_job, create_eval_job
 
 class BatchedSyncedOptimizingScheduler:
     """Scheduler that generates batches of suggestions synchronously."""
@@ -732,9 +732,9 @@ If you have a reusable experiment pattern, consider creating a specialized tool 
 
 ```python
 from metta.common.tool import Tool
-from metta.adaptive import AdaptiveController, AdaptiveConfig
-from metta.adaptive.stores import WandbStore
-from metta.adaptive.dispatcher import SkypilotDispatcher
+from softmax.training.adaptive import AdaptiveController, AdaptiveConfig
+from softmax.training.adaptive.stores import WandbStore
+from softmax.training.adaptive.dispatcher import SkypilotDispatcher
 
 class MySpecializedTool(Tool):
     """Tool for my specific experiment type."""

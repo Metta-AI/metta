@@ -20,7 +20,7 @@ from metta.common.util.constants import (
     PROD_OBSERVATORY_FRONTEND_URL,
     PROD_STATS_SERVER_URI,
 )
-from metta.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.checkpoint_manager import CheckpointManager
 from metta.setup.utils import debug, info, success, warning
 from metta.shared.policy_registry import get_or_create_policy_ids
 

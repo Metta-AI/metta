@@ -4,10 +4,10 @@ import logging
 import subprocess
 import uuid
 
-from metta.adaptive.dispatcher.local import LocalDispatcher
-from metta.adaptive.models import JobDefinition, JobTypes
-from metta.adaptive.protocols import Dispatcher
-from metta.adaptive.utils import get_display_id
+from softmax.training.adaptive.dispatcher.local import LocalDispatcher
+from softmax.training.adaptive.models import JobDefinition, JobTypes
+from softmax.training.adaptive.protocols import Dispatcher
+from softmax.training.adaptive.utils import get_display_id
 from metta.common.util.constants import SKYPILOT_LAUNCH_PATH
 
 logger = logging.getLogger(__name__)

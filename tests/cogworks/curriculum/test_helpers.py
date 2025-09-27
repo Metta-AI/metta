@@ -5,9 +5,9 @@ from typing import Tuple, Union
 import numpy as np
 import pytest
 
-import metta.cogworks.curriculum as cc
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+import softmax.cogworks.curriculum as cc
+from softmax.cogworks.curriculum.curriculum import CurriculumConfig
+from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
 
 
 class CurriculumTestHelper:
@@ -76,7 +76,7 @@ class CurriculumTestHelper:
     @staticmethod
     def create_curriculum_with_capacity(capacity: int, **kwargs):
         """Create a curriculum with specific capacity for testing."""
-        from metta.cogworks.curriculum import SingleTaskGenerator
+        from softmax.cogworks.curriculum import SingleTaskGenerator
         from mettagrid.config.mettagrid_config import MettaGridConfig
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
@@ -91,7 +91,7 @@ class CurriculumTestHelper:
             curriculum_type: Type of curriculum ('basic', 'with_algorithm', 'production')
             **kwargs: Additional configuration parameters
         """
-        from metta.cogworks.curriculum import SingleTaskGenerator
+        from softmax.cogworks.curriculum import SingleTaskGenerator
         from mettagrid.config.mettagrid_config import MettaGridConfig
 
         base_config = SingleTaskGenerator.Config(env=MettaGridConfig())

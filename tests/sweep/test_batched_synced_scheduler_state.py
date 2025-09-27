@@ -13,9 +13,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from metta.adaptive.models import JobStatus, RunInfo
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.batched_synced import (
+from softmax.training.adaptive.models import JobStatus, RunInfo
+from softmax.training.sweep.protein_config import ParameterConfig, ProteinConfig
+from softmax.training.sweep.schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,
     BatchedSyncedSchedulerConfig,
     SchedulerState,
@@ -49,7 +49,7 @@ def scheduler_config(protein_config):
 @pytest.fixture
 def scheduler(scheduler_config):
     """Create scheduler instance with mocked optimizer."""
-    with patch("metta.sweep.optimizer.protein.ProteinOptimizer") as mock_optimizer_class:
+    with patch("softmax.training.sweep.optimizer.protein.ProteinOptimizer") as mock_optimizer_class:
         mock_optimizer = Mock()
         mock_optimizer_class.return_value = mock_optimizer
         scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)

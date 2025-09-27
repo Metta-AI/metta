@@ -2,9 +2,9 @@ import pytest
 
 import mettagrid.builder.envs as eb
 from metta.common.util.fs import get_repo_root
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
 from mettagrid import MettaGridEnv
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import (

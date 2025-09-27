@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
+from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
 
 from .test_helpers import CurriculumTestHelper, MockTaskGenerator
 

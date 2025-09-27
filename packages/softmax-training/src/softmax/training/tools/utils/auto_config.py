@@ -22,7 +22,7 @@ from softmax.config.auto_config import (
 )
 
 warn(
-    "metta.tools.utils.auto_config is deprecated; import from softmax.config.auto_config instead",
+    "softmax.training.tools.utils.auto_config is deprecated; import from softmax.config.auto_config instead",
     DeprecationWarning,
     stacklevel=2,
 )

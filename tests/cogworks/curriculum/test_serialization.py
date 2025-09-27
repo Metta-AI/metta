@@ -7,10 +7,10 @@ back to identical configs.
 
 import unittest
 
-import metta.cogworks.curriculum as cc
+import softmax.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum import BucketedTaskGenerator, CurriculumConfig, SingleTaskGenerator, TaskGeneratorSet
-from metta.cogworks.curriculum.task_generator import Span
+from softmax.cogworks.curriculum import BucketedTaskGenerator, CurriculumConfig, SingleTaskGenerator, TaskGeneratorSet
+from softmax.cogworks.curriculum.task_generator import Span
 
 
 class TestCurriculumConfigSerialization(unittest.TestCase):

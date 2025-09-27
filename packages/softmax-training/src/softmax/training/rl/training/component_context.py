@@ -8,16 +8,16 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
-from metta.rl.training import Experience, TrainingEnvironment
+from softmax.training.rl.training import Experience, TrainingEnvironment
 from metta.shared.eval_config import EvalRewardSummary
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
 
 if TYPE_CHECKING:
-    from metta.cogworks.curriculum import Curriculum
-    from metta.rl.training.distributed_helper import DistributedHelper
-    from metta.rl.training.stats_reporter import StatsReporter
+    from softmax.cogworks.curriculum import Curriculum
+    from softmax.training.rl.training.distributed_helper import DistributedHelper
+    from softmax.training.rl.training.stats_reporter import StatsReporter
 
 
 @dataclass(slots=True)

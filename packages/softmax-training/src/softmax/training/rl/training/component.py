@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from pydantic import Field
 
-from metta.rl.training import ComponentContext
+from softmax.training.rl.training import ComponentContext
 
 logger = logging.getLogger(__name__)
 

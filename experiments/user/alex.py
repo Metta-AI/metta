@@ -3,25 +3,25 @@
 # The VSCode "Run and Debug" section supports options to run these functions.
 from typing import List, Optional
 
-import metta.cogworks.curriculum as cc
+import softmax.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from experiments.recipes import arena
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.cogworks.curriculum.curriculum import (
+from softmax.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.loss.ppo import PPOConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
-from metta.tools.train import TrainTool
+from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from softmax.training.rl.loss.loss_config import LossConfig
+from softmax.training.rl.loss.ppo import PPOConfig
+from softmax.training.rl.trainer_config import TrainerConfig
+from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
+from softmax.training.tools.sim import SimTool
+from softmax.training.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 

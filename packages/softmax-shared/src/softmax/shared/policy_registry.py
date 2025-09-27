@@ -12,7 +12,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 
 
 def _resolve_policy_metadata(uri: str) -> dict[str, Any]:
-    checkpoint_module = importlib.import_module("metta.rl.checkpoint_manager")
+    checkpoint_module = importlib.import_module("softmax.training.rl.checkpoint_manager")
     metadata = checkpoint_module.CheckpointManager.get_policy_metadata(uri)
     return metadata
 

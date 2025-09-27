@@ -4,8 +4,8 @@ import logging
 import subprocess
 import threading
 
-from metta.adaptive.models import JobDefinition
-from metta.adaptive.utils import get_display_id
+from softmax.training.adaptive.models import JobDefinition
+from softmax.training.adaptive.utils import get_display_id
 
 logger = logging.getLogger(__name__)
 

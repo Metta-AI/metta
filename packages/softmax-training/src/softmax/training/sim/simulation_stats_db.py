@@ -7,8 +7,8 @@ from typing import Dict, List, Tuple, Union
 
 import duckdb
 
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.stats.episode_stats_db import EpisodeStatsDB
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.sim.stats.episode_stats_db import EpisodeStatsDB
 from softmax.lib.utils import exists, local_copy, write_file
 
 # Tables & indexes

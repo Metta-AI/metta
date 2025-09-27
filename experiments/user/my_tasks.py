@@ -1,7 +1,7 @@
 # experiments/user/my_tasks.py
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.train import TrainTool
+from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 
 

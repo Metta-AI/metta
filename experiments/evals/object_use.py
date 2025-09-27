@@ -1,4 +1,4 @@
-from metta.sim.simulation_config import SimulationConfig
+from softmax.training.sim.simulation_config import SimulationConfig
 from mettagrid.builder import building, empty_converters
 from mettagrid.config.mettagrid_config import (
     ActionConfig,

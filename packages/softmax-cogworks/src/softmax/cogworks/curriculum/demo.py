@@ -1,7 +1,7 @@
-import metta.cogworks.curriculum as cc
+import softmax.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
-from metta.cogworks.curriculum.task_generator import Span
+from softmax.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
+from softmax.cogworks.curriculum.task_generator import Span
 
 arena = eb.make_arena(num_agents=24)
 

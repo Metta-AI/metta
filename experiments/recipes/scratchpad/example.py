@@ -1,8 +1,8 @@
 from experiments.recipes import arena
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
-from metta.tools.train import TrainTool
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
+from softmax.training.tools.sim import SimTool
+from softmax.training.tools.train import TrainTool
 
 # This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
 

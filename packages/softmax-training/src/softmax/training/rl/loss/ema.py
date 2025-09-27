@@ -8,9 +8,9 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
-from metta.rl.training import ComponentContext
-from metta.rl.utils import ensure_sequence_metadata
+from softmax.training.rl.loss import Loss
+from softmax.training.rl.training import ComponentContext
+from softmax.training.rl.utils import ensure_sequence_metadata
 from mettagrid.config import Config
 
 

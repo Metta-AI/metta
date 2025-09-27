@@ -2,9 +2,9 @@
 
 from datetime import datetime, timezone
 
-from metta.adaptive.models import JobTypes, RunInfo
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.batched_synced import (
+from softmax.training.adaptive.models import JobTypes, RunInfo
+from softmax.training.sweep.protein_config import ParameterConfig, ProteinConfig
+from softmax.training.sweep.schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,
     BatchedSyncedSchedulerConfig,
 )

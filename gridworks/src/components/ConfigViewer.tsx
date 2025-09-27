@@ -39,7 +39,7 @@ const YamlScalar: FC<{
     "mettagrid.mapgen",
     "mettagrid.map_builder",
     "metta.map",
-    "metta.cogworks",
+    "softmax.cogworks",
   ];
 
   const repoRoot = use(RepoRootContext);

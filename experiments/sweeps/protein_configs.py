@@ -1,4 +1,4 @@
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
+from softmax.training.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
 
 def make_custom_protein_config(

@@ -1,22 +1,22 @@
 from typing import Optional, Sequence
 
-import metta.cogworks.curriculum as cc
+import softmax.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.cogworks.curriculum.curriculum import (
+from softmax.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import Span
+from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from softmax.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
-from metta.tools.train import TrainTool
+from softmax.training.rl.loss import LossConfig
+from softmax.training.rl.trainer_config import TrainerConfig
+from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
+from softmax.training.tools.sim import SimTool
+from softmax.training.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen

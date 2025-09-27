@@ -7,7 +7,7 @@ import einops
 import torch
 from torch import Tensor
 
-from metta.rl import mps
+from softmax.training.rl import mps
 
 try:
     importlib.import_module("pufferlib._C")

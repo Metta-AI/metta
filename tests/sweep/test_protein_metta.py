@@ -2,8 +2,8 @@
 
 import pytest
 
-from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
+from softmax.training.sweep.optimizer.protein import ProteinOptimizer
+from softmax.training.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ from tabulate import tabulate
 
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.checkpoint_manager import CheckpointManager
 from softmax.lib.utils import local_copy
 
 

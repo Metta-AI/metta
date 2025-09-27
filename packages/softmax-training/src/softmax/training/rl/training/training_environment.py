@@ -12,8 +12,8 @@ import torch
 from pydantic import Field
 from torch import Tensor
 
-from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
-from metta.rl.vecenv import make_vecenv
+from softmax.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
+from softmax.training.rl.vecenv import make_vecenv
 from mettagrid.builder.envs import make_arena
 from mettagrid.config import Config
 from mettagrid.core import ObsFeature

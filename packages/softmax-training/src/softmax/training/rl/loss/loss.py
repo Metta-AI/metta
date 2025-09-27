@@ -9,7 +9,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from softmax.training.rl.training import ComponentContext, Experience, TrainingEnvironment
 
 
 @dataclass(slots=True)

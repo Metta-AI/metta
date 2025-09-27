@@ -13,8 +13,8 @@ from typing import Any
 
 from pydantic import Field
 
-from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
-from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
+from softmax.training.adaptive.models import JobDefinition, JobStatus, RunInfo
+from softmax.training.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ class BatchedSyncedOptimizingScheduler:
         config: BatchedSyncedSchedulerConfig,
         state: SchedulerState | None = None,
     ):
-        from metta.sweep.optimizer.protein import ProteinOptimizer
+        from softmax.training.sweep.optimizer.protein import ProteinOptimizer
 
         self.config = config
         self.optimizer = ProteinOptimizer(config.protein_config)

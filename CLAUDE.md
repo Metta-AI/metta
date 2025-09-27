@@ -157,7 +157,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 - Neural components can be mixed and matched via configuration
 - Key classes:
   - `agent.src.metta.agent.metta_agent.MettaAgent` - Main agent implementation
-  - `metta.rl.checkpoint_manager.CheckpointManager` - Manages policy checkpoints
+  - `softmax.training.rl.checkpoint_manager.CheckpointManager` - Manages policy checkpoints
   - `agent.src.metta.agent.distributed_metta_agent.DistributedMettaAgent` - Multi-GPU agent
 
 ## Development Guide

@@ -2,7 +2,7 @@ import torch
 from heavyball import ForeachMuon
 
 from metta.agent.policy import Policy
-from metta.rl.trainer_config import OptimizerConfig
+from softmax.training.rl.trainer_config import OptimizerConfig
 
 
 def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimizer:

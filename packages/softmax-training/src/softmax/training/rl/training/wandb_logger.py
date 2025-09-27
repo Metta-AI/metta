@@ -3,8 +3,8 @@
 from typing import Dict
 
 from metta.common.wandb.context import WandbRun
-from metta.rl.training import TrainerComponent
-from metta.rl.wandb import log_model_parameters, setup_wandb_metrics
+from softmax.training.rl.training import TrainerComponent
+from softmax.training.rl.wandb import log_model_parameters, setup_wandb_metrics
 
 
 class WandbLogger(TrainerComponent):
