@@ -103,13 +103,16 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    losses: Optional[LossConfig] = None,
+    losses: Optional[LossConfig] | dict = None,
     enable_contrastive: bool = False,
 ) -> TrainTool:
     """Train with sparse rewards and optional contrastive loss."""
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
     )
+    if type(losses) == dict:
+        losses = LossConfig(**losses)
+
     if not losses:
         contrastive_config = ContrastiveConfig(
             temperature=0.07,
@@ -122,11 +125,12 @@ def train(
 
         ppo_config = PPOConfig()  # Default PPO config for action generation
 
-        loss_configs = {"ppo": ppo_config}  # PPO generates actions
+        loss_configs = LossConfig(
+            ppo=ppo_config,
+        )  # PPO generates actions
         if enable_contrastive:
-            loss_configs["contrastive"] = (
-                contrastive_config  # Only add contrastive if enabled
-            )
+            loss_configs.contrastive = contrastive_config
+
         losses = LossConfig(
             enable_contrastive=enable_contrastive,
             loss_configs=loss_configs,

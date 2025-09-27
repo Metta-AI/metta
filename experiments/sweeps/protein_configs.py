@@ -119,7 +119,7 @@ PPO_BASIC = ProteinConfig(
             scale="auto",
         ),
         # 2. PPO clip coefficient - uniform from 0.05 to 0.3
-        "trainer.losses.loss_configs.ppo.clip_coef": ParameterConfig(
+        "losses.loss_configs.ppo.clip_coef": ParameterConfig(
             min=0.05,
             max=0.3,
             distribution="uniform",
@@ -127,7 +127,7 @@ PPO_BASIC = ProteinConfig(
             scale="auto",
         ),
         # 3. Entropy coefficient - log scale from 0.0001 to 0.01
-        "trainer.losses.loss_configs.ppo.ent_coef": ParameterConfig(
+        "losses.loss_configs.ppo.ent_coef": ParameterConfig(
             min=0.0001,
             max=0.01,
             distribution="log_normal",
