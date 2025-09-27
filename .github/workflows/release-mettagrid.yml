@@ -38,7 +38,7 @@ jobs:
           fetch-tags: true
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11.7"
+          python-version: "3.12.1"
       - run: pipx run build --sdist --outdir dist packages/mettagrid
       - uses: actions/upload-artifact@v4
         with:
@@ -58,22 +58,26 @@ jobs:
           fetch-tags: true
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11.7"
+          python-version: "3.12.1"
 
       # Install Bazel on macOS
       - uses: bazelbuild/setup-bazelisk@v3
         if: runner.os == 'macOS'
 
-      - uses: pypa/cibuildwheel@v2.16.5
+      - uses: pypa/cibuildwheel@v3.2.0
         env:
-          CIBW_BUILD: cp311-*
+          CIBW_BUILD: "cp311-* cp312-*"
           CIBW_SKIP: "*-musllinux* *i686"
           CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-14' && 'arm64' || 'x86_64' }}
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BEFORE_ALL_LINUX: |
+            python3 -m pip install "pip<25"
             curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+          CIBW_BEFORE_ALL_MACOS: python3 -m pip install "pip<25"
+          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
           CI: "true"
         with:
           package-dir: packages/mettagrid

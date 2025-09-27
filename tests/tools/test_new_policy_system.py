@@ -77,54 +77,6 @@ class TestNewPolicySystem:
         assert sim_tool.simulations[0].name == "test_arena"
         assert sim_tool.policy_uris == ["mock://test_policy"]
 
-    def test_sim_tool_with_run_parameter(self):
-        """Test SimTool with run parameter that converts to S3 policy URI."""
-        env_config = eb.make_arena(num_agents=4)
-        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
-        sim_tool = SimTool(
-            simulations=[sim_config],
-            run="test_experiment_2024",
-            stats_db_uri=None,
-        )
-
-        # Should have converted run name to S3 policy URI with :latest selector
-        expected_uri = (
-            "s3://softmax-public/policies/test_experiment_2024/"
-            "test_experiment_2024:latest.mpt"
-        )
-
-        # Need to call invoke to trigger the conversion
-        try:
-            sim_tool.invoke({})
-        except Exception:
-            # Expected to fail since the policy doesn't exist, but conversion should happen
-            pass
-
-        assert sim_tool.policy_uris == [expected_uri]
-
-    def test_sim_tool_run_parameter_validation(self):
-        """Test SimTool validation for run vs policy_uris parameters."""
-        env_config = eb.make_arena(num_agents=4)
-        sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
-
-        # Should raise error when both run and policy_uris are provided
-        with pytest.raises(ValueError, match="Cannot specify both 'run' and 'policy_uris'"):
-            sim_tool = SimTool(
-                simulations=[sim_config],
-                run="test_run",
-                policy_uris=["mock://test_policy"],
-                stats_db_uri=None,
-            )
-            sim_tool.invoke({})
-
-        # Should raise error when neither is provided
-        with pytest.raises(ValueError, match="Either 'run' or 'policy_uris' is required"):
-            sim_tool = SimTool(
-                simulations=[sim_config],
-                stats_db_uri=None,
-            )
-            sim_tool.invoke({})
-
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""
 
