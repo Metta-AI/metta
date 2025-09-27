@@ -194,8 +194,6 @@ class ConverterChainTaskGenerator(ICLTaskGenerator):
         resource_chain = ["nothing"] + list(resources) + ["heart"]
         cooldown = avg_hop * (len(resource_chain) - 1)
 
-        print(f"here terrain is {terrain}")
-
         for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
             converter_name = self._add_converter(
@@ -376,31 +374,36 @@ def experiment():
         time.sleep(1)
 
 
-def save_envs_to_numpy(dir="icl_ordered_chains/", num_envs: int = 100):
+def save_envs_to_numpy(dir="in_context_converter_chains/", num_envs: int = 100):
+    import numpy as np
+
     for chain_length in range(
-        2, 10
+        2, 8
     ):  # chain length should be equal to the number of converters, which is equal to the number of resources + 1
         for n_sinks in range(0, 4):
-            for room_size in ["medium", "large"]:
-                for terrain_type in ["", "terrain"]:
-                    for density in ["", "balanced", "sparse", "dense"]:
-                        for i in range(num_envs):
-                            print(
-                                f"Generating {i} for {chain_length} chains, {n_sinks} sinks, {room_size}, {terrain_type}, {density}"
-                            )
-                            task_generator_cfg = make_task_generator_cfg(
-                                chain_lengths=[chain_length],
-                                num_sinks=[n_sinks],
-                                room_sizes=[room_size],
-                                densities=[density],
-                                map_dir=None,
-                            )
-                            task_generator = ConverterChainTaskGenerator(
-                                config=task_generator_cfg
-                            )
-                            env_cfg = task_generator._generate_task(i, random.Random(i))
-                            map_builder = env_cfg.game.map_builder.create()
-                            map_builder.build()
+            for room_size in ["tiny", "small", "medium"]:
+                for i in range(num_envs):
+                    print(
+                        f"Generating {i} for {chain_length} chains, {n_sinks} sinks, {room_size}"
+                    )
+                    task_generator_cfg = make_task_generator_cfg(
+                        chain_lengths=[chain_length],
+                        num_sinks=[n_sinks],
+                        room_sizes=[room_size],
+                        map_dir=None,
+                    )
+                    task_generator = ConverterChainTaskGenerator(
+                        config=task_generator_cfg
+                    )
+                    env_cfg = task_generator._generate_task(i, random.Random(i))
+                    terrain = env_cfg.label.split("_")[-1]
+                    map_builder = env_cfg.game.map_builder.create()
+                    grid = map_builder.build().grid
+                    random_number = random.randint(0, 1000000)
+                    filename = f"{dir}/{room_size}/{chain_length}chain/{n_sinks}sinks/{terrain}/{random_number}.npy"
+                    os.makedirs(os.path.dirname(filename), exist_ok=True)
+                    print(f"saving to {filename}")
+                    np.save(filename, grid)
 
     generate_reward_estimates(dir=dir)
 

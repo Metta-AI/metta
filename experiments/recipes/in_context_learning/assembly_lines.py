@@ -121,7 +121,7 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
         position: list[Position],
         cfg: _BuildCfg,
         rng: random.Random,
-    ) -> list[str]:
+    ):
         for _ in range(num_sinks):
             self._add_assembler(
                 input_resources={},
@@ -263,31 +263,29 @@ def save_envs_to_numpy(dir="in_context_assembly_lines/", num_envs: int = 500):
     for chain_length in range(2, 6):
         for num_sinks in range(0, 3):
             for room_size in ["tiny", "small", "medium"]:
-                for terrain_type in room_size_templates[room_size]["terrain"]:
-                    for i in range(num_envs):
-                        task_generator_cfg = make_task_generator_cfg(
-                            num_agents=[4],
-                            chain_lengths=[chain_length],
-                            num_sinks=[num_sinks],
-                            room_sizes=[room_size],
-                            positions=[["Any", "Any"]],
-                            map_dir=None,
-                        )
-                        task_generator = AssemblerConverterChainTaskGenerator(
-                            config=task_generator_cfg
-                        )
-                        random_number = random.randint(0, 1000000)
-                        terrain_type = "simple" if terrain_type == "" else terrain_type
-                        filename = f"{dir}/{room_size}/{chain_length}chain/{num_sinks}sinks/{terrain_type}/{random_number}.npy"
-                        os.makedirs(os.path.dirname(filename), exist_ok=True)
-                        env_cfg = task_generator._generate_task(
-                            i, random.Random(i), num_instances=1
-                        )
-                        map_builder = env_cfg.game.map_builder.create()
-                        grid = map_builder.build().grid
-
-                        print(f"saving to {filename}")
-                        np.save(filename, grid)
+                for i in range(num_envs):
+                    task_generator_cfg = make_task_generator_cfg(
+                        num_agents=[4],
+                        chain_lengths=[chain_length],
+                        num_sinks=[num_sinks],
+                        room_sizes=[room_size],
+                        positions=[["Any", "Any"]],
+                        map_dir=None,
+                    )
+                    task_generator = AssemblerConverterChainTaskGenerator(
+                        config=task_generator_cfg
+                    )
+                    env_cfg = task_generator._generate_task(
+                        i, random.Random(i), num_instances=1
+                    )
+                    terrain = env_cfg.label.split("_")[-1]
+                    map_builder = env_cfg.game.map_builder.create()
+                    grid = map_builder.build().grid
+                    random_number = random.randint(0, 1000000)
+                    filename = f"{dir}/{room_size}/{chain_length}chain/{num_sinks}sinks/{terrain}/{random_number}.npy"
+                    os.makedirs(os.path.dirname(filename), exist_ok=True)
+                    print(f"saving to {filename}")
+                    np.save(filename, grid)
 
 
 if __name__ == "__main__":

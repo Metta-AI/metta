@@ -446,46 +446,41 @@ def play(
     return play_icl(task_generator)
 
 
-def save_envs_to_numpy(dir="in_context_foraging/", num_envs: int = 100):
+def save_envs_to_numpy(dir="in_context_foraging/", num_envs: int = 500):
     import os
     import numpy as np
 
     for room_size, args in room_size_templates.items():
         for n_agents in args["num_agents"]:
             for n_altars in args["num_objects"]:
-                for terrain_type in args["terrain"]:
-                    for i in range(num_envs):
-                        task_generator_cfg = make_task_generator_cfg(
-                            num_agents=[n_agents],
-                            num_altars=[n_altars],
-                            num_generators=[0],
-                            room_sizes=[room_size],
-                            positions=[["Any"]],
-                            map_dir=None,
-                        )
-                        task_generator = AssemblerTaskGenerator(
-                            config=task_generator_cfg
-                        )
+                for i in range(num_envs):
+                    task_generator_cfg = make_task_generator_cfg(
+                        num_agents=[n_agents],
+                        num_altars=[n_altars],
+                        num_generators=[0],
+                        room_sizes=[room_size],
+                        positions=[["Any"]],
+                        map_dir=None,
+                    )
+                    task_generator = AssemblerTaskGenerator(config=task_generator_cfg)
+                    env_cfg = task_generator._generate_task(
+                        i, random.Random(i), num_instances=1
+                    )
+                    random_number = random.randint(0, 1000000)
+                    terrain = env_cfg.label.split("_")[-1]
+                    filename = f"{dir}/{room_size}/{n_altars}objects/{terrain}/{random_number}.npy"
+                    os.makedirs(os.path.dirname(filename), exist_ok=True)
 
-                        random_number = random.randint(0, 1000000)
-                        terrain_type = (
-                            "no-terrain" if terrain_type == "" else terrain_type
-                        )
-                        filename = f"{dir}/{room_size}/{n_altars}objects/{terrain_type}/{random_number}.npy"
-                        os.makedirs(os.path.dirname(filename), exist_ok=True)
-                        env_cfg = task_generator._generate_task(
-                            i, random.Random(i), num_instances=1
-                        )
-                        map_builder = env_cfg.game.map_builder.create()
-                        grid = map_builder.build().grid
+                    map_builder = env_cfg.game.map_builder.create()
+                    grid = map_builder.build().grid
+                    num_objs = np.argwhere(
+                        ~np.isin(grid, ("agent.agent", "wall", "empty"))
+                    )
+                    if len(num_objs) < n_altars:
+                        print("Num objs required amount, skipping")
+                    else:
                         print(f"saving to {filename}")
-                        num_objs = np.argwhere(
-                            ~np.isin(grid, ("agent.agent", "wall", "empty"))
-                        )
-                        if len(num_objs) < n_altars:
-                            print("Num objs required amount, skipping")
-                        else:
-                            np.save(filename, grid)
+                        np.save(filename, grid)
 
 
 if __name__ == "__main__":
