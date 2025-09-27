@@ -6,10 +6,11 @@ from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.agalite_kernel import AGaLiTeKernelConfig
 from metta.agent.components.agalite_transformer import AGaLiTeTransformerConfig
-from metta.agent.components.cnn_encoder import CNNEncoderConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_shim import ObsShimBoxConfig
+from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
+from metta.agent.components.obs_shim import ObsShimTokensConfig
+from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
 
 
@@ -25,21 +26,35 @@ def _build_components(
     mode: str,
     dropout: float,
     kernel: AGaLiTeKernelConfig | None = None,
+    max_tokens: int = 64,
+    attr_embed_dim: int = 12,
+    fourier_freqs: int = 4,
+    num_latents: int = 16,
 ) -> List[ComponentConfig]:
     kernel_cfg = kernel or AGaLiTeKernelConfig()
     eta_value = eta
     if kernel_cfg.name in {"pp_relu", "pp_eluplus1", "dpfp"}:
         eta_value = max(kernel_cfg.nu, 1)
 
+    feat_dim = attr_embed_dim + (4 * fourier_freqs) + 1
+
     return [
-        ObsShimBoxConfig(in_key="env_obs", out_key="obs_box"),
-        CNNEncoderConfig(
-            in_key="obs_box",
+        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=max_tokens),
+        ObsAttrEmbedFourierConfig(
+            in_key="obs_shim_tokens",
+            out_key="obs_attr_embed",
+            attr_embed_dim=attr_embed_dim,
+            num_freqs=fourier_freqs,
+        ),
+        ObsPerceiverLatentConfig(
+            in_key="obs_attr_embed",
             out_key="encoded_obs",
-            cnn1_cfg={"out_channels": 64, "kernel_size": 5, "stride": 3},
-            cnn2_cfg={"out_channels": 64, "kernel_size": 3, "stride": 1},
-            fc1_cfg={"out_features": 128},
-            encoded_obs_cfg={"out_features": hidden_size},
+            feat_dim=feat_dim,
+            latent_dim=hidden_size,
+            num_latents=num_latents,
+            num_heads=n_heads,
+            num_layers=2,
+            pool="mean",
         ),
         AGaLiTeTransformerConfig(
             in_key="encoded_obs",
@@ -95,6 +110,10 @@ class AGaLiTeConfig(PolicyArchitecture):
             mode="agalite",
             dropout=0.05,
             kernel=AGaLiTeKernelConfig(name="relu", nu=4),
+            max_tokens=64,
+            attr_embed_dim=12,
+            fourier_freqs=4,
+            num_latents=16,
         )
     )
 
@@ -116,6 +135,10 @@ class AGaLiTeImprovedConfig(PolicyArchitecture):
             mode="agalite",
             dropout=0.05,
             kernel=AGaLiTeKernelConfig(name="eluplus1", nu=4),
+            max_tokens=64,
+            attr_embed_dim=16,
+            fourier_freqs=4,
+            num_latents=24,
         )
     )
 
