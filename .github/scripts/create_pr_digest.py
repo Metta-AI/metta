@@ -428,11 +428,7 @@ def main():
                 # Format for display
                 since_formatted = since_pst.strftime("%B %d, %Y")
                 until_formatted = until_pst.strftime("%B %d, %Y")
-
-                # Simple date range display
-                date_display = f"{since_formatted} to {until_formatted}"
-
-                f.write(f"date_range_display={date_display}\n")
+                f.write(f"date_range_display={since_formatted} to {until_formatted}\n")
 
                 # Add author info if filtering
                 if filter_author:

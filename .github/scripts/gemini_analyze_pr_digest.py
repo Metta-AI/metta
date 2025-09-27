@@ -8,6 +8,7 @@
 
 import json
 import logging
+import re
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -29,7 +30,6 @@ class PreviousReportExtractor:
 
     def _extract_date_from_content(self, content: str) -> Optional[datetime]:
         """Extract end date from newsletter content as fallback."""
-        import re
 
         # Look for date patterns in the newsletter header
         # Pattern 1: "• Month DD, YYYY to Month DD, YYYY"
@@ -38,11 +38,7 @@ class PreviousReportExtractor:
 
         if match:
             try:
-                # Extract the end date (second date in the range)
                 end_date_str = match.group(2)
-                # Parse the date
-                from datetime import datetime
-
                 end_date = datetime.strptime(end_date_str, "%B %d, %Y")
                 return end_date
             except ValueError:
