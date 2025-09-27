@@ -496,5 +496,5 @@ def sweep(
 
 
 if __name__ == "__main__":
-    # experiment()
-    save_envs_to_numpy()
+    experiment()
+    # save_envs_to_numpy()

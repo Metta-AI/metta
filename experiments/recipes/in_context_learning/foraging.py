@@ -345,7 +345,6 @@ def make_curriculum(
     num_generators: list[int] = [0, 1, 2],
     room_sizes: list[str] = ["small", "medium", "large"],
     positions: list[list[Position]] = [["Any"], ["Any", "Any"]],
-    terrains: list[str] = [""],
 ) -> CurriculumConfig:
     task_generator_cfg = make_task_generator_cfg(
         num_agents=num_agents,
@@ -425,7 +424,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.assemblers.train",
+                "experiments.recipes.in_context_learning.foraging.train",
                 f"run=in_context.foraging_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
@@ -485,5 +484,4 @@ def save_envs_to_numpy(dir="in_context_foraging/", num_envs: int = 500):
 
 
 if __name__ == "__main__":
-    save_envs_to_numpy()
-    # experiment()
+    experiment()

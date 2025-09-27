@@ -308,4 +308,4 @@ def experiment():
 
 
 if __name__ == "__main__":
-    save_envs_to_numpy()
+    experiment()

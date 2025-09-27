@@ -109,7 +109,7 @@ def make_assembler_eval_suite() -> list[SimulationConfig]:
             suite="in_context_learning_foraging",
             name="in_context_learning_foraging/large_three_agent_30_altars_any",
             env=make_assembler_env(
-                num_agents=12,
+                num_agents=3,
                 num_altars=30,
                 room_size="xlarge",
                 num_generators=0,
