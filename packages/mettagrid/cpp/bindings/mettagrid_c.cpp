@@ -74,7 +74,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
-  _stats->set_environment(this);
+  _stats->set_resource_names(&resource_names);
 
   _event_manager->init(_grid.get());
   _event_manager->event_handlers.insert(
@@ -189,7 +189,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
           throw std::runtime_error("Too many agents for agent_id type");
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
-        agent->stats.set_environment(this);
+        agent->stats.set_resource_names(&resource_names);
         // Only initialize visitation grid if visitation counts are enabled
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
@@ -840,17 +840,6 @@ py::none MettaGrid::set_inventory(GridObjectId agent_id, const std::map<Inventor
     this->_agents[agent_id]->set_inventory(inventory);
   }
   return py::none();
-}
-
-// StatsTracker implementation that needs complete MettaGrid definition
-unsigned int StatsTracker::get_current_step() const {
-  if (!_env) return 0;
-  return static_cast<MettaGrid*>(_env)->current_step;
-}
-
-const std::string& StatsTracker::resource_name(InventoryItem item) const {
-  if (!_env) return get_no_env_resource_name();
-  return _env->resource_names[item];
 }
 
 // Pybind11 module definition
