@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import os
@@ -161,6 +162,14 @@ class TransformerPolicy(Policy):
         self._diag_limit = int(os.getenv("TRANSFORMER_DIAG_STEPS", "5"))
         self._diag_counter = 0
         self._diag_train_logged = False
+
+        if torch.cuda.is_available():
+            torch.backends.cuda.matmul.allow_tf32 = True
+            self._autocast_enabled = True
+            self._autocast_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        else:
+            self._autocast_enabled = False
+            self._autocast_dtype = torch.float16
 
         if self.latent_size != self.hidden_size:
             self.input_projection = pufferlib.pytorch.layer_init(nn.Linear(self.latent_size, self.hidden_size), std=1.0)
@@ -461,32 +470,41 @@ class TransformerPolicy(Policy):
         if self.strict_attr_indices:
             self._enforce_strict_attr_indices(td)
 
-        self.obs_shim(td)
-        self.cnn_encoder(td)
+        device_type = self.device.type
+        use_autocast = self._autocast_enabled and device_type == "cuda"
+        autocast_ctx = (
+            torch.autocast(device_type=device_type, dtype=self._autocast_dtype)
+            if use_autocast
+            else contextlib.nullcontext()
+        )
 
-        encoded_key = self.config.cnn_encoder_config.out_key
-        latent = td[encoded_key]
-        latent = self.input_projection(latent)
-        aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
-        if aux_tokens is not None:
-            latent = latent + aux_tokens
+        with autocast_ctx:
+            self.obs_shim(td)
+            self.cnn_encoder(td)
 
-        if self._diag_enabled and self._diag_counter < self._diag_limit:
-            logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(latent, "latent"))
+            encoded_key = self.config.cnn_encoder_config.out_key
+            latent = td[encoded_key]
+            latent = self.input_projection(latent)
+            aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
+            if aux_tokens is not None:
+                latent = latent + aux_tokens
 
-        core = self._forward_transformer(td, latent, batch_size, tt)
-        td["core"] = core
+            if self._diag_enabled and self._diag_counter < self._diag_limit:
+                logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(latent, "latent"))
 
-        self.actor_head(td)
-        self.critic_head(td)
-        self.value_head(td)
-        td["values"] = td["values"].flatten()
+            core = self._forward_transformer(td, latent, batch_size, tt)
+            td["core"] = core
 
-        self.action_embeddings(td)
-        self.actor_query(td)
-        self.actor_key(td)
+            self.actor_head(td)
+            self.critic_head(td)
+            self.value_head(td)
+            td["values"] = td["values"].flatten()
 
-        td = self.action_probs(td, action)
+            self.action_embeddings(td)
+            self.actor_query(td)
+            self.actor_key(td)
+
+            td = self.action_probs(td, action)
         if self._diag_enabled and self._diag_counter < self._diag_limit:
             logits = td.get("logits")
             if logits is not None:

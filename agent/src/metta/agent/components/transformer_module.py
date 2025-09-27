@@ -352,6 +352,7 @@ class GTrXLModule(nn.Module):
         )
         self.output_norm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
+        self._mask_cache: dict[tuple[int, torch.device], torch.Tensor] = {}
 
     def forward(
         self,
@@ -403,7 +404,7 @@ class GTrXLModule(nn.Module):
             attn_mask = None
             if self.use_causal_mask:
                 total_len = combined.size(0)
-                attn_mask = torch.triu(torch.ones(total_len, total_len, device=device, dtype=torch.bool), diagonal=1)
+                attn_mask = self._get_causal_mask(total_len, device)
             layer_out = layer(combined, attn_mask)
             layer_outputs.append(layer_out)
 
@@ -431,6 +432,14 @@ class GTrXLModule(nn.Module):
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
         return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}
+
+    def _get_causal_mask(self, size: int, device: torch.device) -> torch.Tensor:
+        key = (size, device)
+        mask = self._mask_cache.get(key)
+        if mask is None:
+            mask = torch.triu(torch.ones(size, size, device=device, dtype=torch.bool), diagonal=1)
+            self._mask_cache[key] = mask
+        return mask
 
 
 # ---------------------------------------------------------------------------
@@ -688,6 +697,8 @@ class TransformerXLModule(nn.Module):
         )
         nn.init.normal_(self.r_w_bias, mean=0.0, std=0.02)
         nn.init.normal_(self.r_r_bias, mean=0.0, std=0.02)
+        self._attn_mask_cache: dict[tuple[int, int, bool, torch.device], torch.Tensor] = {}
+        self._pos_seq_cache: dict[tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
 
     def forward(
         self, inputs: torch.Tensor, memory: Optional[Dict[str, List[torch.Tensor]]] = None
@@ -717,19 +728,10 @@ class TransformerXLModule(nn.Module):
         mlen = mems[0].size(0) if mems else 0
         klen = mlen + seq_len
 
-        if self.same_length:
-            all_ones = torch.ones(seq_len, klen, device=device, dtype=torch.bool)
-            mask_len = klen - self.memory_len
-            if mask_len > 0:
-                mask_shift_len = seq_len - mask_len
-            else:
-                mask_shift_len = seq_len
-            attn_mask = torch.triu(all_ones, diagonal=1 + mlen) | torch.tril(all_ones, diagonal=-mask_shift_len)
-        else:
-            attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mlen)
+        attn_mask = self._get_attn_mask(seq_len, mlen, klen, device)
         attn_mask = attn_mask[:, :, None]
 
-        pos_seq = torch.arange(klen - 1, -1, -1.0, device=device, dtype=dtype)
+        pos_seq = self._get_pos_seq(klen, device, dtype)
         if self.clamp_len > 0:
             pos_seq = pos_seq.clamp(max=float(self.clamp_len))
         pos_emb = self.pos_emb(pos_seq)
@@ -758,3 +760,31 @@ class TransformerXLModule(nn.Module):
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
         return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}
+
+    def _get_attn_mask(
+        self, seq_len: int, mem_len: int, klen: int, device: torch.device
+    ) -> torch.Tensor:
+        key = (seq_len, mem_len, self.same_length, device)
+        mask = self._attn_mask_cache.get(key)
+        if mask is None:
+            if self.same_length:
+                all_ones = torch.ones(seq_len, klen, device=device, dtype=torch.bool)
+                mask_len = klen - self.memory_len
+                mask_shift_len = seq_len - mask_len if mask_len > 0 else seq_len
+                mask = torch.triu(all_ones, diagonal=1 + mem_len) | torch.tril(
+                    all_ones, diagonal=-mask_shift_len
+                )
+            else:
+                mask = torch.triu(
+                    torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mem_len
+                )
+            self._attn_mask_cache[key] = mask
+        return mask
+
+    def _get_pos_seq(self, klen: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+        key = (klen, device, dtype)
+        pos_seq = self._pos_seq_cache.get(key)
+        if pos_seq is None:
+            pos_seq = torch.arange(klen - 1, -1, -1.0, device=device, dtype=dtype)
+            self._pos_seq_cache[key] = pos_seq
+        return pos_seq
