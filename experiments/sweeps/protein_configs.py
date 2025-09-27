@@ -291,3 +291,80 @@ PPO_FULL = ProteinConfig(
         # seed_with_search_center=True,  # Not available in current ProteinSettings
     ),
 )
+
+
+VIT_POLICY_BASE = make_custom_protein_config(
+    base_config=PPO_FULL,
+    parameters={
+        "trainer.batch_size": ParameterConfig(
+            distribution="uniform_pow2",
+            min=131072,  # 2^17
+            max=1048576,  # 2^20
+            mean=262144,  # 2^18
+            scale="auto",
+        ),
+        "trainer.minibatch_size": ParameterConfig(
+            distribution="uniform_pow2",
+            min=1024,  # 2^10
+            max=16384,  # 2^14
+            mean=4096,  # 2^12
+            scale="auto",
+        ),
+        "trainer.bptt_horizon": ParameterConfig(
+            distribution="uniform_pow2",
+            min=16,  # 2^4
+            max=64,  # 2^6
+            mean=32,  # 2^5
+            scale="auto",
+        ),
+        "policy_architecture.embedding_dim": ParameterConfig(
+            distribution="uniform_pow2",
+            min=8,
+            max=32,
+            mean=16,
+            scale="auto",
+        ),
+        "policy_architecture.token_embed_dim": ParameterConfig(
+            distribution="int_uniform",
+            min=8,
+            max=16,
+            mean=12,
+            scale="auto",
+        ),
+        "policy_architecture.fourier_freqs": ParameterConfig(
+            distribution="int_uniform",
+            min=2,
+            max=6,
+            mean=4,
+            scale="auto",
+        ),
+        "policy_architecture.latent_dim": ParameterConfig(
+            distribution="uniform_pow2",
+            min=32,
+            max=128,
+            mean=64,
+            scale="auto",
+        ),
+        "policy_architecture.lstm_latent": ParameterConfig(
+            distribution="uniform_pow2",
+            min=32,
+            max=128,
+            mean=64,
+            scale="auto",
+        ),
+        "policy_architecture.actor_hidden": ParameterConfig(
+            distribution="uniform_pow2",
+            min=128,
+            max=512,
+            mean=256,
+            scale="auto",
+        ),
+        "policy_architecture.critic_hidden": ParameterConfig(
+            distribution="uniform_pow2",
+            min=256,
+            max=1024,
+            mean=512,
+            scale="auto",
+        ),
+    },
+)
