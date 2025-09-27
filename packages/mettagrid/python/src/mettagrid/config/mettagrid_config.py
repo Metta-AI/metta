@@ -17,8 +17,10 @@ Position = FixedPosition | Literal["Any"]
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
+    # inventory rewards get merged into stats rewards in the C++ environment. The advantage of using inventory rewards
+    # is that it's easier for us to assert that these inventory items exist, and thus catch typos.
     inventory: dict[str, float] = Field(default_factory=dict)
-    inventory_max: dict[str, int] = Field(default_factory=dict)
+    inventory_max: dict[str, float] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
     stats_max: dict[str, float] = Field(default_factory=dict)
 
