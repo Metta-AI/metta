@@ -41,8 +41,12 @@ class RadialObjects(Scene[RadialObjectsParams]):
             y1 = min(height, y + clearance + 1)
             return np.all(grid[y0:y1, x0:x1] == "empty")
 
-        # Precompute candidate empty cells and radial weights
-        empties = np.argwhere(grid == "empty")
+        # Precompute candidate cells and radial weights
+        if self.params.carve:
+            ys, xs = np.indices((height, width))
+            empties = np.column_stack((ys.ravel(), xs.ravel()))
+        else:
+            empties = np.argwhere(grid == "empty")
         if empties.size == 0:
             return
 
