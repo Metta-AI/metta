@@ -71,6 +71,7 @@ format: install
 	@echo "Running mettagrid format..."
 	cd packages/mettagrid && make format-fix
 
+# Clean build artifacts
 clean:
 	rm -rf build/
 	rm -rf dist/
@@ -78,20 +79,8 @@ clean:
 	rm -rf .pytest_cache/
 	rm -rf .coverage
 	rm -rf htmlcov/
-	cd packages/mettagrid && make clean
-
-	# Safely remove Python caches, excluding all .bazel_output/* and similar
-	find . -type d -name __pycache__ \
-		! -path "*/.bazel_output/*" \
-		! -path "*/bazel-out/*" \
-		! -path "*/bazel-bin/*" \
-		-exec rm -rf {} +
-
-	find . -type f -name "*.pyc" \
-		! -path "*/.bazel_output/*" \
-		! -path "*/bazel-out/*" \
-		! -path "*/bazel-bin/*" \
-		-delete
+	find . -type d -name __pycache__ -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete
 
 # Full development setup
 dev:

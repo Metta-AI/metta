@@ -97,16 +97,3 @@ clean:
 	bazel clean
 	rm -rf .venv uv.lock
 	rm -f coverage.info *.gcda *.gcno *.profraw *.profdata
-
-	# Safely remove Python caches, excluding Bazel outputs
-	find . -type d -name __pycache__ \
-		! -path "*/.bazel_output/*" \
-		! -path "*/bazel-out/*" \
-		! -path "*/bazel-bin/*" \
-		-exec rm -rf {} +
-
-	find . -type f -name "*.pyc" \
-		! -path "*/.bazel_output/*" \
-		! -path "*/bazel-out/*" \
-		! -path "*/bazel-bin/*" \
-		-delete
