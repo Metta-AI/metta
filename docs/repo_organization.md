@@ -74,6 +74,84 @@ Each remaining phase is scoped to a mergeable chunk, preserving a buildable tree
    - Update `pyproject.toml` workspace membership, CI scripts, and release automation as each package lands.
    - Remove compatibility shims after downstream imports are refactored and validated.
 
+## Target Post-Reorg Layout
+
+Once Phases 2–4 are complete, the repository will be organized as a set of installable packages that expose stable
+`metta.*` namespaces. Each package owns its source, tests, and configuration while the legacy monolith shrinks to a set
+of compatibility shims scheduled for removal. The intended layout is:
+
+```
+metta/
+├── core/                  # metta-core: foundational runtime utilities and compatibility shims
+│   ├── pyproject.toml
+│   └── src/metta/core/
+│       ├── common/        # long-lived shim for legacy imports, removed once consumers migrate
+│       ├── tests_support/
+│       ├── utils/
+│       └── shared/        # re-export curated APIs from metta.shared
+├── training/              # metta-training: RL, simulation, CLI entrypoints for training
+│   ├── pyproject.toml
+│   └── src/metta/training/
+│       ├── rl/
+│       ├── sim/
+│       ├── tools/
+│       ├── cogworks/
+│       ├── sweep/
+│       └── adaptive/      # training-oriented components only
+├── orchestrator/          # metta-orchestrator: adaptive dispatchers & scheduling backends
+│   ├── pyproject.toml
+│   └── src/metta/orchestrator/
+│       ├── adaptive/
+│       ├── scheduler/
+│       └── integrations/
+├── cli/                   # metta-cli: developer setup and local tooling
+│   ├── pyproject.toml
+│   └── src/metta/cli/
+│       ├── setup/
+│       └── commands/
+├── maptools/              # metta-maptools: editors, map generation, web front-ends
+│   ├── pyproject.toml
+│   └── src/metta/maptools/
+│       ├── gridworks/
+│       ├── map/
+│       └── web/
+├── eval/                  # metta-eval (optional): evaluation services & reporting
+│   ├── pyproject.toml
+│   └── src/metta/eval/
+│       ├── service/
+│       ├── analysis/
+│       └── reporting/
+├── config/                # metta-config (existing): shared auto-configuration helpers
+│   ├── pyproject.toml
+│   └── src/metta/config/auto_config.py
+└── shared/                # metta-shared (existing): shared data structures & registries
+    ├── pyproject.toml
+    └── src/metta/shared/
+        ├── eval_config.py
+        ├── simulation_config.py
+        └── policy_registry.py
+
+agent/                     # metta-agent workspace package (model architectures)
+app_backend/               # metta-app-backend workspace package
+codebot/
+common/                    # metta-common (thin distribution that depends on metta-core)
+experiments/
+packages/                  # external engines (mettagrid, cogames, pufferlib-core)
+softmax/
+```
+
+Guiding rules for the final layout:
+
+- **Single responsibility**: each package owns a coherent surface area, minimizing cross-package imports.
+- **Published APIs**: every package exposes curated entrypoints via `__init__.py`; compatibility modules live only in
+  `metta-core` and carry explicit deprecation warnings.
+- **Workspace alignment**: all packages are listed in `[tool.uv.workspace]`, ship `py.typed`, and execute their own
+  targeted test suites in CI.
+- **Temporary shims with exit criteria**: legacy modules (`metta.common`, `metta.eval`, `metta.sim`) re-export from the
+  new packages until downstream consumers migrate. Each shim has an agreed deprecation schedule tracked in rollout docs.
+- **Shared dependency strategy**: `metta-config` and `metta-shared` remain the canonical homes for reusable configuration
+  and data models, preventing future cycles as the repo splits.
+
 ## Open Questions
 - Where should the `metta.common.test_support` API ultimately live once `metta-core` exists? (Likely inside the new package, but we may prefer a dedicated testing helper module.)
 - How do we expose training configuration (`auto_config`, eval request config, simulation config) so that CLI tooling, `app_backend/`, and experiments consume the published APIs without re-entangling splits?
