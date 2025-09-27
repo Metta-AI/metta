@@ -65,8 +65,14 @@ class SLKickstarter(Loss):
         # load teacher policy
         from metta.rl.checkpoint_manager import CheckpointManager
 
-        self.teacher_policy: Policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
-        if hasattr(self.teacher_policy, "initialize_to_environment"):
+        artifact = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
+        env_metadata = getattr(self.env, "meta_data", None)
+        if env_metadata is None:
+            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
+
+        teacher_policy = artifact.instantiate(env_metadata, self.device)
+        self.teacher_policy = teacher_policy
+        if hasattr(self.teacher_policy, "initialize_to_environment") and env_metadata is not None:
             driver_env = self.env.driver_env
             features = driver_env.observation_features
             self.teacher_policy.initialize_to_environment(

@@ -42,7 +42,7 @@ class SimTool(Tool):
         SimTool(simulations=my_sims, run="my_experiment_2024")
 
         # Evaluate specific policy URIs
-        SimTool(simulations=my_sims, policy_uris=["s3://bucket/path/policy:v10.pt"])
+        SimTool(simulations=my_sims, policy_uris=["s3://bucket/path/policy:v10.mpt"])
 
         # Can also be invoked with run parameter
         tool.invoke({"run": "my_experiment_2024"})

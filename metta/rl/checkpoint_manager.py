@@ -1,15 +1,14 @@
 import logging
 import os
-import pickle
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
+from zipfile import BadZipFile
 
 import torch
 
 from metta.agent.mocks import MockAgent
-from metta.agent.policy import Policy
-from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+from metta.agent.policy import Policy, PolicyArchitecture
+from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.file import local_copy, write_file
@@ -35,10 +34,10 @@ def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
 
     Examples:
-        "file:///tmp/my_run/checkpoints/my_run:v5.pt" -> ("my_run", 5)
-        "s3://bucket/policies/my_run/checkpoints/my_run:v10.pt" -> ("my_run", 10)
-        "file:///tmp/my_run/checkpoints/my_run:latest.pt" -> ("my_run", latest_epoch)
-        "s3://bucket/policies/my_run/checkpoints/my_run:latest.pt" -> ("my_run", latest_epoch)
+        "file:///tmp/my_run/checkpoints/my_run:v5.mpt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v10.mpt" -> ("my_run", 10)
+        "file:///tmp/my_run/checkpoints/my_run:latest.mpt" -> ("my_run", latest_epoch)
+        "s3://bucket/policies/my_run/checkpoints/my_run:latest.mpt" -> ("my_run", latest_epoch)
         "mock://test_agent" -> ("test_agent", 0)
 
     The :latest selector automatically resolves to the highest epoch number
@@ -49,7 +48,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
     if parsed.scheme == "file" and parsed.local_path is not None:
         path = parsed.local_path
 
-        if path.suffix == ".pt":
+        if path.suffix == ".mpt":
             run_name, epoch = _extract_run_and_epoch(path)
             if epoch == -1:  # :latest selector
                 epoch = _resolve_latest_epoch(path, run_name)
@@ -63,7 +62,7 @@ def key_and_version(uri: str) -> tuple[str, int]:
 
     if parsed.scheme == "s3" and parsed.key:
         key_path = Path(parsed.key)
-        if key_path.suffix == ".pt":
+        if key_path.suffix == ".mpt":
             try:
                 run_name, epoch = _extract_run_and_epoch(Path(key_path.name))
                 if epoch == -1:  # :latest selector
@@ -83,8 +82,8 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
     """Infer run name and epoch from a checkpoint path.
 
     The parser is intentionally permissive: it understands the new
-    ``<run_name>:v{epoch}.pt`` format while falling back to directory
-    structure, leading ``v{epoch}.pt}``, or legacy ``run__e{epoch}``
+    ``<run_name>:v{epoch}.mpt`` format while falling back to directory
+    structure, leading ``v{epoch}.mpt}``, or legacy ``run__e{epoch}``
     filenames. Unexpected filenames return epoch ``0`` with a best-effort
     run name instead of failing.
 
@@ -94,7 +93,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
 
     stem = path.stem
 
-    # Prefer run from filename (<run>:v{epoch}.pt) when present.
+    # Prefer run from filename (<run>:v{epoch}.mpt) when present.
     run_name: str | None = None
     epoch = 0
 
@@ -110,7 +109,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
             run_name = candidate_run
             epoch = -1  # Special marker for latest resolution
 
-    # Fall back to directory structure (…/<run>/checkpoints/<file>.pt)
+    # Fall back to directory structure (…/<run>/checkpoints/<file>.mpt)
     if run_name is None:
         if path.parent.name == "checkpoints" and path.parent.parent.name:
             run_name = path.parent.parent.name
@@ -119,7 +118,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
         else:
             run_name = stem
 
-    # Handle filenames like v{epoch}.pt where run name comes from directories
+    # Handle filenames like v{epoch}.mpt where run name comes from directories
     if epoch == 0 and stem.startswith("v") and stem[1:].isdigit():
         epoch = int(stem[1:])
 
@@ -149,7 +148,7 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
             search_dirs.append(checkpoints_subdir)
 
     for search_dir in search_dirs:
-        checkpoint_files = [ckpt for ckpt in search_dir.glob("*.pt") if ckpt.stem]
+        checkpoint_files: List[Path] = [ckpt for ckpt in search_dir.glob("*.mpt") if ckpt.stem]
         if checkpoint_files:
             try:
                 return max(checkpoint_files, key=lambda p: _extract_run_and_epoch(p)[1])
@@ -202,7 +201,7 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
         for obj in response["Contents"]:
             key = obj["Key"]
             filename = key.split("/")[-1]  # Get just the filename
-            if filename.endswith(".pt") and not filename.endswith("trainer_state.pt"):
+            if filename.endswith(".mpt"):
                 checkpoint_files.append(filename)
 
         if not checkpoint_files:
@@ -224,30 +223,23 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
         return 0
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
+def _load_checkpoint_file(path: str, device: str | torch.device) -> PolicyArtifact:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
-        checkpoint_data = torch.load(path, weights_only=False, map_location=device)
-
-        if _is_puffer_state_dict(checkpoint_data):
-            return load_pufferlib_checkpoint(checkpoint_data, device)
-
-        return checkpoint_data
-
+        return load_policy_artifact(Path(path))
     except FileNotFoundError:
         raise
-    except (pickle.UnpicklingError, RuntimeError, OSError) as err:
+    except (BadZipFile, ValueError, TypeError) as err:
         raise FileNotFoundError(f"Invalid or corrupted checkpoint file: {path}") from err
 
 
 class CheckpointManager:
-    """Checkpoint manager with filename-embedded metadata and LRU cache."""
+    """Checkpoint manager with filename-embedded metadata."""
 
     def __init__(
         self,
         run: str,
         system_cfg: SystemConfig,
-        cache_size: int = 3,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -265,9 +257,6 @@ class CheckpointManager:
         os.makedirs(system_cfg.data_dir, exist_ok=True)
         os.makedirs(self.run_dir, exist_ok=True)
         os.makedirs(self.checkpoint_dir, exist_ok=True)
-
-        self.cache_size = cache_size
-        self._cache = OrderedDict()
 
         self._remote_prefix = None
         if not system_cfg.local_only:
@@ -314,17 +303,13 @@ class CheckpointManager:
     def remote_checkpoints_enabled(self) -> bool:
         return self._remote_prefix is not None
 
-    def clear_cache(self):
-        """Clear the instance's LRU cache."""
-        self._cache.clear()
-
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> Policy:
-        """Load a policy from a URI (file://, s3://, or mock://).
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> PolicyArtifact:
+        """Load a policy artifact from a URI (file://, s3://, or mock://).
 
         Supports :latest selector for automatic resolution to the most recent checkpoint:
-            file:///path/to/run/checkpoints/run_name:latest.pt
-            s3://bucket/path/run/checkpoints/run_name:latest.pt
+            file:///path/to/run/checkpoints/run_name:latest.mpt
+            s3://bucket/path/run/checkpoints/run_name:latest.mpt
         """
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
@@ -349,7 +334,7 @@ class CheckpointManager:
                 return _load_checkpoint_file(str(local_path), device)
 
         if parsed.scheme == "mock":
-            return MockAgent()
+            return PolicyArtifact(policy=MockAgent())
 
         raise ValueError(f"Invalid URI: {uri}")
 
@@ -381,42 +366,13 @@ class CheckpointManager:
             _, version = _extract_run_and_epoch(path)
             return version == epoch
 
-        candidates = [
-            path for path in self.checkpoint_dir.glob("*.pt") if path.name != "trainer_state.pt" and matches_epoch(path)
-        ]
+        candidates: List[Path] = [path for path in self.checkpoint_dir.glob("*.mpt") if matches_epoch(path)]
 
         candidates.sort(
             key=lambda p: (_extract_run_and_epoch(p)[1], p.stat().st_mtime),
             reverse=True,
         )
         return candidates
-
-    def load_agent(self, epoch: Optional[int] = None, device: Optional[torch.device] = None):
-        """Load agent checkpoint from local directory with LRU caching."""
-        files = self._find_checkpoint_files(epoch)
-        if not files:
-            raise FileNotFoundError(f"No checkpoints found for {self.run_name} epoch={epoch}")
-
-        # Select file: first if epoch specified, latest otherwise
-        agent_file = files[0] if epoch else max(files, key=lambda p: _extract_run_and_epoch(p)[1])
-        cache_key = str(agent_file)
-
-        # Check cache
-        if cache_key in self._cache:
-            self._cache.move_to_end(cache_key)
-            return self._cache[cache_key]
-
-        # Load from disk
-        file_uri = f"file://{agent_file.resolve()}"
-        agent = self.load_from_uri(file_uri, device=device or "cpu")
-
-        # Update cache
-        if self.cache_size > 0:
-            if len(self._cache) >= self.cache_size:
-                self._cache.popitem(last=False)  # Evict oldest
-            self._cache[cache_key] = agent
-
-        return agent
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
@@ -436,33 +392,34 @@ class CheckpointManager:
             result["loss_states"] = state["loss_states"]
         return result
 
-    def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
+    def save_agent(
+        self,
+        agent: Policy,
+        epoch: int,
+        *,
+        policy_architecture: PolicyArchitecture,
+    ) -> str:
         """Save agent checkpoint to disk and upload to remote storage if configured.
+
+        The serialized artifact always includes the policy weights and architecture metadata.
 
         Returns URI of saved checkpoint (s3:// if remote prefix configured, otherwise file://).
         """
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{self.run_name}:v{epoch}.pt"
+        filename = f"{self.run_name}:v{epoch}.mpt"
         checkpoint_path = self.checkpoint_dir / filename
 
-        # Check if we're overwriting an existing checkpoint for this epoch
-        existing_files = self._find_checkpoint_files(epoch)
-
-        torch.save(agent, checkpoint_path)
+        save_policy_artifact(
+            checkpoint_path,
+            policy=agent,
+            policy_architecture=policy_architecture,
+            state_dict=agent.state_dict(),
+        )
 
         remote_uri = None
         if self._remote_prefix:
             remote_uri = f"{self._remote_prefix}/{filename}"
             write_file(remote_uri, str(checkpoint_path))
-
-        # Only invalidate cache entries if we're overwriting an existing checkpoint
-        if existing_files:
-            keys_to_remove = []
-            for cached_path in self._cache.keys():
-                if Path(cached_path).name.startswith(f"{self.run_name}:v{epoch}"):
-                    keys_to_remove.append(cached_path)
-            for key in keys_to_remove:
-                self._cache.pop(key, None)
 
         if remote_uri:
             return remote_uri
