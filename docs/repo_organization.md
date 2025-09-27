@@ -5,9 +5,9 @@ repository rename to **`softmax`** lands at the start of Phase 2, and this docum
 dependencies, and migration steps requested in the latest review cycle.
 
 ## Snapshot After Phase 1
-- Packages shipping today (with `pyproject.toml` in workspace): `agent/`, `app_backend/`, `codebot/`, `common/`,
-  `config/`, `experiments/`, `gitta/`, `packages/cogames/`, `packages/mettagrid/`, `packages/pufferlib-core/`,
-  `shared/`, and `softmax/`.
+- Packages shipping today (with `pyproject.toml` in workspace): `agent/`, `packages/softmax-orchestrator/`, `codebot/`,
+  `common/`, `config/`, `experiments/`, `gitta/`, `packages/cogames/`, `packages/mettagrid/`,
+  `packages/pufferlib-core/`, `shared/`, and `softmax/`.
 - Monolithic `metta/` namespace still hosts `adaptive/`, `cogworks/`, `common/`, `config/`, `eval/`, `maptools`,
   `rl/`, `setup/`, `shared/`, `sim/`, `sweep/`, `tests_support/`, `tools/`, and `utils/`. Shims under `metta.common`
   continue to protect downstream consumers until we ship the new `softmax.lib` surface.
@@ -22,8 +22,8 @@ dependencies, and migration steps requested in the latest review cycle.
 - **Central library**: `metta.common` graduates into `softmax.lib`, exposing the stable runtime surface while continuing
   to re-export `metta.common` for a limited sunset period.
 - **Package homing**: all Python packages (library or service) live under `packages/` to simplify workspace discovery and
-  tooling. Exception: top-level apps (`agent/`, `app_backend/`, `experiments/`) that ship deployable artifacts can stay
-  top-level but still use `src/`.
+  tooling. Exception: top-level apps (`agent/`, `experiments/`) that ship deployable artifacts can stay top-level but
+  still use `src/`.
 - **Dependency gates**: every package owns its dependency list in `pyproject.toml`; CI enforces `uv run --exact -m pytest`
   (or the package’s bespoke test entrypoint) before merge. No implicit cross-package imports without declared extras.
 - **Implicit namespaces**: evaluate PEP 420 namespace adoption and remove redundant `__init__.py` once the new package
@@ -52,9 +52,9 @@ dependencies, and migration steps requested in the latest review cycle.
 | softmax-cogworks | `packages/softmax-cogworks` | `softmax.cogworks` | Content authoring SDK, asset validators, scenario packaging | `softmax.lib`, `softmax.shared` | Only gameplay content code lives here |
 | softmax-maptools | `packages/softmax-maptools` | `softmax.maptools` | Grid/map editors, browser clients, static asset pipeline | `softmax.lib` | Hosts former `gridworks/` Next.js app and `metta/map` modules |
 | softmax-cli | `packages/softmax-cli` | `softmax.cli` | Developer setup, local orchestration commands, bootstrap scripts | `softmax.lib`, `softmax.config`, `softmax.training` | Supersedes `setup/` & CLI glue |
-| softmax-orchestrator | `packages/softmax-orchestrator` | `softmax.orchestrator` | Task scheduling, adaptive dispatch, integrations | `softmax.lib`, `softmax.training` | Optional deployable service |
+| softmax-orchestrator | `packages/softmax-orchestrator` | `softmax.orchestrator` | Task scheduling, adaptive dispatch, APIs | `softmax.lib`, `softmax.config`, `softmax.training` | Hosts the former app backend services |
 | Packages under `packages/` (external) | `packages/*` | varies | Third-party engines (`cogames`, `mettagrid`, `pufferlib_core`) | - | Continue to vendor here with `src/` layout |
-| Apps | top level (`agent/`, `app_backend/`, `experiments/`) | `softmax.agent`, etc. | Deployment surfaces; consume published APIs only | Declared extras | Must adopt `src/` and declare deps |
+| Apps | top level (`agent/`, `experiments/`) | `softmax.agent`, etc. | Deployment surfaces; consume published APIs only | Declared extras | Must adopt `src/` and declare deps |
 
 ## Dependency Guardrails
 - `softmax.lib` is the lowest layer. Higher-level packages may depend on it; it depends only on the standard library plus

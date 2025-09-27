@@ -145,7 +145,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 - `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
 - `packages/softmax-maptools/src/softmax/maptools/gridworks/`: Next.js web interface
-- `app_backend/`: FastAPI backend server for stats and data services
+- `packages/softmax-orchestrator/`: FastAPI backend server for stats and data services
 
 ### Architecture Overview
 

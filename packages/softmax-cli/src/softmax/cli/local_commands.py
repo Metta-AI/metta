@@ -54,8 +54,8 @@ def build_policy_evaluator_img(
     console.print(f"[green]Built policy evaluator image: {tag}[/green]")
 
 
-@app.command(name="build-app-backend-img")
-def build_app_backend_img():
+@app.command(name="build-orchestrator-img")
+def build_orchestrator_img():
     _build_img(
         "softmax-orchestrator:latest",
         repo_root / "packages" / "softmax-orchestrator" / "Dockerfile",
@@ -69,7 +69,15 @@ def stats_server(ctx: typer.Context):
         "uv",
         "run",
         "python",
-        str(repo_root / "app_backend" / "src" / "metta" / "app_backend" / "server.py"),
+        str(
+            repo_root
+            / "packages"
+            / "softmax-orchestrator"
+            / "src"
+            / "softmax"
+            / "orchestrator"
+            / "server.py"
+        ),
     ]
     if ctx.args:
         cmd.extend(ctx.args)

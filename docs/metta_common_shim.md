@@ -28,7 +28,7 @@ covers the modules that currently have active consumers (see the dependency audi
 
 ## Expectations Until Migration
 
-- Imports must keep working for runtime code (`app_backend`, `metta/tools/*`, `devops/*`, etc.) and for test fixtures.  If
+- Imports must keep working for runtime code (`softmax.orchestrator`, `metta/tools/*`, `devops/*`, etc.) and for test fixtures.  If
   a symbol is moved, the shim must re-export it from its new location until every consumer has been updated.
 - New helpers should be added directly to `metta-common`; the shim should stay minimal to make future removal easy.
 - Changes to these APIs require coordination across workstreams and should land with tests proving the old import path

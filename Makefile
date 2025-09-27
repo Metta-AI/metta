@@ -27,7 +27,7 @@ test: install
 		tests \
 		mettascope/tests \
 		agent/tests \
-		app_backend/tests \
+		packages/softmax-orchestrator/tests \
 		common/tests \
 		packages/mettagrid/tests \
 		--cov=metta \
@@ -41,7 +41,7 @@ pytest: install
 		tests \
 		mettascope/tests \
 		agent/tests \
-		app_backend/tests \
+		packages/softmax-orchestrator/tests \
 		common/tests \
 		packages/mettagrid/tests \
 		--benchmark-disable -n auto
