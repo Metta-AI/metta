@@ -37,7 +37,6 @@ class TaskTracker:
 
         # Cleanup old tasks if we exceed memory limit
         if len(self._task_memory) > self.max_memory_tasks:
-            print(f"CLEANUP TRIGGERED: {len(self._task_memory)} tasks > {self.max_memory_tasks} limit")
             self._cleanup_old_tasks()
 
         # Invalidate cache when task structure changes
@@ -145,11 +144,6 @@ class TaskTracker:
                 if self._cache_valid:
                     _, completion_count, _, _ = self._task_memory[task_id]
                     self._cached_total_completions -= completion_count
-
-                # Debug logging for task 0 cleanup
-                if task_id % 10 == 0:  # Log for tasks that map to simulator task 0
-                    _, completion_count, _, _ = self._task_memory[task_id]
-                    print(f"CLEANUP DEBUG: Task {task_id} REMOVED by cleanup with {completion_count} completions")
 
                 del self._task_memory[task_id]
                 removed_count += 1

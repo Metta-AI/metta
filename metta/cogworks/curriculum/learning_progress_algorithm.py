@@ -45,6 +45,9 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Eviction criteria
     eviction_threshold_percentile: float = 0.4  # Tasks below this percentile get evicted
 
+    # Sampling sharpening (lower = more focused, higher entropy)
+    sampling_temperature: float = 1.0  # Default = no sharpening
+
     def algorithm_type(self) -> str:
         return "learning_progress"
 
@@ -287,12 +290,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def on_task_evicted(self, task_id: int) -> None:
         """Clean up when a task is evicted."""
-        # Debug logging for task 0 eviction
-        if task_id % 10 == 0:  # Log for tasks that map to simulator task 0
-            task_stats = self.task_tracker.get_task_stats(task_id)
-            completion_count = task_stats["completion_count"] if task_stats else 0
-            print(f"EVICTION DEBUG: Task {task_id} EVICTED with {completion_count} completions")
-
         # Remove from task tracker
         self.task_tracker.remove_task(task_id)
 

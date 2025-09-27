@@ -235,8 +235,8 @@ class TaskDependencySimulator:
                 simulator_samples = int(self.total_sample_counts[0].item())
                 metrics["task_0_tracking/cumulative_samples"] = curriculum_samples
 
-                # Debug logging to compare curriculum vs simulator samples
-                if self.current_epoch % 100 == 0:
+                # Reduced frequency curriculum vs simulator comparison
+                if self.current_epoch % 500 == 0:
                     task_class = self._current_task_0_curriculum_id % self.num_tasks
                     print(
                         f"Epoch {self.current_epoch}: Curriculum task 0 ID {self._current_task_0_curriculum_id} (task class: {task_class}) samples: {curriculum_samples}, Simulator task 0 samples: {simulator_samples}"
@@ -484,9 +484,8 @@ class TaskDependencySimulator:
             task_stats = curriculum._algorithm.task_tracker.get_task_stats(task_0_id)
             if task_stats:
                 curriculum_samples = task_stats["completion_count"]
-                # Debug logging to verify tracking
-                if self.current_epoch % 50 == 0:  # Log every 50 epochs
-                    # Get task class (simulator task position) for better debugging
+                # Periodic task 0 tracking (reduced frequency)
+                if self.current_epoch % 500 == 0:  # Log every 500 epochs
                     task_class = task_0_id % self.num_tasks
                     print(
                         f"Epoch {self.current_epoch}: Task 0 curriculum ID {task_0_id} (task class: {task_class}) has {curriculum_samples} cumulative samples"
@@ -547,6 +546,7 @@ def create_curriculum(
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
     rand_task_rate: float = 0.01,
+    sampling_temperature: float = 1.0,
     min_presentations_for_eviction: int = 5,
     eviction_threshold_percentile: float = 0.4,
 ) -> CurriculumConfig:
@@ -564,6 +564,7 @@ def create_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         num_active_tasks=num_active_tasks,
         rand_task_rate=rand_task_rate,
+        sampling_temperature=sampling_temperature,
         eviction_threshold_percentile=eviction_threshold_percentile,
     )
 
@@ -595,6 +596,7 @@ def simulate_task_dependencies(
     max_slice_axes: int = 3,
     num_active_tasks: int = 1000,
     rand_task_rate: float = 0.01,
+    sampling_temperature: float = 1.0,
     min_presentations_for_eviction: int = 5,
     eviction_threshold_percentile: float = 0.4,
     wandb_project: str = "metta",
@@ -645,6 +647,7 @@ def simulate_task_dependencies(
         max_slice_axes=max_slice_axes,
         num_active_tasks=num_active_tasks,
         rand_task_rate=rand_task_rate,
+        sampling_temperature=sampling_temperature,
         min_presentations_for_eviction=min_presentations_for_eviction,
         eviction_threshold_percentile=eviction_threshold_percentile,
     )
@@ -755,162 +758,11 @@ def simulate_task_dependencies(
                     }
                 )
 
-        # Create reward history plot for first task
-        if len(simulator.task_reward_history[0]) > 0:
-            # Create table for task 0 reward history
-            task_0_data = [
-                [sample_num, reward]
-                for sample_num, reward in zip(
-                    simulator.task_sample_numbers[0], simulator.task_reward_history[0]
-                )
-            ]
+        # Task 0 reward history charts removed for performance
 
-            if task_0_data:
-                task_0_table = wandb.Table(
-                    data=task_0_data, columns=["sample_number", "reward"]
-                )
+        # Task 0 learning progress charts removed for performance
 
-                # Create line plot showing reward over samples
-                task_0_plot = wandb.plot.line(
-                    task_0_table,
-                    x="sample_number",
-                    y="reward",
-                    title="Task 0 Reward History (by Sample Number)",
-                )
-
-                wandb.log({"task_0_reward_history": task_0_plot})
-
-        # Create task 0 learning progress percentile plot over time
-        if len(simulator.task_0_lp_percentiles) > 0:
-            # Create table for task 0 LP percentile and scores over epochs
-            percentile_data = [
-                [epoch, percentile, cumulative_samples, lp_score]
-                for epoch, percentile, cumulative_samples, lp_score in zip(
-                    simulator.epoch_numbers,
-                    simulator.task_0_lp_percentiles,
-                    simulator.task_0_cumulative_samples,
-                    simulator.task_0_lp_scores,
-                )
-            ]
-
-            if percentile_data:
-                # Plot percentile vs epoch
-                percentile_table = wandb.Table(
-                    data=percentile_data,
-                    columns=[
-                        "epoch",
-                        "lp_percentile",
-                        "cumulative_samples",
-                        "lp_score",
-                    ],
-                )
-
-                percentile_plot = wandb.plot.line(
-                    percentile_table,
-                    x="epoch",
-                    y="lp_percentile",
-                    title="Task 0 Learning Progress Percentile Over Time",
-                )
-
-                # Plot percentile vs cumulative samples (for eviction analysis)
-                samples_plot = wandb.plot.line(
-                    percentile_table,
-                    x="cumulative_samples",
-                    y="lp_percentile",
-                    title="Task 0 LP Percentile vs Cumulative Samples (Eviction Analysis)",
-                )
-
-                # Plot LP score over time
-                lp_score_plot = wandb.plot.line(
-                    percentile_table,
-                    x="epoch",
-                    y="lp_score",
-                    title="Task 0 Learning Progress Score Over Time",
-                )
-
-                # Plot LP score vs cumulative samples
-                lp_score_samples_plot = wandb.plot.line(
-                    percentile_table,
-                    x="cumulative_samples",
-                    y="lp_score",
-                    title="Task 0 LP Score vs Cumulative Samples",
-                )
-
-                wandb.log(
-                    {
-                        "task_0_lp_percentile_vs_epoch": percentile_plot,
-                        "task_0_lp_percentile_vs_samples": samples_plot,
-                        "task_0_lp_score_vs_epoch": lp_score_plot,
-                        "task_0_lp_score_vs_samples": lp_score_samples_plot,
-                    }
-                )
-
-        # Create sampling imbalance charts over time
-        if metrics_history:
-            # Extract sampling imbalance metrics over time
-            imbalance_data = []
-            for epoch, metrics in enumerate(metrics_history):
-                normalized_entropy = metrics.get("sampling/entropy_normalized", 1.0)
-                cv = metrics.get("sampling/coefficient_of_variation", 0.0)
-                max_min_ratio = metrics.get("sampling/max_min_ratio", 1.0)
-                gini_coeff = metrics.get("sampling/gini_coefficient", 0.0)
-
-                imbalance_data.append(
-                    [epoch, normalized_entropy, cv, max_min_ratio, gini_coeff]
-                )
-
-            if imbalance_data:
-                imbalance_table = wandb.Table(
-                    data=imbalance_data,
-                    columns=[
-                        "epoch",
-                        "normalized_entropy",
-                        "coefficient_of_variation",
-                        "max_min_ratio",
-                        "gini_coefficient",
-                    ],
-                )
-
-                # Plot normalized entropy over time (main balance metric)
-                entropy_plot = wandb.plot.line(
-                    imbalance_table,
-                    x="epoch",
-                    y="normalized_entropy",
-                    title="Task Sampling Balance: Normalized Entropy Over Time",
-                )
-
-                # Plot coefficient of variation over time
-                cv_plot = wandb.plot.line(
-                    imbalance_table,
-                    x="epoch",
-                    y="coefficient_of_variation",
-                    title="Task Sampling Imbalance: Coefficient of Variation Over Time",
-                )
-
-                # Plot max/min ratio over time
-                ratio_plot = wandb.plot.line(
-                    imbalance_table,
-                    x="epoch",
-                    y="max_min_ratio",
-                    title="Task Sampling Imbalance: Max/Min Ratio Over Time",
-                )
-
-                # Plot Gini coefficient over time
-                gini_plot = wandb.plot.line(
-                    imbalance_table,
-                    x="epoch",
-                    y="gini_coefficient",
-                    title="Task Sampling Inequality: Gini Coefficient Over Time",
-                )
-
-                wandb.log(
-                    {
-                        "sampling_balance_entropy": entropy_plot,
-                        "sampling_imbalance_cv": cv_plot,
-                        "sampling_imbalance_ratio": ratio_plot,
-                        "sampling_inequality_gini": gini_plot,
-                    }
-                )
+        # Sampling imbalance charts removed for performance
 
         # Log final summary
         wandb.log({"simulation_summary": results})
@@ -927,74 +779,6 @@ def simulate_task_dependencies(
         f"Simulation complete. Final mean performance: {results['final_mean_performance']:.3f}"
     )
     return results
-
-
-# Convenience functions for programmatic use (return dictionaries)
-
-
-def run_small_chain_simulation(
-    wandb_run_name: Optional[str] = None,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
-) -> Dict[str, Any]:
-    """Programmatically run a small task chain simulation (5 tasks)."""
-    return simulate_task_dependencies(
-        num_tasks=5,
-        num_epochs=500,
-        samples_per_epoch=25,
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
-        wandb_run_name=wandb_run_name,
-    )
-
-
-def run_large_chain_simulation(
-    wandb_run_name: Optional[str] = None,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
-) -> Dict[str, Any]:
-    """Programmatically run a large task chain simulation (20 tasks)."""
-    return simulate_task_dependencies(
-        num_tasks=20,
-        num_epochs=2000,
-        samples_per_epoch=100,
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
-        wandb_run_name=wandb_run_name,
-    )
-
-
-def run_high_gamma_simulation(
-    wandb_run_name: Optional[str] = None,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
-) -> Dict[str, Any]:
-    """Programmatically run simulation with high parent contribution (gamma=0.3)."""
-    return simulate_task_dependencies(
-        gamma=0.3,  # High parent contribution
-        lambda_forget=0.05,  # Lower forgetting
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
-        wandb_run_name=wandb_run_name,
-    )
-
-
-def run_high_forgetting_simulation(
-    wandb_run_name: Optional[str] = None,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
-) -> Dict[str, Any]:
-    """Programmatically run simulation with high forgetting rate."""
-    return simulate_task_dependencies(
-        gamma=0.05,  # Low parent contribution
-        lambda_forget=0.2,  # High forgetting
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
-        wandb_run_name=wandb_run_name,
-    )
-
-
-# Tool implementations for the recipe system
 
 
 class TaskDependencySimulationTool(Tool):
@@ -1027,6 +811,7 @@ class TaskDependencySimulationTool(Tool):
     max_slice_axes: int = 3
     num_active_tasks: int = 1000
     rand_task_rate: float = 0.01
+    sampling_temperature: float = 1.0  # Lower = more focused sampling
 
     # Eviction parameters
     min_presentations_for_eviction: int = 30
@@ -1061,6 +846,7 @@ class TaskDependencySimulationTool(Tool):
                 max_slice_axes=self.max_slice_axes,
                 num_active_tasks=self.num_active_tasks,
                 rand_task_rate=self.rand_task_rate,
+                sampling_temperature=self.sampling_temperature,
                 min_presentations_for_eviction=self.min_presentations_for_eviction,
                 eviction_threshold_percentile=self.eviction_threshold_percentile,
                 wandb_project=self.wandb_project,
@@ -1078,26 +864,6 @@ class TaskDependencySimulationTool(Tool):
         except Exception as e:
             logger.error(f"❌ Simulation failed: {e}")
             return 1
-
-
-# Recipe functions that return Tool instances
-
-
-def simulate_small_chain(
-    wandb_run_name: Optional[str] = None,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
-) -> TaskDependencySimulationTool:
-    """Simulate a small task chain (5 tasks)."""
-    return TaskDependencySimulationTool(
-        num_tasks=5,
-        num_epochs=500,
-        samples_per_epoch=25,
-        num_active_tasks=1000,  # Smaller pool for 5 simulator tasks
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
-        wandb_run_name=wandb_run_name,
-    )
 
 
 def simulate_large_chain(
@@ -1122,38 +888,13 @@ def simulate_large_chain_focused(
         num_tasks=25,
         num_epochs=2000,
         samples_per_epoch=100,
-        num_active_tasks=200,  # Smaller pool for more focus
-        exploration_bonus=0.01,  # Much lower exploration
-        ema_timescale=0.2,  # Slower adaptation
+        num_active_tasks=30,  # Smaller pool for more focus
+        exploration_bonus=0.0001,  # Much lower exploration
+        ema_timescale=0.5,  # Slower adaptation
         rand_task_rate=0.001,  # Minimal randomness
-        progress_smoothing=0.0001,  # Sharper preferences
+        progress_smoothing=100,  # Sharper preferences
         use_bidirectional=False,  # Simpler scoring
-        min_presentations_for_eviction=30,
-        wandb_run_name=wandb_run_name,
-    )
-
-
-def simulate_high_gamma(
-    wandb_run_name: Optional[str] = None,
-) -> TaskDependencySimulationTool:
-    """Simulate with high parent contribution (gamma=0.3)."""
-    return TaskDependencySimulationTool(
-        gamma=0.3,  # High parent contribution
-        lambda_forget=0.05,  # Lower forgetting
-        wandb_run_name=wandb_run_name,
-    )
-
-
-def simulate_high_forgetting(
-    wandb_run_name: Optional[str] = None,
-    min_presentations_for_eviction: int = 5,
-    eviction_threshold_percentile: float = 0.4,
-) -> TaskDependencySimulationTool:
-    """Simulate with high forgetting rate."""
-    return TaskDependencySimulationTool(
-        gamma=0.05,  # Low parent contribution
-        lambda_forget=0.2,  # High forgetting
-        min_presentations_for_eviction=min_presentations_for_eviction,
-        eviction_threshold_percentile=eviction_threshold_percentile,
+        sampling_temperature=1e-4,  # Much more focused sampling
+        min_presentations_for_eviction=300,
         wandb_run_name=wandb_run_name,
     )

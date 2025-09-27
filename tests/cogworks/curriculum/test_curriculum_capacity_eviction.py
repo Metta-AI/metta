@@ -74,7 +74,7 @@ class TestCurriculumCapacityAndEviction:
                 task.complete(performance)
                 curriculum.update_task_performance(task_id, performance)
 
-        # Now force additional get_task() calls to trigger eviction attempts
+        # Now force additional get_task() calls and then process evictions
         for _ in range(50):
             task = curriculum.get_task()
             # Give minimal additional performance to maintain patterns
@@ -90,6 +90,9 @@ class TestCurriculumCapacityAndEviction:
 
             task.complete(performance)
             curriculum.update_task_performance(task._task_id, performance)
+
+        # Process evictions using the new batched approach
+        curriculum.process_evictions()
 
         final_stats = curriculum.stats()
 
@@ -184,7 +187,7 @@ class TestCurriculumCapacityAndEviction:
             f"Task 2 evictable: {task_2_evictable}"
         )
 
-        # Force get_task() calls to trigger eviction
+        # Force get_task() calls and then process evictions
         for _ in range(20):
             task = curriculum.get_task()
             # Maintain performance patterns
@@ -198,6 +201,9 @@ class TestCurriculumCapacityAndEviction:
                 # New task - give medium performance
                 task.complete(0.5)
                 curriculum.update_task_performance(task._task_id, 0.5)
+
+        # Process evictions using the new batched approach
+        curriculum.process_evictions()
 
         final_stats = curriculum.stats()
 
@@ -379,16 +385,18 @@ class TestCurriculumCapacityAndEviction:
         else:
             print("○ Algorithm defers eviction decision to random selection")
 
-        # Now trigger eviction by getting more tasks
-        evicted_tasks = set()
+        # Now trigger eviction by getting more tasks and then processing evictions
         for _ in range(10):
             task = curriculum.get_task()
-            if task._task_id not in initial_task_ids:
-                # This is a new task, so something was evicted
-                current_task_ids = set(curriculum._tasks.keys())
-                evicted_tasks = set(initial_task_ids) - current_task_ids
-                break
             task.complete(0.5)
+            curriculum.update_task_performance(task._task_id, 0.5)
+
+        # Process evictions using the new batched approach
+        curriculum.process_evictions()
+
+        # Check for evicted tasks
+        current_task_ids = set(curriculum._tasks.keys())
+        evicted_tasks = set(initial_task_ids) - current_task_ids
 
         # Verify that eviction happens based on learning progress
         if evicted_tasks:

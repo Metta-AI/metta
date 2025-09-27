@@ -333,18 +333,11 @@ class Curriculum(StatsLogger):
 
         # Evict eligible tasks and replace them with new ones
         for evict_candidate in evictable_tasks:
-            if evict_candidate % 10 == 0:  # Debug logging for task 0
-                print(f"PROCESS_EVICTIONS: Evicting task {evict_candidate}")
             self._evict_specific_task(evict_candidate)
             evictions_count += 1
 
             # Create new task to replace evicted one
-            new_task = self._create_task()
-            if new_task._task_id % 10 == 0:  # Debug logging for task 0
-                print(f"PROCESS_EVICTIONS: Created new task {new_task._task_id}")
-
-        if evictions_count > 0:
-            print(f"PROCESS_EVICTIONS: Total evictions this epoch: {evictions_count}")
+            self._create_task()
 
         return evictions_count
 
@@ -372,12 +365,30 @@ class Curriculum(StatsLogger):
             # Get algorithm's task selection preferences
             task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
             if task_scores:
-                # Convert scores to probabilities for sampling
+                # Convert scores to probabilities for sampling with temperature sharpening
                 task_ids = list(task_scores.keys())
                 scores = list(task_scores.values())
-                total_score = sum(scores)
-                if total_score > 0:
-                    probabilities = [score / total_score for score in scores]
+
+                # Apply temperature sharpening for lower entropy (lower temp = more focused)
+                temperature = getattr(self._algorithm.hypers, "sampling_temperature", 1.0)
+                if temperature != 1.0 and temperature > 0:
+                    import numpy as np
+
+                    scores_array = np.array(scores)
+                    # Apply temperature scaling
+                    scores_array = scores_array / temperature
+                    # Apply softmax to prevent overflow
+                    exp_scores = np.exp(scores_array - np.max(scores_array))
+                    probabilities = exp_scores / np.sum(exp_scores)
+                    probabilities = probabilities.tolist()
+                else:
+                    total_score = sum(scores)
+                    if total_score > 0:
+                        probabilities = [score / total_score for score in scores]
+                    else:
+                        probabilities = [1 / len(scores)] * len(scores)
+
+                if sum(probabilities) > 0:
                     selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
                     return self._tasks[selected_id]
 
