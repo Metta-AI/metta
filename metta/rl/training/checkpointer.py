@@ -4,7 +4,6 @@ import logging
 from typing import Optional
 
 import torch
-
 from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
