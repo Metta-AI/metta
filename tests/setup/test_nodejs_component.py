@@ -16,8 +16,8 @@ import unittest
 
 import pytest
 
-from metta.setup.components.nodejs import NodejsSetup
-from metta.setup.saved_settings import UserType
+from softmax.cli.components.nodejs import NodejsSetup
+from softmax.cli.saved_settings import UserType
 from tests.setup.test_base import BaseMettaSetupTest
 
 

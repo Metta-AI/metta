@@ -11,7 +11,7 @@ import os
 
 import pytest
 
-from metta.setup.profiles import UserType
+from softmax.cli.profiles import UserType
 from tests.setup.test_base import BaseMettaSetupTest
 
 

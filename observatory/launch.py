@@ -8,7 +8,7 @@ from pathlib import Path
 
 from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
-from metta.setup.utils import error, info
+from softmax.cli.utils import error, info
 
 
 def main():

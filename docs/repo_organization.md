@@ -90,11 +90,13 @@ dependencies, and migration steps requested in the latest review cycle.
   - Migrate gameplay authoring modules into `packages/softmax-cogworks`; keep only content authoring APIs there.
   - Remove every `metta.*` shim related to these packages and accept the breaking import change across the monorepo.
   - Update dependency declarations and enforce public-entry-point imports.
-- **Phase 4 – Surface Apps & Tooling**
-  - Graduate `setup/` to `packages/softmax-cli`; move orchestration services into `softmax-orchestrator`.
-  - Migrate map/grid tooling and web assets into `softmax-maptools`; ensure all front-end build pipelines reference the
-    new paths.
-  - Remove remaining compatibility shims and prune unused `metta` directories.
+- **Phase 4 – Surface Apps & Tooling (final breaking change)**
+  - Graduate `setup/` to `packages/softmax-cli`, deleting the legacy `softmax.cli` package once the move lands.
+  - Relocate orchestration services into `softmax-orchestrator` and retire any `softmax.cli.*` runners.
+  - Migrate map/grid tooling and web assets into `softmax-maptools`; update build pipelines to reference the new package
+    names exclusively.
+  - After the package moves, delete the remaining `softmax.cli`, `metta.gridworks`, and related directories, leaving the
+    `metta/` namespace as compatibility-only stubs until Phase 4 cleans them up entirely.
 
 ## Action Checklist
 - [ ] File rename & tooling: update repo metadata, CI, and documentation to reference `softmax`.
@@ -102,9 +104,10 @@ dependencies, and migration steps requested in the latest review cycle.
       code and wire `metta.common` shim (to be deleted in Phase 3).
 - [ ] Define dependency allow-list rules and codify them in CI (import linter + `uv run --exact`).
 - [ ] Pilot PEP 420 by removing `__init__.py` from `metta/` shim directories once the new packages export equivalents.
-- [ ] Draft `softmax.cogworks` charter and audit modules to move; schedule migrations in Phase 3 tasks.
-- [ ] Update onboarding docs so teams install/test packages using `uv run --exact` commands per package.
-- [ ] Track downstream adoption; delete the remaining shims as part of the Phase 3 breaking change and broadcast the new import paths.
+- [x] Draft `softmax.cogworks` charter and audit modules to move; schedule migrations in Phase 3 tasks.
+- [ ] Outline Phase 4 breaking changes (CLI/orchestrator/maptools) and circulate with downstream teams before code moves.
+- [ ] Update onboarding docs so teams install/test packages using `uv run --exact` commands per package (Phase 4 follow-up).
+- [ ] Track downstream adoption; delete the remaining shims as part of Phase 4 and broadcast the new import paths.
 
 ## Open Questions
 - Do we want a dedicated vendor strategy for `mettagrid` artifacts (wheel vs. submodule) before we cut

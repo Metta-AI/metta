@@ -10,7 +10,7 @@ import unittest
 
 import pytest
 
-from metta.setup.saved_settings import SavedSettings, UserType
+from softmax.cli.saved_settings import SavedSettings, UserType
 from tests.setup.test_base import BaseMettaSetupTest
 
 

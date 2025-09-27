@@ -43,7 +43,7 @@ def pytest_configure(config: pytest.Config) -> None:
     active_profile = config.getoption("--metta-profile") or os.environ.get("METTA_TEST_PROFILE")
     BaseMettaSetupTest.active_profile_name = active_profile
     try:
-        from metta.setup.profiles import UserType
+        from softmax.cli.profiles import UserType
 
         BaseMettaSetupTest.active_user_type = (
             UserType(active_profile) if active_profile in {u.value for u in UserType} else None

@@ -33,9 +33,9 @@ def ensure_setup_factories_registered() -> None:
         if factories_registered():
             return
         register_setup_factories(
-            aws_factory=_lazy_factory("metta.setup.components.aws", "AWSSetup"),
-            observatory_factory=_lazy_factory("metta.setup.components.observatory_key", "ObservatoryKeySetup"),
-            wandb_factory=_lazy_factory("metta.setup.components.wandb", "WandbSetup"),
+            aws_factory=_lazy_factory("softmax.cli.components.aws", "AWSSetup"),
+            observatory_factory=_lazy_factory("softmax.cli.components.observatory_key", "ObservatoryKeySetup"),
+            wandb_factory=_lazy_factory("softmax.cli.components.wandb", "WandbSetup"),
         )
 
 
