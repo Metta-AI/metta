@@ -8,6 +8,7 @@
 #include "core/types.hpp"
 #include "objects/constants.hpp"
 #include "objects/inventory_config.hpp"
+#include "objects/inventory_watcher.hpp"
 struct SharedInventoryLimit {
   InventoryQuantity limit;
   // How much do we have of whatever-this-limit-applies-to
@@ -18,6 +19,7 @@ class Inventory {
 private:
   std::unordered_map<InventoryItem, InventoryQuantity> _inventory;
   std::unordered_map<InventoryItem, SharedInventoryLimit*> _limits;
+  std::vector<InventoryWatcher*> _watchers;
 
 public:
   // Splits the delta between the inventories. Returns the amount of delta successfully consumed.
@@ -110,6 +112,11 @@ public:
     }
   }
 
+  void add_watcher(InventoryWatcher& watcher) {
+    this->_watchers.push_back(&watcher);
+    watcher.onInventoryChange(*this);
+  }
+
   InventoryDelta update(InventoryItem item, InventoryDelta attempted_delta) {
     InventoryQuantity initial_amount = this->_inventory[item];
     int new_amount = static_cast<int>(initial_amount + attempted_delta);
@@ -137,6 +144,9 @@ public:
     }
 
     InventoryDelta clamped_delta = clamped_amount - initial_amount;
+    for (const auto& watcher : this->_watchers) {
+      watcher->onInventoryChange(*this, item, clamped_delta);
+    }
     return clamped_delta;
   }
 

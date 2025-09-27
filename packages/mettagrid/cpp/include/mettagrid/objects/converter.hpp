@@ -11,8 +11,9 @@
 #include "objects/constants.hpp"
 #include "objects/converter_config.hpp"
 #include "objects/has_inventory.hpp"
+#include "objects/inventory_watcher.hpp"
 
-class Converter : public GridObject, public HasInventory {
+class Converter : public GridObject, public HasInventory, public InventoryWatcher {
 private:
   // This should be called any time the converter could start converting. E.g.,
   // when things are added to its input, and when it finishes converting.
@@ -47,21 +48,12 @@ private:
       }
     }
     // produce.
-    // Get the amounts to consume from input, so we don't update the inventory
-    // while iterating over it.
-    std::unordered_map<InventoryItem, uint8_t> amounts_to_consume;
-    for (const auto& [item, input_amount] : this->input_resources) {
-      amounts_to_consume[item] = input_amount;
-    }
-
-    for (const auto& [item, amount] : amounts_to_consume) {
-      // Don't call update_inventory here, because it will call maybe_start_converting again,
-      // which will cause an infinite loop.
+    // produce. Mark ourselves as converting first, so we'll quickly exit future calls to
+    // maybe_start_converting (i.e., when we update our inventory)
+    this->converting = true;
+    for (const auto& [item, amount] : this->input_resources) {
       this->inventory.update(item, -amount);
     }
-    // All the previous returns were "we don't start converting".
-    // This one is us starting to convert.
-    this->converting = true;
     this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 
@@ -82,11 +74,11 @@ public:
   // -1 means no limit
   short max_output;
   short max_conversions;
-  unsigned short conversion_ticks;  // Time to produce output
+  unsigned short conversion_ticks;            // Time to produce output
   std::vector<unsigned short> cooldown_time;  // Sequenced cooldown durations
   unsigned short conversions_completed;
-  bool converting;                  // Currently in production phase
-  bool cooling_down;                // Currently in cooldown phase
+  bool converting;    // Currently in production phase
+  bool cooling_down;  // Currently in cooldown phase
   bool recipe_details_obs;
   EventManager* event_manager;
   ObservationType input_recipe_offset;
@@ -114,20 +106,21 @@ public:
     for (const auto& [item, _] : this->output_resources) {
       this->inventory.update(item, cfg.initial_resource_count);
     }
+    // Don't add ourselves as a watcher until we have an event manager.
   }
 
   void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
-    this->maybe_start_converting();
+    inventory.add_watcher(*this);
   }
 
   void finish_converting() {
-    this->converting = false;
-
-    // Add output to inventory
+    // Add output to inventory. Do this first, so we don't start converting again until we've finished.
     for (const auto& [item, amount] : this->output_resources) {
       this->inventory.update(item, amount);
     }
+    this->converting = false;
+    this->conversions_completed++;
 
     // Increment before checking cooldown to ensure max_conversions is properly
     // enforced when cooldown is zero
@@ -135,21 +128,12 @@ public:
 
     // Use (conversions_completed - 1) to get the cooldown for the conversion
     // that just finished
-    unsigned short cooldown_value =
-        this->cooldown_value_for_cycle(this->conversions_completed - 1);
+    unsigned short cooldown_value = this->cooldown_value_for_cycle(this->conversions_completed - 1);
     if (cooldown_value > 0) {
       this->cooling_down = true;
-      if (this->event_manager) {
-        this->event_manager->schedule_event(
-            EventType::CoolDown,
-            cooldown_value,
-            this->id,
-            0);
-      }
-    } else {
-      this->cooling_down = false;
-      this->maybe_start_converting();
+      this->event_manager->schedule_event(EventType::CoolDown, cooldown_value, this->id, 0);
     }
+    this->maybe_start_converting();
   }
 
   void finish_cooldown() {
@@ -157,10 +141,20 @@ public:
     this->maybe_start_converting();
   }
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
-    InventoryDelta delta = this->inventory.update(item, attempted_delta);
+  void onInventoryChange(Inventory& inventory) override {
     this->maybe_start_converting();
-    return delta;
+  }
+
+  void onInventoryChange(Inventory& inventory, InventoryItem item, InventoryDelta delta) override {
+    if (delta > 0) {
+      if (this->input_resources.count(item) > 0) {
+        this->maybe_start_converting();
+      }
+    } else if (delta < 0) {
+      if (this->output_resources.count(item) > 0) {
+        this->maybe_start_converting();
+      }
+    }
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
