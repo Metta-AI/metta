@@ -7,12 +7,10 @@ from tensordict import TensorDict
 from torch import Tensor
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss
+from metta.rl.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import ComponentContext
 from mettagrid.config import Config
-
-# Config class
 
 
 class TLKickstarterConfig(Config):

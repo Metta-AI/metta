@@ -1,9 +1,10 @@
-import logging
+import importlib
 from typing import Any, Callable, Optional
 
 import torch
 
 from metta.agent.policy import Policy
+from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     ComponentContext,
@@ -20,15 +21,11 @@ from metta.rl.training.optimizer import create_optimizer
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
-    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
+    importlib.import_module("pufferlib._C")
 except ImportError:
-    raise ImportError(
-        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
-        "try installing with --no-build-isolation"
-    ) from None
+    raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
 
-torch.set_float32_matmul_precision("high")
-logger = logging.getLogger(__name__)
+logger = getRankAwareLogger(__name__)
 
 
 class Trainer:
@@ -66,6 +63,7 @@ class Trainer:
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
         self._policy.train()
+
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)

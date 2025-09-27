@@ -11,6 +11,7 @@ requires-python = "==3.11.7"
 license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
+dependencies = ["rich>=14.1", "wandb>=0.21.2"]
 
 [project.scripts]
 tool = "metta.common.tool.run_tool:cli_entry"

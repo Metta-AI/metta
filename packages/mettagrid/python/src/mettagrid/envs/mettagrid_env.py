@@ -183,7 +183,6 @@ class MettaGridEnv(MettaGridPufferBase):
         # only plot label completions once we have a full moving average window, to prevent initial bias
         if len(self._label_completions["completed_tasks"]) >= 50:
             infos["label_completions"] = self._label_completions["completion_rates"]
-
         self.per_label_rewards[self.mg_config.label] = episode_rewards.mean()
         infos["per_label_rewards"] = self.per_label_rewards
 

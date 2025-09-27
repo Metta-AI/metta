@@ -4,6 +4,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
@@ -175,8 +176,16 @@ private:
       snapshot.emplace_back(item, amount);
     }
 
-    // Transfer resources
+    // Transfer resources (excluding soul-bound resources)
     for (const auto& [item, amount] : snapshot) {
+      // Check if this resource is soul-bound for the target
+      if (std::find(target.soul_bound_resources.begin(),
+                    target.soul_bound_resources.end(),
+                    item) != target.soul_bound_resources.end()) {
+        // Skip soul-bound resources
+        continue;
+      }
+
       InventoryDelta stolen = actor.update_inventory(item, amount);
       target.update_inventory(item, -stolen);
 

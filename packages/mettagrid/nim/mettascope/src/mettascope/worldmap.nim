@@ -1,7 +1,14 @@
 import
-  std/[strformat, math],
+  std/[strformat, math, os, strutils],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays
+
+proc buildAtlas*() =
+  ## Build the atlas.
+  for path in walkDirRec(dataDir):
+    if path.endsWith(".png") and "fidget" notin path:
+      let name = path.replace(dataDir & "/", "").replace(".png", "")
+      bxy.addImage(name, readImage(path))
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.
@@ -112,8 +119,8 @@ proc drawObjects*() =
       var agentImage = case agent.orientation.at:
         of 0: "agents/agent.n"
         of 1: "agents/agent.s"
-        of 2: "agents/agent.e"
-        of 3: "agents/agent.w"
+        of 2: "agents/agent.w"
+        of 3: "agents/agent.e"
         else:
           echo "Unknown orientation: ", agent.orientation.at
           "agents/agent.n"
@@ -146,8 +153,10 @@ proc drawVisualRanges*(alpha = 0.2) =
       for i in 0 ..< agent.visionSize:
         for j in 0 ..< agent.visionSize:
           let
-            center = ivec2((agent.visionSize div 2).int32, (
-                agent.visionSize div 2).int32)
+            center = ivec2(
+              (agent.visionSize div 2).int32,
+              (agent.visionSize div 2).int32
+            )
             gridPos = agent.location.at.xy - center + ivec2(i.int32, j.int32)
 
           if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and

@@ -1,12 +1,12 @@
 import math
 from typing import Tuple
 
-import pufferlib.pytorch
 import torch.nn as nn
 import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 
+import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
 
 
