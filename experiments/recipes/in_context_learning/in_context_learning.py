@@ -318,7 +318,6 @@ class ICLTaskGenerator(TaskGenerator):
         terrain_density = (
             rng.choice(room_size_templates[room_size]["terrain"]) or "no-terrain"
         )
-        print(f"Terrain density: {terrain_density}")
 
         width, height = self._set_width_and_height(
             room_size, num_agents, num_resources + num_converters, rng
