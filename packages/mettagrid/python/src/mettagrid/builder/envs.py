@@ -12,6 +12,7 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
+from mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -213,6 +214,50 @@ def make_in_context_chains(
                 rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory={
+                        "heart": 1,
+                    },
+                ),
+                default_resource_limit=1,
+                resource_limits={"heart": 15},
+            ),
+        ),
+    )
+    return cfg
+
+
+def make_icl_assembler(
+    num_agents: int,
+    num_instances: int,
+    max_steps,
+    game_objects: dict,
+    map_builder_objects: dict,
+    width: int = 6,
+    height: int = 6,
+) -> MettaGridConfig:
+    game_objects["wall"] = empty_converters.wall
+    cfg = MettaGridConfig(
+        desync_episodes=False,
+        game=GameConfig(
+            max_steps=max_steps,
+            num_agents=num_agents * num_instances,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_instances,
+                instance_map=AssemblerMapBuilder.Config(
+                    agents=num_agents,
+                    width=width,
+                    height=height,
+                    objects=map_builder_objects,
+                ),
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                get_items=ActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
