@@ -84,11 +84,11 @@ curriculum_args = {
         "num_sinks": [0, 1, 2],
         "room_sizes": ["tiny", "small", "medium", "large"],
     },
-    "test": {
-        "chain_lengths": [4],
-        "num_sinks": [2],
-        "room_sizes": ["medium"],
-    },
+    # "test": {
+    #     "chain_lengths": [4],
+    #     "num_sinks": [2],
+    #     "room_sizes": ["medium"],
+    # },
 }
 
 

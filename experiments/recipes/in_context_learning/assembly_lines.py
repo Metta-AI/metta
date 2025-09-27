@@ -5,8 +5,9 @@ from experiments.recipes.in_context_learning.in_context_learning import (
     train_icl,
     play_icl,
     replay_icl,
-    room_size_templates,
 )
+import subprocess
+import time
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
@@ -288,6 +289,22 @@ def save_envs_to_numpy(dir="in_context_assembly_lines/", num_envs: int = 500):
                     os.makedirs(os.path.dirname(filename), exist_ok=True)
                     print(f"saving to {filename}")
                     np.save(filename, grid)
+
+
+def experiment():
+    for curriculum_style in curriculum_args:
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.in_context_learning.assembly_lines.train",
+                f"run=in_context.assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
+        time.sleep(1)
 
 
 if __name__ == "__main__":

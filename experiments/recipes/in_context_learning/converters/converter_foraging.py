@@ -51,12 +51,12 @@ curriculum_args = {
         "max_recipe_inputs": [1, 2, 3],
         "room_sizes": ["tiny", "small", "medium", "large"],
     },
-    "test": {
-        "num_resources": [4],
-        "num_converters": [3],
-        "room_sizes": ["medium"],
-        "max_recipe_inputs": [2],
-    },
+    # "test": {
+    #     "num_resources": [4],
+    #     "num_converters": [3],
+    #     "room_sizes": ["medium"],
+    #     "max_recipe_inputs": [2],
+    # },
 }
 
 
