@@ -14,14 +14,18 @@ members = [
     "gitta",
     "metta",
     "metta-agent",
-    "metta-app-backend",
     "metta-common",
     "mettagrid",
     "pufferlib-core",
     "softmax",
+    "softmax-cli",
+    "softmax-cogworks",
     "softmax-config",
     "softmax-lib",
+    "softmax-maptools",
+    "softmax-orchestrator",
     "softmax-shared",
+    "softmax-training",
 ]
 
 [[package]]
@@ -2008,7 +2012,6 @@ dependencies = [
     { name = "jmespath" },
     { name = "matplotlib" },
     { name = "metta-agent" },
-    { name = "softmax-orchestrator" },
     { name = "metta-common" },
     { name = "numpy" },
     { name = "nvidia-ml-py" },
@@ -2032,9 +2035,14 @@ dependencies = [
     { name = "simple-term-menu" },
     { name = "skypilot" },
     { name = "softmax" },
+    { name = "softmax-cli" },
+    { name = "softmax-cogworks" },
     { name = "softmax-config" },
     { name = "softmax-lib" },
+    { name = "softmax-maptools" },
+    { name = "softmax-orchestrator" },
     { name = "softmax-shared" },
+    { name = "softmax-training" },
     { name = "sympy" },
     { name = "tabulate" },
     { name = "tensordict" },
@@ -2114,7 +2122,6 @@ requires-dist = [
     { name = "jmespath", specifier = ">=1.0.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "metta-agent", editable = "agent" },
-    { name = "softmax-orchestrator", editable = "packages/softmax-orchestrator" },
     { name = "metta-common", editable = "common" },
     { name = "numpy", specifier = ">=2" },
     { name = "nvidia-ml-py" },
@@ -2138,9 +2145,14 @@ requires-dist = [
     { name = "simple-term-menu", specifier = ">=1.6.4" },
     { name = "skypilot", specifier = "==0.10.3" },
     { name = "softmax", editable = "softmax" },
+    { name = "softmax-cli", editable = "packages/softmax-cli" },
+    { name = "softmax-cogworks", editable = "packages/softmax-cogworks" },
     { name = "softmax-config", editable = "packages/softmax-config" },
     { name = "softmax-lib", editable = "packages/softmax-lib" },
+    { name = "softmax-maptools", editable = "packages/softmax-maptools" },
+    { name = "softmax-orchestrator", editable = "packages/softmax-orchestrator" },
     { name = "softmax-shared", editable = "packages/softmax-shared" },
+    { name = "softmax-training", editable = "packages/softmax-training" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensordict", specifier = ">=0.8.3" },
@@ -2216,61 +2228,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [{ name = "pufferlib-core", editable = "packages/pufferlib-core" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pyright", specifier = ">=1.1.401" },
-    { name = "pytest", specifier = ">=8.3.3" },
-    { name = "pytest-benchmark", specifier = ">=5.1.0" },
-    { name = "pytest-cov", specifier = ">=6.1.1" },
-    { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "ruff", specifier = ">=0.11.13" },
-]
-
-[[package]]
-name = "softmax-orchestrator"
-version = "0.0.1"
-source = { editable = "packages/softmax-orchestrator" }
-dependencies = [
-    { name = "boto3" },
-    { name = "ddtrace" },
-    { name = "fastapi" },
-    { name = "gitta" },
-    { name = "httpx" },
-    { name = "softmax-config", editable = "packages/softmax-config" },
-    { name = "softmax-lib", editable = "packages/softmax-lib" },
-    { name = "softmax-training", editable = "packages/softmax-training" },
-    { name = "psycopg", extra = ["binary", "pool"] },
-    { name = "pydantic" },
-    { name = "pytest-asyncio" },
-    { name = "uvicorn", extra = ["standard"] },
-    { name = "wandb" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-benchmark" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "boto3", specifier = ">=1.38.32" },
-    { name = "ddtrace", specifier = ">=2.6.0" },
-    { name = "fastapi", specifier = ">=0.115.5" },
-    { name = "gitta", editable = "gitta" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "metta-common", editable = "common" },
-    { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },
-    { name = "pydantic", specifier = ">=2.11.5" },
-    { name = "pytest-asyncio", specifier = ">=1.0.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
-    { name = "wandb", specifier = ">=0.19.11" },
-]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4135,6 +4092,46 @@ requires-dist = [
 ]
 
 [[package]]
+name = "softmax-cli"
+version = "0.0.1"
+source = { editable = "packages/softmax-cli" }
+dependencies = [
+    { name = "click" },
+    { name = "rich" },
+    { name = "softmax-config" },
+    { name = "softmax-lib" },
+    { name = "softmax-training" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "click", specifier = ">=8.1.7" },
+    { name = "rich", specifier = ">=13.9.4" },
+    { name = "softmax-config", editable = "packages/softmax-config" },
+    { name = "softmax-lib", editable = "packages/softmax-lib" },
+    { name = "softmax-training", editable = "packages/softmax-training" },
+    { name = "typer", specifier = ">=0.16.1" },
+]
+
+[[package]]
+name = "softmax-cogworks"
+version = "0.0.1"
+source = { editable = "packages/softmax-cogworks" }
+dependencies = [
+    { name = "mettagrid" },
+    { name = "softmax-lib" },
+    { name = "softmax-shared" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "softmax-lib", editable = "packages/softmax-lib" },
+    { name = "softmax-shared", editable = "packages/softmax-shared" },
+]
+
+[[package]]
 name = "softmax-config"
 version = "0.0.1"
 source = { editable = "packages/softmax-config" }
@@ -4180,6 +4177,88 @@ requires-dist = [
 provides-extras = ["test"]
 
 [[package]]
+name = "softmax-maptools"
+version = "0.0.1"
+source = { editable = "packages/softmax-maptools" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "mettagrid" },
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "softmax-lib" },
+    { name = "softmax-shared" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "numpy", specifier = ">=2" },
+    { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "softmax-lib", editable = "packages/softmax-lib" },
+    { name = "softmax-shared", editable = "packages/softmax-shared" },
+    { name = "typer", specifier = ">=0.16.1" },
+]
+
+[[package]]
+name = "softmax-orchestrator"
+version = "0.0.1"
+source = { editable = "packages/softmax-orchestrator" }
+dependencies = [
+    { name = "boto3" },
+    { name = "ddtrace" },
+    { name = "fastapi" },
+    { name = "gitta" },
+    { name = "httpx" },
+    { name = "psycopg", extra = ["binary", "pool"] },
+    { name = "pydantic" },
+    { name = "pytest-asyncio" },
+    { name = "softmax-config" },
+    { name = "softmax-lib" },
+    { name = "softmax-training" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "wandb" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-benchmark" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.38.32" },
+    { name = "ddtrace", specifier = ">=2.6.0" },
+    { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "gitta", editable = "gitta" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },
+    { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "softmax-config", editable = "packages/softmax-config" },
+    { name = "softmax-lib", editable = "packages/softmax-lib" },
+    { name = "softmax-training", editable = "packages/softmax-training" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
+    { name = "wandb", specifier = ">=0.19.11" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.401" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-benchmark", specifier = ">=5.1.0" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "ruff", specifier = ">=0.11.13" },
+]
+
+[[package]]
 name = "softmax-shared"
 version = "0.0.1"
 source = { editable = "packages/softmax-shared" }
@@ -4194,6 +4273,51 @@ requires-dist = [
     { name = "metta-common", editable = "common" },
     { name = "mettagrid", editable = "packages/mettagrid" },
     { name = "pydantic", specifier = ">=2.11.5" },
+]
+
+[[package]]
+name = "softmax-training"
+version = "0.0.1"
+source = { editable = "packages/softmax-training" }
+dependencies = [
+    { name = "boto3" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "matplotlib" },
+    { name = "mettagrid" },
+    { name = "numpy" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "scipy" },
+    { name = "softmax-config" },
+    { name = "softmax-lib" },
+    { name = "softmax-shared" },
+    { name = "torch" },
+    { name = "tqdm" },
+    { name = "typer" },
+    { name = "wandb" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.38.32" },
+    { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "matplotlib", specifier = ">=3.10.3" },
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "numpy", specifier = ">=2" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
+    { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "pydantic-settings", specifier = ">=2.10.1" },
+    { name = "scipy", specifier = ">=1.15.3" },
+    { name = "softmax-config", editable = "packages/softmax-config" },
+    { name = "softmax-lib", editable = "packages/softmax-lib" },
+    { name = "softmax-shared", editable = "packages/softmax-shared" },
+    { name = "torch", specifier = ">=2.7.1" },
+    { name = "tqdm", specifier = ">=4.67.1" },
+    { name = "typer", specifier = ">=0.16.1" },
+    { name = "wandb", specifier = ">=0.19.11" },
 ]
 
 [[package]]
