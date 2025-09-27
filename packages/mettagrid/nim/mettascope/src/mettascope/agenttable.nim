@@ -1,5 +1,5 @@
 import
-  boxy, chroma, fidget2/[common, hybridrender],
+  boxy, chroma, fidget2/hybridrender,
   common, panels
 
 proc drawAgentTable*(panel: Panel) =
