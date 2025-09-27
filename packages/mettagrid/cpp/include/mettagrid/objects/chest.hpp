@@ -14,7 +14,6 @@
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
-#include "systems/stats_tracker.hpp"
 
 // Forward declaration
 class Agent;
@@ -62,19 +61,15 @@ private:
     // Check if agent has the required resource
     auto it = agent.inventory.find(resource_type);
     if (it == agent.inventory.end() || it->second == 0) {
-      stats.incr("chest.deposit_failed.no_resource");
       return false;
     }
 
     InventoryDelta deposited = update_inventory(resource_type, 1);
     if (deposited == 1) {
       agent.update_inventory(resource_type, -1);
-      stats.incr("chest.deposit_success");
-      stats.add(stats.resource_name(resource_type) + ".deposited", 1);
       return true;
     }
     // Chest couldn't accept the resource, give it back to agent
-    stats.incr("chest.deposit_failed.chest_full");
     return false;
   }
 
@@ -83,19 +78,15 @@ private:
     // Check if chest has the required resource
     auto it = inventory.find(resource_type);
     if (it == inventory.end() || it->second == 0) {
-      stats.incr("chest.withdraw_failed.no_resource");
       return false;
     }
 
     InventoryDelta withdrawn = agent.update_inventory(resource_type, 1);
     if (withdrawn == 1) {
       update_inventory(resource_type, -1);
-      stats.incr("chest.withdraw_success");
-      stats.add(stats.resource_name(resource_type) + ".withdrawn", 1);
       return true;
     }
     // Agent couldn't accept the resource, give it back to chest
-    stats.incr("chest.withdraw_failed.agent_full");
     return false;
   }
 
@@ -104,9 +95,6 @@ public:
   InventoryItem resource_type;
   std::set<int> deposit_positions;
   std::set<int> withdrawal_positions;
-
-  // Stats tracking
-  class StatsTracker stats;
 
   // Grid access for finding agent positions
   class Grid* grid;
@@ -129,13 +117,11 @@ public:
   // Implement pure virtual method from Usable
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid) {
-      stats.incr("chest.use_failed.no_grid_or_agent");
       return false;
     }
 
     int agent_position_index = get_agent_relative_position_index(actor);
     if (agent_position_index == -1) {
-      stats.incr("chest.use_failed.not_adjacent");
       return false;
     }
 
@@ -145,7 +131,6 @@ public:
     } else if (is_withdrawal_position(agent_position_index)) {
       return withdraw_resource(actor);
     } else {
-      stats.incr("chest.use_failed.invalid_position");
       return false;
     }
   }

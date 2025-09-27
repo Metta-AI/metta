@@ -297,7 +297,7 @@ def make_curriculum(
     max_recipe_inputs=[1, 2, 3],
     lp_params: LPParams = LPParams(),
 ) -> CurriculumConfig:
-    task_generator_cfg = ICLTaskGenerator.Config(
+    task_generator_cfg = UnorderedChainTaskGenerator.Config(
         num_resources=num_resources,
         num_converters=num_converters,
         room_sizes=room_sizes,

@@ -7,8 +7,8 @@ proc buildAtlas*() =
   ## Build the atlas.
   for path in walkDirRec(dataDir):
     if path.endsWith(".png") and "fidget" notin path:
-      echo path
-      bxy.addImage(path.replace(dataDir & "/", "").replace(".png", ""), readImage(path))
+      let name = path.replace(dataDir & "/", "").replace(".png", "")
+      bxy.addImage(name, readImage(path))
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.

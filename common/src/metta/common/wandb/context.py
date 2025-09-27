@@ -58,20 +58,24 @@ class WandbContext:
 
     def __init__(
         self,
-        wandb_cfg: WandbConfig,
-        extra_cfg: Config | dict[str, Any] | None = None,
+        wandb_config: WandbConfig,
+        run_config: Config | dict[str, Any] | str | None = None,
         timeout: int = 30,
+        run_config_name: str | None = None,
     ):
         """
         Initialize WandbContext.
 
         Args:
             wandb_cfg: WandB configuration
-            extra_cfg: Optional Config object or dict to log to the wandb run
+            run_config: Optional configuration data to log to the W&B run's config
             timeout: Connection timeout in seconds
+            run_config_name: Optional name for the config when it's an object/dict
+
         """
-        self.cfg = wandb_cfg
-        self.extra_cfg = extra_cfg
+        self.wandb_config = wandb_config
+        self.run_config = run_config
+        self.run_config_name = run_config_name
         self.run: WandbRun | None = None
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
@@ -79,12 +83,10 @@ class WandbContext:
         self._generated_ipc_file_path: str | None = None  # To store path if generated
 
     def __enter__(self) -> WandbRun | None:
-        if not self.cfg.enabled:
+        if not self.wandb_config.enabled:
             return None
 
-        assert self.cfg.enabled
-
-        # Check internet connection before proceeding
+        # Check for a live connection to W&B before proceeding
         try:
             socket.setdefaulttimeout(5)  # Set a 5-second timeout for the connection check
             socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((self.wandb_host, self.wandb_port))
@@ -97,39 +99,59 @@ class WandbContext:
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
         try:
-            tags = list(self.cfg.tags)
+            tags = list(self.wandb_config.tags)
             tags.append("user:" + os.environ.get("METTA_USER", "unknown"))
 
             # Build config dict
             config = None
-            if self.extra_cfg:
-                if isinstance(self.extra_cfg, dict):
-                    config = self.extra_cfg
-                else:
+            if self.run_config:
+                if isinstance(self.run_config, dict):
+                    key = self.run_config_name or "extra_config_dict"
+                    config = {key: self.run_config}
+                elif isinstance(self.run_config, Config):
                     # Assume it's a Config object with model_dump method
-                    config = self.extra_cfg.model_dump()
+                    class_name = self.run_config.__class__.__name__
+                    key = self.run_config_name or class_name or "extra_config_object"
+                    config = {key: self.run_config.model_dump()}
+                elif isinstance(self.run_config, str):
+                    config = self.run_config
+                else:
+                    logger.error(f"Invalid extra_cfg: {self.run_config}")
+                    config = None
 
             self.run = wandb.init(
-                id=self.cfg.run_id,
-                job_type=self.cfg.job_type,
-                project=self.cfg.project,
-                entity=self.cfg.entity,
+                id=self.wandb_config.run_id,
+                job_type=self.wandb_config.job_type,
+                project=self.wandb_config.project,
+                entity=self.wandb_config.entity,
                 config=config,
-                group=self.cfg.group,
+                group=self.wandb_config.group,
                 allow_val_change=True,
                 monitor_gym=True,
                 save_code=True,
-                resume=True,
+                resume="allow",
                 tags=tags,
-                notes=self.cfg.notes or None,
+                notes=self.wandb_config.notes or None,
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
             )
 
             # Save config and set up file syncing only if wandb init succeeded and data_dir is set
-            if self.cfg.data_dir:
-                wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
-                wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
-                wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
+            if self.wandb_config.data_dir:
+                wandb.save(
+                    os.path.join(self.wandb_config.data_dir, "*.log"),
+                    base_path=self.wandb_config.data_dir,
+                    policy="live",
+                )
+                wandb.save(
+                    os.path.join(self.wandb_config.data_dir, "*.yaml"),
+                    base_path=self.wandb_config.data_dir,
+                    policy="live",
+                )
+                wandb.save(
+                    os.path.join(self.wandb_config.data_dir, "*.json"),
+                    base_path=self.wandb_config.data_dir,
+                    policy="live",
+                )
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
         except (TimeoutError, CommError) as e:

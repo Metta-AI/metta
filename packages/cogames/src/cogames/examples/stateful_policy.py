@@ -1,18 +1,19 @@
 import logging
-from typing import Any
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
+from einops import rearrange
 
 import pufferlib.pytorch
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridEnv
 
-logger = logging.getLogger("cogames.examples.simple_policy")
+logger = logging.getLogger("cogames.examples.stateful_policy")
 
 
-class SimplePolicyNet(torch.nn.Module):
+class StatefulPolicyNet(torch.nn.Module):
     def __init__(self, env):
         super().__init__()
         self.hidden_size = 128
@@ -24,32 +25,46 @@ class SimplePolicyNet(torch.nn.Module):
             pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
         )
 
+        self.rnn = torch.nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
+
         self.action_nvec = tuple(env.single_action_space.nvec)
 
         self.action_head = torch.nn.Linear(self.hidden_size, sum(self.action_nvec))
         self.value_head = torch.nn.Linear(self.hidden_size, 1)
 
-    def forward_eval(self, observations, state=None):
+    def forward_eval(
+        self,
+        observations: torch.Tensor,
+        state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+    ) -> Tuple[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         batch_size = observations.shape[0]
         observations = observations.view(batch_size, -1).float() / 255.0
         hidden = self.net(observations)
+        hidden = rearrange(hidden, "(b t) h -> b t h", t=1)
+        hidden, new_state = self.rnn(hidden, state)
+        hidden = rearrange(hidden, "b t h -> (b t) h")
         logits = self.action_head(hidden)
         logits = logits.split(self.action_nvec, dim=1)
 
         values = self.value_head(hidden)
-        return logits, values
+        return logits, values, new_state
 
     # We use this to work around a major torch perf issue
-    def forward(self, observations, state=None):
+    def forward(
+        self,
+        observations: torch.Tensor,
+        state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+    ) -> Tuple[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         return self.forward_eval(observations, state)
 
 
-class SimplePolicy(TrainablePolicy):
+class StatefulPolicy(TrainablePolicy):
     def __init__(self, env: MettaGridEnv, device: torch.device):
         super().__init__()
-        self._net = SimplePolicyNet(env).to(device)
+        self._net = StatefulPolicyNet(env).to(device)
         self._device = device
         self.action_nvec = tuple(env.single_action_space.nvec)
+        self._state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
 
     def network(self) -> nn.Module:
         return self._net
@@ -69,7 +84,10 @@ class SimplePolicy(TrainablePolicy):
 
         with torch.no_grad():
             self._net.eval()
-            logits, _ = self._net.forward_eval(obs_tensor)
+            logits, _, new_state = self._net.forward_eval(obs_tensor, self._state)
+            if new_state is not None:
+                h, c = new_state
+                self._state = (h.detach(), c.detach())
 
             # Sample action from the logits
             actions = []
@@ -80,11 +98,12 @@ class SimplePolicy(TrainablePolicy):
             return np.array(actions, dtype=np.int32)
 
     def reset(self) -> None:
-        pass
+        self._state = None
 
     def load_checkpoint(self, checkpoint_path: str) -> None:
         self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
         self._net = self._net.to(self._device)
+        self._state = None
 
     def save_checkpoint(self, checkpoint_path: str) -> None:
         torch.save(self._net.state_dict(), checkpoint_path)

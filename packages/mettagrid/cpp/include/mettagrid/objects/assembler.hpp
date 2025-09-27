@@ -14,7 +14,6 @@
 #include "objects/constants.hpp"
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
-#include "systems/stats_tracker.hpp"
 
 // Forward declaration
 class Agent;
@@ -88,12 +87,7 @@ private:
         if (it != agent->inventory.end()) {
           InventoryQuantity available = it->second;
           InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-          InventoryDelta delta = agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-          InventoryQuantity actually_consumed = static_cast<InventoryQuantity>(-delta);
-          remaining = static_cast<InventoryQuantity>(remaining - actually_consumed);
-          if (actually_consumed > 0) {
-            stats.add(stats.resource_name(item) + ".consumed", actually_consumed);
-          }
+          agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
         }
       }
     }
@@ -102,11 +96,7 @@ private:
   // Give output resources to the triggering agent
   void give_output_to_agent(const Recipe& recipe, Agent& agent) {
     for (const auto& [item, amount] : recipe.output_resources) {
-      InventoryDelta delta = agent.update_inventory(item, static_cast<InventoryDelta>(amount));
-      InventoryQuantity actually_produced = static_cast<InventoryQuantity>(delta);
-      if (actually_produced > 0) {
-        stats.add(stats.resource_name(item) + ".produced", actually_produced);
-      }
+      agent.update_inventory(item, static_cast<InventoryDelta>(amount));
     }
   }
 
@@ -116,9 +106,6 @@ public:
 
   // Current cooldown state
   unsigned int cooldown_end_timestep;
-
-  // Stats tracking
-  class StatsTracker stats;
 
   // Grid access for finding surrounding agents
   class Grid* grid;
@@ -200,25 +187,20 @@ public:
       return false;
     }
     if (cooldown_remaining() > 0) {
-      stats.incr("assembler.blocked.cooldown");
       return false;
     }
     const Recipe* recipe = get_current_recipe();
     if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
-      stats.incr("assembler.blocked.no_recipe");
       return false;
     }
     std::vector<Agent*> surrounding_agents = get_surrounding_agents();
     if (!can_afford_recipe(*recipe, surrounding_agents)) {
-      stats.incr("assembler.blocked.insufficient_resources");
       return false;
     }
     consume_resources_for_recipe(*recipe, surrounding_agents);
     give_output_to_agent(*recipe, actor);
-    stats.incr("assembler.recipes_executed");
     if (recipe->cooldown > 0) {
       cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
-      stats.incr("assembler.cooldown_started");
     }
     return true;
   }
@@ -265,7 +247,6 @@ public:
   // Handle cooldown completion
   void finish_cooldown() {
     this->cooldown_end_timestep = 0;
-    stats.incr("assembler.cooldown_completed");
   }
 };
 
