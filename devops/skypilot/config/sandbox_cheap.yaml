@@ -1,9 +1,9 @@
 resources:
   cloud: aws
   region: us-east-1
-  instance_type: t3.large  # 2 vCPUs, 8GB RAM - cheap (~$0.08/hour on-demand)
-  cpus: 2+
-  memory: 8+
+  instance_type: m6i.2xlarge  # 8 vCPUs, 32GB RAM (~$0.384/hour on-demand)
+  cpus: 8+
+  memory: 32+
   image_id: docker:metta:latest
 
 config:
@@ -65,3 +65,8 @@ envs:
 secrets:
   WANDB_PASSWORD: ""
   OBSERVATORY_TOKEN: ""
+  GH_TOKEN: ""  # GitHub CLI token for PR operations
+  # Optional: AWS credentials (if not using SSO or IAM roles)
+  AWS_ACCESS_KEY_ID: ""
+  AWS_SECRET_ACCESS_KEY: ""
+  AWS_DEFAULT_REGION: ""

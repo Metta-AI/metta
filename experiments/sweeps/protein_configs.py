@@ -115,7 +115,7 @@ PPO_BASIC = ProteinConfig(
             min=1e-5,
             max=1e-2,
             distribution="log_normal",
-            mean=1e-3,  # Geometric mean
+            mean=0.001153637,  # Geometric mean
             scale="auto",
         ),
         # 2. PPO clip coefficient - uniform from 0.05 to 0.3
@@ -123,7 +123,7 @@ PPO_BASIC = ProteinConfig(
             min=0.05,
             max=0.3,
             distribution="uniform",
-            mean=0.175,
+            mean=0.264407,
             scale="auto",
         ),
         # 3. Entropy coefficient - log scale from 0.0001 to 0.01
@@ -131,7 +131,7 @@ PPO_BASIC = ProteinConfig(
             min=0.0001,
             max=0.01,
             distribution="log_normal",
-            mean=0.001,  # Geometric mean
+            mean=0.010000,  # Geometric mean
             scale="auto",
         ),
         # 4. GAE lambda - uniform from 0.8 to 0.99
@@ -139,7 +139,7 @@ PPO_BASIC = ProteinConfig(
             min=0.8,
             max=0.99,
             distribution="uniform",
-            mean=0.895,
+            mean=0.891477,
             scale="auto",
         ),
         # 5. Value function coefficient - uniform from 0.1 to 1.0
@@ -147,7 +147,7 @@ PPO_BASIC = ProteinConfig(
             min=0.1,
             max=1.0,
             distribution="uniform",
-            mean=0.55,
+            mean=0.897619,
             scale="auto",
         ),
         # 6. Adam epsilon - log scale from 1e-8 to 1e-4
@@ -155,7 +155,7 @@ PPO_BASIC = ProteinConfig(
             min=1e-8,
             max=1e-4,
             distribution="log_normal",
-            mean=1e-6,  # Geometric mean
+            mean=3.186531e-07,  # Geometric mean
             scale="auto",
         ),
     },

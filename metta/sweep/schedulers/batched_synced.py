@@ -35,6 +35,7 @@ class BatchedSyncedSchedulerConfig(Config):
     batch_size: int = 4
     experiment_id: str = "batched_synced"
     protein_config: Any = Field(description="ProteinConfig for optimization")
+    force_eval: bool = False  # Force re-dispatch of IN_EVAL jobs on relaunch
 
 
 @dataclass
@@ -123,16 +124,34 @@ class BatchedSyncedOptimizingScheduler:
             )
             if is_empty_state and runs:
                 logger.info("[BatchedSyncedOptimizingScheduler] Empty state detected, initializing from observed runs")
+                force_eval_count = 0
                 for run_id, status in run_status_map.items():
                     if status == JobStatus.IN_TRAINING:
                         self.state.runs_in_training.add(run_id)
                         logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in training")
                     elif status == JobStatus.IN_EVAL:
-                        self.state.runs_in_eval.add(run_id)
-                        logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in evaluation")
+                        if self.config.force_eval:
+                            # Don't track in runs_in_eval - this will cause re-dispatch
+                            logger.info(
+                                f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in evaluation - "
+                                "FORCING RE-EVALUATION due to force_eval=True"
+                            )
+                            force_eval_count += 1
+                        else:
+                            self.state.runs_in_eval.add(run_id)
+                            logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} in evaluation")
                     elif status == JobStatus.COMPLETED:
                         self.state.runs_completed.add(run_id)
                         logger.info(f"[BatchedSyncedOptimizingScheduler] Found run {run_id} completed")
+
+                if self.config.force_eval and force_eval_count > 0:
+                    logger.info(
+                        f"[BatchedSyncedOptimizingScheduler] force_eval=True: "
+                        f"Will re-dispatch {force_eval_count} evaluation job(s)"
+                    )
+                    # Clear the flag after first use to prevent continuous re-dispatching
+                    self.config.force_eval = False
+
                 logger.info(
                     f"[BatchedSyncedOptimizingScheduler] State initialized: "
                     f"{len(self.state.runs_in_training)} training, "
