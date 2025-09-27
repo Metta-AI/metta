@@ -71,16 +71,15 @@ format: install
 	@echo "Running mettagrid format..."
 	cd packages/mettagrid && make format-fix
 
-# Clean build artifacts
 clean:
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info
-	rm -rf .pytest_cache/
-	rm -rf .coverage
-	rm -rf htmlcov/
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
+	rm -rf build dist htmlcov .pytest_cache .coverage ./*.egg-info || true
+
+	$(MAKE) -C packages/mettagrid clean
+
+	@PRUNES='-name .git -o -name .venv -o -name node_modules -o -name .bazel_output -o -name "bazel-*" -o -name bazel-out -o -name bazel-bin -o -name bazel-testlogs'; \
+	find . \( $$PRUNES \) -prune -o \
+	  \( -type d -name __pycache__ -print0 -o -type f -name '*.pyc' -print0 \) | xargs -0r rm -rf
+
 
 # Full development setup
 dev:
