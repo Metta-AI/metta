@@ -1,84 +1,81 @@
 # Metta Repository Organization – Forward Plan (Sep 2025)
 
 ## Baseline Snapshot
-- Workspace Python packages we ship today: `agent/` (`metta-agent`), `app_backend/` (`metta-app-backend`), `codebot/`, `common/` (`metta-common`), `experiments/`, `gitta/`, `packages/cogames/`, `packages/mettagrid/`, `packages/pufferlib-core/`, and `softmax/`.
+- Workspace Python packages we ship today: `agent/` (`metta-agent`), `app_backend/` (`metta-app-backend`), `codebot/`, `common/` (`metta-common`), `config/` (`metta-config` – new neutral auto-config layer), `experiments/`, `gitta/`, `packages/cogames/`, `packages/mettagrid/`, `packages/pufferlib-core/`, `shared/` (`metta-shared` – new data-model hub), and `softmax/`.
 - Front-end and client surfaces live in `gridworks/`, `mettascope/`, `observatory/`, `library/`, `home/`, and `cogweb/`; shared scenes and assets stay in `resources/` and `scenes/`.
 - Tooling, automation, and infra live under `devops/`, `docs/`, `scripts/`, `tools/`, `mcp_servers/`, and `train_dir/`.
-- The legacy `metta/` namespace still aggregates `adaptive/`, `cogworks/`, `common/`, `eval/`, `gridworks/`, `map/`, `rl/`, `setup/`, `sim/`, `sweep/`, `tests_support/`, `tools/`, and `utils/`, plus the compatibility shim `metta/common` alongside the `mettagrid/` and `cogames/` stubs at repo root.
+- The legacy `metta/` namespace still aggregates `adaptive/`, `cogworks/`, `common/`, `config/`, `eval/`, `gridworks/`, `map/`, `rl/`, `setup/`, `shared/`, `sim/`, `sweep/`, `tests_support/`, `tools/`, and `utils/`. The `metta/common` compatibility shim stays in place while the new `metta-config` and `metta-shared` packages absorb shared helpers.
 
 | Subdir (metta/*) | .py files | Outgoing cross-subpkg refs | Incoming refs |
 | --- | ---: | ---: | ---: |
-| adaptive | 11 | 4 | 10 |
+| adaptive | 12 | 5 | 7 |
 | cogworks | 9 | 0 | 6 |
 | common | 6 | 0 | 73 |
-| eval | 7 | 13 | 9 |
+| config | 2 | 6 | 10 |
+| eval | 7 | 16 | 3 |
 | gridworks | 6 | 9 | 0 |
 | map | 2 | 2 | 0 |
-| rl | 43 | 38 | 15 |
+| rl | 43 | 38 | 14 |
 | setup | 37 | 19 | 3 |
-| sim | 11 | 13 | 16 |
+| shared | 4 | 0 | 19 |
+| sim | 11 | 14 | 8 |
 | sweep | 6 | 3 | 2 |
 | tests_support | 2 | 2 | 0 |
-| tools | 9 | 51 | 7 |
-| utils | 5 | 5 | 18 |
+| tools | 9 | 52 | 4 |
+| utils | 4 | 0 | 17 |
 
-Numbers capture import edges between metta subdirectories (self-imports omitted).
+Numbers capture import edges between metta subdirectories (self-imports omitted). New packages (`config/`, `shared/`) are already absorbing references from `tools/`, `rl/`, and `setup/`.
+
+## Phase Progress (Sep 27, 2025)
+- ✅ **Phase 0 – Inventory & Guardrails**: `docs/metta_common_shim.md`, shim regression tests (`tests/metta_common/test_shim.py`), and `py.typed` coverage landed on `richard-phase0`.
+- ✅ **Phase 1 – Decouple the Hot Spots** (merged into `richard-repo`):
+  - Created `metta.config` for auto-config helpers; all callers now import via `metta.config.auto_config`, eliminating the direct `setup → tools` dependency loop.
+  - Centralized shared evaluation / simulation models and policy registration in `metta.shared`, with compatibility re-exports in `metta.eval` and `metta.sim`.
+  - Relocated the adaptive live-run monitor to `metta/adaptive/live_run_monitor.py`, leaving `metta.utils` dependency-light.
+- ☐ **Phase 2 – Extract `metta-core`**: consolidate remaining baseline utilities and the `metta.common` shim into a standalone package once we finish pruning adaptive/training references.
+- ☐ **Phase 3 – Extract `metta-training`**: carve out `rl/`, `sim/`, `tools/`, `cogworks/`, and training slices of `adaptive/`/`sweep/` behind a single namespace, exposing adapters for CLI/backend consumers.
+- ☐ **Phase 4 – Platform Packages & Cleanup**: extract `metta-cli`, `metta-maptools`, optional `metta-eval`/`metta-orchestrator`, then retire compatibility shims and stubs.
 
 ## Dependency Hot Spots & Caveats
-- **`metta.common` as shared spine**: 73 inbound references from other metta subpackages plus heavy usage across `app_backend/`, `devops/`, and `softmax/`. Any migration must preserve the `metta.common` API contract indefinitely; dropping the shim would break test fixtures (`conftest.py:8`, `app_backend/tests/conftest.py:14`) and CLI tooling (`metta/tools/play.py:9-11`).
-- **`tools/` is the hub**: 51 outgoing references into `rl/`, `sim/`, `eval/`, `adaptive/`, `setup/`, and `sweep/`, while seven other subpackages import it. Example: `metta/tools/train.py:13-16` binds together `metta.agent`, `metta.common`, `metta.rl`, and `metta.sim`. Pulling `tools/` into a "core" package without refactors would drag the entire training stack with it.
-- **Strongly connected component (`setup`, `tools`, `eval`, `rl`, `sim`)**: These directories import one another, creating cycles we must break before standalone packages exist. Key edges:
-  - `setup -> tools` via CLI helpers (`metta/setup/metta_cli.py:14` → `metta.tools.utils.auto_config`).
-  - `tools -> setup` via environment bootstrapping (`metta/tools/utils/auto_config.py:9-11`).
-  - `rl <-> sim` through config and execution (`metta/rl/training/evaluator.py:13` ↔ `metta/sim/simulation.py:1-40`).
-  - `rl <-> eval` (`metta/rl/training/stats_reporter.py:14` and `metta/eval/eval_service.py:1-20`).
-- **`utils/` not purely foundational**: `metta/adaptive/live_run_monitor.py:39` previously lived under `metta/utils` and pulled in `metta.adaptive.*`, so we relocated it to keep the base utilities dependency-light.
-- **External workspace touch points**: `metta/rl` and `metta/sim` call into `metta.agent.*` (19 refs) and `metta.app_backend.*` (10 refs), tying training workflows to agent definitions and service clients (`metta/rl/training/evaluator.py:33-37`, `metta/sim/simulation.py:1-40`).
-- **`mettagrid` dependence**: Training and tooling reference `mettagrid.*` configs and utilities extensively (`metta/rl/trainer_config.py`, `metta/tools/sim.py`, `metta/gridworks/routes/configs.py`), so any package split must carry that dependency graph in lockstep.
+- **`metta.common` remains the shared spine**: 73 inbound references plus external usage (`app_backend`, `devops`, `softmax`). The shim contract in `docs/metta_common_shim.md` and the regression tests stay in force until every consumer migrates to `metta-config`/`metta-shared` APIs.
+- **`tools/` is still the runtime hub**: 52 outgoing references, now primarily into `metta.config`, `metta.shared`, `metta.rl`, and orchestration code. Even after Phase 1, we must move the remaining high-traffic entrypoints into the future `metta-training` package.
+- **`metta.config ↔ metta.setup` coupling**: `metta.config.auto_config` lazily imports setup components (`AWSSetup`, `WandbSetup`, `ObservatoryKeySetup`) while `metta.setup.mettta_cli` consumes the new API. Before extracting `metta-core`, we must either inject these dependencies or expose thin interfaces so `metta.config` no longer instantiates setup modules directly.
+- **`metta.shared` is the new data-model choke point**: 19 inbound references from `rl`, `tools`, `eval`, and `sim` now rely on the shared evaluation models and policy registry helpers. We need a published API (likely via `metta-core`) before retiring compatibility shims.
+- **`metta.shared` adoption**: `rl`, `tools`, `eval`, and `sim` now depend on shared data models and policy registry helpers. Any follow-on splits must publish these modules (likely in `metta-core`) to avoid reintroducing cross-package imports.
+- **Remaining strongly connected set**: `tools → config → setup` still forms a small cycle even though the direct `setup → tools` import is gone. Breaking the lazy imports (e.g., via dependency injection) will be a prerequisite for Phase 2.
+- **`mettagrid` dependency**: Training and evaluation workflows continue to rely on `mettagrid.config`, `mettagrid.profiling`, and `mettagrid.util`. When carving out packages we need a clear plan for packaging/distributing these bindings.
 
-## Mergeable Phases
-1. **Inventory & Guardrails (Phase 0)**
-   - Document the supported `metta.common` shim surface; add regression tests for `metta.common.test_support` and the helper APIs that other packages import.
-   - Normalize `pyproject.toml` dependency groups, ensure `py.typed` markers, and clean coverage/CI config so every package has a consistent baseline before refactors.
-2. **Decouple the Hot Spots (Phase 1)**
-   - Relocate `metta.tools.utils.auto_config` (and similar helpers) so CLI bootstrap code in `setup/` stops importing deep training modules.
-   - Extract shared eval/sim configuration objects into a neutral module, letting `rl/` depend on lightweight interfaces instead of `metta.eval` and `metta.sim` internals.
-   - Move adaptive-aware utilities out of `metta/utils` to break the unexpected `utils -> adaptive` coupling.
+## Mergeable Phases (refreshed)
+1. **Inventory & Guardrails (Phase 0)** – ✅ complete.
+2. **Decouple the Hot Spots (Phase 1)** – ✅ complete (see progress above).
 3. **Extract `metta-core` (Phase 2)**
-   - After Phase 1 removes downstream dependencies, consolidate `utils/`, `tests_support/`, and stable helpers (including the `metta/common` shim) into a new top-level package with its own `pyproject.toml`.
-   - Update imports across the workspace to consume the new `metta-core` namespace while keeping the old shim temporarily re-exported.
-4. **Extract `metta-training` Monolith (Phase 3)**
-   - Migrate the strongly connected set—`rl/`, `sim/`, `tools/`, `cogworks/`, and training-facing slices of `adaptive/` + `sweep/`—into a dedicated package. Preserve shared entrypoints (e.g., `metta/tools/train.py`) and verify the package exposes the APIs required by `app_backend/`, `experiments/`, and `devops/`.
-   - Provide thin adapters for CLI and backend clients so the rest of the repo stops importing deep internals.
+   - Move `utils/`, `tests_support/`, and the compatibility layer for `metta.common` into a standalone package once adaptive/training references are gone.
+   - Publish the `metta.shared` and `metta.config` APIs from this package, keeping backward-compat shims until downstream imports migrate.
+4. **Extract `metta-training` (Phase 3)**
+   - Relocate the strongly connected training cluster (`rl`, `sim`, `tools`, `cogworks`, plus slices of `adaptive`/`sweep`) behind a dedicated namespace.
+   - Provide stable adapters so `app_backend`, CLI tools, and experiments stop importing private modules.
 5. **Platform Packages & Cleanup (Phase 4)**
-   - With training centralized, carve out `metta-cli` (`setup/`), `metta-maptools` (`gridworks/`, `map/`), and potential `metta-eval` and `metta-orchestrator` packages as independent follow-ups.
-   - Remove superseded stubs (`mettagrid/`, `cogames/`), tighten documentation, and drop compatibility shims once import callers are migrated.
+   - Split `setup/` (`metta-cli`), `gridworks/` + `map/` (`metta-maptools`), and optional `metta-eval` / `metta-orchestrator` packages.
+   - Remove temporary shims (`metta.common`, `metta.eval.*`, `metta.sim.*`) and delete root-level stubs once imports are updated.
 
-Each phase is scoped to a mergeable chunk that keeps the tree buildable; we can pause between phases without breaking consumers.
+Each remaining phase is scoped to a mergeable chunk, preserving a buildable tree and allowing pause points between phases.
 
-## Refined Roadmap
-1. **Harden workspace packages**
-   - Ensure each existing workspace member declares its `metta.*` namespace, ships `py.typed`, and has current dependency groups in its `pyproject.toml`.
-   - Align CI, publishing scripts, and documentation with the `metta-*` names we actively ship (`metta-agent`, `metta-app-backend`, `metta-common`, `gitta`, `softmax`).
-2. **Reduce high-risk coupling before we split**
-   - Relocate `metta.tools.utils.auto_config` (and friends) so CLI bootstrapping no longer forms a cycle between `setup/` and `tools/`, nor forces `rl/` to import `tools/` for configuration (`metta/rl/checkpoint_manager.py:1-40`).
-   - Move shared evaluation config artifacts (`metta/eval/eval_request_config.py`, `metta/eval/analysis_config.py`) into the training package or a new neutral module to break the `rl -> eval` dependency while keeping `eval/` free to depend on `rl/`.
-   - Extract simulation config/data objects (`metta/sim/simulation_config.py`, `metta/sim/utils.py`) that `rl/` consumes into a shared neutral layer so `sim/` can remain downstream of `rl/`.
-   - Split adaptive-aware helpers (for example the live run monitor now in `metta/adaptive/live_run_monitor.py`) out of the base `utils/` package to keep dependencies minimal.
-   - Catalogue and cap the `metta/common` import surface the shim must preserve; add tests guarding `metta.common.test_support` and other exported symbols before we move code.
-3. **Extract packages in dependency order**
-   - **`metta-core`**: start with pruned `utils/`, `tests_support/`, and other low-level helpers once they are free of training/adaptive references; keep the `metta/common` shim here until its consumers migrate.
-   - **`metta-training`**: carve out the strongly connected set—`rl/`, `sim/`, `tools/`, and `cogworks/`—plus training-facing pieces of `adaptive/` and `sweep/`. Because these directories share runtime assumptions, extract them together behind a single `metta.training` namespace before attempting finer-grained splits.
-   - **`metta-orchestrator`**: after `metta-training` exists, isolate orchestration code (`adaptive/`, `sweep/`, dispatcher components) that survives the refactors, exposing stable hooks for CLI and devops callers.
-   - **`metta-cli`**: move `setup/` once its dependencies on `metta-training` flow through thin APIs (no direct import of deep training modules). Align CLI entry points with the new packages and keep bootstrapping logic local.
-   - **`metta-maptools`**: group `gridworks/` and `map/` once they depend only on `metta-common`, `metta-core`, and the public `metta-training` APIs.
-   - Optional follow-up: evaluate whether `eval/` can stand alone as `metta-eval` after configs and checkpoint hooks move to `metta-training`.
+## Refined Roadmap (near-term focus)
+1. **Stabilize shared layers**
+   - Finalize the API surface of `metta.config` (eliminate lazy imports where possible) and document usage for downstream teams.
+   - Expand tests around `metta.shared` models (e.g., replay helpers, WandB metrics) to protect the new contract before relocating code again.
+2. **Prepare for `metta-core` extraction**
+   - Evict any adaptive/training references left in `metta.utils` or `metta.tests_support`.
+   - Introduce a thin compatibility package (or re-export) so the eventual `metta-core` wheel can ship `metta.common` without the legacy shim.
+3. **Design `metta-training` boundaries**
+   - Define public entrypoints for CLI tools and backend services (e.g., `TrainTool`, `SimTool`, remote eval helpers) to expose once training moves into its own package.
+   - Decide how `mettagrid` dependencies will be vendored or declared across the new packages.
 4. **Adopt the split**
-   - Update imports to target the new namespaces, adjust workspace membership in `pyproject.toml`, and delete emptied folders under `metta/`.
-   - Refresh CI, release automation, and docs so they reference the new package boundaries and dependencies (`uv` workspace membership, coverage config, ops runbooks).
+   - Update `pyproject.toml` workspace membership, CI scripts, and release automation as each package lands.
+   - Remove compatibility shims after downstream imports are refactored and validated.
 
 ## Open Questions
-- Where should the `metta.common.test_support` API ultimately live once `metta-core` exists? (Candidates: stay in `metta-core`, or move next to the downstream test suites that rely on it.)
-- How do we expose training configuration (`auto_config`, eval request config, simulation config) so that CLI tooling, `app_backend/`, and experiments can consume it without re-entangling the split?
-- Do we want a dedicated shared layer for `mettagrid` helpers to avoid duplicating that dependency in every new package?
-- Should any part of `softmax/` merge into the new `metta-core`, or does it remain a separate surface for external branding?
+- Where should the `metta.common.test_support` API ultimately live once `metta-core` exists? (Likely inside the new package, but we may prefer a dedicated testing helper module.)
+- How do we expose training configuration (`auto_config`, eval request config, simulation config) so that CLI tooling, `app_backend/`, and experiments consume the published APIs without re-entangling splits?
+- Do we want a dedicated distribution for `mettagrid` helpers to avoid repeating that dependency across packages?
+- Should any parts of `softmax/` fold into `metta-core`, or does it remain separately branded?
