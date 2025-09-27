@@ -9,11 +9,11 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy
-from metta.config.auto_config import auto_policy_storage_decision
+from softmax.config.auto_config import auto_policy_storage_decision
+from softmax.lib.utils import ParsedURI, local_copy, write_file
+
 from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
 from metta.rl.system_config import SystemConfig
-from metta.utils.file import local_copy, write_file
-from metta.utils.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +179,7 @@ def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
     try:
         import boto3
 
-        from metta.utils.uri import ParsedURI
+        from softmax.lib.utils import ParsedURI
 
         # Extract base path without the filename
         base_uri = uri.rsplit("/", 1)[0] + "/"

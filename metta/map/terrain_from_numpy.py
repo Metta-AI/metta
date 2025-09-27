@@ -10,7 +10,7 @@ from filelock import FileLock
 from pydantic import ConfigDict, Field
 
 from metta.common.util.log_config import getRankAwareLogger
-from metta.utils.uri import ParsedURI
+from softmax.lib.utils import ParsedURI
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 
 logger = getRankAwareLogger(__name__)

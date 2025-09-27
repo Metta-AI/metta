@@ -1,7 +1,7 @@
 import logging
 import os
 
-from metta.utils import file as file_utils
+from softmax.lib.utils import file as file_utils
 from mettagrid.mapgen.utils.thumbnail import generate_thumbnail_from_replay
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def episode_id_to_s3_key(episode_id: str) -> str:
 
 def episode_id_to_s3_uri(episode_id: str) -> str:
     """
-    Convert episode_id to full S3 URI for use with metta.utils.file functions.
+    Convert episode_id to full S3 URI for use with softmax.lib.utils helpers.
 
     Args:
         episode_id: Unique episode ID (UUID) like "a1b2c3d4-e5f6-7890-abcd-ef1234567890"

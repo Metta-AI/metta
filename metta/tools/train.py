@@ -14,7 +14,7 @@ from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
-from metta.config.auto_config import (
+from softmax.config.auto_config import (
     auto_run_name,
     auto_stats_server_uri,
     auto_wandb_config,

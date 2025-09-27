@@ -13,7 +13,7 @@ from rich.table import Table
 
 from metta.adaptive.live_run_monitor import app as run_monitor_app
 from metta.common.util.fs import get_repo_root
-from metta.config.auto_config import auto_policy_storage_decision
+from softmax.config.auto_config import auto_policy_storage_decision
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app

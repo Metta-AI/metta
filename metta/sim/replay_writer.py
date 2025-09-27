@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from metta.utils.file import http_url, write_data
+from softmax.lib.utils import http_url, write_data
 from mettagrid.util.grid_object_formatter import format_grid_object
 from mettagrid.util.replay_writer import ReplayWriter
 

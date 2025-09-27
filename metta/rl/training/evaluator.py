@@ -11,7 +11,7 @@ import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
 from metta.common.util.git_repo import REPO_SLUG
-from metta.config.auto_config import auto_replay_dir
+from softmax.config.auto_config import auto_replay_dir
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,

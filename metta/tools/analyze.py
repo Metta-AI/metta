@@ -4,7 +4,7 @@ from pydantic import Field
 
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
-from metta.config.auto_config import auto_wandb_config
+from softmax.config.auto_config import auto_wandb_config
 from metta.eval.analysis import analyze
 from metta.shared.eval_config import AnalysisConfig
 

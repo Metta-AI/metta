@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from metta.tests_support import run_tool_in_process
+from softmax.lib.tests_support import run_tool_in_process
 
 
 def find_with_whitespace(target: str, text: str) -> bool:

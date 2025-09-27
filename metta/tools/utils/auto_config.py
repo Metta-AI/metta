@@ -1,6 +1,6 @@
 """Backward-compatible wrapper for configuration helpers.
 
-The auto-configuration utilities now live in :mod:`metta.config.auto_config`.
+The auto-configuration utilities now live in :mod:`softmax.config.auto_config`.
 Import from there directly in new code so we can retire this wrapper when the
 package split lands.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from warnings import warn
 
-from metta.config.auto_config import (
+from softmax.config.auto_config import (
     PolicyStorageDecision,
     SupportedAwsEnvOverrides,
     SupportedObservatoryEnvOverrides,
@@ -22,7 +22,7 @@ from metta.config.auto_config import (
 )
 
 warn(
-    "metta.tools.utils.auto_config is deprecated; import from metta.config.auto_config instead",
+    "metta.tools.utils.auto_config is deprecated; import from softmax.config.auto_config instead",
     DeprecationWarning,
     stacklevel=2,
 )

@@ -11,7 +11,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
 from metta.app_backend.test_support import create_test_stats_client
-from metta.common.test_support import docker_client_fixture, isolated_test_schema_uri
+from softmax.lib.test_support import docker_client_fixture, isolated_test_schema_uri
 
 # Register the docker_client fixture
 docker_client = docker_client_fixture()
