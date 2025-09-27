@@ -1,159 +1,113 @@
-# Metta Repository Organization – Forward Plan (Sep 2025)
+# Softmax Repository Organization – Blueprint (Sep 27, 2025)
 
-## Baseline Snapshot
-- Workspace Python packages we ship today: `agent/` (`metta-agent`), `app_backend/` (`metta-app-backend`), `codebot/`, `common/` (`metta-common`), `config/` (`metta-config` – new neutral auto-config layer), `experiments/`, `gitta/`, `packages/cogames/`, `packages/mettagrid/`, `packages/pufferlib-core/`, `shared/` (`metta-shared` – new data-model hub), and `softmax/`.
-- Front-end and client surfaces live in `gridworks/`, `mettascope/`, `observatory/`, `library/`, `home/`, and `cogweb/`; shared scenes and assets stay in `resources/` and `scenes/`.
-- Tooling, automation, and infra live under `devops/`, `docs/`, `scripts/`, `tools/`, `mcp_servers/`, and `train_dir/`.
-- The legacy `metta/` namespace still aggregates `adaptive/`, `cogworks/`, `common/`, `config/`, `eval/`, `gridworks/`, `map/`, `rl/`, `setup/`, `shared/`, `sim/`, `sweep/`, `tests_support/`, `tools/`, and `utils/`. The `metta/common` compatibility shim stays in place while the new `metta-config` and `metta-shared` packages absorb shared helpers.
+We completed Phase 0 (Inventory & Guardrails) and Phase 1 (Decouple the Hot Spots) under the former `metta` name. The
+repository rename to **`softmax`** lands at the start of Phase 2, and this document captures the updated structure,
+dependencies, and migration steps requested in the latest review cycle.
 
-| Subdir (metta/*) | .py files | Outgoing cross-subpkg refs | Incoming refs |
-| --- | ---: | ---: | ---: |
-| adaptive | 12 | 5 | 7 |
-| cogworks | 9 | 0 | 6 |
-| common | 6 | 0 | 73 |
-| config | 2 | 6 | 10 |
-| eval | 7 | 16 | 3 |
-| gridworks | 6 | 9 | 0 |
-| map | 2 | 2 | 0 |
-| rl | 43 | 38 | 14 |
-| setup | 37 | 19 | 3 |
-| shared | 4 | 0 | 19 |
-| sim | 11 | 14 | 8 |
-| sweep | 6 | 3 | 2 |
-| tests_support | 2 | 2 | 0 |
-| tools | 9 | 52 | 4 |
-| utils | 4 | 0 | 17 |
+## Snapshot After Phase 1
+- Packages shipping today (with `pyproject.toml` in workspace): `agent/`, `app_backend/`, `codebot/`, `common/`,
+  `config/`, `experiments/`, `gitta/`, `packages/cogames/`, `packages/mettagrid/`, `packages/pufferlib-core/`,
+  `shared/`, and `softmax/`.
+- Monolithic `metta/` namespace still hosts `adaptive/`, `cogworks/`, `common/`, `config/`, `eval/`, `gridworks/`, `map/`,
+  `rl/`, `setup/`, `shared/`, `sim/`, `sweep/`, `tests_support/`, `tools/`, and `utils/`. Shims under `metta.common`
+  continue to protect downstream consumers until we ship the new `softmax.lib` surface.
+- Dependency hot spots we just mitigated: `setup → tools` cycle removed, `metta.shared` introduced as shared data hub,
+  adaptive live-run monitor now isolated from `metta.utils`.
 
-Numbers capture import edges between metta subdirectories (self-imports omitted). New packages (`config/`, `shared/`) are already absorbing references from `tools/`, `rl/`, and `setup/`.
+## Decisions From Phase 1 Retro & Engineer Feedback
+- **Repository rename**: land `softmax` as the canonical root; `metta` survives only as compatibility namespaces until
+  depreciation milestones clear.
+- **`src/` everywhere**: every Python distribution (internal or external) must adopt `src/` layout with a single
+  `pyproject.toml` per package. No code lives beside configuration/tests at the package root.
+- **Central library**: `metta.common` graduates into `softmax.lib`, exposing the stable runtime surface while continuing
+  to re-export `metta.common` for a limited sunset period.
+- **Package homing**: all Python packages (library or service) live under `packages/` to simplify workspace discovery and
+  tooling. Exception: top-level apps (`agent/`, `app_backend/`, `experiments/`) that ship deployable artifacts can stay
+  top-level but still use `src/`.
+- **Dependency gates**: every package owns its dependency list in `pyproject.toml`; CI enforces `uv run --exact -m pytest`
+  (or the package’s bespoke test entrypoint) before merge. No implicit cross-package imports without declared extras.
+- **Implicit namespaces**: evaluate PEP 420 namespace adoption and remove redundant `__init__.py` once the new package
+  boundaries are in place and tooling (mypy, pytest discovery, packaging) is confirmed compatible.
+- **Cogworks scope**: redefine `cogworks` as the gameplay content SDK (scenario authoring, asset bundling, validation
+  tools). Anything that is engine runtime or orchestration moves out to `softmax.training` or `softmax.maptools`.
+- **Dependency graph clarity**: document and maintain the allowed import edges so Phase 2 refactors don’t recreate cycles.
 
-## Phase Progress (Sep 27, 2025)
-- ✅ **Phase 0 – Inventory & Guardrails**: `docs/metta_common_shim.md`, shim regression tests (`tests/metta_common/test_shim.py`), and `py.typed` coverage landed on `richard-phase0`.
-- ✅ **Phase 1 – Decouple the Hot Spots** (merged into `richard-repo`):
-  - Created `metta.config` for auto-config helpers; all callers now import via `metta.config.auto_config`, eliminating the direct `setup → tools` dependency loop.
-  - Centralized shared evaluation / simulation models and policy registration in `metta.shared`, with compatibility re-exports in `metta.eval` and `metta.sim`.
-  - Relocated the adaptive live-run monitor to `metta/adaptive/live_run_monitor.py`, leaving `metta.utils` dependency-light.
-- ☐ **Phase 2 – Extract `metta-core`**: consolidate remaining baseline utilities and the `metta.common` shim into a standalone package once we finish pruning adaptive/training references.
-- ☐ **Phase 3 – Extract `metta-training`**: carve out `rl/`, `sim/`, `tools/`, `cogworks/`, and training slices of `adaptive/`/`sweep/` behind a single namespace, exposing adapters for CLI/backend consumers.
-- ☐ **Phase 4 – Platform Packages & Cleanup**: extract `metta-cli`, `metta-maptools`, optional `metta-eval`/`metta-orchestrator`, then retire compatibility shims and stubs.
+## Packaging Principles (effective Phase 2)
+- One directory per installable: `packages/<name>/pyproject.toml` and `packages/<name>/src/<python namespace>/...`.
+- Public API published through `__all__` / curated `__init__.py` files; internal modules remain private.
+- Each package lists runtime dependencies, optional extras, and development dependencies explicitly. Cross-package usage
+  must go through the published API and declare the dependency.
+- Every package supplies `py.typed`, type-checks with `mypy`, formats with `ruff format`, linted by `ruff check`, and
+  tests via `uv run --exact` in CI.
+- Compatibility shims (`metta.*`) live only inside `packages/softmax-lib` and surface deprecation warnings.
 
-## Dependency Hot Spots & Caveats
-- **`metta.common` remains the shared spine**: 73 inbound references plus external usage (`app_backend`, `devops`, `softmax`). The shim contract in `docs/metta_common_shim.md` and the regression tests stay in force until every consumer migrates to `metta-config`/`metta-shared` APIs.
-- **`tools/` is still the runtime hub**: 52 outgoing references, now primarily into `metta.config`, `metta.shared`, `metta.rl`, and orchestration code. Even after Phase 1, we must move the remaining high-traffic entrypoints into the future `metta-training` package.
-- **`metta.config ↔ metta.setup` coupling**: `metta.config.auto_config` lazily imports setup components (`AWSSetup`, `WandbSetup`, `ObservatoryKeySetup`) while `metta.setup.mettta_cli` consumes the new API. Before extracting `metta-core`, we must either inject these dependencies or expose thin interfaces so `metta.config` no longer instantiates setup modules directly.
-- **`metta.shared` is the new data-model choke point**: 19 inbound references from `rl`, `tools`, `eval`, and `sim` now rely on the shared evaluation models and policy registry helpers. We need a published API (likely via `metta-core`) before retiring compatibility shims.
-- **`metta.shared` adoption**: `rl`, `tools`, `eval`, and `sim` now depend on shared data models and policy registry helpers. Any follow-on splits must publish these modules (likely in `metta-core`) to avoid reintroducing cross-package imports.
-- **Remaining strongly connected set**: `tools → config → setup` still forms a small cycle even though the direct `setup → tools` import is gone. Breaking the lazy imports (e.g., via dependency injection) will be a prerequisite for Phase 2.
-- **`mettagrid` dependency**: Training and evaluation workflows continue to rely on `mettagrid.config`, `mettagrid.profiling`, and `mettagrid.util`. When carving out packages we need a clear plan for packaging/distributing these bindings.
+## Target Package Inventory & Responsibilities
 
-## Mergeable Phases (refreshed)
-1. **Inventory & Guardrails (Phase 0)** – ✅ complete.
-2. **Decouple the Hot Spots (Phase 1)** – ✅ complete (see progress above).
-3. **Extract `metta-core` (Phase 2)**
-   - Move `utils/`, `tests_support/`, and the compatibility layer for `metta.common` into a standalone package once adaptive/training references are gone.
-   - Publish the `metta.shared` and `metta.config` APIs from this package, keeping backward-compat shims until downstream imports migrate.
-4. **Extract `metta-training` (Phase 3)**
-   - Relocate the strongly connected training cluster (`rl`, `sim`, `tools`, `cogworks`, plus slices of `adaptive`/`sweep`) behind a dedicated namespace.
-   - Provide stable adapters so `app_backend`, CLI tools, and experiments stop importing private modules.
-5. **Platform Packages & Cleanup (Phase 4)**
-   - Split `setup/` (`metta-cli`), `gridworks/` + `map/` (`metta-maptools`), and optional `metta-eval` / `metta-orchestrator` packages.
-   - Remove temporary shims (`metta.common`, `metta.eval.*`, `metta.sim.*`) and delete root-level stubs once imports are updated.
+| Package | Location | Namespace | Responsibilities | Depends On | Notes |
+| --- | --- | --- | --- | --- | --- |
+| softmax-lib | `packages/softmax-lib` | `softmax.lib` (`metta.common` shim) | Core runtime helpers, data models, test support; hosts compatibility exports | `softmax.config`, `softmax.shared` | Replaces `metta/common`; ships `metta.common = softmax.lib` shim |
+| softmax-config | `packages/softmax-config` | `softmax.config` | Auto-configuration, environment detection, credential plumbing | none | Break lazy imports; expose typed interfaces |
+| softmax-shared | `packages/softmax-shared` | `softmax.shared` | Evaluation/simulation schemas, registries | none | Already stands alone; fold policy registry here |
+| softmax-training | `packages/softmax-training` | `softmax.training` | RL loops, simulation drivers, orchestration CLI, training tools | `softmax.lib`, `softmax.config`, `softmax.shared`, `packages/mettagrid` | Absorbs `rl/`, `sim/`, `tools/`, training slices of `adaptive/` & `sweep/` |
+| softmax-cogworks | `packages/softmax-cogworks` | `softmax.cogworks` | Content authoring SDK, asset validators, scenario packaging | `softmax.lib`, `softmax.shared` | Only gameplay content code lives here |
+| softmax-maptools | `packages/softmax-maptools` | `softmax.maptools` | Grid/map editors, browser clients, static asset pipeline | `softmax.lib` | Hosts former `gridworks/`, `map/`, relevant front-ends |
+| softmax-cli | `packages/softmax-cli` | `softmax.cli` | Developer setup, local orchestration commands, bootstrap scripts | `softmax.lib`, `softmax.config`, `softmax.training` | Supersedes `setup/` & CLI glue |
+| softmax-orchestrator | `packages/softmax-orchestrator` | `softmax.orchestrator` | Task scheduling, adaptive dispatch, integrations | `softmax.lib`, `softmax.training` | Optional deployable service |
+| Packages under `packages/` (external) | `packages/*` | varies | Third-party engines (`cogames`, `mettagrid`, `pufferlib_core`) | - | Continue to vendor here with `src/` layout |
+| Apps | top level (`agent/`, `app_backend/`, `experiments/`) | `softmax.agent`, etc. | Deployment surfaces; consume published APIs only | Declared extras | Must adopt `src/` and declare deps |
 
-Each remaining phase is scoped to a mergeable chunk, preserving a buildable tree and allowing pause points between phases.
+## Dependency Guardrails
+- `softmax.lib` is the lowest layer. Higher-level packages may depend on it; it depends only on the standard library plus
+  `softmax.config`/`softmax.shared`.
+- `softmax.config` and `softmax.shared` are peer foundations—no package may import from higher layers.
+- `softmax.training`, `softmax.cogworks`, and `softmax.maptools` sit at the middle layer, depending only on the
+  foundations and external vendor packages.
+- `softmax.cli` and `softmax.orchestrator` sit at the top and may depend on any lower layer.
+- CI enforces dependency correctness by running `uv run --exact` with `--frozen` lockfiles per package plus import
+  scanners (TBD) to block forbidden edges.
 
-## Refined Roadmap (near-term focus)
-1. **Stabilize shared layers**
-   - Finalize the API surface of `metta.config` (eliminate lazy imports where possible) and document usage for downstream teams.
-   - Expand tests around `metta.shared` models (e.g., replay helpers, WandB metrics) to protect the new contract before relocating code again.
-2. **Prepare for `metta-core` extraction**
-   - Evict any adaptive/training references left in `metta.utils` or `metta.tests_support`.
-   - Introduce a thin compatibility package (or re-export) so the eventual `metta-core` wheel can ship `metta.common` without the legacy shim.
-3. **Design `metta-training` boundaries**
-   - Define public entrypoints for CLI tools and backend services (e.g., `TrainTool`, `SimTool`, remote eval helpers) to expose once training moves into its own package.
-   - Decide how `mettagrid` dependencies will be vendored or declared across the new packages.
-4. **Adopt the split**
-   - Update `pyproject.toml` workspace membership, CI scripts, and release automation as each package lands.
-   - Remove compatibility shims after downstream imports are refactored and validated.
+## PEP 420 & `__init__.py` Strategy
+1. Consolidate packages into the `packages/` hierarchy with `src/softmax/...` namespaces.
+2. Convert compatibility-only directories (`metta/`) into namespace packages by deleting redundant `__init__.py` files
+   once all direct imports route through `softmax.*`.
+3. Retain `__init__.py` only where the file defines public API (`softmax/lib/__init__.py`, etc.) or carries backward
+   warnings. Document the removal plan and validate with `mypy --namespace-packages`, `pytest`, and packaging builds.
 
-## Target Post-Reorg Layout
+## Cogworks Scope Clarification
+- Lives entirely inside `softmax.cogworks`.
+- Owns authoring tools, simulation fixtures specific to content, asset validation, and exporter pipelines.
+- Does **not** contain runtime trainers, orchestration loops, or experiment harnesses—those belong to
+  `softmax.training`.
+- Collaborates with `softmax.training` via typed request/response models defined in `softmax.shared`.
 
-Once Phases 2–4 are complete, the repository will be organized as a set of installable packages that expose stable
-`metta.*` namespaces. Each package owns its source, tests, and configuration while the legacy monolith shrinks to a set
-of compatibility shims scheduled for removal. The intended layout is:
+## Phase Roadmap (Recast Post-Rename)
+- **Phase 2 – Extract `softmax-lib` & Foundations (in flight)**
+  - Move `metta/utils`, `metta/tests_support`, and shim logic into `packages/softmax-lib/src/softmax/lib`.
+  - Break residual `softmax.config` ↔ `setup` couplings; surface interfaces in `softmax.config`.
+  - Validate `softmax-lib`, `softmax-config`, and `softmax-shared` independently with `uv run --exact -m pytest`.
+- **Phase 3 – Carve Out Training & Cogworks**
+  - Relocate `rl/`, `sim/`, `tools/`, and training portions of `adaptive/` & `sweep/` into `packages/softmax-training`.
+  - Migrate gameplay authoring modules into `packages/softmax-cogworks`; remove any runtime code from that package.
+  - Update dependency declarations and enforce public-entry-point imports.
+- **Phase 4 – Surface Apps & Tooling**
+  - Graduate `setup/` to `packages/softmax-cli`; move orchestration services into `softmax-orchestrator`.
+  - Migrate map/grid tooling and web assets into `softmax-maptools`; ensure all front-end build pipelines reference the
+    new paths.
+  - Remove remaining compatibility shims and prune unused `metta` directories.
 
-```
-metta/
-├── core/                  # metta-core: foundational runtime utilities and compatibility shims
-│   ├── pyproject.toml
-│   └── src/metta/core/
-│       ├── common/        # long-lived shim for legacy imports, removed once consumers migrate
-│       ├── tests_support/
-│       ├── utils/
-│       └── shared/        # re-export curated APIs from metta.shared
-├── training/              # metta-training: RL, simulation, CLI entrypoints for training
-│   ├── pyproject.toml
-│   └── src/metta/training/
-│       ├── rl/
-│       ├── sim/
-│       ├── tools/
-│       ├── cogworks/
-│       ├── sweep/
-│       └── adaptive/      # training-oriented components only
-├── orchestrator/          # metta-orchestrator: adaptive dispatchers & scheduling backends
-│   ├── pyproject.toml
-│   └── src/metta/orchestrator/
-│       ├── adaptive/
-│       ├── scheduler/
-│       └── integrations/
-├── cli/                   # metta-cli: developer setup and local tooling
-│   ├── pyproject.toml
-│   └── src/metta/cli/
-│       ├── setup/
-│       └── commands/
-├── maptools/              # metta-maptools: editors, map generation, web front-ends
-│   ├── pyproject.toml
-│   └── src/metta/maptools/
-│       ├── gridworks/
-│       ├── map/
-│       └── web/
-├── eval/                  # metta-eval (optional): evaluation services & reporting
-│   ├── pyproject.toml
-│   └── src/metta/eval/
-│       ├── service/
-│       ├── analysis/
-│       └── reporting/
-├── config/                # metta-config (existing): shared auto-configuration helpers
-│   ├── pyproject.toml
-│   └── src/metta/config/auto_config.py
-└── shared/                # metta-shared (existing): shared data structures & registries
-    ├── pyproject.toml
-    └── src/metta/shared/
-        ├── eval_config.py
-        ├── simulation_config.py
-        └── policy_registry.py
-
-agent/                     # metta-agent workspace package (model architectures)
-app_backend/               # metta-app-backend workspace package
-codebot/
-common/                    # metta-common (thin distribution that depends on metta-core)
-experiments/
-packages/                  # external engines (mettagrid, cogames, pufferlib-core)
-softmax/
-```
-
-Guiding rules for the final layout:
-
-- **Single responsibility**: each package owns a coherent surface area, minimizing cross-package imports.
-- **Published APIs**: every package exposes curated entrypoints via `__init__.py`; compatibility modules live only in
-  `metta-core` and carry explicit deprecation warnings.
-- **Workspace alignment**: all packages are listed in `[tool.uv.workspace]`, ship `py.typed`, and execute their own
-  targeted test suites in CI.
-- **Temporary shims with exit criteria**: legacy modules (`metta.common`, `metta.eval`, `metta.sim`) re-export from the
-  new packages until downstream consumers migrate. Each shim has an agreed deprecation schedule tracked in rollout docs.
-- **Shared dependency strategy**: `metta-config` and `metta-shared` remain the canonical homes for reusable configuration
-  and data models, preventing future cycles as the repo splits.
+## Action Checklist
+- [ ] File rename & tooling: update repo metadata, CI, and documentation to reference `softmax`.
+- [ ] Create `packages/softmax-lib`, `packages/softmax-config`, and `packages/softmax-shared` with `src/` layout; migrate
+      code and wire `metta.common` shim.
+- [ ] Define dependency allow-list rules and codify them in CI (import linter + `uv run --exact`).
+- [ ] Pilot PEP 420 by removing `__init__.py` from `metta/` shim directories once the new packages export equivalents.
+- [ ] Draft `softmax.cogworks` charter and audit modules to move; schedule migrations in Phase 3 tasks.
+- [ ] Update onboarding docs so teams install/test packages using `uv run --exact` commands per package.
+- [ ] Track downstream adoption; remove compatibility layers after external consumers confirm migration.
 
 ## Open Questions
-- Where should the `metta.common.test_support` API ultimately live once `metta-core` exists? (Likely inside the new package, but we may prefer a dedicated testing helper module.)
-- How do we expose training configuration (`auto_config`, eval request config, simulation config) so that CLI tooling, `app_backend/`, and experiments consume the published APIs without re-entangling splits?
-- Do we want a dedicated distribution for `mettagrid` helpers to avoid repeating that dependency across packages?
-- Should any parts of `softmax/` fold into `metta-core`, or does it remain separately branded?
+- Do we want a dedicated vendor strategy for `mettagrid` artifacts (wheel vs. submodule) before we cut
+  `softmax.training`?
+- Which packages require optional GPU / RL extras, and how do we model them without violating dependency guardrails?
+- Should `softmax.maptools` ship as a Python package plus a bundled front-end build, or do we split the web clients into
+  a separate repository once the rename completes?
