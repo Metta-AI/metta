@@ -37,8 +37,8 @@ from experiments.experiment import Experiment, ExperimentConfig
 from experiments.training_job import TrainingJobConfig
 from experiments.training_run_config import TrainingRunConfig
 from experiments.skypilot_job_config import SkypilotJobConfig
-from metta.rl.trainer_config import TrainerConfig, OptimizerConfig, TorchProfilerConfig
-from metta.sim.simulation_config import SimulationConfig
+from softmax.training.rl.trainer_config import TrainerConfig, OptimizerConfig, TorchProfilerConfig
+from softmax.training.sim.simulation_config import SimulationConfig
 
 class LearningRateABTest(Experiment):
     """A/B test comparing two learning rates."""
@@ -127,9 +127,9 @@ trainer:
 For experiments requiring specific hyperparameters:
 
 ```python
-from metta.rl.trainer_config import (
+from softmax.training.rl.trainer_config import (
     TrainerConfig, OptimizerConfig, TorchProfilerConfig
-from metta.sim.simulation_config import SimulationConfig
+from softmax.training.sim.simulation_config import SimulationConfig
 
 trainer = TrainerConfig(
     total_timesteps=50_000_000,

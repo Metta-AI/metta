@@ -13,8 +13,8 @@ def find_forbidden_imports(file_path: Path) -> list[ast.stmt]:
     """Return list of AST nodes with forbidden imports in a file.
 
     Flags both:
-    - import metta.rl[.x]
-    - from metta.rl[.x] import ...
+    - import softmax.training.rl[.x]
+    - from softmax.training.rl[.x] import ...
     """
     source = file_path.read_text(encoding="utf-8")
     try:

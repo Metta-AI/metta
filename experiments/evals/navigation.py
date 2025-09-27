@@ -1,4 +1,4 @@
-from metta.sim.simulation_config import SimulationConfig
+from softmax.training.sim.simulation_config import SimulationConfig
 from mettagrid.builder.envs import make_navigation
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.mapgen import MapGen

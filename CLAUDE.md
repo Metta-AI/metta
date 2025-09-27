@@ -144,8 +144,8 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 - `packages/mettagrid/`: C++/Python grid environment implementation with Pybind11 bindings
 - `mettascope/`: Interactive visualization and replay tools (TypeScript/web-based)
 - `observatory/`: React-based dashboard for viewing training runs and evaluations
-- `gridworks/`: Next.js web interface
-- `app_backend/`: FastAPI backend server for stats and data services
+- `packages/softmax-maptools/src/softmax/maptools/gridworks/`: Next.js web interface
+- `packages/softmax-orchestrator/`: FastAPI backend server for stats and data services
 
 ### Architecture Overview
 
@@ -157,7 +157,7 @@ dynamics (like kinship and mate selection) on learning and cooperative behaviors
 - Neural components can be mixed and matched via configuration
 - Key classes:
   - `agent.src.metta.agent.metta_agent.MettaAgent` - Main agent implementation
-  - `metta.rl.checkpoint_manager.CheckpointManager` - Manages policy checkpoints
+  - `softmax.training.rl.checkpoint_manager.CheckpointManager` - Manages policy checkpoints
   - `agent.src.metta.agent.distributed_metta_agent.DistributedMettaAgent` - Multi-GPU agent
 
 ## Development Guide
@@ -236,7 +236,7 @@ feedback. Consider running them in separate terminals outside of Claude Code.
 
 - **MettaScope**: Run `cd mettascope && pnpm run dev` for interactive replay viewer
 - **Observatory**: Run `cd observatory && pnpm run dev` for training dashboard
-- **GridWorks**: Run `cd gridworks && pnpm run dev` for web interface
+- **GridWorks**: Run `cd packages/softmax-maptools/src/softmax/maptools/gridworks && pnpm run dev` for web interface
 
 ### Common Commands
 

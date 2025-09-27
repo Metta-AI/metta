@@ -43,15 +43,15 @@ comment:
 flags:
   core:
     paths:
-      - "!app_backend/"
+      - "!packages/softmax-orchestrator/"
       - "!agent/"
       - "!mettagrid/"
       - "!common/"
     carryforward: true
 
-  app_backend:
+  orchestrator:
     paths:
-      - app_backend/
+      - packages/softmax-orchestrator/
     carryforward: true
 
   agent:

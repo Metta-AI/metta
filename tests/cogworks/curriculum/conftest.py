@@ -2,10 +2,10 @@
 
 import pytest
 
-import metta.cogworks.curriculum as cc
-from metta.cogworks.curriculum import CurriculumConfig, SingleTaskGenerator, Span
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+import softmax.cogworks.curriculum as cc
 from mettagrid.builder.envs import make_arena, make_navigation
+from softmax.cogworks.curriculum import CurriculumConfig, SingleTaskGenerator, Span
+from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
 
 @pytest.fixture(scope="function")

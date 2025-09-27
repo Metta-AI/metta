@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 import pytest
 import torch
 
-from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
-from metta.rl.system_config import SystemConfig
+from softmax.training.rl.checkpoint_manager import CheckpointManager, key_and_version
+from softmax.training.rl.system_config import SystemConfig
 
 
 def checkpoint_filename(run: str, epoch: int) -> str:
@@ -57,7 +57,7 @@ class TestFileURIs:
 
 
 class TestS3URIs:
-    @patch("metta.rl.checkpoint_manager.local_copy")
+    @patch("softmax.training.rl.checkpoint_manager.local_copy")
     def test_s3_download(self, mock_local_copy, mock_policy):
         mock_local_copy.return_value.__enter__ = Mock(return_value="/tmp/downloaded.pt")
         mock_local_copy.return_value.__exit__ = Mock(return_value=None)

@@ -1,8 +1,8 @@
 """Standard sweep configurations using the adaptive module."""
 
 from experiments.sweeps.protein_configs import PPO_BASIC
-from metta.sweep.protein_config import ProteinConfig
-from metta.tools.sweep import SweepTool
+from softmax.training.sweep.protein_config import ProteinConfig
+from softmax.training.tools.sweep import SweepTool
 
 
 def protein_sweep(

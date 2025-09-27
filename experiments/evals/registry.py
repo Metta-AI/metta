@@ -1,4 +1,4 @@
-from metta.sim.simulation_config import SimulationConfig
+from softmax.training.sim.simulation_config import SimulationConfig
 
 from experiments.evals.navigation import make_navigation_eval_suite
 

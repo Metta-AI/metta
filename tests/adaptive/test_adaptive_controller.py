@@ -5,9 +5,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from metta.adaptive.adaptive_config import AdaptiveConfig
-from metta.adaptive.adaptive_controller import AdaptiveController
-from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
+from softmax.training.adaptive.adaptive_config import AdaptiveConfig
+from softmax.training.adaptive.adaptive_controller import AdaptiveController
+from softmax.training.adaptive.models import JobDefinition, JobTypes, RunInfo
 
 
 class TestAdaptiveController:

@@ -283,8 +283,8 @@ uv run ./tools/run.py experiments.sweeps.standard.quick_test \
 ### Example: Custom PPO Sweep with New Configuration
 
 ```python
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
-from metta.tools.sweep import SweepTool
+from softmax.training.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
+from softmax.training.tools.sweep import SweepTool
 
 def my_custom_sweep(
     sweep_name: str = None,

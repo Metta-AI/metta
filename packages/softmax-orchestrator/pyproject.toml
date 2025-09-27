@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "softmax-orchestrator"
+version = "0.0.1"
+description = "Softmax orchestration services for evaluation and training"
+requires-python = "==3.11.7"
+license = "MIT"
+readme = "README.md"
+
+dependencies = [
+  "softmax-lib",
+  "softmax-config",
+  "softmax-training",
+  "boto3>=1.38.32",
+  "ddtrace>=2.6.0",
+  "fastapi>=0.115.5",
+  "uvicorn[standard]>=0.34.2",
+  "psycopg[binary,pool]>=3.2.9",
+  "pydantic>=2.11.5",
+  "pytest-asyncio>=1.0.0",
+  "httpx>=0.28.1",
+  "wandb>=0.19.11",
+  "gitta",
+]
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.401",
+  "pytest>=8.3.3",
+  "pytest-benchmark>=5.1.0",
+  "pytest-cov>=6.1.1",
+  "pytest-xdist>=3.8.0",
+  "ruff>=0.11.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["softmax.orchestrator"]
+
+[tool.setuptools.package-data]
+"softmax" = ["__init__.py"]
+"softmax.orchestrator" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+
+[tool.coverage.run]
+source = ["softmax.orchestrator"]
+
+[tool.uv.sources]
+softmax-lib = { workspace = true }
+softmax-config = { workspace = true }
+softmax-training = { workspace = true }

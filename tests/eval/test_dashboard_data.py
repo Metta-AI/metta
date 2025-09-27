@@ -9,7 +9,7 @@ from typing import Dict, Generator, List
 import pytest
 
 from metta.eval.dashboard_data import PolicyEvalMetric, get_policy_eval_metrics
-from metta.sim.simulation_stats_db import SimulationStatsDB
+from softmax.training.sim.simulation_stats_db import SimulationStatsDB
 
 TestSimStatsDb = tuple[SimulationStatsDB, list[str], str]
 

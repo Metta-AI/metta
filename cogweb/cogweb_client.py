@@ -1,7 +1,7 @@
 from typing import Optional
 
-from metta.app_backend.clients.base_client import get_machine_token
-from metta.app_backend.sweep_client import SweepClient
+from softmax.orchestrator.clients.base_client import get_machine_token
+from softmax.orchestrator.sweep_client import SweepClient
 
 
 class CogwebClient:

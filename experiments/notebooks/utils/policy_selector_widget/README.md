@@ -25,7 +25,7 @@ The widget is automatically built when you run `pnpm install` and `pnpm run buil
 
 ```python
 from policy_selector_widget import create_policy_selector_widget
-from metta.app_backend.clients.scorecard_client import ScorecardClient
+from softmax.orchestrator.clients.scorecard_client import ScorecardClient
 
 # Create the widget
 policy_widget = create_policy_selector_widget()

@@ -9,20 +9,22 @@ from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 
 from experiments.sweeps.protein_configs import make_custom_protein_config, PPO_CORE
-from metta.cogworks.curriculum.curriculum import (
+from softmax.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.protein_config import ParameterConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sim import SimTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
+from softmax.cogworks.curriculum.learning_progress_algorithm import (
+    LearningProgressConfig,
+)
+from softmax.training.rl.loss import LossConfig
+from softmax.training.rl.trainer_config import TrainerConfig
+from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.sweep.protein_config import ParameterConfig
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
+from softmax.training.tools.sim import SimTool
+from softmax.training.tools.sweep import SweepTool
+from softmax.training.tools.train import TrainTool
 from mettagrid.builder.envs import make_icl_with_numpy, make_in_context_chains
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from experiments.recipes.in_context_learning.icl_resource_chain import (
@@ -288,7 +290,9 @@ class OrderedChainsTaskGenerator(ICLTaskGenerator):
             cfg.game_objects[obj].cooldown = int(cooldown)
 
         if self.map_dir is not None:  # load from s3
-            from metta.map.terrain_from_numpy import InContextLearningFromNumpy
+            from softmax.maptools.map.terrain_from_numpy import (
+                InContextLearningFromNumpy,
+            )
 
             terrain = "simple-" if obstacle_type is None else f"terrain-{density}"
             dir = f"{self.map_dir}/{room_size}/{len(resources) + 1}chains_{num_sinks}sinks/{terrain}"

@@ -1,5 +1,27 @@
-"""Utility modules for metta."""
+"""Compatibility entrypoint for utilities maintained in ``softmax.lib``."""
 
-from metta.utils import file, uri
+from softmax.lib.utils import (  # re-export canonical helpers
+    ParsedURI,
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+    exists,
+    http_url,
+    is_public_uri,
+    local_copy,
+    read,
+    write_data,
+    write_file,
+)
 
-__all__ = ["file", "uri"]
+__all__ = [
+    "ParsedURI",
+    "calculate_batch_sizes",
+    "calculate_prioritized_sampling_params",
+    "exists",
+    "http_url",
+    "is_public_uri",
+    "local_copy",
+    "read",
+    "write_data",
+    "write_file",
+]

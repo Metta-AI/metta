@@ -4,7 +4,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.training import EnvironmentMetaData
+from softmax.training.rl.training import EnvironmentMetaData
 
 
 class MockAgent(Policy):

@@ -3,7 +3,7 @@ import logging
 
 import pytest
 
-from metta.common.test_support import docker_client_fixture
+from softmax.lib.test_support import docker_client_fixture
 
 # Suppress PyTorch distributed warnings
 logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)

@@ -5,7 +5,7 @@ Utility functions for the Eval Finder Widget.
 import asyncio
 from typing import Any, Dict, List
 
-from metta.app_backend.clients.scorecard_client import ScorecardClient
+from softmax.orchestrator.clients.scorecard_client import ScorecardClient
 
 
 def fetch_eval_data_for_policies(

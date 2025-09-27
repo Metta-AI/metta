@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from tensordict import TensorDict
 
-from metta.rl.utils import ensure_sequence_metadata
+from softmax.training.rl.utils import ensure_sequence_metadata
 
 
 def obs_to_td(obs: np.ndarray, device: str | torch.device = "cpu") -> TensorDict:

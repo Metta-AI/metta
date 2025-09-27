@@ -240,14 +240,14 @@ What you write:
 - Place it anywhere importable (for personal use, `experiments/user/<your_file>.py` is convenient).
 - The function name becomes part of the task name you run.
 
-Minimal example:
+Minimal example (imports now reference the `softmax.training` namespace after the Phase 3 reorg):
 
 ```python
 # experiments/user/my_tasks.py
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from mettagrid.config.envs import make_arena
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.train import TrainTool
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 
 

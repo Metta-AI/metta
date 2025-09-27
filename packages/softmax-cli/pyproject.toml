@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "softmax-cli"
+version = "0.0.1"
+description = "Softmax developer CLI and environment setup tools"
+requires-python = ">=3.11.7"
+dependencies = [
+  "softmax-lib",
+  "softmax-config",
+  "softmax-training",
+  "click>=8.1.7",
+  "typer>=0.16.1",
+  "rich>=13.9.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+softmax-lib = { workspace = true }
+softmax-config = { workspace = true }
+softmax-training = { workspace = true }

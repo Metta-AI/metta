@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.checkpoint_manager import CheckpointManager
 
 
 def create_test_database(

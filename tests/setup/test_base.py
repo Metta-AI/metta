@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+from softmax.cli.profiles import PROFILE_DEFINITIONS, UserType
 
 
 class BaseMettaSetupTest(unittest.TestCase):
@@ -150,7 +150,7 @@ class BaseMettaSetupTest(unittest.TestCase):
         if args and args[0] in ["install", "configure", "status"] and "--non-interactive" not in args:
             args = args + ["--non-interactive"]
 
-        cmd = [sys.executable, "-m", "metta.setup.metta_cli"] + args
+        cmd = [sys.executable, "-m", "softmax.cli.metta_cli"] + args
         return subprocess.run(
             cmd,
             cwd=self.repo_root,

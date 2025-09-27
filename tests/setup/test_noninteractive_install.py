@@ -18,7 +18,7 @@ import unittest
 
 import pytest
 
-from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+from softmax.cli.profiles import PROFILE_DEFINITIONS, UserType
 from tests.setup.test_base import BaseMettaSetupTest
 
 
@@ -64,7 +64,7 @@ class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
 
         self._create_test_config(UserType.EXTERNAL)
 
-        cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "--non-interactive", "core"]
+        cmd = [sys.executable, "-m", "softmax.cli.metta_cli", "install", "--non-interactive", "core"]
         result = subprocess.run(
             cmd,
             cwd=self.repo_root,

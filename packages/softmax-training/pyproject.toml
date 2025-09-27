@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "softmax-training"
+version = "0.0.1"
+description = "Softmax training stack: RL, simulation, adaptive orchestration, and tooling"
+requires-python = ">=3.11.7"
+dependencies = [
+  "softmax-lib",
+  "softmax-config",
+  "softmax-shared",
+  "mettagrid",
+  "wandb>=0.19.11",
+  "torch>=2.7.1",
+  "pydantic>=2.11.5",
+  "pydantic-settings>=2.10.1",
+  "numpy>=2",
+  "boto3>=1.38.32",
+  "psycopg[binary]>=3.2.9",
+  "typer>=0.16.1",
+  "httpx>=0.28.1",
+  "fastapi>=0.115.5",
+  "matplotlib>=3.10.3",
+  "scipy>=1.15.3",
+  "tqdm>=4.67.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+softmax-lib = { workspace = true }
+softmax-config = { workspace = true }
+softmax-shared = { workspace = true }
+mettagrid = { workspace = true }

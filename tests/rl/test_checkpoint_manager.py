@@ -7,8 +7,8 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.mocks import MockAgent
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.system_config import SystemConfig
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.rl.system_config import SystemConfig
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=3, metadata={})
 
         # Test :latest resolution
-        from metta.rl.checkpoint_manager import key_and_version
+        from softmax.training.rl.checkpoint_manager import key_and_version
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
         run_name, epoch = key_and_version(latest_uri)
@@ -104,7 +104,7 @@ class TestBasicSaveLoad:
         expected_filename = "test_run:v3.pt"
         expected_remote = f"s3://bucket/checkpoints/{expected_filename}"
 
-        with patch("metta.rl.checkpoint_manager.write_file") as mock_write:
+        with patch("softmax.training.rl.checkpoint_manager.write_file") as mock_write:
             remote_uri = manager.save_agent(mock_agent, epoch=3, metadata=metadata)
 
         assert remote_uri == expected_remote

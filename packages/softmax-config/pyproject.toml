@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "softmax-config"
+version = "0.0.1"
+description = "Softmax configuration helpers"
+requires-python = ">=3.11.7"
+dependencies = [
+  "metta-common",
+  "pydantic>=2.11.5",
+  "pydantic-settings>=2.10.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+metta-common = { workspace = true }

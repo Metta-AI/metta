@@ -341,7 +341,7 @@ def generate_flamegraph(data: Dict[str, Any], output_path: str, title: str = "Fl
     total_tokens = data.get("total_tokens", 0)
     common_prefix = data.get("common_prefix", "")
 
-    logger = logging.getLogger("metta.setup.tools.code.token_profiler")
+    logger = logging.getLogger("softmax.cli.tools.code.token_profiler")
     logger.debug(f"Using common prefix: {common_prefix}")
 
     # Convert node cache to hierarchical dictionary with trimmed paths

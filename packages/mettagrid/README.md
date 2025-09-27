@@ -150,7 +150,7 @@ maintain compatibility with external RL frameworks:
 
 - Full-featured environment with comprehensive stats collection, replay recording, and curriculum support
 - Inherits from `MettaGridCore` for C++ environment implementation
-- **Exclusively used** by `metta.rl.trainer` and `metta.sim.simulation`
+- **Exclusively used** by `softmax.training.rl.trainer` and `softmax.training.sim.simulation`
 - Continuously developed and optimized for Softmax Studio use cases
 - Backward compatible with existing training code
 

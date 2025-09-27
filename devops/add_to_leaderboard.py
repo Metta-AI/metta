@@ -7,7 +7,7 @@ import sys
 from typing import List
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.utils.file import exists
+from softmax.lib.utils import exists
 
 
 def run_command(cmd: List[str], description: str) -> bool:

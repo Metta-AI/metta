@@ -1,6 +1,6 @@
 """Tests for curriculum capacity initialization and algorithm-based eviction."""
 
-import metta.cogworks.curriculum as cc
+import softmax.cogworks.curriculum as cc
 from mettagrid.builder.envs import make_arena
 
 

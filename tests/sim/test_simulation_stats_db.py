@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from duckdb import DuckDBPyConnection
 
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.sim.simulation_stats_db import SimulationStatsDB
+from softmax.training.rl.checkpoint_manager import CheckpointManager
+from softmax.training.sim.simulation_stats_db import SimulationStatsDB
 
 _DUMMY_AGENT_MAP = {0: ("dummy_policy", 0)}
 

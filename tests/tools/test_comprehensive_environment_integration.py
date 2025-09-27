@@ -2,10 +2,6 @@ import pytest
 
 import mettagrid.builder.envs as eb
 from metta.common.util.fs import get_repo_root
-from metta.sim.simulation_config import SimulationConfig
-from metta.tests_support import run_tool_in_process
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
 from mettagrid import MettaGridEnv
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import (
@@ -17,6 +13,10 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
 )
 from mettagrid.map_builder.random import RandomMapBuilder
+from softmax.lib.tests_support import run_tool_in_process
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.play import PlayTool
+from softmax.training.tools.replay import ReplayTool
 
 
 class TestComprehensiveEnvironmentIntegration:

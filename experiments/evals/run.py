@@ -1,8 +1,8 @@
 import base64
 import json
 
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.sim import SimTool
+from softmax.training.sim.simulation_config import SimulationConfig
+from softmax.training.tools.sim import SimTool
 
 
 # Used by eval_task_worker.py

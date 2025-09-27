@@ -58,8 +58,8 @@ for cmd in uv bazel git g++; do
 done
 
 uv sync
-uv run python -m metta.setup.metta_cli symlink-setup setup --quiet
-uv run python -m metta.setup.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
+uv run python -m softmax.cli.metta_cli symlink-setup setup --quiet
+uv run python -m softmax.cli.metta_cli install $PROFILE_ADDITION $NON_INTERACTIVE_ADDITION
 
 echo "\nSetup complete!\n"
 

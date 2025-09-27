@@ -3,11 +3,18 @@
   "exclude": ["**/node_modules", "**/__pycache__", ".venv"],
   "extraPaths": [
     "./agent/src",
-    "./app_backend/src",
     "./common/src",
     "./packages/cogames/src",
     "./packages/mettagrid/python/src",
-    "./packages/pufferlib-core/src"
+    "./packages/pufferlib-core/src",
+    "./packages/softmax-cli/src",
+    "./packages/softmax-cogworks/src",
+    "./packages/softmax-config/src",
+    "./packages/softmax-lib/src",
+    "./packages/softmax-maptools/src",
+    "./packages/softmax-orchestrator/src",
+    "./packages/softmax-shared/src",
+    "./packages/softmax-training/src"
   ],
   "typeCheckingMode": "basic",
   "reportMissingModuleSource": false,

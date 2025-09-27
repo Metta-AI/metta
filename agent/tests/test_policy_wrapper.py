@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 from metta.agent.policy import ExternalPolicyWrapper
-from metta.rl.training import EnvironmentMetaData
+from softmax.training.rl.training import EnvironmentMetaData
 
 
 class _DummyPolicy(nn.Module):

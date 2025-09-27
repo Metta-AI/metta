@@ -4,7 +4,7 @@ from typing import Callable
 
 import pytest
 
-from metta.tools.utils import auto_config
+from metta.config import auto_config
 
 
 def _reset_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
