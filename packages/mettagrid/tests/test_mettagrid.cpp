@@ -1233,11 +1233,10 @@ TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
   config.recipes = {recipe};
   Assembler assembler(5, 5, config);
   // Create agents
-  AgentConfig agent_config(0,        // type_id
-                           "agent",  // type_name
-                           0,        // group_id
-                           "agent"   // group_name
-  );
+  AgentConfig agent_config(0,         // type_id
+                           "agent",   // type_name
+                           0,         // group_id
+                           "agent");  // group_name
   Agent agent1(0, 0, agent_config);
   Agent agent2(0, 0, agent_config);
   Agent agent3(0, 0, agent_config);
