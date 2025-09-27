@@ -9,6 +9,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+try:  # pragma: no cover - optional dependency
+    from flash_attn.flash_attn_interface import flash_attn_func  # type: ignore
+except ImportError:  # pragma: no cover
+    flash_attn_func = None
+
 
 def empty_memory(
     num_layers: int,
@@ -159,6 +164,8 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)
         self.out_proj = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(dropout)
+        self._flash_available = flash_attn_func is not None
+        self._attn_dropout_p = float(dropout)
 
         nn.init.xavier_uniform_(self.qkv_proj.weight, gain=1.0)
         nn.init.xavier_uniform_(self.out_proj.weight, gain=1.0)
@@ -168,14 +175,49 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         seq_len, batch_size, _ = x.shape
         qkv = self.qkv_proj(x)
         qkv = qkv.view(seq_len, batch_size, 3, self.n_heads, self.d_k)
-        qkv = qkv.permute(2, 3, 1, 0, 4)  # (3, n_heads, batch, seq_len, d_k)
+        qkv = qkv.permute(2, 1, 3, 0, 4)  # (3, batch, heads, seq, d_k)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        q = q.reshape(self.n_heads * batch_size, seq_len, self.d_k)
-        k = k.reshape(self.n_heads * batch_size, seq_len, self.d_k)
-        v = v.reshape(self.n_heads * batch_size, seq_len, self.d_k)
+        if (
+            attn_mask is None
+            and self.use_causal_mask
+            and flash_attn_func is not None
+            and x.is_cuda
+        ):
+            dropout_p = self._attn_dropout_p if self.training else 0.0
+            q_flash = q.permute(0, 3, 1, 2)  # (batch, seq, heads, d)
+            k_flash = k.permute(0, 3, 1, 2)
+            v_flash = v.permute(0, 3, 1, 2)
+            out = flash_attn_func(
+                q_flash,
+                k_flash,
+                v_flash,
+                dropout_p=dropout_p,
+                softmax_scale=None,
+                causal=True,
+            )
+            out = out.permute(1, 0, 2, 3).reshape(seq_len, batch_size, self.d_model)
+            return self.out_proj(out)
 
-        scores = torch.bmm(q, k.transpose(1, 2)) / math.sqrt(self.d_k)
+        if attn_mask is None and hasattr(F, "scaled_dot_product_attention"):
+            dropout_p = self._attn_dropout_p if self.training else 0.0
+            out = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=None,
+                dropout_p=dropout_p,
+                is_causal=self.use_causal_mask,
+            )
+            out = out.permute(2, 0, 1, 3).reshape(seq_len, batch_size, self.d_model)
+            return self.out_proj(out)
+
+        # Fallback path with explicit masking or CPU execution
+        q_2d = q.reshape(batch_size * self.n_heads, seq_len, self.d_k)
+        k_2d = k.reshape(batch_size * self.n_heads, seq_len, self.d_k)
+        v_2d = v.reshape(batch_size * self.n_heads, seq_len, self.d_k)
+
+        scores = torch.bmm(q_2d, k_2d.transpose(1, 2)) / math.sqrt(self.d_k)
 
         if self.use_causal_mask:
             causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool), diagonal=1)
@@ -183,21 +225,25 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
 
         if attn_mask is not None:
             if attn_mask.dim() == 2:
-                expanded = attn_mask.unsqueeze(0).expand(scores.size(0), -1, -1)
+                expanded = attn_mask.unsqueeze(0)
             elif attn_mask.dim() == 3:
                 expanded = attn_mask
                 if expanded.size(0) == 1:
-                    expanded = expanded.expand(scores.size(0), -1, -1)
+                    expanded = expanded.expand(batch_size, -1, -1)
             else:
                 raise ValueError("Attention mask must have dim 2 or 3.")
+            expanded = expanded.to(device=x.device)
+            expanded = expanded.unsqueeze(1).expand(batch_size, self.n_heads, seq_len, seq_len)
+            scores = scores.view(batch_size, self.n_heads, seq_len, seq_len)
             scores = scores.masked_fill(expanded.to(torch.bool), float("-inf"))
+            scores = scores.view(batch_size * self.n_heads, seq_len, seq_len)
 
         weights = F.softmax(scores, dim=-1)
         weights = self.dropout(weights)
 
-        out = torch.bmm(weights, v)
-        out = out.view(self.n_heads, batch_size, seq_len, self.d_k)
-        out = out.permute(2, 1, 0, 3).reshape(seq_len, batch_size, self.d_model)
+        out = torch.bmm(weights, v_2d)
+        out = out.view(batch_size, self.n_heads, seq_len, self.d_k)
+        out = out.permute(2, 0, 1, 3).reshape(seq_len, batch_size, self.d_model)
         return self.out_proj(out)
 
 
@@ -299,13 +345,14 @@ class GTrXLModule(nn.Module):
                     d_ff=d_ff,
                     dropout=dropout,
                     use_causal_mask=use_causal_mask,
-                    use_gating=use_gating,
+                    use_gating=False,
                 )
                 for _ in range(n_layers)
             ]
         )
         self.output_norm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
+        self._mask_cache: dict[tuple[int, torch.device], torch.Tensor] = {}
 
     def forward(
         self,
@@ -357,7 +404,7 @@ class GTrXLModule(nn.Module):
             attn_mask = None
             if self.use_causal_mask:
                 total_len = combined.size(0)
-                attn_mask = torch.triu(torch.ones(total_len, total_len, device=device, dtype=torch.bool), diagonal=1)
+                attn_mask = self._get_causal_mask(total_len, device)
             layer_out = layer(combined, attn_mask)
             layer_outputs.append(layer_out)
 
@@ -385,6 +432,14 @@ class GTrXLModule(nn.Module):
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
         return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}
+
+    def _get_causal_mask(self, size: int, device: torch.device) -> torch.Tensor:
+        key = (size, device)
+        mask = self._mask_cache.get(key)
+        if mask is None:
+            mask = torch.triu(torch.ones(size, size, device=device, dtype=torch.bool), diagonal=1)
+            self._mask_cache[key] = mask
+        return mask
 
 
 # ---------------------------------------------------------------------------
@@ -524,6 +579,46 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         w_head_v = w_head_v.view(klen, batch_size, self.n_head, self.d_head)
         r_head_k = r_head_k.view(rlen, self.n_head, self.d_head)
 
+        if hasattr(F, "scaled_dot_product_attention") and w_head_q.is_cuda:
+            try:
+                q_tilde = w_head_q + r_w_bias[None, None, :, :]
+                q_sdpa = q_tilde.permute(1, 2, 0, 3).contiguous()
+                k_sdpa = w_head_k.permute(1, 2, 0, 3).contiguous()
+                v_sdpa = w_head_v.permute(1, 2, 0, 3).contiguous()
+
+                rr_head_q = w_head_q + r_r_bias[None, None, :, :]
+                BD = torch.einsum("ibnd,jnd->ijbn", rr_head_q, r_head_k)
+                BD = self._rel_shift(BD)
+                attn_bias = BD.permute(2, 3, 0, 1).contiguous() * self.scale
+
+                if attn_mask is not None:
+                    if attn_mask.dim() == 2:
+                        mask = attn_mask[None, None, :, :]
+                    elif attn_mask.dim() == 3:
+                        mask = attn_mask[:, None, :, :]
+                    else:
+                        raise ValueError("Attention mask must have dim 2 or 3.")
+                    mask = mask.to(attn_bias.device)
+                    attn_bias = attn_bias.masked_fill(mask.bool(), float("-inf"))
+
+                dropout_p = self.dropatt.p if self.training else 0.0
+                attn_out = F.scaled_dot_product_attention(
+                    q_sdpa,
+                    k_sdpa,
+                    v_sdpa,
+                    attn_mask=attn_bias,
+                    dropout_p=dropout_p,
+                    is_causal=False,
+                )
+                attn_out = attn_out.permute(2, 0, 1, 3).reshape(qlen, batch_size, self.n_head * self.d_head)
+                attn_out = self.drop(self.o_net(attn_out))
+
+                if self.pre_lnorm:
+                    return content + attn_out
+                return self.layer_norm(content + attn_out)
+            except RuntimeError:
+                pass
+
         rw_head_q = w_head_q + r_w_bias
         AC = torch.einsum("ibnd,jbnd->ijbn", (rw_head_q, w_head_k))
 
@@ -642,6 +737,8 @@ class TransformerXLModule(nn.Module):
         )
         nn.init.normal_(self.r_w_bias, mean=0.0, std=0.02)
         nn.init.normal_(self.r_r_bias, mean=0.0, std=0.02)
+        self._attn_mask_cache: dict[tuple[int, int, bool, torch.device], torch.Tensor] = {}
+        self._pos_seq_cache: dict[tuple[int, torch.device, torch.dtype], torch.Tensor] = {}
 
     def forward(
         self, inputs: torch.Tensor, memory: Optional[Dict[str, List[torch.Tensor]]] = None
@@ -671,19 +768,10 @@ class TransformerXLModule(nn.Module):
         mlen = mems[0].size(0) if mems else 0
         klen = mlen + seq_len
 
-        if self.same_length:
-            all_ones = torch.ones(seq_len, klen, device=device, dtype=torch.bool)
-            mask_len = klen - self.memory_len
-            if mask_len > 0:
-                mask_shift_len = seq_len - mask_len
-            else:
-                mask_shift_len = seq_len
-            attn_mask = torch.triu(all_ones, diagonal=1 + mlen) | torch.tril(all_ones, diagonal=-mask_shift_len)
-        else:
-            attn_mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mlen)
+        attn_mask = self._get_attn_mask(seq_len, mlen, klen, device)
         attn_mask = attn_mask[:, :, None]
 
-        pos_seq = torch.arange(klen - 1, -1, -1.0, device=device, dtype=dtype)
+        pos_seq = self._get_pos_seq(klen, device, dtype)
         if self.clamp_len > 0:
             pos_seq = pos_seq.clamp(max=float(self.clamp_len))
         pos_emb = self.pos_emb(pos_seq)
@@ -712,3 +800,31 @@ class TransformerXLModule(nn.Module):
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
         return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}
+
+    def _get_attn_mask(
+        self, seq_len: int, mem_len: int, klen: int, device: torch.device
+    ) -> torch.Tensor:
+        key = (seq_len, mem_len, self.same_length, device)
+        mask = self._attn_mask_cache.get(key)
+        if mask is None:
+            if self.same_length:
+                all_ones = torch.ones(seq_len, klen, device=device, dtype=torch.bool)
+                mask_len = klen - self.memory_len
+                mask_shift_len = seq_len - mask_len if mask_len > 0 else seq_len
+                mask = torch.triu(all_ones, diagonal=1 + mem_len) | torch.tril(
+                    all_ones, diagonal=-mask_shift_len
+                )
+            else:
+                mask = torch.triu(
+                    torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mem_len
+                )
+            self._attn_mask_cache[key] = mask
+        return mask
+
+    def _get_pos_seq(self, klen: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+        key = (klen, device, dtype)
+        pos_seq = self._pos_seq_cache.get(key)
+        if pos_seq is None:
+            pos_seq = torch.arange(klen - 1, -1, -1.0, device=device, dtype=dtype)
+            self._pos_seq_cache[key] = pos_seq
+        return pos_seq
