@@ -17,8 +17,10 @@ export const ExploreSimulations: FC<{ cfg: Config }> = ({ cfg }) => {
     })
   );
 
+  const simulations = simulationsSchema.parse(cfg.config.value);
+
   const [selectedSimulation, setSelectedSimulation] = useState<string | null>(
-    null
+    simulations[0]?.name ?? null
   );
 
   const selectedSimulationConfig = useMemo(() => {
@@ -26,8 +28,6 @@ export const ExploreSimulations: FC<{ cfg: Config }> = ({ cfg }) => {
       .parse(cfg.config.value)
       .find((s) => s.name === selectedSimulation);
   }, [cfg.config.value, selectedSimulation]);
-
-  const simulations = simulationsSchema.parse(cfg.config.value);
 
   return (
     <div className="flex gap-8">

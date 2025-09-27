@@ -7,7 +7,11 @@ class ErrorResult(TypedDict):
     error: str
 
 
-def dump_config_with_implicit_info(config: Config | list[Config]) -> dict:
+def config_with_extra_info(config: Config | list[Config]) -> dict:
+    """
+    Dump a config with information about which fields were not set explicitly.
+    """
+
     fields_unset: list[str] = []
 
     def traverse(obj: Config, prefix: str = ""):
