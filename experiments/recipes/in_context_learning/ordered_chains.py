@@ -61,16 +61,18 @@ RESOURCE_TYPES = [
 class LPParams:
     def __init__(
         self,
-        ema_timescale: float = 0.001,
-        exploration_bonus: float = 0.15,
-        max_memory_tasks: int = 1000,
+        ema_timescale: float = 0.1,  # From focused config
+        exploration_bonus: float = 1e-8,  # Much lower exploration from focused config
+        max_memory_tasks: int = 100000,  # Large enough to avoid cleanup
         max_slice_axes: int = 3,
-        progress_smoothing: float = 0.15,
+        progress_smoothing: float = 100,  # Sharper preferences from focused config
         enable_detailed_slice_logging: bool = False,
-        num_active_tasks: int = 1000,
-        rand_task_rate: float = 0.25,
-        min_presentations_for_eviction: int = 5,
-        eviction_threshold_percentile: float = 0.4,
+        num_active_tasks: int = 500,  # Smaller pool for more focus from focused config
+        rand_task_rate: float = 0.001,  # Minimal randomness from focused config
+        use_bidirectional: bool = False,  # Simpler scoring from focused config
+        sampling_temperature: float = 1e-4,  # Much more focused sampling from focused config
+        min_presentations_for_eviction: int = 300,  # Higher threshold from focused config
+        eviction_threshold_percentile: float = 0.2,  # Lower percentile from focused config
     ):
         self.ema_timescale = ema_timescale
         self.exploration_bonus = exploration_bonus
@@ -80,8 +82,28 @@ class LPParams:
         self.enable_detailed_slice_logging = enable_detailed_slice_logging
         self.num_active_tasks = num_active_tasks
         self.rand_task_rate = rand_task_rate
+        self.use_bidirectional = use_bidirectional
+        self.sampling_temperature = sampling_temperature
         self.min_presentations_for_eviction = min_presentations_for_eviction
         self.eviction_threshold_percentile = eviction_threshold_percentile
+
+
+def focused_lp_params() -> LPParams:
+    """Return LPParams configured for focused sampling (low entropy ~0.3-0.5)."""
+    return LPParams(
+        ema_timescale=0.1,  # Slower adaptation
+        exploration_bonus=1e-8,  # Much lower exploration
+        max_memory_tasks=100000,  # Large enough to avoid cleanup
+        max_slice_axes=3,
+        progress_smoothing=100,  # Sharper preferences
+        enable_detailed_slice_logging=False,
+        num_active_tasks=500,  # Smaller pool for more focus
+        rand_task_rate=0.001,  # Minimal randomness
+        use_bidirectional=False,  # Simpler scoring
+        sampling_temperature=1e-4,  # Much more focused sampling
+        min_presentations_for_eviction=300,  # Higher threshold
+        eviction_threshold_percentile=0.2,  # Lower percentile
+    )
 
 
 curriculum_args = {
@@ -504,10 +526,13 @@ def make_curriculum(
 
 def train(
     curriculum_style: str = "tiny",
-    lp_params: LPParams = LPParams(),
+    lp_params: LPParams = None,
     use_fast_lstm_reset: bool = True,
     map_dir: str = "icl_ordered_chains",
 ) -> TrainTool:
+    # Use focused parameters by default
+    if lp_params is None:
+        lp_params = focused_lp_params()
     curriculum = make_curriculum(curriculum_style, lp_params, map_dir)
 
     trainer_cfg = TrainerConfig(

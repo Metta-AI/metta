@@ -793,12 +793,12 @@ class TaskDependencySimulationTool(Tool):
     num_tasks: int = 10
     num_epochs: int = 100
     samples_per_epoch: int = 50
-    gamma: float = 0.1
-    lambda_forget: float = 0.1
+    gamma: float = 0.5
+    lambda_forget: float = 0.01
     performance_threshold: float = 0.9
     task_seed: Optional[int] = None
     dt: float = 0.1
-    task_noise_std: float = 1e-5
+    task_noise_std: float = 1e-8
     enable_detailed_slice_logging: bool = False
 
     # Learning progress parameters
@@ -888,9 +888,9 @@ def simulate_large_chain_focused(
         num_tasks=25,
         num_epochs=2000,
         samples_per_epoch=100,
-        num_active_tasks=30,  # Smaller pool for more focus
-        exploration_bonus=0.0001,  # Much lower exploration
-        ema_timescale=0.5,  # Slower adaptation
+        num_active_tasks=500,  # Smaller pool for more focus
+        exploration_bonus=1e-8,  # Much lower exploration
+        ema_timescale=0.1,  # Slower adaptation
         rand_task_rate=0.001,  # Minimal randomness
         progress_smoothing=100,  # Sharper preferences
         use_bidirectional=False,  # Simpler scoring
