@@ -23,9 +23,9 @@ from typing_extensions import TypeVar
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from softmax.training.rl.system_config import seed_everything
 from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
+from softmax.training.rl.system_config import seed_everything
 
 logger = logging.getLogger(__name__)
 

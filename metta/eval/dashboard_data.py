@@ -5,9 +5,9 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
-from softmax.training.sim.simulation_stats_db import SimulationStatsDB
 from mettagrid.config import Config
 from softmax.lib.utils import write_data
+from softmax.training.sim.simulation_stats_db import SimulationStatsDB
 
 logger = logging.getLogger(__name__)
 

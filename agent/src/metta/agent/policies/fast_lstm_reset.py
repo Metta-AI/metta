@@ -9,8 +9,8 @@ from metta.agent.components.lstm_reset import LSTMResetConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_shim import ObsShimBoxConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from softmax.training.rl.training import EnvironmentMetaData
 from mettagrid.util.module import load_symbol
+from softmax.training.rl.training import EnvironmentMetaData
 
 logger = logging.getLogger(__name__)
 

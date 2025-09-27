@@ -8,10 +8,10 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.policy import Policy
+from mettagrid.config import Config
 from softmax.training.rl.loss import Loss
 from softmax.training.rl.training import ComponentContext
 from softmax.training.rl.utils import ensure_sequence_metadata
-from mettagrid.config import Config
 
 
 class EMAConfig(Config):

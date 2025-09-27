@@ -8,16 +8,19 @@ from pathlib import Path
 from typing import Any, Optional
 
 from cogweb.cogweb_client import CogwebClient
-from softmax.training.adaptive import AdaptiveConfig, AdaptiveController
-from softmax.training.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
-from softmax.training.adaptive.stores import WandbStore
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
-from softmax.training.sweep.protein_config import ParameterConfig, ProteinConfig
-from softmax.training.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 from softmax.config.auto_config import auto_stats_server_uri, auto_wandb_config
 from softmax.config.bootstrap import ensure_setup_factories_registered
+from softmax.training.adaptive import AdaptiveConfig, AdaptiveController
+from softmax.training.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
+from softmax.training.adaptive.stores import WandbStore
+from softmax.training.sweep.protein_config import ParameterConfig, ProteinConfig
+from softmax.training.sweep.schedulers.batched_synced import (
+    BatchedSyncedOptimizingScheduler,
+    BatchedSyncedSchedulerConfig,
+)
 
 ensure_setup_factories_registered()
 

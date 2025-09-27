@@ -3,9 +3,9 @@
 import pytest
 
 import softmax.cogworks.curriculum as cc
+from mettagrid.builder.envs import make_arena, make_navigation
 from softmax.cogworks.curriculum import CurriculumConfig, SingleTaskGenerator, Span
 from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from mettagrid.builder.envs import make_arena, make_navigation
 
 
 @pytest.fixture(scope="function")

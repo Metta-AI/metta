@@ -7,8 +7,8 @@ back to identical configs.
 
 import unittest
 
-import softmax.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+import softmax.cogworks.curriculum as cc
 from softmax.cogworks.curriculum import BucketedTaskGenerator, CurriculumConfig, SingleTaskGenerator, TaskGeneratorSet
 from softmax.cogworks.curriculum.task_generator import Span
 

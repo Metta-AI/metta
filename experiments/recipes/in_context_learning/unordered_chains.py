@@ -7,7 +7,9 @@ from typing import List, Optional, Sequence
 
 from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from softmax.cogworks.curriculum.curriculum import CurriculumConfig
-from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from softmax.cogworks.curriculum.learning_progress_algorithm import (
+    LearningProgressConfig,
+)
 from softmax.training.rl.loss.loss_config import LossConfig
 from softmax.training.rl.trainer_config import TrainerConfig
 from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig

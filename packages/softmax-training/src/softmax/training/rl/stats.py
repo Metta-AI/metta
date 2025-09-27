@@ -8,6 +8,9 @@ import numpy as np
 import torch
 
 from metta.common.wandb.context import WandbRun
+from metta.shared.eval_config import EvalResults
+from mettagrid.profiling.stopwatch import Stopwatch
+from mettagrid.util.dict_utils import unroll_nested_dict
 from softmax.training.rl.evaluate import upload_replay_html
 from softmax.training.rl.trainer_config import TrainerConfig
 from softmax.training.rl.training import Experience
@@ -17,9 +20,6 @@ from softmax.training.rl.wandb import (
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
-from metta.shared.eval_config import EvalResults
-from mettagrid.profiling.stopwatch import Stopwatch
-from mettagrid.util.dict_utils import unroll_nested_dict
 
 logger = logging.getLogger(__name__)
 

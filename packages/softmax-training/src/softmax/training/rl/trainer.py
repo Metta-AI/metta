@@ -5,6 +5,7 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
+from mettagrid.profiling.stopwatch import Stopwatch
 from softmax.training.rl.trainer_config import TrainerConfig
 from softmax.training.rl.training import (
     ComponentContext,
@@ -18,7 +19,6 @@ from softmax.training.rl.training import (
     TrainingEnvironment,
 )
 from softmax.training.rl.training.optimizer import create_optimizer
-from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
     importlib.import_module("pufferlib._C")

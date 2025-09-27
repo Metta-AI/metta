@@ -3,9 +3,9 @@
 import logging
 from typing import Any, Dict, Optional
 
+from mettagrid.config import Config
 from softmax.training.rl.checkpoint_manager import CheckpointManager
 from softmax.training.rl.training import ComponentContext, DistributedHelper, TrainerComponent
-from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 

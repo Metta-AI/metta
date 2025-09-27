@@ -6,12 +6,12 @@ from pydantic import validate_call
 
 import pufferlib
 import pufferlib.vector
-from softmax.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.log_config import init_logging
 from mettagrid import MettaGridEnv
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 from pufferlib.pufferlib import set_buffers
+from softmax.cogworks.curriculum import Curriculum, CurriculumEnv
 
 logger = logging.getLogger("vecenv")
 

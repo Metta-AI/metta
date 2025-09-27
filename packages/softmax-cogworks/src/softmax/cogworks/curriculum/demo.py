@@ -1,5 +1,5 @@
-import softmax.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+import softmax.cogworks.curriculum as cc
 from softmax.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from softmax.cogworks.curriculum.task_generator import Span
 

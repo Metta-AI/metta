@@ -13,9 +13,9 @@ from typing import Any
 
 from pydantic import Field
 
+from mettagrid.config import Config
 from softmax.training.adaptive.models import JobDefinition, JobStatus, RunInfo
 from softmax.training.adaptive.utils import create_eval_job, create_training_job, generate_run_id
-from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 

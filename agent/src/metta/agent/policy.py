@@ -20,9 +20,9 @@ from metta.agent.components.obs_shim import (
     ObsShimTokens,
     ObsShimTokensConfig,
 )
-from softmax.training.rl.training import EnvironmentMetaData
 from mettagrid.config import Config
 from mettagrid.util.module import load_symbol
+from softmax.training.rl.training import EnvironmentMetaData
 
 
 class PolicyArchitecture(Config):

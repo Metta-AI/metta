@@ -9,19 +9,19 @@ from pydantic import Field
 
 import gitta as git
 from metta.app_backend.clients.stats_client import StatsClient
-from softmax.cogworks.curriculum import Curriculum
 from metta.common.util.git_repo import REPO_SLUG
 from metta.eval.eval_service import evaluate_policy
+from metta.shared.eval_config import EvalResults, EvalRewardSummary
+from metta.shared.simulation_config import SimulationConfig
+from mettagrid.config import Config
+from softmax.cogworks.curriculum import Curriculum
+from softmax.config.auto_config import auto_replay_dir
+from softmax.config.bootstrap import ensure_setup_factories_registered
 from softmax.training.rl.evaluate import (
     evaluate_policy_remote_with_checkpoint_manager,
     upload_replay_html,
 )
 from softmax.training.rl.training import TrainerComponent
-from metta.shared.eval_config import EvalResults, EvalRewardSummary
-from metta.shared.simulation_config import SimulationConfig
-from mettagrid.config import Config
-from softmax.config.auto_config import auto_replay_dir
-from softmax.config.bootstrap import ensure_setup_factories_registered
 
 ensure_setup_factories_registered()
 

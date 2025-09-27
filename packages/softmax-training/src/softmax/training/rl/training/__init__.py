@@ -78,7 +78,10 @@ _EXPORTS: dict[str, tuple[str, str | None]] = {
     "TrainingEnvWindow": ("softmax.training.rl.training.component_context", "TrainingEnvWindow"),
     "Uploader": ("softmax.training.rl.training.uploader", "Uploader"),
     "UploaderConfig": ("softmax.training.rl.training.uploader", "UploaderConfig"),
-    "VectorizedTrainingEnvironment": ("softmax.training.rl.training.training_environment", "VectorizedTrainingEnvironment"),
+    "VectorizedTrainingEnvironment": (
+        "softmax.training.rl.training.training_environment",
+        "VectorizedTrainingEnvironment",
+    ),
     "WandbAborter": ("softmax.training.rl.training.wandb_aborter", "WandbAborter"),
     "WandbAborterConfig": ("softmax.training.rl.training.wandb_aborter", "WandbAborterConfig"),
     "WandbLogger": ("softmax.training.rl.training.wandb_logger", "WandbLogger"),

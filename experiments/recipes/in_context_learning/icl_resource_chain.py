@@ -2,7 +2,10 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from softmax.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
+from softmax.cogworks.curriculum.task_generator import (
+    TaskGenerator,
+    TaskGeneratorConfig,
+)
 from mettagrid.builder import empty_converters
 from pydantic import Field
 

@@ -8,11 +8,11 @@ from torch import Tensor
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
 from metta.agent.policy import Policy
+from mettagrid.config import Config
+from softmax.lib.utils import calculate_prioritized_sampling_params
 from softmax.training.rl.advantage import compute_advantage, normalize_advantage_distributed
 from softmax.training.rl.loss import Loss
 from softmax.training.rl.training import ComponentContext, TrainingEnvironment
-from mettagrid.config import Config
-from softmax.lib.utils import calculate_prioritized_sampling_params
 
 
 class PrioritizedExperienceReplayConfig(Config):

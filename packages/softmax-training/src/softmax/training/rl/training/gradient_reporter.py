@@ -5,8 +5,8 @@ import logging
 import torch
 from pydantic import Field
 
-from softmax.training.rl.training import TrainerComponent
 from mettagrid.config import Config
+from softmax.training.rl.training import TrainerComponent
 
 logger = logging.getLogger(__name__)
 

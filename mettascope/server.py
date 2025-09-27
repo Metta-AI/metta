@@ -12,8 +12,8 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
-from softmax.training.sim.simulation import Simulation
 from mettagrid.util.grid_object_formatter import format_grid_object
+from softmax.training.sim.simulation import Simulation
 
 if TYPE_CHECKING:
     from softmax.training.tools.play import PlayTool

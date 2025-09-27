@@ -14,6 +14,12 @@ from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
+from softmax.config.auto_config import (
+    auto_run_name,
+    auto_stats_server_uri,
+    auto_wandb_config,
+)
+from softmax.config.bootstrap import ensure_setup_factories_registered
 from softmax.training.rl.checkpoint_manager import CheckpointManager
 from softmax.training.rl.trainer import Trainer
 from softmax.training.rl.trainer_config import TorchProfilerConfig, TrainerConfig
@@ -44,12 +50,6 @@ from softmax.training.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
-from softmax.config.auto_config import (
-    auto_run_name,
-    auto_stats_server_uri,
-    auto_wandb_config,
-)
-from softmax.config.bootstrap import ensure_setup_factories_registered
 
 ensure_setup_factories_registered()
 

@@ -12,13 +12,13 @@ import torch
 from pydantic import Field
 from torch import Tensor
 
-from softmax.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
-from softmax.training.rl.vecenv import make_vecenv
 from mettagrid.builder.envs import make_arena
 from mettagrid.config import Config
 from mettagrid.core import ObsFeature
 from mettagrid.mettagrid_c import dtype_actions
+from softmax.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
 from softmax.lib.utils import calculate_batch_sizes
+from softmax.training.rl.vecenv import make_vecenv
 
 logger = logging.getLogger(__name__)
 

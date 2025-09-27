@@ -7,9 +7,9 @@ from pydantic import ConfigDict
 from tensordict import TensorDict
 
 from metta.agent.policy import Policy
+from mettagrid.config import Config
 from softmax.training.rl.loss import Loss
 from softmax.training.rl.training import ComponentContext, Experience, TrainingEnvironment
-from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 

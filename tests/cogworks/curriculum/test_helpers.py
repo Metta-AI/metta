@@ -76,8 +76,8 @@ class CurriculumTestHelper:
     @staticmethod
     def create_curriculum_with_capacity(capacity: int, **kwargs):
         """Create a curriculum with specific capacity for testing."""
-        from softmax.cogworks.curriculum import SingleTaskGenerator
         from mettagrid.config.mettagrid_config import MettaGridConfig
+        from softmax.cogworks.curriculum import SingleTaskGenerator
 
         task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=capacity, **kwargs)
@@ -91,8 +91,8 @@ class CurriculumTestHelper:
             curriculum_type: Type of curriculum ('basic', 'with_algorithm', 'production')
             **kwargs: Additional configuration parameters
         """
-        from softmax.cogworks.curriculum import SingleTaskGenerator
         from mettagrid.config.mettagrid_config import MettaGridConfig
+        from softmax.cogworks.curriculum import SingleTaskGenerator
 
         base_config = SingleTaskGenerator.Config(env=MettaGridConfig())
 

@@ -3,8 +3,8 @@
 import logging
 
 from metta.common.util.heartbeat import record_heartbeat
-from softmax.training.rl.training import TrainerComponent
 from mettagrid.config import Config
+from softmax.training.rl.training import TrainerComponent
 
 logger = logging.getLogger(__name__)
 

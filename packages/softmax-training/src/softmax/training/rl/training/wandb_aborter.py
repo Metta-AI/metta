@@ -6,8 +6,8 @@ import logging
 
 from metta.common.wandb.context import WandbRun
 from metta.common.wandb.utils import abort_requested
-from softmax.training.rl.training import ComponentContext, TrainerComponent
 from mettagrid.config import Config
+from softmax.training.rl.training import ComponentContext, TrainerComponent
 
 logger = logging.getLogger(__name__)
 

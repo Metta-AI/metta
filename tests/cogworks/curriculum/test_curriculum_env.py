@@ -5,9 +5,9 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
+from mettagrid.config.mettagrid_config import MettaGridConfig
 from softmax.cogworks.curriculum import Curriculum, CurriculumConfig, CurriculumTask, SingleTaskGenerator
 from softmax.cogworks.curriculum.curriculum_env import CurriculumEnv
-from mettagrid.config.mettagrid_config import MettaGridConfig
 
 from .test_helpers import CurriculumTestHelper
 

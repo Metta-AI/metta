@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
-from softmax.training.rl.training import Experience, TrainingEnvironment
 from metta.shared.eval_config import EvalRewardSummary
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
+from softmax.training.rl.training import Experience, TrainingEnvironment
 
 if TYPE_CHECKING:
     from softmax.cogworks.curriculum import Curriculum

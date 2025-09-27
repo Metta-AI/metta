@@ -2,9 +2,9 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
+from mettagrid.config import Config
 from softmax.training.rl.loss import LossConfig
 from softmax.training.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
-from mettagrid.config import Config
 
 
 class OptimizerConfig(Config):

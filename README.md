@@ -240,7 +240,7 @@ What you write:
 - Place it anywhere importable (for personal use, `experiments/user/<your_file>.py` is convenient).
 - The function name becomes part of the task name you run.
 
-Minimal example:
+Minimal example (imports now reference the `softmax.training` namespace after the Phase 3 reorg):
 
 ```python
 # experiments/user/my_tasks.py

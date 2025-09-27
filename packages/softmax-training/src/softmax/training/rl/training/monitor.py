@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from softmax.training.rl.training import TrainerComponent
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.system_monitor import SystemMonitor
+from softmax.training.rl.training import TrainerComponent
 
 logger = logging.getLogger(__name__)
 

@@ -8,10 +8,10 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
+from mettagrid.config import Config
 from softmax.training.rl.loss import Loss
 from softmax.training.rl.trainer_config import TrainerConfig
 from softmax.training.rl.training import ComponentContext
-from mettagrid.config import Config
 
 
 class SLKickstarterConfig(Config):

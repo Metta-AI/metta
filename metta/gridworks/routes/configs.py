@@ -2,17 +2,17 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from softmax.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.gridworks.common import ErrorResult, dump_config_with_implicit_info
 from metta.gridworks.configs.registry import ConfigMaker, ConfigMakerKind, ConfigMakerRegistry
+from mettagrid.config import Config, MettaGridConfig
+from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
+from softmax.cogworks.curriculum.curriculum import CurriculumConfig
 from softmax.training.sim.simulation_config import SimulationConfig
 from softmax.training.tools.play import PlayTool
 from softmax.training.tools.replay import ReplayTool
 from softmax.training.tools.sim import SimTool
 from softmax.training.tools.train import TrainTool
-from mettagrid.config import Config, MettaGridConfig
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
 
 logger = logging.getLogger(__name__)
 

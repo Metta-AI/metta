@@ -6,7 +6,9 @@ from softmax.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
-from softmax.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from softmax.cogworks.curriculum.learning_progress_algorithm import (
+    LearningProgressConfig,
+)
 from softmax.training.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from softmax.training.sim.simulation_config import SimulationConfig
 from softmax.training.tools.eval_remote import EvalRemoteTool

@@ -2,8 +2,8 @@ from abc import abstractmethod
 
 from pydantic import Field
 
-from softmax.training.rl.system_config import SystemConfig
 from mettagrid.config import Config
+from softmax.training.rl.system_config import SystemConfig
 
 
 class Tool(Config):

@@ -13,10 +13,10 @@ if TYPE_CHECKING:
 
 from pydantic import ConfigDict, Field
 
-from softmax.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
-from softmax.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 from mettagrid.config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from softmax.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
+from softmax.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
 
 logger = logging.getLogger(__name__)
 

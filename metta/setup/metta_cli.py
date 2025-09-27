@@ -11,7 +11,6 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from softmax.training.adaptive.live_run_monitor import app as run_monitor_app
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
@@ -21,6 +20,7 @@ from metta.setup.utils import debug, error, info, success, warning
 from softmax.config.auto_config import auto_policy_storage_decision
 from softmax.config.bootstrap import ensure_setup_factories_registered
 from softmax.dashboard.report import app as softmax_system_health_app
+from softmax.training.adaptive.live_run_monitor import app as run_monitor_app
 
 ensure_setup_factories_registered()
 

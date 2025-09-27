@@ -6,9 +6,9 @@ from typing import Any, List, Optional
 import wandb
 from dateutil import parser
 
-from softmax.training.adaptive.models import RunInfo
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
+from softmax.training.adaptive.models import RunInfo
 
 logger = logging.getLogger(__name__)
 

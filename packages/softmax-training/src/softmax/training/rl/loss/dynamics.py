@@ -8,9 +8,9 @@ from tensordict import TensorDict
 from torch import Tensor
 
 from metta.agent.policy import Policy
+from mettagrid.config import Config
 from softmax.training.rl.loss import Loss
 from softmax.training.rl.training import ComponentContext
-from mettagrid.config import Config
 
 
 class DynamicsConfig(Config):

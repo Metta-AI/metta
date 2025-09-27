@@ -6,8 +6,8 @@ from tabulate import tabulate
 
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
-from softmax.training.rl.checkpoint_manager import CheckpointManager
 from softmax.lib.utils import local_copy
+from softmax.training.rl.checkpoint_manager import CheckpointManager
 
 
 def analyze(policy_uri: str, config: AnalysisConfig) -> None:

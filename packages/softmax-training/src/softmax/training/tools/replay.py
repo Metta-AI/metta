@@ -10,10 +10,10 @@ from metta.common.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.context import WandbConfig
 from metta.shared.simulation_config import SimulationConfig
-from softmax.training.sim.simulation import Simulation
-from softmax.training.tools.play import PlayTool
 from softmax.config.auto_config import auto_wandb_config
 from softmax.config.bootstrap import ensure_setup_factories_registered
+from softmax.training.sim.simulation import Simulation
+from softmax.training.tools.play import PlayTool
 
 ensure_setup_factories_registered()
 
