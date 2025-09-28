@@ -491,7 +491,7 @@ void MettaGrid::_step(Actions actions) {
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
-    agent->compute_stat_rewards();
+    agent->compute_stat_rewards(_stats.get());
   }
 
   // Update episode rewards
@@ -777,7 +777,6 @@ py::dict MettaGrid::get_episode_stats() {
   //   "game": dict[str, float],  // Global game statistics
   //   "agent": list[dict[str, float]],  // Per-agent statistics
   // }
-  // All stat values are guaranteed to be floats from StatsTracker::to_dict()
 
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());

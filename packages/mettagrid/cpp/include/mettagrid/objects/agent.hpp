@@ -150,7 +150,7 @@ public:
     return delta;
   }
 
-  void compute_stat_rewards() {
+  void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr) {
     if (this->stat_rewards.empty()) {
       return;
     }
@@ -159,6 +159,9 @@ public:
 
     for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
       float stat_value = this->stats.get(stat_name);
+      if (game_stats_tracker) {
+        stat_value += game_stats_tracker->get(stat_name);
+      }
       float stats_reward = stat_value * reward_per_unit;
       if (this->stat_reward_max.count(stat_name) > 0) {
         stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
