@@ -6,9 +6,9 @@
 #include "actions/action_handler.hpp"
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
+#include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/converter.hpp"
-#include "core/types.hpp"
 
 class PutRecipeItems : public ActionHandler {
 public:
@@ -32,20 +32,14 @@ protected:
 
     bool success = false;
     for (const auto& [item, resources_required] : converter->input_resources) {
-      if (actor->inventory.count(item) == 0) {
-        continue;
-      }
-      InventoryQuantity resources_available = actor->inventory.at(item);
+      InventoryQuantity resources_available = actor->inventory.amount(item);
       InventoryQuantity resources_to_put = std::min(resources_required, resources_available);
-
-      if (resources_to_put > 0) {
-        InventoryDelta resources_put = converter->update_inventory(item, resources_to_put);
-        if (resources_put > 0) {
-          [[maybe_unused]] InventoryDelta delta = actor->update_inventory(item, -resources_put);
-          assert(delta == -resources_put);
-          actor->stats.add(actor->stats.resource_name(item) + ".put", resources_put);
-          success = true;
-        }
+      InventoryDelta resources_put = converter->update_inventory(item, resources_to_put);
+      if (resources_put > 0) {
+        [[maybe_unused]] InventoryDelta delta = actor->update_inventory(item, -resources_put);
+        assert(delta == -resources_put);
+        actor->stats.add(actor->stats.resource_name(item) + ".put", resources_put);
+        success = true;
       }
     }
 
