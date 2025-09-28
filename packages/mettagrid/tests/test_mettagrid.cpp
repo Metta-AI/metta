@@ -111,6 +111,51 @@ TEST_F(MettaGridCppTest, AgentRewards) {
   EXPECT_FLOAT_EQ(agent->stat_rewards[std::string(TestItemStrings::HEART) + ".amount"], 1.0f);
 }
 
+TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
+  // Create agent with reward for chest.hearts.amount
+  auto rewards = create_test_stats_rewards();
+  rewards["chest.heart.amount"] = 0.1f;
+
+  auto stats_reward_max = create_test_stats_reward_max();
+  stats_reward_max["chest.heart.amount"] = 5.0f;
+
+  AgentConfig agent_cfg(
+      0, "agent", 1, "test_group", 100, 0.0f, create_test_resource_limits(), rewards, stats_reward_max);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+
+  auto resource_names = create_test_resource_names();
+  agent->stats.set_resource_names(&resource_names);
+
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+
+  // Set up agent's own stats
+  agent->stats.set("heart.amount", 5.0f);  // Agent has 5 hearts
+
+  // Create an additional stats tracker (e.g., from game or chest)
+  StatsTracker additional_stats;
+  additional_stats.set("chest.heart.amount", 10.0f);  // Additional 10 chest hearts
+
+  // Compute rewards without additional tracker
+  agent->compute_stat_rewards();
+  EXPECT_FLOAT_EQ(agent_reward, 5.0f);
+
+  // Compute rewards with additional tracker
+  agent->compute_stat_rewards(&additional_stats);
+  EXPECT_FLOAT_EQ(agent_reward, 6.0f);  // 5 + 0.1 * 10
+
+  // Test with values that exceed the cap
+  additional_stats.set("chest.heart.amount", 100.0f);
+  agent->compute_stat_rewards(&additional_stats);
+  EXPECT_FLOAT_EQ(agent_reward, 10.0f);
+
+  // Check that they add up if both stats trackers have the same entry (even though we don't expect to use this)
+  additional_stats.set("chest.heart.amount", 10.0f);
+  agent->stats.set("chest.heart.amount", 10.0f);
+  agent->compute_stat_rewards(&additional_stats);
+  EXPECT_FLOAT_EQ(agent_reward, 7.0f);  // 5 + 0.1 * 10 + 10
+}
+
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   AgentConfig agent_cfg = create_test_agent_config();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));

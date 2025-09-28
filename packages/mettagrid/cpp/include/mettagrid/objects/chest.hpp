@@ -70,6 +70,7 @@ private:
       agent.update_inventory(resource_type, -1);
       if (stats_tracker) {
         stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".deposited");
+        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".amount");
       }
       return true;
     }
@@ -89,6 +90,7 @@ private:
       update_inventory(resource_type, -1);
       if (stats_tracker) {
         stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn");
+        stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".amount", -1);
       }
       return true;
     }
