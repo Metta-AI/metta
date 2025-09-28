@@ -1,5 +1,6 @@
 import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
 from zipfile import BadZipFile
@@ -443,7 +444,25 @@ class CheckpointManager:
             state["curriculum_state"] = curriculum_state
         if loss_states is not None:
             state["loss_states"] = loss_states
-        torch.save(state, trainer_file)
+
+        # Atomic save for trainer state to prevent partial saves
+        with tempfile.NamedTemporaryFile(
+            dir=self.checkpoint_dir,
+            prefix=".trainer_state.pt.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp_file:
+            tmp_path = Path(tmp_file.name)
+
+        try:
+            torch.save(state, tmp_path)
+            # Atomic move: this operation is atomic on most filesystems
+            tmp_path.replace(trainer_file)
+        except Exception:
+            # Clean up temporary file on error
+            if tmp_path.exists():
+                tmp_path.unlink()
+            raise
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:
         """Select checkpoints and return their URIs.
