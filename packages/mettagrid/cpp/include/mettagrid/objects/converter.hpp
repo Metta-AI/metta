@@ -10,8 +10,9 @@
 #include "objects/constants.hpp"
 #include "objects/converter_config.hpp"
 #include "objects/has_inventory.hpp"
+#include "objects/inventory_watcher.hpp"
 
-class Converter : public GridObject, public HasInventory {
+class Converter : public GridObject, public HasInventory, public InventoryWatcher {
 private:
   // This should be called any time the converter could start converting. E.g.,
   // when things are added to its input, and when it finishes converting.
@@ -45,22 +46,12 @@ private:
         return;
       }
     }
-    // produce.
-    // Get the amounts to consume from input, so we don't update the inventory
-    // while iterating over it.
-    std::map<InventoryItem, uint8_t> amounts_to_consume;
-    for (const auto& [item, input_amount] : this->input_resources) {
-      amounts_to_consume[item] = input_amount;
-    }
-
-    for (const auto& [item, amount] : amounts_to_consume) {
-      // Don't call update_inventory here, because it will call maybe_start_converting again,
-      // which will cause an infinite loop.
+    // produce. Mark ourselves as converting first, so we'll quickly exit future calls to
+    // maybe_start_converting (i.e., when we update our inventory)
+    this->converting = true;
+    for (const auto& [item, amount] : this->input_resources) {
       this->inventory.update(item, -amount);
     }
-    // All the previous returns were "we don't start converting".
-    // This one is us starting to convert.
-    this->converting = true;
     this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 
@@ -107,34 +98,28 @@ public:
     for (const auto& [item, _] : this->output_resources) {
       this->inventory.update(item, cfg.initial_resource_count);
     }
+    // Don't add ourselves as a watcher until we have an event manager.
   }
 
   void set_event_manager(EventManager* event_manager_ptr) {
     this->event_manager = event_manager_ptr;
-    this->maybe_start_converting();
+    inventory.add_watcher(*this);
   }
 
   void finish_converting() {
-    this->converting = false;
-
-    // Only increment the counter when tracking conversion limits
-    if (this->max_conversions >= 0) {
-      this->conversions_completed++;
-    }
-
-    // Add output to inventory
+    // Add output to inventory. Do this first, so we don't start converting again until we've finished.
     for (const auto& [item, amount] : this->output_resources) {
       this->inventory.update(item, amount);
     }
+    this->converting = false;
+    this->conversions_completed++;
 
     if (this->cooldown > 0) {
       // Start cooldown phase
       this->cooling_down = true;
       this->event_manager->schedule_event(EventType::CoolDown, this->cooldown, this->id, 0);
-    } else if (this->cooldown == 0) {
-      // No cooldown, try to start converting again immediately
-      this->maybe_start_converting();
     }
+    this->maybe_start_converting();
   }
 
   void finish_cooldown() {
@@ -142,10 +127,20 @@ public:
     this->maybe_start_converting();
   }
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
-    InventoryDelta delta = this->inventory.update(item, attempted_delta);
+  void onInventoryChange(Inventory& inventory) override {
     this->maybe_start_converting();
-    return delta;
+  }
+
+  void onInventoryChange(Inventory& inventory, InventoryItem item, InventoryDelta delta) override {
+    if (delta > 0) {
+      if (this->input_resources.count(item) > 0) {
+        this->maybe_start_converting();
+      }
+    } else if (delta < 0) {
+      if (this->output_resources.count(item) > 0) {
+        this->maybe_start_converting();
+      }
+    }
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
