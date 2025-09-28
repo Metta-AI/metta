@@ -120,7 +120,7 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
   stats_reward_max["chest.heart.amount"] = 5.0f;
 
   AgentConfig agent_cfg(
-      0, "agent", 1, "test_group", 100, 0.0f, create_test_resource_limits(), rewards, stats_reward_max);
+      0, "agent", 1, "test_group", 100, 0.0f, create_test_inventory_config(), rewards, stats_reward_max);
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
 
   auto resource_names = create_test_resource_names();
