@@ -153,20 +153,21 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 )
 
         rewards_config = agent_props.get("rewards", {})
-        inventory_rewards = {
-            resource_name_to_id[k]: v
-            for k, v in rewards_config.get("inventory", {}).items()
-            if k in resource_name_to_id
-        }
-        inventory_reward_max = {
-            resource_name_to_id[k]: v
-            for k, v in rewards_config.get("inventory_max", {}).items()
-            if k in resource_name_to_id
-        }
 
         # Process stats rewards
         stat_rewards = rewards_config.get("stats", {})
         stat_reward_max = rewards_config.get("stats_max", {})
+
+        for k, v in rewards_config.get("inventory", {}).items():
+            assert k in resource_name_to_id, f"Inventory reward {k} not in resource_names"
+            stat_name = k + ".amount"
+            assert stat_name not in stat_rewards, f"Stat reward {stat_name} already exists"
+            stat_rewards[stat_name] = v
+        for k, v in rewards_config.get("inventory_max", {}).items():
+            assert k in resource_name_to_id, f"Inventory reward max {k} not in resource_names"
+            stat_name = k + ".amount"
+            assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
+            stat_reward_max[stat_name] = v
 
         # Process potential initial inventory
         initial_inventory = {}
@@ -195,8 +196,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 resource_id: agent_props["resource_limits"].get(resource_name, default_resource_limit)
                 for resource_id, resource_name in enumerate(resource_names)
             },
-            "resource_rewards": inventory_rewards,
-            "resource_reward_max": inventory_reward_max,
             "stat_rewards": stat_rewards,
             "stat_reward_max": stat_reward_max,
             "group_reward_pct": 0.0,  # Default to 0 for direct agents

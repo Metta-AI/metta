@@ -59,8 +59,7 @@ private:
   // Deposit a resource from agent to chest
   bool deposit_resource(Agent& agent) {
     // Check if agent has the required resource
-    auto it = agent.inventory.find(resource_type);
-    if (it == agent.inventory.end() || it->second == 0) {
+    if (agent.inventory.amount(resource_type) == 0) {
       return false;
     }
 
@@ -76,8 +75,7 @@ private:
   // Withdraw a resource from chest to agent
   bool withdraw_resource(Agent& agent) {
     // Check if chest has the required resource
-    auto it = inventory.find(resource_type);
-    if (it == inventory.end() || it->second == 0) {
+    if (inventory.amount(resource_type) == 0) {
       return false;
     }
 
@@ -137,13 +135,13 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2 + this->inventory.size() + this->tag_ids.size());
+    features.reserve(2 + this->inventory.get().size() + this->tag_ids.size());
 
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->resource_type)});
 
     // Add current inventory (inv:resource)
-    for (const auto& [item, amount] : this->inventory) {
+    for (const auto& [item, amount] : this->inventory.get()) {
       if (amount > 0) {
         features.push_back(
             {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
