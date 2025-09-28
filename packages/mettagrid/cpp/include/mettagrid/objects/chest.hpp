@@ -95,9 +95,9 @@ private:
       }
 
       // Transfer from chest to agent
-      InventoryDelta withdrawn = agent.update_inventory(resource_type, withdraw_amount);
+      InventoryDelta withdrawn = agent.inventory.update(resource_type, withdraw_amount);
       if (withdrawn > 0) {
-        update_inventory(resource_type, -withdrawn);
+        inventory.update(resource_type, -withdrawn);
         stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn", withdrawn);
         stats_tracker->set("chest." + stats_tracker->resource_name(resource_type) + ".amount",
                            inventory.amount(resource_type));

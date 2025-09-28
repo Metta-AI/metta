@@ -132,8 +132,19 @@ public:
       inventories.push_back(&agent->inventory);
     }
     for (const auto& [item, required_amount] : recipe.input_resources) {
+<<<<<<< HEAD
       InventoryDelta consumed = Inventory::shared_update(inventories, item, -required_amount);
       assert(consumed == -required_amount && "Expected all required resources to be consumed");
+=======
+      InventoryQuantity remaining = required_amount;
+      for (Agent* agent : surrounding_agents) {
+        if (remaining == 0) break;
+        InventoryQuantity available = agent->inventory.amount(item);
+        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
+        agent->inventory.update(item, static_cast<InventoryDelta>(-to_consume));
+        remaining -= to_consume;
+      }
+>>>>>>> b3e1361b31 (Make agent an inventorywatcher)
     }
   }
 

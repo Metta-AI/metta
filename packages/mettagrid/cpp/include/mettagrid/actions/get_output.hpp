@@ -37,11 +37,11 @@ protected:
 
       for (const auto& [item, _] : converter->output_resources) {
         InventoryDelta resources_available = converter->inventory.amount(item);
-        InventoryDelta taken = actor.update_inventory(item, resources_available);
+        InventoryDelta taken = actor.inventory.update(item, resources_available);
 
         if (taken > 0) {
           actor.stats.add(actor.stats.resource_name(item) + ".get", taken);
-          converter->update_inventory(item, -taken);
+          converter->inventory.update(item, -taken);
           resources_taken = true;
         }
       }

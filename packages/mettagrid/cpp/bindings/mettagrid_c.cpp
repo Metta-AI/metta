@@ -562,7 +562,7 @@ void MettaGrid::_step(Actions actions) {
           }
 
           if (lost > 0) {
-            agent->update_inventory(item, -lost);
+            agent->inventory.update(item, -lost);
           }
         }
       }

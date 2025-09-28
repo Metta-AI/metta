@@ -34,9 +34,9 @@ protected:
     for (const auto& [item, resources_required] : converter->input_resources) {
       InventoryQuantity resources_available = actor.inventory.amount(item);
       InventoryQuantity resources_to_put = std::min(resources_required, resources_available);
-      InventoryDelta resources_put = converter->update_inventory(item, resources_to_put);
+      InventoryDelta resources_put = converter->inventory.update(item, resources_to_put);
       if (resources_put > 0) {
-        [[maybe_unused]] InventoryDelta delta = actor.update_inventory(item, -resources_put);
+        [[maybe_unused]] InventoryDelta delta = actor.inventory.update(item, -resources_put);
         assert(delta == -resources_put);
         actor.stats.add(actor.stats.resource_name(item) + ".put", resources_put);
         success = true;
