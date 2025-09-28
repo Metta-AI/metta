@@ -467,7 +467,7 @@ void MettaGrid::_step(Actions actions) {
     if (_resource_loss_prob > 0.0f) {
       // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
       // Make a real copy of the agent's inventory map to avoid iterator invalidation
-      const auto inventory_copy = agent->inventory;
+      const auto inventory_copy = agent->inventory.get();
       for (const auto& [item, qty] : inventory_copy) {
         if (qty > 0) {
           float loss = _resource_loss_prob * qty;
@@ -687,7 +687,7 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["color"] = agent->color;
 
       py::dict inventory_dict;
-      for (const auto& [resource, quantity] : agent->inventory) {
+      for (const auto& [resource, quantity] : agent->inventory.get()) {
         inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
@@ -701,7 +701,7 @@ py::dict MettaGrid::grid_objects() {
 
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
       py::dict inventory_dict;
-      for (const auto& [resource, quantity] : converter->inventory) {
+      for (const auto& [resource, quantity] : converter->inventory.get()) {
         inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
