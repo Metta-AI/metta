@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import pickle
+import tempfile
 import zipfile
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -241,14 +242,32 @@ def save_policy_artifact(
         torch.save(policy, buffer)
         policy_payload = buffer.getvalue()
 
-    with zipfile.ZipFile(output_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-        if artifact_state is not None and policy_architecture is not None:
-            weights_blob = save_safetensors(artifact_state)
-            archive.writestr("weights.safetensors", weights_blob)
-            archive.writestr("modelarchitecture.json", _serialize_policy_architecture(policy_architecture))
+    # Atomic save: write to temporary file first, then move to final destination
+    with tempfile.NamedTemporaryFile(
+        dir=output_path.parent,
+        prefix=f".{output_path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as temp_file:
+        temp_path = Path(temp_file.name)
 
-        if policy_payload is not None:
-            archive.writestr("policy.pt", policy_payload)
+        try:
+            with zipfile.ZipFile(temp_path, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+                if artifact_state is not None and policy_architecture is not None:
+                    weights_blob = save_safetensors(artifact_state)
+                    archive.writestr("weights.safetensors", weights_blob)
+                    archive.writestr("modelarchitecture.json", _serialize_policy_architecture(policy_architecture))
+
+                if policy_payload is not None:
+                    archive.writestr("policy.pt", policy_payload)
+
+            # Atomic move: this operation is atomic on most filesystems
+            temp_path.replace(output_path)
+
+        except Exception:
+            # Clean up temporary file on error
+            temp_path.unlink(missing_ok=True)
+            raise
 
     return PolicyArtifact(
         policy_architecture=policy_architecture if artifact_state is not None else None,
