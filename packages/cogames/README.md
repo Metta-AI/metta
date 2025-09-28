@@ -185,8 +185,14 @@ Available actions:
 
 ### Competition Scenarios
 
-- `machina_1`: Single agent, full game mechanics
-- `machina_2`: 4 agents, full game mechanics
+- `machina_1`: Compact four-cog drop where resources are easy to discover
+- `machina_2`: Vast world with room-to-room exploration and rich edge resources
+- `machina_maze`: Giant maze with a single corridor out of base camp
+- `machina_branching`: Large map with high branching depth and endpoint rewards
+- `machina_bottleneck`: Base access chokepoints force 1-tile coordination
+- `machina_quarters`: Extremely tight base with minimal manoeuvring space
+- `machina_open_fields`: Mostly open plains with abundant low-tier resources
+- `machina_duality`: Asymmetric world—open low-yield left side, dense maze on the right
 
 Use `cogames games [scenario_name]` for detailed information about each scenario.
 
@@ -195,24 +201,19 @@ Use `cogames games [scenario_name]` for detailed information about each scenario
 ```python
 from cogames.cogs_vs_clips.scenarios import make_game
 
-# Create a custom game configuration
-config = make_game(
-    num_cogs=4,                    # Number of agents
-    num_assemblers=2,              # Number of assembler stations
-    num_chargers=1,                # Energy stations
-    num_carbon_extractors=1,       # Material extractors
-    num_oxygen_extractors=1,
-    num_geranium_extractors=1,
-    num_silicon_extractors=1,
-    num_chests=2,                  # Storage chests
-)
+# Select a handcrafted scenario (see list above)
+config = make_game(scenario="machina_duality")
 
-# Modify map size
-config.game.map_builder.width = 15
-config.game.map_builder.height = 15
+# Optionally tweak MAX steps or agent inventory limits before launching
+config.game.max_steps = 960
+config.game.agent.initial_inventory["energy"] = 120
 
-# Save configuration
-cogames make-scenario --name my_scenario --agents 4 --width 15 --height 15 --output my_scenario.yaml
+# Export the configuration to tweak by hand
+# (the grid is expressed as a StaticGridMapBuilder in the YAML)
+cogames make-scenario --name my_scenario --agents 4 --width 68 --height 42 --output my_scenario.yaml
+
+# You can now edit my_scenario.yaml or duplicate the grid helpers in
+# cogames/cogs_vs_clips/scenarios.py to experiment with new layouts.
 ```
 
 ## 🏆 Competition Tips
