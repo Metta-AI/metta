@@ -54,12 +54,16 @@ public:
     _stats[key] = value;
   }
 
-  float get(const std::string& key) {
-    return _stats[key];
+  float get(const std::string& key) const {
+    auto it = _stats.find(key);
+    if (it == _stats.end()) {
+      return 0.0f;
+    }
+    return it->second;
   }
 
   // Convert to map for Python API
-  std::map<std::string, float> to_dict() const {
+  const std::map<std::string, float>& to_dict() const {
     return _stats;
   }
 

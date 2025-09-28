@@ -564,14 +564,14 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 0.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 0.0f);
   noop.handle_action(agent->id, 0);  // count 1, max 1
   EXPECT_EQ(agent->location.r, 5);
   EXPECT_EQ(agent->location.c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
   EXPECT_EQ(agent->prev_location.c, 5);
   EXPECT_EQ(agent->prev_action_name, "noop");
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
   agent->location.r = 6;
   agent->location.c = 6;
   noop.handle_action(agent->id, 0);  // count 0, max 1
@@ -579,12 +579,12 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   EXPECT_EQ(agent->location.c, 6);
   EXPECT_EQ(agent->prev_location.r, 6);
   EXPECT_EQ(agent->prev_location.c, 6);
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
   noop.handle_action(agent->id, 0);  // count 1, max 1
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
   noop.handle_action(agent->id, 0);  // count 2, max 2
   noop.handle_action(agent->id, 0);  // count 3, max 3
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 3.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
   agent->location.r = 7;
   agent->location.c = 7;
   noop.handle_action(agent->id, 0);  // count 0, max 3
@@ -594,10 +594,10 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   EXPECT_EQ(agent->prev_location.c, 7);
   noop.handle_action(agent->id, 0);  // count 1, max 3
   noop.handle_action(agent->id, 0);  // count 2, max 3
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 3.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
   noop.handle_action(agent->id, 0);  // count 3, max 3
   noop.handle_action(agent->id, 0);  // count 4, max 4
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 4.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 4.0f);
 }
 
 // ==================== Fractional Consumption Tests ====================
