@@ -171,19 +171,15 @@ public:
     }
 
     float new_stat_reward = 0;
-    auto stat_dict = this->stats.to_dict();
 
     for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
-      if (stat_dict.count(stat_name) > 0) {
-        float stat_value = stat_dict[stat_name];
-
-        float stats_reward = stat_value * reward_per_unit;
-        if (this->stat_reward_max.count(stat_name) > 0) {
-          stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
-        }
-
-        new_stat_reward += stats_reward;
+      float stat_value = this->stats.get(stat_name);
+      float stats_reward = stat_value * reward_per_unit;
+      if (this->stat_reward_max.count(stat_name) > 0) {
+        stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
       }
+
+      new_stat_reward += stats_reward;
     }
 
     // Update the agent's reward with the difference
