@@ -419,8 +419,8 @@ def train_icl(
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(
             simulations=evaluator_fn(),
-            evaluate_remote=True,
-            evaluate_local=False,
+            evaluate_remote=False,
+            evaluate_local=True,
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
