@@ -59,7 +59,7 @@ public:
   }
 
   // Convert to map for Python API
-  std::map<std::string, float> to_dict() const {
+  const std::map<std::string, float>& to_dict() const {
     return _stats;
   }
 
