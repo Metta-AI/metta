@@ -426,8 +426,16 @@ class Protein:
         # If GP training failed completely, fall back to random sampling
         if not gp_trained:
             logger.debug("GP training failed, falling back to random sampling")
-            suggestion = self.hyperparameters.sample(n=1)[0]
-            return self.hyperparameters.to_dict(suggestion, fill), {"fallback": "random"}
+            if n_suggestions == 1:
+                suggestion = self.hyperparameters.sample(n=1)[0]
+                return self.hyperparameters.to_dict(suggestion, fill), {"fallback": "random"}
+            else:
+                results = []
+                suggestions = self.hyperparameters.sample(n_suggestions, scale=self.global_search_scale)
+                for i in range(n_suggestions):
+                    suggestion_dict = self.hyperparameters.to_dict(suggestions[i], fill)
+                    results.append((suggestion_dict, {"fallback": "random"}))
+                return results
 
         # === Build candidate suggestions from oriented Pareto centers ===
         candidates, pareto_idxs = pareto_points_oriented(
