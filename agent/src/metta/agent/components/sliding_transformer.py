@@ -211,7 +211,7 @@ class SlidingTransformer(nn.Module):
         if training_env_ids is None:
             training_env_ids = torch.arange(B, device=td.device)
         else:
-            training_env_ids = training_env_ids.reshape(-1)
+            training_env_ids = training_env_ids.reshape(B * TT)
 
         if TT == 1:  # rollout
             return self._forward_rollout(td, x, B, S, training_env_ids)
