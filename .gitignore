@@ -118,3 +118,5 @@ cluster_test_jobs.json
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
+# Nimble local cache for mettascope build script
+packages/mettagrid/nim/mettascope/.nimble/

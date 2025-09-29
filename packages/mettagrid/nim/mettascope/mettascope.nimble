@@ -7,13 +7,13 @@ srcDir = "src"
 
 requires "nim >= 2.2.4"
 requires "boxy >= 0.5.0"
-requires "cligen >= 1.9.0"
+requires "cligen >= 1.9.2"
 requires "jsony >= 1.1.5"
-requires "windy >= 0.2.1"
+requires "windy >= 0.3.0"
 requires "puppy >= 2.1.2"
 requires "pixie >= 5.1.0"
-requires "https://github.com/treeform/fidget2.git"
-requires "genny >= 0.1.0"
+requires "fidget2 >= 0.0.2"
+requires "genny >= 0.1.1"
 
 task bindings, "Generate bindings":
 
