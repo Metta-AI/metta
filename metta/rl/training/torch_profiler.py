@@ -39,6 +39,8 @@ class TorchProfileSession:
         self._start_epoch: int | None = None
         self._profile_filename_base: str | None = None
         self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
+        self._duration_epochs: int = max(1, int(getattr(self._profiler_config, "duration_epochs", 1)))
+        self._epochs_remaining: int = 0
 
     def prepare_for_epoch(self, epoch: int) -> None:
         """Arm the profiler if the upcoming epoch should be captured."""
@@ -65,6 +67,7 @@ class TorchProfileSession:
 
         self._active = True
         self._start_epoch = epoch
+        self._epochs_remaining = self._duration_epochs
         run_basename = os.path.basename(self._run_dir) if self._run_dir else "unknown_run"
         self._profile_filename_base = f"trace_{run_basename}_epoch_{self._start_epoch}"
         logger.info("Torch profiler scheduled for epoch %s", epoch)
@@ -73,23 +76,42 @@ class TorchProfileSession:
         if not self._active:
             return self
 
-        logger.info("Starting torch profiler for epoch %s", self._start_epoch)
-        self._profiler = torch.profiler.profile(
-            activities=[
-                torch.profiler.ProfilerActivity.CPU,
-                torch.profiler.ProfilerActivity.CUDA,
-            ],
-            record_shapes=True,
-            profile_memory=True,
-            with_stack=True,
-            with_modules=True,
-        )
-        self._profiler.start()
+        if self._profiler is None:
+            logger.info(
+                "Starting torch profiler for epoch %s (duration=%s epochs)",
+                self._start_epoch,
+                self._duration_epochs,
+            )
+            self._profiler = torch.profiler.profile(
+                activities=[
+                    torch.profiler.ProfilerActivity.CPU,
+                    torch.profiler.ProfilerActivity.CUDA,
+                ],
+                record_shapes=True,
+                profile_memory=True,
+                with_stack=True,
+                with_modules=True,
+            )
+            self._profiler.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if not self._active or self._profiler is None:
             self._active = False
+            return False
+
+        try:
+            self._profiler.step()
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("Failed to advance torch profiler step")
+
+        self._epochs_remaining -= 1
+        if self._epochs_remaining > 0:
+            logger.info(
+                "Continuing torch profiler for epoch %s (%s epochs remaining)",
+                self._start_epoch,
+                self._epochs_remaining,
+            )
             return False
 
         logger.info("Stopping torch profiler for epoch %s", self._start_epoch)
@@ -102,6 +124,7 @@ class TorchProfileSession:
             self._profiler = None
             self._active = False
             self._profile_filename_base = None
+            self._epochs_remaining = 0
 
         return False
 

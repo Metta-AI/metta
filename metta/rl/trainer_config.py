@@ -31,6 +31,7 @@ class InitialPolicyConfig(Config):
 
 class TorchProfilerConfig(Config):
     interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
+    duration_epochs: int = Field(default=1, ge=1)
     profile_dir: str | None = Field(default=None)
 
     @property
