@@ -6,7 +6,7 @@ import time
 from typing import Any, Dict, Optional
 
 from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
-from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
+from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX, PROD_STATS_SERVER_URI
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ def get_display_id(run_id: str) -> str:
 def build_eval_overrides(
     run_id: str,
     experiment_id: str,
-    stats_server_uri: Optional[str] = None,
+    stats_server_uri: Optional[str] = PROD_STATS_SERVER_URI,
     additional_overrides: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build evaluation override parameters.
