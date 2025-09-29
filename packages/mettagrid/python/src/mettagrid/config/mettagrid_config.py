@@ -105,6 +105,7 @@ class WallConfig(Config):
 class ConverterConfig(Config):
     """Python converter configuration."""
 
+    name: str = Field(default="converter")
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int = Field(default=0, ge=0, le=255)
@@ -121,6 +122,7 @@ class RecipeConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
+    max_use: Optional[int] = Field(ge=0, default=None)
 
 
 class AssemblerConfig(Config):
