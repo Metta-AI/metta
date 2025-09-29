@@ -13,14 +13,16 @@ import torch
 import typer
 from rich.console import Console
 
-from cogames import game, play, train, utils
-from mettagrid import MettaGridConfig
+from cogames import game, play, serialization, train, utils
+from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
 console = Console()
+policy_app = typer.Typer(help="Policy utilities")
+app.add_typer(policy_app, name="policy")
 
 
 @contextlib.contextmanager
@@ -346,6 +348,29 @@ def evaluate(
     """Evaluate a policy on a game."""
     with _command_timeout(ctx):
         console.print("[red]Coming soon...[/red]")
+
+
+@policy_app.command("export")
+def policy_export(
+    policy_class: Annotated[str, typer.Argument(help="Policy class path")],
+    checkpoint_path: Annotated[Path, typer.Argument(help="Existing checkpoint to bundle")],
+    output_dir: Annotated[Path, typer.Argument(help="Destination directory")],
+) -> None:
+    artifact = serialization.bundle_policy(policy_class, checkpoint_path, output_dir)
+    console.print(f"[green]Policy bundle created at {artifact.weights_path.parent}[/green]")
+
+
+@policy_app.command("load")
+def policy_load(
+    bundle_dir: Annotated[Path, typer.Argument(help="Path to policy bundle directory")],
+    game_name: Annotated[str, typer.Argument(help="Game name to instantiate environment")],
+    device: str = typer.Option("cpu", "--device", help="Device for the policy"),
+) -> None:
+    env_cfg = game.get_game(game_name)
+    env = MettaGridEnv(env_cfg=env_cfg)
+    policy = serialization.load_policy_from_bundle(bundle_dir, env, torch.device(device))
+    policy.reset()
+    console.print(f"[green]Loaded policy {policy.__class__.__name__} on {device}[/green]")
 
 
 if __name__ == "__main__":
