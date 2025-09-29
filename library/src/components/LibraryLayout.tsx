@@ -18,20 +18,23 @@ interface LibraryLayoutProps {
 export function LibraryLayout({ children }: LibraryLayoutProps) {
   return (
     <MobileNavProvider>
-      <div className="flex h-screen flex-col bg-gray-50">
-        {/* Top Navigation Bar - Sticky */}
-        <div className="sticky top-0 z-30">
+      <div className="flex h-screen w-full flex-col bg-gray-50">
+        {/* Top Navigation Bar */}
+        <div className="z-30">
           <TopMenu />
         </div>
 
-        {/* Main Layout Area */}
-        <div className="flex flex-1 overflow-hidden">
-          {/* Left Sidebar */}
-          <LibrarySidebar />
+        <div className="flex h-full w-full overflow-hidden">
+          <div className="flex h-full w-48">
+            <LibrarySidebar />
+          </div>
 
-          {/* Main Content Area */}
-          <div className="w-full flex-1 overflow-hidden md:ml-48">
-            {children}
+          {/* Main Layout Area */}
+          <div className="flex w-full flex-1 overflow-hidden">
+            {/* Main Content Area */}
+            <div className="h-100vh flex w-full flex-1 items-start overflow-x-hidden overflow-y-auto">
+              {children}
+            </div>
           </div>
         </div>
       </div>

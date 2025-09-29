@@ -226,41 +226,16 @@ export function LibrarySidebar() {
     <>
       {/* Mobile backdrop - transparent but clickable */}
       {isSidebarOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={closeSidebar} />
+        <div className="inset-0 z-40 md:hidden" onClick={closeSidebar} />
       )}
 
       {/* Sidebar */}
       <div
-        className={`fixed top-0 left-0 z-50 flex h-full w-48 flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out md:z-10 md:translate-x-0 ${
+        className={`z-50 flex h-full w-48 flex-col border-r border-gray-200 bg-white transition-transform duration-300 ease-in-out md:z-10 md:translate-x-0 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        {/* Header Section */}
-        <div className="border-b border-gray-100 px-6 py-6">
-          <div className="flex items-center gap-3">
-            {/* Bookshelf Icon */}
-            <svg
-              className="h-6 w-6 text-gray-500"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              suppressHydrationWarning
-            >
-              <path d="M3 18h18" />
-              <rect x="3" y="8" width="3.6" height="10" />
-              <rect x="6.6" y="6" width="3.6" height="12" />
-              <rect x="10.2" y="9" width="3.6" height="9" />
-              <rect x="13.8" y="7" width="3.6" height="11" />
-              <rect x="17.4" y="5" width="3.6" height="13" />
-            </svg>
-            <h1 className="text-lg font-semibold text-gray-900">
-              Republic of Papers
-            </h1>
-          </div>
-        </div>
+        {/* Header Section - removed, logo moved to TopMenu */}
 
         {/* Navigation Section */}
         <nav className="flex-1 space-y-1 px-3 py-4">

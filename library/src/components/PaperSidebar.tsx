@@ -111,7 +111,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
 
   if (!paper) {
     return (
-      <div className="h-full overflow-y-auto bg-neutral-50 md:h-screen md:flex-1 md:border-l">
+      <div className="h-full overflow-y-auto bg-neutral-50 md:h-screen md:w-[55%] md:flex-shrink-0 md:border-l">
         <div className="px-4 py-4">
           <div className="text-center text-neutral-500">
             <p className="text-sm">No paper associated with this post</p>
@@ -122,7 +122,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   }
 
   return (
-    <div className="flex h-full flex-col bg-white md:h-screen md:flex-1 md:border-l">
+    <div className="flex h-full flex-col bg-white md:h-screen md:w-[55%] md:flex-shrink-0 md:border-l">
       {/* Mobile header with close button */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:hidden">
         <h2 className="text-lg font-semibold text-gray-900">Paper Details</h2>

@@ -136,7 +136,7 @@ export const FeedPostsPage: FC<{
   }, [mathJaxLoaded, page.items, renderMath]); // Re-render when posts change
 
   return (
-    <div className="flex h-screen flex-col md:flex-row">
+    <div className="flex h-auto w-full flex-col md:flex-row">
       {/* Mobile: Paper details on top (when selected) */}
       {selectedPostForPaper?.paper && (
         <div className="h-1/2 border-b border-gray-300 pt-14 md:hidden">
@@ -148,11 +148,15 @@ export const FeedPostsPage: FC<{
       )}
 
       {/* Main feed area */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className={`h-full flex-1 overflow-y-auto ${
+          selectedPostForPaper?.paper ? "md:w-[45%] md:flex-none" : ""
+        }`}
+      >
         {/* Post Composition */}
         <NewPostForm />
         {/* Feed with Infinite Scroll */}
-        <div ref={feedRef} className="mx-4 mt-6 max-w-2xl md:ml-6">
+        <div ref={feedRef} className="mx-4 mt-6 max-w-2xl md:mr-4 md:ml-6">
           {page.items.length > 0 ? (
             <InfiniteScroll
               loadNext={page.loadNext!}
@@ -216,7 +220,7 @@ export const FeedPostsPage: FC<{
 
       {/* Desktop: Paper sidebar on right */}
       {selectedPostForPaper?.paper && (
-        <div className="hidden md:block">
+        <div className="hidden md:flex md:h-screen md:flex-shrink-0">
           <PaperSidebar
             paper={selectedPostForPaper.paper}
             onClose={handlePaperSidebarClose}
