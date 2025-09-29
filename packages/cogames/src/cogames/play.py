@@ -8,7 +8,6 @@ import numpy as np
 import torch
 from rich.console import Console
 
-import mettagrid.mettascope as mettascope
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
 from mettagrid.util.module import load_symbol
@@ -38,6 +37,16 @@ def play(
         save_video: Optional path to save video
         verbose: Whether to print detailed progress
     """
+    try:
+        import mettagrid.mettascope as mettascope_module
+    except ImportError as err:  # pragma: no cover - renderer optional
+        console.print("[red]Renderer dependencies are missing (mettascope2 bindings not found).")
+        console.print(
+            "[dim]Generate the Nim bindings or install the optional renderer package to use interactive play.[/dim]"
+        )
+        logger.debug("mettascope import failed", exc_info=err)
+        return
+
     # Create environment
     env = MettaGridEnv(env_cfg=env_cfg)
     obs, _ = env.reset(seed=seed)
@@ -69,7 +78,7 @@ def play(
         "objects": [],
     }
 
-    response = mettascope.init(replay=json.dumps(initial_replay))
+    response = mettascope_module.init(replay=json.dumps(initial_replay))
     if response.should_close:
         return
 
@@ -93,7 +102,7 @@ def play(
         for agent_id in range(num_agents):
             actions[agent_id] = policy.step(agent_id, obs[agent_id])
 
-        response = mettascope.render(step_count, replay_step)
+        response = mettascope_module.render(step_count, replay_step)
         if response.should_close:
             break
         if response.action:

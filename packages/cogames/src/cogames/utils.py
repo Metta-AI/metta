@@ -1,9 +1,56 @@
 """Utility functions for CoGames CLI."""
 
+import contextlib
+import logging
+import signal
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Iterator, Optional, Tuple
 
 from cogames import game as game_module
+
+logger = logging.getLogger("cogames.utils")
+
+
+class TimeoutExpired(RuntimeError):
+    """Raised when a CLI command exceeds the configured timeout."""
+
+
+@contextlib.contextmanager
+def cli_timeout(timeout_seconds: Optional[int]) -> Iterator[None]:
+    """Enforce a wall-clock timeout for CLI commands.
+
+    Args:
+        timeout_seconds: Timeout in seconds. If None or non-positive, no timeout is enforced.
+    """
+
+    if timeout_seconds is None or timeout_seconds <= 0:
+        yield
+        return
+
+    if not hasattr(signal, "SIGALRM"):
+        logger.warning("Timeout option is not supported on this platform.")
+        yield
+        return
+
+    def _handle_timeout(signum, frame):
+        raise TimeoutExpired(f"Command timed out after {timeout_seconds} seconds.")
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, _handle_timeout)
+
+    if hasattr(signal, "setitimer"):
+        signal.setitimer(signal.ITIMER_REAL, float(timeout_seconds))
+    else:  # pragma: no cover - fallback path
+        signal.alarm(int(timeout_seconds))
+
+    try:
+        yield
+    finally:
+        if hasattr(signal, "setitimer"):
+            signal.setitimer(signal.ITIMER_REAL, 0)
+        else:  # pragma: no cover - fallback path
+            signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]:

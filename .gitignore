@@ -96,6 +96,7 @@ experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/README.md
 !experiments/recipes/scratchpad/example.py
 !experiments/recipes/scratchpad/ci.py
+experiments/[0-9]*/
 packages/cogames/experiments
 
 resources
