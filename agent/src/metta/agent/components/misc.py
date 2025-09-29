@@ -1,14 +1,13 @@
 from typing import List, Optional
 
-import pufferlib.pytorch
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from tensordict.nn import TensorDictSequential
 
+import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
-from mettagrid.config import Config
 
 
 class MLPConfig(ComponentConfig):
@@ -89,12 +88,15 @@ class MLP(nn.Module):
 
 
 ###------------- Deep Residual MLP -------------------------
-class DeepResMLPConfig(Config):
+class DeepResMLPConfig(ComponentConfig):
     in_key: str
     out_key: str
     depth: int
     in_features: int
     name: str = "deep_res_mlp"
+
+    def make_component(self, env=None):
+        return ResNetMLP(config=self)
 
 
 class ResidualBlock(nn.Module):

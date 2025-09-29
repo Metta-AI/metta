@@ -1,4 +1,5 @@
 import logging
+import types
 from typing import List
 
 import torch
@@ -9,15 +10,15 @@ from torch import nn
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.lstm_reset import LSTMResetConfig
 from metta.agent.components.misc import MLPConfig
-from metta.agent.components.obs_enc import ObsLatentAttnConfig, ObsSelfAttnConfig
+from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import (
     ObsAttrEmbedFourierConfig,
 )
+from metta.agent.components.sliding_transformer import SlidingTransformerConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training import EnvironmentMetaData
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
@@ -29,8 +30,8 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     self.action_probs(td, action)
 
     td["pred_input"] = torch.cat([td["core"], td["actor_query"]], dim=-1)
-    td["returns_pred"] = self.layers["returns_pred"](td)
-    td["reward_pred"] = self.layers["reward_pred"](td)
+    self.returns_pred(td)
+    self.reward_pred(td)
     td["values"] = td["values"].flatten()
     return td
 
@@ -38,41 +39,53 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
 class FastDynamicsConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    _hidden_size = 128
+    _hidden_size = 32
     _embedding_dim = 16
 
+    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+
+    _latent_dim = 64
+    _token_embed_dim = 8
+    _fourier_freqs = 3
+    _embed_dim = 16
+    _core_out_dim = 32
+    _memory_num_layers = 2
+
     components: List[ComponentConfig] = [
-        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens"),
-        ObsAttrEmbedFourierConfig(in_key="obs_shim_tokens", out_key="obs_attr_embed_fourier"),
-        ObsLatentAttnConfig(in_key="obs_attr_embed_fourier", out_key="obs_latent_attn", feat_dim=37, out_dim=48),
-        ObsSelfAttnConfig(in_key="obs_latent_attn", out_key="obs_self_attn", feat_dim=48, out_dim=_hidden_size),
-        LSTMResetConfig(
-            in_key="obs_self_attn",
-            out_key="core",
-            latent_size=_hidden_size,
-            hidden_size=_hidden_size,
+        ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+        ObsAttrEmbedFourierConfig(
+            in_key="obs_shim_tokens",
+            out_key="obs_attr_embed",
+            attr_embed_dim=_token_embed_dim,
+            num_freqs=_fourier_freqs,
+        ),
+        ObsPerceiverLatentConfig(
+            in_key="obs_attr_embed",
+            out_key="encoded_obs",
+            feat_dim=_token_embed_dim + (4 * _fourier_freqs) + 1,
+            latent_dim=_latent_dim,
+            num_latents=12,
+            num_heads=4,
             num_layers=2,
+        ),
+        SlidingTransformerConfig(
+            in_key="encoded_obs", out_key="core", output_dim=_core_out_dim, num_layers=_memory_num_layers
         ),
         MLPConfig(
             in_key="core",
             out_key="values",
             name="critic",
-            in_features=_hidden_size,
+            in_features=_core_out_dim,
             out_features=1,
             hidden_features=[1024],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
-            in_key="core",
-            out_key="actor_query",
-            hidden_size=_hidden_size,
-            embed_dim=_embedding_dim,
-        ),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
+        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
         ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
-            embed_dim=_embedding_dim,
+            embed_dim=_embed_dim,
         ),
     ]
 
@@ -85,9 +98,9 @@ class FastDynamicsConfig(PolicyArchitecture):
         pred_input_dim = self._hidden_size + self._embedding_dim
         returns_module = nn.Linear(pred_input_dim, 1)
         reward_module = nn.Linear(pred_input_dim, 1)
-        policy.layers["returns_pred"] = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
-        policy.layers["reward_pred"] = TDM(reward_module, in_keys=["pred_input"], out_keys=["reward_pred"])
+        policy.returns_pred = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
+        policy.reward_pred = TDM(reward_module, in_keys=["pred_input"], out_keys=["reward_pred"])
 
-        policy.forward = forward
+        policy.forward = types.MethodType(forward, policy)
 
         return policy

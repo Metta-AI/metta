@@ -295,3 +295,28 @@ class MettaGridCore:
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
         return self.__c_env_instance.grid_objects()
+
+    def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
+        """Set an agent's inventory by resource name.
+
+        Any resources not mentioned will be cleared in the underlying C++ call.
+        """
+        if not isinstance(agent_id, int):
+            raise TypeError("agent_id must be an int")
+        if not isinstance(inventory, dict):
+            raise TypeError("inventory must be a dict[str, int]")
+
+        # Build mapping from resource name to id
+        name_to_id = {name: idx for idx, name in enumerate(self.resource_names)}
+
+        # Convert names to ids, validating inputs
+        inv_by_id: Dict[int, int] = {}
+        for name, amount in inventory.items():
+            if name not in name_to_id:
+                raise KeyError(f"Unknown resource name: {name}")
+            if not isinstance(amount, (int, np.integer)):
+                raise TypeError(f"Amount for {name} must be int")
+            inv_by_id[int(name_to_id[name])] = int(amount)
+
+        # Forward to C++ binding
+        self.__c_env_instance.set_inventory(agent_id, inv_by_id)

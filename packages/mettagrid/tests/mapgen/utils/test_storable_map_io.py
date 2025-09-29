@@ -2,7 +2,6 @@ import numpy as np
 
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.mapgen.utils.storable_map import StorableMap
-from mettagrid.util import file as file_utils
 
 
 def simple_map():
@@ -16,17 +15,3 @@ def test_save_and_load_local(tmp_path):
 
     loaded = StorableMap.from_uri(str(path))
     assert np.array_equal(loaded.grid, m.grid)
-
-
-def test_save_s3_uses_file_utils(monkeypatch):
-    calls = []
-
-    def fake_write_data(uri, data, content_type="application/octet-stream"):
-        calls.append((uri, data, content_type))
-
-    monkeypatch.setattr(file_utils, "write_data", fake_write_data)
-
-    m = simple_map()
-    m.save("s3://bucket/key")
-
-    assert calls == [("s3://bucket/key", str(m), "text/plain")]

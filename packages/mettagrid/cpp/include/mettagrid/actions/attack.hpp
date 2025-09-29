@@ -4,16 +4,17 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
 
 #include "actions/action_handler.hpp"
-#include "core/grid_object.hpp"
 #include "config/mettagrid_config.hpp"
+#include "core/grid_object.hpp"
+#include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "core/types.hpp"
 
 // Attack takes an argument 0-8, which is the index of the target agent to attack.
 // Target agents are those found in a 3x3 grid in front of the agent, indexed in scan order.
@@ -152,8 +153,7 @@ protected:
 private:
   bool _check_defense_capability(const Agent& target) const {
     for (const auto& [item, amount] : _defense_resources) {
-      auto it = target.inventory.find(item);
-      if (it == target.inventory.end() || it->second < amount) {
+      if (target.inventory.amount(item) < amount) {
         return false;
       }
     }
@@ -170,13 +170,20 @@ private:
   void _steal_resources(Agent& actor, Agent& target) {
     // Create snapshot to avoid iterator invalidation
     std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
-    snapshot.reserve(target.inventory.size());
-    for (const auto& [item, amount] : target.inventory) {
+    snapshot.reserve(target.inventory.get().size());
+    for (const auto& [item, amount] : target.inventory.get()) {
       snapshot.emplace_back(item, amount);
     }
 
-    // Transfer resources
+    // Transfer resources (excluding soul-bound resources)
     for (const auto& [item, amount] : snapshot) {
+      // Check if this resource is soul-bound for the target
+      if (std::find(target.soul_bound_resources.begin(), target.soul_bound_resources.end(), item) !=
+          target.soul_bound_resources.end()) {
+        // Skip soul-bound resources
+        continue;
+      }
+
       InventoryDelta stolen = actor.update_inventory(item, amount);
       target.update_inventory(item, -stolen);
 

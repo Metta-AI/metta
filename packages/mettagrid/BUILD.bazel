@@ -31,8 +31,9 @@ package_group(
 # Documentation and configuration files
 filegroup(
     name = "docs",
-    srcs = glob(["docs/**/*.md"]),
-    visibility = ["//visibility:public"],
+    srcs = glob(["docs/**/*.md"],
+    allow_empty=True),
+    visibility = ["//visibility:public"]
 )
 
 filegroup(

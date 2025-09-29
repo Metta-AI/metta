@@ -8,9 +8,10 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import Span
-from metta.map.terrain_from_numpy import TerrainFromNumpy
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.map.terrain_from_numpy import NavigationFromNumpy
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -30,7 +31,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
         instances=num_instances,
         border_width=6,
         instance_border_width=3,
-        instance_map=TerrainFromNumpy.Config(
+        instance_map=NavigationFromNumpy.Config(
             agents=num_agents,
             objects={"altar": 10},
             dir="varied_terrain/dense_large",
@@ -90,16 +91,23 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
-        curriculum=curriculum
-        or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging),
-        evaluation=EvaluationConfig(
-            simulations=make_navigation_eval_suite(),
-        ),
+    resolved_curriculum = curriculum or make_curriculum(
+        enable_detailed_slice_logging=enable_detailed_slice_logging
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+
+    evaluator_cfg = EvaluatorConfig(
+        simulations=make_navigation_eval_suite(),
+    )
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        evaluator=evaluator_cfg,
+    )
 
 
 def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
@@ -107,7 +115,8 @@ def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="navigation",
+            suite="navigation",
+            name="eval",
         ),
     )
 
@@ -117,7 +126,8 @@ def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
-            name="navigation",
+            suite="navigation",
+            name="eval",
         ),
     )
 

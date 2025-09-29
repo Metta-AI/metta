@@ -42,7 +42,6 @@ def evaluate_policy(
 
     sims = [
         Simulation(
-            name=sim.name,
             cfg=sim,
             policy=policy,
             policy_uri=checkpoint_uri,
@@ -62,14 +61,16 @@ def evaluate_policy(
     for sim in sims:
         try:
             record_heartbeat()
-            logger.info("=== Simulation '%s' ===", sim.name)
+            logger.info("=== Simulation '%s' ===", sim.full_name)
             sim_result = sim.simulate()
             record_heartbeat()
             if replay_dir is not None:
-                sim_replay_urls = sim_result.stats_db.get_replay_urls(policy_uri=checkpoint_uri)
+                sim_replay_urls = sim_result.stats_db.get_replay_urls(
+                    policy_uri=checkpoint_uri, sim_suite=sim._config.suite, env=sim._config.name
+                )
                 if sim_replay_urls:
-                    replay_urls[sim.name] = sim_replay_urls
-                    logger.info(f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{sim.name}'")
+                    replay_urls[sim.full_name] = sim_replay_urls
+                    logger.info(f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{sim.full_name}'")
             sim_result.stats_db.close()
             merged_db.merge_in(sim_result.stats_db)
             successful_simulations += 1
@@ -77,11 +78,11 @@ def evaluate_policy(
             # Only skip for NPC-related compatibility issues
             error_msg = str(e).lower()
             if "npc" in error_msg or "non-player" in error_msg:
-                logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", sim.name, str(e))
+                logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", sim.full_name, str(e))
                 continue
             else:
                 # Re-raise for non-NPC compatibility issues
-                logger.error("Critical compatibility error in simulation '%s': %s", sim.name, str(e))
+                logger.error("Critical compatibility error in simulation '%s': %s", sim.full_name, str(e))
                 raise
     if successful_simulations == 0:
         raise RuntimeError("No simulations could be run successfully")
@@ -106,25 +107,16 @@ def evaluate_policy(
 def extract_scores(
     checkpoint_uri: str, simulations: list[SimulationConfig], stats_db: EvalStatsDB
 ) -> EvalRewardSummary:
-    categories: set[str] = set()
-    for sim_config in simulations:
-        categories.add(sim_config.name.split("/")[0])
+    suites = {sim_config.suite for sim_config in simulations}
 
-    category_scores: dict[str, float] = {}
-    for category in categories:
-        score = stats_db.get_average_metric("reward", checkpoint_uri, f"sim_name LIKE '%{category}%'")
-        logger.info(f"{category} score: {score}")
-        if score is None:
-            continue
-        category_scores[category] = score
-    per_sim_scores: dict[tuple[str, str], float] = {}
-    all_scores = stats_db.simulation_scores(checkpoint_uri, "reward")
-    for (sim_name, _), score in all_scores.items():
-        category = sim_name.split("/")[0]
-        sim_short_name = sim_name.split("/")[-1]
-        per_sim_scores[(category, sim_short_name)] = score
+    def suite_score(suite: str) -> float | None:
+        score = stats_db.get_average_metric("reward", checkpoint_uri, f"sim_name LIKE '%{suite}%'")
+        logger.info(f"{suite} score: {score}")
+        return score
+
+    category_scores = {suite: score for suite in suites if (score := suite_score(suite)) is not None}
 
     return EvalRewardSummary(
         category_scores=category_scores,
-        simulation_scores=per_sim_scores,
+        simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward"),
     )

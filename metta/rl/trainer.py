@@ -1,29 +1,31 @@
-import logging
-from typing import Any, Callable, Dict, Optional
+import importlib
+from typing import Any, Callable, Optional
 
 import torch
 
 from metta.agent.policy import Policy
+from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.component import TrainerCallback, TrainerComponent
-from metta.rl.training.component_context import ComponentContext, TrainerState
-from metta.rl.training.core import CoreTrainingLoop
-from metta.rl.training.distributed_helper import DistributedHelper
-from metta.rl.training.experience import Experience
+from metta.rl.training import (
+    ComponentContext,
+    ContextCheckpointer,
+    CoreTrainingLoop,
+    DistributedHelper,
+    Experience,
+    TrainerCallback,
+    TrainerComponent,
+    TrainerState,
+    TrainingEnvironment,
+)
 from metta.rl.training.optimizer import create_optimizer
-from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
-    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
+    importlib.import_module("pufferlib._C")
 except ImportError:
-    raise ImportError(
-        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
-        "try installing with --no-build-isolation"
-    ) from None
+    raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
 
-torch.set_float32_matmul_precision("high")
-logger = logging.getLogger(__name__)
+logger = getRankAwareLogger(__name__)
 
 
 class Trainer:
@@ -61,6 +63,7 @@ class Trainer:
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.meta_data, self._device)
         self._policy.train()
+
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
         losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
@@ -86,6 +89,10 @@ class Trainer:
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
 
         self._state = TrainerState()
+
+        # Extract curriculum from environment if available
+        curriculum = getattr(self._env, "_curriculum", None)
+
         self._context = ComponentContext(
             state=self._state,
             policy=self._policy,
@@ -96,6 +103,7 @@ class Trainer:
             stopwatch=self.timer,
             distributed=self._distributed_helper,
             run_name=self._run_name,
+            curriculum=curriculum,
         )
         self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
         self._context.set_train_epoch_fn = self._set_train_epoch_callable
@@ -110,6 +118,9 @@ class Trainer:
             device=self._device,
             context=self._context,
         )
+
+        self._losses = losses
+        self._context.losses = losses
 
         for loss in losses.values():
             loss.attach_context(self._context)
@@ -151,11 +162,9 @@ class Trainer:
             rollout_result = self.core_loop.rollout_phase(self._env, self._context)
             self._context.training_env_id = rollout_result.training_env_id
             world_size = self._distributed_helper.get_world_size()
+            previous_agent_step = self._context.agent_step
             if rollout_result.agent_steps:
-                previous_agent_step = self._context.agent_step
                 self._context.record_rollout(rollout_result.agent_steps, world_size)
-            else:
-                previous_agent_step = self._context.agent_step
             if rollout_result.raw_infos:
                 self._prev_agent_step_for_step_callbacks = previous_agent_step
                 self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
@@ -220,27 +229,28 @@ class Trainer:
         self._components.append(component)
         component.register(self._context)
 
-    def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[Dict[str, Any]] = None) -> None:
+    def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
         """Invoke all registered callbacks of the specified type.
 
         Args:
             callback_type: The type of callback to invoke
             infos: Step information from environment (only used for STEP callback)
         """
+        current_step = self._context.agent_step
+        previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
+        current_epoch = self._context.epoch
+
         for component in self._components:
             try:
                 if callback_type == TrainerCallback.STEP:
-                    interval = component._step_interval
-                    if interval:
-                        current_step = self._context.agent_step
-                        previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
-                        if current_step // interval > previous_step // interval:
-                            component.on_step(infos)
+                    if (
+                        component.should_handle_step(current_step=current_step, previous_step=previous_step)
+                        and infos is not None
+                    ):
+                        component.on_step(infos)
                 elif callback_type == TrainerCallback.EPOCH_END:
-                    if component._epoch_interval != 0 and self._context.epoch % component._epoch_interval == 0:
-                        component.on_epoch_end(self._context.epoch)
-                    elif component._epoch_interval == 0:
-                        component.on_epoch_end(self._context.epoch)
+                    if component.should_handle_epoch(current_epoch):
+                        component.on_epoch_end(current_epoch)
                 elif callback_type == TrainerCallback.TRAINING_COMPLETE:
                     component.on_training_complete()
                 elif callback_type == TrainerCallback.FAILURE:
@@ -256,9 +266,6 @@ class Trainer:
 
         This should be called after setup() to restore any saved state.
         """
-        # Find and restore trainer checkpointer state
-        from metta.rl.training.context_checkpointer import ContextCheckpointer
-
         for component in self._components:
             if isinstance(component, ContextCheckpointer):
                 component.restore(self._context)

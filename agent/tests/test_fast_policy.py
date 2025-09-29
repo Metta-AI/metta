@@ -5,7 +5,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.policies.fast import FastConfig, FastPolicy
-from metta.rl.training.training_environment import EnvironmentMetaData
+from metta.rl.training import EnvironmentMetaData
 from metta.rl.utils import ensure_sequence_metadata
 
 

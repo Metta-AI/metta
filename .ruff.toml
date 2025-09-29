@@ -6,20 +6,35 @@ target-version = "py311"
 # Exclude directories from linting
 # These are common directories that typically don't need linting
 exclude = [
-  ".git",           # Git version control
-  ".mypy_cache",    # MyPy type checking cache
-  ".ruff_cache",    # Ruff linter cache
-  ".venv",          # Virtual environment
-  "venv",           # Project virtual environment
-  "__pypackages__", # PEP 582 packages
-  "dist",           # Distribution builds
-  "node_modules",   # Node.js packages
+  ".git",                    # Git version control
+  ".mypy_cache",             # MyPy type checking cache
+  ".ruff_cache",             # Ruff linter cache
+  ".venv",                   # Virtual environment
+  "venv",                    # Project virtual environment
+  "__pypackages__",          # PEP 582 packages
+  "dist",                    # Distribution builds
+  "node_modules",            # Node.js packages
+  "packages/pufferlib-core", # Exclude pufferlib-core from linting
+  "*.ipynb",                 # Exclude notebooks from linting
 ]
 
 [lint.isort]
 # Define import sections and their order
 known-third-party = ["wandb", "torch", "omegaconf"]
-known-first-party = ["metta", "mettagrid"]
+known-first-party = [
+  "codebot",
+  "cogames",
+  "gitta",
+  "metta_agent",
+  "metta_app_backend",
+  "metta_common",
+  "metta",
+  "mettagrid",
+  "pufferlib",
+  "pufferlib-core",
+  "softmax",
+]
+
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [lint]

@@ -1,5 +1,6 @@
 """CheckpointManager URI integration tests aligned with the new training stack."""
 
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -7,6 +8,7 @@ import pytest
 import torch
 
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
+from metta.rl.system_config import SystemConfig
 
 
 def checkpoint_filename(run: str, epoch: int) -> str:
@@ -23,6 +25,12 @@ def create_checkpoint(tmp_path: Path, filename: str, payload) -> Path:
 @pytest.fixture
 def mock_policy():
     return torch.nn.Linear(4, 2)
+
+
+@pytest.fixture
+def test_system_cfg():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield SystemConfig(data_dir=Path(tmpdir), local_only=True)
 
 
 class TestFileURIs:
@@ -68,15 +76,15 @@ class TestS3URIs:
 
 
 class TestCheckpointManagerOperations:
-    def test_save_agent_returns_uri(self, tmp_path: Path, mock_policy):
-        manager = CheckpointManager(run="demo", run_dir=str(tmp_path))
+    def test_save_agent_returns_uri(self, test_system_cfg, mock_policy):
+        manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
         uri = manager.save_agent(mock_policy, epoch=1, metadata={})
         assert uri.startswith("file://")
         saved_path = Path(uri[7:])
         assert saved_path.exists()
 
-    def test_select_checkpoints_sorted(self, tmp_path: Path, mock_policy):
-        manager = CheckpointManager(run="demo", run_dir=str(tmp_path))
+    def test_select_checkpoints_sorted(self, test_system_cfg, mock_policy):
+        manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
         manager.save_agent(mock_policy, epoch=1, metadata={})
         manager.save_agent(mock_policy, epoch=3, metadata={})
         uris = manager.select_checkpoints(strategy="latest", count=1)

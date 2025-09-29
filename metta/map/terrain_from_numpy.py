@@ -1,4 +1,3 @@
-import logging
 import os
 import random
 import zipfile
@@ -8,24 +7,25 @@ import boto3
 import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
+from metta.common.util.log_config import getRankAwareLogger
+from metta.utils.uri import ParsedURI
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.util.uri import ParsedURI
 
-logger = logging.getLogger(__name__)
+logger = getRankAwareLogger(__name__)
 
 MAPS_ROOT = "s3://softmax-public/maps"
 
 
-def pick_random_file(path):
+def pick_random_file(path, rng):
     chosen = None
     count = 0
     with os.scandir(path) as it:
         for entry in it:
             count += 1
             # with probability 1/count, pick this entry
-            if random.randrange(count) == 0:
+            if rng.randrange(count) == 0:
                 chosen = entry.name
     return chosen
 
@@ -40,7 +40,7 @@ def download_from_s3(s3_path: str, save_path: str):
         # Download the file directly to disk
         s3_client = boto3.client("s3")
         s3_client.download_file(Bucket=bucket, Key=key, Filename=save_path)
-        print(f"Successfully downloaded {parsed.canonical} to {save_path}")
+        logger.info(f"Successfully downloaded {parsed.canonical} to {save_path}")
 
     except NoCredentialsError as e:
         raise e
@@ -54,14 +54,36 @@ class TerrainFromNumpy(MapBuilder):
     It's not a MapGen scene, because we don't know the grid size until we load the file."""
 
     class Config(MapBuilderConfig["TerrainFromNumpy"]):
+        # Allow non-pydantic types like random.Random
+        model_config = ConfigDict(arbitrary_types_allowed=True)
         objects: dict[str, int] = Field(default_factory=dict)
         agents: int | dict[str, int] = Field(default=0, ge=0)
         dir: str
         file: Optional[str] = None
         remove_altars: bool = False
+        rng: random.Random = Field(default_factory=random.Random, exclude=True)
 
     def __init__(self, config: Config):
         self.config = config
+
+    def setup(self):
+        root = self.config.dir.split("/")[0]
+
+        map_dir = f"train_dir/{self.config.dir}"
+        root_dir = f"train_dir/{root}"
+
+        s3_path = f"{MAPS_ROOT}/{root}.zip"
+        local_zipped_dir = root_dir + ".zip"
+        # Only one process can hold this lock at a time:
+        with FileLock(local_zipped_dir + ".lock"):
+            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
+                download_from_s3(s3_path, local_zipped_dir)
+            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
+                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root_dir))
+                os.remove(local_zipped_dir)
+                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+        return map_dir
 
     def get_valid_positions(self, level):
         # Create a boolean mask for empty cells
@@ -87,34 +109,8 @@ class TerrainFromNumpy(MapBuilder):
         valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
-    def build(self):
-        root = self.config.dir.split("/")[0]
-
-        map_dir = f"train_dir/{self.config.dir}"
-        root_dir = f"train_dir/{root}"
-
-        s3_path = f"{MAPS_ROOT}/{root}.zip"
-        local_zipped_dir = root_dir + ".zip"
-        # Only one process can hold this lock at a time:
-        with FileLock(local_zipped_dir + ".lock"):
-            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
-                download_from_s3(s3_path, local_zipped_dir)
-            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
-                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
-                    zip_ref.extractall(os.path.dirname(root_dir))
-                os.remove(local_zipped_dir)
-                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
-
-        if self.config.file is None:
-            uri = pick_random_file(map_dir)
-        else:
-            uri = self.config.file
-
-        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
-
-        # remove agents to then repopulate
+    def clean_grid(self, grid):
         grid[grid == "agent.agent"] = "empty"
-
         if self.config.remove_altars:
             grid[grid == "altar"] = "empty"
 
@@ -124,11 +120,29 @@ class TerrainFromNumpy(MapBuilder):
         else:
             agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
 
-        num_agents = len(agent_labels)
-
         valid_positions = self.get_valid_positions(grid)
-        random.shuffle(valid_positions)
+        self.config.rng.shuffle(valid_positions)
+        return grid, valid_positions, agent_labels
 
+    def build(self):
+        pass
+
+
+class NavigationFromNumpy(TerrainFromNumpy):
+    def __init__(self, config: TerrainFromNumpy.Config):
+        super().__init__(config)
+
+    def build(self):
+        map_dir = self.setup()
+        if self.config.file is None:
+            uri = pick_random_file(map_dir, self.config.rng)
+        else:
+            uri = self.config.file
+
+        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
+
+        grid, valid_positions, agent_labels = self.clean_grid(grid)
+        num_agents = len(agent_labels)
         # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
         for pos, label in zip(agent_positions, agent_labels, strict=False):
@@ -142,9 +156,42 @@ class TerrainFromNumpy(MapBuilder):
             if count < 0:
                 continue
             # Sample from remaining valid positions
-            positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
+            positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
+
+        return GameMap(grid=grid)
+
+
+class InContextLearningFromNumpy(TerrainFromNumpy):
+    def __init__(self, config: TerrainFromNumpy.Config):
+        super().__init__(config)
+
+    def build(self):
+        map_dir = self.setup()
+
+        if self.config.file is None:
+            uri = pick_random_file(map_dir, self.config.rng)
+        else:
+            uri = self.config.file
+
+        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
+
+        grid, valid_positions, agent_labels = self.clean_grid(grid)
+        num_agents = len(agent_labels)
+        agent_positions = valid_positions[:num_agents]
+        for pos, label in zip(agent_positions, agent_labels, strict=False):
+            grid[pos] = label
+        # placeholder indices for objects
+        mask = ~np.isin(grid, ("agent.agent", "wall", "empty"))
+        converter_indices = np.argwhere(mask)
+        grid[mask] = "empty"
+
+        object_names = [name for name in self.config.objects for _ in range(self.config.objects[name])]
+        self.config.rng.shuffle(object_names)
+
+        for idx, object in zip(converter_indices, object_names, strict=False):
+            grid[tuple(idx)] = object
 
         return GameMap(grid=grid)

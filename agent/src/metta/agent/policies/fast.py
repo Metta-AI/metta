@@ -2,13 +2,13 @@ import logging
 from typing import List, Optional
 
 import numpy as np
-import pufferlib.pytorch
 import torch
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 from torchrl.data import Composite, UnboundedDiscrete
 
+import pufferlib.pytorch
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.components.actor import (
     ActionProbs,

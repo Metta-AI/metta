@@ -49,7 +49,7 @@ class LSTM(nn.Module):
         self.num_layers = self.config.num_layers
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
-        self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers)
+        self.net = nn.LSTM(self.latent_size, self.hidden_size, self.num_layers, batch_first=True)
 
         for name, param in self.net.named_parameters():
             if "bias" in name:
@@ -91,18 +91,18 @@ class LSTM(nn.Module):
         if "batch" in td.keys():
             B = int(td["batch"][0].item())
 
-        latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
+        latent = rearrange(latent, "(b t) h -> b t h", b=B, t=TT)
+
+        # Ensure cuDNN keeps weights in a fused fast-path layout after transfers/checkpoints.
+        self.net.flatten_parameters()
 
         training_env_ids = td.get("training_env_ids", None)
         if training_env_ids is not None:
             flat_env_ids = training_env_ids.reshape(-1)
-            training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
         else:
-            training_env_id = td.get("training_env_id", None)
-            if training_env_id is None:
-                training_env_id_start = 0
-            else:
-                training_env_id_start = training_env_id.reshape(-1)[0].item()  # av remove "start" aspects
+            flat_env_ids = torch.arange(B, device=latent.device)
+
+        training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
 
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]
@@ -123,7 +123,7 @@ class LSTM(nn.Module):
         self.lstm_h[training_env_id_start] = h_n.detach()
         self.lstm_c[training_env_id_start] = c_n.detach()
 
-        hidden = rearrange(hidden, "t b h -> (b t) h")
+        hidden = rearrange(hidden, "b t h -> (b t) h")
 
         td[self.out_key] = hidden
 

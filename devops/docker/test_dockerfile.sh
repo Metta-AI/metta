@@ -9,7 +9,7 @@ cd /workspace/metta && \
   run=test_minimal \
                 trainer.total_timesteps=10000 \
                 trainer.checkpoint.checkpoint_interval=0 \
-                trainer.evaluation.evaluate_interval=0 2>&1 | tee /tmp/train.log && \
+                evaluator.epoch_interval=0 2>&1 | tee /tmp/train.log && \
 echo '=== Training completed, checking for success ===' && \
 if grep -q 'Training complete!' /tmp/train.log && grep -q 'ksps' /tmp/train.log; then \
   echo '=== TRAINING VERIFIED SUCCESSFULLY ==='; \

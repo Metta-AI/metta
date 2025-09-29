@@ -1,12 +1,13 @@
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
-from metta.rl.loss.ppo import PPOConfig
-from metta.rl.training.training_environment import TrainingEnvironment
 from mettagrid.config import Config
+
+if TYPE_CHECKING:
+    from metta.rl.training import TrainingEnvironment
 
 
 class LossSchedule(Config):
@@ -15,17 +16,24 @@ class LossSchedule(Config):
 
 
 class LossConfig(Config):
-    loss_configs: Dict[str, Any] = Field(
-        default={
-            "ppo": PPOConfig(),
-        }
-    )
+    loss_configs: Dict[str, Any] = Field(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:
+        """Called after the model is initialized."""
+        super().model_post_init(__context)
+
+        # If loss_configs is empty, add default PPO config
+        if not self.loss_configs:
+            # Import here to avoid circular dependency
+            from metta.rl.loss.ppo import PPOConfig
+
+            self.loss_configs = {"ppo": PPOConfig()}
 
     def init_losses(
         self,
         policy: Policy,
         trainer_cfg: Any,
-        env: TrainingEnvironment,
+        env: "TrainingEnvironment",
         device: torch.device,
     ):
         return {

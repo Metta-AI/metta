@@ -6,13 +6,11 @@ from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.rl.loss.loss import Loss
+from metta.agent.policy import Policy
+from metta.rl.loss import Loss
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext
 from mettagrid.config import Config
-
-# Config class
 
 
 class TLKickstarterConfig(Config):
@@ -22,7 +20,7 @@ class TLKickstarterConfig(Config):
 
     def create(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
@@ -43,7 +41,7 @@ class TLKickstarter(Loss):
 
     def __init__(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
@@ -60,7 +58,7 @@ class TLKickstarter(Loss):
         # load teacher policy
         from metta.rl.checkpoint_manager import CheckpointManager
 
-        self.teacher_policy: PolicyAgent = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
+        self.teacher_policy: Policy = CheckpointManager.load_from_uri(self.loss_cfg.teacher_uri, device)
         if hasattr(self.teacher_policy, "initialize_to_environment"):
             driver_env = self.env.driver_env
             features = driver_env.observation_features

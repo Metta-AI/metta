@@ -40,7 +40,6 @@ struct ConverterConfig;
 struct AssemblerConfig;
 struct ChestConfig;
 struct WallConfig;
-struct BoxConfig;
 struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
@@ -81,6 +80,7 @@ public:
   py::dict feature_normalizations();
   py::dict feature_spec();
   size_t num_agents() const;
+  py::none set_inventory(GridObjectId agent_id, const std::map<InventoryItem, InventoryQuantity>& inventory);
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
@@ -177,7 +177,6 @@ private:
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
-  BoxConfig _create_box_config(const py::dict& box_cfg_py);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

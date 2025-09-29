@@ -6,14 +6,12 @@ from typing import Any
 
 import numpy as np
 import torch
-import wandb
 
-from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+from metta.common.wandb.context import WandbRun
 from metta.eval.eval_request_config import EvalResults
-from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.experience import Experience
+from metta.rl.training import Experience
 from metta.rl.wandb import (
     POLICY_EVALUATOR_EPOCH_METRIC,
     POLICY_EVALUATOR_METRIC_PREFIX,
@@ -199,8 +197,7 @@ def compute_timing_stats(
 
 
 def process_policy_evaluator_stats(
-    policy_uri: str,
-    eval_results: EvalResults,
+    policy_uri: str, eval_results: EvalResults, run: WandbRun, epoch: int, agent_step: int, should_finish_run: bool
 ) -> None:
     metrics_to_log: dict[str, float] = {
         f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
@@ -216,25 +213,6 @@ def process_policy_evaluator_stats(
         logger.warning("No metrics to log for policy evaluator")
         return
 
-    # Policy records might not have epoch/agent_step metadata, but we still want to log
-    metadata = CheckpointManager.get_policy_metadata(policy_uri)
-    epoch = metadata.get("epoch")
-    agent_step = metadata.get("agent_step")
-    run_name = metadata.get("run_name")
-    if epoch is None or agent_step is None or not run_name:
-        logger.warning("No epoch or agent_step found in policy record - using defaults")
-
-    # Sanitize run_name for wandb - remove version suffix and invalid characters
-    # WandB run IDs cannot contain: :;,#?/'
-    sanitized_run_name = run_name.split(":")[0] if run_name else None
-
-    # TODO: improve this parsing to be more general
-    run = wandb.init(
-        id=sanitized_run_name,
-        project=METTA_WANDB_PROJECT,
-        entity=METTA_WANDB_ENTITY,
-        resume="must",
-    )
     try:
         try:
             setup_policy_evaluator_metrics(run)
@@ -242,9 +220,7 @@ def process_policy_evaluator_stats(
             logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
             pass
 
-        run.log(
-            {**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step or 0, POLICY_EVALUATOR_EPOCH_METRIC: epoch or 0}
-        )
+        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
         logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {policy_uri}")
         if eval_results.replay_urls:
             try:
@@ -259,4 +235,5 @@ def process_policy_evaluator_stats(
             except Exception as e:
                 logger.error(f"Failed to upload replays for {policy_uri}: {e}", exc_info=True)
     finally:
-        run.finish()
+        if should_finish_run:
+            run.finish()

@@ -41,14 +41,14 @@ if [ "${CI}" != "true" ]; then
 
   echo "Installing testing dependencies..."
   uv sync --no-dev --group testing
-
-  # Activate virtual environment
-  source .venv/bin/activate
 fi
 
 # Create directories for test results
 echo -e "\n${YELLOW}📁 Creating test result directories...${NC}"
 mkdir -p test-results coverage-reports
+
+# Determine which package suites should run (defaults to true)
+RUN_APP_BACKEND_TESTS=${RUN_APP_BACKEND_TESTS:-true}
 
 # Define the test runner function
 run_package_tests() {
@@ -72,10 +72,17 @@ run_package_tests() {
 
   echo -e "${color}[${package_name}]${NC} Starting tests..."
 
+  # Skip packages when requested (currently only app_backend is gated)
+  if [[ "$package_name" == "app_backend" && "$RUN_APP_BACKEND_TESTS" != "true" ]]; then
+    echo -e "${color}[${package_name}]${NC} Skipping tests (no app_backend changes detected)"
+    echo 0 > "test-results/${package_name}.exit"
+    return
+  fi
+
   # Run tests and prefix each line with package name and color
   if [ "$package" == "core" ]; then
     (
-      pytest $PYTEST_BASE_ARGS \
+      uv run pytest $PYTEST_BASE_ARGS \
         --cov-report=xml:coverage-reports/coverage-${package_name}.xml \
         2>&1
       echo $? > test-results/${package_name}.exit
@@ -84,7 +91,7 @@ run_package_tests() {
     done
   else
     (
-      cd "$package" && pytest $PYTEST_BASE_ARGS \
+      cd "$package" && uv run pytest $PYTEST_BASE_ARGS \
         --cov-report=xml:${path_prefix}coverage-reports/coverage-${package_name}.xml \
         2>&1
       echo $? > ${path_prefix}test-results/${package_name}.exit

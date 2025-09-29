@@ -39,7 +39,7 @@ from rich.text import Text
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 
 if TYPE_CHECKING:
-    from metta.sweep.models import JobStatus, RunInfo
+    from metta.adaptive.models import JobStatus, RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +57,9 @@ app = typer.Typer(
 
 def _get_status_color(status: "JobStatus") -> str:
     """Get color for run status."""
-    from metta.sweep.models import JobStatus
+    from metta.adaptive.models import JobStatus
 
-    if status == JobStatus.COMPLETED or status == JobStatus.EVAL_DONE_NOT_COMPLETED:
+    if status == JobStatus.COMPLETED:
         return "bright_blue"
     elif status == JobStatus.IN_TRAINING:
         return "bright_green"
@@ -244,14 +244,16 @@ def live_monitor_runs(
         display_limit: Maximum number of runs to display in table (default: 10)
     """
 
-    try:
-        from metta.sweep.stores.wandb import WandbStore
-    except ImportError:
-        print("Error: Cannot import WandbStore. Make sure wandb is installed and configured.")
-        sys.exit(1)
-
     console = Console()
-    store = WandbStore(entity=entity, project=project)
+
+    # Always use adaptive store
+    try:
+        from metta.adaptive.stores.wandb import WandbStore
+
+        store = WandbStore(entity=entity, project=project)
+    except ImportError:
+        print("Error: Cannot import adaptive WandbStore. Make sure dependencies are installed.")
+        sys.exit(1)
 
     def generate_display():
         try:
@@ -340,7 +342,7 @@ def live_monitor_runs_test(
     """Test mode for live run monitoring with mock data."""
     from datetime import datetime, timedelta
 
-    from metta.sweep.models import JobStatus, RunInfo
+    from metta.adaptive.models import JobStatus, RunInfo
 
     console = Console()
 

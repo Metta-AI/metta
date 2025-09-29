@@ -45,9 +45,10 @@ constexpr ObservationType LastAction = 8;
 constexpr ObservationType LastActionArg = 9;
 constexpr ObservationType LastReward = 10;
 constexpr ObservationType Glyph = 11;
-constexpr ObservationType ResourceRewards = 12;
-constexpr ObservationType VisitationCounts = 13;
-constexpr ObservationType ObservationFeatureCount = 14;
+constexpr ObservationType VisitationCounts = 12;
+constexpr ObservationType Tag = 13;
+constexpr ObservationType CooldownRemaining = 14;
+constexpr ObservationType ObservationFeatureCount = 15;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
@@ -67,8 +68,9 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::LastActionArg, "last_action_arg"},
       {ObservationFeature::LastReward, "last_reward"},
       {ObservationFeature::Glyph, "agent:glyph"},
-      {ObservationFeature::ResourceRewards, "resource_rewards"},
-      {ObservationFeature::VisitationCounts, "agent:visitation_counts"}};
+      {ObservationFeature::VisitationCounts, "agent:visitation_counts"},
+      {ObservationFeature::Tag, "tag"},
+      {ObservationFeature::CooldownRemaining, "cooldown_remaining"}};
   return feature_names;
 }
 
@@ -90,9 +92,9 @@ inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
       {ObservationFeature::ConvertingOrCoolingDown, 1.0},
       {ObservationFeature::Swappable, 1.0},
       {ObservationFeature::Glyph, 255.0},
-      {ObservationFeature::ResourceRewards, 255.0},
       {ObservationFeature::VisitationCounts, 1000.0},
-  };
+      {ObservationFeature::Tag, 10.0},
+      {ObservationFeature::CooldownRemaining, 255.0}};
   return feature_normalizations;
 }
 

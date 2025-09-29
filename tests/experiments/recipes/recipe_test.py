@@ -19,6 +19,10 @@ from metta.common.util.text_styles import bold, cyan, yellow
 
 # Recipe configurations
 RECIPES = {
+    "in_context_learning/ordered_chains": {
+        "module": "experiments.recipes.in_context_learning.ordered_chains.train",
+        "description": "In-context learning resource chain",
+    },
     "arena_basic_easy_shaped": {
         "module": "experiments.recipes.arena_basic_easy_shaped.train",
         "description": "Basic arena with easy shaping",
@@ -27,17 +31,21 @@ RECIPES = {
         "module": "experiments.recipes.arena.train",
         "description": "Standard arena recipe",
     },
-    "icl_resource_chain": {
-        "module": "experiments.recipes.icl_resource_chain.train",
-        "description": "In-context learning resource chain",
+    "cvc_arena": {
+        "module": "experiments.recipes.cvc_arena.train",
+        "description": "Cogs vs Clips recipe",
+    },
+    "navigation_sequence": {
+        "module": "experiments.recipes.navigation_sequence.train",
+        "description": "Sequential navigation task",
     },
     "navigation": {
         "module": "experiments.recipes.navigation.train",
         "description": "Navigation task",
     },
-    "navigation_sequence": {
-        "module": "experiments.recipes.navigation_sequence.train",
-        "description": "Sequential navigation task",
+    "object_use": {
+        "module": "experiments.recipes.object_use.train",
+        "description": "Object Use task",
     },
 }
 

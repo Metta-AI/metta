@@ -7,9 +7,9 @@ from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 
-from metta.agent.metta_agent import PolicyAgent
-from metta.rl.loss.loss import Loss
-from metta.rl.training.component_context import ComponentContext
+from metta.agent.policy import Policy
+from metta.rl.loss import Loss
+from metta.rl.training import ComponentContext
 from mettagrid.config import Config
 
 
@@ -20,7 +20,7 @@ class DynamicsConfig(Config):
 
     def create(
         self,
-        policy: PolicyAgent,
+        policy: Policy,
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
@@ -34,7 +34,7 @@ class DynamicsConfig(Config):
             vec_env,
             device,
             instance_name=instance_name,
-            loss_config=loss_config,
+            loss_cfg=loss_config,
         )
 
 

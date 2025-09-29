@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from metta.rl.training.component import TrainerComponent
+from metta.rl.training import TrainerComponent
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.system_monitor import SystemMonitor
 

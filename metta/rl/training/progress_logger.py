@@ -10,7 +10,7 @@ from typing import Dict, Optional
 from rich.console import Console
 from rich.table import Table
 
-from metta.rl.training.component import TrainerComponent
+from metta.rl.training import TrainerComponent
 
 logger = logging.getLogger(__name__)
 

@@ -1,13 +1,13 @@
 import contextlib
 import os
 import platform
-from pathlib import Path
+from datetime import timedelta
 from typing import Optional
 
 import torch
-from pydantic import Field
+from pydantic import Field, model_validator
 
-from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -15,12 +15,12 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.system_config import guess_device
 from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
     CheckpointerConfig,
+    ContextCheckpointer,
     ContextCheckpointerConfig,
     DistributedHelper,
     Evaluator,
@@ -34,18 +34,17 @@ from metta.rl.training import (
     SchedulerConfig,
     StatsReporter,
     StatsReporterConfig,
+    TorchProfiler,
+    TrainerComponent,
+    TrainingEnvironmentConfig,
     Uploader,
     UploaderConfig,
+    VectorizedTrainingEnvironment,
     WandbAborter,
     WandbAborterConfig,
+    WandbLogger,
 )
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.context_checkpointer import ContextCheckpointer
-from metta.rl.training.torch_profiler import TorchProfiler
-from metta.rl.training.training_environment import TrainingEnvironmentConfig, VectorizedTrainingEnvironment
-from metta.rl.training.wandb_logger import WandbLogger
 from metta.tools.utils.auto_config import (
-    auto_policy_storage_decision,
     auto_run_name,
     auto_stats_server_uri,
     auto_wandb_config,
@@ -56,12 +55,10 @@ logger = getRankAwareLogger(__name__)
 
 class TrainTool(Tool):
     run: Optional[str] = None
-    run_dir: Optional[str] = None
-    device: str = guess_device()
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=FastConfig)
+    policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None
     uploader: UploaderConfig = Field(default_factory=UploaderConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
@@ -69,6 +66,7 @@ class TrainTool(Tool):
 
     stats_server_uri: Optional[str] = auto_stats_server_uri()
     wandb: WandbConfig = WandbConfig.Unconfigured()
+    group: Optional[str] = None
     evaluator: EvaluatorConfig = Field(default_factory=EvaluatorConfig)
     torch_profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
@@ -79,30 +77,58 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
+    @model_validator(mode="after")
+    def validate_fields(self) -> "TrainTool":
+        if self.evaluator.epoch_interval != 0:
+            if self.evaluator.epoch_interval < self.checkpointer.epoch_interval:
+                raise ValueError(
+                    "evaluator.epoch_interval must be at least as large as checkpointer.epoch_interval "
+                    "to ensure policies are saved before evaluation"
+                )
+
+        return self
+
     def invoke(self, args: dict[str, str]) -> int | None:
-        init_logging(run_dir=self.run_dir)
+        if "run" in args:
+            assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
+            self.run = args["run"]
+
+        if self.run is None:
+            self.run = auto_run_name(prefix="local")
+
+        if self.wandb == WandbConfig.Unconfigured():
+            self.wandb = auto_wandb_config(self.run)
+
+        if self.group:
+            self.wandb.group = self.group
 
         if platform.system() == "Darwin" and not self.disable_macbook_optimize:
-            self._minimize_config_for_debugging()
+            self._minimize_config_for_debugging()  # this overrides many config settings for local testings
 
-        self._configure_run_metadata(args)
-        self._prepare_run_directories()
+        if self.evaluator and self.evaluator.evaluate_local:
+            # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
+            logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
+            self.system.nccl_timeout = timedelta(hours=4)
 
-        distributed_helper = DistributedHelper(torch.device(self.device))
+        distributed_helper = DistributedHelper(self.system)
         distributed_helper.scale_batch_config(self.trainer, self.training_env)
 
         self.training_env.seed += distributed_helper.get_rank()
         env = VectorizedTrainingEnvironment(self.training_env)
 
-        checkpoint_manager = CheckpointManager(
-            run=self.run or "default",
-            run_dir=self.run_dir or str(Path(self.system.data_dir)),
-            remote_prefix=self.trainer.checkpoint.remote_prefix,
-        )
+        checkpoint_manager = CheckpointManager(run=self.run or "default", system_cfg=self.system)
+
+        # this check is not in the model validator because we setup the remote prefix in `invoke` rather than `init``
+        if self.evaluator.evaluate_remote and not checkpoint_manager.remote_checkpoints_enabled:
+            raise ValueError("without a remote prefix we cannot use remote evaluation")
+
+        init_logging(run_dir=checkpoint_manager.run_dir)
+        record_heartbeat()
+
         policy_checkpointer, policy = self._load_or_create_policy(checkpoint_manager, distributed_helper, env)
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
-        self._log_run_configuration(distributed_helper, env)
+        self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
         stats_client = self._maybe_create_stats_client(distributed_helper)
         wandb_manager = self._build_wandb_manager(distributed_helper)
@@ -125,61 +151,6 @@ class TrainTool(Tool):
             if stats_client and hasattr(stats_client, "close"):
                 stats_client.close()
             distributed_helper.cleanup()
-
-    def _configure_run_metadata(self, args: dict[str, str]) -> Optional[str]:
-        if "run" in args:
-            assert self.run is None, "run cannot be set via args and config"
-            self.run = args["run"]
-
-        if self.run is None:
-            self.run = auto_run_name(prefix="local")
-
-        group_override = args.get("group")
-
-        if self.run_dir is None:
-            self.run_dir = f"{self.system.data_dir}/{self.run}"
-
-        if self.wandb == WandbConfig.Unconfigured():
-            self.wandb = auto_wandb_config(self.run)
-
-        if group_override:
-            self.wandb.group = group_override
-
-        return group_override
-
-    def _prepare_run_directories(self) -> None:
-        if not self.context_checkpointer.checkpoint_dir:
-            self.context_checkpointer.checkpoint_dir = f"{self.run_dir}/checkpoints/"
-
-        if self.trainer.checkpoint.remote_prefix is None and self.run is not None:
-            storage_decision = auto_policy_storage_decision(self.run)
-            if storage_decision.remote_prefix:
-                self.trainer.checkpoint.remote_prefix = storage_decision.remote_prefix
-                if storage_decision.reason == "env_override":
-                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
-                else:
-                    logger.info(
-                        "Policies will sync to %s (Softmax AWS profile detected).",
-                        storage_decision.remote_prefix,
-                    )
-            elif storage_decision.reason == "not_connected":
-                logger.info(
-                    "Softmax AWS SSO not detected; policies will remain local. "
-                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' to enable uploads."
-                )
-            elif storage_decision.reason == "aws_not_enabled":
-                logger.info(
-                    "AWS component disabled; policies will remain local. Run 'metta configure aws' to set up S3."
-                )
-            elif storage_decision.reason == "no_base_prefix":
-                logger.info(
-                    "Remote policy prefix unset; policies will remain local. Configure POLICY_REMOTE_PREFIX or run "
-                    "'metta configure aws'."
-                )
-
-        os.makedirs(self.run_dir, exist_ok=True)
-        init_logging(run_dir=self.run_dir)
-        record_heartbeat()
 
     def _load_or_create_policy(
         self,
@@ -209,13 +180,13 @@ class TrainTool(Tool):
             self.trainer,
             env,
             policy,
-            torch.device(self.device),
+            torch.device(self.system.device),
             distributed_helper=distributed_helper,
             run_name=self.run,
         )
 
         if not self.gradient_reporter.epoch_interval and getattr(self.trainer, "grad_mean_variance_interval", 0):
-            self.gradient_reporter.epoch_interval = self.trainer.grad_mean_variance_interval
+            self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
 
         return trainer
 
@@ -264,12 +235,12 @@ class TrainTool(Tool):
 
             components.append(policy_checkpointer)
 
+            self.evaluator = self.evaluator.model_copy(deep=True)
             components.append(
                 Evaluator(
                     config=self.evaluator,
-                    device=torch.device(self.device),
+                    device=torch.device(self.system.device),
                     system_cfg=self.system,
-                    trainer_cfg=self.trainer,
                     stats_client=stats_client,
                 )
             )
@@ -302,7 +273,7 @@ class TrainTool(Tool):
                 TorchProfiler(
                     profiler_config=self.torch_profiler,
                     wandb_run=wandb_run,
-                    run_dir=self.run_dir,
+                    run_dir=checkpoint_manager.run_dir,
                     is_master=True,
                 )
             )
@@ -318,12 +289,17 @@ class TrainTool(Tool):
     def _log_run_configuration(
         self,
         distributed_helper: DistributedHelper,
+        checkpoint_manager: CheckpointManager,
         env: VectorizedTrainingEnvironment,
     ) -> None:
         if not distributed_helper.is_master():
             return
+
+        if not checkpoint_manager.run_dir:
+            raise ValueError("cannot _log_run_configuration without a valid run_dir")
+
         logger.info(f"Training environment: {env}")
-        config_path = os.path.join(self.run_dir, "config.json")
+        config_path = os.path.join(checkpoint_manager.run_dir, "config.json")
         with open(config_path, "w") as config_file:
             config_file.write(self.model_dump_json(indent=2))
         logger.info(f"Config saved to {config_path}")
@@ -332,7 +308,8 @@ class TrainTool(Tool):
         if not (distributed_helper.is_master() and self.stats_server_uri):
             return None
         try:
-            return StatsClient.create(self.stats_server_uri)
+            return StatsClient.create(stats_server_uri=self.stats_server_uri)
+
         except Exception as exc:
             logger.warning("Failed to initialize stats client: %s", exc)
             return None
@@ -354,5 +331,4 @@ class TrainTool(Tool):
         self.context_checkpointer.epoch_interval = min(self.context_checkpointer.epoch_interval, 10)
         self.checkpointer.epoch_interval = min(self.checkpointer.epoch_interval, 10)
         self.uploader.epoch_interval = min(self.uploader.epoch_interval, 10)
-
         self.evaluator.epoch_interval = min(self.evaluator.epoch_interval, 10)

@@ -6,8 +6,7 @@ import logging
 
 from metta.common.wandb.context import WandbRun
 from metta.common.wandb.utils import abort_requested
-from metta.rl.training.component import TrainerComponent
-from metta.rl.training.component_context import ComponentContext
+from metta.rl.training import ComponentContext, TrainerComponent
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ class WandbAborter(TrainerComponent):
                 except Exception as exc:  # noqa: BLE001 - we only log the failure
                     logger.warning("Failed to update wandb config with abort timesteps: %s", exc, exc_info=True)
 
-        if distributed_helper.is_distributed():
+        if distributed_helper.is_distributed:
             target_timesteps = distributed_helper.broadcast_from_master(target_timesteps)
 
         if target_timesteps is not None:

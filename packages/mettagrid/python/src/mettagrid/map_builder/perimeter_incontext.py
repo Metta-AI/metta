@@ -1,3 +1,4 @@
+import random
 from collections import deque
 from typing import Optional
 
@@ -17,7 +18,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         Always a single agent in this map.
 
         Obstacle types: can be None, "square", "cross", or "L"
-        Densities: can be None, "sparse", "balanced", or "high"
+        Densities: can be None, "sparse", "balanced", or "dense"
 
         Given the width and height, the number of obstacles and obstacle size is determined by the density.
         """
@@ -27,11 +28,14 @@ class PerimeterInContextMapBuilder(MapBuilder):
         width: int = 7
         height: int = 7
         objects: dict[str, int] = {}
-        obstacle_type: Optional[str] = None
-        density: Optional[str] = None
+        density: str = "no-terrain"
         agents: int | dict[str, int] = 1
         border_width: int = 0
         border_object: str = "wall"
+
+        chain_length: int = 2
+        num_sinks: int = 0
+        dir: Optional[str] = None
 
     def __init__(self, config: Config):
         self._config = config
@@ -90,7 +94,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         elif density == "balanced":
             num_obstacles = max(2, inner_area // 12)  # Moderate obstacles
             obstacle_size = 2
-        elif density == "high":
+        elif density == "dense":
             # Adjust for obstacle type - larger shapes need fewer obstacles
             if obstacle_type == "cross":
                 num_obstacles = max(2, inner_area // 15)  # Crosses are large (3x3)
@@ -254,8 +258,10 @@ class PerimeterInContextMapBuilder(MapBuilder):
                 grid = flat_grid.reshape(height, width)
 
         # Place obstacles if specified with optimizations
-        obstacle_type = getattr(self._config, "obstacle_type", None)
-        density = getattr(self._config, "density", None)
+        density = self._config.density
+        if density == "no-terrain":
+            density = None
+        obstacle_type = random.choice(["square", "cross", "L"])
 
         if obstacle_type and density:
             densities_to_try = [density, "balanced", "sparse"]
