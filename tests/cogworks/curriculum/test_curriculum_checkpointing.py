@@ -32,7 +32,9 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=LearningProgressConfig(num_active_tasks=10, max_memory_tasks=100, use_bidirectional=True),
+            algorithm_config=LearningProgressConfig(
+                num_active_tasks=10, max_memory_tasks=100, use_bidirectional=True, use_shared_memory=False
+            ),
         )
 
         # Create curriculum with fixed seed for reproducibility
@@ -84,7 +86,7 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=LearningProgressConfig(num_active_tasks=10),
+            algorithm_config=LearningProgressConfig(num_active_tasks=10, use_shared_memory=False),
         )
 
         curriculum1 = Curriculum(curriculum_config, seed=42)
@@ -138,7 +140,9 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=8,
-            algorithm_config=LearningProgressConfig(num_active_tasks=8, use_bidirectional=True, max_memory_tasks=50),
+            algorithm_config=LearningProgressConfig(
+                num_active_tasks=8, use_bidirectional=True, max_memory_tasks=50, use_shared_memory=False
+            ),
         )
 
         curriculum = Curriculum(curriculum_config, seed=123)
@@ -174,12 +178,17 @@ class TestCurriculumStateSerialization:
         new_algorithm.load_state(state)
 
         # Verify state was loaded correctly
-        assert len(algorithm.task_tracker._task_memory) == len(new_algorithm.task_tracker._task_memory)
-        assert algorithm.task_tracker._cached_total_completions == new_algorithm.task_tracker._cached_total_completions
+        assert len(algorithm.task_tracker.get_all_tracked_tasks()) == len(
+            new_algorithm.task_tracker.get_all_tracked_tasks()
+        )
+
+        original_stats = algorithm.task_tracker.get_global_stats()
+        loaded_stats = new_algorithm.task_tracker.get_global_stats()
+        assert original_stats["total_completions"] == loaded_stats["total_completions"]
 
     def test_task_tracker_state(self):
         """Test TaskTracker state serialization."""
-        tracker = TaskTracker(max_memory_tasks=100)
+        tracker = TaskTracker(max_memory_tasks=100, use_shared_memory=False)
 
         # Add some tasks and performance data
         for i in range(10):
@@ -200,13 +209,17 @@ class TestCurriculumStateSerialization:
         assert "cache_valid" in state
 
         # Test loading state
-        new_tracker = TaskTracker(max_memory_tasks=50)
+        new_tracker = TaskTracker(max_memory_tasks=50, use_shared_memory=False)
         new_tracker.load_state(state)
 
         # Verify state was loaded correctly
-        assert len(tracker._task_memory) == len(new_tracker._task_memory)
-        assert tracker._cached_total_completions == new_tracker._cached_total_completions
-        assert len(tracker._completion_history) == len(new_tracker._completion_history)
+        assert len(tracker.get_all_tracked_tasks()) == len(new_tracker.get_all_tracked_tasks())
+
+        # Compare global stats instead of direct attributes
+        original_stats = tracker.get_global_stats()
+        loaded_stats = new_tracker.get_global_stats()
+        assert original_stats["total_tracked_tasks"] == loaded_stats["total_tracked_tasks"]
+        assert original_stats["total_completions"] == loaded_stats["total_completions"]
 
     def test_file_size_limits(self):
         """Test that checkpoint files don't become too large."""
@@ -217,7 +230,9 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=1000,
-            algorithm_config=LearningProgressConfig(num_active_tasks=1000, max_memory_tasks=5000),
+            algorithm_config=LearningProgressConfig(
+                num_active_tasks=1000, max_memory_tasks=5000, use_shared_memory=False
+            ),
         )
 
         curriculum = Curriculum(curriculum_config, seed=456)
@@ -337,7 +352,7 @@ class TestCheckpointManagerIntegration:
             curriculum_config = CurriculumConfig(
                 task_generator=task_generator_config,
                 num_active_tasks=10,
-                algorithm_config=LearningProgressConfig(num_active_tasks=10),
+                algorithm_config=LearningProgressConfig(num_active_tasks=10, use_shared_memory=False),
             )
 
             curriculum = Curriculum(curriculum_config, seed=42)
@@ -539,7 +554,11 @@ class TestCurriculumRoundtripBehavior:
             task_generator=task_generator_config,
             num_active_tasks=15,
             algorithm_config=LearningProgressConfig(
-                num_active_tasks=15, use_bidirectional=True, max_memory_tasks=100, ema_timescale=0.01
+                num_active_tasks=15,
+                use_bidirectional=True,
+                max_memory_tasks=100,
+                ema_timescale=0.01,
+                use_shared_memory=False,
             ),
         )
 
@@ -616,7 +635,7 @@ class TestCurriculumRoundtripBehavior:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=10,
-            algorithm_config=LearningProgressConfig(num_active_tasks=10),
+            algorithm_config=LearningProgressConfig(num_active_tasks=10, use_shared_memory=False),
         )
 
         # Create two identical curricula
@@ -664,7 +683,9 @@ class TestCurriculumRoundtripBehavior:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=8,
-            algorithm_config=LearningProgressConfig(num_active_tasks=8, use_bidirectional=True),
+            algorithm_config=LearningProgressConfig(
+                num_active_tasks=8, use_bidirectional=True, use_shared_memory=False
+            ),
         )
 
         curriculum = Curriculum(curriculum_config, seed=333)

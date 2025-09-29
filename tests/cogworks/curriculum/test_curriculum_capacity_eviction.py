@@ -37,7 +37,7 @@ class TestCurriculumCapacityAndEviction:
         config.num_active_tasks = 8  # Small for testing
         config.min_presentations_for_eviction = 10  # More presentations for realistic EMA timescales
         config.algorithm_config = cc.LearningProgressConfig(
-            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100
+            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100, use_shared_memory=False
         )
 
         curriculum = config.make()
@@ -138,7 +138,7 @@ class TestCurriculumCapacityAndEviction:
         config.num_active_tasks = 3  # Very small for testing
         config.min_presentations_for_eviction = 15  # Require 15 presentations for realistic EMA development
         config.algorithm_config = cc.LearningProgressConfig(
-            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100
+            ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100, use_shared_memory=False
         )
 
         curriculum = config.make()

@@ -17,6 +17,7 @@ def learning_progress_config(request):
         ema_timescale=0.001,
         max_memory_tasks=10,
         use_bidirectional=use_bidirectional,
+        use_shared_memory=False,  # Disable shared memory for tests
     )
 
 
@@ -177,6 +178,7 @@ class TestLearningProgressCoreBehavior:
         config = LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=5,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
 
@@ -199,6 +201,7 @@ class TestLearningProgressCoreBehavior:
         config = LearningProgressConfig(
             ema_timescale=0.1,  # Higher timescale for faster convergence in test
             max_memory_tasks=10,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=1, hypers=config)
 
@@ -225,6 +228,7 @@ class TestLearningProgressCoreBehavior:
         config = LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=10,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
 
@@ -270,7 +274,8 @@ class TestLearningProgressProductionPatterns:
         config = LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=50,  # REDUCED from 100 for faster testing
-            enable_detailed_slice_logging=True,  # Enable detailed stats for testing
+            enable_detailed_slice_logging=True,  # Enable detailed stats for testing,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)  # REDUCED from 50
 
@@ -301,7 +306,8 @@ class TestLearningProgressProductionPatterns:
         """Test that memory management works under production load."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=10,  # Small limit to trigger cleanup
+            max_memory_tasks=10,  # Small limit to trigger cleanup,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)
 
@@ -327,6 +333,7 @@ class TestLearningProgressProductionPatterns:
         config = LearningProgressConfig(
             ema_timescale=0.01,  # Higher for faster convergence
             max_memory_tasks=20,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=5, hypers=config)
 
@@ -436,6 +443,7 @@ class TestBidirectionalLearningProgressBehavior:
             ema_timescale=0.001,
             max_memory_tasks=10,
             use_bidirectional=True,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
 
@@ -470,7 +478,8 @@ class TestBidirectionalLearningProgressBehavior:
             ema_timescale=0.01,  # Higher timescale for faster response
             max_memory_tasks=10,
             use_bidirectional=True,
-            sample_threshold=5,  # Lower threshold for testing
+            sample_threshold=5,  # Lower threshold for testing,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
 
@@ -522,6 +531,7 @@ class TestBidirectionalLearningProgressBehavior:
             ema_timescale=0.01,
             max_memory_tasks=10,
             use_bidirectional=True,
+            use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=2, hypers=config)
 
