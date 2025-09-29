@@ -36,7 +36,15 @@ class QuadrantLayout(Scene[QuadrantLayoutParams]):
             ),
             # Use terrain styles that always render structure
             RandomSceneCandidate(
-                scene=VariedTerrain.factory(VariedTerrainParams(objects={"wall": 0}, agents=0, style="maze")),
+                scene=VariedTerrain.factory(
+                    VariedTerrainParams(
+                        objects={"wall": 0},
+                        agents=0,
+                        style="maze",
+                        labyrinth_scatter_symbol=None,
+                        labyrinth_scatter_probability=0.0,
+                    )
+                ),
                 weight=p.weight_terrain_maze,
             ),
             RandomSceneCandidate(

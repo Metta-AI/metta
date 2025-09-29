@@ -98,6 +98,145 @@ def silicon_extractor() -> AssemblerConfig:
     )
 
 
+# --- Variants: fast (low cooldown, low yield) and slow (high cooldown, high yield)
+
+
+def carbon_extractor_fast() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="carbon_extractor_fast",
+        type_id=18,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 1},
+                    output_resources={"carbon": 1},
+                    cooldown=1,
+                ),
+            )
+        ],
+    )
+
+
+def carbon_extractor_slow() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="carbon_extractor_slow",
+        type_id=19,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 3},
+                    output_resources={"carbon": 5},
+                    cooldown=10,
+                ),
+            )
+        ],
+    )
+
+
+def oxygen_extractor_fast() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="oxygen_extractor_fast",
+        type_id=20,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 1},
+                    output_resources={"oxygen": 5},
+                    cooldown=1,
+                ),
+            )
+        ],
+    )
+
+
+def oxygen_extractor_slow() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="oxygen_extractor_slow",
+        type_id=21,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 3},
+                    output_resources={"oxygen": 20},
+                    cooldown=10,
+                ),
+            )
+        ],
+    )
+
+
+def geranium_extractor_fast() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="geranium_extractor_fast",
+        type_id=22,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 2},
+                    output_resources={"geranium": 2},
+                    cooldown=5,
+                ),
+            )
+        ],
+    )
+
+
+def geranium_extractor_slow() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="geranium_extractor_slow",
+        type_id=23,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 5},
+                    output_resources={"geranium": 20},
+                    cooldown=200,
+                ),
+            )
+        ],
+    )
+
+
+def silicon_extractor_fast() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="silicon_extractor_fast",
+        type_id=24,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 10},
+                    output_resources={"silicon": 1},
+                    cooldown=1,
+                ),
+            )
+        ],
+    )
+
+
+def silicon_extractor_slow() -> AssemblerConfig:
+    return AssemblerConfig(
+        name="silicon_extractor_slow",
+        type_id=25,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    input_resources={"energy": 15},
+                    output_resources={"silicon": 5},
+                    cooldown=10,
+                ),
+            )
+        ],
+    )
+
+
 def chest() -> ChestConfig:
     return ChestConfig(
         type_id=17,

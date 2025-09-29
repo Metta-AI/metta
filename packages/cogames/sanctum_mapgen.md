@@ -36,7 +36,15 @@ Pipeline (high-level):
     - `resource_types` (list[str]): allowed converter types
     - `forced_type` (str|None): pin a specific type in this instance
     - `count_per_quadrant` (int): how many to place per quadrant
-    - `k`/`min_radius`/`clearance`: passed into RadialObjects (see below)
+    - Distribution controls (forwarded to `RadialObjects`):
+      - `mode` (str): one of `power`, `exp`, `log`, `gaussian`
+      - `k`, `alpha`, `beta`, `mu`, `sigma`: parameters for the chosen mode
+      - `distance_metric` (str): one of `euclidean`, `manhattan`, `traversal`
+        - `euclidean`: radial distance √((x−cx)^2+(y−cy)^2)
+        - `manhattan`: L1 distance |x−cx|+|y−cy|
+        - `traversal`: shortest path in the current terrain (BFS over "empty" cells) from the center
+      - `min_radius` (int|None): exclude inner ring (interpreted under the chosen metric)
+      - `clearance` (int): empty buffer around each placement
 
 - RadialObjects (radial placement with multiple distributions)
   - `RadialObjectsParams`
@@ -50,7 +58,8 @@ Pipeline (high-level):
     - `alpha` (float): exponential growth factor
     - `beta` (float): logarithmic growth factor
     - `mu`, `sigma` (floats): gaussian center and spread (as fractions of rmax)
-    - `min_radius` (int|None): exclude ring near center
+    - `distance_metric` (str): `euclidean` (default), `manhattan`, or `traversal` (BFS path distance through empties)
+    - `min_radius` (int|None): exclude ring near center (interpreted under the chosen metric)
     - `clearance` (int): empty buffer around each placement
     - `carve` (bool): carve clearance area to guarantee space
 
@@ -68,6 +77,9 @@ Pipeline (high-level):
   - `RelabelConvertersParams`
     - `target_counts` (dict[str,int]): final totals per converter type
     - `source_types` (list[str]): which objects to consider for relabeling
+    - `symmetry` ("none"|"horizontal"|"vertical"|"both")
+    - `quadrant_types` (dict{"nw","ne","sw","se"}→str|None): when `symmetry="both"`, explicitly assign converter types
+      per quadrant for candidate positions
 
 - DistanceBalance (mean distance equalization)
   - `DistanceBalanceParams`
@@ -94,6 +106,8 @@ Config Makers (discoverable in Gridworks):
 
 - `experiments.recipes.sanctum.make_mettagrid()` → base Sanctum map
 - `experiments.recipes.symmetry_sanctum.make_mettagrid()` → Sanctum with both-axis symmetry
+- `experiments.recipes.sanctum.make_evals()` → list[SimulationConfig] of Sanctum variants (terrain mixes, resource
+  distributions, symmetry, quadrant relabeling)
 
 Use the Map Editor → Get Map to visualize and export.
 
@@ -137,6 +151,7 @@ uv run python packages/cogames/src/cogames/main.py play machina_sanctum --steps 
   - Bottom-left oxygen (linear-ish): `mode="power"`, `k≈1`
   - Outer-ring bias: `mode="gaussian"`, `mu≈0.9`, `sigma≈0.05`
   - Gentle increase: `mode="log"`, `beta>0`
+  - Choose distance metric: `distance_metric="euclidean" | "manhattan" | "traversal"`
 
 ### Testing
 

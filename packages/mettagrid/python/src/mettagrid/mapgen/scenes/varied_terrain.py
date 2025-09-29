@@ -28,6 +28,9 @@ class VariedTerrainParams(Config):
     objects: dict[str, int]
     agents: int = 1
     style: str = "balanced"
+    # Optional scattering inside generated labyrinths. Set symbol to None or probability to 0 to disable.
+    labyrinth_scatter_symbol: str | None = "heart"
+    labyrinth_scatter_probability: float = 0.03
 
 
 class VariedTerrain(Scene[VariedTerrainParams]):
@@ -348,11 +351,14 @@ class VariedTerrain(Scene[VariedTerrainParams]):
         if h > 3 and not self._has_gap(maze[1 : h - 1, w - 1]):
             maze[1:3, w - 1] = "empty"
 
-        # Scatter hearts in empty cells with 1% probability.
-        for i in range(h):
-            for j in range(w):
-                if maze[i, j] == "empty" and self.rng.random() < 0.03:
-                    maze[i, j] = "altar"
+        # Optional: scatter a symbol (e.g., "heart") in empty cells.
+        scatter_symbol = self.params.labyrinth_scatter_symbol
+        scatter_p = max(0.0, float(self.params.labyrinth_scatter_probability))
+        if scatter_symbol is not None and scatter_p > 0.0:
+            for i in range(h):
+                for j in range(w):
+                    if maze[i, j] == "empty" and self.rng.random() < scatter_p:
+                        maze[i, j] = scatter_symbol
 
             # Apply thickening based on a random probability between 0.3 and 1.0.
         thick_prob = 0.7 * self.rng.random()

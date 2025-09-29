@@ -53,6 +53,45 @@ def test_machina_sanctum_converter_counts_detached_from_base():
         assert counts[t] >= 3, f"Expected at least 3 of {t} outside base, got {counts[t]}"
 
 
+def test_converters_reachable_from_altar_symmetry():
+    grid = build_grid(machina_symmetry_sanctum, seed=24680)
+    h, w = grid.shape
+    cy, cx = find_altar_center(grid)
+
+    # BFS over passable cells to check reachability to neighbors of converters
+    from collections import deque
+
+    passable = np.zeros_like(grid, dtype=bool)
+    passable[grid == "empty"] = True
+    passable[cy, cx] = True
+
+    dist = np.full((h, w), -1)
+    dq = deque([(cy, cx)])
+    dist[cy, cx] = 0
+    while dq:
+        y, x = dq.popleft()
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < h and 0 <= nx < w and passable[ny, nx] and dist[ny, nx] == -1:
+                dist[ny, nx] = dist[y, x] + 1
+                dq.append((ny, nx))
+
+    ys, xs = np.where(np.isin(grid, list(CONVERTER_TYPES)))
+    assert ys.size > 0
+    # For each converter, require at least one adjacent passable cell reachable from altar
+    unreachable: list[tuple[int, int]] = []
+    for y, x in zip(ys.tolist(), xs.tolist(), strict=True):
+        ok = False
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < h and 0 <= nx < w and dist[ny, nx] >= 0:
+                ok = True
+                break
+        if not ok:
+            unreachable.append((y, x))
+    assert not unreachable, f"Converters blocked: {unreachable[:5]} (showing up to 5)"
+
+
 def test_machina_symmetry_sanctum_symmetry_and_counts():
     grid = build_grid(machina_symmetry_sanctum, seed=67890)
     h, w = grid.shape

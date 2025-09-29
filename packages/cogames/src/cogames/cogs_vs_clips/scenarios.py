@@ -21,7 +21,9 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scene import ChildrenAction
 from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubParams
+from mettagrid.mapgen.scenes.carve_converters import CarveConverters, CarveConvertersParams
 from mettagrid.mapgen.scenes.distance_balance import DistanceBalance, DistanceBalanceParams
 from mettagrid.mapgen.scenes.enforce_symmetry import EnforceSymmetry, EnforceSymmetryParams
 from mettagrid.mapgen.scenes.make_connected import MakeConnected, MakeConnectedParams
@@ -168,30 +170,21 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
         root=Quadrants.factory(
             params=QuadrantsParams(base_size=11),
             children_actions=[
-                # Quadrant population from a library (BSP/Maze/VariedTerrain)
-                dict(
+                ChildrenAction(
                     scene=QuadrantLayout.factory(
                         QuadrantLayoutParams(
-                            weight_bsp10=0.8,
-                            weight_bsp8=0.6,
-                            weight_maze=1.6,
-                            weight_terrain_balanced=0.0,
-                            weight_terrain_maze=0.0,
+                            weight_bsp10=1,
+                            weight_bsp8=1,
+                            weight_maze=1,
+                            weight_terrain_balanced=1.0,
+                            weight_terrain_maze=1.0,
                         )
                     ),
                     where=AreaWhere(tags=["quadrant"]),
                     lock="quad",
                     order_by="first",
                 ),
-                # Enforce symmetry over terrain only (before resources)
-                dict(
-                    scene=EnforceSymmetry.factory(EnforceSymmetryParams(horizontal=False, vertical=False)),
-                    where="full",
-                    lock="symmetry",
-                    order_by="first",
-                ),
-                # Place a single placeholder converter type everywhere for symmetry
-                dict(
+                ChildrenAction(
                     scene=QuadrantResources.factory(
                         QuadrantResourcesParams(
                             resource_types=["generator_green"],
@@ -206,22 +199,13 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     lock="resources",
                     order_by="first",
                 ),
-                # Mirror resource placements so converter positions are symmetric
-                dict(
-                    scene=EnforceSymmetry.factory(EnforceSymmetryParams(horizontal=True, vertical=True)),
-                    where="full",
-                    lock="symmetry_resources",
-                    order_by="first",
-                ),
-                # Ensure connectivity across the whole inner map area
-                dict(
+                ChildrenAction(
                     scene=MakeConnected.factory(MakeConnectedParams()),
                     where="full",
                     lock="finalize",
                     order_by="first",
                 ),
-                # Stamp the central sanctum/base last so it overrides terrain
-                dict(
+                ChildrenAction(
                     scene=BaseHub.factory(
                         BaseHubParams(
                             altar_object="altar",
@@ -233,24 +217,36 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     lock="keep",
                     order_by="first",
                 ),
-                # Relabel converters to target mix while keeping symmetric placements (run after base)
-                dict(
+                ChildrenAction(
                     scene=RelabelConverters.factory(
                         RelabelConvertersParams(
-                            target_counts={
-                                "generator_red": 4,
-                                "generator_blue": 4,
-                                "generator_green": 4,
-                                "lab": 4,
-                            }
+                            target_counts=None,
+                            symmetry="none",
+                            source_types=["generator_green"],
+                            target_types=["generator_red", "generator_blue", "generator_green", "lab"],
                         )
                     ),
                     where="full",
                     lock="relabel",
                     order_by="first",
                 ),
-                # Analyze and optionally balance converter distances from the altar
-                dict(
+                ChildrenAction(
+                    scene=CarveConverters.factory(
+                        CarveConvertersParams(
+                            converter_types=[
+                                "generator_red",
+                                "generator_blue",
+                                "generator_green",
+                                "lab",
+                            ],
+                            clearance=1,
+                        )
+                    ),
+                    where="full",
+                    lock="postcarve",
+                    order_by="first",
+                ),
+                ChildrenAction(
                     scene=DistanceBalance.factory(
                         DistanceBalanceParams(
                             converter_types=["generator_red", "generator_blue", "generator_green", "lab"],
@@ -272,18 +268,102 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
 
 
 def machina_symmetry_sanctum(num_cogs: int = 4) -> MettaGridConfig:
-    """Same as machina_sanctum but enforces both horizontal and vertical symmetry."""
-    cfg = machina_sanctum(num_cogs=num_cogs)
-
-    # Flip the EnforceSymmetry node to both axes
-    children = cfg.game.map_builder.root.children or []
-    for child in children:
-        try:
-            if getattr(child.scene.type, "__name__", "") == "EnforceSymmetry":
-                child.scene.params.horizontal = True
-                child.scene.params.vertical = True
-                break
-        except Exception:
-            pass
-    cfg.game.map_builder.root.children = children
+    """Sanctum with both-axis symmetry enforced."""
+    cfg = make_game(num_cogs=num_cogs)
+    cfg.game.map_builder = MapGen.Config(
+        width=55,
+        height=55,
+        seed=None,
+        root=Quadrants.factory(
+            params=QuadrantsParams(base_size=11),
+            children_actions=[
+                ChildrenAction(
+                    scene=QuadrantLayout.factory(
+                        QuadrantLayoutParams(
+                            weight_bsp10=0.8,
+                            weight_bsp8=0.6,
+                            weight_maze=1.6,
+                            weight_terrain_balanced=0.0,
+                            weight_terrain_maze=0.0,
+                        )
+                    ),
+                    where=AreaWhere(tags=["quadrant"]),
+                    lock="quad",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=EnforceSymmetry.factory(EnforceSymmetryParams(horizontal=True, vertical=True)),
+                    where="full",
+                    lock="symmetry",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=QuadrantResources.factory(
+                        QuadrantResourcesParams(
+                            resource_types=["generator_green"],
+                            forced_type="generator_green",
+                            count_per_quadrant=6,
+                            k=2.5,
+                            min_radius=6,
+                            clearance=1,
+                        )
+                    ),
+                    where=AreaWhere(tags=["quadrant"]),
+                    lock="resources",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=EnforceSymmetry.factory(EnforceSymmetryParams(horizontal=True, vertical=True)),
+                    where="full",
+                    lock="symmetry_resources",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=MakeConnected.factory(MakeConnectedParams()),
+                    where="full",
+                    lock="finalize",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=BaseHub.factory(BaseHubParams(altar_object="altar", corner_generator="generator_red")),
+                    where=AreaWhere(tags=["base"]),
+                    limit=1,
+                    lock="keep",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=RelabelConverters.factory(
+                        RelabelConvertersParams(target_counts=None, symmetry="both", source_types=["generator_green"])
+                    ),
+                    where="full",
+                    lock="relabel",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=CarveConverters.factory(
+                        CarveConvertersParams(
+                            converter_types=["generator_red", "generator_blue", "generator_green", "lab"], clearance=1
+                        )
+                    ),
+                    where="full",
+                    lock="postcarve",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=DistanceBalance.factory(
+                        DistanceBalanceParams(
+                            converter_types=["generator_red", "generator_blue", "generator_green", "lab"],
+                            tolerance=8.0,
+                            balance=True,
+                            carves_per_type=1,
+                            carve_width=1,
+                        )
+                    ),
+                    where="full",
+                    lock="post",
+                    order_by="first",
+                ),
+            ],
+        ),
+    )
     return cfg

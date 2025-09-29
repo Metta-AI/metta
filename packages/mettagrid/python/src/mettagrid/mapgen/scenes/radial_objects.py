@@ -1,5 +1,5 @@
 import math
-from typing import Dict
+from typing import Dict, Literal
 
 import numpy as np
 
@@ -16,9 +16,11 @@ class RadialObjectsParams(Config):
     beta: float = 0.1  # for log: log(1 + beta * r)
     mu: float = 0.75  # for gaussian: center at mu*rmax
     sigma: float = 0.1  # for gaussian: std fraction of rmax
+    # distance metric for r: euclidean, manhattan, or traversal (BFS through empties)
+    distance_metric: Literal["euclidean", "manhattan", "traversal"] = "euclidean"
     min_radius: int | None = None  # exclude inner radius (cells) if set
     clearance: int = 1  # empty ring around placed object
-    carve: bool = False  # if True, carve clearance area to empty before placing
+    carve: bool = True  # if True, carve exactly the 8 tiles around each placed object
     max_trials_per_object: int = 5000
 
 
@@ -45,7 +47,7 @@ class RadialObjects(Scene[RadialObjectsParams]):
             x1 = min(width, x + clearance + 1)
             y0 = max(0, y - clearance)
             y1 = min(height, y + clearance + 1)
-            return np.all(grid[y0:y1, x0:x1] == "empty")
+            return bool(np.all(grid[y0:y1, x0:x1] == "empty"))
 
         # Precompute candidate cells and radial weights
         if self.params.carve:
@@ -56,7 +58,44 @@ class RadialObjects(Scene[RadialObjectsParams]):
         if empties.size == 0:
             return
 
-        rs = np.sqrt((empties[:, 1] - cx) ** 2 + (empties[:, 0] - cy) ** 2)
+        # Compute distances according to metric
+        metric = self.params.distance_metric
+        if metric == "manhattan":
+            rs = np.abs(empties[:, 1] - cx) + np.abs(empties[:, 0] - cy)
+        elif metric == "traversal":
+            # BFS from center over cells considered passable ("empty")
+            # Build mask of passable cells (treat empty as passable; others blocked)
+            passable = (grid == "empty").astype(np.uint8)
+            # Allow starting at center even if non-empty by treating it as passable temporarily
+            passable[min(max(cy, 0), height - 1), min(max(cx, 0), width - 1)] = 1
+
+            dist = np.full((height, width), np.inf, dtype=float)
+            from collections import deque
+
+            dq = deque()
+            start_y, start_x = int(cy), int(cx)
+            dist[start_y, start_x] = 0.0
+            dq.append((start_y, start_x))
+            # 4-neighborhood traversal distance
+            for_y = (-1, 1, 0, 0)
+            for_x = (0, 0, -1, 1)
+            while dq:
+                y, x = dq.popleft()
+                base = dist[y, x]
+                for dy, dx in zip(for_y, for_x, strict=True):
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < height and 0 <= nx < width and passable[ny, nx] == 1 and dist[ny, nx] == np.inf:
+                        dist[ny, nx] = base + 1.0
+                        dq.append((ny, nx))
+            rs = dist[empties[:, 0], empties[:, 1]]
+            # For unreachable cells (inf), fall back to large finite value (treat as far)
+            unreachable = ~np.isfinite(rs)
+            if np.any(unreachable):
+                finite_vals = rs[np.isfinite(rs)]
+                fallback = (finite_vals.max() + 1.0) if finite_vals.size else float(height + width)
+                rs[unreachable] = fallback
+        else:
+            rs = np.sqrt((empties[:, 1] - cx) ** 2 + (empties[:, 0] - cy) ** 2)
         if self.params.min_radius is not None:
             mask = rs >= self.params.min_radius
             empties = empties[mask]
@@ -65,7 +104,12 @@ class RadialObjects(Scene[RadialObjectsParams]):
                 return
 
         # Avoid zero division
-        rr = np.clip(rs / max(rmax, 1e-6), 0.0, 1.0)
+        # Normalize distance by rmax appropriate for metric
+        if metric == "manhattan":
+            rmax_metric = max(cx, width - 1 - cx) + max(cy, height - 1 - cy)
+        else:
+            rmax_metric = rmax
+        rr = np.clip(rs / max(rmax_metric, 1e-6), 0.0, 1.0)
         mode = self.params.mode
         if mode == "power":
             ws = np.power(rr, self.params.k)
@@ -94,15 +138,25 @@ class RadialObjects(Scene[RadialObjectsParams]):
                 idx = int(self.rng.choice(len(ws), p=ws))
                 y, x = int(empties[idx][0]), int(empties[idx][1])
                 # carve if requested
-                if self.params.carve and not ok_with_clearance(x, y, self.params.clearance):
-                    x0 = max(0, x - self.params.clearance)
-                    x1 = min(width, x + self.params.clearance + 1)
-                    y0 = max(0, y - self.params.clearance)
-                    y1 = min(height, y + self.params.clearance + 1)
+                if self.params.carve and not ok_with_clearance(x, y, 1):
+                    # pre-clear a 3x3 neighborhood to ensure placement
+                    x0 = max(0, x - 1)
+                    x1 = min(width, x + 2)
+                    y0 = max(0, y - 1)
+                    y1 = min(height, y + 2)
                     grid[y0:y1, x0:x1] = "empty"
 
                 if ok_with_clearance(x, y, self.params.clearance):
                     grid[y, x] = name
+                    # ensure the 8 neighbors are empty (exact 3x3 ring)
+                    if self.params.carve:
+                        for dy in (-1, 0, 1):
+                            for dx in (-1, 0, 1):
+                                if dx == 0 and dy == 0:
+                                    continue
+                                ny, nx = y + dy, x + dx
+                                if 0 <= ny < height and 0 <= nx < width:
+                                    grid[ny, nx] = "empty"
                     placed += 1
                     # remove neighbors within clearance from candidate set
                     keep = []
