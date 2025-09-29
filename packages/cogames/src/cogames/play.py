@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from rich.console import Console
 
+import mettagrid.mettascope as mettascope
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
 from mettagrid.util.module import load_symbol
@@ -37,16 +38,6 @@ def play(
         save_video: Optional path to save video
         verbose: Whether to print detailed progress
     """
-    try:
-        import mettagrid.mettascope as mettascope
-    except ImportError as err:  # pragma: no cover - hardware dependent
-        console.print("[red]Renderer dependencies are missing (mettascope2 bindings not found).")
-        console.print(
-            "[dim]Generate the Nim bindings or install the optional renderer package to use interactive play.[/dim]"
-        )
-        logger.debug("mettascope import failed", exc_info=err)
-        return
-
     # Create environment
     env = MettaGridEnv(env_cfg=env_cfg)
     obs, _ = env.reset(seed=seed)
