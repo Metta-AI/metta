@@ -14,6 +14,7 @@ import torch
 import typer
 from rich.console import Console
 
+from cogames import curriculum as curriculum_utils
 from cogames import game, play, serialization, train, utils
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.module import load_symbol
@@ -221,7 +222,7 @@ def curricula_cmd(
         if output_dir is not None:
             destination = output_dir.expanduser().resolve()
         else:
-            destination = Path("./runs/curricula").resolve()
+            destination = Path("./runs/default/curricula").resolve()
 
         _dump_game_configs(env_cfgs, env_names, destination)
 
@@ -366,12 +367,12 @@ def train_cmd(
         ),
     ] = "multiprocessing",
     run_dir: Annotated[
-        Optional[Path],
+        Path,
         typer.Option(
             "--run-dir",
-            help="Base directory for this training run; defaults to the checkpoints path when omitted",
+            help="Base directory for this training run",
         ),
-    ] = None,
+    ] = Path("./runs/default"),
     map_dump_dir: Annotated[
         Optional[Path],
         typer.Option(
@@ -382,14 +383,10 @@ def train_cmd(
 ) -> None:
     """Train a policy on a game."""
     with _command_timeout(ctx):
-        resolved_run_dir: Optional[Path] = None
-        if run_dir is not None:
-            resolved_run_dir = run_dir.expanduser().resolve()
-            resolved_run_dir.mkdir(parents=True, exist_ok=True)
+        resolved_run_dir = run_dir.expanduser().resolve()
+        resolved_run_dir.mkdir(parents=True, exist_ok=True)
 
         backend = vector_backend.lower()
-        if game_name is None and curriculum is None:
-            raise typer.BadParameter("provide a game or curriculum", param_name="game_name")
 
         env_cfgs: list[MettaGridConfig] = []
         env_names: list[str] = []
@@ -411,9 +408,23 @@ def train_cmd(
             for offset, cfg in enumerate(loaded_cfgs):
                 cfg_name = getattr(getattr(cfg, "game", None), "name", None)
                 env_names.append(str(cfg_name) if cfg_name else f"curriculum_{start_index + offset:03d}")
+        else:
+            default_curriculum_dir = resolved_run_dir / "curricula"
+            if default_curriculum_dir.exists():
+                try:
+                    folder_cfgs, folder_names = curriculum_utils.load_map_folder_with_names(default_curriculum_dir)
+                except (FileNotFoundError, NotADirectoryError, ValueError):
+                    pass
+                else:
+                    env_cfgs.extend(folder_cfgs)
+                    env_names.extend(folder_names)
 
         if not env_cfgs:
-            raise typer.BadParameter("curriculum did not yield any configurations", param_name="curriculum")
+            msg = (
+                "no game or curriculum configurations found. Provide a game name, specify --curriculum, "
+                "or generate maps with 'cogames curricula'."
+            )
+            raise typer.BadParameter(msg, param_name="curriculum")
 
         while len(env_names) < len(env_cfgs):
             env_names.append(f"map_{len(env_names):03d}")
@@ -442,25 +453,18 @@ def train_cmd(
 
         if checkpoints_path is not None:
             checkpoints_dir = checkpoints_path.expanduser().resolve()
-        elif resolved_run_dir is not None:
-            checkpoints_dir = (resolved_run_dir / "checkpoints").resolve()
         else:
-            checkpoints_dir = Path("./experiments").resolve()
+            checkpoints_dir = (resolved_run_dir / "checkpoints").resolve()
 
         checkpoints_dir.mkdir(parents=True, exist_ok=True)
-
-        if resolved_run_dir is None:
-            resolved_run_dir = checkpoints_dir.parent
 
         if map_dump_dir is not None:
             if map_dump_dir.is_absolute():
                 maps_dir = map_dump_dir
             else:
-                base_dir = resolved_run_dir or Path.cwd()
-                maps_dir = (base_dir / map_dump_dir).resolve()
+                maps_dir = (resolved_run_dir / map_dump_dir).resolve()
         else:
-            base_dir = resolved_run_dir or checkpoints_dir
-            maps_dir = (base_dir / "maps").resolve()
+            maps_dir = (resolved_run_dir / "curricula").resolve()
 
         _dump_game_configs(env_cfgs, env_names, maps_dir)
 

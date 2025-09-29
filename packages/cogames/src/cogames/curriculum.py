@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from pathlib import Path
-from typing import Deque, Iterable, Iterator, List, Sequence
+from typing import Deque, Iterable, Iterator, List, Sequence, Tuple
 
 from cogames import game
 from mettagrid import MettaGridConfig
@@ -19,8 +19,8 @@ def _discover_map_files(directory: Path) -> List[Path]:
     return files
 
 
-def load_map_folder(directory: str | Path) -> Deque[MettaGridConfig]:
-    """Load all map configs from *directory* and return them as a reusable queue."""
+def load_map_folder_with_names(directory: str | Path) -> Tuple[List[MettaGridConfig], List[str]]:
+    """Load map configs and their corresponding filenames (without suffix)."""
     dir_path = Path(directory)
     if not dir_path.exists():
         msg = f"Curriculum directory not found: {dir_path}"
@@ -34,11 +34,20 @@ def load_map_folder(directory: str | Path) -> Deque[MettaGridConfig]:
         msg = f"No supported map files found in {dir_path}"
         raise ValueError(msg)
 
-    configs: Deque[MettaGridConfig] = deque()
+    configs: List[MettaGridConfig] = []
+    names: List[str] = []
     for path in files:
         cfg = game.get_game(str(path))
         configs.append(cfg)
-    return configs
+        names.append(path.stem)
+    return configs, names
+
+
+def load_map_folder(directory: str | Path) -> Deque[MettaGridConfig]:
+    """Load all map configs from *directory* and return them as a reusable queue."""
+
+    configs, _ = load_map_folder_with_names(directory)
+    return deque(configs)
 
 
 def cycle_maps(directory: str | Path) -> Iterator[MettaGridConfig]:

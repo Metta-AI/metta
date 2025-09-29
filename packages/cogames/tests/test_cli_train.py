@@ -6,6 +6,7 @@ from typing import Any, Iterable, Iterator, List, Sequence
 import pytest
 from typer.testing import CliRunner
 
+from cogames import game
 from cogames import train as train_module
 from cogames.main import app
 
@@ -90,6 +91,7 @@ def _invoke_cli(args: Sequence[str], monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 def test_train_simple_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     checkpoints_dir = tmp_path / "simple"
+    run_dir = tmp_path / "simple_run"
     _invoke_cli(
         [
             "assembler_1_simple",
@@ -105,6 +107,8 @@ def test_train_simple_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
             "4",
             "--minibatch-size",
             "4",
+            "--run-dir",
+            str(run_dir),
             "--checkpoints",
             str(checkpoints_dir),
         ],
@@ -119,6 +123,7 @@ def test_train_simple_policy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 def test_train_stateful_policy_with_curriculum(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     checkpoints_dir = tmp_path / "stateful"
+    run_dir = tmp_path / "stateful_run"
 
     _invoke_cli(
         [
@@ -140,6 +145,8 @@ def test_train_stateful_policy_with_curriculum(tmp_path: Path, monkeypatch: pyte
             "4",
             "--minibatch-size",
             "4",
+            "--run-dir",
+            str(run_dir),
             "--checkpoints",
             str(checkpoints_dir),
         ],
@@ -191,3 +198,38 @@ def test_curricula_dump_with_curriculum(tmp_path: Path) -> None:
     assert result.exit_code == 0
     # At least one curriculum file should exist alongside the explicit game export.
     assert any(path.name.startswith("curriculum_") for path in destination.iterdir())
+
+
+def test_train_uses_run_dir_curricula(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    run_dir = tmp_path / "runs" / "default"
+    curricula_dir = run_dir / "curricula"
+    curricula_dir.mkdir(parents=True, exist_ok=True)
+
+    config = game.get_game("assembler_1_simple")
+    game.save_game_config(config, curricula_dir / "assembler_1_simple.yaml")
+
+    checkpoints_dir = run_dir / "checkpoints"
+
+    _invoke_cli(
+        [
+            "assembler_1_simple",
+            "--device",
+            "cpu",
+            "--steps",
+            "1",
+            "--num-envs",
+            "1",
+            "--num-workers",
+            "1",
+            "--batch-size",
+            "4",
+            "--minibatch-size",
+            "4",
+            "--run-dir",
+            str(run_dir),
+        ],
+        monkeypatch,
+        tmp_path,
+    )
+
+    assert checkpoints_dir.exists()

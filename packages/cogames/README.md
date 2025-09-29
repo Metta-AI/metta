@@ -70,7 +70,7 @@ cogames play machina_2 --no-render --steps 500
 - `--num-envs`, `--num-workers`, `--batch-size`, and `--minibatch-size` tune rollout throughput. When omitted, the batch size defaults to `num_envs * 32`.
 - `--initial-weights` accepts either a specific checkpoint file or a directory; directories automatically load the newest `.pt/.pth/.ckpt` file.
 - `--checkpoint-interval` controls how frequently PuffeRL writes checkpoints into `--checkpoints`.
-- `--run-dir` specifies a run directory where `cogames train` will create a `checkpoints/` folder and a `maps/` export of every game configuration used in the session. If omitted, checkpoints default to `./experiments` and maps are written next to it.
+- `--run-dir` specifies a run directory where `cogames train` will create a `checkpoints/` folder and refresh the `curricula/` map export. By default it is `./runs/default`.
 - `--map-dump-dir` overrides where the exported maps are stored (relative paths are resolved under `run-dir`).
 
 Examples:
@@ -94,7 +94,7 @@ cogames train --curriculum myproject.curricula.cogs_vs_clips \
   --steps 5000 \
   --run-dir ./runs/curriculum
 
-# Automatically create a run directory with checkpoints/ and maps/ exports
+# Automatically create a run directory with checkpoints/ and curricula/ exports
 cogames train assembler_2_simple \
   --run-dir ./runs/assembler_2_simple \
   --device cpu \
@@ -112,7 +112,7 @@ Every CLI command also accepts a global `--timeout` flag. Set it to automaticall
 Use `cogames curricula` to materialize game and curriculum configurations into a directory that can be consumed later by `cogames train` or other tools:
 
 ```bash
-# Dump every built-in Cogs vs Clips scenario into ./runs/curricula
+# Dump every built-in Cogs vs Clips scenario into ./runs/default/curricula
 uv run cogames curricula
 
 # Choose the destination explicitly and mix in a Python curriculum generator
@@ -123,7 +123,7 @@ uv run cogames curricula --output-dir ./runs/curricula/all_maps \
 uv run cogames curricula --output-dir ./tmp/maps --game assembler_1_simple --game machina_2
 ```
 
-The command writes each map configuration once (deduplicated by name) and prints the final output directory.
+The command writes each map configuration once (deduplicated by name) and prints the final output directory. `cogames train` automatically looks for maps in `./runs/default/curricula` when no `--curriculum` argument is provided.
 
 ### Policy Bundles
 
