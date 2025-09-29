@@ -456,15 +456,15 @@ void MettaGrid::_step(Actions actions) {
         continue;
       }
 
-      auto& agent = _agents[agent_idx];
+      auto* agent = _agents[agent_idx];
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
-      _action_success[agent_idx] = handler->handle_action(agent->id, arg);
+      _action_success[agent_idx] = handler->handle_action(*agent, arg);
     }
   }
 
   // Handle resource loss
-  for (auto& agent : _agents) {
+  for (auto* agent : _agents) {
     if (_resource_loss_prob > 0.0f) {
       // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
       // Make a real copy of the agent's inventory map to avoid iterator invalidation

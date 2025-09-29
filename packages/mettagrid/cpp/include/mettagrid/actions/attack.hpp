@@ -45,7 +45,7 @@ protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
   const GameConfig* _game_config;
 
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent& actor, ActionArg arg) override {
     Agent* last_agent = nullptr;
     short num_skipped = 0;
 
@@ -61,14 +61,14 @@ protected:
 
       for (short distance = 1; distance <= 3; distance++) {
         for (short offset : COL_OFFSETS) {
-          GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
+          GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, distance, offset);
           target_loc.layer = GridLayer::AgentLayer;
 
           Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
           if (target_agent) {
             last_agent = target_agent;
             if (num_skipped == arg) {
-              return _handle_target(*actor, *target_agent);
+              return _handle_target(actor, *target_agent);
             }
             num_skipped++;
           }
@@ -99,15 +99,14 @@ protected:
       };
 
       for (const auto& pos : DIAGONAL_POSITIONS) {
-        GridLocation target_loc =
-            _grid->relative_location(actor->location, actor->orientation, pos.forward, pos.lateral);
+        GridLocation target_loc = _grid->relative_location(actor.location, actor.orientation, pos.forward, pos.lateral);
         target_loc.layer = GridLayer::AgentLayer;
 
         Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));
         if (target_agent) {
           last_agent = target_agent;
           if (num_skipped == arg) {
-            return _handle_target(*actor, *target_agent);
+            return _handle_target(actor, *target_agent);
           }
           num_skipped++;
         }
@@ -116,7 +115,7 @@ protected:
 
     // If we got here, it means we skipped over all the targets. Attack the last one.
     if (last_agent) {
-      return _handle_target(*actor, *last_agent);
+      return _handle_target(actor, *last_agent);
     }
 
     return false;
