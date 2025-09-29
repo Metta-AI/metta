@@ -10,6 +10,7 @@
 
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
+#include "objects/inventory_config.hpp"
 
 struct AgentConfig : public GridObjectConfig {
   AgentConfig(TypeId type_id,
@@ -18,9 +19,7 @@ struct AgentConfig : public GridObjectConfig {
               const std::string& group_name,
               unsigned char freeze_duration = 0,
               float action_failure_penalty = 0,
-              const std::map<InventoryItem, InventoryQuantity>& resource_limits = {},
-              const std::map<InventoryItem, RewardType>& resource_rewards = {},
-              const std::map<InventoryItem, RewardType>& resource_reward_max = {},
+              const InventoryConfig& inventory_config = InventoryConfig(),
               const std::map<std::string, RewardType>& stat_rewards = {},
               const std::map<std::string, RewardType>& stat_reward_max = {},
               float group_reward_pct = 0,
@@ -32,9 +31,7 @@ struct AgentConfig : public GridObjectConfig {
         group_name(group_name),
         freeze_duration(freeze_duration),
         action_failure_penalty(action_failure_penalty),
-        resource_limits(resource_limits),
-        resource_rewards(resource_rewards),
-        resource_reward_max(resource_reward_max),
+        inventory_config(inventory_config),
         stat_rewards(stat_rewards),
         stat_reward_max(stat_reward_max),
         group_reward_pct(group_reward_pct),
@@ -45,9 +42,7 @@ struct AgentConfig : public GridObjectConfig {
   std::string group_name;
   short freeze_duration;
   float action_failure_penalty;
-  std::map<InventoryItem, InventoryQuantity> resource_limits;
-  std::map<InventoryItem, RewardType> resource_rewards;
-  std::map<InventoryItem, RewardType> resource_reward_max;
+  InventoryConfig inventory_config;
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
   float group_reward_pct;
@@ -65,9 +60,7 @@ inline void bind_agent_config(py::module& m) {
                     const std::string&,
                     unsigned char,
                     float,
-                    const std::map<InventoryItem, InventoryQuantity>&,
-                    const std::map<InventoryItem, RewardType>&,
-                    const std::map<InventoryItem, RewardType>&,
+                    const InventoryConfig&,
                     const std::map<std::string, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     float,
@@ -80,29 +73,25 @@ inline void bind_agent_config(py::module& m) {
            py::arg("group_name"),
            py::arg("freeze_duration") = 0,
            py::arg("action_failure_penalty") = 0,
-           py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
-           py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
+           py::arg("inventory_config") = InventoryConfig(),
            py::arg("stat_rewards") = std::map<std::string, RewardType>(),
            py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
            py::arg("group_reward_pct") = 0,
            py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("tag_ids") = std::vector<int>(),
            py::arg("soul_bound_resources") = std::vector<InventoryItem>())
-      .def_readwrite("type_id", &AgentConfig::type_id)
-      .def_readwrite("type_name", &AgentConfig::type_name)
+      .def_readwrite("type_id", &GridObjectConfig::type_id)
+      .def_readwrite("type_name", &GridObjectConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)
       .def_readwrite("group_id", &AgentConfig::group_id)
       .def_readwrite("freeze_duration", &AgentConfig::freeze_duration)
       .def_readwrite("action_failure_penalty", &AgentConfig::action_failure_penalty)
-      .def_readwrite("resource_limits", &AgentConfig::resource_limits)
-      .def_readwrite("resource_rewards", &AgentConfig::resource_rewards)
-      .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)
+      .def_readwrite("inventory_config", &AgentConfig::inventory_config)
       .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
       .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
       .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct)
       .def_readwrite("initial_inventory", &AgentConfig::initial_inventory)
-      .def_readwrite("tag_ids", &AgentConfig::tag_ids)
+      .def_readwrite("tag_ids", &GridObjectConfig::tag_ids)
       .def_readwrite("soul_bound_resources", &AgentConfig::soul_bound_resources);
 }
 

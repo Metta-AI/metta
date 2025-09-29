@@ -14,6 +14,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
   try:
     #echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
+    playMode = Realtime
     initFidget(
       figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
       windowTitle = "MetaScope V2",
@@ -21,7 +22,6 @@ proc init(dataDir: string, replay: string): RenderResponse =
       windowStyle = DecoratedResizable,
       dataDir = dataDir
     )
-    buildAtlas()
     common.replay = loadReplayString(replay, "MettaScope")
     return
   except Exception:

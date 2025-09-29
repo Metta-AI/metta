@@ -19,7 +19,6 @@ public:
     }
 
     converter->finish_converting();
-    converter->stats.incr(converter->type_name + ".produced");
   }
 };
 
