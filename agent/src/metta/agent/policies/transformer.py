@@ -548,6 +548,7 @@ class TransformerPolicy(Policy):
                 packed_memory = packed_memory.view(
                     batch_size,
                     tt,
+                    self.transformer_layers,
                     self.memory_len,
                     self.hidden_size,
                 )
