@@ -12,19 +12,12 @@ For questions about this release process, contact:
 
 ### 1. Prepare Release Branch
 
-- Create a temporary release qualification branch off of the commit you intend to tag
+Create a temporary release qualification branch off of the commit you intend to tag
 
-  ```bash
-  git checkout -b release-qual/<VERSION>
-  ```
-
-- Push the branch to trigger CI
-
-  ```bash
-  git push -u origin release-qual/<VERSION>
-  ```
-
-- Review the triggered CI run and confirm it passes before proceeding.
+```bash
+git checkout -b release-qual/<VERSION>
+git push -u origin release-qual/<VERSION>
+```
 
 ### 2. Bug Status Check
 
