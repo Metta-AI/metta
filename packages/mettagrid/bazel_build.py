@@ -142,14 +142,13 @@ def _run_mettascope_build() -> None:
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
     # Run the build script
-    for cmd in ["nimble update", "nimble install", "nimble bindings"]:
-        result = subprocess.run(cmd.split(" "), cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
-        print(result.stderr, file=sys.stderr)
-        print(result.stdout, file=sys.stderr)
-        if result.returncode != 0:
-            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
-            print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
-            raise RuntimeError("Mettascope build failed")
+    result = subprocess.run(["nimble", "bindings", "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+    print(result.stderr, file=sys.stderr)
+    print(result.stdout, file=sys.stderr)
+    if result.returncode != 0:
+        print("Warning: Mettascope build `nim bindings` failed. STDERR:", file=sys.stderr)
+        print("Mettascope build `nim bindings` STDOUT:", file=sys.stderr)
+        raise RuntimeError("Mettascope build failed")
     print("Successfully built mettascope")
 
 
