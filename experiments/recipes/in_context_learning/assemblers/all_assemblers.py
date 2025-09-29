@@ -1,8 +1,9 @@
 from experiments.recipes.in_context_learning.in_context_learning import (
     TaskGenerator,
     TaskGeneratorConfig,
-    Field,
 )
+import subprocess
+import time
 from experiments.recipes.in_context_learning.in_context_learning import (
     RESOURCE_TYPES,
     CONVERTER_TYPES,
@@ -28,6 +29,7 @@ from metta.tools.train import TrainTool
 from experiments.evals.in_context_learning.assemblers.all_assemblers import (
     make_assembler_eval_suite,
 )
+from metta.tools.play import PlayTool
 
 foraging_curriculum_args = {
     "num_agents": [1, 4, 8, 12, 24],
@@ -81,9 +83,6 @@ class AssemblerTaskGenerator(TaskGenerator):
         return task_generator.generate_task(task_id, rng, num_instances)
 
 
-from metta.tools.play import PlayTool
-
-
 def play() -> PlayTool:
     task_generator = AssemblerTaskGenerator(TaskGeneratorConfig())
     return play_icl(task_generator)
@@ -93,3 +92,13 @@ def train() -> TrainTool:
     task_generator_cfg = AssemblerTaskGenerator.Config()
 
     return train_icl(task_generator_cfg, make_assembler_eval_suite)
+
+
+def experiment():
+    subprocess.run(
+        [
+            "./devops/skypilot/launch.py",
+            "experiments.recipes.in_context_learning.assemblers.all_assemblers.train",
+            f"run=in_context.all_assemblers.{time.strftime('%Y-%m-%d')}",
+        ]
+    )

@@ -261,7 +261,7 @@ def replay(
 
 
 def evaluate():
-    from experiments.evals.in_context_learning.assembly_lines import (
+    from experiments.evals.in_context_learning.assemblers.assembly_lines import (
         make_assembly_line_eval_suite,
     )
 
@@ -285,7 +285,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.assembly_lines.train",
-                f"run=in_context.assembly_lines_{curriculum_style}.eval_local.{time.strftime('%Y-%m-%d')}",
+                f"run=in_context.assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",

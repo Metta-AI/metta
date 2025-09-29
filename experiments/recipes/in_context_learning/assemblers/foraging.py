@@ -386,7 +386,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.foraging.train",
-                f"run=in_context.foraging_{curriculum_style}.eval_local.{time.strftime('%Y-%m-%d')}",
+                f"run=in_context.foraging_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
