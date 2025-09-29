@@ -29,8 +29,33 @@ def make_icl_assembler_chain_eval_env(
 def make_icl_assembler_resource_chain_eval_suite() -> list[SimulationConfig]:
     return [
         SimulationConfig(
-            suite="in_context_ordered_chains",
-            name="2c_2s_medium",
-            env=make_icl_assembler_chain_eval_env(1, 2, 2, "medium", [["Any"]]),
+            suite="in_context_assembly_lines",
+            name="single_agent_medium",
+            env=make_icl_assembler_chain_eval_env(1, 3, 0, "medium", [["Any"]]),
+        ),
+        SimulationConfig(
+            suite="in_context_assembly_lines",
+            name="single_agent_large",
+            env=make_icl_assembler_chain_eval_env(1, 5, 2, "large", [["Any"]]),
+        ),
+        SimulationConfig(
+            suite="in_context_assembly_lines",
+            name="two_agent_medium",
+            env=make_icl_assembler_chain_eval_env(1, 3, 0, "medium", [["Any"]]),
+        ),
+        SimulationConfig(
+            suite="in_context_assembly_lines",
+            name="two_agent_large",
+            env=make_icl_assembler_chain_eval_env(2, 5, 2, "large", [["Any"]]),
+        ),
+        SimulationConfig(
+            suite="in_context_assembly_lines",
+            name="three_agent_medium",
+            env=make_icl_assembler_chain_eval_env(3, 3, 0, "medium", [["Any"]]),
+        ),
+        SimulationConfig(
+            suite="in_context_assembly_lines",
+            name="three_agent_large",
+            env=make_icl_assembler_chain_eval_env(3, 5, 2, "large", [["Any"]]),
         ),
     ]

@@ -24,6 +24,7 @@ from experiments.recipes.in_context_learning.in_context_learning import (
     num_agents_to_positions,
     room_size_templates,
 )
+from metta.tools.eval_remote import EvalRemoteTool
 
 
 def make_curriculum_args(
@@ -50,6 +51,7 @@ curriculum_args = {
         "room_sizes": ["small", "medium", "large"],
         "positions": num_agents_to_positions[2],
         "num_chests": [2,5,8],
+        "chest_positions": [["Any"]],
     },
     "three_agent_many_altars": {
         "num_agents": [3],
@@ -58,6 +60,7 @@ curriculum_args = {
         "room_sizes": ["small", "medium", "large"],
         "positions": num_agents_to_positions[3],
         "num_chests": [2,5,8],
+        "chest_positions": [["Any"]],
     },
     "multi_agent_multi_altars": {
         "num_agents": [1, 2, 3],
@@ -68,6 +71,7 @@ curriculum_args = {
         "positions": num_agents_to_positions[1]
         + num_agents_to_positions[2]
         + num_agents_to_positions[3],
+        "chest_positions": [["Any"]],
     },
     "two_agents_1g_1a_small": {
         "num_agents": [2],
@@ -76,6 +80,7 @@ curriculum_args = {
         "num_chests": [2],
         "room_sizes": ["small", "medium"],
         "positions": num_agents_to_positions[2],
+        "chest_positions": [["Any"]],
     },
     # "two_agents_1g_1a_medium": {
     #     "num_agents": [2],
@@ -405,6 +410,20 @@ def play(
     )
     return play_icl(task_generator)
 
+
+def evaluate_remote(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> EvalRemoteTool:
+    # Local import to avoid circular import at module load time
+    from experiments.evals.in_context_learning.foraging import (
+        make_foraging_eval_suite,
+    )
+
+    simulations = simulations or make_foraging_eval_suite()
+    return EvalRemoteTool(
+        simulations=simulations,
+        policy_uri=policy_uri,
+    )
 
 if __name__ == "__main__":
     evaluate()

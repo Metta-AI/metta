@@ -277,7 +277,15 @@ class ICLTaskGenerator(TaskGenerator):
         cooldown: int = 10,
         chest_name: str | None = None,
     ):
-        chest = building.chest_chest_heart
+        chest = building.chest_heart
+
+        chest.deposit_positions = position
+        chest.withdrawal_positions = None
+        cfg.game_objects["chest"] = chest
+        if chest_name in cfg.map_builder_objects:
+            cfg.map_builder_objects[chest_name] += 1
+        else:
+            cfg.map_builder_objects[chest_name] = 1
 
 
     def _get_width_and_height(self, room_size: str, rng: random.Random):
