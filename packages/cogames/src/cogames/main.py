@@ -174,7 +174,8 @@ def train_cmd(
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
 ) -> None:
     """Train a policy on a game."""
-    from cogames import game, utils
+    from cogames import game, utils, train as train_module
+    import torch
     # If no game specified, list games
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
@@ -192,10 +193,6 @@ def train_cmd(
     env_cfg = game.get_game(resolved_game)
 
     try:
-        import torch
-
-        from cogames import train as train_module
-
         train_module.train(
             env_cfg=env_cfg,
             policy_class_path=policy_class_path,
