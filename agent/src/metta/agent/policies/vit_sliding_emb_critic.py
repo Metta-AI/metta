@@ -4,7 +4,7 @@ from typing import List
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.misc import MLPConfig
+from metta.agent.components.emb_critic import EmbCriticConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
@@ -14,7 +14,7 @@ from metta.agent.policy import PolicyArchitecture
 logger = logging.getLogger(__name__)
 
 
-class ViTSlidingTransConfig(PolicyArchitecture):
+class ViTSlidingEmbCriticConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _latent_dim = 64
@@ -44,13 +44,13 @@ class ViTSlidingTransConfig(PolicyArchitecture):
         SlidingTransformerConfig(
             in_key="encoded_obs", out_key="core", output_dim=_core_out_dim, num_layers=_memory_num_layers
         ),
-        MLPConfig(
+        EmbCriticConfig(
             in_key="core",
             out_key="values",
             name="critic",
             in_features=_core_out_dim,
-            out_features=1,
-            hidden_features=[256, 256],
+            hidden_features=256,
+            embeddings=3,
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
         ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
