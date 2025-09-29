@@ -46,7 +46,8 @@ runs:
       shell: bash
       run: |
         curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
-        echo "$HOME/.nimble/bin" >> "$GITHUB_PATH"
+        export PATH=/home/runner/.nimble/bin:$PATH
+        echo "/home/runner/.nimble/bin" >> "$GITHUB_PATH"
         nim --version
         nimble --version
         echo "Nim installed"
