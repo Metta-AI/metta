@@ -25,7 +25,7 @@ export function LibraryLayout({ children }: LibraryLayoutProps) {
         </div>
 
         <div className="flex h-full w-full overflow-hidden">
-          <div className="flex h-full w-48">
+          <div className="flex h-full w-0 md:w-48">
             <LibrarySidebar />
           </div>
 
