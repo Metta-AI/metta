@@ -6,7 +6,7 @@ import time
 from typing import Any, Dict, Optional
 
 from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
-from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX, PROD_STATS_SERVER_URI
+from metta.common.util.constants import PROD_STATS_SERVER_URI, SOFTMAX_S3_POLICY_PREFIX
 
 logger = logging.getLogger(__name__)
 
