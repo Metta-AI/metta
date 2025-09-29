@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 from typing_extensions import TypedDict
 
-from mettagrid.map_builder.map_builder import MapBuilderConfig
+from mettagrid.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.types import MapGrid
 from mettagrid.mapgen.utils.ascii_grid import default_char_to_name, grid_to_lines, lines_to_grid

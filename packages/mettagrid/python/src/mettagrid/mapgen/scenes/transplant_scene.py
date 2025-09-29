@@ -1,10 +1,8 @@
 import copy
-from typing import Callable
 
 from pydantic import ConfigDict, Field
 
 from mettagrid.mapgen.scene import Scene, SceneConfig
-from mettagrid.mapgen.types import MapGrid
 
 
 class TransplantSceneConfig(SceneConfig):
@@ -12,13 +10,6 @@ class TransplantSceneConfig(SceneConfig):
 
     # Scene that will be transplanted.
     scene: Scene = Field(exclude=True)
-
-    # Callback to get the full outer grid.
-    # Why? Because in MapGen class it's convenient to pass scene configs around, and we don't have the final grid yet
-    # when we construct the config for this scene.
-    # Sorry about the complexity; it might be possible to implement `transplant_to_grid` without having the full outer
-    # grid object, but it's *much* easier when we have it.
-    get_grid: Callable[[], MapGrid] = Field(exclude=True)
 
 
 class TransplantScene(Scene[TransplantSceneConfig]):
@@ -36,6 +27,6 @@ class TransplantScene(Scene[TransplantSceneConfig]):
 
         scene_copy = copy.deepcopy(self.config.scene)
         scene_copy.transplant_to_grid(
-            self.config.get_grid(), self.area.x - self.config.scene.area.x, self.area.y - self.config.scene.area.y
+            self.area.outer_grid, self.area.x - self.config.scene.area.x, self.area.y - self.config.scene.area.y
         )
         self.children.append(scene_copy)

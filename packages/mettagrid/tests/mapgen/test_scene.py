@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
+from mettagrid.mapgen.area import Area, AreaQuery, AreaWhere
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
-from mettagrid.mapgen.types import Area, AreaQuery, AreaWhere
 
 
 class MockConfig(SceneConfig):

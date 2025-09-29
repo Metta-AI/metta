@@ -6,7 +6,8 @@ import numpy as np
 from pydantic import model_serializer
 
 from mettagrid.base_config import Config
-from mettagrid.mapgen.types import Area, AreaQuery, MapGrid
+from mettagrid.map_builder import MapGrid
+from mettagrid.mapgen.area import Area, AreaQuery
 from mettagrid.util.module import load_symbol
 
 
@@ -187,11 +188,11 @@ class Scene(Generic[ConfigT]):
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: list[str] | None = None) -> Area:
         area = Area(
+            outer_grid=self.area.outer_grid,
             x=x + self.area.x,
             y=y + self.area.y,
             width=width,
             height=height,
-            grid=self.grid[y : y + height, x : x + width],
             tags=tags or [],
         )
         self._areas.append(area)
@@ -295,14 +296,14 @@ class Scene(Generic[ConfigT]):
             # This function is recursive, but we only want to copy the grid once, on top level of recursion.
             # Also, when we recurse into children, we don't need to update the scene's area, because it was already
             # updated when we transplant all `_areas`.
-            original_grid = self.grid
-            self.area.transplant_to_grid(grid, shift_x, shift_y)
-            self.area.grid[:] = original_grid
-            self.grid = self.area.grid
+            self.area.transplant_to_grid(grid, shift_x, shift_y, copy_grid=True)
+
+        # Scene's area could be modified by previous levels of recursion.
+        self.grid = self.area.grid
 
         # transplant all sub-areas
         for sub_area in self._areas:
-            sub_area.transplant_to_grid(self.grid, shift_x, shift_y)
+            sub_area.transplant_to_grid(self.grid, shift_x, shift_y, copy_grid=False)
 
         # recurse into children scenes
         for child_scene in self.children:
