@@ -758,6 +758,16 @@ py::dict MettaGrid::feature_spec() {
     py::dict spec;
     spec["normalization"] = py::float_(normalizations.at(feature_id));
     spec["id"] = py::int_(feature_id);
+
+    // Add tag mapping for the tag feature
+    if (feature_name == "tag") {
+      py::dict tag_map;
+      for (const auto& [tag_id, tag_name] : _game_config.tag_id_map) {
+        tag_map[py::int_(tag_id)] = py::str(tag_name);
+      }
+      spec["values"] = tag_map;
+    }
+
     feature_spec[py::str(feature_name)] = spec;
   }
   return feature_spec;
