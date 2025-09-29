@@ -61,6 +61,8 @@ ASSEMBLER_TYPES = {
     "factory": building.assembler_factory,
     "temple": building.assembler_temple,
     "armory": building.assembler_armory,
+    "lab": building.assembler_lab,
+    "lasery": building.assembler_lasery,
 }
 
 size_ranges = {
