@@ -131,11 +131,35 @@ class TorchProfileSession:
 
     def _log_profile_summary(self, prof: torch.profiler.profile) -> None:
         try:
-            cpu_table = prof.key_averages().table(sort_by="self_cpu_time_total", row_limit=25)
-            logger.info("Torch profiler summary (CPU) for epoch %s\n%s", self._start_epoch, cpu_table)
+            events = prof.key_averages()
+            cpu_events = sorted(events, key=lambda evt: evt.self_cpu_time_total, reverse=True)[:15]
+            if cpu_events:
+                logger.info("Torch profiler CPU top ops for epoch %s:", self._start_epoch)
+                for evt in cpu_events:
+                    logger.info(
+                        "  %-60s self_cpu=%7.2fms total_cpu=%7.2fms self_cuda=%7.2fms calls=%6d",
+                        evt.key,
+                        evt.self_cpu_time_total / 1000.0,
+                        evt.cpu_time_total / 1000.0,
+                        getattr(evt, "self_cuda_time_total", 0.0) / 1000.0,
+                        evt.count,
+                    )
+
             if torch.cuda.is_available():
-                cuda_table = prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=25)
-                logger.info("Torch profiler summary (CUDA) for epoch %s\n%s", self._start_epoch, cuda_table)
+                cuda_events = [evt for evt in events if getattr(evt, "self_cuda_time_total", 0.0) > 0]
+                cuda_events.sort(key=lambda evt: evt.self_cuda_time_total, reverse=True)
+                cuda_events = cuda_events[:15]
+                if cuda_events:
+                    logger.info("Torch profiler CUDA top ops for epoch %s:", self._start_epoch)
+                    for evt in cuda_events:
+                        logger.info(
+                            "  %-60s self_cuda=%7.2fms total_cuda=%7.2fms self_cpu=%7.2fms calls=%6d",
+                            evt.key,
+                            evt.self_cuda_time_total / 1000.0,
+                            getattr(evt, "cuda_time_total", 0.0) / 1000.0,
+                            evt.self_cpu_time_total / 1000.0,
+                            evt.count,
+                        )
         except Exception:  # pragma: no cover - defensive
             logger.exception("Failed to log torch profiler summary")
 
