@@ -6,6 +6,7 @@ without any training-specific features or framework dependencies."""
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -72,6 +73,9 @@ class MettaGridCore:
         self._current_seed: int = 0
         self._map_builder = self.__mg_config.game.map_builder.create()
 
+        self._c_env_lock = threading.RLock()
+        self._step_actions_buffer: Optional[np.ndarray] = None
+
         # Set by PufferBase
         self.observations: np.ndarray
         self.terminals: np.ndarray
@@ -137,7 +141,11 @@ class MettaGridCore:
 
         # Create C++ environment
         c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
-        self._update_core_buffers()
+        with self._c_env_lock:
+            self.__c_env_instance = c_env
+            # Drop any cached staging buffer sized for a previous agent count.
+            self._step_actions_buffer = None
+            self._update_core_buffers()
 
         # Initialize renderer if needed
         if (
@@ -151,12 +159,19 @@ class MettaGridCore:
             else:
                 self._renderer = self._renderer_class(c_env.object_type_names())
 
-        self.__c_env_instance = c_env
         return c_env
 
     def _update_core_buffers(self) -> None:
-        if hasattr(self, "observations") and self.observations is not None:
-            self.__c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+        if not hasattr(self, "observations") or self.observations is None:
+            return
+
+        with self._c_env_lock:
+            try:
+                c_env = self.__c_env_instance
+            except AttributeError:
+                return
+
+            c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         if seed is not None:
@@ -167,14 +182,24 @@ class MettaGridCore:
         self._update_core_buffers()
 
         # Get initial observations from core environment
-        obs, infos = self.__c_env_instance.reset()
+        with self._c_env_lock:
+            obs, infos = self.__c_env_instance.reset()
 
         return obs, infos
 
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """Execute one timestep of the environment dynamics with the given actions."""
-        # Execute step in core environment
-        return self.__c_env_instance.step(actions)
+        # Copy actions into a staging buffer to avoid races with shared caller-owned arrays.
+        action_array = np.asarray(actions, dtype=dtype_actions)
+        if not action_array.flags.c_contiguous:
+            action_array = np.ascontiguousarray(action_array, dtype=dtype_actions)
+
+        with self._c_env_lock:
+            if self._step_actions_buffer is None or self._step_actions_buffer.shape != action_array.shape:
+                self._step_actions_buffer = np.empty_like(action_array, dtype=dtype_actions)
+
+            np.copyto(self._step_actions_buffer, action_array, casting="no")
+            return self.__c_env_instance.step(self._step_actions_buffer)
 
     def render(self) -> Optional[str]:
         """Render the environment."""
@@ -185,7 +210,12 @@ class MettaGridCore:
 
     def close(self) -> None:
         """Close the environment."""
-        del self.__c_env_instance
+        with self._c_env_lock:
+            try:
+                del self.__c_env_instance
+            except AttributeError:
+                pass
+            self._step_actions_buffer = None
 
     def get_episode_rewards(self) -> np.ndarray:
         """Get the episode rewards."""
