@@ -28,6 +28,7 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "factory": ["F"],
     "temple": ["T"],
     "converter": ["c"],
+    "chest": ["C"],
 }
 
 CHAR_TO_NAME: dict[str, str] = {}
