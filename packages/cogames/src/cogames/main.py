@@ -161,7 +161,7 @@ def curricula_cmd(
     ctx: typer.Context,
     games: Annotated[
         Optional[list[str]],
-        typer.Option("--game", "-g", help="Specific games to export (defaults to all Cogs vs Clips games)")
+        typer.Option("--game", "-g", help="Specific games to export (defaults to all Cogs vs Clips games)"),
     ] = None,
     curriculum: Annotated[
         Optional[str],
