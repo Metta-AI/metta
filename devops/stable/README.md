@@ -2,40 +2,40 @@
 
 This document outlines the manual process for qualifying a release before tagging and pushing to the stable branch.
 
+For questions about this release process, contact:
+
+- Release Manager: @Robb
+- Technical Lead: @Jack Heart
+- Bug Triage: @Nishad Singh
+
 ## Release Qualification Checklist
 
-### 1. Notify the team
+### 1. Prepare Release Branch
 
-- Post intent to mark a new stable branch to Discord.
-
-### 2. Code Quality Checks
-
-- Run pytest suite from repo root and verify all tests pass
+- Create a temporary release qualification branch off of the commit you intend to tag
 
   ```bash
-  make pytest
+  git checkout -b release-qual/<VERSION>
   ```
 
-- Run code formatting check and verify no formatting changes are needed
+- Push the branch to trigger CI
+
   ```bash
-  make format
+  git push -u origin release-qual/<VERSION>
   ```
 
-### 3. Documentation Verification
+- Review the triggered CI run and confirm it passes before proceeding.
 
-- **Main Repository README**
-  - Manually execute all steps in the main repo README
-  - Document any issues or unclear instructions
-  - Verify all examples work as expected
+### 2. Bug Status Check
 
-- **Mettagrid README**
-  - Manually execute all steps in the mettagrid README
-  - Document any issues or unclear instructions
-  - Verify all examples work as expected
+- Open Asana project for bug tracking
+- Verify no active/open bugs marked as blockers
+- Update bug statuses as needed in consultation with bug owners
+- Note any known issues that are acceptable for release
 
-### 4. Workflow Tests
+### 3. Workflow Tests
 
-#### 4.1 Launch Training Runs
+#### 3.1 Launch Training Runs
 
 - **Cluster Test**
 
@@ -50,137 +50,88 @@ This document outlines the manual process for qualifying a release before taggin
   tests/experiments/recipes/recipe_test check
   ```
 
-#### 4.2 Check Train Workflow
+#### 3.2 Check Train Workflow
 
-- Pick any Job ID from 4.1
+- Pick any Job ID from 3.1
 - Verify job appears in W&B
-- Verify training metrics
+- Verify training metrics (need to define further)
+- Verify performance metrics: that SPS is near 40k and does not dip
 - Verify model checkpoints are saved correctly
 
-#### 4.3 Check Eval Workflow
+#### 3.3 Check Eval Workflow
 
-- Pick any Job ID from 4.1
+- Pick any Job ID from 3.1
 - Verify job appears in W&B
 - Verify evaluation results
 - Verify evaluation reports are generated
 - Verify replay and replay link are generated
 
-#### 4.4 Play Workflow
+#### 3.4 Play Workflow
 
 - Launch play environment from VS code
 - Verify interactions work correctly by navigating an agent to collect a heart
 
-#### 4.5 Sweep Workflow
+#### 3.5 Sweep Workflow
 
 - Ask Axel via discord to verify that sweeps are working to his satisfaction.
 
-#### 4.6 CI Workflow
+#### 3.6 Observatory Workflow
+
+- Ask Pasha via discord to verify that observatory is working to his satisfaction.
+
+#### 3.6 CI Workflow
 
 - Verify CI pipeline has completed successful on the release commit push to main.
 
-### 5. Bug Status Check
+## 4. Release
 
-- Open Asana project for bug tracking
-- Verify no active/open bugs marked as blockers
-- Document any known issues that are acceptable for release
-- Update bug statuses as needed in consultation with bug owners
+#### 4.1 Prepare Release PR
 
-### 6. Performance Benchmarks
+1. Open a review PR from `release-qual/<VERSION>` into `stable` so the team can approve the release candidate.
+   - Store the release notes as `devops/stable/release-notes/v<VERSION>.md` on the qualification branch and link to the
+     file in the PR description.
+   - Follow this template for the PR description:
 
-- Compare github test run against previous tagged release in W&B
-- Document any performance regressions or improvements
+```markdown
+## Version <VERSION>
 
-### 7. Final Step
+### Known Issues
 
-- Post release process completion to Discord.
+<Notes from step 1>
 
-## Release Tagging Process
+### W&B Run Links
 
-Once all checks pass:
+- Training: <link to job id examined in step 3.2>
+- Evaluation: <link to job id examined step 3.3>
+```
 
-1. Note the current commit hash
+#### 4.2 Merge Release PR and update stable tag
 
-   ```bash
-   git rev-parse HEAD
-   ```
-
-2. Create release tag
+1. After the PR is approved, create an annotated release tag on the qualification branch tip
 
    ```bash
    git tag -a v<VERSION> -m "Release version <VERSION>"
    ```
 
-3. Push to stable branch
+2. Click **Merge** on the PR.
+
+3. Push the annotated tag and remove the qualification branch if it still exists on origin
+
    ```bash
-   git checkout stable
-   git merge <commit-hash>
-   git push origin stable
    git push origin v<VERSION>
+   git push origin --delete release-qual/<VERSION>
    ```
 
-## Release Notes Template
+### 5. Announce
 
-```markdown
-## Version <VERSION>
+- Post release process completion to Discord in #eng-process
 
-### Release Date: <DATE>
-
-### Commit Hash: <HASH>
-
-### Key Changes
-
-- Feature 1
-- Feature 2
-- Bug fixes
-
-### Performance Metrics
-
-- Training speed: X
-- Evaluation throughput: Y
-
-### Known Issues
-
-- Issue 1 (non-blocking)
-- Issue 2 (workaround available)
-
-### W&B Run Links
-
-- Training: <link to examined job id>
-- Evaluation: <link to examined job id>
-```
-
-## Future Automation
+## Future Work
 
 This process will be progressively automated. Planned automation includes:
 
+- A `metta` script that walks through this process
 - Selenium or Playwright for UI testing
 - Automated W&B metrics extraction
 - CI/CD integration for automatic checks
 - Automated performance regression detection
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Cluster test fails**
-   - Check cloud credentials
-   - Verify resource quotas
-   - Review cluster logs
-
-2. **W&B metrics missing**
-   - Verify W&B API key
-   - Check network connectivity
-   - Review W&B project settings
-
-3. **Documentation steps fail**
-   - Note exact step that failed
-   - Check for environment differences
-   - Update documentation if needed
-
-## Contact
-
-For questions about this release process, contact:
-
-- Release Manager: @Robb
-- Technical Lead: @Jack Heart
-- Bug Triage: @Richard Higgins
