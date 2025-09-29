@@ -11,6 +11,7 @@ from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
+from metta.rl.training import EnvironmentMetaData
 
 
 class ViTDefaultConfig(PolicyArchitecture):
@@ -88,6 +89,5 @@ class ViTDefaultConfig(PolicyArchitecture):
             ),
         ]
 
-    def make_policy(self, env_metadata):
-        self.components = self._make_components()
-        return super().make_policy(env_metadata)
+    def build_components(self, env_metadata: EnvironmentMetaData | None = None) -> List[ComponentConfig]:
+        return self._make_components()

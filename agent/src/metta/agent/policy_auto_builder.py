@@ -33,8 +33,10 @@ class PolicyAutoBuilder(nn.Module):
         super().__init__()
         self.config = config
 
+        component_configs = self.config.build_components(env)
+
         self.components = OrderedDict()
-        for component_config in self.config.components:
+        for component_config in component_configs:
             name = component_config.name
             self.components[name] = component_config.make_component(env)
 

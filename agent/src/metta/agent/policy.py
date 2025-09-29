@@ -37,6 +37,11 @@ class PolicyArchitecture(Config):
     # a separate component that optionally accepts actions and process logits into log probs, entropy, etc.
     action_probs_config: ComponentConfig
 
+    def build_components(self, env_metadata: EnvironmentMetaData | None = None) -> List[ComponentConfig]:
+        """Return ComponentConfig instances to feed into the policy builder."""
+
+        return [component.model_copy(deep=True) for component in self.components]
+
     def make_policy(self, env_metadata: EnvironmentMetaData) -> "Policy":
         """Create an agent instance from configuration."""
 
