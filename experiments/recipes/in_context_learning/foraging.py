@@ -50,7 +50,7 @@ curriculum_args = {
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
         "positions": num_agents_to_positions[2],
-        "num_chests": [2,5,8],
+        "num_chests": [2, 5, 8],
         "chest_positions": [["Any"]],
     },
     "three_agent_many_altars": {
@@ -59,7 +59,7 @@ curriculum_args = {
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
         "positions": num_agents_to_positions[3],
-        "num_chests": [2,5,8],
+        "num_chests": [2, 5, 8],
         "chest_positions": [["Any"]],
     },
     "multi_agent_multi_altars": {
@@ -67,7 +67,7 @@ curriculum_args = {
         "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
-        "num_chests": [2,5,8],
+        "num_chests": [2, 5, 8],
         "positions": num_agents_to_positions[1]
         + num_agents_to_positions[2]
         + num_agents_to_positions[3],
@@ -424,6 +424,7 @@ def evaluate_remote(
         simulations=simulations,
         policy_uri=policy_uri,
     )
+
 
 if __name__ == "__main__":
     evaluate()

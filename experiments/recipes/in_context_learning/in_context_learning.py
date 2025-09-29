@@ -270,7 +270,8 @@ class ICLTaskGenerator(TaskGenerator):
         else:
             cfg.map_builder_objects[assembler_name] = 1
 
-    def _add_chest(self,
+    def _add_chest(
+        self,
         position,
         cfg: _BuildCfg,
         rng: random.Random,
@@ -286,7 +287,6 @@ class ICLTaskGenerator(TaskGenerator):
             cfg.map_builder_objects[chest_name] += 1
         else:
             cfg.map_builder_objects[chest_name] = 1
-
 
     def _get_width_and_height(self, room_size: str, rng: random.Random):
         lo, hi = size_ranges[room_size]

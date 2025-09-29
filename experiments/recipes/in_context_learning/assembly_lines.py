@@ -6,6 +6,7 @@ from experiments.recipes.in_context_learning.in_context_learning import (
     play_icl,
     replay_icl,
 )
+from metta.tools.sim import SimTool
 import subprocess
 import time
 from mettagrid.config.mettagrid_config import (
@@ -234,15 +235,28 @@ def train(
         **curriculum_args[curriculum_style], map_dir=None
     )
     from experiments.evals.in_context_learning.assembly_lines import (
-        make_icl_assembler_resource_chain_eval_suite,
+        make_assembly_line_eval_suite,
     )
 
-    return train_icl(task_generator_cfg, make_icl_assembler_resource_chain_eval_suite)
+    return train_icl(task_generator_cfg, make_assembly_line_eval_suite)
 
 
 def play(curriculum_style: str = "test") -> PlayTool:
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
+    )
+    return play_icl(task_generator)
+
+
+def play_eval() -> PlayTool:
+    task_generator = AssemblyLinesTaskGenerator(
+        make_task_generator_cfg(
+            num_agents=[3],
+            chain_lengths=[2],
+            num_sinks=[1],
+            room_sizes=["medium"],
+            positions=[["Any", "Any", "Any"]],
+        )
     )
     return play_icl(task_generator)
 
@@ -257,6 +271,25 @@ def replay(
     default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt"
     default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
     return replay_icl(task_generator, default_policy_uri)
+
+
+def evaluate():
+    from experiments.evals.in_context_learning.assembly_lines import (
+        make_assembly_line_eval_suite,
+    )
+
+    policy_uris = []
+
+    for curriculum_style in curriculum_args:
+        policy_uri = f"s3://softmax-public/policies/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27:latest.pt"
+        policy_uris.append(policy_uri)
+
+    simulations = make_assembly_line_eval_suite()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=policy_uris,
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
 
 
 def experiment():
