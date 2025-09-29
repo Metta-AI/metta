@@ -135,14 +135,16 @@ def _run_mettascope_build() -> None:
 
     # Check if nim and nimble are available
     if shutil.which("nim") is None:
-        print("Warning: Nim compiler not found. Skipping mettascope build.")
-        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        return
+        raise RuntimeError(
+            "Nim compiler not found. Install Nim (https://nim-lang.org/install.html) "
+            "to build the mettascope renderer."
+        )
 
     if shutil.which("nimble") is None:
-        print("Warning: Nimble package manager not found. Skipping mettascope build.")
-        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        return
+        raise RuntimeError(
+            "Nimble package manager not found. Install Nimble alongside Nim to "
+            "build the mettascope renderer."
+        )
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
@@ -150,18 +152,19 @@ def _run_mettascope_build() -> None:
     build_script.chmod(0o755)
 
     # Run the build script
-    result = subprocess.run(["./build.sh"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
+    cmd = ["bash", "build.sh"]
+    result = subprocess.run(cmd, cwd=METTASCOPE_DIR, capture_output=True, text=True, check=False)
 
     if result.returncode != 0:
-        print("Warning: Mettascope build failed. STDERR:", file=sys.stderr)
+        print("Mettascope build failed. STDERR:", file=sys.stderr)
         print(result.stderr, file=sys.stderr)
         print("Mettascope build STDOUT:", file=sys.stderr)
         print(result.stdout, file=sys.stderr)
-        print("Continuing without mettascope...", file=sys.stderr)
-    else:
-        print("Successfully built mettascope")
-        if result.stdout:
-            print("Build output:", result.stdout)
+        raise RuntimeError("Failed to build mettascope Nim bindings")
+
+    print("Successfully built mettascope")
+    if result.stdout:
+        print("Build output:", result.stdout)
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
