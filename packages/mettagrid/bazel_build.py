@@ -142,20 +142,15 @@ def _run_mettascope_build() -> None:
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
     # Run the build script
-    update_result = subprocess.run(["nimble update"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
-    install_result = subprocess.run(["nimble install"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
-    result = subprocess.run(["nimble bindings"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
-
-    if any(result.returncode != 0 for result in [update_result, install_result, result]):
-        print("Warning: Mettascope build failed. STDERR:", file=sys.stderr)
+    for cmd in ["nimble update", "nimble install", "nimble bindings"]:
+        result = subprocess.run([cmd], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
         print(result.stderr, file=sys.stderr)
-        print("Mettascope build STDOUT:", file=sys.stderr)
         print(result.stdout, file=sys.stderr)
-        raise RuntimeError("Mettascope build failed")
-    else:
-        print("Successfully built mettascope")
-        if result.stdout:
-            print("Build output:", result.stdout)
+        if result.returncode != 0:
+            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
+            print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
+            raise RuntimeError("Mettascope build failed")
+    print("Successfully built mettascope")
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
