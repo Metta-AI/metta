@@ -113,7 +113,7 @@ def test_transformer_reset_memory_is_noop():
     policy = gtrxl_policy_config().make_policy(env_metadata)
     policy.initialize_to_environment(env_metadata, torch.device("cpu"))
 
-    policy._memory[0] = {"hidden_states": [torch.ones(1, 1, policy.hidden_size)]}
+    policy._memory[0] = torch.ones(1, policy.hidden_size)
     policy.reset_memory()
 
     assert 0 in policy._memory  # reset_memory should not clear transformer caches

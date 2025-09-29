@@ -165,7 +165,7 @@ class TransformerPolicy(Policy):
         self._build_heads()
         self._build_transformer()
 
-        self._memory: Dict[int, Optional[Dict[str, Optional[List[torch.Tensor]]]]] = {}
+        self._memory: Dict[int, Optional[torch.Tensor]] = {}
         self._aux_zero_cache: dict[tuple[torch.device, torch.dtype, tuple[int, ...]], torch.Tensor] = {}
 
         self._diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
@@ -363,45 +363,34 @@ class TransformerPolicy(Policy):
             buf.zero_()
         return buf
 
-    def _pack_memory(self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]) -> Optional[torch.Tensor]:
+    def _pack_memory(self, memory: Optional[Dict[str, Optional[torch.Tensor]]]) -> Optional[torch.Tensor]:
         if memory is None or self.memory_len <= 0:
             return None
-        hidden_states = memory.get("hidden_states")
-        if hidden_states is None or not hidden_states:
+        prev_tokens = memory.get("prev_tokens")
+        if prev_tokens is None or prev_tokens.numel() == 0:
             return None
-        packed_layers: List[torch.Tensor] = []
-        for layer in hidden_states:
-            if layer is None:
-                return None
-            layer_data = layer.transpose(0, 1)  # (batch, mem_len, hidden)
-            current_len = layer_data.size(1)
-            if current_len < self.memory_len:
-                pad = torch.zeros(
-                    layer_data.size(0),
-                    self.memory_len - current_len,
-                    layer_data.size(2),
-                    device=layer_data.device,
-                    dtype=layer_data.dtype,
-                )
-                layer_data = torch.cat([layer_data, pad], dim=1)
-            elif current_len > self.memory_len:
-                layer_data = layer_data[:, -self.memory_len :, :]
-            packed_layers.append(layer_data)
-        return torch.stack(packed_layers, dim=1)  # (batch, num_layers, mem_len, hidden)
+        prev_tokens = prev_tokens[-self.memory_len :]
+        if prev_tokens.size(0) < self.memory_len:
+            pad = torch.zeros(
+                self.memory_len - prev_tokens.size(0),
+                prev_tokens.size(1),
+                prev_tokens.size(2),
+                device=prev_tokens.device,
+                dtype=prev_tokens.dtype,
+            )
+            prev_tokens = torch.cat([pad, prev_tokens], dim=0)
+        return prev_tokens.permute(1, 0, 2).contiguous()
 
     def _unpack_memory(
         self, packed: torch.Tensor, device: torch.device, dtype: torch.dtype
-    ) -> Optional[Dict[str, List[torch.Tensor]]]:
+    ) -> Optional[Dict[str, torch.Tensor]]:
         if self.memory_len <= 0 or packed.numel() == 0:
-            empty_layer = torch.zeros(0, packed.shape[0], self.hidden_size, device=device, dtype=dtype)
-            return {"hidden_states": [empty_layer.clone() for _ in range(self.transformer_cfg.num_layers)]}
-        packed_layers = packed.transpose(0, 1)  # (num_layers, batch, mem_len, hidden)
-        hidden_states: List[torch.Tensor] = []
-        for layer in packed_layers:
-            if layer.size(2) > self.memory_len:
-                layer = layer[:, -self.memory_len :, :]
-            hidden_states.append(layer.transpose(0, 1).contiguous().to(device=device, dtype=dtype))
-        return {"hidden_states": hidden_states}
+            return {"prev_tokens": None}
+        trimmed = packed.to(device=device, dtype=dtype)
+        if trimmed.dim() != 3:
+            raise ValueError("transformer_memory_pre must have shape (batch, memory_len, hidden_size)")
+        trimmed = trimmed[:, -self.memory_len :, :]
+        return {"prev_tokens": trimmed.permute(1, 0, 2).contiguous()}
 
     def _gather_memory_batch(
         self,
@@ -409,35 +398,32 @@ class TransformerPolicy(Policy):
         batch_size: int,
         device: torch.device,
         dtype: torch.dtype,
-    ) -> Optional[Dict[str, Optional[List[torch.Tensor]]]]:
-        if not env_ids:
-            return None
-        base_memory = None
-        for _batch_idx, env_id in enumerate(env_ids):
+    ) -> Optional[Dict[str, Optional[torch.Tensor]]]:
+        if not env_ids or self.memory_len <= 0:
+            return {"prev_tokens": None}
+
+        memories: List[Optional[torch.Tensor]] = []
+        max_len = 0
+        for env_id in env_ids:
             env_memory = self._memory.get(env_id)
-            if env_memory is None or env_memory.get("hidden_states") is None:
-                env_memory = self.transformer_module.initialize_memory(1)
-            hidden_states = env_memory.get("hidden_states")
-            if hidden_states is None:
-                return {"hidden_states": None}
-            if base_memory is None:
-                base_memory = []
-                for layer in hidden_states:
-                    if layer is None or layer.numel() == 0:
-                        zeros = torch.zeros((0, 1, self.hidden_size), device=device, dtype=dtype)
-                        base_memory.append(zeros)
-                    else:
-                        base_memory.append(layer[:, :1].detach().to(device=device, dtype=dtype).contiguous())
-            else:
-                for idx, layer in enumerate(hidden_states):
-                    if layer is None or layer.numel() == 0:
-                        addition = torch.zeros(
-                            (base_memory[idx].size(0), 1, self.hidden_size), device=device, dtype=dtype
-                        )
-                    else:
-                        addition = layer[:, :1].detach().to(device=device, dtype=dtype).contiguous()
-                    base_memory[idx] = torch.cat([base_memory[idx], addition], dim=1)
-        return {"hidden_states": base_memory}
+            if env_memory is None or env_memory.numel() == 0:
+                memories.append(None)
+                continue
+            tensor = env_memory.to(device=device, dtype=dtype)
+            max_len = max(max_len, tensor.size(0))
+            memories.append(tensor)
+
+        if max_len == 0:
+            return {"prev_tokens": None}
+
+        batched = torch.zeros(max_len, batch_size, self.hidden_size, device=device, dtype=dtype)
+        for idx, tensor in enumerate(memories):
+            if tensor is None or tensor.numel() == 0:
+                continue
+            length = min(tensor.size(0), max_len)
+            batched[-length:, idx, :] = tensor[-length:]
+
+        return {"prev_tokens": batched}
 
     def _extract_env_id_list(self, td: TensorDict, batch_size: int) -> List[int]:
         training_env_ids = td.get("training_env_ids", None)
@@ -542,15 +528,13 @@ class TransformerPolicy(Policy):
             packed_memory = td.get("transformer_memory_pre", None)
             memory_batch = None
             if self.memory_len > 0 and packed_memory is not None and packed_memory.numel() > 0:
-                packed_memory = packed_memory.to(device=torch.device("cpu"))
                 packed_memory = packed_memory.view(
                     batch_size,
                     tt,
-                    self.transformer_layers,
                     self.memory_len,
                     self.hidden_size,
                 )
-                initial_memory = packed_memory[:, 0].to(device=device, dtype=dtype)
+                initial_memory = packed_memory[:, 0]
                 memory_batch = self._unpack_memory(initial_memory, device, dtype)
 
             core_out, _ = self.transformer_module(latent_seq, memory_batch)
@@ -562,15 +546,10 @@ class TransformerPolicy(Policy):
         if self._diag_enabled and self._diag_counter < self._diag_limit:
             logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(core_flat, "core"))
             if new_memory is not None:
-                hidden_states = new_memory.get("hidden_states")
-                if hidden_states:
-                    mem_norms = []
-                    for layer_mem in hidden_states:
-                        if layer_mem is None or layer_mem.numel() == 0:
-                            mem_norms.append(0.0)
-                        else:
-                            mem_norms.append(float(layer_mem.float().norm().item()))
-                    logger.info("[TRANSFORMER_DIAG] memory_norms=%s", mem_norms)
+                prev_tokens = new_memory.get("prev_tokens") if isinstance(new_memory, dict) else None
+                if prev_tokens is not None:
+                    norm = float(prev_tokens.float().norm().item()) if prev_tokens.numel() > 0 else 0.0
+                    logger.info("[TRANSFORMER_DIAG] memory_norm=%s", norm)
 
         if use_memory and tt == 1 and env_ids:
             updated_memory = self._detach_memory(new_memory)
@@ -578,28 +557,16 @@ class TransformerPolicy(Policy):
                 dones = td.get("dones", None)
                 truncateds = td.get("truncateds", None)
                 reset_mask = self._compute_reset_mask(dones, truncateds, batch_size)
-                hidden_states = updated_memory.get("hidden_states")
-                if hidden_states:
-                    if reset_mask is not None and reset_mask.any():
-                        if self._diag_enabled and self._diag_counter < self._diag_limit:
-                            logger.info(
-                                "[TRANSFORMER_DIAG] reset_mask true_count=%s",
-                                int(reset_mask.sum().item()),
-                            )
-                        for idx_layer, layer_mem in enumerate(hidden_states):
-                            if layer_mem is None or layer_mem.numel() == 0:
-                                continue
-                            masked_layer = layer_mem.clone()
-                            masked_layer[:, reset_mask] = 0
-                            hidden_states[idx_layer] = masked_layer
-                    for batch_idx, env_id in enumerate(env_ids):
-                        per_env_layers: List[torch.Tensor] = []
-                        for layer_mem in hidden_states:
-                            if layer_mem is None or layer_mem.numel() == 0:
-                                per_env_layers.append(layer_mem)
-                            else:
-                                per_env_layers.append(layer_mem[:, batch_idx : batch_idx + 1].clone())
-                        self._memory[env_id] = {"hidden_states": per_env_layers}
+                prev_tokens = updated_memory.get("prev_tokens") if isinstance(updated_memory, dict) else None
+                for batch_idx, env_id in enumerate(env_ids):
+                    if reset_mask is not None and reset_mask[batch_idx]:
+                        self._memory.pop(env_id, None)
+                        continue
+                    if prev_tokens is None or prev_tokens.numel() == 0:
+                        self._memory.pop(env_id, None)
+                        continue
+                    column = prev_tokens[:, batch_idx : batch_idx + 1].squeeze(1)
+                    self._memory[env_id] = column.to(device=torch.device("cpu"), dtype=torch.float16)
                 if self._diag_enabled and self._diag_counter < self._diag_limit:
                     logger.info("[TRANSFORMER_DIAG] memory cached for envs %s", env_ids)
         elif use_memory and tt > 1 and env_ids:
@@ -720,14 +687,14 @@ class TransformerPolicy(Policy):
         return None
 
     def _detach_memory(
-        self, memory: Optional[Dict[str, Optional[List[torch.Tensor]]]]
-    ) -> Optional[Dict[str, Optional[List[torch.Tensor]]]]:
+        self, memory: Optional[Dict[str, Optional[torch.Tensor]]]
+    ) -> Optional[Dict[str, Optional[torch.Tensor]]]:
         if memory is None:
             return None
-        hidden_states = memory.get("hidden_states")
-        if hidden_states is None:
-            return None
-        return {"hidden_states": [layer.detach() if layer is not None else None for layer in hidden_states]}
+        prev_tokens = memory.get("prev_tokens")
+        if prev_tokens is None or prev_tokens.numel() == 0:
+            return {"prev_tokens": None}
+        return {"prev_tokens": prev_tokens.detach()}
 
     def _get_env_start(self, td: TensorDict) -> int:
         training_env_ids = td.get("training_env_ids", None)
@@ -794,7 +761,7 @@ class TransformerPolicy(Policy):
         }
         if self.memory_len > 0:
             spec["transformer_memory_pre"] = UnboundedContinuous(
-                shape=torch.Size([self.transformer_cfg.num_layers, self.memory_len, self.hidden_size]),
+                shape=torch.Size([self.memory_len, self.hidden_size]),
                 dtype=torch.float16,
             )
         return Composite(**spec)

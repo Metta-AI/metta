@@ -11,6 +11,7 @@ from metta.agent.components.component_config import ComponentConfig
 
 from .transformer_module import GTrXLModule, TransformerXLModule
 from .transformer_nvidia_module import NvidiaTransformerModule
+from .two_buffer_transformer import TwoBufferTransformer
 
 
 class TransformerBackboneVariant(str, Enum):
@@ -110,28 +111,30 @@ class TransformerBackboneConfig(ComponentConfig):
     # ------------------------------------------------------------------
 
     def make_component(self, env: Any | None = None):  # type: ignore[override]
+        memory_len = int(self.memory_len or 0)
+        max_context = self.max_seq_len + memory_len if self.max_seq_len is not None else None
+
         if self.variant is TransformerBackboneVariant.GTRXL:
-            return GTrXLModule(
+            core = GTrXLModule(
                 d_model=self.hidden_size,
                 n_heads=self.n_heads,
                 n_layers=self.num_layers,
                 d_ff=self.d_ff,
                 max_seq_len=self.max_seq_len,
-                memory_len=self.memory_len or 0,
+                memory_len=memory_len,
                 dropout=self.dropout,
                 use_gating=True,
                 use_causal_mask=True,
                 positional_scale=self.positional_scale or 0.1,
             )
-
-        if self.variant is TransformerBackboneVariant.TRXL:
-            return TransformerXLModule(
+        elif self.variant is TransformerBackboneVariant.TRXL:
+            core = TransformerXLModule(
                 d_model=self.hidden_size,
                 n_heads=self.n_heads,
                 n_layers=self.num_layers,
                 d_ff=self.d_ff,
                 max_seq_len=self.max_seq_len,
-                memory_len=self.memory_len or 0,
+                memory_len=memory_len,
                 dropout=self.dropout,
                 dropatt=self.attn_dropout or 0.0,
                 pre_lnorm=bool(self.pre_lnorm),
@@ -140,18 +143,25 @@ class TransformerBackboneConfig(ComponentConfig):
                 ext_len=0,
                 attn_type=0,
             )
+        else:
+            core = NvidiaTransformerModule(
+                d_model=self.hidden_size,
+                n_heads=self.n_heads,
+                n_layers=self.num_layers,
+                d_ff=self.d_ff,
+                max_seq_len=self.max_seq_len,
+                memory_len=memory_len,
+                dropout=self.dropout,
+                dropatt=self.attn_dropout or 0.0,
+                pre_lnorm=bool(self.pre_lnorm),
+                clamp_len=self.clamp_len or -1,
+            )
 
-        return NvidiaTransformerModule(
-            d_model=self.hidden_size,
-            n_heads=self.n_heads,
-            n_layers=self.num_layers,
-            d_ff=self.d_ff,
-            max_seq_len=self.max_seq_len,
-            memory_len=self.memory_len or 0,
-            dropout=self.dropout,
-            dropatt=self.attn_dropout or 0.0,
-            pre_lnorm=bool(self.pre_lnorm),
-            clamp_len=self.clamp_len or -1,
+        return TwoBufferTransformer(
+            core,
+            memory_len=memory_len,
+            token_dim=self.hidden_size,
+            max_context=max_context,
         )
 
 
