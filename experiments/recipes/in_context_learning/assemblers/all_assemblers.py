@@ -98,8 +98,8 @@ def experiment():
     subprocess.run(
         [
             "./devops/skypilot/launch.py",
-            "experiments.recipes.in_context_learning.assemblers.all_assemblers.eval_remote.train",
-            f"run=in_context.all_assemblers.{time.strftime('%Y-%m-%d')}",
+            "experiments.recipes.in_context_learning.assemblers.all_assemblers.train",
+            f"run=in_context.all_assemblers.eval_remote.{time.strftime('%Y-%m-%d')}",
         ]
     )
 
