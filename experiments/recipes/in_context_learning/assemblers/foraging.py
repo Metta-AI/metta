@@ -401,4 +401,4 @@ def evaluate_remote(
 
 
 if __name__ == "__main__":
-    evaluate()
+    experiment()
