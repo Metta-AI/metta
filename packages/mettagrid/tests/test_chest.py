@@ -51,8 +51,12 @@ class TestChest:
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
         chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type"] == 10)
 
-        assert agent["inventory"][gold_idx] == 4, f"Agent should have 4 gold. Has {agent['inventory'].get(gold_idx, 0)}"
-        assert chest["inventory"][gold_idx] == 1, f"Chest should have 1 gold. Has {chest['inventory'].get(gold_idx, 0)}"
+        assert agent["inventory"].get(gold_idx, 0) == 4, (
+            f"Agent should have 4 gold. Has {agent['inventory'].get(gold_idx, 0)}"
+        )
+        assert chest["inventory"].get(gold_idx, 0) == 1, (
+            f"Chest should have 1 gold. Has {chest['inventory'].get(gold_idx, 0)}"
+        )
 
         # Move around to south position to withdraw
         actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # Move west
@@ -77,9 +81,9 @@ class TestChest:
         agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
         chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type"] == 10)
 
-        assert agent_after["inventory"][gold_idx] == 5, (
+        assert agent_after["inventory"].get(gold_idx, 0) == 5, (
             f"Agent should have 5 gold after withdrawal, has {agent_after['inventory'].get(gold_idx, 0)}"
         )
-        assert chest_after["inventory"][gold_idx] == 0, (
+        assert chest_after["inventory"].get(gold_idx, 0) == 0, (
             f"Chest should have 0 gold after withdrawal, has {chest_after['inventory'].get(gold_idx, 0)}"
         )
