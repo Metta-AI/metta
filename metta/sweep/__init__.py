@@ -2,7 +2,7 @@
 
 from .optimizer.protein import ProteinOptimizer
 from .protein import Protein
-from .protein_config import ParameterConfig, ProteinConfig
+from .protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 from .schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
 
 __all__ = [
@@ -11,6 +11,7 @@ __all__ = [
     "ProteinOptimizer",
     "ProteinConfig",
     "ParameterConfig",
+    "ProteinSettings",
     # Schedulers
     "BatchedSyncedOptimizingScheduler",
     "BatchedSyncedSchedulerConfig",

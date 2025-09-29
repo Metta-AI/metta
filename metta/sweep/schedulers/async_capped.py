@@ -128,7 +128,11 @@ class AsyncCappedOptimizingScheduler:
 
             for run in runs:
                 status = run.status
-                if status == JobStatus.IN_TRAINING or status == JobStatus.PENDING or status == JobStatus.TRAINING_DONE_NO_EVAL:
+                if (
+                    status == JobStatus.IN_TRAINING
+                    or status == JobStatus.PENDING
+                    or status == JobStatus.TRAINING_DONE_NO_EVAL
+                ):
                     self.state.runs_in_training.add(run.run_id)
                 if status == JobStatus.IN_EVAL:
                     if self.config.force_eval:
@@ -353,4 +357,3 @@ class AsyncCappedOptimizingScheduler:
             fantasies.append({"score": liar_score, "cost": liar_cost, "suggestion": dict(suggestion)})
 
         return fantasies
-

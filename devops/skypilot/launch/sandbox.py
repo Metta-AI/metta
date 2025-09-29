@@ -534,6 +534,32 @@ Common management commands:
                 print(f"  {red('✗')} Failed to transfer ~/.sky folder: {str(e)}")
                 scp_success = False
 
+        # Transfer .aws folder (for AWS CLI configuration and SSO)
+        with spinner("Copying ~/.aws folder", style=cyan):
+            try:
+                aws_path = os.path.expanduser("~/.aws")
+                if os.path.exists(aws_path):
+                    subprocess.run(
+                        ["scp", "-rq", aws_path, f"{cluster_name}:~/"],
+                        check=True,
+                        capture_output=True,
+                    )
+                    print(f"  {green('✓')} ~/.aws folder transferred")
+                    # Check if SSO is configured
+                    config_path = os.path.join(aws_path, "config")
+                    if os.path.exists(config_path):
+                        with open(config_path, "r") as f:
+                            if "sso_session" in f.read() or "sso_start_url" in f.read():
+                                print(
+                                    f"    {yellow('Note:')} AWS SSO detected - may need 'aws sso login' if tokens expired"
+                                )
+                else:
+                    print(f"  {yellow('⚠')} ~/.aws folder not found locally")
+                    print(f"    AWS credentials will need to be configured via environment variables")
+            except subprocess.CalledProcessError as e:
+                print(f"  {red('✗')} Failed to transfer ~/.aws folder: {str(e)}")
+                scp_success = False
+
         # Transfer observatory tokens
         with spinner("Copying ~/.metta/observatory_tokens.yaml", style=cyan):
             try:

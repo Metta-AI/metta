@@ -237,6 +237,22 @@ def set_task_secrets(task: sky.Task) -> None:
     if not wandb.api.api_key:
         raise ValueError("Failed to get wandb api key, run 'metta install' to fix")
 
+    # Try to get GitHub token from environment or gh config
+    gh_token = os.environ.get("GH_TOKEN", "")
+    if not gh_token:
+        # Try to extract from gh config if it exists
+        gh_config_path = os.path.expanduser("~/.config/gh/hosts.yml")
+        if os.path.exists(gh_config_path):
+            try:
+                import yaml
+
+                with open(gh_config_path, "r") as f:
+                    gh_config = yaml.safe_load(f)
+                    if "github.com" in gh_config and "oauth_token" in gh_config["github.com"]:
+                        gh_token = gh_config["github.com"]["oauth_token"]
+            except Exception:
+                pass  # Silently ignore if we can't read the config
+
     task.update_secrets(
         dict(
             WANDB_API_KEY=wandb.api.api_key,

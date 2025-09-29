@@ -151,7 +151,7 @@ def evaluate(
 
 
 def evaluate_in_sweep(
-    simulations: Optional[Sequence[SimulationConfig]] = None
+    simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     """Evaluation function optimized for sweep runs.
 
