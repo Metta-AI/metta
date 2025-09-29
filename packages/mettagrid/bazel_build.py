@@ -143,7 +143,7 @@ def _run_mettascope_build() -> None:
 
     # Run the build script
     for cmd in ["nimble update", "nimble install", "nimble bindings"]:
-        result = subprocess.run([cmd], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
+        result = subprocess.run(cmd.split(" "), cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
         print(result.stderr, file=sys.stderr)
         print(result.stdout, file=sys.stderr)
         if result.returncode != 0:
