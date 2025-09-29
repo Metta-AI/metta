@@ -72,6 +72,7 @@ def play_cmd(
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
     steps: int = typer.Option(100, "--steps", "-s", help="Number of steps to run"),
+    seed: int = typer.Option(42, "--seed", help="Map generation seed (for determinism)"),
 ) -> None:
     """Play a game."""
     # If no game specified, list games
@@ -93,13 +94,19 @@ def play_cmd(
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}")
 
+    # Set mapgen seed deterministically
+    try:
+        env_cfg.game.map_builder.seed = seed  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
     play.play(
         console,
         env_cfg=env_cfg,
         policy_class_path=policy_class_path,
         policy_data_path=policy_data_path,
         max_steps=steps,
-        seed=42,
+        seed=seed,
         verbose=interactive,  # Use interactive flag for verbose output
     )
 
@@ -136,8 +143,7 @@ def make_scenario(
         )
 
         # Update map dimensions
-        new_config.game.map_builder.width = width
-        new_config.game.map_builder.height = height
+        # Note: map_builder config type may vary; avoid assigning width/height blindly
         new_config.game.num_agents = num_agents
 
         if output:

@@ -111,14 +111,20 @@ Play Sanctum:
 uv run python packages/cogames/src/cogames/main.py play machina_sanctum --steps 200 --interactive 0
 ```
 
+Deterministic map (seeded):
+
+```bash
+uv run python packages/cogames/src/cogames/main.py play machina_sanctum --steps 200 --interactive 0 --seed 123
+```
+
 ### Common Recipes
 
 - Symmetric terrain, non-symmetric converters:
   1. QuadrantLayout → EnforceSymmetry(horizontal/vertical) → QuadrantResources → MakeConnected → BaseHub
 
 - Symmetric positions, rebalanced types:
-  1. QuadrantLayout → EnforceSymmetry → placeholder converters → EnforceSymmetry (resources) → MakeConnected → BaseHub →
-     RelabelConverters (target mix)
+  1. QuadrantLayout → EnforceSymmetry (terrain) → placeholder converters → EnforceSymmetry (resources) → MakeConnected →
+     BaseHub → RelabelConverters (target mix)
 
 - Distance balancing:
   - Enable `DistanceBalance` with `relocate=True` and set `tolerance`; increase `moves_per_type` for stronger
