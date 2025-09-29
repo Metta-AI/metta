@@ -149,8 +149,10 @@ class MakeConnected(Scene[MakeConnectedParams]):
             distances[*cell] = 0
             queue.append(cell)
 
+        # Use iterative approach with safety limit for very large maps
+        max_iterations = height * width
         i = 0
-        while i < len(queue):
+        while i < len(queue) and i < max_iterations:
             y, x = queue[i]
             i += 1
 
