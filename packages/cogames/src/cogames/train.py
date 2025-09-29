@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 
 import torch
+import torch.distributed
 
 import pufferlib.pytorch
 import pufferlib.vector
@@ -80,6 +81,12 @@ def train(
     if platform.system() == "Darwin" and backend is pufferlib.vector.Multiprocessing:
         multiprocessing.set_start_method("spawn", force=True)
         backend = pufferlib.vector.Serial
+
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        local_rank = torch.distributed.get_rank()
+        if device.type == "cuda":
+            torch.cuda.set_device(local_rank)
+        seed = seed + local_rank
 
     vecenv = pufferlib.vector.make(
         env_creator,

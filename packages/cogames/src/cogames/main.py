@@ -314,11 +314,13 @@ def train_cmd(
         if backend == "ray" and not hasattr(train.pufferlib.vector, "Ray"):
             raise typer.BadParameter("Ray backend is not available", param_name="vector_backend")
 
+        device_obj = torch.device(device)
+
         train.train(
             env_cfgs=env_cfgs,
             policy_class_path=policy_class_path,
             initial_weights_path=resolved_initial,
-            device=torch.device(device),
+            device=device_obj,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
             seed=seed,
