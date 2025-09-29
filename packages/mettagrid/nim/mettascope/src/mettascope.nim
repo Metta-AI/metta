@@ -3,12 +3,6 @@ import std/[os, strutils, parseopt, json],
   mettascope/[replays, common, panels, utils, timeline,
   worldmap, minimap, agenttraces, footer]
 
-proc nodeTopLeft(node: Node): Vec2 =
-  ## Return the global top-left position of a node.
-  if node.pixelBox.w != 0 or node.pixelBox.h != 0:
-    return node.pixelBox.xy
-  node.position
-
 var replay = ""
 
 proc updateReplayHeader(replayPath: string) =
@@ -101,10 +95,9 @@ find "/UI/Main":
 
     worldMapPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      let pos = nodeTopLeft(thisNode)
       worldMapPanel.rect = irect(
-        pos.x,
-        pos.y,
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
         thisNode.size.x,
         thisNode.size.y
       )
@@ -114,10 +107,9 @@ find "/UI/Main":
 
     minimapPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      let pos = nodeTopLeft(thisNode)
       minimapPanel.rect = irect(
-        pos.x,
-        pos.y,
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
         thisNode.size.x,
         thisNode.size.y
       )
@@ -127,10 +119,9 @@ find "/UI/Main":
 
     agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
-      let pos = nodeTopLeft(thisNode)
       agentTracesPanel.rect = irect(
-        pos.x,
-        pos.y,
+        thisNode.absolutePosition.x,
+        thisNode.absolutePosition.y,
         thisNode.size.x,
         thisNode.size.y
       )
