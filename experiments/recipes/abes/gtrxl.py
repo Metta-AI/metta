@@ -121,7 +121,7 @@ def train(
         )
 
     profiler = TorchProfilerConfig(
-        interval_epochs=50,
+        interval_epochs=1,
         duration_epochs=1,
         profile_dir="${run_dir}/torch_traces",
     )
