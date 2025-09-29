@@ -17,8 +17,8 @@ requires "genny >= 0.1.1"
 
 task bindings, "Generate bindings":
 
-  proc compile(libName: string, flags = "") =
-    exec "nim c -f " & flags & " -d:release --app:lib --gc:arc --tlsEmulation:off --out:" & libName & " --outdir:bindings/generated bindings/bindings.nim"
+  proc compile(libName: string) =
+    exec "nim c -d:release --app:lib -d:fidgetUseCached=true --tlsEmulation:off --out:" & libName & " --outdir:bindings/generated bindings/bindings.nim"
 
   when defined(windows):
     compile "mettascope2.dll"

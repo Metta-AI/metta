@@ -42,6 +42,54 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
+    - name: Install Nim toolchain
+      shell: bash
+      run: |
+        if command -v nim >/dev/null 2>&1 && command -v nimble >/dev/null 2>&1; then
+          echo "Nim and nimble already installed"
+          exit 0
+        fi
+
+        SUDO="sudo"
+        if ! command -v sudo >/dev/null 2>&1 || [ "$(id -u)" -eq 0 ]; then
+          SUDO=""
+        fi
+
+        maybe_sudo() {
+          if [ -n "$SUDO" ]; then
+            sudo "$@"
+          else
+            "$@"
+          fi
+        }
+
+        if command -v apt-get >/dev/null 2>&1; then
+          echo "Installing Nim using apt-get"
+          maybe_sudo apt-get update
+          maybe_sudo apt-get install -y nim
+        elif command -v yum >/dev/null 2>&1; then
+          echo "Installing Nim using yum"
+          maybe_sudo yum install -y nim
+        elif command -v dnf >/dev/null 2>&1; then
+          echo "Installing Nim using dnf"
+          maybe_sudo dnf install -y nim
+        elif command -v apk >/dev/null 2>&1; then
+          echo "Installing Nim using apk"
+          maybe_sudo apk add --no-cache nim
+        elif command -v pacman >/dev/null 2>&1; then
+          echo "Installing Nim using pacman"
+          maybe_sudo pacman -Sy --noconfirm nim
+        elif command -v brew >/dev/null 2>&1; then
+          echo "Installing Nim using Homebrew"
+          brew install nim
+        else
+          echo "Unable to determine package manager to install Nim"
+          exit 1
+        fi
+
+        nim --version
+        nimble --version
+
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
       id: cache-bazel
@@ -62,7 +110,7 @@ runs:
 
         for i in $(seq 1 $MAX_RETRIES); do
           echo "Attempt $i of $MAX_RETRIES to download bazel..."
-          
+
           if curl -L --connect-timeout 30 --max-time 120 \
                https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
                -o bazel; then
