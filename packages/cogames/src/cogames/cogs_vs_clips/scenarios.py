@@ -216,12 +216,6 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     order_by="first",
                 ),
                 ChildrenAction(
-                    scene=MakeConnected.factory(MakeConnectedParams()),
-                    where="full",
-                    lock="finalize",
-                    order_by="first",
-                ),
-                ChildrenAction(
                     scene=BaseHub.factory(
                         BaseHubParams(
                             altar_object="altar",
@@ -231,6 +225,12 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     where=AreaWhere(tags=["base"]),
                     limit=1,
                     lock="keep",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=MakeConnected.factory(MakeConnectedParams()),
+                    where="full",
+                    lock="finalize",
                     order_by="first",
                 ),
                 ChildrenAction(
@@ -335,16 +335,16 @@ def machina_symmetry_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     order_by="first",
                 ),
                 ChildrenAction(
-                    scene=MakeConnected.factory(MakeConnectedParams()),
-                    where="full",
-                    lock="finalize",
-                    order_by="first",
-                ),
-                ChildrenAction(
                     scene=BaseHub.factory(BaseHubParams(altar_object="altar", corner_generator="generator_red")),
                     where=AreaWhere(tags=["base"]),
                     limit=1,
                     lock="keep",
+                    order_by="first",
+                ),
+                ChildrenAction(
+                    scene=MakeConnected.factory(MakeConnectedParams()),
+                    where="full",
+                    lock="finalize",
                     order_by="first",
                 ),
                 ChildrenAction(

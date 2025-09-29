@@ -37,7 +37,10 @@ class RadialObjects(Scene[RadialObjectsParams]):
         grid = self.grid
         height, width = grid.shape
 
-        cx, cy = width // 2, height // 2
+        # Use absolute center of the whole map, not relative center of this area
+        abs_cx = self.area.x + width // 2
+        abs_cy = self.area.y + height // 2
+        cx, cy = width // 2, height // 2  # relative center for local calculations
         rmax = math.hypot(max(cx, width - 1 - cx), max(cy, height - 1 - cy))
 
         def ok_with_clearance(x: int, y: int, clearance: int) -> bool:
@@ -63,30 +66,41 @@ class RadialObjects(Scene[RadialObjectsParams]):
         if metric == "manhattan":
             rs = np.abs(empties[:, 1] - cx) + np.abs(empties[:, 0] - cy)
         elif metric == "traversal":
-            # BFS from center over cells considered passable ("empty")
+            # BFS from absolute center over cells considered passable ("empty")
             # Build mask of passable cells (treat empty as passable; others blocked)
             passable = (grid == "empty").astype(np.uint8)
-            # Allow starting at center even if non-empty by treating it as passable temporarily
-            passable[min(max(cy, 0), height - 1), min(max(cx, 0), width - 1)] = 1
+            # Allow starting at absolute center even if non-empty by treating it as passable temporarily
+            center_y = min(max(abs_cy - self.area.y, 0), height - 1)
+            center_x = min(max(abs_cx - self.area.x, 0), width - 1)
+            passable[center_y, center_x] = 1
 
             dist = np.full((height, width), np.inf, dtype=float)
             from collections import deque
 
             dq = deque()
-            start_y, start_x = int(cy), int(cx)
+            start_y, start_x = int(center_y), int(center_x)
             dist[start_y, start_x] = 0.0
             dq.append((start_y, start_x))
             # 4-neighborhood traversal distance
             for_y = (-1, 1, 0, 0)
             for_x = (0, 0, -1, 1)
-            while dq:
+
+            # Use iterative approach to avoid recursion depth issues for large areas
+            visited = 0
+            max_iterations = height * width  # Safety limit
+            while dq and visited < max_iterations:
                 y, x = dq.popleft()
+                if dist[y, x] == np.inf:
+                    continue  # Already processed
+                visited += 1
+
                 base = dist[y, x]
                 for dy, dx in zip(for_y, for_x, strict=True):
                     ny, nx = y + dy, x + dx
                     if 0 <= ny < height and 0 <= nx < width and passable[ny, nx] == 1 and dist[ny, nx] == np.inf:
                         dist[ny, nx] = base + 1.0
                         dq.append((ny, nx))
+
             rs = dist[empties[:, 0], empties[:, 1]]
             # For unreachable cells (inf), fall back to large finite value (treat as far)
             unreachable = ~np.isfinite(rs)

@@ -15,7 +15,7 @@ class QuadrantResourcesParams(Config):
     beta: float = 0.1
     mu: float = 0.75
     sigma: float = 0.1
-    distance_metric: Literal["euclidean", "manhattan", "traversal"] = "euclidean"
+    distance_metric: Literal["euclidean", "manhattan", "traversal"] = "traversal"
     min_radius: int = 6
     clearance: int = 1
     forced_type: str | None = None

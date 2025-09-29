@@ -226,12 +226,12 @@ def make_evals() -> List[SimulationConfig]:
         )
     )
 
-    # 10) Exponential resource distribution in quadrants (favor edges)
+    # 10) Exponential resource distribution with traversal distance metric
     env10 = clone(machina_sanctum(num_cogs=4))
     qr10 = get_child_params(env10, "QuadrantResources")
     if qr10 is not None:
         qr10.mode = "exp"
-        qr10.alpha = 5.0
+        qr10.alpha = 8.0
         qr10.distance_metric = "traversal"
     sims.append(
         SimulationConfig(
