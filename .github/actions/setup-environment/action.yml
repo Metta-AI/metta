@@ -45,7 +45,7 @@ runs:
     - name: Set up nim
       shell: bash
       run: |
-        curl https://nim-lang.org/choosenim/init.sh -sSf | sh
+        curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
         nim --version
         nimble --version
         echo "Nim installed"
