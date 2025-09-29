@@ -55,30 +55,22 @@ runs:
           SUDO=""
         fi
 
-        maybe_sudo() {
-          if [ -n "$SUDO" ]; then
-            sudo "$@"
-          else
-            "$@"
-          fi
-        }
-
         if command -v apt-get >/dev/null 2>&1; then
           echo "Installing Nim using apt-get"
-          maybe_sudo apt-get update
-          maybe_sudo apt-get install -y nim
+          $SUDO apt-get update
+          $SUDO apt-get install -y nim
         elif command -v yum >/dev/null 2>&1; then
           echo "Installing Nim using yum"
-          maybe_sudo yum install -y nim
+          $SUDO yum install -y nim
         elif command -v dnf >/dev/null 2>&1; then
           echo "Installing Nim using dnf"
-          maybe_sudo dnf install -y nim
+          $SUDO dnf install -y nim
         elif command -v apk >/dev/null 2>&1; then
           echo "Installing Nim using apk"
-          maybe_sudo apk add --no-cache nim
+          $SUDO apk add --no-cache nim
         elif command -v pacman >/dev/null 2>&1; then
           echo "Installing Nim using pacman"
-          maybe_sudo pacman -Sy --noconfirm nim
+          $SUDO pacman -Sy --noconfirm nim
         elif command -v brew >/dev/null 2>&1; then
           echo "Installing Nim using Homebrew"
           brew install nim

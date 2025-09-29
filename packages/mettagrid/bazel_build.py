@@ -145,33 +145,15 @@ def _run_mettascope_build() -> None:
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    env = os.environ.copy()
-    nimble_dir = env.get("NIMBLE_DIR")
-    if nimble_dir is None:
-        nimble_dir_path = METTASCOPE_DIR / ".nimble"
-        env["NIMBLE_DIR"] = str(nimble_dir_path)
-    else:
-        nimble_dir_path = Path(nimble_dir)
-
-    nimble_dir_path.mkdir(parents=True, exist_ok=True)
-    (METTASCOPE_DIR / "bindings" / "generated").mkdir(parents=True, exist_ok=True)
-
-    cmd = ["nimble", "bindings", "-y"]
-    result = subprocess.run(
-        cmd,
-        cwd=METTASCOPE_DIR,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
+    # Run the build script
+    for cmd in ["nimble update", "nimble install", "nimble bindings"]:
+        result = subprocess.run([cmd], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
         print(result.stderr, file=sys.stderr)
-    if result.returncode != 0:
-        raise RuntimeError(f"Command {' '.join(cmd)} failed with exit code {result.returncode}")
-
+        print(result.stdout, file=sys.stderr)
+        if result.returncode != 0:
+            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
+            print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
+            raise RuntimeError("Mettascope build failed")
     print("Successfully built mettascope")
 
 
