@@ -117,6 +117,7 @@ class TorchProfileSession:
         logger.info("Stopping torch profiler for epoch %s", self._start_epoch)
         try:
             self._profiler.stop()
+            self._log_profile_summary(self._profiler)
             self._save_profile(self._profiler)
         except Exception:  # pragma: no cover - defensive
             logger.exception("Failed to save torch profile")
@@ -127,6 +128,16 @@ class TorchProfileSession:
             self._epochs_remaining = 0
 
         return False
+
+    def _log_profile_summary(self, prof: torch.profiler.profile) -> None:
+        try:
+            cpu_table = prof.key_averages().table(sort_by="self_cpu_time_total", row_limit=25)
+            logger.info("Torch profiler summary (CPU) for epoch %s\n%s", self._start_epoch, cpu_table)
+            if torch.cuda.is_available():
+                cuda_table = prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=25)
+                logger.info("Torch profiler summary (CUDA) for epoch %s\n%s", self._start_epoch, cuda_table)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("Failed to log torch profiler summary")
 
     @property
     def is_active(self) -> bool:
