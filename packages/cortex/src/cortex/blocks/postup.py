@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+from tensordict import TensorDict
 
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.registry import register_block
@@ -14,7 +15,14 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 @register_block(PostUpBlockConfig)
 class PostUpBlock(BaseBlock):
-    """Apply LayerNorm, cell, then two-layer projection with residual connection."""
+    """Post-processing block with cell followed by FFN.
+
+    Block layout:
+    1. Input → LayerNorm → Cell
+    2. Add residual from input
+    3. Result → LayerNorm → FFN (up-projection → activation → down-projection)
+    4. Add residual from step 2
+    """
 
     def __init__(self, config: PostUpBlockConfig, d_hidden: int, cell: MemoryCell) -> None:
         super().__init__(d_hidden=d_hidden, cell=cell)
@@ -34,8 +42,6 @@ class PostUpBlock(BaseBlock):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
-        from tensordict import TensorDict
-
         cell_state = state.get("cell", None) if state is not None else None
         batch_size = state.batch_size[0] if state is not None and state.batch_size else x.shape[0]
 

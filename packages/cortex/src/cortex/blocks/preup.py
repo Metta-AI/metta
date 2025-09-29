@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+from tensordict import TensorDict
 
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.registry import register_block
@@ -14,7 +15,15 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 @register_block(PreUpBlockConfig)
 class PreUpBlock(BaseBlock):
-    """Project up before the cell, apply gated skip, then project down."""
+    """Pre-upsampling block with gated skip connection.
+
+    Block layout:
+    1. Input → LayerNorm
+    2. Project up: d_hidden → 2*d_inner (split into a, z)
+    3. Cell processes a, with learnable skip from activated a
+    4. Gate with z and project down: d_inner → d_hidden
+    5. Add residual from input
+    """
 
     def __init__(self, config: PreUpBlockConfig, d_hidden: int, cell: MemoryCell) -> None:
         super().__init__(d_hidden=d_hidden, cell=cell)
@@ -53,7 +62,6 @@ class PreUpBlock(BaseBlock):
         a, z = torch.split(x_proj, split_size_or_sections=self.d_inner, dim=-1)
         a_act = self.act(a)
 
-        from tensordict import TensorDict
         cell_state = state.get("cell", None) if state is not None else None
         y_inner, new_cell_state = self.cell(a, cell_state, resets=resets)
 
