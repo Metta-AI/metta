@@ -134,10 +134,7 @@ def _suggest_parallelism(
     if requested_workers is not None:
         workers = max(1, requested_workers)
     else:
-        if device == "cuda":
-            workers = max(1, min(envs, max(1, cpu_count // 2)))
-        else:
-            workers = max(1, min(envs, max(1, cpu_count // 2)))
+        workers = max(1, min(envs, max(1, cpu_count // 2)))
 
     if envs % workers != 0:
         for candidate in range(workers, 0, -1):
@@ -224,7 +221,6 @@ def default(
     ctx.obj["timeout"] = timeout if timeout and timeout > 0 else None
 
     if ctx.invoked_subcommand is None:
-        # No command provided, show help
         print(ctx.get_help())
 
 
@@ -244,7 +240,6 @@ def games_cmd(
         try:
             game_config = game.get_game(game_name)
         except ValueError as exc:
-            # Provide a friendly CLI error instead of a stack trace for unknown games.
             raise typer.BadParameter(str(exc), param_name="game_name") from exc
 
         if save:
@@ -319,7 +314,6 @@ def play_cmd(
 ) -> None:
     """Play a game."""
     with _command_timeout(ctx):
-        # If no game specified, list games
         if game_name is None:
             console.print("[yellow]No game specified. Available games:[/yellow]")
             table = game.list_games(console)
@@ -327,7 +321,6 @@ def play_cmd(
             console.print("\n[dim]Usage: cogames play <game>[/dim]")
             return
 
-        # Resolve game name
         resolved_game, error = utils.resolve_game(game_name)
         if error:
             raise typer.BadParameter(error, param_name="game_name")
@@ -344,7 +337,7 @@ def play_cmd(
             policy_data_path=policy_data_path,
             max_steps=steps,
             seed=42,
-            verbose=interactive,  # Use interactive flag for verbose output
+            verbose=interactive,
         )
 
 
@@ -359,30 +352,36 @@ def make_scenario(
 ) -> None:
     """Create a new game configuration."""
     with _command_timeout(ctx):
-        if base_game:
-            resolved_game, error = utils.resolve_game(base_game)
-            if error:
-                raise typer.BadParameter(error, param_name="base_game")
-            console.print(f"[cyan]Using {resolved_game} as template[/cyan]")
-        else:
-            console.print("[cyan]Creating new game from scratch[/cyan]")
+        try:
+            if base_game:
+                resolved_game, error = utils.resolve_game(base_game)
+                if error:
+                    raise typer.BadParameter(error, param_name="base_game")
+                console.print(f"[cyan]Using {resolved_game} as template[/cyan]")
+            else:
+                console.print("[cyan]Creating new game from scratch[/cyan]")
 
-        from cogames.cogs_vs_clips.scenarios import make_game
+            from cogames.cogs_vs_clips.scenarios import make_game
 
-        new_config = make_game(
-            num_cogs=num_agents,
-            num_assemblers=1,
-            num_chests=1,
-        )
-        new_config.game.map_builder.width = width
-        new_config.game.map_builder.height = height
-        new_config.game.num_agents = num_agents
+            new_config = make_game(
+                num_cogs=num_agents,
+                num_assemblers=1,
+                num_chests=1,
+            )
+            new_config.game.map_builder.width = width
+            new_config.game.map_builder.height = height
+            new_config.game.num_agents = num_agents
 
-        if output:
-            game.save_game_config(new_config, output)
-            console.print(f"[green]Game configuration saved to: {output}[/green]")
-        else:
-            console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
+            if output:
+                game.save_game_config(new_config, output)
+                console.print(f"[green]Game configuration saved to: {output}[/green]")
+            else:
+                console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
+        except typer.BadParameter:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive guard for CLI errors
+            console.print(f"[red]Error: {exc}[/red]")
+            raise typer.Exit(1) from exc
 
 
 @app.command(name="train")
@@ -465,9 +464,7 @@ def train_cmd(
 
         backend = vector_backend.lower()
         resolved_device_name = _default_device(device)
-        resolved_num_envs, resolved_num_workers = _suggest_parallelism(
-            resolved_device_name, num_envs, num_workers
-        )
+        resolved_num_envs, resolved_num_workers = _suggest_parallelism(resolved_device_name, num_envs, num_workers)
 
         fallback_curricula = resolved_run_dir / "curricula"
         base_games = [game_name] if game_name is not None else []
@@ -480,6 +477,11 @@ def train_cmd(
         )
 
         if not env_cfgs:
+            if game_name is None and curriculum is None:
+                console.print("[yellow]No game or curriculum specified. Available games:[/yellow]")
+                table = game.list_games(console)
+                console.print(table)
+                console.print("\n[dim]Usage: cogames train <game>[/dim]")
             msg = (
                 "no game or curriculum configurations found. Provide a game name, specify --curriculum, "
                 "or generate maps with 'cogames curricula'."
@@ -489,7 +491,9 @@ def train_cmd(
         while len(env_names) < len(env_cfgs):
             env_names.append(f"map_{len(env_names):03d}")
 
-        resolved_initial = _resolve_initial_weights(initial_weights_path)
+        resolved_initial = None
+        if initial_weights_path is not None:
+            resolved_initial = _resolve_initial_weights(initial_weights_path)
 
         effective_batch = batch_size or max(resolved_num_envs * 32, 512)
         effective_minibatch = minibatch_size or effective_batch
@@ -506,14 +510,10 @@ def train_cmd(
             checkpoints_dir = checkpoints_path.expanduser().resolve()
         else:
             checkpoints_dir = (resolved_run_dir / "checkpoints").resolve()
-
         checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
         if map_dump_dir is not None:
-            if map_dump_dir.is_absolute():
-                maps_dir = map_dump_dir
-            else:
-                maps_dir = (resolved_run_dir / map_dump_dir).resolve()
+            maps_dir = map_dump_dir if map_dump_dir.is_absolute() else (resolved_run_dir / map_dump_dir).resolve()
         else:
             maps_dir = (resolved_run_dir / "curricula").resolve()
 
@@ -580,5 +580,5 @@ def policy_inspect(bundle_dir: Annotated[Path, typer.Argument(help="Path to poli
     console.print_json(data=metadata)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     app()
