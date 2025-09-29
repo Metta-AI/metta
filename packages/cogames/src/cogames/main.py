@@ -177,8 +177,10 @@ def train_cmd(
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
 ) -> None:
     """Train a policy on a game."""
-    from cogames import game, utils, train as train_module
     import torch
+
+    from cogames import game, utils
+    from cogames import train as train_module
 
     # If no game specified, list games
     if game_name is None:
