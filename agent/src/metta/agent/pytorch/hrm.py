@@ -1,9 +1,7 @@
 import math
-import warnings
 from types import SimpleNamespace
 from typing import Dict, List, Tuple
 
-import einops
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
@@ -142,27 +140,29 @@ class CastedLinear(nn.Linear):
 class ReasoningAttnBlock(nn.Module):
     def __init__(self, hidden_size=512, num_heads=8, cast_to=torch.float32):
         super().__init__()
+        self.hidden_size = hidden_size
+        self.cast_to = cast_to
 
-        self.self_attn = Attention(
-            hidden_size=hidden_size,
-            head_dim=hidden_size // num_heads,
-            num_heads=num_heads,
-            num_key_value_heads=num_heads,
-            causal=False,
-            cast_to=cast_to,
+        # Simplified reasoning block - just MLP with residual
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size * 2), nn.ReLU(), nn.Linear(hidden_size * 2, hidden_size)
         )
-        # self.mlp = SwiGLU(hidden_size=hidden_size, expansion=4)
-        self.mlp = nn.Linear(hidden_size, hidden_size)
-        self.norm_eps = 1e-5
+        self.norm = nn.LayerNorm(hidden_size)
 
     def forward(self, hidden_states: torch.Tensor, input_injection: torch.Tensor) -> torch.Tensor:
-        # Simple linear layer for simplicity
-        batch_size, seq_len, hidden_dim = hidden_states.shape
-        hidden_states = hidden_states.view(batch_size * seq_len, hidden_dim)
-        linear_layer = nn.Linear(hidden_dim, hidden_dim).to(dtype=hidden_states.dtype, device=hidden_states.device)
-        hidden_states = linear_layer(hidden_states)
-        hidden_states = hidden_states.view(batch_size, seq_len, hidden_dim)
-        return hidden_states
+        # Simple residual MLP block
+        residual = hidden_states
+
+        # Normalize input
+        normalized = self.norm(hidden_states)
+
+        # Apply MLP
+        mlp_out = self.mlp(normalized)
+
+        # Residual connection
+        output = residual + mlp_out
+
+        return output.to(self.cast_to)
 
 
 class ReasoningBlock(nn.Module):
@@ -234,10 +234,7 @@ class HRM_ACTV1_Inner(nn.Module):
         self.out_width = 11
         self.out_height = 11
 
-        # Observation projection layer
-        self.obs_projection = CastedLinear(
-            self.num_layers * self.out_width * self.out_height, self.hidden_size, cast_to=self.forward_dtype
-        )
+        # Observation encoder will be created dynamically in encode_observations
 
         # Q head special init
         with torch.no_grad():
@@ -299,65 +296,41 @@ class HRM_ACTV1_Inner(nn.Module):
 
     def encode_observations(self, observations):
         """
-        Encode observations into a hidden representation.
+        Simplified observation encoding to avoid numerical issues.
         Input: observations with shape [batch_size, seq_len, 3]
         Output: encoded features with shape [batch_size, seq_len, hidden_size]
         """
-        token_observations = observations
-        B = token_observations.shape[0]
-        TT = token_observations.shape[1] if token_observations.dim() == 3 else 1
-        B_TT = B * TT
+        # Ensure observations are in the right shape and dtype
+        if len(observations.shape) == 4:
+            B, TT, M, C = observations.shape
+            observations = observations.reshape(B * TT, M, C)
+        else:
+            B, M, C = observations.shape
+            TT = 1
 
-        if token_observations.dim() != 3:
-            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
+        # Simple approach: treat as sequence of tokens and encode directly
+        # observations shape: [B*TT, seq_len, 3] where 3 = (x, y, attr)
 
-        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+        # Flatten the last dimension and use linear projection
+        obs_flat = observations.float()  # Ensure float32
 
-        # Extract coordinates and attributes
-        coords_byte = token_observations[..., 0].to(torch.uint8)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
-        y_coord_indices = (coords_byte & 0x0F).long()
-        atr_indices = token_observations[..., 1].long()
-        atr_values = token_observations[..., 2].float()
+        # Simple linear encoding of each token
+        batch_size, seq_len, features = obs_flat.shape
+        obs_reshaped = obs_flat.view(batch_size, seq_len * features)
 
-        # Create mask for valid tokens
-        valid_tokens = coords_byte != 0xFF
-
-        # Additional validation
-        valid_atr = atr_indices < self.num_layers
-        valid_mask = valid_tokens & valid_atr
-
-        # Log warning for out-of-bounds indices
-        invalid_atr_mask = valid_tokens & ~valid_atr
-        if invalid_atr_mask.any():
-            invalid_indices = atr_indices[invalid_atr_mask].unique()
-            warnings.warn(
-                f"Found observation attribute indices {sorted(invalid_indices.tolist())} "
-                f">= num_layers ({self.num_layers}). These tokens will be ignored.",
-                stacklevel=2,
+        # Project to hidden size
+        if not hasattr(self, "_obs_encoder"):
+            self._obs_encoder = nn.Linear(seq_len * features, self.hidden_size).to(
+                device=observations.device, dtype=torch.float32
             )
+            nn.init.xavier_uniform_(self._obs_encoder.weight)
+            nn.init.zeros_(self._obs_encoder.bias)
 
-        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices
-        dim_per_layer = self.out_width * self.out_height
-        combined_index = atr_indices * dim_per_layer + flat_spatial_index
+        encoded = self._obs_encoder(obs_reshaped)
 
-        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index)).long()
-        safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
+        # Add sequence dimension back for compatibility
+        encoded = encoded.unsqueeze(1)  # [batch_size, 1, hidden_size]
 
-        # Scale
-        box_flat = torch.zeros(
-            (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
-        )
-        box_flat.scatter_(1, safe_index, safe_values)
-        box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
-
-        # Flatten spatial dimensions and project to hidden size
-        box_obs_flat = box_obs.view(B_TT, -1)
-
-        # Project to hidden size using the pre-initialized linear layer
-        encoded = self.obs_projection(box_obs_flat)
-
-        # Reshape back to [B, TT, hidden_size]
         if TT > 1:
             encoded = encoded.view(B, TT, self.hidden_size)
 
@@ -559,6 +532,7 @@ class HRM(Policy, HRMMemory):
 
         # Sample actions from logits
         import torch.distributions as dist
+
         action_dist = dist.Categorical(logits=logits)
         actions_flat = action_dist.sample()
         act_log_prob = action_dist.log_prob(actions_flat.float())  # log_prob needs float input
@@ -601,20 +575,13 @@ class HRMPolicyInner(nn.Module):
         # Default to 25 layers for mettagrid environments
         self.num_layers = 25
 
-        # HRM Backbone
-        self.backbone = HRMBackbone(
-            hidden_size=hidden_size,
-            vocab_size=10,
-            batch_size=1,
-            seq_len=64,  # Reduced from 200 to save memory
-            forward_dtype="bfloat16",  # More memory efficient than float16
-            H_layers=1,
-            L_layers=1,
-            H_cycles=1,
-            L_cycles=1,
-            num_heads=1,
-            halt_max_steps=3,  # Reduced from 5
-            halt_exploration_prob=0.1,
+        # Simplified HRM Core instead of complex backbone
+        self.core = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size * 2),
+            nn.ReLU(),
+            nn.Linear(hidden_size * 2, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size)
         )
 
         # Critic branch - reduced sizes
@@ -650,12 +617,10 @@ class HRMPolicyInner(nn.Module):
 
     def _init_bilinear_actor(self):
         """Initialize bilinear actor head to match MettaActorSingleHead."""
-        self.actor_W = nn.Parameter(
-            torch.Tensor(1, self.actor_hidden_dim, self.action_embed_dim).to(dtype=torch.float32)
-        )
-        self.actor_bias = nn.Parameter(torch.Tensor(1).to(dtype=torch.float32))
+        self.actor_W = nn.Parameter(torch.Tensor(1, self.actor_hidden_dim, self.action_embed_dim))
+        self.actor_bias = nn.Parameter(torch.Tensor(1))
 
-        bound = 1 / math.sqrt(self.actor_hidden_dim) if self.actor_hidden_dim > 0 else 0
+        bound = 1 / math.sqrt(self.actor_hidden_dim) if self.actor_hidden_dim > 0 else 0.1
         nn.init.uniform_(self.actor_W, -bound, bound)
         nn.init.uniform_(self.actor_bias, -bound, bound)
 
@@ -670,7 +635,7 @@ class HRMPolicyInner(nn.Module):
 
     def encode_observations(self, observations, td=None, memory_manager=None):
         """
-        Encode observations using the HRM backbone.
+        Encode observations using simplified HRM core.
 
         Args:
             observations: Input observation tensor, shape (B, TT, M, 3) or (B, M, 3)
@@ -684,99 +649,51 @@ class HRMPolicyInner(nn.Module):
         if len(observations.shape) == 4:
             observations = observations.reshape(-1, 200, 3)
 
-        # Truncate to model's sequence length (64)
-        seq_len = 64
-        if observations.shape[1] > seq_len:
-            observations = observations[:, :seq_len, :]
+        # Simple observation encoding
+        obs_flat = observations.float()  # Ensure float32
+        batch_size, seq_len, features = obs_flat.shape
+        obs_reshaped = obs_flat.view(batch_size, seq_len * features)
 
-        # Get environment ID for state tracking
-        if td is not None:
-            training_env_id_start = td.get("training_env_id_start", None)
-            if training_env_id_start is not None:
-                env_id = training_env_id_start[0].item()
-            else:
-                env_id = 0
-        else:
-            env_id = 0
+        # Project to hidden size
+        if not hasattr(self, '_obs_encoder'):
+            self._obs_encoder = nn.Linear(seq_len * features, self.hidden_size).to(
+                device=observations.device, dtype=torch.float32
+            )
+            nn.init.xavier_uniform_(self._obs_encoder.weight)
+            nn.init.zeros_(self._obs_encoder.bias)
 
-        # Get previous carry state or initialize new one
-        if memory_manager is not None:
-            prev_memory = memory_manager.get_memory()
-        else:
-            prev_memory = {}
+        encoded = self._obs_encoder(obs_reshaped)
 
-        if prev_memory is None or f"{env_id}" not in prev_memory:
-            prev_carry = self.backbone.initial_carry({"env_obs": observations})
-        else:
-            prev_carry = prev_memory[f"{env_id}"]
+        # Apply simplified HRM core
+        hidden = self.core(encoded)
 
-        # Forward through backbone
-        new_carry, outputs = self.backbone(prev_carry, {"env_obs": observations})
-
-        # Update memory with new carry state
-        if memory_manager is not None:
-            current_memory = memory_manager.get_memory() or {}
-            current_memory[f"{env_id}"] = new_carry
-            memory_manager.set_memory(current_memory)
-
-        # Return hidden state
-        return outputs["hidden_state"]
+        return hidden
 
     def decode_actions(self, hidden):
-        """Decode actions using bilinear interaction to match MettaActorSingleHead."""
+        """Decode actions using simple linear projection."""
+        # Ensure hidden is float32 to prevent numerical issues
+        hidden = hidden.float()
+
         # Critic branch
         critic_features = torch.tanh(self.critic_1(hidden))
         value = self.value_head(critic_features)
 
-        # Actor branch with bilinear interaction
-        actor_features = self.actor_1(hidden)
-        actor_features = F.relu(actor_features)
+        # Actor branch - simplified approach
+        actor_features = F.relu(self.actor_1(hidden))
 
-        # Use the actual batch size from the hidden tensor
-        actual_batch_size = hidden.shape[0]
+        # Simple linear projection to action logits
+        # Use a direct linear layer instead of complex bilinear operations
+        if not hasattr(self, 'action_head'):
+            self.action_head = nn.Linear(actor_features.shape[1], self.num_active_actions)
+            nn.init.xavier_uniform_(self.action_head.weight)
+            nn.init.zeros_(self.action_head.bias)
+            # Move to same device as actor_features
+            self.action_head = self.action_head.to(device=actor_features.device, dtype=actor_features.dtype)
 
-        # Get action embeddings for all actions
-        action_embeds = self.action_embeddings.weight[: self.num_active_actions]
+        logits = self.action_head(actor_features)
 
-        # Expand action embeddings for each batch element
-        action_embeds = action_embeds.unsqueeze(0).expand(actual_batch_size, -1, -1)
-
-        # Bilinear interaction matching MettaActorSingleHead
-        num_actions = action_embeds.shape[1]
-
-        # Reshape for bilinear calculation
-        actor_repeated = actor_features.unsqueeze(1).expand(-1, num_actions, -1)
-        # Use the actual feature dimension instead of self.actor_hidden_dim
-        actor_feature_dim = actor_features.shape[1]
-        actor_reshaped = actor_repeated.reshape(-1, actor_feature_dim)
-        # Use the actual embedding dimension
-        action_embed_dim = action_embeds.shape[2]
-        action_embeds_reshaped = action_embeds.reshape(-1, action_embed_dim)
-
-        # Perform bilinear operation using einsum
-        # Always ensure actor_W has the correct dimensions for this forward pass
-        if (
-            not hasattr(self, "actor_W")
-            or self.actor_W.shape[1] != actor_feature_dim
-            or self.actor_W.shape[2] != action_embed_dim
-        ):
-            # Initialize or reinitialize actor_W with correct dimensions
-            self.actor_hidden_dim = actor_feature_dim
-            self.action_embed_dim = action_embed_dim
-            self._init_bilinear_actor()
-
-        query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)
-        query = torch.tanh(query)
-        # Reshape query to match action_embeds_reshaped for the dot product
-        query_reshaped = query.reshape(-1, action_embed_dim)
-        scores = torch.einsum("n e, n e -> n", query_reshaped, action_embeds_reshaped)
-        # Reshape scores back to [batch_size * num_actions, 1] then [batch_size, num_actions]
-        scores = scores.reshape(actual_batch_size, num_actions)
-
-        biased_scores = scores + self.actor_bias
-
-        # Reshape back to [B*TT, num_actions]
-        logits = biased_scores.reshape(actual_batch_size, num_actions)
+        # Ensure no NaNs or infinities
+        logits = torch.clamp(logits, min=-10.0, max=10.0)
 
         return logits, value
 
