@@ -24,7 +24,7 @@ from metta.sweep.schedulers.batched_synced import (
     BatchedSyncedOptimizingScheduler,
     BatchedSyncedSchedulerConfig,
 )
-from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
