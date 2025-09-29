@@ -26,7 +26,7 @@ def make_scene(children_actions: list[ChildrenAction]):
         ]
     )
     area = Area.root_area_from_grid(grid)
-    scene = MockScene.Config(seed=42, children=children_actions).create(area=area, rng=np.random.default_rng())
+    scene = MockScene.Config(seed=42, children=children_actions).create_root(area=area)
     # Create some test areas with different tags
     scene.make_area(0, 0, 3, 2, tags=["tag1", "tag2", "scene1"])  # ABC / FGH
     scene.make_area(1, 2, 2, 2, tags=["tag2", "tag3", "scene2"])  # LM / QR

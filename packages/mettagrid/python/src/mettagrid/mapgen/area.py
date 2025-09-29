@@ -22,6 +22,7 @@ class Area:
     x: int
     y: int
 
+    # Note that areas are not transform-aware. So `scene.area.width` doesn't always match `scene.width`.
     width: int
     height: int
 
@@ -34,6 +35,26 @@ class Area:
     @classmethod
     def root_area_from_grid(cls, grid: MapGrid) -> Area:
         return cls(outer_grid=grid, x=0, y=0, width=grid.shape[1], height=grid.shape[0])
+
+    def make_subarea(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        tags: list[str] | None = None,
+    ) -> Area:
+        if width > self.width or height > self.height:
+            raise ValueError(f"Area {self.width}x{self.height} is too large for sub-area {width}x{height}")
+
+        return Area(
+            outer_grid=self.outer_grid,
+            x=x + self.x,
+            y=y + self.y,
+            width=width,
+            height=height,
+            tags=tags or [],
+        )
 
     def as_dict(self) -> dict:
         return {

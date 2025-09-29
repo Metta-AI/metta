@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 from mettagrid.map_builder.utils import create_grid
@@ -14,7 +13,7 @@ def render_scene(
 ):
     grid = create_grid(shape[0], shape[1])
     area = Area.root_area_from_grid(grid)
-    scene = scene_cfg.create(area, np.random.default_rng())
+    scene = scene_cfg.create_root(area)
     scene.render_with_children()
     return scene
 

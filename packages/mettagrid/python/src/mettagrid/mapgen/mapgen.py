@@ -217,11 +217,13 @@ class MapGen(MapBuilder):
                         raise ValueError(
                             "width and height must be provided if the instance scene has no intrinsic size"
                         )
+                    if instance_scene_config.transform.transpose:
+                        intrinsic_size = intrinsic_size[::-1]
                     self.height, self.width = intrinsic_size
 
                 instance_grid = create_grid(self.height, self.width)
                 instance_area = Area.root_area_from_grid(instance_grid)
-                instance_scene = instance_scene_config.create(instance_area, self.rng)
+                instance_scene = instance_scene_config.create_root(instance_area, self.rng)
                 instance_scene.render_with_children()
                 self.instance_scene_factories.append(TransplantScene.Config(scene=instance_scene))
             else:
@@ -364,7 +366,7 @@ class MapGen(MapBuilder):
 
         root_scene_cfg = self.get_root_scene_cfg()
 
-        self.root_scene = root_scene_cfg.create(self.inner_area, self.rng)
+        self.root_scene = root_scene_cfg.create_root(self.inner_area, self.rng)
         self.root_scene.render_with_children()
 
         return GameMap(self.guarded_grid())

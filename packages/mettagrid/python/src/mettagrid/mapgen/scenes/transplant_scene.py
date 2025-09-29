@@ -20,7 +20,7 @@ class TransplantScene(Scene[TransplantSceneConfig]):
     """
 
     def render(self):
-        if self.width != self.config.scene.width or self.height != self.config.scene.height:
+        if self.width != self.config.scene.area.width or self.height != self.config.scene.area.height:
             raise ValueError(
                 "TransplantScene can only be used with scenes that have the same width and height as the parent grid"
             )
