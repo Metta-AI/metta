@@ -19,8 +19,8 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
-    GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
+  bool _handle_action(Agent& actor, ActionArg /*arg*/) override {
+    GridLocation target_loc = _grid->relative_location(actor.location, static_cast<Orientation>(actor.orientation));
     target_loc.layer = GridLayer::ObjectLayer;
     // get_output only works on Converters, since only Converters have an output.
     // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
@@ -37,10 +37,10 @@ protected:
 
       for (const auto& [item, _] : converter->output_resources) {
         InventoryDelta resources_available = converter->inventory.amount(item);
-        InventoryDelta taken = actor->update_inventory(item, resources_available);
+        InventoryDelta taken = actor.update_inventory(item, resources_available);
 
         if (taken > 0) {
-          actor->stats.add(actor->stats.resource_name(item) + ".get", taken);
+          actor.stats.add(actor.stats.resource_name(item) + ".get", taken);
           converter->update_inventory(item, -taken);
           resources_taken = true;
         }
