@@ -50,7 +50,6 @@ find "/UI/Main":
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
-    echo "playMode: ", common.playMode
     if common.playMode != Realtime:
       if replay != "":
         if replay.startsWith("http"):
