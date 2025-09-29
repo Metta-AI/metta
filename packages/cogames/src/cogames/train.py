@@ -149,11 +149,16 @@ def train(
     while trainer.global_step < num_steps:
         trainer.evaluate()
         trainer.train()
-        if trainer.rewards.numel() > 0:
-            rewards = trainer.rewards.detach()
-            trainer.stats["reward_mean"] = float(rewards.mean().item())
-            trainer.stats["reward_std"] = float(rewards.std(unbiased=False).item())
-            trainer.stats["reward_sum"] = float(rewards.sum().item())
+        rewards_tensor = getattr(trainer, "rewards", None)
+        if rewards_tensor is None:
+            continue
+        if not hasattr(rewards_tensor, "numel") or rewards_tensor.numel() == 0:
+            continue
+
+        rewards = rewards_tensor.detach() if hasattr(rewards_tensor, "detach") else torch.as_tensor(rewards_tensor)
+        trainer.stats["reward_mean"] = float(rewards.mean().item())
+        trainer.stats["reward_std"] = float(rewards.std(unbiased=False).item())
+        trainer.stats["reward_sum"] = float(rewards.sum().item())
 
     trainer.print_dashboard()
     trainer.close()
