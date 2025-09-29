@@ -350,7 +350,7 @@ Common management commands:
     args = parser.parse_args()
 
     # Validate conflicting arguments
-    if args.sweep_controller and args.gpus:
+    if args.sweep_controller and args.gpus > 1:
         print(f"{red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs.")
         print(f"  Either use --sweep-controller without --gpus, or use regular mode with --gpus {args.gpus}")
         return 1

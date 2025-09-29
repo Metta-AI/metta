@@ -1,264 +1,115 @@
 """Game playing functionality for CoGames."""
 
-from pathlib import Path
-from typing import Any, Dict, Optional
+import json
+import logging
+from typing import Optional
 
+import numpy as np
+import torch
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from cogames.game import get_game
-from cogames.policy import Policy, create_policy
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.envs.mettagrid_env import MettaGridEnv
+import mettagrid.mettascope as mettascope
+from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid.util.grid_object_formatter import format_grid_object
+from mettagrid.util.module import load_symbol
 
-
-class GameRunner:
-    """Handles running games with different policies."""
-
-    def __init__(
-        self,
-        config: MettaGridConfig,
-        console: Optional[Console] = None,
-        render: bool = False,
-        save_video: Optional[Path] = None,
-    ):
-        """Initialize the game runner.
-
-        Args:
-            config: Game configuration
-            console: Optional Rich console for output
-            render: Whether to render the game
-            save_video: Optional path to save video
-        """
-        self.config = config
-        self.console = console or Console()
-        self.render = render
-        self.save_video = save_video
-        self.env = None
-
-    def setup(self) -> MettaGridEnv:
-        """Set up the game environment.
-
-        Returns:
-            The initialized environment
-        """
-        self.env = MettaGridEnv(env_cfg=self.config)
-        return self.env
-
-    def run_episode(self, policy: Policy, max_steps: Optional[int] = None, verbose: bool = False) -> Dict[str, Any]:
-        """Run a single episode with the given policy.
-
-        Args:
-            policy: The policy to use
-            max_steps: Maximum number of steps (None for no limit)
-            verbose: Whether to print progress
-
-        Returns:
-            Episode statistics
-        """
-        if self.env is None:
-            self.setup()
-
-        obs = self.env.reset()
-        policy.reset()
-
-        episode_rewards = []
-        step_count = 0
-        done = False
-
-        while not done and (max_steps is None or step_count < max_steps):
-            # Get action from policy
-            actions = policy.get_action(obs)
-
-            # Step the environment
-            obs, rewards, dones, truncated, info = self.env.step(actions)
-
-            # Aggregate rewards
-            if isinstance(rewards, dict):
-                total_reward = sum(rewards.values())
-            else:
-                total_reward = rewards
-
-            episode_rewards.append(total_reward)
-
-            # Check if done
-            if isinstance(dones, dict):
-                done = any(dones.values())
-            else:
-                done = dones
-
-            step_count += 1
-
-            if verbose and step_count % 10 == 0:
-                self.console.print(f"Step {step_count}: Reward = {total_reward:.2f}")
-
-            if self.render:
-                # Render logic would go here
-                pass
-
-        total_reward = sum(episode_rewards)
-        avg_reward = total_reward / len(episode_rewards) if episode_rewards else 0
-
-        return {
-            "total_reward": total_reward,
-            "average_reward": avg_reward,
-            "steps": step_count,
-            "rewards": episode_rewards,
-        }
-
-    def run_interactive(
-        self,
-        max_steps: int = 1000,
-    ) -> None:
-        """Run the game in interactive mode where user controls actions.
-
-        Args:
-            max_steps: Maximum number of steps
-        """
-        if self.env is None:
-            self.setup()
-
-        self.console.print("[cyan]Starting interactive game session[/cyan]")
-        self.console.print("Controls: Use arrow keys to move, 'q' to quit")
-        self.console.print("[yellow]Interactive mode not fully implemented yet.[/yellow]")
-
-        # This would implement interactive controls
-        # For now, it's a placeholder
-        self.console.print("Would run interactive game loop here...")
-
-    def cleanup(self) -> None:
-        """Clean up resources."""
-        if self.env is not None:
-            self.env.close()
-            self.env = None
+logger = logging.getLogger("cogames.play")
 
 
-def play_game(
-    game_name: str,
-    scenario_name: str = None,  # Keep for backward compatibility
-    policy: str = "random",
-    steps: int = 100,
-    episodes: int = 1,
-    interactive: bool = False,
-    render: bool = False,
-    save_video: Optional[Path] = None,
-    console: Optional[Console] = None,
-) -> Dict[str, Any]:
-    """Play a game with the specified configuration.
+def play(
+    console: Console,
+    env_cfg: MettaGridConfig,
+    policy_class_path: str,
+    policy_data_path: Optional[str] = None,
+    max_steps: Optional[int] = None,
+    seed: int = 42,
+    verbose: bool = False,
+) -> None:
+    """Play a single game episode with a policy.
 
     Args:
-        game_name: Name of the game
-        scenario_name: Deprecated, kept for backward compatibility
-        policy: Policy to use ("random" or path to checkpoint)
-        steps: Maximum steps per episode
-        episodes: Number of episodes to run
-        interactive: Whether to run in interactive mode
+        console: Rich console for output
+        env_cfg: Game configuration
+        policy_class_path: Path to policy class
+        policy_data_path: Optional path to policy weights/checkpoint
+        max_steps: Maximum steps for the episode (None for no limit)
+        seed: Random seed
         render: Whether to render the game
         save_video: Optional path to save video
-        console: Optional Rich console for output
-
-    Returns:
-        Game statistics
+        verbose: Whether to print detailed progress
     """
-    if console is None:
-        console = Console()
+    # Create environment
+    env = MettaGridEnv(env_cfg=env_cfg)
+    obs, _ = env.reset(seed=seed)
 
-    # Get game configuration
-    game_config = get_game(game_name)
+    # Load and create policy
+    policy_class = load_symbol(policy_class_path)
+    policy = policy_class(env, torch.device("cpu"))
 
-    # Create game runner
-    runner = GameRunner(config=game_config, console=console, render=render, save_video=save_video)
+    if policy_data_path and hasattr(policy, "load_checkpoint"):
+        policy.load_checkpoint(policy_data_path)
 
-    try:
-        # Set up environment
-        env = runner.setup()
+    policy.reset()
 
-        if interactive:
-            runner.run_interactive(max_steps=steps)
-            return {"mode": "interactive", "status": "completed"}
+    # Run episode
+    step_count = 0
+    num_agents = env_cfg.game.num_agents
+    actions = np.zeros((env.num_agents, 2), dtype=np.int32)
+    total_rewards = np.zeros(env.num_agents)
 
-        # Create policy
-        policy_obj = create_policy(policy, env)
+    initial_replay = {
+        "version": 2,
+        "action_names": env.action_names,
+        "item_names": env.resource_names,
+        "type_names": env.object_type_names,
+        "map_size": [env.map_width, env.map_height],
+        "num_agents": env.num_agents,
+        "max_steps": 0,
+        "mg_config": env.mg_config.model_dump(mode="json"),
+        "objects": [],
+    }
 
-        # Run episodes
-        all_results = []
+    response = mettascope.init(replay=json.dumps(initial_replay))
+    if response.should_close:
+        return
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task(f"Running {episodes} episodes...", total=episodes)
+    def generate_replay_step():
+        grid_objects = []
+        for grid_object in env.grid_objects.values():
+            if "agent_id" in grid_object:
+                agent_id = grid_object["agent_id"]
+                total_rewards[agent_id] += env.rewards[agent_id]
+            grid_objects.append(
+                format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+            )
+        step_replay = {"step": step_count, "objects": grid_objects}
+        return json.dumps(step_replay)
 
-            for episode in range(episodes):
-                result = runner.run_episode(policy=policy_obj, max_steps=steps, verbose=(episodes == 1))
-                all_results.append(result)
+    while max_steps is None or step_count < max_steps:
+        # Generate replay step
+        replay_step = generate_replay_step()
 
-                if episodes > 1:
-                    console.print(
-                        f"Episode {episode + 1}: Total Reward = {result['total_reward']:.2f}, Steps = {result['steps']}"
-                    )
+        # Call policy once per agent to get actions
+        for agent_id in range(num_agents):
+            actions[agent_id] = policy.step(agent_id, obs[agent_id])
 
-                progress.update(task, advance=1)
+        response = mettascope.render(step_count, replay_step)
+        if response.should_close:
+            break
+        if response.action:
+            actions[response.action_agent_id, 0] = response.action_action_id
+            actions[response.action_agent_id, 1] = response.action_argument
 
-        # Calculate statistics
-        total_rewards = [r["total_reward"] for r in all_results]
-        avg_reward = sum(total_rewards) / len(total_rewards)
-        min_reward = min(total_rewards)
-        max_reward = max(total_rewards)
+        obs, rewards, dones, truncated, info = env.step(actions)
 
-        stats = {
-            "episodes": episodes,
-            "average_reward": avg_reward,
-            "min_reward": min_reward,
-            "max_reward": max_reward,
-            "total_steps": sum(r["steps"] for r in all_results),
-            "results": all_results,
-        }
+        step_count += 1
 
-        # Print summary
-        console.print("\n[bold green]Game Complete![/bold green]")
-        console.print(f"Average Reward: {avg_reward:.2f}")
-        console.print(f"Min Reward: {min_reward:.2f}")
-        console.print(f"Max Reward: {max_reward:.2f}")
+        if verbose:
+            console.print(f"Step {step_count}: Reward = {float(sum(rewards)):.2f}")
 
-        return stats
+        if all(dones) or all(truncated):
+            break
 
-    finally:
-        runner.cleanup()
-
-
-def evaluate_policy(
-    game_name: str,
-    scenario_name: str = None,  # Keep for backward compatibility
-    policy: str = "random",
-    episodes: int = 10,
-    render: bool = False,
-    save_video: Optional[Path] = None,
-    console: Optional[Console] = None,
-) -> Dict[str, Any]:
-    """Evaluate a policy on a game.
-
-    Args:
-        game_name: Name of the game
-        scenario_name: Deprecated, kept for backward compatibility
-        policy: Policy to evaluate (path to checkpoint or "random")
-        episodes: Number of evaluation episodes
-        render: Whether to render evaluation
-        save_video: Optional path to save video
-        console: Optional Rich console for output
-
-    Returns:
-        Evaluation statistics
-    """
-    return play_game(
-        game_name=game_name,
-        scenario_name=scenario_name,
-        policy=policy,
-        steps=None,  # No step limit for evaluation
-        episodes=episodes,
-        interactive=False,
-        render=render,
-        save_video=save_video,
-        console=console,
-    )
+    # Print summary
+    console.print("\n[bold green]Episode Complete![/bold green]")
+    console.print(f"Steps: {step_count}")

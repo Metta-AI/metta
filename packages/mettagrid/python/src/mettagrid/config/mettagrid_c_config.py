@@ -1,4 +1,5 @@
 import math
+from typing import Sequence
 
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
@@ -18,6 +19,7 @@ from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
+from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import Recipe as CppRecipe
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
@@ -35,7 +37,7 @@ def recursive_update(d, u):
     return d
 
 
-def expand_position_patterns(positions: list[Position]) -> list[int]:
+def expand_position_patterns(positions: Sequence[Position]) -> list[int]:
     """Convert from a list of string positions to a list of matching bit patterns.
 
     Args:
@@ -152,20 +154,21 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 )
 
         rewards_config = agent_props.get("rewards", {})
-        inventory_rewards = {
-            resource_name_to_id[k]: v
-            for k, v in rewards_config.get("inventory", {}).items()
-            if k in resource_name_to_id
-        }
-        inventory_reward_max = {
-            resource_name_to_id[k]: v
-            for k, v in rewards_config.get("inventory_max", {}).items()
-            if k in resource_name_to_id
-        }
 
         # Process stats rewards
         stat_rewards = rewards_config.get("stats", {})
         stat_reward_max = rewards_config.get("stats_max", {})
+
+        for k, v in rewards_config.get("inventory", {}).items():
+            assert k in resource_name_to_id, f"Inventory reward {k} not in resource_names"
+            stat_name = k + ".amount"
+            assert stat_name not in stat_rewards, f"Stat reward {stat_name} already exists"
+            stat_rewards[stat_name] = v
+        for k, v in rewards_config.get("inventory_max", {}).items():
+            assert k in resource_name_to_id, f"Inventory reward max {k} not in resource_names"
+            stat_name = k + ".amount"
+            assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
+            stat_reward_max[stat_name] = v
 
         # Process potential initial inventory
         initial_inventory = {}
@@ -178,17 +181,29 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # Convert tag names to IDs for first agent in team
         tag_ids = [tag_name_to_id[tag] for tag in first_agent.tags if tag in tag_name_to_id]
 
+        # Convert soul bound resources from names to IDs
+        soul_bound_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("soul_bound_resources", [])
+            if resource_name in resource_name_to_id
+        ]
+
+        inventory_config = CppInventoryConfig(
+            limits=[
+                [
+                    [resource_name_to_id[resource_name]],
+                    agent_props["resource_limits"].get(resource_name, default_resource_limit),
+                ]
+                for resource_name in resource_names
+            ]
+        )
+
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
             "group_id": team_id,
             "group_name": group_name,
             "action_failure_penalty": agent_props["action_failure_penalty"],
-            "resource_limits": {
-                resource_id: agent_props["resource_limits"].get(resource_name, default_resource_limit)
-                for resource_id, resource_name in enumerate(resource_names)
-            },
-            "resource_rewards": inventory_rewards,
-            "resource_reward_max": inventory_reward_max,
+            "inventory_config": inventory_config,
             "stat_rewards": stat_rewards,
             "stat_reward_max": stat_reward_max,
             "group_reward_pct": 0.0,  # Default to 0 for direct agents
@@ -196,6 +211,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "type_name": "agent",
             "initial_inventory": initial_inventory,
             "tag_ids": tag_ids,
+            "soul_bound_resources": soul_bound_resources,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -300,8 +316,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id,
                 type_name=object_type,
                 resource_type=resource_type_id,
-                deposit_positions=set(object_config.deposit_positions),
-                withdrawal_positions=set(object_config.withdrawal_positions),
+                deposit_positions=set(expand_position_patterns(object_config.deposit_positions)),
+                withdrawal_positions=set(expand_position_patterns(object_config.withdrawal_positions)),
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config

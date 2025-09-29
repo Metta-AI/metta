@@ -1,3 +1,4 @@
+external/
 resources
 
 # Environment and IDE
@@ -37,10 +38,8 @@ build-debug/
 build-coverage/
 
 # Bazel build artifacts
-bazel-bin
-bazel-out
-bazel-testlogs
-bazel-mettagrid
+**/bazel-*
+**/.bazel_output/
 
 # Node.js / Frontend
 node_modules/
@@ -98,6 +97,7 @@ experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/README.md
 !experiments/recipes/scratchpad/example.py
 !experiments/recipes/scratchpad/ci.py
+packages/cogames/experiments
 
 resources
 LUNARVIM_CHEATSHEET.md

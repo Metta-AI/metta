@@ -1,4 +1,4 @@
-"""SweepTool for hyperparameter optimization using the new orchestrator."""
+"""SweepTool for Bayesian hyperparameter optimization using adaptive experiments."""
 
 import logging
 import os
@@ -8,58 +8,67 @@ from pathlib import Path
 from typing import Any, Optional
 
 from cogweb.cogweb_client import CogwebClient
+from metta.adaptive import AdaptiveConfig, AdaptiveController
+from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
+from metta.adaptive.stores import WandbStore
 from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
-from metta.sweep import JobTypes, LocalDispatcher, SweepController, SweepControllerConfig, SweepStatus
-from metta.sweep.dispatcher.routing import RoutingDispatcher
-from metta.sweep.dispatcher.skypilot import SkypilotDispatcher
-from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.protocols import Dispatcher, Optimizer, Scheduler, Store
 from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
-from metta.sweep.stores.wandb import WandbStore
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
 
-def orchestrate_sweep(
-    config: SweepControllerConfig,
-    scheduler: Scheduler,
-    optimizer: Optimizer,
-    dispatcher: Dispatcher,
-    store: Store,
-) -> None:
-    """Entry point for running a sweep."""
-    cogweb_client = CogwebClient.get_client(base_url=config.sweep_server_uri)
-    sweep_client = cogweb_client.sweep_client()
+def create_on_eval_completed_hook(metric_path: str):
+    """Create an on_eval_completed hook that extracts the specified metric.
 
-    sweep_info = sweep_client.get_sweep(config.sweep_name)
-    if not sweep_info.exists:
-        logger.info(f"[Orchestrator] Registering sweep {config.sweep_name}")
-        sweep_client.create_sweep(config.sweep_name, config.wandb.project, config.wandb.entity, config.sweep_name)
-        sweep_status = SweepStatus.CREATED
-    else:
-        sweep_status = SweepStatus.RESUMED
+    Args:
+        metric_path: The path to the metric in the summary (e.g., "evaluator/eval_arena/score")
 
-    # Create the sweep controller (stateless)
-    controller = SweepController(
-        sweep_id=config.sweep_name,
-        scheduler=scheduler,
-        optimizer=optimizer,
-        dispatcher=dispatcher,
-        store=store,
-        protein_config=config.protein_config,
-        sweep_status=sweep_status,
-        max_parallel_jobs=config.max_parallel_jobs,
-        monitoring_interval=config.monitoring_interval,
-    )
+    Returns:
+        A hook function that extracts the metric and updates the observation.
+    """
 
-    try:
-        controller.run()
-    finally:
-        logger.info("[Orchestrator] Sweep Completed")
+    def on_eval_completed(run, store, all_runs):
+        """Update run summary with sweep-specific observation data for the optimizer."""
+        # Extract the summary
+        summary = run.summary or {}
+
+        # Look for the specific metric we're optimizing - fail hard if not found
+        if metric_path not in summary:
+            error_msg = (
+                f"[SweepTool] CRITICAL: Metric '{metric_path}' not found in run {run.run_id} summary. "
+                f"The sweep cannot optimize without this metric. Please verify your evaluation "
+                f"is producing the expected metric."
+            )
+            logger.error(error_msg)
+            raise KeyError(error_msg)
+
+        score = summary[metric_path]
+
+        # Use the existing cost field from RunInfo (defaults to 0 if not set)
+        cost = run.cost
+
+        # Update the run summary with sweep data for the optimizer
+        sweep_data = {
+            "sweep/score": float(score),
+            "sweep/cost": float(cost),
+        }
+
+        # Update remote store (WandB)
+        store.update_run_summary(run.run_id, sweep_data)
+
+        # CRITICAL: Also update the local run object so scheduler sees the data immediately
+        # Without this, the scheduler won't see the scores until the next WandB fetch
+        if run.summary is None:
+            run.summary = {}
+        run.summary.update(sweep_data)
+
+        logger.info(f"[SweepTool] Updated sweep observation for {run.run_id}: score={score:.6f}, cost={cost:.2f}")
+
+    return on_eval_completed
 
 
 class DispatcherType(StrEnum):
@@ -70,13 +79,18 @@ class DispatcherType(StrEnum):
 
 
 class SweepTool(Tool):
-    """Tool for running hyperparameter sweeps."""
+    """Tool for Bayesian hyperparameter optimization using adaptive experiments.
+
+    This tool is specialized for hyperparameter tuning using Bayesian optimization.
+    For other experiment types (GPU sweeps, architecture comparisons), use the
+    AdaptiveController directly in Python code.
+    """
 
     # Sweep identity - optional, will be generated if not provided
     sweep_name: Optional[str] = None
     sweep_dir: Optional[str] = None
 
-    # Core sweep configuration - always required with defaults
+    # Core sweep configuration - Bayesian optimization config
     protein_config: ProteinConfig = ProteinConfig(
         metric="evaluator/eval_arena/score",
         goal="maximize",
@@ -93,30 +107,46 @@ class SweepTool(Tool):
 
     # Scheduler configuration
     max_trials: int = 10
+    batch_size: int = 4  # Number of suggestions per batch
     recipe_module: str = "experiments.recipes.arena"
-    train_entrypoint: str = "train_shaped"
+    train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
 
-    # Orchestrator settings
-    max_parallel_jobs: int = 1
-    monitoring_interval: int = 5
+    # Controller settings
+    max_parallel_jobs: int = 6
+    monitoring_interval: int = 60
     sweep_server_uri: str = "https://api.observatory.softmax-research.net"
     gpus: int = 1  # Number of GPUs per training job
     nodes: int = 1  # Number of nodes per training job
 
+    # local test is similar to dry runs
+    local_test: bool = False
+
     # Override configurations
     train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
+    eval_overrides: dict[str, Any] = {}  # Overrides to apply to all evaluation jobs
 
     # Infrastructure configuration
     wandb: WandbConfig = WandbConfig.Unconfigured()
     stats_server_uri: Optional[str] = auto_stats_server_uri()  # Stats server for remote evaluations
 
     # Dispatcher configuration
-    dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # Default: train on Skypilot, evaluate locally
+    dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # SKYPILOT or LOCAL
     capture_output: bool = True  # Capture and stream subprocess output (local only)
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Execute the sweep."""
+
+        if self.local_test:
+            # Local testing configuration
+            self.dispatcher_type = DispatcherType.LOCAL
+            self.train_overrides["trainer.total_timesteps"] = 50000  # Quick 50k timesteps for testing
+
+            # We let the batch size be set in training for the quick run
+            # Use pop() to safely remove keys without raising KeyError if they don't exist
+            # The keys include the full path "trainer.batch_size" not just "batch_size"
+            self.protein_config.parameters.pop("trainer.batch_size", None)
+            self.protein_config.parameters.pop("trainer.minibatch_size", None)
 
         # Handle sweep_name being passed via cmd line
         if "sweep_name" in args:
@@ -163,25 +193,34 @@ class SweepTool(Tool):
         # Initialize logging
         init_logging(run_dir=Path(self.sweep_dir))
 
-        logger.info("[SweepOrchestrator] " + "=" * 60)
-        logger.info(f"[SweepOrchestrator] Starting sweep: {self.sweep_name}")
-        logger.info(f"[SweepOrchestrator] Recipe: {self.recipe_module}.{self.train_entrypoint}")
-        logger.info(f"[SweepOrchestrator] Max trials: {self.max_trials}")
-        logger.info(f"[SweepOrchestrator] Max parallel jobs: {self.max_parallel_jobs}")
-        logger.info(f"[SweepOrchestrator] Monitoring interval: {self.monitoring_interval}s")
-        logger.info(f"[SweepOrchestrator] Dispatcher type: {self.dispatcher_type}")
-        logger.info(f"[SweepOrchestrator] Output capture: {self.capture_output}")
-        logger.info("[SweepOrchestrator] " + "=" * 60)
+        logger.info("[SweepTool] " + "=" * 60)
+        logger.info(f"[SweepTool] Starting Bayesian optimization sweep: {self.sweep_name}")
+        logger.info(f"[SweepTool] Recipe: {self.recipe_module}.{self.train_entrypoint}")
+        logger.info(f"[SweepTool] Max trials: {self.max_trials}")
+        logger.info(f"[SweepTool] Batch size: {self.batch_size}")
+        logger.info(f"[SweepTool] Max parallel jobs: {self.max_parallel_jobs}")
+        logger.info(f"[SweepTool] Monitoring interval: {self.monitoring_interval}s")
+        logger.info(f"[SweepTool] Dispatcher type: {self.dispatcher_type}")
+        logger.info("[SweepTool] " + "=" * 60)
 
-        # Build the orchestrator config
-        sweep_controller_config = SweepControllerConfig(
-            sweep_name=self.sweep_name,
-            sweep_server_uri=self.sweep_server_uri,
-            wandb=self.wandb,
-            protein_config=self.protein_config,
-            max_parallel_jobs=self.max_parallel_jobs,
-            monitoring_interval=self.monitoring_interval,
-        )
+        # Check for resumption using cogweb
+        resume = False
+        if self.sweep_server_uri:
+            try:
+                cogweb_client = CogwebClient.get_client(base_url=self.sweep_server_uri)
+                sweep_client = cogweb_client.sweep_client()
+                sweep_info = sweep_client.get_sweep(self.sweep_name)
+
+                if not sweep_info.exists:
+                    logger.info(f"[SweepTool] Registering new sweep: {self.sweep_name}")
+                    sweep_client.create_sweep(self.sweep_name, self.wandb.project, self.wandb.entity, self.sweep_name)
+                    resume = False
+                else:
+                    logger.info(f"[SweepTool] Resuming existing sweep: {self.sweep_name}")
+                    resume = True
+            except Exception as e:
+                logger.warning(f"[SweepTool] Could not check sweep status via cogweb: {e}")
+                resume = False
 
         # Create components
         store = WandbStore(entity=self.wandb.entity, project=self.wandb.project)
@@ -191,111 +230,114 @@ class SweepTool(Tool):
             dispatcher = LocalDispatcher(capture_output=self.capture_output)
 
         elif self.dispatcher_type == DispatcherType.SKYPILOT:
-            # Train on Skypilot, evaluate locally through the CLI
-            dispatcher = RoutingDispatcher(
-                routes={
-                    JobTypes.LAUNCH_TRAINING: SkypilotDispatcher(),
-                    JobTypes.LAUNCH_EVAL: LocalDispatcher(capture_output=self.capture_output),
-                }
-            )
-            logger.info("[SweepOrchestrator] Using hybrid mode: training on Skypilot, evaluation locally")
+            dispatcher = SkypilotDispatcher()
 
         else:
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 
-        # Create optimizer
-        optimizer = ProteinOptimizer(self.protein_config)
-
-        # Create scheduler with configuration
+        # Create scheduler configuration for Bayesian optimization
         scheduler_config = BatchedSyncedSchedulerConfig(
             max_trials=self.max_trials,
+            batch_size=self.batch_size,
             recipe_module=self.recipe_module,
             train_entrypoint=self.train_entrypoint,
             eval_entrypoint=self.eval_entrypoint,
-            train_overrides=self.train_overrides,  # Pass train overrides to scheduler
-            stats_server_uri=self.stats_server_uri,  # Pass stats server for remote evals
-            gpus=self.gpus,  # Pass GPU configuration
+            train_overrides=self.train_overrides,
+            eval_overrides=self.eval_overrides,
+            stats_server_uri=self.stats_server_uri,
+            gpus=self.gpus,
             nodes=self.nodes,
-            batch_size=self.max_parallel_jobs,
+            experiment_id=self.sweep_name,
+            protein_config=self.protein_config,
         )
-        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config, optimizer)
 
-        # Save configuration (similar to TrainTool saving config.json)
+        # Create scheduler with Bayesian optimization
+        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
+
+        # Create adaptive config
+        adaptive_config = AdaptiveConfig(
+            max_parallel=self.max_parallel_jobs, monitoring_interval=self.monitoring_interval, resume=resume
+        )
+
+        # Save configuration
         config_path = os.path.join(self.sweep_dir, "sweep_config.json")
         with open(config_path, "w") as f:
             f.write(self.model_dump_json(indent=2))
-            logger.info(f"[SweepOrchestrator] Config saved to {config_path}")
+            logger.info(f"[SweepTool] Config saved to {config_path}")
+
+        # Create the adaptive controller
+        controller = AdaptiveController(
+            experiment_id=self.sweep_name,
+            scheduler=scheduler,
+            dispatcher=dispatcher,
+            store=store,
+            config=adaptive_config,
+        )
 
         try:
-            logger.info("[SweepOrchestrator] Starting orchestrator control loop...")
+            logger.info("[SweepTool] Starting adaptive controller with sweep hooks...")
+            logger.info(f"[SweepTool] Optimizing metric: {self.protein_config.metric}")
 
-            # Use the orchestrate_sweep entry point
-            orchestrate_sweep(
-                config=sweep_controller_config,
-                scheduler=scheduler,
-                optimizer=optimizer,
-                dispatcher=dispatcher,
-                store=store,
+            # Create the on_eval_completed hook with the specific metric we're optimizing
+            on_eval_completed = create_on_eval_completed_hook(self.protein_config.metric)
+
+            # Pass on_eval_completed hook to run method for sweep-specific observation tracking
+            controller.run(
+                on_eval_completed=on_eval_completed,
             )
 
         except KeyboardInterrupt:
-            logger.info("[SweepOrchestrator] Sweep interrupted by user")
+            logger.info("[SweepTool] Sweep interrupted by user")
         except Exception as e:
-            logger.error(f"[SweepOrchestrator] Sweep failed with error: {e}")
+            logger.error(f"[SweepTool] Sweep failed with error: {e}")
             raise
         finally:
             # Final summary
             final_runs = store.fetch_runs(filters={"group": self.sweep_name})
 
-            logger.info("[SweepOrchestrator] " + "=" * 60)
-            logger.info("[SweepOrchestrator] SWEEP SUMMARY")
-            logger.info("[SweepOrchestrator] " + "=" * 60)
-            logger.info(f"[SweepOrchestrator] Sweep name: {self.sweep_name}")
-            logger.info(f"[SweepOrchestrator] Total runs: {len(final_runs)}")
+            logger.info("[SweepTool] " + "=" * 60)
+            logger.info("[SweepTool] SWEEP SUMMARY")
+            logger.info("[SweepTool] " + "=" * 60)
+            logger.info(f"[SweepTool] Sweep name: {self.sweep_name}")
+            logger.info(f"[SweepTool] Total runs: {len(final_runs)}")
 
             # Show detailed status table
             if final_runs:
-                logger.info("[SweepOrchestrator] ")
-                logger.info("[SweepOrchestrator] Final Run Status Table:")
-                logger.info(f"[SweepOrchestrator] {'=' * 80}")
-                logger.info(f"[SweepOrchestrator] {'Run ID':<35} {'Status':<25} {'Score':<20}")
-                logger.info(f"[SweepOrchestrator] {'-' * 80}")
+                from metta.adaptive.utils import make_monitor_table
 
-                for run in final_runs:
-                    score_str = f"{run.observation.score:.6f}" if run.observation else "N/A"
-                    logger.info(f"[SweepOrchestrator] {run.run_id:<35} {str(run.status):<25} {score_str:<20}")
-
-                logger.info(f"[SweepOrchestrator] {'=' * 80}")
-
-            # Count by status
-            completed_count = sum(1 for run in final_runs if run.observation is not None)
-            failed_count = sum(1 for run in final_runs if run.has_failed)
-            in_progress_count = sum(
-                1 for run in final_runs if run.has_started_training and not run.has_completed_training
-            )
-
-            logger.info("[SweepOrchestrator] ")
-            logger.info("[SweepOrchestrator] Summary:")
-            logger.info(f"[SweepOrchestrator] - Completed with observations: {completed_count}")
-            logger.info(f"[SweepOrchestrator] - Failed: {failed_count}")
-            logger.info(f"[SweepOrchestrator] - In progress: {in_progress_count}")
+                table_lines = make_monitor_table(
+                    runs=final_runs,
+                    title="Final Run Status",
+                    logger_prefix="[SweepTool]",
+                    include_score=True,
+                    truncate_run_id=True,
+                )
+                for line in table_lines:
+                    logger.info(line)
 
             # Show best result if available
-            observations = [run for run in final_runs if run.observation is not None]
-            if observations:
+            # Filter runs that have sweep scores (i.e., completed evaluations with scores)
+            completed_runs = [run for run in final_runs if run.summary and run.summary.get("sweep/score") is not None]
+
+            if completed_runs:
+                # Find the best run based on the score
                 if self.protein_config.goal == "maximize":
-                    best_run = max(observations, key=lambda r: r.observation.score if r.observation else 0.0)
+                    best_run = max(completed_runs, key=lambda r: r.summary.get("sweep/score", float("-inf")))  # type: ignore[union-attr]
                 else:
-                    best_run = min(observations, key=lambda r: r.observation.score if r.observation else 0.0)
+                    best_run = min(completed_runs, key=lambda r: r.summary.get("sweep/score", float("inf")))  # type: ignore[union-attr]
 
-                logger.info("[SweepOrchestrator] Best result:")
-                logger.info(f"[SweepOrchestrator]    Run: {best_run.run_id}")
-                logger.info(
-                    f"[SweepOrchestrator]    Score: {(best_run.observation.score if best_run.observation else 0.0):.4f}"
-                )
-                if best_run.observation and best_run.observation.suggestion:
-                    logger.info(f"[SweepOrchestrator]    Config: {best_run.observation.suggestion}")
+                logger.info("[SweepTool] ")
+                logger.info("[SweepTool] Best result:")
+                logger.info(f"[SweepTool]    Run: {best_run.run_id}")
 
-            logger.info("[SweepOrchestrator] " + "=" * 60)
+                # Get the score and suggestion from the summary
+                score = best_run.summary.get("sweep/score")  # type: ignore[union-attr]
+                suggestion = best_run.summary.get("sweep/suggestion", {})  # type: ignore[union-attr]
+
+                logger.info(f"[SweepTool]    Score: {score:.4f}")
+                if suggestion:
+                    logger.info(f"[SweepTool]    Config: {suggestion}")
+
+            logger.info("[SweepTool] " + "=" * 60)
 
         return 0

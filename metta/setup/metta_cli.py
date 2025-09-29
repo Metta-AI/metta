@@ -10,7 +10,6 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
-from softmax.dashboard.report import app as softmax_system_health_app
 
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
@@ -20,6 +19,7 @@ from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.live_run_monitor import app as run_monitor_app
+from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -480,6 +480,13 @@ def cmd_publish(
     prefix = PACKAGE_TAG_PREFIXES[package]
 
     try:
+        info(f"Fetching tags from {remote}...")
+        _run_git_command(["fetch", remote, "--tags"], capture_output=False)
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to fetch tags from {remote}: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    try:
         status_output = _get_git_output(["status", "--porcelain"])
     except subprocess.CalledProcessError as exc:
         error(f"Failed to read git status: {exc}")
@@ -557,11 +564,16 @@ def cmd_publish(
 
 @app.command(name="lint", help="Run linting and formatting")
 def cmd_lint(
+    files: Annotated[Optional[list[str]], typer.Argument()] = None,
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
 ):
-    files = []
-    if staged:
+    # Determine which files to lint
+    if files:
+        # Filter to only Python files
+        files = [f for f in files if f.endswith(".py")]
+    elif staged:
+        # Discover staged files
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
             cwd=cli.repo_root,
@@ -570,12 +582,14 @@ def cmd_lint(
             check=True,
         )
         files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
-        if not files:
-            return
 
+    if files is not None and not files:
+        info("No Python files to lint")
+        return
+
+    # Build commands
     check_cmd = ["uv", "run", "--active", "ruff", "check"]
     format_cmd = ["uv", "run", "--active", "ruff", "format"]
-    cmds = [format_cmd, check_cmd]
 
     if fix:
         check_cmd.append("--fix")
@@ -583,10 +597,11 @@ def cmd_lint(
         format_cmd.append("--check")
 
     if files:
-        for cmd in cmds:
-            cmd.extend(files)
+        check_cmd.extend(files)
+        format_cmd.extend(files)
 
-    for cmd in cmds:
+    # Run commands
+    for cmd in [format_cmd, check_cmd]:
         try:
             info(f"Running: {' '.join(cmd)}")
             subprocess.run(cmd, cwd=cli.repo_root, check=True)

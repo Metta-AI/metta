@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+import numpy as np
 import torch
 from pydantic import ConfigDict
 from tensordict import TensorDict
@@ -51,6 +52,7 @@ class CoreTrainingLoop:
         self.device = device
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
+        self.last_action = None
 
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
@@ -100,6 +102,7 @@ class CoreTrainingLoop:
             td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
             td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
             td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
+            self.add_last_action_to_td(td, env)
 
             self._ensure_rollout_metadata(td)
 
@@ -109,6 +112,7 @@ class CoreTrainingLoop:
                 loss.rollout(td, context)
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
+            self.last_action[training_env_id] = td["actions"].detach()
 
             # Ship actions to the environment
             env.send_actions(td["actions"].cpu().numpy())
@@ -258,3 +262,13 @@ class CoreTrainingLoop:
         """
         for loss in self.losses.values():
             loss.on_new_training_run(context)
+
+    def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
+        env_ids = td["training_env_ids"]
+        if env_ids.dim() == 2:
+            env_ids = td["training_env_ids"].squeeze(-1)
+        if self.last_action is None or len(self.last_action) < env_ids.max() + 1:
+            act_space = env.single_action_space
+            act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+            self.last_action = torch.zeros(env_ids.max() + 1, len(act_space.nvec), dtype=act_dtype, device=td.device)
+        td["last_actions"] = self.last_action[env_ids].detach()

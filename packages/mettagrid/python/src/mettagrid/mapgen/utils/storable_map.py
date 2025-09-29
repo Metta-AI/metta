@@ -4,6 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import yaml
 from typing_extensions import TypedDict
@@ -12,7 +13,6 @@ from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.types import MapGrid
 from mettagrid.mapgen.utils.ascii_grid import grid_to_lines, lines_to_grid
-from mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,8 @@ class StorableMap:
     @staticmethod
     def from_uri(uri: str) -> StorableMap:
         logger.info(f"Loading map from {uri}")
-        content = file_utils.read(uri).decode()
+        # Only supports local files
+        content = Path(uri).read_text()
 
         # TODO - validate content in a more principled way
         (frontmatter, content) = content.split("---\n", 1)
@@ -100,7 +101,11 @@ class StorableMap:
         return storable_map
 
     def save(self, uri: str):
-        file_utils.write_data(uri, str(self), content_type="text/plain")
+        content = str(self)
+        # Only supports local files
+        path = Path(uri)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
         logger.info(f"Saved map to {uri}")
 
     # Useful in API responses

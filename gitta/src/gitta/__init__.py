@@ -9,7 +9,7 @@ import shlex
 import subprocess
 import tempfile
 import time
-from functools import wraps
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
 
@@ -154,31 +154,6 @@ def run_git_cmd(
 # ============================================================================
 
 
-def _memoize(max_age=60):
-    """Simple memoization decorator with time-based expiry. (Internal helper)"""
-
-    def decorator(func):
-        cache = {}
-        cache_time = {}
-
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            key = str(args) + str(kwargs)
-            current_time = time.time()
-
-            if key in cache and current_time - cache_time[key] < max_age:
-                return cache[key]
-
-            result = await func(*args, **kwargs)
-            cache[key] = result
-            cache_time[key] = current_time
-            return result
-
-        return wrapper
-
-    return decorator
-
-
 def run_git_with_cwd(args: list[str], cwd: str | Path | None = None) -> str:
     """Run a git command with optional working directory and return its output."""
     return run_git_cmd(args, cwd=Path(cwd) if cwd else None)
@@ -233,6 +208,7 @@ def get_branch_commit(branch: str) -> str:
     return run_git("rev-parse", "--verify", branch).strip()
 
 
+@lru_cache(maxsize=256)
 def get_commit_message(commit_hash: str) -> str:
     """Get the commit message for a given commit."""
     return run_git("log", "-1", "--pretty=%B", commit_hash)
@@ -313,6 +289,7 @@ def validate_git_ref(ref: str) -> str | None:
     return commit_hash
 
 
+@lru_cache(maxsize=256)
 def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
     """
     Return (PR number, title) if `commit_hash` is the HEAD of an open PR, else None.
@@ -341,6 +318,7 @@ def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
     return int(pr["number"]), pr["title"]
 
 
+@lru_cache(maxsize=10)
 def canonical_remote_url(url: str) -> str:
     """Canonicalize a git remote URL to a consistent format.
 
@@ -488,7 +466,6 @@ def get_git_hash_for_remote_task(
     return current_commit
 
 
-@_memoize(max_age=60 * 5)
 async def get_latest_commit(repo: str, branch: str = "main") -> str:
     """
     Get the latest commit SHA for a branch.
@@ -601,12 +578,25 @@ def fetch(repo_root: Path) -> None:
         pass
 
 
+# Manual cache for ref_exists - only cache positive results
+_ref_exists_cache: Dict[tuple[Path, str], bool] = {}
+
+
 def ref_exists(repo_root: Path, ref: str) -> bool:
-    """True if ref resolves in this repo."""
+    """True if ref resolves in this repo. Only caches positive results."""
+    cache_key = (repo_root, ref)
+
+    # Check cache only for positive results
+    if cache_key in _ref_exists_cache:
+        return True
+
     try:
         run_git_in_dir(repo_root, "rev-parse", "--verify", "--quiet", ref)
+        # Cache the positive result
+        _ref_exists_cache[cache_key] = True
         return True
     except GitError:
+        # Never cache negative results
         return False
 
 

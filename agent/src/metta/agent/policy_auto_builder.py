@@ -1,5 +1,7 @@
 import logging
 from collections import OrderedDict
+from contextlib import ExitStack
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -41,6 +43,7 @@ class PolicyAutoBuilder(nn.Module):
         self.action_probs = self.config.action_probs_config.make_component()
 
         self.network = TensorDictSequential(self.components, inplace=True)
+        self._sdpa_context = ExitStack()
 
         # PyTorch's nn.Module no longer exposes count_params(); defer to manual
         # aggregation to avoid AttributeError during policy construction.
@@ -62,6 +65,9 @@ class PolicyAutoBuilder(nn.Module):
         device: torch.device,
     ):
         self.to(device)
+        if device.type == "cuda":
+            self._configure_sdp()
+            torch.set_float32_matmul_precision("medium")
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
@@ -73,6 +79,62 @@ class PolicyAutoBuilder(nn.Module):
         for log in logs:
             if log is not None:
                 log_on_master(log)
+
+    def _configure_sdp(self) -> None:
+        self._sdpa_context.close()
+        self._sdpa_context = ExitStack()
+
+        configured = False
+
+        nn_attention = getattr(torch.nn, "attention", None)
+        sdpa_kernel = getattr(nn_attention, "sdpa_kernel", None)
+        if callable(sdpa_kernel):
+            configured = self._enter_sdp_context(
+                sdpa_kernel,
+                backends=[
+                    nn_attention.SDPBackend.FLASH_ATTENTION,
+                    nn_attention.SDPBackend.EFFICIENT_ATTENTION,
+                    nn_attention.SDPBackend.MATH,
+                ],
+            )
+
+        if configured:
+            return
+
+        cuda_backends = getattr(torch.backends, "cuda", None)
+        sdp_kernel = getattr(cuda_backends, "sdp_kernel", None) if cuda_backends else None
+        if callable(sdp_kernel):
+            configured = self._enter_sdp_context(
+                sdp_kernel,
+                enable_flash=True,
+                enable_mem_efficient=True,
+                enable_math=True,
+            )
+
+        if configured or not cuda_backends:
+            return
+
+        for attr in ("enable_flash_sdp", "enable_mem_efficient_sdp", "enable_math_sdp"):
+            fn = getattr(cuda_backends, attr, None)
+            if callable(fn):
+                fn(True)
+
+    def _enter_sdp_context(self, fn, *args, **kwargs) -> bool:
+        try:
+            self._sdpa_context.enter_context(fn(*args, **kwargs))
+            return True
+        except RuntimeError:
+            return False
+
+    def __getstate__(self) -> dict[str, Any]:
+        state = self.__dict__.copy()
+        # ExitStack captures contextmanager generators that cannot be pickled.
+        state["_sdpa_context"] = None
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        self._sdpa_context = ExitStack()
 
     def reset_memory(self):
         for _, value in self.components.items():

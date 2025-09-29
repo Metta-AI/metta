@@ -142,7 +142,7 @@ class TestBasicPolicyEnvironment:
             policy_uri=None,
         )
         try:
-            assert simulation.name == "test/test_nav"
+            assert simulation.full_name == "test/test_nav"
         finally:
             simulation._vecenv.close()  # type: ignore[attr-defined]
 

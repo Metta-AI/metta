@@ -62,7 +62,7 @@ class TestNewPolicySystem:
             monkeypatch.undo()
 
         assert sim is not None
-        assert sim.name == "sim_suite/test"
+        assert sim.full_name == "sim_suite/test"
 
     def test_sim_tool_with_policy_uris(self):
         """Test SimTool with policy URIs."""

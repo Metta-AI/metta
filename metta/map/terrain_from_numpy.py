@@ -10,8 +10,8 @@ from filelock import FileLock
 from pydantic import ConfigDict, Field
 
 from metta.common.util.log_config import getRankAwareLogger
+from metta.utils.uri import ParsedURI
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
-from mettagrid.util.uri import ParsedURI
 
 logger = getRankAwareLogger(__name__)
 
@@ -61,7 +61,6 @@ class TerrainFromNumpy(MapBuilder):
         dir: str
         file: Optional[str] = None
         remove_altars: bool = False
-        object_names: list[str] = Field(default_factory=list)
         rng: random.Random = Field(default_factory=random.Random, exclude=True)
 
     def __init__(self, config: Config):
@@ -110,6 +109,21 @@ class TerrainFromNumpy(MapBuilder):
         valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
+    def clean_grid(self, grid):
+        grid[grid == "agent.agent"] = "empty"
+        if self.config.remove_altars:
+            grid[grid == "altar"] = "empty"
+
+        # Prepare agent labels
+        if isinstance(self.config.agents, int):
+            agent_labels = ["agent.agent"] * self.config.agents
+        else:
+            agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
+
+        valid_positions = self.get_valid_positions(grid)
+        self.config.rng.shuffle(valid_positions)
+        return grid, valid_positions, agent_labels
+
     def build(self):
         pass
 
@@ -127,23 +141,8 @@ class NavigationFromNumpy(TerrainFromNumpy):
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
-        # for navigation we remove and repopulate agents
-        grid[grid == "agent.agent"] = "empty"
-
-        if self.config.remove_altars:
-            grid[grid == "altar"] = "empty"
-
-        # Prepare agent labels
-        if isinstance(self.config.agents, int):
-            agent_labels = ["agent.agent"] * self.config.agents
-        else:
-            agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
-
+        grid, valid_positions, agent_labels = self.clean_grid(grid)
         num_agents = len(agent_labels)
-
-        valid_positions = self.get_valid_positions(grid)
-        self.config.rng.shuffle(valid_positions)
-
         # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
         for pos, label in zip(agent_positions, agent_labels, strict=False):
@@ -179,13 +178,20 @@ class InContextLearningFromNumpy(TerrainFromNumpy):
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
-        converter_indices = np.argwhere((grid != "agent.agent") & (grid != "wall") & (grid != "empty"))
+        grid, valid_positions, agent_labels = self.clean_grid(grid)
+        num_agents = len(agent_labels)
+        agent_positions = valid_positions[:num_agents]
+        for pos, label in zip(agent_positions, agent_labels, strict=False):
+            grid[pos] = label
+        # placeholder indices for objects
+        mask = ~np.isin(grid, ("agent.agent", "wall", "empty"))
+        converter_indices = np.argwhere(mask)
+        grid[mask] = "empty"
 
-        assert len(self.config.object_names) == len(converter_indices), (
-            f"Mismatch between object names ({len(self.config.object_names)}) "
-            f"and available positions ({len(converter_indices)})"
-        )
-        for object, index in zip(self.config.object_names, converter_indices, strict=True):
-            grid[tuple(index)] = object
+        object_names = [name for name in self.config.objects for _ in range(self.config.objects[name])]
+        self.config.rng.shuffle(object_names)
+
+        for idx, object in zip(converter_indices, object_names, strict=False):
+            grid[tuple(idx)] = object
 
         return GameMap(grid=grid)

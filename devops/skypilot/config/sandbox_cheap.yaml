@@ -1,9 +1,9 @@
 resources:
   cloud: aws
   region: us-east-1
-  instance_type: t3.medium # 2 vCPUs, 4GB RAM - very cheap (~$0.04/hour on-demand)
+  instance_type: t3.large  # 2 vCPUs, 8GB RAM - cheap (~$0.08/hour on-demand)
   cpus: 2+
-  memory: 4+
+  memory: 8+
   image_id: docker:metta:latest
 
 config:
@@ -53,6 +53,7 @@ run: |
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
+  METTA_GIT_REF: main
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""

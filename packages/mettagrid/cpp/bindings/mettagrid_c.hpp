@@ -80,6 +80,7 @@ public:
   py::dict feature_normalizations();
   py::dict feature_spec();
   size_t num_agents() const;
+  py::none set_inventory(GridObjectId agent_id, const std::map<InventoryItem, InventoryQuantity>& inventory);
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();

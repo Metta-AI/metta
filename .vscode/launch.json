@@ -132,5 +132,19 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "preLaunchTask": "${defaultBuildTask}",
     },
+    {
+      "name": "Play Cogames",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "cogames.main",
+      "args": ["play", "machina_2"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
+      },
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
   ],
 }
