@@ -45,7 +45,7 @@ runs:
     - name: Set up nim
       uses: jiro4989/setup-nim-action@v2
       with:
-        repo-token: ${{ GITHUB_TOKEN }}
+        repo-token: ${{ github.token }}
         nim-version: "2.2.4"
 
     - name: Cache Bazel binary
