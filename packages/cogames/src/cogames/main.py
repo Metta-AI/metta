@@ -327,7 +327,7 @@ def train_cmd(
         Optional[Path],
         typer.Option("--checkpoints", help="Path to save training data"),
     ] = None,
-    steps: Annotated[int, typer.Option("--steps", "-s", help="Number of training steps")] = 10000,
+    steps: Annotated[int, typer.Option("--steps", "-s", help="Number of training steps")] = 2000,
     device: Annotated[str, typer.Option("--device", help="Device to train on")] = "cuda",
     seed: Annotated[int, typer.Option("--seed", help="Seed for training")] = 42,
     batch_size: Annotated[
@@ -341,8 +341,8 @@ def train_cmd(
         Optional[int],
         typer.Option("--minibatch-size", help="Minibatch size for PPO updates (defaults to batch-size)"),
     ] = None,
-    num_envs: Annotated[int, typer.Option("--num-envs", help="Number of vectorized environments")] = 128,
-    num_workers: Annotated[int, typer.Option("--num-workers", help="Number of environment workers")] = 8,
+    num_envs: Annotated[int, typer.Option("--num-envs", help="Number of vectorized environments")] = 4,
+    num_workers: Annotated[int, typer.Option("--num-workers", help="Number of environment workers")] = 1,
     use_rnn: Annotated[
         bool,
         typer.Option("--use-rnn/--no-use-rnn", help="Enable recurrent policies"),

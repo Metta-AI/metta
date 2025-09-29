@@ -61,13 +61,13 @@ cogames play machina_2 --no-render --steps 500
 
 ### Training a Policy
 
-`cogames train` launches PuffeRL with a CoGames environment. Important flags:
+`cogames train` launches PuffeRL with a CoGames environment. Important defaults & flags:
 
 - `--policy` selects the policy class (defaults to `SimplePolicy`).
 - `--use-rnn` enables recurrent policies such as `StatefulPolicy`.
 - `--curriculum module.symbol` loads a Python iterable or generator that yields `MettaGridConfig` instances for curricula.
 - `--vector-backend {multiprocessing,serial,ray}` chooses the vector environment implementation. Use `serial` for lightweight local runs or `ray` for distributed sampling when Ray is installed.
-- `--num-envs`, `--num-workers`, `--batch-size`, and `--minibatch-size` tune rollout throughput. When omitted, the batch size defaults to `num_envs * 32`.
+- `--num-envs`, `--num-workers`, `--batch-size`, and `--minibatch-size` tune rollout throughput. Defaults are 4 vectorized envs with 1 worker; when omitted, the batch size defaults to `num_envs * 32` (minimum 512).
 - `--initial-weights` accepts either a specific checkpoint file or a directory; directories automatically load the newest `.pt/.pth/.ckpt` file.
 - `--checkpoint-interval` controls how frequently PuffeRL writes checkpoints into `--checkpoints`.
 - `--run-dir` specifies a run directory where `cogames train` will create a `checkpoints/` folder and refresh the `curricula/` map export. By default it is `./runs/default`.
@@ -114,6 +114,9 @@ Use `cogames curricula` to materialize game and curriculum configurations into a
 ```bash
 # Dump every built-in Cogs vs Clips scenario into ./runs/default/curricula
 uv run cogames curricula
+
+# Train with default settings (uses ./runs/default for checkpoints and curricula)
+uv run cogames train assembler_1_simple
 
 # Choose the destination explicitly and mix in a Python curriculum generator
 uv run cogames curricula --output-dir ./runs/curricula/all_maps \
