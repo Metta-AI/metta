@@ -9,10 +9,10 @@ resources = [
     "germanium",
     "silicon",
     "heart",
-    "disruptor",
+    "decoder",
     "modulator",
     "resonator",
-    "scrabbler",
+    "scrambler",
 ]
 
 

@@ -23,7 +23,7 @@ to achieve objectives. The environment features:
 - `energy`: Consumed for movement and operating extractors
 - `carbon`, `oxygen`, `germanium`, `silicon`: Base materials extracted from stations
 - `heart`: The target objective item
-- `disruptor`, `modulator`, `resonator`, `scrabbler`: Advanced components
+- `decoder`, `modulator`, `resonator`, `scrambler`: Advanced components
 
 **Station Types:**
 
