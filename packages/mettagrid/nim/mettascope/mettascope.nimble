@@ -7,7 +7,6 @@ srcDir = "src"
 
 requires "nim >= 2.2.4"
 requires "cligen >= 1.9.0"
-requires "jsony >= 1.1.5"
 requires "fidget2 >= 0.0.2"
 requires "genny >= 0.1.1"
 
