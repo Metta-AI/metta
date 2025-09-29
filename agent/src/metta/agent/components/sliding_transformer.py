@@ -356,12 +356,7 @@ class SlidingTransformer(nn.Module):
         self.k_cache_training, self.v_cache_training = memory[0], memory[1]
 
     def reset_memory(self):
-        """Resets the KV cache to zeros."""
-        self.k_cache_rollout.fill_(0)
-        self.v_cache_rollout.fill_(0)
-        self.k_cache_training.fill_(0)
-        self.v_cache_training.fill_(0)
-        self.position_counter.fill_(0)
+        pass
 
     def initialize_to_environment(
         self,
