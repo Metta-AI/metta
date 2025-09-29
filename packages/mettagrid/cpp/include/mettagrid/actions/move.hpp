@@ -22,7 +22,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent& actor, ActionArg arg) override {
     // Get the orientation from the action argument
     Orientation move_direction = static_cast<Orientation>(arg);
 
@@ -31,7 +31,7 @@ protected:
       return false;
     }
 
-    GridLocation current_location = actor->location;
+    GridLocation current_location = actor.location;
     GridLocation target_location = current_location;
 
     // Get movement deltas for the direction
@@ -49,7 +49,7 @@ protected:
     target_location.c = static_cast<GridCoord>(static_cast<int>(target_location.c) + dc);
 
     // Update orientation to face the movement direction (even if movement fails)
-    actor->orientation = move_direction;
+    actor.orientation = move_direction;
 
     if (!_grid->is_valid_location(target_location)) {
       return false;
@@ -63,13 +63,13 @@ protected:
       GridObject* target = _grid->object_at(object_location);
       Usable* usable = dynamic_cast<Usable*>(target);
       if (usable) {
-        return usable->onUse(*actor, arg);
+        return usable->onUse(actor, arg);
       }
       return false;
     }
 
     // Move the agent
-    return _grid->move_object(actor->id, target_location);
+    return _grid->move_object(actor, target_location);
   }
 
 private:

@@ -1,6 +1,7 @@
 import
   std/strutils,
-  fidget2
+  fidget2,
+  common
 
 find "/UI/Main/GlobalFooter":
   find "**/RewindToStart":

@@ -1,11 +1,7 @@
-# This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
-# You can run these functions locally with e.g. `./tools/run.py experiments.recipes.scratchpad.alex.train`
-# The VSCode "Run and Debug" section supports options to run these functions.
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from experiments.recipes import arena
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -13,9 +9,8 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.loss_config import LossConfig
-from metta.rl.loss.ppo import PPOConfig
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig, OptimizerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -113,43 +108,90 @@ def train(
     )
 
     eval_simulations = make_evals()
+    optimizer_cfg = OptimizerConfig(
+        learning_rate=0.0011
+    )  # smaller batch size requires smaller learning rate
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
+        losses=LossConfig(),
+        optimizer=optimizer_cfg,
+        batch_size=131072,  # batch size is a quarter of the default. This hasn't been tuned.
+        minibatch_size=4096,  # minibatch size is a quarter of the default. This hasn't been tuned.
     )
-    # policy_config = FastDynamicsConfig()
-    # policy_config = FastLSTMResetConfig()
-    # policy_config = FastConfig()
-    # policy_config = ViTSmallConfig()
-    policy_config = ViTSlidingTransConfig()
-    training_env = TrainingEnvironmentConfig(curriculum=curriculum)
-    evaluator = EvaluatorConfig(simulations=eval_simulations)
+
+    if policy_architecture is None:
+        policy_architecture = ViTSlidingTransConfig()
 
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=training_env,
-        evaluator=evaluator,
-        policy_architecture=policy_config,
+        training_env=TrainingEnvironmentConfig(
+            curriculum=curriculum,
+            forward_pass_minibatch_target_size=1024,  # updated so that we shrink the num of envs to 1/4 of the default.
+        ),
+        evaluator=EvaluatorConfig(
+            simulations=eval_simulations, epoch_interval=0
+        ),  # disabled evaluation
+        policy_architecture=policy_architecture,
+        torch_profiler=TorchProfilerConfig(),
     )
 
 
-def play() -> PlayTool:
-    env = arena.make_evals()[0].env
-    env.game.max_steps = 100
-    cfg = arena.play(env)
-    return cfg
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
+    eval_env = env or make_mettagrid()
+    return PlayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
-def replay() -> ReplayTool:
-    env = arena.make_mettagrid()
-    env.game.max_steps = 100
-    cfg = arena.replay(env)
-    # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
-    return cfg
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
+    eval_env = env or make_mettagrid()
+    return ReplayTool(sim=SimulationConfig(suite="arena", env=eval_env, name="eval"))
 
 
-def evaluate(run: str = "local.alex.1") -> SimTool:
-    cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
+def evaluate(
+    policy_uri: str | None = None,
+    simulations: Optional[Sequence[SimulationConfig]] = None,
+) -> SimTool:
+    simulations = simulations or make_evals()
+    policy_uris = [policy_uri] if policy_uri is not None else None
 
-    # If your run doesn't exist, try this:
-    # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
-    return cfg
+    return SimTool(
+        simulations=simulations,
+        policy_uris=policy_uris,
+    )
+
+
+def evaluate_in_sweep(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    """Evaluation function optimized for sweep runs.
+
+    Uses 10 episodes per simulation with a 4-minute time limit to get
+    reliable results quickly during hyperparameter sweeps.
+    """
+    if simulations is None:
+        # Create sweep-optimized versions of the standard evaluations
+        basic_env = make_mettagrid()
+        basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+        combat_env = basic_env.model_copy()
+        combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
+        simulations = [
+            SimulationConfig(
+                suite="arena",
+                name="basic",
+                env=basic_env,
+                num_episodes=10,  # 10 episodes for statistical reliability
+                max_time_s=240,  # 4 minutes max per simulation
+            ),
+            SimulationConfig(
+                suite="arena",
+                name="combat",
+                env=combat_env,
+                num_episodes=10,
+                max_time_s=240,
+            ),
+        ]
+
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+    )
