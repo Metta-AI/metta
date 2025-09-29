@@ -170,4 +170,3 @@ class TestAsyncCappedOptimizingScheduler:
         assert captured.get("num_obs") == 3
         assert len(jobs) == 1
         assert jobs[0].type == JobTypes.LAUNCH_TRAINING
-

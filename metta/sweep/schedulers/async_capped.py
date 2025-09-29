@@ -357,4 +357,3 @@ class AsyncCappedOptimizingScheduler:
             fantasies.append({"score": liar_score, "cost": liar_cost, "suggestion": dict(suggestion)})
 
         return fantasies
-
