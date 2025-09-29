@@ -1,19 +1,17 @@
+from __future__ import annotations
+
 import logging
 import multiprocessing
 import platform
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
-import torch
-import torch.distributed
-
-import pufferlib.pytorch
-import pufferlib.vector
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.module import load_symbol
-from pufferlib import pufferl
-from pufferlib.pufferlib import set_buffers
+
+if TYPE_CHECKING:
+    import torch
 
 logger = logging.getLogger("cogames.pufferlib")
 
@@ -40,21 +38,10 @@ class EnvConfigIterator:
         return cfg
 
 
-def env_creator(
-    cfg_iterator: EnvConfigIterator,
-    buf: Optional[Any] = None,
-    seed: Optional[int] = None,
-):
-    cfg = cfg_iterator.take(seed=seed)
-    env = MettaGridEnv(env_cfg=cfg)
-    set_buffers(env, buf)
-    return env
-
-
 def train(
     env_cfgs: Sequence[MettaGridConfig],
     policy_class_path: str,
-    device: torch.device,
+    device: "torch.device",
     initial_weights_path: Optional[Path],
     num_steps: int,
     checkpoints_path: Path,
@@ -66,7 +53,15 @@ def train(
     use_rnn: bool,
     checkpoint_interval: int,
     vector_backend: str,
-):
+) -> None:
+    import torch
+    import torch.distributed
+
+    import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
+    import pufferlib.vector
+    from pufferlib import pufferl
+    from pufferlib.pufferlib import set_buffers
+
     checkpoints_path.mkdir(parents=True, exist_ok=True)
     cfg_iterator = EnvConfigIterator(env_cfgs)
 
@@ -75,8 +70,11 @@ def train(
         "serial": pufferlib.vector.Serial,
         "ray": getattr(pufferlib.vector, "Ray", pufferlib.vector.Multiprocessing),
     }
-
-    backend = backend_options[vector_backend]
+    backend_key = vector_backend.lower()
+    try:
+        backend = backend_options[backend_key]
+    except KeyError as exc:  # pragma: no cover - guarded by CLI validation
+        raise ValueError(f"Unsupported vector backend: {vector_backend}") from exc
 
     if platform.system() == "Darwin" and backend is pufferlib.vector.Multiprocessing:
         multiprocessing.set_start_method("spawn", force=True)
@@ -88,15 +86,18 @@ def train(
             torch.cuda.set_device(local_rank)
         seed = seed + local_rank
 
+    def env_creator(buf: Optional[Any] = None, seed: Optional[int] = None) -> MettaGridEnv:
+        cfg = cfg_iterator.take(seed=seed)
+        env = MettaGridEnv(env_cfg=cfg)
+        set_buffers(env, buf)
+        return env
+
     vecenv = pufferlib.vector.make(
         env_creator,
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=num_envs,
         backend=backend,
-        env_kwargs={
-            "cfg_iterator": cfg_iterator,
-        },
     )
 
     policy_class = load_symbol(policy_class_path)
