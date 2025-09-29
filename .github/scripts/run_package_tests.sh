@@ -3,6 +3,14 @@
 
 set -e # Exit on error
 
+# Keep single-threaded during tests to avoid flaky crashes in xdist workers.
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
+export MKL_NUM_THREADS=${MKL_NUM_THREADS:-1}
+export OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-1}
+export NUMEXPR_NUM_THREADS=${NUMEXPR_NUM_THREADS:-1}
+export VECLIB_MAXIMUM_THREADS=${VECLIB_MAXIMUM_THREADS:-1}
+export PYTORCH_NUM_THREADS=${PYTORCH_NUM_THREADS:-1}
+
 # Colors for output
 RED='\033[1;31m'
 GREEN='\033[1;32m'
