@@ -112,7 +112,7 @@ Every CLI command also accepts a global `--timeout` flag. Set it to automaticall
 Use `cogames curricula` to materialize game and curriculum configurations into a directory that can be consumed later by `cogames train` or other tools:
 
 ```bash
-# Dump every built-in Cogs vs Clips scenario into a timestamped folder under ./runs/curricula
+# Dump every built-in Cogs vs Clips scenario into ./runs/curricula
 uv run cogames curricula
 
 # Choose the destination explicitly and mix in a Python curriculum generator

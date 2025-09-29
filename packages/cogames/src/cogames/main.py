@@ -4,7 +4,6 @@ import contextlib
 import logging
 import re
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Literal, Optional, Sequence
 
@@ -222,9 +221,7 @@ def curricula_cmd(
         if output_dir is not None:
             destination = output_dir.expanduser().resolve()
         else:
-            base_dir = Path("./runs/curricula").resolve()
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            destination = base_dir / timestamp
+            destination = Path("./runs/curricula").resolve()
 
         _dump_game_configs(env_cfgs, env_names, destination)
 
