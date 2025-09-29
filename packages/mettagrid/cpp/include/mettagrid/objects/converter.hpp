@@ -31,7 +31,7 @@ private:
     }
     // Check if the converter is already at max output.
     unsigned short total_output = 0;
-    for (const auto& [item, amount] : this->inventory) {
+    for (const auto& [item, amount] : this->inventory.get()) {
       if (this->output_resources.count(item) > 0) {
         total_output += amount;
       }
@@ -41,7 +41,7 @@ private:
     }
     // Check if the converter has enough input.
     for (const auto& [item, input_amount] : this->input_resources) {
-      if (this->inventory.count(item) == 0 || this->inventory.at(item) < input_amount) {
+      if (this->inventory.amount(item) < input_amount) {
         return;
       }
     }
@@ -56,10 +56,7 @@ private:
     for (const auto& [item, amount] : amounts_to_consume) {
       // Don't call update_inventory here, because it will call maybe_start_converting again,
       // which will cause an infinite loop.
-      this->inventory[item] -= amount;
-      if (this->inventory[item] == 0) {
-        this->inventory.erase(item);
-      }
+      this->inventory.update(item, -amount);
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -88,7 +85,9 @@ public:
   unsigned short conversions_completed;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
-      : input_resources(cfg.input_resources),
+      : GridObject(),
+        HasInventory(InventoryConfig()),  // Converts have nothing to configure in their inventory. Yet.
+        input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
         max_output(cfg.max_output),
         max_conversions(cfg.max_conversions),
@@ -106,7 +105,7 @@ public:
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
-      HasInventory::update_inventory(item, cfg.initial_resource_count);
+      this->inventory.update(item, cfg.initial_resource_count);
     }
   }
 
@@ -125,7 +124,7 @@ public:
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
-      HasInventory::update_inventory(item, amount);
+      this->inventory.update(item, amount);
     }
 
     if (this->cooldown > 0) {
@@ -144,7 +143,7 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
-    InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
+    InventoryDelta delta = this->inventory.update(item, attempted_delta);
     this->maybe_start_converting();
     return delta;
   }
@@ -154,7 +153,7 @@ public:
 
     // Calculate the capacity needed
     // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs + tags
-    size_t capacity = 3 + this->inventory.size() + this->tag_ids.size();
+    size_t capacity = 3 + this->inventory.get().size() + this->tag_ids.size();
     if (this->recipe_details_obs) {
       capacity += this->input_resources.size() + this->output_resources.size();
     }
@@ -166,7 +165,7 @@ public:
                         static_cast<ObservationType>(this->converting || this->cooling_down)});
 
     // Add current inventory (inv:resource)
-    for (const auto& [item, amount] : this->inventory) {
+    for (const auto& [item, amount] : this->inventory.get()) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
       features.push_back(
