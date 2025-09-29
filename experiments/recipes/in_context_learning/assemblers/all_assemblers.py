@@ -102,3 +102,7 @@ def experiment():
             f"run=in_context.all_assemblers.{time.strftime('%Y-%m-%d')}",
         ]
     )
+
+
+if __name__ == "__main__":
+    experiment()

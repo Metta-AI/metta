@@ -27,26 +27,6 @@ from experiments.recipes.in_context_learning.in_context_learning import (
 from metta.tools.eval_remote import EvalRemoteTool
 
 
-def make_curriculum_args(
-    num_agents: list[int],
-    num_altars: list[int],
-    num_generators: list[int],
-    room_sizes: list[str],
-    positions: list[list[Position]],
-    num_chests: list[int] = [0],
-    chest_positions: list[list[Position]] = [["N"]],
-) -> dict:
-    return {
-        "num_agents": num_agents,
-        "num_altars": num_altars,
-        "num_generators": num_generators,
-        "room_sizes": room_sizes,
-        "positions": positions,
-        "num_chests": num_chests,
-        "chest_positions": chest_positions,
-    }
-
-
 curriculum_args = {
     "train": {
         "num_agents": [1, 4, 8, 12, 24],
@@ -266,7 +246,7 @@ def make_mettagrid(
     curriculum_style: str = "single_agent_two_altars",
 ) -> MettaGridConfig:
     task_generator_cfg = ForagingTaskGenerator.Config(
-        **make_curriculum_args(**curriculum_args[curriculum_style])
+        **curriculum_args[curriculum_style]
     )
     task_generator = ForagingTaskGenerator(task_generator_cfg)
     return task_generator.get_task(random.randint(0, 1000000))
@@ -319,7 +299,7 @@ def train(
     curriculum_style: str = "single_agent_two_altars", lp_params: LPParams = LPParams()
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(
-        **make_curriculum_args(**curriculum_args[curriculum_style]), map_dir=None
+        **curriculum_args[curriculum_style], map_dir=None
     )
     from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
@@ -372,9 +352,7 @@ def play_eval() -> PlayTool:
 
 def replay(curriculum_style: str = "test") -> ReplayTool:
     task_generator = ForagingTaskGenerator(
-        make_task_generator_cfg(
-            **make_curriculum_args(**curriculum_args[curriculum_style])
-        )
+        make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
     policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt"
     return replay_icl(task_generator, policy_uri)
@@ -400,9 +378,7 @@ def play(
     curriculum_style: str = "test",
 ) -> PlayTool:
     task_generator = ForagingTaskGenerator(
-        make_task_generator_cfg(
-            **make_curriculum_args(**curriculum_args[curriculum_style])
-        )
+        make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
     return play_icl(task_generator)
 
