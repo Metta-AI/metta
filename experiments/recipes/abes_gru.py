@@ -109,7 +109,7 @@ def train(
 
     eval_simulations = make_evals()
     optimizer_cfg = OptimizerConfig(
-        learning_rate=0.0010
+        learning_rate=0.0011
     )  # smaller batch size requires smaller learning rate
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),

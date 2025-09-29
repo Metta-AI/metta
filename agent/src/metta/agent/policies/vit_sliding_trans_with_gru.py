@@ -21,7 +21,7 @@ class ViTSlidingTransWithGRUConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _embed_dim = 16
-    _core_out_dim = 12
+    _core_out_dim = 16
     _memory_num_layers = 2
 
     components: List[ComponentConfig] = [
