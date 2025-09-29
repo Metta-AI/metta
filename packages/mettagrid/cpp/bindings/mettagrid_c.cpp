@@ -50,7 +50,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
       _track_movement_metrics(game_config.track_movement_metrics),
-      _resource_loss_prob(game_config.resource_loss_prob) {
+      _resource_loss_prob(game_config.resource_loss_prob),
+      _inventory_regen_amounts(game_config.inventory_regen_amounts),
+      _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -481,6 +483,17 @@ void MettaGrid::_step(Actions actions) {
           if (lost > 0) {
             agent->update_inventory(item, -lost);
           }
+        }
+      }
+    }
+  }
+
+  // Handle inventory regeneration
+  if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
+    for (auto* agent : _agents) {
+      for (const auto& [item, amount] : _inventory_regen_amounts) {
+        if (amount > 0) {
+          agent->update_inventory(item, amount);
         }
       }
     }

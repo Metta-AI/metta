@@ -420,6 +420,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
     game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
 
+    # Add inventory regeneration settings
+    # Convert resource names to IDs in inventory_regen_amounts
+    inventory_regen_amounts_cpp = {}
+    for resource_name, amount in game_config.inventory_regen_amounts.items():
+        inventory_regen_amounts_cpp[resource_name_to_id[resource_name]] = amount
+
+    game_cpp_params["inventory_regen_amounts"] = inventory_regen_amounts_cpp
+    game_cpp_params["inventory_regen_interval"] = game_config.inventory_regen_interval
+
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
 
