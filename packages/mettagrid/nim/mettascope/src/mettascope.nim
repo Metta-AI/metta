@@ -6,20 +6,24 @@ import std/[os, strutils, parseopt, json],
 var replay = ""
 
 proc updateReplayHeader(replayPath: string) =
-  ## Set the global header's display name for the current replay.
-  if common.replay.isNil:
-    return
+  ## Set the global header's display name for the current session.
   var display = ""
-  if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
-    let node = common.replay.mgConfig["label"]
-    if node.kind == JString:
-      display = node.getStr
-  if display.len == 0 and common.replay.fileName.len > 0:
-    display = common.replay.fileName
-  if display.len == 0 and replayPath.len > 0:
-    display = extractFilename(replayPath)
-  if display.len == 0:
-    display = "unknown"
+
+  if common.playMode == Realtime:
+    # In play mode we don't necessarily have a replay file/name. Use a fixed title.
+    display = "Mettascope"
+  else:
+    if not common.replay.isNil:
+      if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
+        let node = common.replay.mgConfig["label"]
+        if node.kind == JString:
+          display = node.getStr
+      if display.len == 0 and common.replay.fileName.len > 0:
+        display = common.replay.fileName
+    if display.len == 0 and replayPath.len > 0:
+      display = extractFilename(replayPath)
+    if display.len == 0:
+      display = "unknown"
 
   let titleNode = find("**/GlobalTitle")
   titleNode.text = display
