@@ -72,11 +72,11 @@ git push -u origin release-qual/<VERSION>
 
 - Ask Pasha via discord to verify that observatory is working to his satisfaction.
 
-#### 3.6 CI Workflow
+#### 3.7 CI Workflow
 
 - Verify CI pipeline has completed successful on the release commit push to main.
 
-## 4. Release
+### 4. Release
 
 #### 4.1 Prepare Release PR
 
@@ -90,7 +90,7 @@ git push -u origin release-qual/<VERSION>
 
 ### Known Issues
 
-<Notes from step 1>
+<Notes from step 2>
 
 ### W&B Run Links
 
