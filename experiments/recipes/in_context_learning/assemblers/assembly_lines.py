@@ -104,7 +104,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
                 rng=rng,
             )
 
-    def make_env_cfg(
+    def _make_env_cfg(
         self,
         num_agents,
         resources,
@@ -187,7 +187,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             else None
         )
 
-        icl_env = self.make_env_cfg(
+        icl_env = self._make_env_cfg(
             num_agents=num_agents,
             resources=resources,
             num_sinks=num_sinks,

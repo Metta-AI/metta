@@ -126,7 +126,7 @@ class ForagingTaskGenerator(ICLTaskGenerator):
                 rng=rng,
             )
 
-    def make_env_cfg(
+    def _make_env_cfg(
         self,
         num_agents,
         num_instances,
@@ -212,7 +212,7 @@ class ForagingTaskGenerator(ICLTaskGenerator):
         else:
             dir = None
 
-        icl_env = self.make_env_cfg(
+        icl_env = self._make_env_cfg(
             num_agents=num_agents,
             num_instances=num_instances or 24 // num_agents,
             num_altars=num_altars,
