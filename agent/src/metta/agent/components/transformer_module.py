@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import math
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -15,6 +16,13 @@ except ImportError:  # pragma: no cover
     flash_attn_func = None
 
 
+def _record_function(name: str):
+    profiler_mod = getattr(torch, "profiler", None)
+    if profiler_mod is not None and hasattr(profiler_mod, "record_function"):
+        return profiler_mod.record_function(name)
+    return contextlib.nullcontext()
+
+
 def empty_memory(
     num_layers: int,
     batch_size: int,
@@ -24,7 +32,8 @@ def empty_memory(
 ) -> List[torch.Tensor]:
     """Return a list of empty memory tensors."""
 
-    return [torch.zeros(0, batch_size, d_model, device=device, dtype=dtype) for _ in range(num_layers)]
+    with _record_function("Transformer/empty_memory"):
+        return [torch.zeros(0, batch_size, d_model, device=device, dtype=dtype) for _ in range(num_layers)]
 
 
 def normalize_memory(
@@ -37,23 +46,23 @@ def normalize_memory(
     dtype: torch.dtype,
 ) -> Optional[List[torch.Tensor]]:
     """Normalize previously stored memory tensors to the expected shape."""
+    with _record_function("Transformer/normalize_memory"):
+        if memory_len <= 0:
+            return None
 
-    if memory_len <= 0:
-        return None
+        if memory is None or len(memory) != num_layers:
+            return empty_memory(num_layers, batch_size, d_model, device, dtype)
 
-    if memory is None or len(memory) != num_layers:
-        return empty_memory(num_layers, batch_size, d_model, device, dtype)
-
-    normalized: List[torch.Tensor] = []
-    for tensor in memory:
-        if tensor is None or tensor.numel() == 0:
-            normalized.append(torch.zeros(0, batch_size, d_model, device=device, dtype=dtype))
-            continue
-        mem = tensor.to(device=device, dtype=dtype)
-        if mem.size(1) != batch_size:
-            mem = mem[:, :batch_size].contiguous()
-        normalized.append(mem)
-    return normalized
+        normalized: List[torch.Tensor] = []
+        for tensor in memory:
+            if tensor is None or tensor.numel() == 0:
+                normalized.append(torch.zeros(0, batch_size, d_model, device=device, dtype=dtype))
+                continue
+            mem = tensor.to(device=device, dtype=dtype)
+            if mem.size(1) != batch_size:
+                mem = mem[:, :batch_size].contiguous()
+            normalized.append(mem)
+        return normalized
 
 
 def update_memory_window(
@@ -63,33 +72,33 @@ def update_memory_window(
     ext_len: int = 0,
 ) -> Optional[List[torch.Tensor]]:
     """Return the updated memory window for each layer."""
+    with _record_function("Transformer/update_memory_window"):
+        if memory_len <= 0:
+            return None
 
-    if memory_len <= 0:
-        return None
+        if not layer_outputs:
+            return [torch.zeros(0)] * 0
 
-    if not layer_outputs:
-        return [torch.zeros(0)] * 0
+        device = layer_outputs[0].device
+        dtype = layer_outputs[0].dtype
+        batch_size = layer_outputs[0].size(1)
+        d_model = layer_outputs[0].size(2)
+        num_layers = len(layer_outputs)
 
-    device = layer_outputs[0].device
-    dtype = layer_outputs[0].dtype
-    batch_size = layer_outputs[0].size(1)
-    d_model = layer_outputs[0].size(2)
-    num_layers = len(layer_outputs)
+        if previous_memory is None or len(previous_memory) != num_layers:
+            previous_memory = empty_memory(num_layers, batch_size, d_model, device, dtype)
 
-    if previous_memory is None or len(previous_memory) != num_layers:
-        previous_memory = empty_memory(num_layers, batch_size, d_model, device, dtype)
+        with torch.no_grad():
+            mlen = previous_memory[0].size(0) if previous_memory else 0
+            qlen = layer_outputs[0].size(0)
+            end_idx = mlen + max(0, qlen - ext_len)
+            beg_idx = max(0, end_idx - memory_len)
 
-    with torch.no_grad():
-        mlen = previous_memory[0].size(0) if previous_memory else 0
-        qlen = layer_outputs[0].size(0)
-        end_idx = mlen + max(0, qlen - ext_len)
-        beg_idx = max(0, end_idx - memory_len)
-
-        updated: List[torch.Tensor] = []
-        for prev, output in zip(previous_memory, layer_outputs, strict=False):
-            cat = torch.cat([prev, output], dim=0)
-            updated.append(cat[beg_idx:end_idx].detach())
-    return updated
+            updated: List[torch.Tensor] = []
+            for prev, output in zip(previous_memory, layer_outputs, strict=False):
+                cat = torch.cat([prev, output], dim=0)
+                updated.append(cat[beg_idx:end_idx].detach())
+        return updated
 
 
 # ---------------------------------------------------------------------------
@@ -178,12 +187,7 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         qkv = qkv.permute(2, 1, 3, 0, 4)  # (3, batch, heads, seq, d_k)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        if (
-            attn_mask is None
-            and self.use_causal_mask
-            and flash_attn_func is not None
-            and x.is_cuda
-        ):
+        if attn_mask is None and self.use_causal_mask and flash_attn_func is not None and x.is_cuda:
             dropout_p = self._attn_dropout_p if self.training else 0.0
             q_flash = q.permute(0, 3, 1, 2)  # (batch, seq, heads, d)
             k_flash = k.permute(0, 3, 1, 2)
@@ -359,72 +363,80 @@ class GTrXLModule(nn.Module):
         inputs: torch.Tensor,
         memory: Optional[Dict[str, Optional[List[torch.Tensor]]]] = None,
     ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        squeeze = False
-        if inputs.dim() == 2:
-            inputs = inputs.unsqueeze(0)
-            squeeze = True
-        if inputs.dim() != 3:
-            raise ValueError(f"Expected tensor of shape (T, B, D); received {inputs.shape}.")
+        with _record_function("GTrXLModule/forward"):
+            squeeze = False
+            if inputs.dim() == 2:
+                inputs = inputs.unsqueeze(0)
+                squeeze = True
+            if inputs.dim() != 3:
+                raise ValueError(f"Expected tensor of shape (T, B, D); received {inputs.shape}.")
 
-        seq_len, batch_size, _ = inputs.shape
-        device = inputs.device
-        dtype = inputs.dtype
+            _, batch_size, _ = inputs.shape
+            device = inputs.device
+            dtype = inputs.dtype
 
-        stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
-        layer_mems = normalize_memory(
-            self.memory_len,
-            self.n_layers,
-            stored_memory,
-            batch_size,
-            self.d_model,
-            device,
-            dtype,
-        )
-        if layer_mems is None:
-            layer_mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
-        memory_enabled = self.memory_len > 0
+            with _record_function("GTrXLModule/normalize_memory"):
+                stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
+                layer_mems = normalize_memory(
+                    self.memory_len,
+                    self.n_layers,
+                    stored_memory,
+                    batch_size,
+                    self.d_model,
+                    device,
+                    dtype,
+                )
+                if layer_mems is None:
+                    layer_mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
+            memory_enabled = self.memory_len > 0
 
-        core = inputs
-        if self.use_input_proj:
-            core = F.relu(self.input_proj(core))
-        core = self.positional_encoding(core)
-        core = self.dropout(core)
+            core = inputs
+            with _record_function("GTrXLModule/input_proj"):
+                if self.use_input_proj:
+                    core = F.relu(self.input_proj(core))
 
-        layer_outputs: List[torch.Tensor] = []
-        for layer_idx, layer in enumerate(self.layers):
-            mem = layer_mems[layer_idx]
-            mem_len = mem.size(0)
-            if mem_len > 0:
-                if mem.size(1) != batch_size:
-                    mem = mem[:, :batch_size].contiguous()
-                combined = torch.cat([mem, core], dim=0)
-            else:
-                combined = core
+            with _record_function("GTrXLModule/positional_encoding"):
+                core = self.positional_encoding(core)
+                core = self.dropout(core)
 
-            attn_mask = None
-            if self.use_causal_mask:
-                total_len = combined.size(0)
-                attn_mask = self._get_causal_mask(total_len, device)
-            layer_out = layer(combined, attn_mask)
-            layer_outputs.append(layer_out)
+            layer_outputs: List[torch.Tensor] = []
+            for layer_idx, layer in enumerate(self.layers):
+                with _record_function(f"GTrXLModule/layer_{layer_idx}"):
+                    mem = layer_mems[layer_idx]
+                    mem_len = mem.size(0)
+                    if mem_len > 0:
+                        if mem.size(1) != batch_size:
+                            mem = mem[:, :batch_size].contiguous()
+                        combined = torch.cat([mem, core], dim=0)
+                    else:
+                        combined = core
 
-            if mem_len > 0:
-                core = layer_out[mem_len:]
-            else:
-                core = layer_out
+                    attn_mask = None
+                    if self.use_causal_mask:
+                        total_len = combined.size(0)
+                        attn_mask = self._get_causal_mask(total_len, device)
+                    layer_out = layer(combined, attn_mask)
+                    layer_outputs.append(layer_out)
 
-        core = self.output_norm(core)
-        core = self.dropout(core)
+                    if mem_len > 0:
+                        core = layer_out[mem_len:]
+                    else:
+                        core = layer_out
 
-        if squeeze:
-            core = core.squeeze(0)
+            with _record_function("GTrXLModule/output_norm"):
+                core = self.output_norm(core)
+                core = self.dropout(core)
 
-        new_memory = update_memory_window(
-            layer_outputs,
-            layer_mems if memory_enabled else None,
-            self.memory_len,
-        )
-        return core, {"hidden_states": new_memory if memory_enabled else None}
+            if squeeze:
+                core = core.squeeze(0)
+
+            with _record_function("GTrXLModule/update_memory"):
+                new_memory = update_memory_window(
+                    layer_outputs,
+                    layer_mems if memory_enabled else None,
+                    self.memory_len,
+                )
+            return core, {"hidden_states": new_memory if memory_enabled else None}
 
     def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
         if self.memory_len <= 0:
@@ -743,56 +755,62 @@ class TransformerXLModule(nn.Module):
     def forward(
         self, inputs: torch.Tensor, memory: Optional[Dict[str, List[torch.Tensor]]] = None
     ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        if inputs.dim() == 2:
-            inputs = inputs.unsqueeze(0)
-        if inputs.dim() != 3:
-            raise ValueError(f"Expected tensor of shape (T, B, D), received {inputs.shape}")
+        with _record_function("TransformerXLModule/forward"):
+            if inputs.dim() == 2:
+                inputs = inputs.unsqueeze(0)
+            if inputs.dim() != 3:
+                raise ValueError(f"Expected tensor of shape (T, B, D), received {inputs.shape}")
 
-        seq_len, batch_size, _ = inputs.shape
-        device = inputs.device
-        dtype = inputs.dtype
+            seq_len, batch_size, _ = inputs.shape
+            device = inputs.device
+            dtype = inputs.dtype
 
-        stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
-        mems = normalize_memory(
-            self.memory_len,
-            self.n_layers,
-            stored_memory,
-            batch_size,
-            self.d_model,
-            device,
-            dtype,
-        )
-        mem_enabled = mems is not None
-        if mems is None:
-            mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
-        mlen = mems[0].size(0) if mems else 0
-        klen = mlen + seq_len
+            with _record_function("TransformerXLModule/normalize_memory"):
+                stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
+                mems = normalize_memory(
+                    self.memory_len,
+                    self.n_layers,
+                    stored_memory,
+                    batch_size,
+                    self.d_model,
+                    device,
+                    dtype,
+                )
+            mem_enabled = mems is not None
+            if mems is None:
+                mems = empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)
+            mlen = mems[0].size(0) if mems else 0
+            klen = mlen + seq_len
 
-        attn_mask = self._get_attn_mask(seq_len, mlen, klen, device)
-        attn_mask = attn_mask[:, :, None]
+            with _record_function("TransformerXLModule/attn_mask"):
+                attn_mask = self._get_attn_mask(seq_len, mlen, klen, device)
+                attn_mask = attn_mask[:, :, None]
 
-        pos_seq = self._get_pos_seq(klen, device, dtype)
-        if self.clamp_len > 0:
-            pos_seq = pos_seq.clamp(max=float(self.clamp_len))
-        pos_emb = self.pos_emb(pos_seq)
-        pos_emb = self.drop(pos_emb)
+            with _record_function("TransformerXLModule/positional"):
+                pos_seq = self._get_pos_seq(klen, device, dtype)
+                if self.clamp_len > 0:
+                    pos_seq = pos_seq.clamp(max=float(self.clamp_len))
+                pos_emb = self.pos_emb(pos_seq)
+                pos_emb = self.drop(pos_emb)
 
-        core_out = self.drop(inputs)
-        hiddens: List[torch.Tensor] = [core_out]
+            core_out = self.drop(inputs)
+            hiddens: List[torch.Tensor] = [core_out]
 
-        for layer_id, layer in enumerate(self.layers):
-            mem_layer = mems[layer_id] if mem_enabled else None
-            core_out = layer(core_out, pos_emb, self.r_w_bias, self.r_r_bias, attn_mask, mem_layer)
-            hiddens.append(core_out)
+            for layer_id, layer in enumerate(self.layers):
+                with _record_function(f"TransformerXLModule/layer_{layer_id}"):
+                    mem_layer = mems[layer_id] if mem_enabled else None
+                    core_out = layer(core_out, pos_emb, self.r_w_bias, self.r_r_bias, attn_mask, mem_layer)
+                    hiddens.append(core_out)
 
-        core_out = self.drop(core_out)
-        new_memory = update_memory_window(
-            hiddens[1:],
-            mems if mem_enabled else None,
-            self.memory_len,
-            ext_len=self.ext_len,
-        )
-        return core_out, {"hidden_states": new_memory if mem_enabled else None}
+            with _record_function("TransformerXLModule/post"):
+                core_out = self.drop(core_out)
+                new_memory = update_memory_window(
+                    hiddens[1:],
+                    mems if mem_enabled else None,
+                    self.memory_len,
+                    ext_len=self.ext_len,
+                )
+            return core_out, {"hidden_states": new_memory if mem_enabled else None}
 
     def initialize_memory(self, batch_size: int) -> Dict[str, Optional[List[torch.Tensor]]]:
         if self.memory_len <= 0:
@@ -801,9 +819,7 @@ class TransformerXLModule(nn.Module):
         dtype = next(self.parameters()).dtype
         return {"hidden_states": empty_memory(self.n_layers, batch_size, self.d_model, device, dtype)}
 
-    def _get_attn_mask(
-        self, seq_len: int, mem_len: int, klen: int, device: torch.device
-    ) -> torch.Tensor:
+    def _get_attn_mask(self, seq_len: int, mem_len: int, klen: int, device: torch.device) -> torch.Tensor:
         key = (seq_len, mem_len, self.same_length, device)
         mask = self._attn_mask_cache.get(key)
         if mask is None:
@@ -811,13 +827,9 @@ class TransformerXLModule(nn.Module):
                 all_ones = torch.ones(seq_len, klen, device=device, dtype=torch.bool)
                 mask_len = klen - self.memory_len
                 mask_shift_len = seq_len - mask_len if mask_len > 0 else seq_len
-                mask = torch.triu(all_ones, diagonal=1 + mem_len) | torch.tril(
-                    all_ones, diagonal=-mask_shift_len
-                )
+                mask = torch.triu(all_ones, diagonal=1 + mem_len) | torch.tril(all_ones, diagonal=-mask_shift_len)
             else:
-                mask = torch.triu(
-                    torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mem_len
-                )
+                mask = torch.triu(torch.ones(seq_len, klen, device=device, dtype=torch.bool), diagonal=1 + mem_len)
             self._attn_mask_cache[key] = mask
         return mask
 

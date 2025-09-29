@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import Dict, Optional, Tuple
 
 import torch
@@ -40,46 +41,50 @@ class TwoBufferTransformer(nn.Module):
         inputs: torch.Tensor,
         memory: Optional[TwoBufferMemory] = None,
     ) -> Tuple[torch.Tensor, TwoBufferMemory]:
-        squeeze = False
-        if inputs.dim() == 2:
-            inputs = inputs.unsqueeze(0)
-            squeeze = True
-        if inputs.dim() != 3:
-            raise ValueError(f"Expected (T, B, D) tensor, received {inputs.shape}.")
+        with _record_function("TwoBufferTransformer/forward"):
+            squeeze = False
+            if inputs.dim() == 2:
+                inputs = inputs.unsqueeze(0)
+                squeeze = True
+            if inputs.dim() != 3:
+                raise ValueError(f"Expected (T, B, D) tensor, received {inputs.shape}.")
 
-        seq_len, batch_size, hidden = inputs.shape
-        if hidden != self.token_dim:
-            raise ValueError(f"Expected token dim {self.token_dim}, received {hidden}.")
+            seq_len, batch_size, hidden = inputs.shape
+            if hidden != self.token_dim:
+                raise ValueError(f"Expected token dim {self.token_dim}, received {hidden}.")
 
-        prev_tokens = None
-        if memory:
-            prev_tokens = memory.get("prev_tokens")
-        if prev_tokens is not None and prev_tokens.numel() == 0:
-            prev_tokens = None
+            with _record_function("TwoBufferTransformer/load_prev_tokens"):
+                prev_tokens = None
+                if memory:
+                    prev_tokens = memory.get("prev_tokens")
+                if prev_tokens is not None and prev_tokens.numel() == 0:
+                    prev_tokens = None
 
-        context_parts = []
-        if prev_tokens is not None:
-            prev_tokens = prev_tokens.to(device=inputs.device, dtype=inputs.dtype)
-            if self.memory_len > 0 and prev_tokens.size(0) > self.memory_len:
-                prev_tokens = prev_tokens[-self.memory_len :]
-            context_parts.append(prev_tokens)
-        context_parts.append(inputs)
-        context = torch.cat(context_parts, dim=0) if len(context_parts) > 1 else inputs
+            with _record_function("TwoBufferTransformer/build_context"):
+                context_parts = []
+                if prev_tokens is not None:
+                    prev_tokens = prev_tokens.to(device=inputs.device, dtype=inputs.dtype)
+                    if self.memory_len > 0 and prev_tokens.size(0) > self.memory_len:
+                        prev_tokens = prev_tokens[-self.memory_len :]
+                    context_parts.append(prev_tokens)
+                context_parts.append(inputs)
+                context = torch.cat(context_parts, dim=0) if len(context_parts) > 1 else inputs
 
-        if self.max_context is not None and context.size(0) > self.max_context:
-            raise ValueError(f"Context length {context.size(0)} exceeds configured max {self.max_context}.")
+                if self.max_context is not None and context.size(0) > self.max_context:
+                    raise ValueError(f"Context length {context.size(0)} exceeds configured max {self.max_context}.")
 
-        core_out, _ = self.core(context, None)
-        current_out = core_out[-seq_len:]
+            with _record_function("TwoBufferTransformer/core_forward"):
+                core_out, _ = self.core(context, None)
+                current_out = core_out[-seq_len:]
 
-        next_memory: Optional[torch.Tensor] = None
-        if self.memory_len > 0:
-            # Detach to avoid keeping autograd graphs across buffers
-            context_detached = context.detach()
-            next_memory = context_detached[-self.memory_len :]
+            next_memory: Optional[torch.Tensor] = None
+            if self.memory_len > 0:
+                with _record_function("TwoBufferTransformer/update_memory"):
+                    context_detached = context.detach()
+                    next_memory = context_detached[-self.memory_len :]
 
-        result = current_out.squeeze(0) if squeeze else current_out
-        return result, {"prev_tokens": next_memory}
+            result = current_out.squeeze(0) if squeeze else current_out
+            return result, {"prev_tokens": next_memory}
 
     def initialize_memory(self, batch_size: int) -> TwoBufferMemory:
         if self.memory_len <= 0:
@@ -88,3 +93,10 @@ class TwoBufferTransformer(nn.Module):
 
 
 __all__ = ["TwoBufferTransformer", "TwoBufferMemory"]
+
+
+def _record_function(name: str):
+    profiler_mod = getattr(torch, "profiler", None)
+    if profiler_mod is not None and hasattr(profiler_mod, "record_function"):
+        return profiler_mod.record_function(name)
+    return contextlib.nullcontext()
