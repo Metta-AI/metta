@@ -547,6 +547,7 @@ name = "cogames"
 version = "0.3.5"
 source = { editable = "packages/cogames" }
 dependencies = [
+    { name = "einops" },
     { name = "mettagrid" },
     { name = "pufferlib-core" },
     { name = "pydantic" },
@@ -558,6 +559,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "einops", specifier = ">=0.8.0" },
     { name = "mettagrid", editable = "packages/mettagrid" },
     { name = "pufferlib-core", editable = "packages/pufferlib-core" },
     { name = "pydantic", specifier = ">=2.11.5" },
