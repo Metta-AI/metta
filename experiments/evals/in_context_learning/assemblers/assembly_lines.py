@@ -13,6 +13,8 @@ def make_icl_assembler_chain_eval_env(
     num_sinks: int,
     room_size: str,
     positions: list[list[Position]],
+    num_chests: int = 0,
+    chest_position: list[Position] = ["N"],
 ) -> MettaGridConfig:
     task_generator_cfg = make_task_generator_cfg(
         num_agents=[num_agents],
@@ -21,6 +23,8 @@ def make_icl_assembler_chain_eval_env(
         room_sizes=[room_size],
         positions=positions,
         map_dir=None,
+        num_chests=[num_chests],
+        chest_positions=[chest_position],
     )
     task_generator = AssemblyLinesTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
