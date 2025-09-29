@@ -4,9 +4,9 @@ import hashlib
 import logging
 import time
 from typing import Any, Dict, Optional
+from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
 
 from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
-
 logger = logging.getLogger(__name__)
 
 
@@ -178,7 +178,6 @@ def create_eval_job(
     Returns:
         JobDefinition for evaluation
     """
-    from metta.adaptive.models import JobDefinition, JobTypes
 
     overrides = build_eval_overrides(
         run_id=run_id,
@@ -187,11 +186,12 @@ def create_eval_job(
         additional_overrides=eval_overrides,
     )
 
+
     return JobDefinition(
         run_id=run_id,
         cmd=f"{recipe_module}.{eval_entrypoint}",
         type=JobTypes.LAUNCH_EVAL,
-        args={"run": run_id},
+        args={"policy_uri": f"{SOFTMAX_S3_POLICY_PREFIX}/{run_id}/{run_id}:latest.pt"},
         overrides=overrides,
         metadata={},
     )
