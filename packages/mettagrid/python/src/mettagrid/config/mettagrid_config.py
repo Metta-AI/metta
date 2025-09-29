@@ -39,6 +39,9 @@ class AgentConfig(Config):
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
     )
+    shareable_resources: list[str] = Field(
+        default_factory=list, description="Resources that will be shared when we use another agent"
+    )
 
 
 class ActionConfig(Config):

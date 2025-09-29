@@ -8,6 +8,8 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/constants.hpp"
+#include "objects/usable.hpp"
 
 // Forward declaration
 struct GameConfig;
@@ -59,12 +61,26 @@ protected:
     // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
     // objects without using them.
     if (!_grid->is_empty(target_location.r, target_location.c)) {
-      GridLocation object_location = {target_location.r, target_location.c, GridLayer::ObjectLayer};
-      GridObject* target = _grid->object_at(object_location);
-      Usable* usable = dynamic_cast<Usable*>(target);
-      if (usable) {
-        return usable->onUse(actor, arg);
+      // Check the AgentLayer first for other agents
+      GridLocation agent_location = {target_location.r, target_location.c, GridLayer::AgentLayer};
+      GridObject* target_agent = _grid->object_at(agent_location);
+      if (target_agent) {
+        Usable* usable_agent = dynamic_cast<Usable*>(target_agent);
+        if (usable_agent) {
+          return usable_agent->onUse(actor, arg);
+        }
       }
+
+      // Then check the ObjectLayer for other usable objects
+      GridLocation object_location = {target_location.r, target_location.c, GridLayer::ObjectLayer};
+      GridObject* target_object = _grid->object_at(object_location);
+      if (target_object) {
+        Usable* usable_object = dynamic_cast<Usable*>(target_object);
+        if (usable_object) {
+          return usable_object->onUse(actor, arg);
+        }
+      }
+
       return false;
     }
 
