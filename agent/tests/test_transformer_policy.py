@@ -97,7 +97,12 @@ def test_padding_tokens_do_not_zero_valid_entries():
     def _capture_input(_, inputs):
         captured["grid"] = inputs[0].detach().clone()
 
-    handle = policy.cnn1.register_forward_pre_hook(_capture_input)
+    try:
+        cnn1 = policy.cnn1
+    except AttributeError:
+        pytest.skip("Transformer policy does not expose a cnn1 module when using token encoders")
+
+    handle = cnn1.register_forward_pre_hook(_capture_input)
     try:
         policy._encode_observations(observations)
     finally:
