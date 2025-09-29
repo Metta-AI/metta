@@ -12,6 +12,7 @@ from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.stores import WandbStore
 from metta.common.tool import Tool
+from metta.common.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
@@ -135,7 +136,7 @@ class SweepTool(Tool):
     # Controller settings
     max_parallel_jobs: int = 6
     monitoring_interval: int = 60
-    sweep_server_uri: str = "https://api.observatory.softmax-research.net"
+    sweep_server_uri: str = PROD_STATS_SERVER_URI
     gpus: int = 1  # Number of GPUs per training job
     nodes: int = 1  # Number of nodes per training job
 
@@ -151,7 +152,7 @@ class SweepTool(Tool):
 
     # Infrastructure configuration
     wandb: WandbConfig = WandbConfig.Unconfigured()
-    stats_server_uri: Optional[str] = auto_stats_server_uri()  # Stats server for remote evaluations
+    stats_server_uri: str = PROD_STATS_SERVER_URI  # Stats server for remote evaluations
 
     # Dispatcher configuration
     dispatcher_type: DispatcherType = DispatcherType.SKYPILOT  # SKYPILOT or LOCAL
