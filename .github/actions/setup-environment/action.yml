@@ -43,7 +43,6 @@ runs:
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
     - name: Install Nim toolchain
-      if: inputs.install-mode != 'minimal'
       shell: bash
       run: |
         if command -v nim >/dev/null 2>&1 && command -v nimble >/dev/null 2>&1; then
