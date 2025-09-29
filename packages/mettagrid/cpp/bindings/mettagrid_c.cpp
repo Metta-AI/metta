@@ -29,6 +29,7 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/converter_config.hpp"
+#include "objects/inventory_config.hpp"
 #include "objects/production_handler.hpp"
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
@@ -49,7 +50,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
       _track_movement_metrics(game_config.track_movement_metrics),
-      _resource_loss_prob(game_config.resource_loss_prob) {
+      _resource_loss_prob(game_config.resource_loss_prob),
+      _inventory_regen_amounts(game_config.inventory_regen_amounts),
+      _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -455,15 +458,15 @@ void MettaGrid::_step(Actions actions) {
         continue;
       }
 
-      auto& agent = _agents[agent_idx];
+      auto* agent = _agents[agent_idx];
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
-      _action_success[agent_idx] = handler->handle_action(agent->id, arg);
+      _action_success[agent_idx] = handler->handle_action(*agent, arg);
     }
   }
 
   // Handle resource loss
-  for (auto& agent : _agents) {
+  for (auto* agent : _agents) {
     if (_resource_loss_prob > 0.0f) {
       // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
       // Make a real copy of the agent's inventory map to avoid iterator invalidation
@@ -485,12 +488,23 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
+  // Handle inventory regeneration
+  if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
+    for (auto* agent : _agents) {
+      for (const auto& [item, amount] : _inventory_regen_amounts) {
+        if (amount > 0) {
+          agent->update_inventory(item, amount);
+        }
+      }
+    }
+  }
+
   // Compute observations for next step
   _compute_observations(actions);
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
-    agent->compute_stat_rewards();
+    agent->compute_stat_rewards(_stats.get());
   }
 
   // Update episode rewards
@@ -691,11 +705,12 @@ py::dict MettaGrid::grid_objects() {
         inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
-      py::dict resource_limits_dict;
-      for (const auto& [resource, quantity] : agent->resource_limits) {
-        resource_limits_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["resource_limits"] = resource_limits_dict;
+      // We made resource limits more complicated than this, and need to review how to expose them.
+      // py::dict resource_limits_dict;
+      // for (const auto& [resource, quantity] : agent->inventory.limits) {
+      //   resource_limits_dict[py::int_(resource)] = quantity;
+      // }
+      // obj_dict["resource_limits"] = resource_limits_dict;
       obj_dict["agent_id"] = agent->agent_id;
     }
 
@@ -756,6 +771,16 @@ py::dict MettaGrid::feature_spec() {
     py::dict spec;
     spec["normalization"] = py::float_(normalizations.at(feature_id));
     spec["id"] = py::int_(feature_id);
+
+    // Add tag mapping for the tag feature
+    if (feature_name == "tag") {
+      py::dict tag_map;
+      for (const auto& [tag_id, tag_name] : _game_config.tag_id_map) {
+        tag_map[py::int_(tag_id)] = py::str(tag_name);
+      }
+      spec["values"] = tag_map;
+    }
+
     feature_spec[py::str(feature_name)] = spec;
   }
   return feature_spec;
@@ -775,7 +800,6 @@ py::dict MettaGrid::get_episode_stats() {
   //   "game": dict[str, float],  // Global game statistics
   //   "agent": list[dict[str, float]],  // Per-agent statistics
   // }
-  // All stat values are guaranteed to be floats from StatsTracker::to_dict()
 
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());
@@ -897,6 +921,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // This comes from us creating (e.g.) various config objects, and then storing them in GameConfig's maps.
   // We're, like 80% sure on this reasoning.
 
+  bind_inventory_config(m);
   bind_agent_config(m);
   bind_converter_config(m);
   bind_assembler_config(m);

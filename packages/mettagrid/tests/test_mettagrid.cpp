@@ -16,6 +16,7 @@
 #include "objects/assembler_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
+#include "objects/inventory_config.hpp"
 #include "objects/wall.hpp"
 
 // Test-specific inventory item type constants
@@ -49,13 +50,15 @@ protected:
   void TearDown() override {}
 
   // Helper function to create test resource_limits map
-  std::map<uint8_t, InventoryQuantity> create_test_resource_limits() {
-    std::map<uint8_t, InventoryQuantity> resource_limits;
-    resource_limits[TestItems::ORE] = 50;
-    resource_limits[TestItems::LASER] = 50;
-    resource_limits[TestItems::ARMOR] = 50;
-    resource_limits[TestItems::HEART] = 50;
-    return resource_limits;
+  InventoryConfig create_test_inventory_config() {
+    InventoryConfig inventory_config;
+    inventory_config.limits = {
+        {{TestItems::ORE}, 50},
+        {{TestItems::LASER}, 50},
+        {{TestItems::ARMOR}, 50},
+        {{TestItems::HEART}, 50},
+    };
+    return inventory_config;
   }
 
   std::map<std::string, RewardType> create_test_stats_rewards() {
@@ -87,7 +90,7 @@ protected:
                        "test_group",                    // group_name
                        100,                             // freeze_duration
                        0.0f,                            // action_failure_penalty
-                       create_test_resource_limits(),   // resource_limits
+                       create_test_inventory_config(),  // resource_limits
                        create_test_stats_rewards(),     // stats_rewards
                        create_test_stats_reward_max(),  // stats_reward_max
                        0.0f,                            // group_reward_pct
@@ -106,6 +109,51 @@ TEST_F(MettaGridCppTest, AgentRewards) {
   EXPECT_FLOAT_EQ(agent->stat_rewards[std::string(TestItemStrings::LASER) + ".amount"], 0.0f);
   EXPECT_FLOAT_EQ(agent->stat_rewards[std::string(TestItemStrings::ARMOR) + ".amount"], 0.0f);
   EXPECT_FLOAT_EQ(agent->stat_rewards[std::string(TestItemStrings::HEART) + ".amount"], 1.0f);
+}
+
+TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
+  // Create agent with reward for chest.hearts.amount
+  auto rewards = create_test_stats_rewards();
+  rewards["chest.heart.amount"] = 0.1f;
+
+  auto stats_reward_max = create_test_stats_reward_max();
+  stats_reward_max["chest.heart.amount"] = 5.0f;
+
+  AgentConfig agent_cfg(
+      0, "agent", 1, "test_group", 100, 0.0f, create_test_inventory_config(), rewards, stats_reward_max);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+
+  auto resource_names = create_test_resource_names();
+  agent->stats.set_resource_names(&resource_names);
+
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+
+  // Set up agent's own stats
+  agent->stats.set("heart.amount", 5.0f);  // Agent has 5 hearts
+
+  // Create an additional stats tracker (e.g., from game or chest)
+  StatsTracker additional_stats;
+  additional_stats.set("chest.heart.amount", 10.0f);  // Additional 10 chest hearts
+
+  // Compute rewards without additional tracker
+  agent->compute_stat_rewards();
+  EXPECT_FLOAT_EQ(agent_reward, 5.0f);
+
+  // Compute rewards with additional tracker
+  agent->compute_stat_rewards(&additional_stats);
+  EXPECT_FLOAT_EQ(agent_reward, 6.0f);  // 5 + 0.1 * 10
+
+  // Test with values that exceed the cap
+  additional_stats.set("chest.heart.amount", 100.0f);
+  agent->compute_stat_rewards(&additional_stats);
+  EXPECT_FLOAT_EQ(agent_reward, 10.0f);
+
+  // Check that they add up if both stats trackers have the same entry (even though we don't expect to use this)
+  additional_stats.set("chest.heart.amount", 10.0f);
+  agent->stats.set("chest.heart.amount", 10.0f);
+  agent->compute_stat_rewards(&additional_stats);
+  EXPECT_FLOAT_EQ(agent_reward, 7.0f);  // 5 + 0.1 * 10 + 10
 }
 
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
@@ -152,14 +200,14 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
 // Test for reward capping behavior with a lower cap to actually hit it
 TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   // Create a custom config with a lower ore reward cap that we can actually hit
-  auto resource_limits = create_test_resource_limits();
+  auto inventory_config = create_test_inventory_config();
   auto rewards = create_test_stats_rewards();
 
   // Set a lower cap for ORE so we can actually test capping
   std::map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, stats_reward_max, 0.0f, {});
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
@@ -218,7 +266,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
 // Test multiple item types with different caps
 TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
-  auto resource_limits = create_test_resource_limits();
+  auto inventory_config = create_test_inventory_config();
   auto rewards = create_test_stats_rewards();
 
   // Set different caps for different items
@@ -227,7 +275,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   stats_reward_max[std::string(TestItemStrings::HEART) + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, stats_reward_max, 0.0f, {});
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
@@ -270,6 +318,79 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 25);
   agent->compute_stat_rewards();
   EXPECT_FLOAT_EQ(agent_reward, 25.625f);  // 0.625 + 25.0
+}
+
+// Test shared inventory limits between multiple resources
+TEST_F(MettaGridCppTest, SharedInventoryLimits) {
+  // Create an inventory config where ORE and LASER share a combined limit
+  InventoryConfig inventory_config;
+  inventory_config.limits = {
+      {{TestItems::ORE, TestItems::LASER}, 30},  // ORE and LASER share a limit of 30 total
+      {{TestItems::ARMOR}, 50},                  // ARMOR has its own separate limit
+      {{TestItems::HEART}, 50},                  // HEART has its own separate limit
+  };
+
+  auto rewards = create_test_stats_rewards();
+  auto stats_reward_max = create_test_stats_reward_max();
+
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
+
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  auto resource_names = create_test_resource_names();
+  agent->stats.set_resource_names(&resource_names);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+
+  // Add ORE up to 20
+  int delta = agent->update_inventory(TestItems::ORE, 20);
+  EXPECT_EQ(delta, 20);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 20);
+
+  // Try to add 20 LASER - should only add 10 due to shared limit
+  delta = agent->update_inventory(TestItems::LASER, 20);
+  EXPECT_EQ(delta, 10);  // Only 10 can be added (20 ORE + 10 LASER = 30 total)
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 10);
+
+  // Try to add more ORE - should fail as we're at the shared limit
+  delta = agent->update_inventory(TestItems::ORE, 5);
+  EXPECT_EQ(delta, 0);  // Can't add any more
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 20);
+
+  // Remove some LASER
+  delta = agent->update_inventory(TestItems::LASER, -5);
+  EXPECT_EQ(delta, -5);
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 5);
+
+  // Now we can add more ORE since we freed up shared space
+  delta = agent->update_inventory(TestItems::ORE, 5);
+  EXPECT_EQ(delta, 5);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 25);
+
+  // ARMOR should work independently with its own limit
+  delta = agent->update_inventory(TestItems::ARMOR, 40);
+  EXPECT_EQ(delta, 40);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 40);
+
+  // Can still add more ARMOR up to its limit
+  delta = agent->update_inventory(TestItems::ARMOR, 20);
+  EXPECT_EQ(delta, 10);  // Should cap at 50
+  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 50);
+
+  // Remove all ORE
+  delta = agent->update_inventory(TestItems::ORE, -25);
+  EXPECT_EQ(delta, -25);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);
+
+  // Now we can add up to 25 more LASER (5 existing + 25 = 30)
+  delta = agent->update_inventory(TestItems::LASER, 30);
+  EXPECT_EQ(delta, 25);
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 30);
+
+  // Verify final state
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 30);
+  EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 50);
+  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 0);
 }
 
 // ==================== Grid Tests ====================
@@ -349,7 +470,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   attack.init(&grid, &rng);
 
   // Perform attack (arg 5 targets directly in front)
-  bool success = attack.handle_action(attacker->id, 5);
+  bool success = attack.handle_action(*attacker, 5);
   // Hitting a target with armor counts as success
   EXPECT_TRUE(success);
 
@@ -362,7 +483,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(target->inventory.amount(TestItems::HEART), 3);
 
   // Attack again, now that armor is gone
-  success = attack.handle_action(attacker->id, 5);
+  success = attack.handle_action(*attacker, 5);
   EXPECT_TRUE(success);
 
   // Verify target's inventory was stolen
@@ -413,14 +534,14 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   put.init(&grid, &rng);
 
   // Test putting matching items
-  bool success = put.handle_action(agent->id, 0);
+  bool success = put.handle_action(*agent, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);      // Ore consumed
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);    // Heart unchanged
   EXPECT_EQ(generator->inventory.amount(TestItems::ORE), 1);  // Ore added to generator
 
   // Test putting non-matching items
-  success = put.handle_action(agent->id, 0);
+  success = put.handle_action(*agent, 0);
   EXPECT_FALSE(success);                                        // Should fail since we only have heart left
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);      // Heart unchanged
   EXPECT_EQ(generator->inventory.amount(TestItems::HEART), 0);  // No heart in generator
@@ -465,7 +586,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   get.init(&grid, &rng);
 
   // Test getting output
-  bool success = get.handle_action(agent->id, 0);
+  bool success = get.handle_action(*agent, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 1);        // Still have ore
   EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 1);      // Also have armor
@@ -488,40 +609,40 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 0.0f);
-  noop.handle_action(agent->id, 0);  // count 1, max 1
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 0.0f);
+  noop.handle_action(*agent, 0);  // count 1, max 1
   EXPECT_EQ(agent->location.r, 5);
   EXPECT_EQ(agent->location.c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
   EXPECT_EQ(agent->prev_location.c, 5);
   EXPECT_EQ(agent->prev_action_name, "noop");
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
   agent->location.r = 6;
   agent->location.c = 6;
-  noop.handle_action(agent->id, 0);  // count 0, max 1
+  noop.handle_action(*agent, 0);  // count 0, max 1
   EXPECT_EQ(agent->location.r, 6);
   EXPECT_EQ(agent->location.c, 6);
   EXPECT_EQ(agent->prev_location.r, 6);
   EXPECT_EQ(agent->prev_location.c, 6);
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
-  noop.handle_action(agent->id, 0);  // count 1, max 1
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
-  noop.handle_action(agent->id, 0);  // count 2, max 2
-  noop.handle_action(agent->id, 0);  // count 3, max 3
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 3.0f);
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
+  noop.handle_action(*agent, 0);  // count 1, max 1
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
+  noop.handle_action(*agent, 0);  // count 2, max 2
+  noop.handle_action(*agent, 0);  // count 3, max 3
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
   agent->location.r = 7;
   agent->location.c = 7;
-  noop.handle_action(agent->id, 0);  // count 0, max 3
+  noop.handle_action(*agent, 0);  // count 0, max 3
   EXPECT_EQ(agent->location.r, 7);
   EXPECT_EQ(agent->location.c, 7);
   EXPECT_EQ(agent->prev_location.r, 7);
   EXPECT_EQ(agent->prev_location.c, 7);
-  noop.handle_action(agent->id, 0);  // count 1, max 3
-  noop.handle_action(agent->id, 0);  // count 2, max 3
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 3.0f);
-  noop.handle_action(agent->id, 0);  // count 3, max 3
-  noop.handle_action(agent->id, 0);  // count 4, max 4
-  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 4.0f);
+  noop.handle_action(*agent, 0);  // count 1, max 3
+  noop.handle_action(*agent, 0);  // count 2, max 3
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
+  noop.handle_action(*agent, 0);  // count 3, max 3
+  noop.handle_action(*agent, 0);  // count 4, max 4
+  EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 4.0f);
 }
 
 // ==================== Fractional Consumption Tests ====================
@@ -546,7 +667,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
 
   // Execute action multiple times
   for (int i = 0; i < 10; i++) {
-    noop.handle_action(agent->id, 0);
+    noop.handle_action(*agent, 0);
   }
 
   // With 0.5 probability, exactly 4 ore should be consumed (10 - 4 = 6 remaining)
@@ -561,7 +682,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
   poor_agent->init(&poor_reward);
   grid.add_object(poor_agent);
 
-  bool success = noop.handle_action(poor_agent->id, 0);
+  bool success = noop.handle_action(*poor_agent, 0);
   EXPECT_FALSE(success);  // Should fail due to insufficient resources
 }
 
@@ -583,7 +704,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionWithOverflow) {
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
-  bool success = noop.handle_action(agent->id, 0);
+  bool success = noop.handle_action(*agent, 0);
   EXPECT_TRUE(success);  // Should succeed as we have enough resources
 
   // With 1.5, should consume either 1 or 2 units
@@ -608,7 +729,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionRequiresCeiledInventory) {
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
-  bool success = noop.handle_action(agent->id, 0);
+  bool success = noop.handle_action(*agent, 0);
   EXPECT_FALSE(success);  // Should fail as we only have 1 but need ceil(1.5) = 2
 
   // Verify inventory unchanged
@@ -643,7 +764,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionZero) {
 
   // Execute action multiple times - should never consume
   for (int i = 0; i < 10; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -670,7 +791,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionInteger) {
 
   // Execute action 3 times - should always consume exactly 2
   for (int i = 0; i < 3; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -700,7 +821,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
   int successful_actions = 0;
   for (int i = 0; i < 100; i++) {
     int before = agent->inventory.amount(TestItems::ORE);
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     if (success) {
       successful_actions++;
       int after = agent->inventory.amount(TestItems::ORE);
@@ -734,7 +855,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
   int successful_actions = 0;
   for (int i = 0; i < 100; i++) {
     int before = agent->inventory.amount(TestItems::ORE);
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     if (success) {
       successful_actions++;
     }
@@ -768,7 +889,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
 
   // Execute action multiple times
   for (int i = 0; i < 10; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -827,7 +948,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   // Do 10 attacks
   for (int i = 0; i < 10; i++) {
     int before = attacker->inventory.amount(TestItems::LASER);
-    bool success = attack.handle_action(attacker->id, 5);  // Attack directly in front
+    bool success = attack.handle_action(*attacker, 5);  // Attack directly in front
     if (success) {
       successful_attacks++;
       int after = attacker->inventory.amount(TestItems::LASER);
@@ -860,7 +981,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   int changes = 0;
   ObservationType initial_glyph = agent->glyph;
   while (agent->inventory.amount(TestItems::ORE) >= 2) {
-    bool success = change_glyph.handle_action(agent->id, (initial_glyph + 1) % 4);
+    bool success = change_glyph.handle_action(*agent, (initial_glyph + 1) % 4);
     if (!success) break;
     changes++;
     if (changes > 30) break;  // Safety limit
@@ -890,11 +1011,11 @@ TEST_F(MettaGridCppTest, FractionalConsumptionBoundaryValues) {
   noop.init(&grid, &rng);
 
   // Should succeed once then likely fail
-  bool first_success = noop.handle_action(agent->id, 0);
+  bool first_success = noop.handle_action(*agent, 0);
   EXPECT_TRUE(first_success);
 
   // Very high chance we consumed the resource (99%)
-  bool second_success = noop.handle_action(agent->id, 0);
+  bool second_success = noop.handle_action(*agent, 0);
   // This will almost certainly fail (99% chance we're out of resources)
   if (agent->inventory.amount(TestItems::ORE) == 0) {
     EXPECT_FALSE(second_success);
@@ -931,8 +1052,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
 
   // Execute same sequence on both
   for (int i = 0; i < 50; i++) {
-    noop1.handle_action(agent1->id, 0);
-    noop2.handle_action(agent2->id, 0);
+    noop1.handle_action(*agent1, 0);
+    noop2.handle_action(*agent2, 0);
   }
 
   // Should have identical results with same seed
@@ -1115,8 +1236,8 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   // Test 3: Pattern with agents in multiple positions
   // Move agent1 to NW (bit 0) and agent2 to SW (bit 5), add agent3 at SE (bit 7)
   // This should give us pattern = (1 << 0) | (1 << 5) | (1 << 7) = 1 | 32 | 128 = 161
-  grid->move_object(agent1->id, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
-  grid->move_object(agent2->id, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
+  grid->move_object(*agent1, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
+  grid->move_object(*agent2, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
 
   Agent* agent3 = new Agent(6, 6, agent_cfg);  // SE of assembler
   grid->add_object(agent3);                    // Add new agent

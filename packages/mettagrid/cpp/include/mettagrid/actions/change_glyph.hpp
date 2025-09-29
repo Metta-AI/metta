@@ -7,8 +7,8 @@
 #include <string>
 
 #include "actions/action_handler.hpp"
-#include "objects/agent.hpp"
 #include "core/types.hpp"
+#include "objects/agent.hpp"
 
 struct ChangeGlyphActionConfig : public ActionConfig {
   const ObservationType number_of_glyphs;
@@ -32,8 +32,8 @@ public:
 protected:
   const ObservationType _number_of_glyphs;
 
-  bool _handle_action(Agent* actor, ActionArg arg) override {
-    actor->glyph = static_cast<ObservationType>(arg);  // ActionArg is int32 for puffer compatibility
+  bool _handle_action(Agent& actor, ActionArg arg) override {
+    actor.glyph = static_cast<ObservationType>(arg);  // ActionArg is int32 for puffer compatibility
     return true;
   }
 };

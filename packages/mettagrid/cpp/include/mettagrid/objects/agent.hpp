@@ -24,7 +24,6 @@ public:
   // however, this should not be relied on for correctness.
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
-  std::map<InventoryItem, InventoryQuantity> resource_limits;
   float action_failure_penalty;
   std::string group_name;
   // We expect only a small number (single-digit) of soul-bound resources.
@@ -45,13 +44,14 @@ public:
   unsigned int steps_without_motion;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
-      : group(config.group_id),
+      : GridObject(),
+        HasInventory(config.inventory_config),
+        group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
         orientation(Orientation::North),
         stat_rewards(config.stat_rewards),
         stat_reward_max(config.stat_reward_max),
-        resource_limits(config.resource_limits),
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         soul_bound_resources(config.soul_bound_resources),
@@ -136,20 +136,6 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-    // Apply resource limits if adding items
-    // xcxc move the limit check to Inventory
-    if (attempted_delta > 0) {
-      auto limit_it = this->resource_limits.find(item);
-      if (limit_it != this->resource_limits.end()) {
-        InventoryQuantity current_amount = this->inventory.amount(item);
-        InventoryQuantity limit = limit_it->second;
-        InventoryQuantity max_can_add = limit - current_amount;
-        if (max_can_add < attempted_delta) {
-          attempted_delta = max_can_add;
-        }
-      }
-    }
-
     const InventoryDelta delta = this->inventory.update(item, attempted_delta);
 
     if (delta != 0) {
@@ -158,32 +144,30 @@ public:
       } else if (delta < 0) {
         this->stats.add(this->stats.resource_name(item) + ".lost", -delta);
       }
-      InventoryQuantity current_amount = this->inventory.amount(item);
-      this->stats.set(this->stats.resource_name(item) + ".amount", current_amount);
+      this->stats.set(this->stats.resource_name(item) + ".amount", this->inventory.amount(item));
     }
 
     return delta;
   }
 
-  void compute_stat_rewards() {
+  void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr) {
     if (this->stat_rewards.empty()) {
       return;
     }
 
     float new_stat_reward = 0;
-    auto stat_dict = this->stats.to_dict();
 
     for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
-      if (stat_dict.count(stat_name) > 0) {
-        float stat_value = stat_dict[stat_name];
-
-        float stats_reward = stat_value * reward_per_unit;
-        if (this->stat_reward_max.count(stat_name) > 0) {
-          stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
-        }
-
-        new_stat_reward += stats_reward;
+      float stat_value = this->stats.get(stat_name);
+      if (game_stats_tracker) {
+        stat_value += game_stats_tracker->get(stat_name);
       }
+      float stats_reward = stat_value * reward_per_unit;
+      if (this->stat_reward_max.count(stat_name) > 0) {
+        stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));
+      }
+
+      new_stat_reward += stats_reward;
     }
 
     // Update the agent's reward with the difference
