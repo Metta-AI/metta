@@ -162,7 +162,7 @@ def create_eval_job(
     experiment_id: str,
     recipe_module: str,
     eval_entrypoint: str,
-    stats_server_uri: Optional[str] = None,
+    stats_server_uri: Optional[str] = PROD_STATS_SERVER_URI,
     eval_overrides: Optional[Dict[str, Any]] = None,
 ) -> "JobDefinition":
     """Create an evaluation job definition.
