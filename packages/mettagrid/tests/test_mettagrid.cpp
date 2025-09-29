@@ -470,7 +470,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   attack.init(&grid, &rng);
 
   // Perform attack (arg 5 targets directly in front)
-  bool success = attack.handle_action(attacker->id, 5);
+  bool success = attack.handle_action(*attacker, 5);
   // Hitting a target with armor counts as success
   EXPECT_TRUE(success);
 
@@ -483,7 +483,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(target->inventory.amount(TestItems::HEART), 3);
 
   // Attack again, now that armor is gone
-  success = attack.handle_action(attacker->id, 5);
+  success = attack.handle_action(*attacker, 5);
   EXPECT_TRUE(success);
 
   // Verify target's inventory was stolen
@@ -534,14 +534,14 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   put.init(&grid, &rng);
 
   // Test putting matching items
-  bool success = put.handle_action(agent->id, 0);
+  bool success = put.handle_action(*agent, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 0);      // Ore consumed
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);    // Heart unchanged
   EXPECT_EQ(generator->inventory.amount(TestItems::ORE), 1);  // Ore added to generator
 
   // Test putting non-matching items
-  success = put.handle_action(agent->id, 0);
+  success = put.handle_action(*agent, 0);
   EXPECT_FALSE(success);                                        // Should fail since we only have heart left
   EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 1);      // Heart unchanged
   EXPECT_EQ(generator->inventory.amount(TestItems::HEART), 0);  // No heart in generator
@@ -586,7 +586,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   get.init(&grid, &rng);
 
   // Test getting output
-  bool success = get.handle_action(agent->id, 0);
+  bool success = get.handle_action(*agent, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 1);        // Still have ore
   EXPECT_EQ(agent->inventory.amount(TestItems::ARMOR), 1);      // Also have armor
@@ -610,7 +610,7 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   noop.init(&grid, &rng);
 
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 0.0f);
-  noop.handle_action(agent->id, 0);  // count 1, max 1
+  noop.handle_action(*agent, 0);  // count 1, max 1
   EXPECT_EQ(agent->location.r, 5);
   EXPECT_EQ(agent->location.c, 5);
   EXPECT_EQ(agent->prev_location.r, 5);
@@ -619,29 +619,29 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
   agent->location.r = 6;
   agent->location.c = 6;
-  noop.handle_action(agent->id, 0);  // count 0, max 1
+  noop.handle_action(*agent, 0);  // count 0, max 1
   EXPECT_EQ(agent->location.r, 6);
   EXPECT_EQ(agent->location.c, 6);
   EXPECT_EQ(agent->prev_location.r, 6);
   EXPECT_EQ(agent->prev_location.c, 6);
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
-  noop.handle_action(agent->id, 0);  // count 1, max 1
+  noop.handle_action(*agent, 0);  // count 1, max 1
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 1.0f);
-  noop.handle_action(agent->id, 0);  // count 2, max 2
-  noop.handle_action(agent->id, 0);  // count 3, max 3
+  noop.handle_action(*agent, 0);  // count 2, max 2
+  noop.handle_action(*agent, 0);  // count 3, max 3
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
   agent->location.r = 7;
   agent->location.c = 7;
-  noop.handle_action(agent->id, 0);  // count 0, max 3
+  noop.handle_action(*agent, 0);  // count 0, max 3
   EXPECT_EQ(agent->location.r, 7);
   EXPECT_EQ(agent->location.c, 7);
   EXPECT_EQ(agent->prev_location.r, 7);
   EXPECT_EQ(agent->prev_location.c, 7);
-  noop.handle_action(agent->id, 0);  // count 1, max 3
-  noop.handle_action(agent->id, 0);  // count 2, max 3
+  noop.handle_action(*agent, 0);  // count 1, max 3
+  noop.handle_action(*agent, 0);  // count 2, max 3
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 3.0f);
-  noop.handle_action(agent->id, 0);  // count 3, max 3
-  noop.handle_action(agent->id, 0);  // count 4, max 4
+  noop.handle_action(*agent, 0);  // count 3, max 3
+  noop.handle_action(*agent, 0);  // count 4, max 4
   EXPECT_FLOAT_EQ(agent->stats.get("status.max_steps_without_motion"), 4.0f);
 }
 
@@ -667,7 +667,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
 
   // Execute action multiple times
   for (int i = 0; i < 10; i++) {
-    noop.handle_action(agent->id, 0);
+    noop.handle_action(*agent, 0);
   }
 
   // With 0.5 probability, exactly 4 ore should be consumed (10 - 4 = 6 remaining)
@@ -682,7 +682,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
   poor_agent->init(&poor_reward);
   grid.add_object(poor_agent);
 
-  bool success = noop.handle_action(poor_agent->id, 0);
+  bool success = noop.handle_action(*poor_agent, 0);
   EXPECT_FALSE(success);  // Should fail due to insufficient resources
 }
 
@@ -704,7 +704,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionWithOverflow) {
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
-  bool success = noop.handle_action(agent->id, 0);
+  bool success = noop.handle_action(*agent, 0);
   EXPECT_TRUE(success);  // Should succeed as we have enough resources
 
   // With 1.5, should consume either 1 or 2 units
@@ -729,7 +729,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionRequiresCeiledInventory) {
   std::mt19937 rng(42);
   noop.init(&grid, &rng);
 
-  bool success = noop.handle_action(agent->id, 0);
+  bool success = noop.handle_action(*agent, 0);
   EXPECT_FALSE(success);  // Should fail as we only have 1 but need ceil(1.5) = 2
 
   // Verify inventory unchanged
@@ -764,7 +764,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionZero) {
 
   // Execute action multiple times - should never consume
   for (int i = 0; i < 10; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -791,7 +791,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionInteger) {
 
   // Execute action 3 times - should always consume exactly 2
   for (int i = 0; i < 3; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -821,7 +821,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
   int successful_actions = 0;
   for (int i = 0; i < 100; i++) {
     int before = agent->inventory.amount(TestItems::ORE);
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     if (success) {
       successful_actions++;
       int after = agent->inventory.amount(TestItems::ORE);
@@ -855,7 +855,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
   int successful_actions = 0;
   for (int i = 0; i < 100; i++) {
     int before = agent->inventory.amount(TestItems::ORE);
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     if (success) {
       successful_actions++;
     }
@@ -889,7 +889,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
 
   // Execute action multiple times
   for (int i = 0; i < 10; i++) {
-    bool success = noop.handle_action(agent->id, 0);
+    bool success = noop.handle_action(*agent, 0);
     EXPECT_TRUE(success);
   }
 
@@ -948,7 +948,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   // Do 10 attacks
   for (int i = 0; i < 10; i++) {
     int before = attacker->inventory.amount(TestItems::LASER);
-    bool success = attack.handle_action(attacker->id, 5);  // Attack directly in front
+    bool success = attack.handle_action(*attacker, 5);  // Attack directly in front
     if (success) {
       successful_attacks++;
       int after = attacker->inventory.amount(TestItems::LASER);
@@ -981,7 +981,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   int changes = 0;
   ObservationType initial_glyph = agent->glyph;
   while (agent->inventory.amount(TestItems::ORE) >= 2) {
-    bool success = change_glyph.handle_action(agent->id, (initial_glyph + 1) % 4);
+    bool success = change_glyph.handle_action(*agent, (initial_glyph + 1) % 4);
     if (!success) break;
     changes++;
     if (changes > 30) break;  // Safety limit
@@ -1011,11 +1011,11 @@ TEST_F(MettaGridCppTest, FractionalConsumptionBoundaryValues) {
   noop.init(&grid, &rng);
 
   // Should succeed once then likely fail
-  bool first_success = noop.handle_action(agent->id, 0);
+  bool first_success = noop.handle_action(*agent, 0);
   EXPECT_TRUE(first_success);
 
   // Very high chance we consumed the resource (99%)
-  bool second_success = noop.handle_action(agent->id, 0);
+  bool second_success = noop.handle_action(*agent, 0);
   // This will almost certainly fail (99% chance we're out of resources)
   if (agent->inventory.amount(TestItems::ORE) == 0) {
     EXPECT_FALSE(second_success);
@@ -1052,8 +1052,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
 
   // Execute same sequence on both
   for (int i = 0; i < 50; i++) {
-    noop1.handle_action(agent1->id, 0);
-    noop2.handle_action(agent2->id, 0);
+    noop1.handle_action(*agent1, 0);
+    noop2.handle_action(*agent2, 0);
   }
 
   // Should have identical results with same seed
@@ -1236,8 +1236,8 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   // Test 3: Pattern with agents in multiple positions
   // Move agent1 to NW (bit 0) and agent2 to SW (bit 5), add agent3 at SE (bit 7)
   // This should give us pattern = (1 << 0) | (1 << 5) | (1 << 7) = 1 | 32 | 128 = 161
-  grid->move_object(agent1->id, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
-  grid->move_object(agent2->id, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
+  grid->move_object(*agent1, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
+  grid->move_object(*agent2, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
 
   Agent* agent3 = new Agent(6, 6, agent_cfg);  // SE of assembler
   grid->add_object(agent3);                    // Add new agent
