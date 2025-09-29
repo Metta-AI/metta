@@ -32,6 +32,7 @@ def games_cmd(
 ) -> None:
     """List all available games or describe a specific game."""
     from cogames import game
+
     if game_name is None:
         # List all games
         table = game.list_games(console)
@@ -73,6 +74,7 @@ def play_cmd(
 ) -> None:
     """Play a game."""
     from cogames import game, utils
+
     # If no game specified, list games
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
@@ -115,6 +117,7 @@ def make_scenario(
 ) -> None:
     """Create a new game configuration."""
     from cogames import game, utils
+
     try:
         # If base_game specified, use it as template
         if base_game:
@@ -176,6 +179,7 @@ def train_cmd(
     """Train a policy on a game."""
     from cogames import game, utils, train as train_module
     import torch
+
     # If no game specified, list games
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
