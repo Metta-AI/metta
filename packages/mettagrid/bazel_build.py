@@ -126,12 +126,7 @@ def _run_bazel_build() -> None:
 
 
 def _run_mettascope_build() -> None:
-    """Run mettascope build script to compile the Nim library."""
-    build_script = METTASCOPE_DIR / "build.sh"
-
-    if not build_script.exists():
-        print(f"Warning: Mettascope build script not found at {build_script}")
-        return
+    """Compile the mettascope Nim bindings using nimble."""
 
     # Check if nim and nimble are available
     if shutil.which("nim") is None:
@@ -146,23 +141,51 @@ def _run_mettascope_build() -> None:
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Make the build script executable
-    build_script.chmod(0o755)
+    env = os.environ.copy()
+    nimble_dir = env.get("NIMBLE_DIR")
+    if nimble_dir is None:
+        nimble_dir_path = METTASCOPE_DIR / ".nimble"
+        env["NIMBLE_DIR"] = str(nimble_dir_path)
+    else:
+        nimble_dir_path = Path(nimble_dir)
 
-    # Run the build script
-    cmd = ["bash", "build.sh"]
-    result = subprocess.run(cmd, cwd=METTASCOPE_DIR, capture_output=True, text=True, check=False)
+    nimble_dir_path.mkdir(parents=True, exist_ok=True)
+    (METTASCOPE_DIR / "bindings" / "generated").mkdir(parents=True, exist_ok=True)
 
-    if result.returncode != 0:
-        print("Mettascope build failed. STDERR:", file=sys.stderr)
-        print(result.stderr, file=sys.stderr)
-        print("Mettascope build STDOUT:", file=sys.stderr)
-        print(result.stdout, file=sys.stderr)
-        raise RuntimeError("Failed to build mettascope Nim bindings")
+    def run_nimble(cmd: list[str]) -> None:
+        result = subprocess.run(
+            cmd,
+            cwd=METTASCOPE_DIR,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+        if result.returncode != 0:
+            raise RuntimeError(f"Command {' '.join(cmd)} failed with exit code {result.returncode}")
+
+    run_nimble(["nimble", "install", "-y"])
+    run_nimble(
+        [
+            "nimble",
+            "c",
+            "-y",
+            "-d:release",
+            "--app:lib",
+            "--gc:arc",
+            "-d:fidgetUseCached=true",
+            "--tlsEmulation:off",
+            "--out:libmettascope2.dylib",
+            "--outdir:bindings/generated",
+            "bindings/bindings.nim",
+        ]
+    )
 
     print("Successfully built mettascope")
-    if result.stdout:
-        print("Build output:", result.stdout)
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):

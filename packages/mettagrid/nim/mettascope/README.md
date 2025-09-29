@@ -18,8 +18,11 @@ Build the dynamic link library:
 
 ```
 cd mettascope2
-./build.sh
+nimble install -y
+nimble c -y -d:release --app:lib --gc:arc -d:fidgetUseCached=true --tlsEmulation:off --out:libmettascope2.dylib --outdir:bindings/generated bindings/bindings.nim
 ```
+
+If you want to isolate the Nimble package cache, set `NIMBLE_DIR` when running the commands above (the build backend defaults to `./.nimble`).
 
 ## Running
 
