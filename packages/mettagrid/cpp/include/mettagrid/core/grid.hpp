@@ -69,7 +69,7 @@ public:
     return true;
   }
 
-  inline bool move_object(GridObjectId id, const GridLocation& loc) {
+  inline bool move_object(GridObject& obj, const GridLocation& loc) {
     if (!is_valid_location(loc)) {
       return false;
     }
@@ -78,32 +78,28 @@ public:
       return false;
     }
 
-    GridObject* obj = object(id);
-    grid[loc.r][loc.c][loc.layer] = id;
-    grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
-    obj->location = loc;
+    grid[loc.r][loc.c][loc.layer] = obj.id;
+    grid[obj.location.r][obj.location.c][obj.location.layer] = 0;
+    obj.location = loc;
     return true;
   }
 
-  inline void swap_objects(GridObjectId id1, GridObjectId id2) {
-    GridObject* obj1 = object(id1);
-    GridObject* obj2 = object(id2);
-
+  inline void swap_objects(GridObject& obj1, GridObject& obj2) {
     // Store the original locations.
-    GridLocation loc1 = obj1->location;
-    GridLocation loc2 = obj2->location;
+    GridLocation loc1 = obj1.location;
+    GridLocation loc2 = obj2.location;
 
     // Clear the objects from their original positions in the grid.
     grid[loc1.r][loc1.c][loc1.layer] = 0;
     grid[loc2.r][loc2.c][loc2.layer] = 0;
 
     // Update the location property of each object, preserving their original layers.
-    obj1->location = {loc2.r, loc2.c, loc1.layer};
-    obj2->location = {loc1.r, loc1.c, loc2.layer};
+    obj1.location = {loc2.r, loc2.c, loc1.layer};
+    obj2.location = {loc1.r, loc1.c, loc2.layer};
 
     // Place the objects in their new positions in the grid.
-    grid[obj1->location.r][obj1->location.c][obj1->location.layer] = id1;
-    grid[obj2->location.r][obj2->location.c][obj2->location.layer] = id2;
+    grid[obj1.location.r][obj1.location.c][obj1.location.layer] = obj1.id;
+    grid[obj2.location.r][obj2.location.c][obj2.location.layer] = obj2.id;
   }
 
   inline GridObject* object(GridObjectId obj_id) const {
