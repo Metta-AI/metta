@@ -77,9 +77,7 @@ class SimTool(Tool):
             return
 
         # Resume the existing training run without overriding its group
-        wandb = auto_wandb_config()
-        wandb.run_id = run_name  # resume existing
-        # Only override group if explicitly provided
+        wandb = auto_wandb_config(run_name)
         if self.group:
             wandb.group = self.group
 
