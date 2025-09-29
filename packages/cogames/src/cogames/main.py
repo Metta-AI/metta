@@ -468,6 +468,8 @@ def train_cmd(
 
         fallback_curricula = resolved_run_dir / "curricula"
         base_games = [game_name] if game_name is not None else []
+        if not base_games and curriculum is None and not fallback_curricula.exists():
+            base_games = ["assembler_1_simple"]
         env_cfgs, env_names = _collect_configs(
             base_games,
             curriculum,
@@ -483,10 +485,10 @@ def train_cmd(
                 console.print(table)
                 console.print("\n[dim]Usage: cogames train <game>[/dim]")
             msg = (
-                "no game or curriculum configurations found. Provide a game name, specify --curriculum, "
+                "No game or curriculum configurations found. Provide a game name, specify --curriculum, "
                 "or generate maps with 'cogames curricula'."
             )
-            raise typer.BadParameter(msg, param_name="curriculum")
+            raise typer.BadParameter(msg)
 
         while len(env_names) < len(env_cfgs):
             env_names.append(f"map_{len(env_names):03d}")
