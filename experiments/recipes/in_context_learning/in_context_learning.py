@@ -270,6 +270,16 @@ class ICLTaskGenerator(TaskGenerator):
         else:
             cfg.map_builder_objects[assembler_name] = 1
 
+    def _add_chest(self,
+        position,
+        cfg: _BuildCfg,
+        rng: random.Random,
+        cooldown: int = 10,
+        chest_name: str | None = None,
+    ):
+        chest = building.chest_chest_heart
+
+
     def _get_width_and_height(self, room_size: str, rng: random.Random):
         lo, hi = size_ranges[room_size]
         width = rng.randint(lo, hi)

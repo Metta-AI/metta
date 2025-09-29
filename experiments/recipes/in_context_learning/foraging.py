@@ -43,47 +43,13 @@ def make_curriculum_args(
 
 
 curriculum_args = {
-    "single_agent_two_altars": {
-        "num_agents": [1],
-        "num_altars": [2],
-        "num_generators": [0],
-        "room_sizes": ["small", "medium"],
-        "positions": num_agents_to_positions[1],
-    },
-    "single_agent_many_altars": {
-        "num_agents": [1],
-        "num_altars": list(range(5, 20, 5)),
-        "num_generators": [0],
-        "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[1],
-    },
-    "single_agent_many_altars_terrain": {
-        "num_agents": [1],
-        "num_altars": list(range(5, 20, 5)),
-        "num_generators": [0],
-        "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[1],
-    },
-    "two_agent_two_altars": {
-        "num_agents": [2],
-        "num_altars": [2],
-        "num_generators": [0],
-        "room_sizes": ["small", "medium"],
-        "positions": num_agents_to_positions[2],
-    },
-    "two_agent_many_altars_terrain": {
+    "two_agent_many_altars": {
         "num_agents": [2],
         "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
         "positions": num_agents_to_positions[2],
-    },
-    "three_agents_2_altars": {
-        "num_agents": [3],
-        "num_altars": [2],
-        "num_generators": [0],
-        "room_sizes": ["small", "medium"],
-        "positions": num_agents_to_positions[3],
+        "num_chests": [2,5,8],
     },
     "three_agent_many_altars": {
         "num_agents": [3],
@@ -91,21 +57,14 @@ curriculum_args = {
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
         "positions": num_agents_to_positions[3],
+        "num_chests": [2,5,8],
     },
     "multi_agent_multi_altars": {
         "num_agents": [1, 2, 3],
         "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[1]
-        + num_agents_to_positions[2]
-        + num_agents_to_positions[3],
-    },
-    "multi_agent_multi_altars_terrain": {
-        "num_agents": [1, 2, 3],
-        "num_altars": list(range(5, 20, 5)),
-        "num_generators": [0],
-        "room_sizes": ["small", "medium", "large"],
+        "num_chests": [2,5,8],
         "positions": num_agents_to_positions[1]
         + num_agents_to_positions[2]
         + num_agents_to_positions[3],
@@ -114,6 +73,7 @@ curriculum_args = {
         "num_agents": [2],
         "num_altars": [1],
         "num_generators": [1],
+        "num_chests": [2],
         "room_sizes": ["small", "medium"],
         "positions": num_agents_to_positions[2],
     },

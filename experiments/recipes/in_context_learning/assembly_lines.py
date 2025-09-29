@@ -19,48 +19,48 @@ import random
 from typing import Optional
 import os
 
-foraging_curriculum_args = {
+curriculum_args = {
     "single_agent_easy": {
         "num_agents": [1],
         "chain_lengths": [2, 3],
         "num_sinks": [0, 1],
-        "room_sizes": ["tiny", "small"],
+        "room_sizes": ["small", "medium"],
         "positions": [["Any"]],
     },
     "single_agent_hard": {
         "num_agents": [1],
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
-        "room_sizes": ["tiny", "small", "medium"],
+        "room_sizes": ["small", "medium", "large"],
         "positions": [["Any"]],
     },
     "two_agent_easy": {
         "num_agents": [2],
         "chain_lengths": [2, 3],
         "num_sinks": [0, 1],
-        "room_sizes": ["tiny", "small"],
+        "room_sizes": ["small", "medium"],
         "positions": [["Any", "Any"]],
     },
     "two_agent_hard": {
         "num_agents": [2],
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
-        "room_sizes": ["tiny", "small", "medium"],
+        "room_sizes": ["small", "medium", "large"],
         "positions": [["Any", "Any"]],
     },
     "multi_agent_easy": {
-        "num_agents": [1, 2],
+        "num_agents": [2, 3],
         "chain_lengths": [2, 3],
         "num_sinks": [0, 1],
-        "room_sizes": ["tiny", "small"],
-        "positions": [["Any", "Any"], ["Any"]],
+        "room_sizes": ["small", "medium"],
+        "positions": [["Any", "Any", "Any"], ["Any", "Any"]],
     },
     "multi_agent_hard": {
-        "num_agents": [1, 2],
+        "num_agents": [2, 3],
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
-        "room_sizes": ["tiny", "small", "medium"],
-        "positions": [["Any", "Any"], ["Any"]],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": [["Any", "Any"], ["Any", "Any", "Any"]],
     },
     # "test": {
     #     "num_agents": [2],
