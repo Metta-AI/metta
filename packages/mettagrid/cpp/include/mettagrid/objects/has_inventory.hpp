@@ -6,10 +6,13 @@
 #include <string>
 
 #include "objects/constants.hpp"
-
+#include "objects/inventory.hpp"
+#include "objects/inventory_config.hpp"
 class HasInventory {
 public:
-  std::map<InventoryItem, InventoryQuantity> inventory;
+  explicit HasInventory(const InventoryConfig& inventory_config) : inventory(inventory_config) {}
+  virtual ~HasInventory() = default;
+  Inventory inventory;
 
   // Whether the inventory is accessible to an agent.
   virtual bool inventory_is_accessible() {
@@ -17,21 +20,7 @@ public:
   }
 
   virtual InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) {
-    InventoryQuantity initial_amount = this->inventory[item];
-    int new_amount = static_cast<int>(initial_amount + delta);
-
-    constexpr int min = std::numeric_limits<InventoryQuantity>::min();
-    constexpr int max = std::numeric_limits<InventoryQuantity>::max();
-    InventoryQuantity clamped_amount = static_cast<InventoryQuantity>(std::clamp(new_amount, min, max));
-
-    if (clamped_amount == 0) {
-      this->inventory.erase(item);
-    } else {
-      this->inventory[item] = clamped_amount;
-    }
-
-    InventoryDelta clamped_delta = clamped_amount - initial_amount;
-    return clamped_delta;
+    return inventory.update(item, delta);
   }
 };
 

@@ -62,7 +62,9 @@ def make_curriculum(
         arena_tasks.add_bucket(
             f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
         )
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+        arena_tasks.add_bucket(
+            f"game.agent.rewards.inventory_max.{item}", [1, 2]
+        )
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
@@ -109,7 +111,7 @@ def train(
 
     eval_simulations = make_evals()
     optimizer_cfg = OptimizerConfig(
-        learning_rate=0.0008
+        learning_rate=0.0011
     )  # smaller batch size requires smaller learning rate
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
@@ -127,7 +129,9 @@ def train(
             curriculum=curriculum,
             forward_pass_minibatch_target_size=1024,  # updated so that we shrink the num of envs to 1/4 of the default.
         ),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        evaluator=EvaluatorConfig(
+            simulations=eval_simulations, epoch_interval=0
+        ),  # disabled evaluation
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
