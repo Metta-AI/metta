@@ -21,15 +21,33 @@ from cortex.types import MaybeState, ResetMask, Tensor
 
 @register_cell(mLSTMCellConfig)
 class mLSTMCell(MemoryCell):
-    """Stateful mLSTM cell with matrix-valued state.
+    """Stateful mLSTM cell with matrix-valued memory and a causal conv pre-act.
 
-    The mLSTM cell maintains three state components:
-    - c_state: [B, num_heads, head_dim, head_dim] - matrix state
-    - n_state: [B, num_heads, head_dim, 1] - normalization vector
-    - m_state: [B, num_heads, 1, 1] - max log gate value
+    Input/Output
+    - forward(x, state=None, resets=None) -> (y, new_state)
+      - x: `[B, T, H]` or `[B, H]` (step). Returns `y` with identical shape.
+      - state: `TensorDict | None`. If `None`, zero state is used.
+      - resets: optional reset mask `[B]` or `[B, T]` (step respected; sequence currently simplified).
+      - new_state corresponds to the state at the last processed timestep.
 
-    The cell supports both parallel processing of sequences and
-    step-by-step recurrent processing with persistent state.
+    State structure (TensorDict keys)
+    - "c": `[B, num_heads, head_dim, head_dim]` — matrix memory.
+    - "n": `[B, num_heads, head_dim, 1]` — normalization accumulator.
+    - "m": `[B, num_heads, 1, 1]` — running max in log-space for stabilization.
+    - "conv": `[B, conv1d_kernel_size, H]` — ring buffer for the causal conv pre-activation
+      (present when `conv1d_kernel_size > 0`).
+
+    Notes on state semantics and shapes
+    - The returned state is always the final (last-timestep) state for the given call.
+    - Step vs. sequence parity:
+      * If `T <= chunk_size`, outputs and states are computed by replaying the recurrent step for exact parity.
+      * If `T > chunk_size`, full chunks are computed with a closed-form chunkwise backend and any tail is handled by recurrent steps; the returned state matches step semantics.
+    - When this cell is wrapped by `PreUpBlock`, the cell state is nested under the key "cell":
+      `TensorDict({"cell": {"c":..., "n":..., "m":..., "conv":...}})`.
+
+    State reset
+    - `reset_state(state, mask)` zeroes "c", "n", "m" for the masked batch rows and also resets the internal
+      conv buffer under "conv".
     """
 
     def __init__(self, cfg: mLSTMCellConfig) -> None:
