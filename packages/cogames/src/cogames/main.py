@@ -151,6 +151,49 @@ def _suggest_parallelism(
     return envs, workers
 
 
+def _collect_configs(
+    game_names: Iterable[str],
+    curriculum_path: Optional[str],
+    max_items: int,
+    fallback_folder: Optional[Path],
+    game_param: str,
+) -> Tuple[list[MettaGridConfig], list[str]]:
+    configs: list[MettaGridConfig] = []
+    names: list[str] = []
+
+    for game_name in game_names:
+        resolved_game, error = utils.resolve_game(game_name)
+        if error:
+            raise typer.BadParameter(error, param_name=game_param)
+        if resolved_game is None:
+            raise typer.BadParameter(f"game '{game_name}' not found", param_name=game_param)
+        configs.append(game.get_game(resolved_game))
+        names.append(resolved_game)
+
+    if curriculum_path is not None:
+        curriculum_source = load_symbol(curriculum_path)
+        curriculum_cfgs = _load_curriculum_configs(curriculum_source, max_items)
+        start_index = len(names)
+        for offset, cfg in enumerate(curriculum_cfgs):
+            cfg_name = getattr(getattr(cfg, "game", None), "name", None)
+            label = str(cfg_name) if cfg_name else f"curriculum_{start_index + offset:03d}"
+            configs.append(cfg)
+            names.append(label)
+    elif fallback_folder is not None and fallback_folder.exists():
+        try:
+            folder_cfgs, folder_names = curriculum_utils.load_map_folder_with_names(fallback_folder)
+        except (FileNotFoundError, NotADirectoryError, ValueError):
+            pass
+        else:
+            configs.extend(folder_cfgs)
+            names.extend(folder_names)
+
+    for index in range(len(names), len(configs)):
+        names.append(f"map_{index:03d}")
+
+    return configs, names
+
+
 def _resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
     if path is None:
         return None
@@ -241,38 +284,17 @@ def curricula_cmd(
     """Export game or curriculum maps into a folder for reuse."""
 
     with _command_timeout(ctx):
-        env_cfgs: list[MettaGridConfig] = []
-        env_names: list[str] = []
-
-        selected_games: list[str]
-        if games:
-            selected_games = games
-        else:
-            selected_games = list(game.get_all_games().keys())
-
-        for game_name in selected_games:
-            resolved_game, error = utils.resolve_game(game_name)
-            if error:
-                raise typer.BadParameter(error, param_name="game_name")
-            if resolved_game is None:
-                raise typer.BadParameter(f"game '{game_name}' not found", param_name="game_name")
-            env_cfgs.append(game.get_game(resolved_game))
-            env_names.append(resolved_game)
-
-        if curriculum is not None:
-            curriculum_source = load_symbol(curriculum)
-            loaded_cfgs = _load_curriculum_configs(curriculum_source, max_items)
-            env_cfgs.extend(loaded_cfgs)
-            start_index = len(env_names)
-            for offset, cfg in enumerate(loaded_cfgs):
-                cfg_name = getattr(getattr(cfg, "game", None), "name", None)
-                env_names.append(str(cfg_name) if cfg_name else f"curriculum_{start_index + offset:03d}")
+        selected_games = games or list(game.get_all_games().keys())
+        env_cfgs, env_names = _collect_configs(
+            selected_games,
+            curriculum,
+            max_items,
+            fallback_folder=None,
+            game_param="game_name",
+        )
 
         if not env_cfgs:
             raise typer.BadParameter("no games or curriculum items to export", param_name="game")
-
-        while len(env_names) < len(env_cfgs):
-            env_names.append(f"map_{len(env_names):03d}")
 
         if output_dir is not None:
             destination = output_dir.expanduser().resolve()
@@ -447,36 +469,15 @@ def train_cmd(
             resolved_device_name, num_envs, num_workers
         )
 
-        env_cfgs: list[MettaGridConfig] = []
-        env_names: list[str] = []
-
-        if game_name is not None:
-            resolved_game, error = utils.resolve_game(game_name)
-            if error:
-                raise typer.BadParameter(error, param_name="game_name")
-            assert resolved_game is not None
-            env_cfgs.append(game.get_game(resolved_game))
-            env_names.append(resolved_game)
-
-        if curriculum is not None:
-            curriculum_source = load_symbol(curriculum)
-            max_items = max(resolved_num_envs, 32)
-            loaded_cfgs = _load_curriculum_configs(curriculum_source, max_items)
-            env_cfgs.extend(loaded_cfgs)
-            start_index = len(env_names)
-            for offset, cfg in enumerate(loaded_cfgs):
-                cfg_name = getattr(getattr(cfg, "game", None), "name", None)
-                env_names.append(str(cfg_name) if cfg_name else f"curriculum_{start_index + offset:03d}")
-        else:
-            default_curriculum_dir = resolved_run_dir / "curricula"
-            if default_curriculum_dir.exists():
-                try:
-                    folder_cfgs, folder_names = curriculum_utils.load_map_folder_with_names(default_curriculum_dir)
-                except (FileNotFoundError, NotADirectoryError, ValueError):
-                    pass
-                else:
-                    env_cfgs.extend(folder_cfgs)
-                    env_names.extend(folder_names)
+        fallback_curricula = resolved_run_dir / "curricula"
+        base_games = [game_name] if game_name is not None else []
+        env_cfgs, env_names = _collect_configs(
+            base_games,
+            curriculum,
+            max(resolved_num_envs, 32),
+            fallback_folder=fallback_curricula,
+            game_param="game_name",
+        )
 
         if not env_cfgs:
             msg = (
