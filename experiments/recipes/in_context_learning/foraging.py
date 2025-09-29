@@ -48,74 +48,36 @@ def make_curriculum_args(
 
 
 curriculum_args = {
-    "two_agent_many_altars": {
-        "num_agents": [2],
+    "multi_agent_only_altars": {
+        "num_agents": list(range(1,20,4)),
         "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[2],
-        "num_chests": [2, 5, 8],
-        "chest_positions": [["Any"]],
-    },
-    "three_agent_many_altars": {
-        "num_agents": [3],
-        "num_altars": list(range(5, 20, 5)),
-        "num_generators": [0],
-        "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[2] + num_agents_to_positions[3],
-        "num_chests": [2, 5, 8],
-        "chest_positions": [["Any"]],
-    },
-    "multi_agent_multi_altars": {
-        "num_agents": [1, 2, 3],
-        "num_altars": list(range(5, 20, 5)),
-        "num_generators": [0],
-        "room_sizes": ["small", "medium", "large"],
-        "num_chests": [2, 5, 8],
+        # "num_chests": [2, 5, 8],
         "positions": num_agents_to_positions[1]
         + num_agents_to_positions[2]
         + num_agents_to_positions[3],
-        "chest_positions": [["Any"]],
+        # "chest_positions": [["Any"]],
     },
-    "two_agents_1g_1a_small": {
-        "num_agents": [2],
-        "num_altars": [1],
-        "num_generators": [1],
-        "num_chests": [2],
-        "room_sizes": ["small", "medium"],
-        "positions": num_agents_to_positions[2],
-        "chest_positions": [["Any"]],
+    "multi_agents_with_generators": {
+        "num_agents": list(range(1,20,4)),
+        "num_altars": list(range(1, 10, 2)),
+        "num_generators": list(range(1, 10, 2)),
+        # "num_chests": [],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
+        # "chest_positions": [["Any"]],
     },
-    # "two_agents_1g_1a_medium": {
-    #     "num_agents": [2],
-    #     "num_altars": [1, 2, 5],
-    #     "num_generators": [1, 2, 5],
-    #     "room_sizes": ["medium", "large"],
-    #     "positions": num_agents_to_positions[2],
-    # },
-    # "multi_agents_1g_1a": {
-    #     "num_agents": [1, 2, 3],
-    #     "num_altars": [5],
-    #     "num_generators": [5],
-    #     "room_sizes": ["small", "medium", "large"],
-    #     "positions": num_agents_to_positions[1]
-    #     + num_agents_to_positions[2]
-    #     + num_agents_to_positions[3],
-    # },
-    # "multi_agents_1g_1a_terrain": {
-    #     "num_agents": [1, 2, 3],
-    #     "num_altars": list(range(5, 20, 5)),
-    #     "num_generators": list(range(5, 20, 5)),
-    #     "room_sizes": ["small", "medium", "large"],
-    #     "positions": num_agents_to_positions[1] + num_agents_to_positions[2],
-    # },
+
     "test": {
         "num_agents": [3],
-        "num_altars": [4],
-        "num_generators": [0],
-        "num_chests": [2],
-        "chest_positions": [["N"]],
-        "room_sizes": ["small"],
+        "num_altars": [2],
+        "num_generators": [2],
+        # "num_chests": [2],
+        # "chest_positions": [["N"]],
+        "room_sizes": ["medium"],
         "positions": [["N", "S"]],
     },
 }

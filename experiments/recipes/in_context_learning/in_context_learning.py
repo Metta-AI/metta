@@ -175,7 +175,7 @@ class ICLTaskGenerator(TaskGenerator):
             description="Number of chests to include.",
         )
         chest_positions: list[list[Position]] = Field(
-            default=[["Any"]],
+            default=[["N"]],
             description="Positions for chests.",
         )
 
@@ -285,12 +285,7 @@ class ICLTaskGenerator(TaskGenerator):
         chest_name: str | None = None,
     ):
         print(f"Making chest with deposit positions {position}")
-        chest = building.make_chest(
-            resource_type="heart",
-            type_id=26,
-            deposit_positions=position,
-            withdrawal_positions=[],
-        )
+        chest = building.make_chest(resource_type="heart", type_id=26, deposit_positions=position, withdrawal_positions=[])
         chest_name = "chest"
 
         if chest_name in cfg.map_builder_objects:
@@ -313,7 +308,7 @@ class ICLTaskGenerator(TaskGenerator):
         """Set the width and height of the environment to be at least the minimum area required for the number of agents, altars, and generators."""
         width, height = self._get_width_and_height(room_size, rng)
         area = width * height
-        minimum_area = (num_agents + num_objects) * 2
+        minimum_area = (num_agents + num_objects*9)
         if area < minimum_area:
             width, height = minimum_area // 2, minimum_area // 2
         return width, height

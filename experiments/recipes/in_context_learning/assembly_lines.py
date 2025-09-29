@@ -21,42 +21,21 @@ from typing import Optional
 import os
 
 curriculum_args = {
-    "single_agent_easy": {
-        "num_agents": [1],
-        "chain_lengths": [2, 3],
-        "num_sinks": [0, 1],
-        "room_sizes": ["small", "medium"],
-        "positions": [["Any"]],
-    },
-    "single_agent_hard": {
+    "single_agent_any": {
         "num_agents": [1],
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
         "positions": [["Any"]],
     },
-    "two_agent_easy": {
-        "num_agents": [2],
-        "chain_lengths": [2, 3],
-        "num_sinks": [0, 1],
-        "room_sizes": ["small", "medium"],
-        "positions": [["Any", "Any"]],
-    },
-    "two_agent_hard": {
+    "two_agent_any": {
         "num_agents": [2],
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
         "positions": [["Any", "Any"]],
     },
-    "multi_agent_easy": {
-        "num_agents": [2, 3],
-        "chain_lengths": [2, 3],
-        "num_sinks": [0, 1],
-        "room_sizes": ["small", "medium"],
-        "positions": [["Any", "Any", "Any"], ["Any", "Any"]],
-    },
-    "multi_agent_hard": {
+    "multi_agent_any": {
         "num_agents": [2, 3],
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
