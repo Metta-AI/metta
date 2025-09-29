@@ -51,6 +51,13 @@ def load_policy_from_bundle(bundle_dir: Path, env: MettaGridEnv, device: torch.d
     return load_policy(artifact, env, device)
 
 
+def inspect_bundle(bundle_dir: Path) -> dict[str, Any]:
+    metadata_path = bundle_dir / METADATA_NAME
+    metadata = json.loads(metadata_path.read_text())
+    metadata["weights_path"] = str((bundle_dir / metadata.get("weights", WEIGHTS_NAME)).resolve())
+    return metadata
+
+
 def load_policy(artifact: PolicyArtifact, env: MettaGridEnv, device: torch.device) -> Any:
     policy_class = load_symbol(artifact.policy_class)
     policy = policy_class(env, device)

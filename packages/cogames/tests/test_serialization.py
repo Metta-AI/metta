@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 from cogames.cogs_vs_clips.scenarios import make_game
 from cogames.examples.simple_policy import SimplePolicy
 from cogames.main import app
-from cogames.serialization import bundle_policy, load_policy_from_bundle, save_policy
+from cogames.serialization import bundle_policy, inspect_bundle, load_policy_from_bundle, save_policy
 from mettagrid import MettaGridEnv
 
 runner = CliRunner()
@@ -53,3 +53,7 @@ def test_policy_export_cli(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert (bundle_dir / "policy.json").exists()
     assert (bundle_dir / "policy.pt").exists()
+
+    metadata = inspect_bundle(bundle_dir)
+    assert metadata["policy_class"] == artifact.policy_class
+    assert metadata["weights"] == "policy.pt"

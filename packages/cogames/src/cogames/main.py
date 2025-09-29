@@ -373,5 +373,11 @@ def policy_load(
     console.print(f"[green]Loaded policy {policy.__class__.__name__} on {device}[/green]")
 
 
+@policy_app.command("inspect")
+def policy_inspect(bundle_dir: Annotated[Path, typer.Argument(help="Path to policy bundle directory")]) -> None:
+    metadata = serialization.inspect_bundle(bundle_dir)
+    console.print_json(data=metadata)
+
+
 if __name__ == "__main__":
     app()
