@@ -95,9 +95,10 @@ find "/UI/Main":
 
     worldMapPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
+      let pos = nodeTopLeft(thisNode)
       worldMapPanel.rect = irect(
-        thisNode.absolutePosition.x,
-        thisNode.absolutePosition.y,
+        pos.x,
+        pos.y,
         thisNode.size.x,
         thisNode.size.y
       )
@@ -107,9 +108,10 @@ find "/UI/Main":
 
     minimapPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
+      let pos = nodeTopLeft(thisNode)
       minimapPanel.rect = irect(
-        thisNode.absolutePosition.x,
-        thisNode.absolutePosition.y,
+        pos.x,
+        pos.y,
         thisNode.size.x,
         thisNode.size.y
       )
@@ -119,9 +121,10 @@ find "/UI/Main":
 
     agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
       bxy.saveTransform()
+      let pos = nodeTopLeft(thisNode)
       agentTracesPanel.rect = irect(
-        thisNode.absolutePosition.x,
-        thisNode.absolutePosition.y,
+        pos.x,
+        pos.y,
         thisNode.size.x,
         thisNode.size.y
       )
