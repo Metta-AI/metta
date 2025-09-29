@@ -134,7 +134,6 @@ export const MentionInput: React.FC<MentionInputProps> = ({
 
   // Handle keyboard navigation in suggestions
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-
     // Handle Enter key - check if we're in a mention context
     if (e.key === "Enter") {
       // If suggestions are showing, complete the selected suggestion

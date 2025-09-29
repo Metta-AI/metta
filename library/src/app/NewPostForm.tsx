@@ -1,10 +1,12 @@
 "use client";
 import { useAction } from "next-safe-action/hooks";
-import { FC, useState, useRef, useCallback } from "react";
+import { FC, useState, useRef, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Paperclip, X, Image as ImageIcon } from "lucide-react";
 
 import { createPostAction } from "@/posts/actions/createPostAction";
 import { MentionInput } from "@/components/MentionInput";
+import { QuotedPostPreview } from "@/components/QuotedPostPreview";
 import { parseMentions } from "@/lib/mentions";
 
 /**
@@ -29,22 +31,101 @@ export const NewPostForm: FC = () => {
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [mentions, setMentions] = useState<string[]>([]);
+  const [quotedPostIds, setQuotedPostIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchParams = useSearchParams();
 
   // Handler for when mentions change
   const handleMentionsChange = useCallback((newMentions: string[]) => {
     setMentions(newMentions);
   }, []);
 
-  // Handler for content changes that also updates mentions
-  const handleContentChange = useCallback((newContent: string) => {
-    setContent(newContent);
+  // Handler for content changes that also updates mentions and auto-detects quote posts
+  const handleContentChange = useCallback(
+    (newContent: string) => {
+      setContent(newContent);
 
-    // Parse mentions from content
-    const parsedMentions = parseMentions(newContent);
-    const mentionValues = parsedMentions.map((m) => m.raw);
-    setMentions(mentionValues);
+      // Parse mentions from content
+      const parsedMentions = parseMentions(newContent);
+      const mentionValues = parsedMentions.map((m) => m.raw);
+      setMentions(mentionValues);
+
+      // Auto-detect post links in content for quote posts
+      if (newContent) {
+        // Import dynamically to avoid circular dependencies
+        import("@/lib/post-link-parser").then(
+          ({ extractPostIdsFromContent }) => {
+            const detectedPostIds = extractPostIdsFromContent(newContent);
+
+            if (detectedPostIds.length > 0) {
+              // Merge detected IDs with existing ones (up to 2 total)
+              setQuotedPostIds((current) => {
+                const combined = [...current];
+                for (const postId of detectedPostIds) {
+                  if (!combined.includes(postId) && combined.length < 2) {
+                    combined.push(postId);
+                  }
+                }
+                return combined;
+              });
+            } else if (quotedPostIds.length > 0) {
+              // If no links in content but we have quoted posts, check if they were removed
+              const remainingIds = quotedPostIds.filter(
+                (id) =>
+                  newContent.includes(id) || newContent.includes(`/posts/${id}`)
+              );
+              if (remainingIds.length !== quotedPostIds.length) {
+                setQuotedPostIds(remainingIds);
+              }
+            }
+          }
+        );
+      } else {
+        // Clear quoted posts if content is empty
+        if (quotedPostIds.length > 0) {
+          setQuotedPostIds([]);
+        }
+      }
+    },
+    [quotedPostIds]
+  );
+
+  // Handle removing a quoted post (also removes URLs from content)
+  const handleRemoveQuotedPost = useCallback((postId: string) => {
+    setQuotedPostIds((prev) => prev.filter((id) => id !== postId));
+
+    // Also remove the post URL from content if present
+    setContent((currentContent) => {
+      const urlPattern = new RegExp(
+        `https?:\\/\\/[^\\s]*\\/posts\\/${postId}|^\\/posts\\/${postId}`,
+        "gi"
+      );
+      return currentContent.replace(urlPattern, "").trim();
+    });
   }, []);
+
+  // Load quote draft from sessionStorage on component mount
+  useEffect(() => {
+    const quoteParam = searchParams.get("quote");
+    if (quoteParam) {
+      const quoteDraft = sessionStorage.getItem("quote-draft");
+      if (quoteDraft) {
+        try {
+          const parsed = JSON.parse(quoteDraft);
+          if (parsed.content) {
+            setContent(parsed.content);
+          }
+          if (parsed.quotedPostIds) {
+            setQuotedPostIds(parsed.quotedPostIds);
+          }
+          // Clear the draft from sessionStorage
+          sessionStorage.removeItem("quote-draft");
+        } catch (error) {
+          console.error("Error parsing quote draft:", error);
+        }
+      }
+    }
+  }, [searchParams]);
 
   const { execute, isExecuting } = useAction(createPostAction, {
     onSuccess: () => {
@@ -53,6 +134,7 @@ export const NewPostForm: FC = () => {
       setError(null);
       setAttachedImages([]);
       setMentions([]);
+      setQuotedPostIds([]);
       // The feed is paginated, and paginated state is stored on the
       // client side only. So refreshing the entire page is the easiest way to
       // update the list of posts.
@@ -182,7 +264,28 @@ export const NewPostForm: FC = () => {
     setError(null);
 
     const formData = new FormData();
-    formData.append("title", "New Post"); // Default title
+
+    // Generate title from content (no special handling for quotes)
+    const generateTitle = (content: string): string => {
+      const cleanContent = content
+        .trim()
+        .replace(/\n/g, " ")
+        .replace(/\s+/g, " ");
+
+      if (cleanContent.length <= 50) {
+        return cleanContent;
+      }
+
+      // Truncate at word boundary near 50 characters
+      const truncated = cleanContent.substring(0, 47);
+      const lastSpace = truncated.lastIndexOf(" ");
+      return (
+        (lastSpace > 20 ? truncated.substring(0, lastSpace) : truncated) + "..."
+      );
+    };
+
+    const title = generateTitle(content);
+    formData.append("title", title);
     formData.append("content", content);
 
     // Add images to form data
@@ -196,6 +299,11 @@ export const NewPostForm: FC = () => {
     // Add mentions to form data
     if (mentions.length > 0) {
       formData.append("mentions", JSON.stringify(mentions));
+    }
+
+    // Add quoted post IDs to form data
+    if (quotedPostIds.length > 0) {
+      formData.append("quotedPostIds", JSON.stringify(quotedPostIds));
     }
 
     execute(formData);
@@ -282,6 +390,14 @@ export const NewPostForm: FC = () => {
             </span>
           )}
         </div>
+
+        {/* Quoted posts preview */}
+        {quotedPostIds.length > 0 && (
+          <QuotedPostPreview
+            quotedPostIds={quotedPostIds}
+            onRemove={handleRemoveQuotedPost}
+          />
+        )}
 
         {/* Attached images preview */}
         {attachedImages.length > 0 && (

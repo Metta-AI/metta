@@ -172,7 +172,3 @@ export class DiscordAuthService {
 
 // Export singleton instance
 export const discordAuth = new DiscordAuthService();
-
-
-
-
