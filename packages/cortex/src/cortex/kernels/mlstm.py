@@ -13,11 +13,10 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-# Check if triton is available
 try:
-    import triton  # noqa: F401
+    import triton
 
-    TRITON_AVAILABLE = True
+    TRITON_AVAILABLE = torch.cuda.is_available()
 except ImportError:
     TRITON_AVAILABLE = False
 
@@ -454,7 +453,77 @@ def mlstm_chunkwise_triton(
     if m_initial.dim() == 4:
         m_initial = m_initial.squeeze(-1)
 
-    # Call the kernel directly
+    # Check if sequence length is divisible by chunk_size
+    # If not, process divisible part with triton and remainder with sequential
+    remainder = S % chunk_size
+    if remainder != 0:
+        S_main = S - remainder
+
+        # Process main part with triton
+        if S_main > 0:
+            result_main = mlstm_chunkwise__xl_chunk(
+                q=queries[:, :, :S_main, :],
+                k=keys[:, :, :S_main, :],
+                v=values[:, :, :S_main, :],
+                i=igate_preact[:, :, :S_main],
+                f=fgate_preact[:, :, :S_main],
+                c_initial=c_initial,
+                n_initial=n_initial,
+                m_initial=m_initial,
+                return_last_states=True,
+                eps=eps,
+                chunk_size=chunk_size,
+            )
+            h_main, (c_state, n_state, m_state) = result_main
+        else:
+            h_main = None
+            c_state = c_initial
+            n_state = n_initial.unsqueeze(-1) if n_initial.dim() == 3 else n_initial
+            m_state = m_initial.unsqueeze(-1) if m_initial.dim() == 3 else m_initial
+
+        # Process remainder with sequential backend
+        # Convert states to format expected by simple backend and align scaling semantics.
+        # Note: Triton recurrent kernel stores C and N using unscaled K,
+        # while the simple backend expects states built with K / sqrt(DH).
+        # To bridge semantics, scale the Triton states by 1/sqrt(DH).
+        dh = queries.shape[-1]
+        scale = 1.0 / math.sqrt(dh)
+        c_state_simple = c_state * scale
+        n_state_simple = (n_state * scale).unsqueeze(-1) if n_state.dim() == 3 else (n_state * scale)
+        m_state_simple = m_state.unsqueeze(-1) if m_state.dim() == 3 else m_state
+
+        result_remainder = mlstm_chunkwise_simple(
+            queries=queries[:, :, S_main:, :],
+            keys=keys[:, :, S_main:, :],
+            values=values[:, :, S_main:, :],
+            igate_preact=igate_preact[:, :, S_main:],
+            fgate_preact=fgate_preact[:, :, S_main:],
+            initial_C=c_state_simple,
+            initial_n=n_state_simple,
+            initial_m=m_state_simple,
+            chunk_size=chunk_size,
+            return_last_state=return_last_state,
+            eps=eps,
+            **kwargs,
+        )
+
+        if return_last_state:
+            h_remainder, (c_last, n_last, m_last) = result_remainder
+        else:
+            h_remainder = result_remainder
+
+        # Concatenate outputs
+        if h_main is not None:
+            h_seq = torch.cat([h_main, h_remainder], dim=2)
+        else:
+            h_seq = h_remainder
+
+        if return_last_state:
+            return h_seq, (c_last, n_last, m_last)
+        else:
+            return h_seq
+
+    # Sequence length is divisible by chunk_size, use triton directly
     result = mlstm_chunkwise__xl_chunk(
         q=queries,
         k=keys,

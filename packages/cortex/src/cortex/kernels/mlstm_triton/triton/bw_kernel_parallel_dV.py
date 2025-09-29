@@ -88,16 +88,10 @@ def mlstm_chunkwise__parallel_bw_dV_kernel(
 
     # ? compute vecAbar for inter chunk contribution
     # load scaM_val (1,)
-    scaMinter_k_val = tl.load(scaMstate_all + idx_b_BNH * (NC + 1) + (idx_b_NC + 1)).to(
-        tl.float32
-    )
+    scaMinter_k_val = tl.load(scaMstate_all + idx_b_BNH * (NC + 1) + (idx_b_NC + 1)).to(tl.float32)
     # load vecA (siz_b_LKV,)
     vecA_ptr = (
-        vecA
-        + idx_b_BNH * str_vecABI_B_NH
-        + idx_b_NC * str_vecABI_NC
-        + idx_b_LKV * siz_b_LKV
-        + tl.arange(0, siz_b_LKV)
+        vecA + idx_b_BNH * str_vecABI_B_NH + idx_b_NC * str_vecABI_NC + idx_b_LKV * siz_b_LKV + tl.arange(0, siz_b_LKV)
     )
     vecA_val = tl.load(vecA_ptr).to(tl.float32)
     # compute vecAbar_val (siz_b_LKV,)
@@ -142,9 +136,7 @@ def mlstm_chunkwise__parallel_bw_dV_kernel(
                 # (idx_b_NC + 1) since matDeltaC_states contains all state delta errors also for the initial state (i.e. NC+1)
                 # and in this kernel we take only the last NC states (we do not consider the initial state delta error)
                 matDeltaC_ptr = tl.make_block_ptr(
-                    base=matDeltaC_states
-                    + idx_b_BNH * str_matCstate_B_NH
-                    + (idx_b_NC + 1) * DHQK * DHHV,
+                    base=matDeltaC_states + idx_b_BNH * str_matCstate_B_NH + (idx_b_NC + 1) * DHQK * DHHV,
                     shape=(DHQK, DHHV),
                     strides=(str_matCstate_NCDHQK, str_matCstate_DHHV),
                     offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
@@ -177,9 +169,7 @@ def mlstm_chunkwise__parallel_bw_dV_kernel(
 
         ## compute matD block (siz_b_LQ, siz_b_LKV) -> matD^T (siz_b_LKV, siz_b_LQ)
         # construct gate matrix matDtilde (siz_b_LQ, siz_b_LKV)
-        matDtilde_val = (
-            vecB_LQ_val[:, None] - vecB_LKV_val[None, :] + vecI_LKV_val[None, :]
-        )
+        matDtilde_val = vecB_LQ_val[:, None] - vecB_LKV_val[None, :] + vecI_LKV_val[None, :]
 
         b_q_offset = idx_b_LQ * siz_b_LQ
         # causal masking if on the diagonal
@@ -190,11 +180,7 @@ def mlstm_chunkwise__parallel_bw_dV_kernel(
 
         # load vecM_out (siz_b_LQ,)
         vecM_out_ptr = (
-            vecM_out
-            + idx_b_BNH * str_vecMN_B_NH
-            + idx_b_NC * L
-            + idx_b_LQ * siz_b_LQ
-            + tl.arange(0, siz_b_LQ)
+            vecM_out + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
         )
         vecM_out_val = tl.load(vecM_out_ptr).to(tl.float32)
 
@@ -220,11 +206,7 @@ def mlstm_chunkwise__parallel_bw_dV_kernel(
 
         # load vecN_out (siz_b_LQ,)
         vecN_out_ptr = (
-            vecN_out
-            + idx_b_BNH * str_vecMN_B_NH
-            + idx_b_NC * L
-            + idx_b_LQ * siz_b_LQ
-            + tl.arange(0, siz_b_LQ)
+            vecN_out + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
         )
         vecN_out_val = tl.load(vecN_out_ptr).to(tl.float32)
 
@@ -232,9 +214,7 @@ def mlstm_chunkwise__parallel_bw_dV_kernel(
         matDeltaH_intra_val = matDeltaH_out_val / (vecN_out_val[:, None] + EPS)
 
         ## accumulate matDeltaV (siz_b_LKV, siz_b_DHHV)
-        matDeltaV_acc += tl.dot(
-            matSbar_trans_val.to(DTYPE), matDeltaH_intra_val.to(DTYPE)
-        )
+        matDeltaV_acc += tl.dot(matSbar_trans_val.to(DTYPE), matDeltaH_intra_val.to(DTYPE))
         ##? end siz_b_LQ loop
 
     # store matDeltaV (siz_b_LKV, siz_b_DHHV)

@@ -141,12 +141,8 @@ def mlstm_chunkwise__parallel_fw_Hintra_kernel(
             matDtilde_val = tl.where(mask, matDtilde_val, -float("inf"))
 
         # compute vecM_new (siz_b_LQ,)
-        vecM_new_val = tl.max(
-            matDtilde_val, axis=1
-        )  # (siz_b_LQ,) # row-wise max along siz_b_LKV
-        vecM_new_val = tl.maximum(
-            vecM_new_val, MINIMUM_MAX_VAL
-        )  # (siz_b_LQ,) # element-wise max
+        vecM_new_val = tl.max(matDtilde_val, axis=1)  # (siz_b_LQ,) # row-wise max along siz_b_LKV
+        vecM_new_val = tl.maximum(vecM_new_val, MINIMUM_MAX_VAL)  # (siz_b_LQ,) # element-wise max
 
         vecM_new_val = tl.maximum(vecM_old_val, vecM_new_val)
         vecM_ratio = tl.exp(vecM_old_val - vecM_new_val)
@@ -181,9 +177,7 @@ def mlstm_chunkwise__parallel_fw_Hintra_kernel(
     ##? compute the inter chunk contribution
     # compute vecM_combine (siz_b_LQ,)
     # load scaM_inter (1,)
-    scaM_inter_km1_ptr = (
-        scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC
-    )
+    scaM_inter_km1_ptr = scaMinter_states + idx_b_BNH * str_scaMinterstates_B_NH + idx_b_NC
     scaM_inter_km1_val = tl.load(scaM_inter_km1_ptr).to(tl.float32)
     # vecM_intra = vecM_new_val
     vecM_combine_val = tl.maximum(vecB_LQ_val + scaM_inter_km1_val, vecM_new_val)
@@ -270,20 +264,8 @@ def mlstm_chunkwise__parallel_fw_Hintra_kernel(
     # compute the same vecN and vecM
     if idx_b_DHHV == 0:
         # store vecNout (siz_b_LQ,)
-        vecNout_ptr = (
-            vecNout
-            + idx_b_BNH * str_vecMN_B_NH
-            + idx_b_NC * L
-            + idx_b_LQ * siz_b_LQ
-            + tl.arange(0, siz_b_LQ)
-        )
+        vecNout_ptr = vecNout + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
         tl.store(vecNout_ptr, vecN_comb_denom_val.to(OUTPUT_DTYPE))
         # store vecMout (size_b_LQ,)
-        vecMout_ptr = (
-            vecMout
-            + idx_b_BNH * str_vecMN_B_NH
-            + idx_b_NC * L
-            + idx_b_LQ * siz_b_LQ
-            + tl.arange(0, siz_b_LQ)
-        )
+        vecMout_ptr = vecMout + idx_b_BNH * str_vecMN_B_NH + idx_b_NC * L + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
         tl.store(vecMout_ptr, vecM_combine_val.to(OUTPUT_DTYPE))

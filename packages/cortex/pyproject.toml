@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Metta AI" }]
-dependencies = ["torch", "pydantic>=2.11.5", "tensordict"]
+dependencies = ["torch", "pydantic>=2.11.5", "tensordict", "einops"]
 
 [project.optional-dependencies]
 triton = ["triton>=2.0.0; platform_system == 'Linux'"]
