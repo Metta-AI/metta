@@ -2,10 +2,11 @@
 
 import contextlib
 import logging
+import os
 import re
 import sys
 from pathlib import Path
-from typing import Annotated, Any, Iterable, Literal, Optional, Sequence
+from typing import Annotated, Any, Iterable, Literal, Optional, Sequence, Tuple
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -94,6 +95,60 @@ def _dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str],
         if candidate.exists():
             candidate = output_dir / f"{file_stem}_{index:03d}.yaml"
         game.save_game_config(config_obj, candidate)
+
+
+def _default_device(explicit: Optional[str]) -> str:
+    if explicit is not None:
+        return explicit
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def _resolve_run_dir(run_dir: Optional[Path]) -> Path:
+    if run_dir is not None:
+        return run_dir.expanduser().resolve()
+    return Path("./runs/default").resolve()
+
+
+def _suggest_parallelism(
+    device: str,
+    requested_envs: Optional[int],
+    requested_workers: Optional[int],
+) -> Tuple[int, int]:
+    if requested_envs is not None and requested_workers is not None:
+        return requested_envs, requested_workers
+
+    cpu_count = os.cpu_count() or 4
+
+    if requested_envs is not None:
+        envs = max(1, requested_envs)
+    else:
+        if device == "cuda":
+            envs = min(max(cpu_count * 2, 8), 32)
+        else:
+            envs = min(max(cpu_count, 2), 16)
+
+    if requested_workers is not None:
+        workers = max(1, requested_workers)
+    else:
+        if device == "cuda":
+            workers = max(1, min(envs, max(1, cpu_count // 2)))
+        else:
+            workers = max(1, min(envs, max(1, cpu_count // 2)))
+
+    if envs % workers != 0:
+        for candidate in range(workers, 0, -1):
+            if envs % candidate == 0:
+                workers = candidate
+                break
+        else:
+            workers = 1
+            envs = max(envs, workers)
+
+    return envs, workers
 
 
 def _resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
@@ -327,8 +382,8 @@ def train_cmd(
         Optional[Path],
         typer.Option("--checkpoints", help="Path to save training data"),
     ] = None,
-    steps: Annotated[int, typer.Option("--steps", "-s", help="Number of training steps")] = 2000,
-    device: Annotated[str, typer.Option("--device", help="Device to train on")] = "cuda",
+    steps: Annotated[int, typer.Option("--steps", "-s", help="Number of training steps")] = 10000,
+    device: Annotated[Optional[str], typer.Option("--device", help="Device to train on")] = None,
     seed: Annotated[int, typer.Option("--seed", help="Seed for training")] = 42,
     batch_size: Annotated[
         Optional[int],
@@ -341,8 +396,8 @@ def train_cmd(
         Optional[int],
         typer.Option("--minibatch-size", help="Minibatch size for PPO updates (defaults to batch-size)"),
     ] = None,
-    num_envs: Annotated[int, typer.Option("--num-envs", help="Number of vectorized environments")] = 4,
-    num_workers: Annotated[int, typer.Option("--num-workers", help="Number of environment workers")] = 1,
+    num_envs: Annotated[Optional[int], typer.Option("--num-envs", help="Number of vectorized environments")] = None,
+    num_workers: Annotated[Optional[int], typer.Option("--num-workers", help="Number of environment workers")] = None,
     use_rnn: Annotated[
         bool,
         typer.Option("--use-rnn/--no-use-rnn", help="Enable recurrent policies"),
@@ -367,12 +422,12 @@ def train_cmd(
         ),
     ] = "multiprocessing",
     run_dir: Annotated[
-        Path,
+        Optional[Path],
         typer.Option(
             "--run-dir",
             help="Base directory for this training run",
         ),
-    ] = Path("./runs/default"),
+    ] = None,
     map_dump_dir: Annotated[
         Optional[Path],
         typer.Option(
@@ -383,10 +438,14 @@ def train_cmd(
 ) -> None:
     """Train a policy on a game."""
     with _command_timeout(ctx):
-        resolved_run_dir = run_dir.expanduser().resolve()
+        resolved_run_dir = _resolve_run_dir(run_dir)
         resolved_run_dir.mkdir(parents=True, exist_ok=True)
 
         backend = vector_backend.lower()
+        resolved_device_name = _default_device(device)
+        resolved_num_envs, resolved_num_workers = _suggest_parallelism(
+            resolved_device_name, num_envs, num_workers
+        )
 
         env_cfgs: list[MettaGridConfig] = []
         env_names: list[str] = []
@@ -401,7 +460,7 @@ def train_cmd(
 
         if curriculum is not None:
             curriculum_source = load_symbol(curriculum)
-            max_items = max(num_envs, 32)
+            max_items = max(resolved_num_envs, 32)
             loaded_cfgs = _load_curriculum_configs(curriculum_source, max_items)
             env_cfgs.extend(loaded_cfgs)
             start_index = len(env_names)
@@ -431,25 +490,16 @@ def train_cmd(
 
         resolved_initial = _resolve_initial_weights(initial_weights_path)
 
-        effective_batch = batch_size or max(num_envs * 32, 512)
+        effective_batch = batch_size or max(resolved_num_envs * 32, 512)
         effective_minibatch = minibatch_size or effective_batch
 
         if effective_minibatch > effective_batch:
             raise typer.BadParameter("minibatch must be <= batch size", param_name="minibatch_size")
 
-        if num_workers < 1:
-            raise typer.BadParameter("num-workers must be >= 1", param_name="num_workers")
-
-        if num_envs % num_workers != 0:
-            raise typer.BadParameter(
-                "num-envs must be divisible by num-workers",
-                param_name="num_envs",
-            )
-
         if backend == "ray" and not hasattr(train.pufferlib.vector, "Ray"):
             raise typer.BadParameter("Ray backend is not available", param_name="vector_backend")
 
-        device_obj = torch.device(device)
+        device_obj = torch.device(resolved_device_name)
 
         if checkpoints_path is not None:
             checkpoints_dir = checkpoints_path.expanduser().resolve()
@@ -478,8 +528,8 @@ def train_cmd(
             seed=seed,
             batch_size=effective_batch,
             minibatch_size=effective_minibatch,
-            num_envs=num_envs,
-            num_workers=num_workers,
+            num_envs=resolved_num_envs,
+            num_workers=resolved_num_workers,
             use_rnn=use_rnn,
             checkpoint_interval=checkpoint_interval,
             vector_backend=backend,

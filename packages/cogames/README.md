@@ -67,10 +67,11 @@ cogames play machina_2 --no-render --steps 500
 - `--use-rnn` enables recurrent policies such as `StatefulPolicy`.
 - `--curriculum module.symbol` loads a Python iterable or generator that yields `MettaGridConfig` instances for curricula.
 - `--vector-backend {multiprocessing,serial,ray}` chooses the vector environment implementation. Use `serial` for lightweight local runs or `ray` for distributed sampling when Ray is installed.
-- `--num-envs`, `--num-workers`, `--batch-size`, and `--minibatch-size` tune rollout throughput. Defaults are 4 vectorized envs with 1 worker; when omitted, the batch size defaults to `num_envs * 32` (minimum 512).
+- `--device` defaults to CUDA if available, otherwise MPS (macOS) or CPU.
+- `--num-envs`, `--num-workers`, `--batch-size`, and `--minibatch-size` tune rollout throughput. When omitted, the CLI picks values based on detected hardware (CPU cores / GPU); batch size defaults to `num_envs * 32` (minimum 512).
 - `--initial-weights` accepts either a specific checkpoint file or a directory; directories automatically load the newest `.pt/.pth/.ckpt` file.
 - `--checkpoint-interval` controls how frequently PuffeRL writes checkpoints into `--checkpoints`.
-- `--run-dir` specifies a run directory where `cogames train` will create a `checkpoints/` folder and refresh the `curricula/` map export. By default it is `./runs/default`.
+- `--run-dir` specifies a run directory where `cogames train` will create a `checkpoints/` folder and refresh the `curricula/` map export. Default: `./runs/default`.
 - `--map-dump-dir` overrides where the exported maps are stored (relative paths are resolved under `run-dir`).
 
 Examples:
