@@ -379,7 +379,7 @@ class TransformerPolicy(Policy):
                 dtype=prev_tokens.dtype,
             )
             prev_tokens = torch.cat([pad, prev_tokens], dim=0)
-        return prev_tokens.permute(1, 0, 2).contiguous()
+        return prev_tokens.permute(1, 0, 2).contiguous().to(dtype=torch.float32)
 
     def _ensure_memory_capacity(self, capacity: int, device: torch.device, dtype: torch.dtype) -> None:
         if capacity <= 0:
@@ -787,7 +787,7 @@ class TransformerPolicy(Policy):
         if self.memory_len > 0:
             spec["transformer_memory_pre"] = UnboundedContinuous(
                 shape=torch.Size([self.memory_len, self.hidden_size]),
-                dtype=torch.float16,
+                dtype=torch.float32,
             )
         return Composite(**spec)
 
