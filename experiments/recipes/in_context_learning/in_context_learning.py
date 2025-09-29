@@ -170,6 +170,14 @@ class ICLTaskGenerator(TaskGenerator):
             default=None,
             description="Directory for pre-generated maps (None to build procedurally).",
         )
+        num_chests: list[int] = Field(
+            default=[2],
+            description="Number of chests to include.",
+        )
+        chest_positions: list[list[Position]] = Field(
+            default=[["Any"]],
+            description="Positions for chests.",
+        )
 
         # Unordered-only (ignored by Ordered subclasses)
         max_recipe_inputs: list[int] = Field(
@@ -274,19 +282,21 @@ class ICLTaskGenerator(TaskGenerator):
         self,
         position,
         cfg: _BuildCfg,
-        rng: random.Random,
-        cooldown: int = 10,
         chest_name: str | None = None,
     ):
-        chest = building.chest_heart
+        print(f"Making chest with deposit positions {position}")
+        chest = building.make_chest(resource_type="heart", type_id=26, deposit_positions=position, withdrawal_positions=[])
+        chest_name = "chest"
 
-        chest.deposit_positions = position
-        chest.withdrawal_positions = None
-        cfg.game_objects["chest"] = chest
         if chest_name in cfg.map_builder_objects:
             cfg.map_builder_objects[chest_name] += 1
         else:
             cfg.map_builder_objects[chest_name] = 1
+        cfg.game_objects[chest_name] = chest
+
+    def _make_chests(self, num_chests, cfg, position):
+        for _ in range(num_chests):
+            self._add_chest(position=position, cfg=cfg)
 
     def _get_width_and_height(self, room_size: str, rng: random.Random):
         lo, hi = size_ranges[room_size]
@@ -347,6 +357,11 @@ class ICLTaskGenerator(TaskGenerator):
         max_steps = self.calculate_max_steps(
             num_resources, num_converters, width, height
         )
+
+        chest_position = rng.choice(
+            [p for p in self.config.chest_positions if len(p) <= num_agents]
+        )
+        num_chests = rng.choice(cfg.num_chests)
         return (
             num_agents,
             resources,
@@ -357,6 +372,8 @@ class ICLTaskGenerator(TaskGenerator):
             height,
             max_steps,
             recipe_position,
+            chest_position,
+            num_chests,
         )
 
     def load_from_numpy(

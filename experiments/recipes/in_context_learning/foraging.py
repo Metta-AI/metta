@@ -33,6 +33,8 @@ def make_curriculum_args(
     num_generators: list[int],
     room_sizes: list[str],
     positions: list[list[Position]],
+    num_chests: list[int],
+    chest_positions: list[list[Position]],
 ) -> dict:
     return {
         "num_agents": num_agents,
@@ -40,6 +42,8 @@ def make_curriculum_args(
         "num_generators": num_generators,
         "room_sizes": room_sizes,
         "positions": positions,
+        "num_chests": num_chests,
+        "chest_positions": chest_positions,
     }
 
 
@@ -58,7 +62,7 @@ curriculum_args = {
         "num_altars": list(range(5, 20, 5)),
         "num_generators": [0],
         "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[3],
+        "positions": num_agents_to_positions[2] + num_agents_to_positions[3],
         "num_chests": [2, 5, 8],
         "chest_positions": [["Any"]],
     },
@@ -105,13 +109,15 @@ curriculum_args = {
     #     "room_sizes": ["small", "medium", "large"],
     #     "positions": num_agents_to_positions[1] + num_agents_to_positions[2],
     # },
-    # "test": {
-    #     "num_agents": [12],
-    #     "num_altars": [10],
-    #     "num_generators": [0],
-    #     "room_sizes": ["small"],
-    #     "positions": [["N", "S"]],
-    # },
+    "test": {
+        "num_agents": [3],
+        "num_altars": [4],
+        "num_generators": [0],
+        "num_chests": [2],
+        "chest_positions": [["N"]],
+        "room_sizes": ["small"],
+        "positions": [["N", "S"]],
+    },
 }
 
 
@@ -121,6 +127,8 @@ def make_task_generator_cfg(
     num_generators: list[int],
     room_sizes: list[str],
     positions: list[list[Position]],
+    num_chests: list[int],
+    chest_positions: list[list[Position]],
     map_dir: Optional[str] = None,
 ) -> ICLTaskGenerator.Config:
     return ForagingTaskGenerator.Config(
@@ -130,6 +138,8 @@ def make_task_generator_cfg(
         positions=positions,
         room_sizes=room_sizes,
         map_dir=map_dir,
+        num_chests=num_chests,
+        chest_positions=chest_positions,
     )
 
 
@@ -191,6 +201,8 @@ class ForagingTaskGenerator(ICLTaskGenerator):
         width,
         height,
         recipe_position,
+        num_chests,
+        chest_position,
         max_steps,
         rng: random.Random = random.Random(),
         dir=None,
@@ -199,6 +211,8 @@ class ForagingTaskGenerator(ICLTaskGenerator):
         self._make_generators(num_generators, cfg, recipe_position, rng)
 
         self._make_altars(num_altars, cfg, recipe_position, num_generators, rng)
+
+        self._make_chests(num_chests, cfg, chest_position)
 
         if dir is not None and os.path.exists(dir):
             print(f"Loading from {dir}")
@@ -243,6 +257,8 @@ class ForagingTaskGenerator(ICLTaskGenerator):
             height,
             max_steps,
             recipe_position,
+            chest_position,
+            num_chests,
         ) = self._setup_task(rng)
         # Find the smallest value in templates["num_objects"] that is >= num_objects for correct dir
 
@@ -265,6 +281,8 @@ class ForagingTaskGenerator(ICLTaskGenerator):
             width=width,
             height=height,
             recipe_position=recipe_position,
+            num_chests=num_chests,
+            chest_position=chest_position,
             max_steps=max_steps,
             rng=rng,
             dir=dir,
@@ -290,6 +308,8 @@ def make_assembler_env(
     num_agents: int,
     num_altars: int,
     num_generators: int,
+    num_chests: int,
+    chest_positions: list[Position],
     room_size: str,
     position: list[Position] = ["Any"],
 ) -> MettaGridConfig:
@@ -299,6 +319,8 @@ def make_assembler_env(
         num_generators=[num_generators],
         positions=[position],
         room_sizes=[room_size],
+        num_chests=[num_chests],
+        chest_positions=[chest_positions],
     )
     task_generator = ForagingTaskGenerator(task_generator_cfg)
     return task_generator.get_task(random.randint(0, 1000000))
@@ -310,6 +332,8 @@ def make_curriculum(
     num_generators: list[int] = [0, 1, 2],
     room_sizes: list[str] = ["small", "medium", "large"],
     positions: list[list[Position]] = [["Any"], ["Any", "Any"]],
+    num_chests: list[int] = [2],
+    chest_positions: list[list[Position]] = [["Any"]],
 ) -> CurriculumConfig:
     task_generator_cfg = make_task_generator_cfg(
         num_agents=num_agents,
@@ -317,6 +341,8 @@ def make_curriculum(
         num_generators=num_generators,
         room_sizes=room_sizes,
         positions=positions,
+        num_chests=num_chests,
+        chest_positions=chest_positions,
     )
     return CurriculumConfig(task_generator=task_generator_cfg)
 
@@ -361,6 +387,8 @@ def play_eval() -> PlayTool:
         num_agents=1,
         num_altars=2,
         num_generators=0,
+        num_chests=2,
+        chest_positions=["W"],
         room_size="small",
         position=["W"],
     )

@@ -79,7 +79,7 @@ def make_task_generator_cfg(
     num_sinks: list[int],
     room_sizes: list[str],
     positions: list[list[Position]],
-    map_dir: Optional[str] = "in_context_assembly_lines",
+    map_dir: Optional[str] = None,
 ):
     return AssemblyLinesTaskGenerator.Config(
         num_agents=num_agents,
@@ -141,6 +141,8 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         width,
         height,
         position,
+        chest_position,
+        num_chests,
         terrain,
         max_steps,
         num_instances,
@@ -151,6 +153,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
 
         self._make_resource_chain(resources, width + height / 2, position, cfg, rng)
         self._make_sinks(num_sinks, position, cfg, rng)
+        self._make_chests(num_chests, cfg, chest_position, rng)
 
         if dir is not None and os.path.exists(dir):
             return self.load_from_numpy(
@@ -202,6 +205,8 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             height,
             max_steps,
             position,
+            chest_position,
+            num_chests,
         ) = self._setup_task(rng)
 
         dir = (
@@ -217,6 +222,8 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             width=width,
             height=height,
             position=position,
+            chest_position=chest_position,
+            num_chests=num_chests,
             terrain=terrain,
             max_steps=max_steps,
             num_instances=num_instances or 24 // num_agents,

@@ -166,6 +166,7 @@ chest_ore_green = make_chest("ore_green", 22)
 chest_battery_red = make_chest("battery_red", 23)
 chest_battery_blue = make_chest("battery_blue", 24)
 chest_battery_green = make_chest("battery_green", 25)
+chest_heart = make_chest("heart", 26)
 
 # Special chest that only allows deposits from North and withdrawals from South
 chest_depot = ChestConfig(

@@ -20,6 +20,7 @@ def make_icl_assembler_chain_eval_env(
         num_sinks=[num_sinks],
         room_sizes=[room_size],
         positions=positions,
+        map_dir=None
     )
     task_generator = AssemblyLinesTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
