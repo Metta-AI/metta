@@ -19,7 +19,7 @@ import random
 from typing import Optional
 import os
 
-curriculum_args = {
+foraging_curriculum_args = {
     "single_agent_easy": {
         "num_agents": [1],
         "chain_lengths": [2, 3],
@@ -80,7 +80,7 @@ def make_task_generator_cfg(
     positions: list[list[Position]],
     map_dir: Optional[str] = "in_context_assembly_lines",
 ):
-    return AssemblerConverterChainTaskGenerator.Config(
+    return AssemblyLinesTaskGenerator.Config(
         num_agents=num_agents,
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
@@ -90,7 +90,7 @@ def make_task_generator_cfg(
     )
 
 
-class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
+class AssemblyLinesTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
 
@@ -241,7 +241,7 @@ def train(
 
 
 def play(curriculum_style: str = "test") -> PlayTool:
-    task_generator = AssemblerConverterChainTaskGenerator(
+    task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
     return play_icl(task_generator)
@@ -250,7 +250,7 @@ def play(curriculum_style: str = "test") -> PlayTool:
 def replay(
     curriculum_style: str = "hard_eval",
 ) -> ReplayTool:
-    task_generator = AssemblerConverterChainTaskGenerator(
+    task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
     # Default to the research policy if none specified
@@ -259,45 +259,13 @@ def replay(
     return replay_icl(task_generator, default_policy_uri)
 
 
-def save_envs_to_numpy(dir="in_context_assembly_lines/", num_envs: int = 500):
-    import os
-    import numpy as np
-
-    for chain_length in range(2, 6):
-        for num_sinks in range(0, 3):
-            for room_size in ["tiny", "small", "medium"]:
-                for i in range(num_envs):
-                    task_generator_cfg = make_task_generator_cfg(
-                        num_agents=[4],
-                        chain_lengths=[chain_length],
-                        num_sinks=[num_sinks],
-                        room_sizes=[room_size],
-                        positions=[["Any", "Any"]],
-                        map_dir=None,
-                    )
-                    task_generator = AssemblerConverterChainTaskGenerator(
-                        config=task_generator_cfg
-                    )
-                    env_cfg = task_generator._generate_task(
-                        i, random.Random(i), num_instances=1
-                    )
-                    terrain = env_cfg.label.split("_")[-1]
-                    map_builder = env_cfg.game.map_builder.create()
-                    grid = map_builder.build().grid
-                    random_number = random.randint(0, 1000000)
-                    filename = f"{dir}/{room_size}/{chain_length}chain/{num_sinks}sinks/{terrain}/{random_number}.npy"
-                    os.makedirs(os.path.dirname(filename), exist_ok=True)
-                    print(f"saving to {filename}")
-                    np.save(filename, grid)
-
-
 def experiment():
     for curriculum_style in curriculum_args:
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.assembly_lines.train",
-                f"run=in_context.assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=in_context.assembly_lines_{curriculum_style}.eval_local.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",

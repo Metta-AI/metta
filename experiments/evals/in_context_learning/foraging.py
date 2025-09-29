@@ -4,7 +4,7 @@ from experiments.recipes.in_context_learning.foraging import (
 from metta.sim.simulation_config import SimulationConfig
 
 
-def make_assembler_eval_suite() -> list[SimulationConfig]:
+def make_foraging_eval_suite() -> list[SimulationConfig]:
     return [
         SimulationConfig(
             suite="in_context_learning_foraging",

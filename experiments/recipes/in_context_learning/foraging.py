@@ -117,29 +117,29 @@ curriculum_args = {
         "room_sizes": ["small", "medium"],
         "positions": num_agents_to_positions[2],
     },
-    "two_agents_1g_1a_medium": {
-        "num_agents": [2],
-        "num_altars": [1, 2, 5],
-        "num_generators": [1, 2, 5],
-        "room_sizes": ["medium", "large"],
-        "positions": num_agents_to_positions[2],
-    },
-    "multi_agents_1g_1a": {
-        "num_agents": [1, 2, 3],
-        "num_altars": [5],
-        "num_generators": [5],
-        "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[1]
-        + num_agents_to_positions[2]
-        + num_agents_to_positions[3],
-    },
-    "multi_agents_1g_1a_terrain": {
-        "num_agents": [1, 2, 3],
-        "num_altars": list(range(5, 20, 5)),
-        "num_generators": list(range(5, 20, 5)),
-        "room_sizes": ["small", "medium", "large"],
-        "positions": num_agents_to_positions[1] + num_agents_to_positions[2],
-    },
+    # "two_agents_1g_1a_medium": {
+    #     "num_agents": [2],
+    #     "num_altars": [1, 2, 5],
+    #     "num_generators": [1, 2, 5],
+    #     "room_sizes": ["medium", "large"],
+    #     "positions": num_agents_to_positions[2],
+    # },
+    # "multi_agents_1g_1a": {
+    #     "num_agents": [1, 2, 3],
+    #     "num_altars": [5],
+    #     "num_generators": [5],
+    #     "room_sizes": ["small", "medium", "large"],
+    #     "positions": num_agents_to_positions[1]
+    #     + num_agents_to_positions[2]
+    #     + num_agents_to_positions[3],
+    # },
+    # "multi_agents_1g_1a_terrain": {
+    #     "num_agents": [1, 2, 3],
+    #     "num_altars": list(range(5, 20, 5)),
+    #     "num_generators": list(range(5, 20, 5)),
+    #     "room_sizes": ["small", "medium", "large"],
+    #     "positions": num_agents_to_positions[1] + num_agents_to_positions[2],
+    # },
     # "test": {
     #     "num_agents": [12],
     #     "num_altars": [10],
@@ -156,9 +156,9 @@ def make_task_generator_cfg(
     num_generators: list[int],
     room_sizes: list[str],
     positions: list[list[Position]],
-    map_dir: Optional[str] = "in_context_foraging",
+    map_dir: Optional[str] = None,
 ) -> ICLTaskGenerator.Config:
-    return AssemblerTaskGenerator.Config(
+    return ForagingTaskGenerator.Config(
         num_agents=num_agents,
         num_converters=num_altars,
         num_resources=num_generators,
@@ -168,7 +168,7 @@ def make_task_generator_cfg(
     )
 
 
-class AssemblerTaskGenerator(ICLTaskGenerator):
+class ForagingTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
@@ -314,10 +314,10 @@ class AssemblerTaskGenerator(ICLTaskGenerator):
 def make_mettagrid(
     curriculum_style: str = "single_agent_two_altars",
 ) -> MettaGridConfig:
-    task_generator_cfg = AssemblerTaskGenerator.Config(
+    task_generator_cfg = ForagingTaskGenerator.Config(
         **make_curriculum_args(**curriculum_args[curriculum_style])
     )
-    task_generator = AssemblerTaskGenerator(task_generator_cfg)
+    task_generator = ForagingTaskGenerator(task_generator_cfg)
     return task_generator.get_task(random.randint(0, 1000000))
 
 
@@ -335,7 +335,7 @@ def make_assembler_env(
         positions=[position],
         room_sizes=[room_size],
     )
-    task_generator = AssemblerTaskGenerator(task_generator_cfg)
+    task_generator = ForagingTaskGenerator(task_generator_cfg)
     return task_generator.get_task(random.randint(0, 1000000))
 
 
@@ -363,27 +363,27 @@ def train(
         **make_curriculum_args(**curriculum_args[curriculum_style]), map_dir=None
     )
     from experiments.evals.in_context_learning.foraging import (
-        make_assembler_eval_suite,
+        make_foraging_eval_suite,
     )
 
-    return train_icl(task_generator_cfg, make_assembler_eval_suite, lp_params)
+    return train_icl(task_generator_cfg, make_foraging_eval_suite, lp_params)
 
 
-def evaluate(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
-) -> SimTool:
+def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> SimTool:
     # Local import to avoid circular import at module load time
     from experiments.evals.in_context_learning.foraging import (
-        make_assembler_eval_suite,
+        make_foraging_eval_suite,
     )
 
     policy_uris = []
     for curriculum_style in curriculum_args:
         policy_uris.append(
-            f"s3://softmax-public/policies/george.icl_assemblers_{curriculum_style}.2025-09-25/george.icl_assemblers_{curriculum_style}.2025-09-25:latest.pt"
+            f"s3://softmax-public/policies/in_context.foraging_{curriculum_style}.eval_local.2025-09-27/in_context.foraging_{curriculum_style}.eval_local.2025-09-27:latest.pt"
         )
 
-    simulations = simulations or make_assembler_eval_suite()
+    print(f"Policy uris:{policy_uris}")
+
+    simulations = simulations or make_foraging_eval_suite()
     return SimTool(
         simulations=simulations,
         policy_uris=policy_uris,
@@ -410,7 +410,7 @@ def play_eval() -> PlayTool:
 
 
 def replay(curriculum_style: str = "test") -> ReplayTool:
-    task_generator = AssemblerTaskGenerator(
+    task_generator = ForagingTaskGenerator(
         make_task_generator_cfg(
             **make_curriculum_args(**curriculum_args[curriculum_style])
         )
@@ -425,7 +425,7 @@ def experiment():
             [
                 "./devops/skypilot/launch.py",
                 "experiments.recipes.in_context_learning.foraging.train",
-                f"run=in_context.foraging_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"run=in_context.foraging_{curriculum_style}.eval_local.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
                 "--heartbeat-timeout=3600",
@@ -438,7 +438,7 @@ def experiment():
 def play(
     curriculum_style: str = "test",
 ) -> PlayTool:
-    task_generator = AssemblerTaskGenerator(
+    task_generator = ForagingTaskGenerator(
         make_task_generator_cfg(
             **make_curriculum_args(**curriculum_args[curriculum_style])
         )
@@ -446,42 +446,5 @@ def play(
     return play_icl(task_generator)
 
 
-def save_envs_to_numpy(dir="in_context_foraging/", num_envs: int = 500):
-    import os
-    import numpy as np
-
-    for room_size, args in room_size_templates.items():
-        for n_agents in args["num_agents"]:
-            for n_altars in args["num_objects"]:
-                for i in range(num_envs):
-                    task_generator_cfg = make_task_generator_cfg(
-                        num_agents=[n_agents],
-                        num_altars=[n_altars],
-                        num_generators=[0],
-                        room_sizes=[room_size],
-                        positions=[["Any"]],
-                        map_dir=None,
-                    )
-                    task_generator = AssemblerTaskGenerator(config=task_generator_cfg)
-                    env_cfg = task_generator._generate_task(
-                        i, random.Random(i), num_instances=1
-                    )
-                    random_number = random.randint(0, 1000000)
-                    terrain = env_cfg.label.split("_")[-1]
-                    filename = f"{dir}/{room_size}/{n_altars}objects/{terrain}/{random_number}.npy"
-                    os.makedirs(os.path.dirname(filename), exist_ok=True)
-
-                    map_builder = env_cfg.game.map_builder.create()
-                    grid = map_builder.build().grid
-                    num_objs = np.argwhere(
-                        ~np.isin(grid, ("agent.agent", "wall", "empty"))
-                    )
-                    if len(num_objs) < n_altars:
-                        print("Num objs required amount, skipping")
-                    else:
-                        print(f"saving to {filename}")
-                        np.save(filename, grid)
-
-
 if __name__ == "__main__":
-    experiment()
+    evaluate()

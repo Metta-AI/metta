@@ -29,6 +29,7 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/converter_config.hpp"
+#include "objects/inventory_config.hpp"
 #include "objects/production_handler.hpp"
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
@@ -490,7 +491,7 @@ void MettaGrid::_step(Actions actions) {
 
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
-    agent->compute_stat_rewards();
+    agent->compute_stat_rewards(_stats.get());
   }
 
   // Update episode rewards
@@ -691,11 +692,12 @@ py::dict MettaGrid::grid_objects() {
         inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
-      py::dict resource_limits_dict;
-      for (const auto& [resource, quantity] : agent->resource_limits) {
-        resource_limits_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["resource_limits"] = resource_limits_dict;
+      // We made resource limits more complicated than this, and need to review how to expose them.
+      // py::dict resource_limits_dict;
+      // for (const auto& [resource, quantity] : agent->inventory.limits) {
+      //   resource_limits_dict[py::int_(resource)] = quantity;
+      // }
+      // obj_dict["resource_limits"] = resource_limits_dict;
       obj_dict["agent_id"] = agent->agent_id;
     }
 
@@ -756,6 +758,16 @@ py::dict MettaGrid::feature_spec() {
     py::dict spec;
     spec["normalization"] = py::float_(normalizations.at(feature_id));
     spec["id"] = py::int_(feature_id);
+
+    // Add tag mapping for the tag feature
+    if (feature_name == "tag") {
+      py::dict tag_map;
+      for (const auto& [tag_id, tag_name] : _game_config.tag_id_map) {
+        tag_map[py::int_(tag_id)] = py::str(tag_name);
+      }
+      spec["values"] = tag_map;
+    }
+
     feature_spec[py::str(feature_name)] = spec;
   }
   return feature_spec;
@@ -775,7 +787,6 @@ py::dict MettaGrid::get_episode_stats() {
   //   "game": dict[str, float],  // Global game statistics
   //   "agent": list[dict[str, float]],  // Per-agent statistics
   // }
-  // All stat values are guaranteed to be floats from StatsTracker::to_dict()
 
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());
@@ -897,6 +908,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // This comes from us creating (e.g.) various config objects, and then storing them in GameConfig's maps.
   // We're, like 80% sure on this reasoning.
 
+  bind_inventory_config(m);
   bind_agent_config(m);
   bind_converter_config(m);
   bind_assembler_config(m);
