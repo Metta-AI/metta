@@ -1,6 +1,4 @@
 # conftest.py
-
-
 import logging
 
 import pytest
