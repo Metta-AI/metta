@@ -91,9 +91,28 @@ cogames train --curriculum myproject.curricula.cogs_vs_clips \
   --vector-backend serial \
   --steps 5000 \
   --checkpoints ./runs/curriculum
+
+# Multi-GPU run with torchrun (rank-aware seeding and device assignment)
+torchrun --standalone --nproc-per-node=2 -m cogames.main train \
+  assembler_1_simple --device cuda --num-envs 32 --num-workers 8
 ```
 
 Every CLI command also accepts a global `--timeout` flag. Set it to automatically abort long-running invocations (useful in CI or quick smoke tests).
+
+### Policy Bundles
+
+Use `cogames policy` utilities to package checkpoints with their class paths and reload them later:
+
+```bash
+# Bundle an existing checkpoint into ./bundles/simple
+cogames policy export \
+  cogames.examples.simple_policy.SimplePolicy \
+  ./runs/basic/policy.pt \
+  ./bundles/simple
+
+# Instantiate the bundled policy for a scenario
+cogames policy load ./bundles/simple assembler_1_simple --device cpu
+```
 
 ### Evaluating Policies
 
