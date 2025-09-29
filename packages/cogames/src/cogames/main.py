@@ -2,6 +2,7 @@
 
 import contextlib
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Literal, Optional, Sequence
@@ -76,6 +77,22 @@ def _load_curriculum_configs(source: Any, max_items: int) -> Sequence[MettaGridC
         raise ValueError("Curriculum did not yield any MettaGridConfig instances.")
 
     return configs
+
+
+def _sanitize_filename(name: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("_")
+    return sanitized or "map"
+
+
+def _dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str], output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for index, (config_obj, raw_name) in enumerate(zip(configs, names, strict=False)):
+        base_name = raw_name or f"map_{index:03d}"
+        file_stem = _sanitize_filename(base_name)
+        candidate = output_dir / f"{file_stem}.yaml"
+        if candidate.exists():
+            candidate = output_dir / f"{file_stem}_{index:03d}.yaml"
+        game.save_game_config(config_obj, candidate)
 
 
 def _resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
@@ -234,9 +251,9 @@ def train_cmd(
         ),
     ] = None,
     checkpoints_path: Annotated[
-        str,
+        Optional[Path],
         typer.Option("--checkpoints", help="Path to save training data"),
-    ] = "./experiments",
+    ] = None,
     steps: Annotated[int, typer.Option("--steps", "-s", help="Number of training steps")] = 10000,
     device: Annotated[str, typer.Option("--device", help="Device to train on")] = "cuda",
     seed: Annotated[int, typer.Option("--seed", help="Seed for training")] = 42,
@@ -276,14 +293,34 @@ def train_cmd(
             case_sensitive=False,
         ),
     ] = "multiprocessing",
+    run_dir: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--run-dir",
+            help="Base directory for this training run; defaults to the checkpoints path when omitted",
+        ),
+    ] = None,
+    map_dump_dir: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--map-dump-dir",
+            help="Directory to export map configurations (defaults to run-dir/maps or checkpoints/maps)",
+        ),
+    ] = None,
 ) -> None:
     """Train a policy on a game."""
     with _command_timeout(ctx):
+        resolved_run_dir: Optional[Path] = None
+        if run_dir is not None:
+            resolved_run_dir = run_dir.expanduser().resolve()
+            resolved_run_dir.mkdir(parents=True, exist_ok=True)
+
         backend = vector_backend.lower()
         if game_name is None and curriculum is None:
             raise typer.BadParameter("provide a game or curriculum", param_name="game_name")
 
         env_cfgs: list[MettaGridConfig] = []
+        env_names: list[str] = []
 
         if game_name is not None:
             resolved_game, error = utils.resolve_game(game_name)
@@ -291,14 +328,23 @@ def train_cmd(
                 raise typer.BadParameter(error, param_name="game_name")
             assert resolved_game is not None
             env_cfgs.append(game.get_game(resolved_game))
+            env_names.append(resolved_game)
 
         if curriculum is not None:
             curriculum_source = load_symbol(curriculum)
             max_items = max(num_envs, 32)
-            env_cfgs.extend(_load_curriculum_configs(curriculum_source, max_items))
+            loaded_cfgs = _load_curriculum_configs(curriculum_source, max_items)
+            env_cfgs.extend(loaded_cfgs)
+            start_index = len(env_names)
+            for offset, cfg in enumerate(loaded_cfgs):
+                cfg_name = getattr(getattr(cfg, "game", None), "name", None)
+                env_names.append(str(cfg_name) if cfg_name else f"curriculum_{start_index + offset:03d}")
 
         if not env_cfgs:
             raise typer.BadParameter("curriculum did not yield any configurations", param_name="curriculum")
+
+        while len(env_names) < len(env_cfgs):
+            env_names.append(f"map_{len(env_names):03d}")
 
         resolved_initial = _resolve_initial_weights(initial_weights_path)
 
@@ -322,13 +368,37 @@ def train_cmd(
 
         device_obj = torch.device(device)
 
+        if checkpoints_path is not None:
+            checkpoints_dir = checkpoints_path.expanduser().resolve()
+        elif resolved_run_dir is not None:
+            checkpoints_dir = (resolved_run_dir / "checkpoints").resolve()
+        else:
+            checkpoints_dir = Path("./experiments").resolve()
+
+        checkpoints_dir.mkdir(parents=True, exist_ok=True)
+
+        if resolved_run_dir is None:
+            resolved_run_dir = checkpoints_dir.parent
+
+        if map_dump_dir is not None:
+            if map_dump_dir.is_absolute():
+                maps_dir = map_dump_dir
+            else:
+                base_dir = resolved_run_dir or Path.cwd()
+                maps_dir = (base_dir / map_dump_dir).resolve()
+        else:
+            base_dir = resolved_run_dir or checkpoints_dir
+            maps_dir = (base_dir / "maps").resolve()
+
+        _dump_game_configs(env_cfgs, env_names, maps_dir)
+
         train.train(
             env_cfgs=env_cfgs,
             policy_class_path=policy_class_path,
             initial_weights_path=resolved_initial,
             device=device_obj,
             num_steps=steps,
-            checkpoints_path=Path(checkpoints_path),
+            checkpoints_path=checkpoints_dir,
             seed=seed,
             batch_size=effective_batch,
             minibatch_size=effective_minibatch,
@@ -339,7 +409,7 @@ def train_cmd(
             vector_backend=backend,
         )
 
-        console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
+        console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_dir}[/green]")
 
 
 @app.command()
