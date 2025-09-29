@@ -134,32 +134,36 @@ class TorchProfileSession:
             events = prof.key_averages()
             cpu_events = sorted(events, key=lambda evt: evt.self_cpu_time_total, reverse=True)[:15]
             if cpu_events:
-                logger.info("Torch profiler CPU top ops for epoch %s:", self._start_epoch)
+                header = f"Torch profiler CPU top ops for epoch {self._start_epoch}:"
+                print(header)
+                logger.info(header)
                 for evt in cpu_events:
-                    logger.info(
-                        "  %-60s self_cpu=%7.2fms total_cpu=%7.2fms self_cuda=%7.2fms calls=%6d",
-                        evt.key,
-                        evt.self_cpu_time_total / 1000.0,
-                        evt.cpu_time_total / 1000.0,
-                        getattr(evt, "self_cuda_time_total", 0.0) / 1000.0,
-                        evt.count,
+                    line = (
+                        f"  {evt.key:<60} self_cpu={evt.self_cpu_time_total / 1000.0:7.2f}ms "
+                        f"total_cpu={evt.cpu_time_total / 1000.0:7.2f}ms "
+                        f"self_cuda={getattr(evt, 'self_cuda_time_total', 0.0) / 1000.0:7.2f}ms "
+                        f"calls={evt.count:6d}"
                     )
+                    print(line)
+                    logger.info(line)
 
             if torch.cuda.is_available():
                 cuda_events = [evt for evt in events if getattr(evt, "self_cuda_time_total", 0.0) > 0]
                 cuda_events.sort(key=lambda evt: evt.self_cuda_time_total, reverse=True)
                 cuda_events = cuda_events[:15]
                 if cuda_events:
-                    logger.info("Torch profiler CUDA top ops for epoch %s:", self._start_epoch)
+                    header = f"Torch profiler CUDA top ops for epoch {self._start_epoch}:"
+                    print(header)
+                    logger.info(header)
                     for evt in cuda_events:
-                        logger.info(
-                            "  %-60s self_cuda=%7.2fms total_cuda=%7.2fms self_cpu=%7.2fms calls=%6d",
-                            evt.key,
-                            evt.self_cuda_time_total / 1000.0,
-                            getattr(evt, "cuda_time_total", 0.0) / 1000.0,
-                            evt.self_cpu_time_total / 1000.0,
-                            evt.count,
+                        line = (
+                            f"  {evt.key:<60} self_cuda={evt.self_cuda_time_total / 1000.0:7.2f}ms "
+                            f"total_cuda={getattr(evt, 'cuda_time_total', 0.0) / 1000.0:7.2f}ms "
+                            f"self_cpu={evt.self_cpu_time_total / 1000.0:7.2f}ms "
+                            f"calls={evt.count:6d}"
                         )
+                        print(line)
+                        logger.info(line)
         except Exception:  # pragma: no cover - defensive
             logger.exception("Failed to log torch profiler summary")
 
