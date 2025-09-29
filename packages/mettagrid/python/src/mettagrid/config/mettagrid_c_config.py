@@ -188,6 +188,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name in resource_name_to_id
         ]
 
+        # Convert shareable resources from names to IDs
+        shareable_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("shareable_resources", [])
+            if resource_name in resource_name_to_id
+        ]
+
         inventory_config = CppInventoryConfig(
             limits=[
                 [
@@ -212,6 +219,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "initial_inventory": initial_inventory,
             "tag_ids": tag_ids,
             "soul_bound_resources": soul_bound_resources,
+            "shareable_resources": shareable_resources,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)

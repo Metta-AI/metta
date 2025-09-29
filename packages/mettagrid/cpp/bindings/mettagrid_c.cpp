@@ -492,9 +492,7 @@ void MettaGrid::_step(Actions actions) {
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
       for (const auto& [item, amount] : _inventory_regen_amounts) {
-        if (amount > 0) {
-          agent->update_inventory(item, amount);
-        }
+        agent->update_inventory(item, amount);
       }
     }
   }
