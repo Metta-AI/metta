@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Literal, Optional, Sequence, Tuple
 
@@ -192,6 +193,40 @@ def _collect_configs(
         names.append(f"map_{index:03d}")
 
     return configs, names
+
+
+def _filter_uniform_agent_count(
+    configs: Sequence[MettaGridConfig],
+    names: Sequence[str],
+) -> Tuple[list[MettaGridConfig], list[str]]:
+    if not configs:
+        return list(configs), list(names)
+
+    counts = [cfg.game.num_agents for cfg in configs]
+    if len(set(counts)) <= 1:
+        return list(configs), list(names)
+
+    most_common_count = Counter(counts).most_common(1)[0][0]
+    filtered_cfgs: list[MettaGridConfig] = []
+    filtered_names: list[str] = []
+    dropped = 0
+    for cfg, name, count in zip(configs, names, counts, strict=False):
+        if count == most_common_count:
+            filtered_cfgs.append(cfg)
+            filtered_names.append(name)
+        else:
+            dropped += 1
+
+    if dropped:
+        console.print(
+            "[yellow]Skipping {dropped} map(s) with mismatched agent counts. "
+            "Training will use configs with {agents} agent(s).[/yellow]".format(
+                dropped=dropped,
+                agents=most_common_count,
+            )
+        )
+
+    return filtered_cfgs, filtered_names
 
 
 def _resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
@@ -480,6 +515,7 @@ def train_cmd(
             fallback_folder=fallback_curricula,
             game_param="game_name",
         )
+        env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
 
         if not env_cfgs:
             msg = (
