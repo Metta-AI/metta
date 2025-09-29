@@ -4,6 +4,7 @@ import gzip
 import logging
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Optional
@@ -131,11 +132,13 @@ class TorchProfileSession:
 
     def _log_profile_summary(self, prof: torch.profiler.profile) -> None:
         try:
+            logger.info("Torch profiler: collecting key averages for epoch %s", self._start_epoch)
             events = prof.key_averages()
+            logger.info("Torch profiler: collected %s events for epoch %s", len(events), self._start_epoch)
             cpu_events = sorted(events, key=lambda evt: evt.self_cpu_time_total, reverse=True)[:15]
             if cpu_events:
                 header = f"Torch profiler CPU top ops for epoch {self._start_epoch}:"
-                print(header)
+                print(header, flush=True)
                 logger.info(header)
                 for evt in cpu_events:
                     line = (
@@ -144,7 +147,7 @@ class TorchProfileSession:
                         f"self_cuda={getattr(evt, 'self_cuda_time_total', 0.0) / 1000.0:7.2f}ms "
                         f"calls={evt.count:6d}"
                     )
-                    print(line)
+                    print(line, flush=True)
                     logger.info(line)
 
             if torch.cuda.is_available():
@@ -153,7 +156,7 @@ class TorchProfileSession:
                 cuda_events = cuda_events[:15]
                 if cuda_events:
                     header = f"Torch profiler CUDA top ops for epoch {self._start_epoch}:"
-                    print(header)
+                    print(header, flush=True)
                     logger.info(header)
                     for evt in cuda_events:
                         line = (
@@ -162,10 +165,12 @@ class TorchProfileSession:
                             f"self_cpu={evt.self_cpu_time_total / 1000.0:7.2f}ms "
                             f"calls={evt.count:6d}"
                         )
-                        print(line)
+                        print(line, flush=True)
                         logger.info(line)
-        except Exception:  # pragma: no cover - defensive
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"Profiler summary failed: {exc}", file=sys.stderr, flush=True)
             logger.exception("Failed to log torch profiler summary")
+            raise
 
     @property
     def is_active(self) -> bool:
