@@ -363,7 +363,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.foraging.train",
+                "experiments.recipes.in_context_learning.assemblers.foraging.train",
                 f"run=in_context.foraging_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",
