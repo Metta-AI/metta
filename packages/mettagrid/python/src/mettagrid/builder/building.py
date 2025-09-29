@@ -137,6 +137,48 @@ assembler_armory = AssemblerConfig(
     ],
 )
 
+assembler_lab = AssemblerConfig(
+    type_id=17,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+assembler_factory = AssemblerConfig(
+    type_id=18,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+assembler_temple = AssemblerConfig(
+    type_id=19,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
 
 # Chest building definitions
 def make_chest(

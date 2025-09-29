@@ -1,7 +1,7 @@
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig, Position
 import random
-from experiments.recipes.in_context_learning.assembly_lines import (
+from experiments.recipes.in_context_learning.assemblers.assembly_lines import (
     AssemblyLinesTaskGenerator,
     make_task_generator_cfg,
 )

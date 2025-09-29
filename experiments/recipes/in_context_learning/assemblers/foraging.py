@@ -33,8 +33,8 @@ def make_curriculum_args(
     num_generators: list[int],
     room_sizes: list[str],
     positions: list[list[Position]],
-    num_chests: list[int],
-    chest_positions: list[list[Position]],
+    num_chests: list[int] = [0],
+    chest_positions: list[list[Position]] = [["N"]],
 ) -> dict:
     return {
         "num_agents": num_agents,
@@ -48,38 +48,26 @@ def make_curriculum_args(
 
 
 curriculum_args = {
-    "multi_agent_only_altars": {
-        "num_agents": list(range(1,20,4)),
+    "train": {
+        "num_agents": [1, 4, 8, 12, 24],
         "num_altars": list(range(5, 20, 5)),
-        "num_generators": [0],
-        "room_sizes": ["small", "medium", "large"],
-        # "num_chests": [2, 5, 8],
-        "positions": num_agents_to_positions[1]
-        + num_agents_to_positions[2]
-        + num_agents_to_positions[3],
-        # "chest_positions": [["Any"]],
-    },
-    "multi_agents_with_generators": {
-        "num_agents": list(range(1,20,4)),
-        "num_altars": list(range(1, 10, 2)),
-        "num_generators": list(range(1, 10, 2)),
-        # "num_chests": [],
+        "num_generators": [0, 1, 4],
         "room_sizes": ["small", "medium", "large"],
         "positions": num_agents_to_positions[1]
         + num_agents_to_positions[2]
         + num_agents_to_positions[3],
-        # "chest_positions": [["Any"]],
-    },
-
-    "test": {
-        "num_agents": [3],
-        "num_altars": [2],
-        "num_generators": [2],
-        # "num_chests": [2],
-        # "chest_positions": [["N"]],
-        "room_sizes": ["medium"],
-        "positions": [["N", "S"]],
-    },
+        "max_recipe_inputs": [1, 2, 3],
+        "num_chests": [0],
+    }
+    # "test": {
+    #     "num_agents": [3],
+    #     "num_altars": [2],
+    #     "num_generators": [2],
+    #     # "num_chests": [2],
+    #     # "chest_positions": [["N"]],
+    #     "room_sizes": ["medium"],
+    #     "positions": [["N", "S"]],
+    # },
 }
 
 
@@ -89,9 +77,10 @@ def make_task_generator_cfg(
     num_generators: list[int],
     room_sizes: list[str],
     positions: list[list[Position]],
-    num_chests: list[int],
-    chest_positions: list[list[Position]],
+    num_chests: list[int] = [0],
+    chest_positions: list[list[Position]] = [["N"]],
     map_dir: Optional[str] = None,
+    max_recipe_inputs: list[int] = [1],
 ) -> ICLTaskGenerator.Config:
     return ForagingTaskGenerator.Config(
         num_agents=num_agents,
@@ -102,6 +91,7 @@ def make_task_generator_cfg(
         map_dir=map_dir,
         num_chests=num_chests,
         chest_positions=chest_positions,
+        max_recipe_inputs=max_recipe_inputs,
     )
 
 
@@ -109,12 +99,14 @@ class ForagingTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
+        self.used_resources = set()
 
     def _make_generators(self, num_generators, cfg, position, rng: random.Random):
         """Make generators that input nothing and output resources for the altar"""
 
         for _ in range(num_generators):
             resource = rng.choice(self.resource_types)
+            self.used_resources.add(resource)
             self._add_assembler(
                 input_resources={},
                 output_resources={resource: 1},
@@ -136,7 +128,8 @@ class ForagingTaskGenerator(ICLTaskGenerator):
             input_resources = {
                 resource: 1
                 for resource in rng.sample(
-                    self.resource_types, rng.randint(1, len(self.resource_types))
+                    list(self.used_resources),
+                    rng.randint(1, len(self.config.max_recipe_inputs)),
                 )
             }
             # if we want multiple altars with different recipes, we need to give them different names
@@ -153,7 +146,7 @@ class ForagingTaskGenerator(ICLTaskGenerator):
                 rng=rng,
             )
 
-    def _make_env_cfg(
+    def make_env_cfg(
         self,
         num_agents,
         num_instances,
@@ -170,11 +163,16 @@ class ForagingTaskGenerator(ICLTaskGenerator):
         dir=None,
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
+
+        if num_generators > 3 and num_altars > 6:
+            num_altars = 6
+
         self._make_generators(num_generators, cfg, recipe_position, rng)
 
         self._make_altars(num_altars, cfg, recipe_position, num_generators, rng)
 
-        self._make_chests(num_chests, cfg, chest_position)
+        if num_chests > 0:
+            self._make_chests(num_chests, cfg, chest_position)
 
         if dir is not None and os.path.exists(dir):
             print(f"Loading from {dir}")
@@ -234,7 +232,7 @@ class ForagingTaskGenerator(ICLTaskGenerator):
         else:
             dir = None
 
-        icl_env = self._make_env_cfg(
+        icl_env = self.make_env_cfg(
             num_agents=num_agents,
             num_instances=num_instances or 24 // num_agents,
             num_altars=num_altars,
@@ -255,6 +253,14 @@ class ForagingTaskGenerator(ICLTaskGenerator):
         )
         return icl_env
 
+    def generate_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        num_instances: Optional[int] = None,
+    ) -> MettaGridConfig:
+        return self._generate_task(task_id, rng, num_instances)
+
 
 def make_mettagrid(
     curriculum_style: str = "single_agent_two_altars",
@@ -270,10 +276,10 @@ def make_assembler_env(
     num_agents: int,
     num_altars: int,
     num_generators: int,
-    num_chests: int,
-    chest_positions: list[Position],
     room_size: str,
     position: list[Position] = ["Any"],
+    num_chests: int = 0,
+    chest_position: list[Position] = ["N"],
 ) -> MettaGridConfig:
     task_generator_cfg = make_task_generator_cfg(
         num_agents=[num_agents],
@@ -282,7 +288,7 @@ def make_assembler_env(
         positions=[position],
         room_sizes=[room_size],
         num_chests=[num_chests],
-        chest_positions=[chest_positions],
+        chest_positions=[chest_position],
     )
     task_generator = ForagingTaskGenerator(task_generator_cfg)
     return task_generator.get_task(random.randint(0, 1000000))
@@ -315,7 +321,7 @@ def train(
     task_generator_cfg = make_task_generator_cfg(
         **make_curriculum_args(**curriculum_args[curriculum_style]), map_dir=None
     )
-    from experiments.evals.in_context_learning.foraging import (
+    from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
     )
 
@@ -324,7 +330,7 @@ def train(
 
 def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> SimTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.foraging import (
+    from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
     )
 
@@ -350,7 +356,7 @@ def play_eval() -> PlayTool:
         num_altars=2,
         num_generators=0,
         num_chests=2,
-        chest_positions=["W"],
+        chest_position=["W"],
         room_size="small",
         position=["W"],
     )
@@ -402,12 +408,14 @@ def play(
 
 
 def evaluate_remote(
-    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+    simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> EvalRemoteTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.foraging import (
+    from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
     )
+
+    policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_4.2.2025-09-24/icl_resource_chain_terrain_4.2.2025-09-24:v2370.pt"
 
     simulations = simulations or make_foraging_eval_suite()
     return EvalRemoteTool(

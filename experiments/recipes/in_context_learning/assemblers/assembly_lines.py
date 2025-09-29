@@ -21,35 +21,23 @@ from typing import Optional
 import os
 
 curriculum_args = {
-    "single_agent_any": {
-        "num_agents": [1],
+    "train": {
+        "num_agents": [1, 2, 6, 12],
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
-        "positions": [["Any"]],
-    },
-    "two_agent_any": {
-        "num_agents": [2],
-        "chain_lengths": [2, 3, 4, 5],
-        "num_sinks": [0, 1, 2],
-        "room_sizes": ["small", "medium", "large"],
-        "positions": [["Any", "Any"]],
-    },
-    "multi_agent_any": {
-        "num_agents": [2, 3],
-        "chain_lengths": [2, 3, 4, 5],
-        "num_sinks": [0, 1, 2],
-        "room_sizes": ["small", "medium", "large"],
-        "positions": [["Any", "Any"], ["Any", "Any", "Any"]],
-    },
-    # "test": {
-    #     "num_agents": [2],
-    #     "chain_lengths": [5],
-    #     "num_sinks": [2],
-    #     "room_sizes": ["medium"],
-    #     "positions": [["Any", "Any"]],
-    # },
+        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "num_chests": [0],
+    }
 }
+# "test": {
+#     "num_agents": [2],
+#     "chain_lengths": [5],
+#     "num_sinks": [2],
+#     "room_sizes": ["medium"],
+#     "positions": [["Any", "Any"]],
+# },
+# }
 
 
 def make_task_generator_cfg(
@@ -59,6 +47,8 @@ def make_task_generator_cfg(
     room_sizes: list[str],
     positions: list[list[Position]],
     map_dir: Optional[str] = None,
+    num_chests: list[int] = [0],
+    chest_positions: list[list[Position]] = [["N"]],
 ):
     return AssemblyLinesTaskGenerator.Config(
         num_agents=num_agents,
@@ -67,6 +57,8 @@ def make_task_generator_cfg(
         room_sizes=room_sizes,
         positions=positions,
         map_dir=map_dir,
+        num_chests=num_chests,
+        chest_positions=chest_positions,
     )
 
 
@@ -112,7 +104,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
                 rng=rng,
             )
 
-    def _make_env_cfg(
+    def make_env_cfg(
         self,
         num_agents,
         resources,
@@ -132,7 +124,8 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
 
         self._make_resource_chain(resources, width + height / 2, position, cfg, rng)
         self._make_sinks(num_sinks, position, cfg, rng)
-        self._make_chests(num_chests, cfg, chest_position)
+        if num_chests > 0:
+            self._make_chests(num_chests, cfg, chest_position)
 
         if dir is not None and os.path.exists(dir):
             return self.load_from_numpy(
@@ -194,7 +187,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             else None
         )
 
-        icl_env = self._make_env_cfg(
+        icl_env = self.make_env_cfg(
             num_agents=num_agents,
             resources=resources,
             num_sinks=num_sinks,
@@ -213,6 +206,14 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         icl_env.label = f"{room_size}_{len(resources)}chain_{num_sinks}sinks_{terrain}"
         return icl_env
 
+    def generate_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        num_instances: Optional[int] = None,
+    ) -> MettaGridConfig:
+        return self._generate_task(task_id, rng, num_instances)
+
 
 def train(
     curriculum_style: str = "multi_agent_easy",
@@ -220,7 +221,7 @@ def train(
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None
     )
-    from experiments.evals.in_context_learning.assembly_lines import (
+    from experiments.evals.in_context_learning.assemblers.assembly_lines import (
         make_assembly_line_eval_suite,
     )
 
