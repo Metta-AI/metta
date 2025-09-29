@@ -1,12 +1,20 @@
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_extractor,
+    carbon_extractor_fast,
+    carbon_extractor_slow,
     charger,
     chest,
     geranium_extractor,
+    geranium_extractor_fast,
+    geranium_extractor_slow,
     oxygen_extractor,
+    oxygen_extractor_fast,
+    oxygen_extractor_slow,
     resources,
     silicon_extractor,
+    silicon_extractor_fast,
+    silicon_extractor_slow,
 )
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
@@ -61,9 +69,17 @@ def make_game(
                 "wall": WallConfig(type_id=1),
                 "charger": charger(),
                 "carbon_extractor": carbon_extractor(),
+                "carbon_extractor_fast": carbon_extractor_fast(),
+                "carbon_extractor_slow": carbon_extractor_slow(),
                 "oxygen_extractor": oxygen_extractor(),
+                "oxygen_extractor_fast": oxygen_extractor_fast(),
+                "oxygen_extractor_slow": oxygen_extractor_slow(),
                 "geranium_extractor": geranium_extractor(),
+                "geranium_extractor_fast": geranium_extractor_fast(),
+                "geranium_extractor_slow": geranium_extractor_slow(),
                 "silicon_extractor": silicon_extractor(),
+                "silicon_extractor_fast": silicon_extractor_fast(),
+                "silicon_extractor_slow": silicon_extractor_slow(),
                 "chest": chest(),
                 "assembler": assembler(),
             },
@@ -164,8 +180,8 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
 
     # Swap to scene-based MapGen
     cfg.game.map_builder = MapGen.Config(
-        width=55,
-        height=55,
+        width=500,
+        height=500,
         seed=None,
         root=Quadrants.factory(
             params=QuadrantsParams(base_size=11),

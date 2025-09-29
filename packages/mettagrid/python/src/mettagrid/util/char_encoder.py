@@ -28,6 +28,19 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "factory": ["F"],
     "temple": ["T"],
     "converter": ["c"],
+    # extractors
+    "carbon_extractor": ["C"],
+    "oxygen_extractor": ["O"],
+    "geranium_extractor": ["E"],
+    "silicon_extractor": ["I"],
+    "carbon_extractor_fast": ["f"],
+    "carbon_extractor_slow": ["F"],
+    "oxygen_extractor_fast": ["o"],
+    "oxygen_extractor_slow": ["O"],
+    "geranium_extractor_fast": ["e"],
+    "geranium_extractor_slow": ["E"],
+    "silicon_extractor_fast": ["i"],
+    "silicon_extractor_slow": ["I"],
 }
 
 CHAR_TO_NAME: dict[str, str] = {}
