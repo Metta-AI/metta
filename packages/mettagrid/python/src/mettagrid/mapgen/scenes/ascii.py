@@ -19,7 +19,6 @@ class Ascii(Scene[AsciiConfig]):
                 scene=InlineAscii.Config(data=self.ascii_data),
                 where="full",
             ),
-            *self.config.children,
         ]
 
     def render(self):
