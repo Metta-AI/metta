@@ -153,7 +153,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
 
         self._make_resource_chain(resources, width + height / 2, position, cfg, rng)
         self._make_sinks(num_sinks, position, cfg, rng)
-        self._make_chests(num_chests, cfg, chest_position, rng)
+        self._make_chests(num_chests, cfg, chest_position)
 
         if dir is not None and os.path.exists(dir):
             return self.load_from_numpy(
@@ -258,11 +258,11 @@ def play(curriculum_style: str = "test") -> PlayTool:
 def play_eval() -> PlayTool:
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(
-            num_agents=[3],
-            chain_lengths=[2],
-            num_sinks=[1],
-            room_sizes=["medium"],
-            positions=[["Any", "Any", "Any"]],
+            num_agents=[2],
+            chain_lengths=[5],
+            num_sinks=[2],
+            room_sizes=["large"],
+            positions=[["Any", "Any"]],
         )
     )
     return play_icl(task_generator)

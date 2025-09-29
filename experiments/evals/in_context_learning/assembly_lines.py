@@ -20,7 +20,7 @@ def make_icl_assembler_chain_eval_env(
         num_sinks=[num_sinks],
         room_sizes=[room_size],
         positions=positions,
-        map_dir=None
+        map_dir=None,
     )
     task_generator = AssemblyLinesTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
@@ -29,33 +29,33 @@ def make_icl_assembler_chain_eval_env(
 
 def make_assembly_line_eval_suite() -> list[SimulationConfig]:
     return [
-        SimulationConfig(
-            suite="in_context_assembly_lines",
-            name="single_agent_medium",
-            env=make_icl_assembler_chain_eval_env(1, 3, 0, "medium", [["Any"]]),
-        ),
+        # SimulationConfig(
+        #     suite="in_context_assembly_lines",
+        #     name="single_agent_medium",
+        #     env=make_icl_assembler_chain_eval_env(1, 3, 0, "medium", [["Any"]]),
+        # ),
         SimulationConfig(
             suite="in_context_assembly_lines",
             name="single_agent_large",
             env=make_icl_assembler_chain_eval_env(1, 5, 2, "large", [["Any"]]),
         ),
-        SimulationConfig(
-            suite="in_context_assembly_lines",
-            name="two_agent_medium",
-            env=make_icl_assembler_chain_eval_env(2, 3, 0, "medium", [["Any", "Any"]]),
-        ),
+        # SimulationConfig(
+        #     suite="in_context_assembly_lines",
+        #     name="two_agent_medium",
+        #     env=make_icl_assembler_chain_eval_env(2, 3, 0, "medium", [["Any", "Any"]]),
+        # ),
         SimulationConfig(
             suite="in_context_assembly_lines",
             name="two_agent_large",
             env=make_icl_assembler_chain_eval_env(2, 5, 2, "large", [["Any", "Any"]]),
         ),
-        SimulationConfig(
-            suite="in_context_assembly_lines",
-            name="three_agent_medium",
-            env=make_icl_assembler_chain_eval_env(
-                3, 3, 0, "medium", [["Any", "Any", "Any"]]
-            ),
-        ),
+        # SimulationConfig(
+        #     suite="in_context_assembly_lines",
+        #     name="three_agent_medium",
+        #     env=make_icl_assembler_chain_eval_env(
+        #         3, 3, 0, "medium", [["Any", "Any", "Any"]]
+        #     ),
+        # ),
         SimulationConfig(
             suite="in_context_assembly_lines",
             name="three_agent_large",

@@ -171,7 +171,7 @@ class ICLTaskGenerator(TaskGenerator):
             description="Directory for pre-generated maps (None to build procedurally).",
         )
         num_chests: list[int] = Field(
-            default=[2],
+            default=[0],
             description="Number of chests to include.",
         )
         chest_positions: list[list[Position]] = Field(
@@ -285,7 +285,12 @@ class ICLTaskGenerator(TaskGenerator):
         chest_name: str | None = None,
     ):
         print(f"Making chest with deposit positions {position}")
-        chest = building.make_chest(resource_type="heart", type_id=26, deposit_positions=position, withdrawal_positions=[])
+        chest = building.make_chest(
+            resource_type="heart",
+            type_id=26,
+            deposit_positions=position,
+            withdrawal_positions=[],
+        )
         chest_name = "chest"
 
         if chest_name in cfg.map_builder_objects:
