@@ -161,6 +161,10 @@ private:
   bool _track_movement_metrics;
   float _resource_loss_prob;
 
+  // Inventory regeneration
+  std::map<InventoryItem, InventoryQuantity> _inventory_regen_amounts;
+  unsigned int _inventory_regen_interval;
+
   void init_action_handlers();
   void add_agent(Agent* agent);
   void _compute_observation(GridCoord observer_r,
