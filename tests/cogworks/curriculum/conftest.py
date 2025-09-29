@@ -43,6 +43,21 @@ def learning_progress_algorithm():
 
 
 @pytest.fixture(scope="function")
+def multi_generator_config(arena_env, navigation_env):
+    """Create a multi-task generator curriculum configuration."""
+    return CurriculumConfig(
+        task_generators=[
+            SingleTaskGenerator.Config(env=arena_env),
+            SingleTaskGenerator.Config(env=navigation_env),
+        ],
+        max_task_id=1000,
+        num_active_tasks=20,
+        min_generator_proportion=0.2,
+        algorithm_config=LearningProgressConfig(num_active_tasks=20),
+    )
+
+
+@pytest.fixture(scope="function")
 def production_curriculum_config(arena_env):
     """Create a production-like curriculum configuration similar to arena.py."""
     arena_tasks = cc.bucketed(arena_env)

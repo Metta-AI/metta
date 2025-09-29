@@ -8,6 +8,8 @@ import random
 from abc import ABC
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
 
+import numpy as np
+
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 
@@ -232,9 +234,20 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
 class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
-    task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
+    task_generator: Optional[AnyTaskGeneratorConfig] = Field(default=None, description="TaskGenerator configuration")
+    task_generators: Optional[List[AnyTaskGeneratorConfig]] = Field(
+        default=None, description="List of TaskGenerator configurations for multi-generator curriculum"
+    )
     max_task_id: int = Field(default=1000000, gt=0, description="Maximum task ID to generate")
     num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
+
+    # Multi-generator specific settings
+    min_generator_proportion: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Minimum proportion of tasks from any generator when using multiple generators",
+    )
 
     # Curriculum behavior options
     min_presentations_for_eviction: int = Field(
@@ -267,6 +280,23 @@ class CurriculumConfig(Config):
                 f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
             )
 
+        # Validate task generator configuration
+        if self.task_generator is None and self.task_generators is None:
+            raise ValueError("Must provide either task_generator or task_generators")
+
+        if self.task_generator is not None and self.task_generators is not None:
+            raise ValueError("Cannot provide both task_generator and task_generators")
+
+        if self.task_generators is not None:
+            if len(self.task_generators) < 1:
+                raise ValueError("Must provide at least one task generator in task_generators")
+
+            if self.min_generator_proportion * len(self.task_generators) > 1.0:
+                raise ValueError(
+                    f"min_generator_proportion ({self.min_generator_proportion}) * "
+                    f"num_generators ({len(self.task_generators)}) cannot exceed 1.0"
+                )
+
     def make(self) -> "Curriculum":
         """Create a Curriculum from this configuration."""
         return Curriculum(self)
@@ -287,12 +317,24 @@ class Curriculum(StatsLogger):
         StatsLogger.__init__(self, enable_detailed_logging=False)
 
         self._config = config
-        self._task_generator = config.task_generator.create()
         self._rng = random.Random(seed)
         self._tasks: dict[int, CurriculumTask] = {}
         self._task_ids: set[int] = set()
         self._num_created = 0
         self._num_evicted = 0
+
+        # Handle single vs multiple task generators
+        self._is_multi_generator = config.task_generators is not None
+        if self._is_multi_generator:
+            self._task_generators = [gen_config.create() for gen_config in config.task_generators]
+            self._task_generator = None  # Not used in multi-generator mode
+
+            # Track which generator created which task
+            self._task_to_generator: Dict[int, int] = {}  # task_id -> generator_index
+            self._generator_task_counts: List[int] = [0] * len(self._task_generators)
+        else:
+            self._task_generator = config.task_generator.create()
+            self._task_generators = None
 
         self._algorithm: Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
@@ -342,6 +384,12 @@ class Curriculum(StatsLogger):
         if task_id not in self._tasks:
             return
 
+        # Update generator tracking in multi-generator mode
+        if self._is_multi_generator and task_id in self._task_to_generator:
+            generator_idx = self._task_to_generator[task_id]
+            self._generator_task_counts[generator_idx] = max(0, self._generator_task_counts[generator_idx] - 1)
+            del self._task_to_generator[task_id]
+
         # Notify algorithm of eviction
         if self._algorithm is not None:
             self._algorithm.on_task_evicted(task_id)
@@ -374,12 +422,29 @@ class Curriculum(StatsLogger):
         while task_id in self._task_ids:
             task_id = self._rng.randint(0, self._config.max_task_id)
         self._task_ids.add(task_id)
-        env_cfg = self._task_generator.get_task(task_id)
 
-        # Extract bucket values if available
-        bucket_values = {}
-        if hasattr(self._task_generator, "_last_bucket_values"):
-            bucket_values = self._task_generator._last_bucket_values.copy()
+        if self._is_multi_generator:
+            # Choose generator based on proportion constraint
+            generator_idx = self._choose_generator()
+            generator = self._task_generators[generator_idx]
+            env_cfg = generator.get_task(task_id)
+
+            # Track generator mapping
+            self._task_to_generator[task_id] = generator_idx
+            self._generator_task_counts[generator_idx] += 1
+
+            # Extract bucket values if available
+            bucket_values = {}
+            if hasattr(generator, "_last_bucket_values"):
+                bucket_values = generator._last_bucket_values.copy()
+        else:
+            # Single generator mode (backward compatibility)
+            env_cfg = self._task_generator.get_task(task_id)
+
+            # Extract bucket values if available
+            bucket_values = {}
+            if hasattr(self._task_generator, "_last_bucket_values"):
+                bucket_values = self._task_generator._last_bucket_values.copy()
 
         task = CurriculumTask(task_id, env_cfg, bucket_values)
         self._tasks[task_id] = task
@@ -390,6 +455,53 @@ class Curriculum(StatsLogger):
             self._algorithm.on_task_created(task)
 
         return task
+
+    def _choose_generator(self) -> int:
+        """Choose which generator to use for task creation in multi-generator mode."""
+        if not self._is_multi_generator:
+            raise RuntimeError("_choose_generator called in single generator mode")
+
+        # Check if any generator is below minimum proportion
+        total_tasks = len(self._tasks)
+        if total_tasks > 0:
+            min_required = max(1, int(total_tasks * self._config.min_generator_proportion))
+
+            for i, count in enumerate(self._generator_task_counts):
+                if count < min_required:
+                    return i
+
+        # If all generators meet minimum, use mean task scores to decide
+        return self._choose_generator_by_scores()
+
+    def _choose_generator_by_scores(self) -> int:
+        """Choose generator based on mean task scores (higher mean = more likely to be chosen)."""
+        if not self._is_multi_generator:
+            raise RuntimeError("_choose_generator_by_scores called in single generator mode")
+
+        # Calculate mean scores per generator
+        generator_mean_scores = []
+        for i in range(len(self._task_generators)):
+            generator_tasks = [
+                task_id
+                for task_id, gen_idx in self._task_to_generator.items()
+                if gen_idx == i and task_id in self._tasks
+            ]
+
+            if not generator_tasks:
+                # No tasks yet, use neutral score
+                generator_mean_scores.append(0.5)
+            else:
+                # Calculate mean score across all tasks from this generator
+                total_score = sum(self._tasks[task_id]._mean_score for task_id in generator_tasks)
+                generator_mean_scores.append(total_score / len(generator_tasks))
+
+        # Use softmax to convert scores to probabilities
+        scores_array = np.array(generator_mean_scores)
+        exp_scores = np.exp(scores_array)
+        probabilities = exp_scores / np.sum(exp_scores)
+
+        # Sample based on probabilities
+        return self._rng.choices(range(len(self._task_generators)), weights=probabilities)[0]
 
     def update_task_performance(self, task_id: int, score: float):
         """Update the curriculum algorithm with task performance."""
@@ -408,6 +520,43 @@ class Curriculum(StatsLogger):
             "num_scheduled": float(sum(task._num_scheduled for task in self._tasks.values())),
             "num_active_tasks": float(len(self._tasks)),
         }
+
+        # Add multi-generator statistics if in multi-generator mode
+        if self._is_multi_generator:
+            base_stats["num_generators"] = float(len(self._task_generators))
+
+            # Add per-generator task counts (cumulative - all tasks ever created)
+            for i, count in enumerate(self._generator_task_counts):
+                base_stats[f"generator_{i}_task_count"] = float(count)
+
+            # Add per-generator active pool counts (tasks currently in the pool)
+            active_pool_counts = [0] * len(self._task_generators)
+            for task_id in self._tasks.keys():
+                if task_id in self._task_to_generator:
+                    generator_idx = self._task_to_generator[task_id]
+                    active_pool_counts[generator_idx] += 1
+
+            for i, count in enumerate(active_pool_counts):
+                base_stats[f"generator_{i}_pool_count"] = float(count)
+                # Also add proportion of current pool
+                pool_proportion = count / len(self._tasks) if len(self._tasks) > 0 else 0.0
+                base_stats[f"generator_{i}_pool_proportion"] = pool_proportion
+
+            # Add per-generator mean scores
+            for i in range(len(self._task_generators)):
+                generator_tasks = [
+                    task_id
+                    for task_id, gen_idx in self._task_to_generator.items()
+                    if gen_idx == i and task_id in self._tasks
+                ]
+
+                if generator_tasks:
+                    total_score = sum(self._tasks[task_id]._mean_score for task_id in generator_tasks)
+                    mean_score = total_score / len(generator_tasks)
+                else:
+                    mean_score = 0.0
+
+                base_stats[f"generator_{i}_mean_score"] = mean_score
 
         # Include algorithm stats if available
         if self._algorithm is not None:
@@ -428,8 +577,14 @@ class Curriculum(StatsLogger):
             "seed": self._rng.getstate(),
             "num_created": self._num_created,
             "num_evicted": self._num_evicted,
+            "is_multi_generator": self._is_multi_generator,
             "tasks": {},
         }
+
+        # Save multi-generator state if applicable
+        if self._is_multi_generator:
+            state["task_to_generator"] = self._task_to_generator
+            state["generator_task_counts"] = self._generator_task_counts
 
         # Serialize task data (without env_cfg to save space)
         for task_id, task in self._tasks.items():
@@ -464,11 +619,23 @@ class Curriculum(StatsLogger):
         self._tasks.clear()
         self._task_ids.clear()
 
+        # Restore multi-generator state if applicable
+        if self._is_multi_generator:
+            self._task_to_generator = state.get("task_to_generator", {})
+            self._generator_task_counts = state.get("generator_task_counts", [0] * len(self._task_generators))
+
         # Restore tasks
         for task_id_str, task_data in state["tasks"].items():
-            # Recreate env_cfg using task_id
+            # Recreate env_cfg using appropriate generator
             task_id = int(task_id_str)
-            env_cfg = self._task_generator.get_task(task_id)
+
+            if self._is_multi_generator and task_id in self._task_to_generator:
+                generator_idx = self._task_to_generator[task_id]
+                generator = self._task_generators[generator_idx]
+                env_cfg = generator.get_task(task_id)
+            else:
+                env_cfg = self._task_generator.get_task(task_id)
+
             task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
             task._num_completions = task_data["num_completions"]
             task._total_score = task_data["total_score"]
