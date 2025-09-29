@@ -4,6 +4,7 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
+from metta.rl.loss import ContrastiveConfig, PPOConfig
 from mettagrid.config import Config
 
 if TYPE_CHECKING:
@@ -25,16 +26,10 @@ class LossConfig(Config):
 
         # If loss_configs is empty, add default PPO config
         if not self.loss_configs:
-            # Import here to avoid circular dependency
-            from metta.rl.loss.ppo import PPOConfig
-
             self.loss_configs = {"ppo": PPOConfig()}
 
         # Add contrastive config only if enabled to avoid inconsistent behavior
         if self.enable_contrastive and "contrastive" not in self.loss_configs:
-            # Import here to avoid circular dependency
-            from metta.rl.loss.contrastive_config import ContrastiveConfig
-
             self.loss_configs["contrastive"] = ContrastiveConfig()
 
     def init_losses(

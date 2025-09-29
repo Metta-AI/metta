@@ -18,6 +18,7 @@ class ContrastiveLoss(Loss):
         "temperature",
         "contrastive_coef",
         "embedding_dim",
+        "embedding_key",
         "projection_head",
         "_projection_head_input_dim",
         "_value_projection",
@@ -38,6 +39,7 @@ class ContrastiveLoss(Loss):
         self.temperature = self.loss_cfg.temperature
         self.contrastive_coef = self.loss_cfg.contrastive_coef
         self.embedding_dim = self.loss_cfg.embedding_dim
+        self.embedding_key = getattr(self.loss_cfg, "embedding_key", None)
         self.discount = self.loss_cfg.discount
 
         # Add projection head if needed
@@ -66,6 +68,26 @@ class ContrastiveLoss(Loss):
         # Get embeddings from policy
         embeddings = self._get_embeddings(policy_td)
 
+        batch_shape = minibatch.batch_size
+        if len(batch_shape) != 2:
+            raise ValueError("Contrastive loss expects minibatch with 2D batch size (segments, horizon).")
+
+        segments, horizon = batch_shape
+
+        if embeddings.dim() == 3:
+            if embeddings.shape[0] != segments or embeddings.shape[1] != horizon:
+                raise ValueError(
+                    "Embeddings shape must align with minibatch dimensions. "
+                    f"Expected ({segments}, {horizon}, *), received {tuple(embeddings.shape)}."
+                )
+        elif embeddings.dim() == 2 and embeddings.shape[0] == segments * horizon:
+            embeddings = embeddings.reshape(segments, horizon, -1)
+        else:
+            raise ValueError(
+                "Embeddings must have shape [segments, horizon, dim] or [segments * horizon, dim], "
+                f"received {tuple(embeddings.shape)} for batch size {(segments, horizon)}."
+            )
+
         # Create and apply projection head if needed
         if self.loss_cfg.use_projection_head:
             if self.projection_head is None:
@@ -92,35 +114,33 @@ class ContrastiveLoss(Loss):
 
     def _get_embeddings(self, policy_td: TensorDict) -> Tensor:
         """Extract embeddings from policy output."""
+        if self.embedding_key is not None:
+            if self.embedding_key not in policy_td.keys(True):
+                raise KeyError(f"Contrastive loss expects '{self.embedding_key}' in policy_td")
+            return policy_td[self.embedding_key]
+
         # Try different possible embedding sources in order of preference
-        if "encoder_output" in policy_td:
-            return policy_td["encoder_output"]
-        elif "encoded_obs" in policy_td:
-            return policy_td["encoded_obs"]  # Try encoded observations
-        elif "core" in policy_td:
-            return policy_td["core"]  # Try core hidden state
-        elif "hidden_state" in policy_td:
-            return policy_td["hidden_state"]
-        elif "features" in policy_td:
-            return policy_td["features"]
-        else:
-            # Fallback: use value as embeddings but warn about suboptimal choice
-            # This should only happen if policy doesn't provide proper feature representations
-            value = policy_td["values"].squeeze(-1)  # Remove last dimension if it's 1
+        for candidate in ("encoder_output", "encoded_obs", "core", "hidden_state", "features"):
+            if candidate in policy_td.keys(True):
+                return policy_td[candidate]
 
-            if value.dim() == 1:
-                # Don't expand identical values - instead create a learnable linear projection
-                # from the 1D value to embedding_dim with proper initialization
-                if not hasattr(self, "_value_projection"):
-                    self._value_projection = torch.nn.Linear(1, self.embedding_dim).to(self.device)
-                    # Initialize with small random weights to break symmetry
-                    torch.nn.init.xavier_uniform_(self._value_projection.weight)
+        # Fallback: use value as embeddings but warn about suboptimal choice
+        # This should only happen if policy doesn't provide proper feature representations
+        value = policy_td["values"].squeeze(-1)  # Remove last dimension if it's 1
 
-                # Project 1D value to embedding_dim with learned transformation
-                value = value.unsqueeze(-1)  # [N] -> [N, 1]
-                value = self._value_projection(value)  # [N, 1] -> [N, embedding_dim]
+        if value.dim() == 1:
+            # Don't expand identical values - instead create a learnable linear projection
+            # from the 1D value to embedding_dim with proper initialization
+            if not hasattr(self, "_value_projection"):
+                self._value_projection = torch.nn.Linear(1, self.embedding_dim).to(self.device)
+                # Initialize with small random weights to break symmetry
+                torch.nn.init.xavier_uniform_(self._value_projection.weight)
 
-            return value
+            # Project 1D value to embedding_dim with learned transformation
+            value = value.unsqueeze(-1)  # [N] -> [N, 1]
+            value = self._value_projection(value)  # [N, 1] -> [N, embedding_dim]
+
+        return value
 
     def _compute_contrastive_loss(self, embeddings: Tensor, minibatch: TensorDict) -> tuple[Tensor, dict]:
         """Compute InfoNCE contrastive loss with geometric future positives and shuffled negatives."""
@@ -130,13 +150,6 @@ class ContrastiveLoss(Loss):
             raise ValueError("Contrastive loss expects minibatch with 2D batch size (segments, horizon).")
 
         segments, horizon = batch_shape
-
-        if embeddings.dim() == 2 and embeddings.shape[0] == segments * horizon:
-            embeddings = embeddings.view(segments, horizon, -1)
-        elif embeddings.dim() == 3 and embeddings.shape[0] == segments and embeddings.shape[1] == horizon:
-            pass
-        else:
-            embeddings = embeddings.view(segments, horizon, -1)
 
         embedding_dim = embeddings.shape[-1]
         if embedding_dim == 0:
