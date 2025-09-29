@@ -1,9 +1,9 @@
 # This example shows a draggable panel UI like in a large editor like VS Code or Blender.
 
 import
-  std/sequtils,
+  std/[random, sequtils],
   fidget2, bumpy, chroma, windy, boxy, fidget2/hybridrender,
-  common, utils
+  common
 
 const
   AreaHeaderHeight = 28
@@ -16,6 +16,12 @@ var
   rootArea*: Area
   dropHighlight: Node
   dragArea: Area
+
+proc nodeTopLeft(node: Node): Vec2 =
+  ## Return the global top-left position of a node.
+  if node.pixelBox.w != 0 or node.pixelBox.h != 0:
+    return node.pixelBox.xy
+  node.position
 
 proc updateMouse*(panel: Panel) =
   let box = Rect(

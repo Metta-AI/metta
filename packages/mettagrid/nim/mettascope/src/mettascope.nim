@@ -3,6 +3,12 @@ import std/[os, strutils, parseopt, json],
   mettascope/[replays, common, panels, utils, timeline,
   worldmap, minimap, agenttraces, footer]
 
+proc nodeTopLeft(node: Node): Vec2 =
+  ## Return the global top-left position of a node.
+  if node.pixelBox.w != 0 or node.pixelBox.h != 0:
+    return node.pixelBox.xy
+  node.position
+
 var replay = ""
 
 proc updateReplayHeader(replayPath: string) =
