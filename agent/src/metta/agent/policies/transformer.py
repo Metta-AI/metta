@@ -165,7 +165,7 @@ class TransformerPolicy(Policy):
         self._build_heads()
         self._build_transformer()
 
-        self._memory: Dict[int, Optional[torch.Tensor]] = {}
+        self._memory_tensor: torch.Tensor | None = None
         self._aux_zero_cache: dict[tuple[torch.device, torch.dtype, tuple[int, ...]], torch.Tensor] = {}
 
         self._diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
@@ -381,6 +381,30 @@ class TransformerPolicy(Policy):
             prev_tokens = torch.cat([pad, prev_tokens], dim=0)
         return prev_tokens.permute(1, 0, 2).contiguous()
 
+    def _ensure_memory_capacity(self, capacity: int, device: torch.device, dtype: torch.dtype) -> None:
+        if capacity <= 0:
+            return
+        if self._memory_tensor is None:
+            self._memory_tensor = torch.zeros(
+                capacity,
+                self.memory_len,
+                self.hidden_size,
+                device=device,
+                dtype=dtype,
+            )
+            return
+        if self._memory_tensor.device != device or self._memory_tensor.dtype != dtype:
+            self._memory_tensor = self._memory_tensor.to(device=device, dtype=dtype)
+        if self._memory_tensor.size(0) < capacity:
+            pad = torch.zeros(
+                capacity - self._memory_tensor.size(0),
+                self.memory_len,
+                self.hidden_size,
+                device=device,
+                dtype=dtype,
+            )
+            self._memory_tensor = torch.cat([self._memory_tensor, pad], dim=0)
+
     def _unpack_memory(
         self, packed: torch.Tensor, device: torch.device, dtype: torch.dtype
     ) -> Optional[Dict[str, torch.Tensor]]:
@@ -402,28 +426,17 @@ class TransformerPolicy(Policy):
         if not env_ids or self.memory_len <= 0:
             return {"prev_tokens": None}
 
-        memories: List[Optional[torch.Tensor]] = []
-        max_len = 0
-        for env_id in env_ids:
-            env_memory = self._memory.get(env_id)
-            if env_memory is None or env_memory.numel() == 0:
-                memories.append(None)
-                continue
-            tensor = env_memory.to(device=device, dtype=dtype)
-            max_len = max(max_len, tensor.size(0))
-            memories.append(tensor)
+        max_env_id = max(env_ids) + 1
+        self._ensure_memory_capacity(max_env_id, device, dtype)
+        assert self._memory_tensor is not None  # for type checkers
 
-        if max_len == 0:
+        index = torch.tensor(env_ids, dtype=torch.long, device=self._memory_tensor.device)
+        memory_slice = self._memory_tensor.index_select(0, index)
+        if memory_slice.numel() == 0:
             return {"prev_tokens": None}
 
-        batched = torch.zeros(max_len, batch_size, self.hidden_size, device=device, dtype=dtype)
-        for idx, tensor in enumerate(memories):
-            if tensor is None or tensor.numel() == 0:
-                continue
-            length = min(tensor.size(0), max_len)
-            batched[-length:, idx, :] = tensor[-length:]
-
-        return {"prev_tokens": batched}
+        batched = memory_slice.permute(1, 0, 2).contiguous()
+        return {"prev_tokens": batched.to(device=device, dtype=dtype)}
 
     def _extract_env_id_list(self, td: TensorDict, batch_size: int) -> List[int]:
         training_env_ids = td.get("training_env_ids", None)
@@ -519,10 +532,7 @@ class TransformerPolicy(Policy):
             if self.memory_len > 0:
                 packed_memory = self._pack_memory(memory_batch)
                 if packed_memory is not None:
-                    td.set(
-                        "transformer_memory_pre",
-                        packed_memory.detach().to(dtype=torch.float16, device=torch.device("cpu")),
-                    )
+                    td.set("transformer_memory_pre", packed_memory.detach())
             core_out, new_memory = self.transformer_module(latent_seq, memory_batch)
         elif use_memory and tt > 1:
             packed_memory = td.get("transformer_memory_pre", None)
@@ -551,29 +561,44 @@ class TransformerPolicy(Policy):
                     norm = float(prev_tokens.float().norm().item()) if prev_tokens.numel() > 0 else 0.0
                     logger.info("[TRANSFORMER_DIAG] memory_norm=%s", norm)
 
-        if use_memory and tt == 1 and env_ids:
-            updated_memory = self._detach_memory(new_memory)
-            if updated_memory is not None:
-                dones = td.get("dones", None)
-                truncateds = td.get("truncateds", None)
-                reset_mask = self._compute_reset_mask(dones, truncateds, batch_size)
-                prev_tokens = updated_memory.get("prev_tokens") if isinstance(updated_memory, dict) else None
-                for batch_idx, env_id in enumerate(env_ids):
-                    if reset_mask is not None and reset_mask[batch_idx]:
-                        self._memory.pop(env_id, None)
-                        continue
-                    if prev_tokens is None or prev_tokens.numel() == 0:
-                        self._memory.pop(env_id, None)
-                        continue
-                    column = prev_tokens[:, batch_idx : batch_idx + 1].squeeze(1)
-                    self._memory[env_id] = column.to(device=torch.device("cpu"), dtype=torch.float16)
+        if use_memory and env_ids:
+            dones = td.get("dones", None)
+            truncateds = td.get("truncateds", None)
+            reset_mask = self._compute_reset_mask(dones, truncateds, batch_size)
+
+            if tt == 1:
+                updated_memory = self._detach_memory(new_memory)
+                prev_tokens = None
+                if updated_memory is not None and isinstance(updated_memory, dict):
+                    prev_tokens = updated_memory.get("prev_tokens")
+
+                if prev_tokens is not None and prev_tokens.numel() > 0:
+                    env_tensor = prev_tokens.permute(1, 0, 2).contiguous()
+                    self._ensure_memory_capacity(max(env_ids) + 1, device, env_tensor.dtype)
+                    assert self._memory_tensor is not None
+                    index = torch.tensor(env_ids, dtype=torch.long, device=self._memory_tensor.device)
+                    self._memory_tensor.index_copy_(
+                        0, index, env_tensor.to(device=self._memory_tensor.device, dtype=self._memory_tensor.dtype)
+                    )
+
+                if (
+                    reset_mask is not None
+                    and reset_mask.any()
+                    and self._memory_tensor is not None
+                ):
+                    reset_indices = [env_ids[i] for i, flag in enumerate(reset_mask.cpu().tolist()) if flag]
+                    if reset_indices:
+                        index = torch.tensor(reset_indices, dtype=torch.long, device=self._memory_tensor.device)
+                        self._memory_tensor.index_fill_(0, index, 0.0)
+
                 if self._diag_enabled and self._diag_counter < self._diag_limit:
                     logger.info("[TRANSFORMER_DIAG] memory cached for envs %s", env_ids)
-        elif use_memory and tt > 1 and env_ids:
-            for env_id in env_ids:
-                self._memory.pop(env_id, None)
-            if self._diag_enabled and self._diag_counter < self._diag_limit:
-                logger.info("[TRANSFORMER_DIAG] cleared cached memory for envs %s (tt=%s)", env_ids, tt)
+            else:
+                if self._memory_tensor is not None:
+                    index = torch.tensor(env_ids, dtype=torch.long, device=self._memory_tensor.device)
+                    self._memory_tensor.index_fill_(0, index, 0.0)
+                if self._diag_enabled and self._diag_counter < self._diag_limit:
+                    logger.info("[TRANSFORMER_DIAG] cleared cached memory for envs %s (tt=%s)", env_ids, tt)
 
         return core_flat
 
@@ -739,7 +764,7 @@ class TransformerPolicy(Policy):
     def clear_memory(self) -> None:
         """Explicitly clear cached transformer memory."""
 
-        self._memory.clear()
+        self._memory_tensor = None
 
     @property
     def device(self) -> torch.device:
