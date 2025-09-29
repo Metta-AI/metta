@@ -1,10 +1,9 @@
 import logging
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
-from einops import rearrange
 
 import pufferlib.pytorch
 from cogames.policy import TrainablePolicy
@@ -17,10 +16,10 @@ class StatefulPolicyNet(torch.nn.Module):
     def __init__(self, env):
         super().__init__()
         self.hidden_size = 128
+        obs_size = int(np.prod(env.single_observation_space.shape))
+        self._obs_shape = tuple(env.single_observation_space.shape)
         self.net = torch.nn.Sequential(
-            pufferlib.pytorch.layer_init(
-                torch.nn.Linear(np.prod(env.single_observation_space.shape), self.hidden_size)
-            ),
+            pufferlib.pytorch.layer_init(torch.nn.Linear(obs_size, self.hidden_size)),
             torch.nn.ReLU(),
             pufferlib.pytorch.layer_init(torch.nn.Linear(self.hidden_size, self.hidden_size)),
         )
@@ -32,30 +31,81 @@ class StatefulPolicyNet(torch.nn.Module):
         self.action_head = torch.nn.Linear(self.hidden_size, sum(self.action_nvec))
         self.value_head = torch.nn.Linear(self.hidden_size, 1)
 
+    def initial_state(self, batch: int, device: torch.device) -> Dict[str, torch.Tensor]:
+        zeros = torch.zeros(batch, self.hidden_size, device=device)
+        return {"lstm_h": zeros, "lstm_c": zeros}
+
+    def _flatten_observations(self, observations: torch.Tensor) -> Tuple[torch.Tensor, int, int]:
+        obs = observations.float() / 255.0
+        obs_dims = len(self._obs_shape)
+        if obs.dim() == obs_dims + 1:
+            batch = obs.shape[0]
+            time = 1
+            flat = obs.view(batch, -1)
+            return flat, batch, time
+        if obs.dim() == obs_dims + 2:
+            batch, time = obs.shape[:2]
+            flat = obs.view(batch * time, -1)
+            return flat, batch, time
+        msg = f"Unsupported observation shape: {tuple(obs.shape)}"
+        raise ValueError(msg)
+
+    def _run_network(
+        self,
+        observations: torch.Tensor,
+        state: Optional[Dict[str, torch.Tensor]],
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        flat, batch, time = self._flatten_observations(observations)
+        hidden = self.net(flat)
+        hidden_seq = hidden.view(batch, time, self.hidden_size)
+
+        lstm_state = None
+        if state is not None:
+            h = state.get("lstm_h")
+            c = state.get("lstm_c")
+            if h is not None and c is not None:
+                lstm_state = (h.unsqueeze(0), c.unsqueeze(0))
+
+        output, lstm_out = self.rnn(hidden_seq, lstm_state)
+        h_out, c_out = lstm_out
+        if state is not None:
+            state["lstm_h"] = h_out.squeeze(0).detach()
+            state["lstm_c"] = c_out.squeeze(0).detach()
+
+        output_flat = output.reshape(batch * time, self.hidden_size)
+        logits = self.action_head(output_flat).split(self.action_nvec, dim=1)
+        values = self.value_head(output_flat).squeeze(-1)
+
+        if time > 1:
+            values = values.view(batch, time)
+        else:
+            values = values.view(batch)
+
+        return logits, values
+
     def forward_eval(
         self,
         observations: torch.Tensor,
-        state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        batch_size = observations.shape[0]
-        observations = observations.view(batch_size, -1).float() / 255.0
-        hidden = self.net(observations)
-        hidden = rearrange(hidden, "(b t) h -> b t h", t=1)
-        hidden, new_state = self.rnn(hidden, state)
-        hidden = rearrange(hidden, "b t h -> (b t) h")
-        logits = self.action_head(hidden)
-        logits = logits.split(self.action_nvec, dim=1)
-
-        values = self.value_head(hidden)
-        return logits, values, new_state
+        state: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        if state is None:
+            device = observations.device
+            state = self.initial_state(observations.shape[0], device)
+        logits, values = self._run_network(observations, state)
+        return logits, values
 
     # We use this to work around a major torch perf issue
     def forward(
         self,
         observations: torch.Tensor,
-        state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-    ) -> Tuple[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        return self.forward_eval(observations, state)
+        state: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        if state is None:
+            device = observations.device
+            batch = observations.shape[0]
+            state = self.initial_state(batch, device)
+        logits, values = self._run_network(observations, state)
+        return logits, values
 
 
 class StatefulPolicy(TrainablePolicy):
@@ -64,7 +114,7 @@ class StatefulPolicy(TrainablePolicy):
         self._net = StatefulPolicyNet(env).to(device)
         self._device = device
         self.action_nvec = tuple(env.single_action_space.nvec)
-        self._state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+        self._state: Optional[Dict[str, torch.Tensor]] = None
 
     def network(self) -> nn.Module:
         return self._net
@@ -81,15 +131,13 @@ class StatefulPolicy(TrainablePolicy):
         """
         # Convert single observation to batch of 1 for network forward pass
         obs_tensor = torch.tensor(agent_obs, device=self._device).unsqueeze(0).float()
+        if self._state is None:
+            self._state = self._net.initial_state(batch=1, device=self._device)
 
         with torch.no_grad():
             self._net.eval()
-            logits, _, new_state = self._net.forward_eval(obs_tensor, self._state)
-            if new_state is not None:
-                h, c = new_state
-                self._state = (h.detach(), c.detach())
+            logits, _ = self._net.forward_eval(obs_tensor, self._state)
 
-            # Sample action from the logits
             actions = []
             for logit in logits:
                 dist = torch.distributions.Categorical(logits=logit)

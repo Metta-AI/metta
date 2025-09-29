@@ -149,6 +149,11 @@ def train(
     while trainer.global_step < num_steps:
         trainer.evaluate()
         trainer.train()
+        if trainer.rewards.numel() > 0:
+            rewards = trainer.rewards.detach()
+            trainer.stats["reward_mean"] = float(rewards.mean().item())
+            trainer.stats["reward_std"] = float(rewards.std(unbiased=False).item())
+            trainer.stats["reward_sum"] = float(rewards.sum().item())
 
     trainer.print_dashboard()
     trainer.close()
