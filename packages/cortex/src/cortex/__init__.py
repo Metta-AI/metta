@@ -6,12 +6,13 @@ from cortex.blocks import (
     build_block,
     register_block,
 )
-from cortex.cells import LSTMCell, MemoryCell, build_cell, register_cell
+from cortex.cells import LSTMCell, mLSTMCell, MemoryCell, build_cell, register_cell
 from cortex.config import (
     BlockConfig,
     CellConfig,
     CortexStackConfig,
     LSTMCellConfig,
+    mLSTMCellConfig,
     PassThroughBlockConfig,
     PostUpBlockConfig,
     PreUpBlockConfig,
@@ -29,11 +30,13 @@ __all__ = [
     "CortexStackConfig",
     "CellConfig",
     "LSTMCellConfig",
+    "mLSTMCellConfig",
     # Main classes
     "CortexStack",
     # Cells
     "MemoryCell",
     "LSTMCell",
+    "mLSTMCell",
     "register_cell",
     "build_cell",
     # Blocks

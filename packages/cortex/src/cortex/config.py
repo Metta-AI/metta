@@ -31,6 +31,36 @@ class LSTMCellConfig(CellConfig):
     proj_size: int = Field(default=0, ge=0)
 
 
+class CausalConv1dConfig(CellConfig):
+    """Config for a Causal 1D Convolution cell.
+
+    This cell performs causal convolution with optional channel mixing.
+    """
+
+    kernel_size: int = Field(default=4, ge=0)
+    causal_conv_bias: bool = Field(default=True)
+    channel_mixing: bool = Field(default=False)
+
+    @property
+    def feature_dim(self) -> int:
+        """Alias for hidden_size for compatibility."""
+        return self.hidden_size
+
+
+class mLSTMCellConfig(CellConfig):
+    """Config for a stateful mLSTM (Matrix LSTM) cell.
+
+    The mLSTM cell uses matrix-valued state with input/forget gates
+    and supports both parallel and recurrent computation modes.
+    """
+
+    hidden_size: int = Field(ge=1)
+    num_heads: int = Field(default=4, ge=1)
+    chunk_size: int = Field(default=256, ge=1)
+    # Always apply conv-in inside the cell (depthwise causal conv)
+    conv1d_kernel_size: int = Field(default=4, ge=1)
+
+
 class BlockConfig(BaseModel):
     """Base configuration for a cortex block.
 
@@ -95,7 +125,9 @@ class CortexStackConfig(BaseModel):
 
 __all__ = [
     "CellConfig",
+    "CausalConv1dConfig",
     "LSTMCellConfig",
+    "mLSTMCellConfig",
     "BlockConfig",
     "PassThroughBlockConfig",
     "PreUpBlockConfig",
