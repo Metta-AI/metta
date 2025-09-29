@@ -156,38 +156,21 @@ def _run_mettascope_build() -> None:
     nimble_dir_path.mkdir(parents=True, exist_ok=True)
     (METTASCOPE_DIR / "bindings" / "generated").mkdir(parents=True, exist_ok=True)
 
-    def run_nimble(cmd: list[str]) -> None:
-        result = subprocess.run(
-            cmd,
-            cwd=METTASCOPE_DIR,
-            capture_output=True,
-            text=True,
-            check=False,
-            env=env,
-        )
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr, file=sys.stderr)
-        if result.returncode != 0:
-            raise RuntimeError(f"Command {' '.join(cmd)} failed with exit code {result.returncode}")
-
-    run_nimble(["nimble", "install", "-y"])
-    run_nimble(
-        [
-            "nimble",
-            "c",
-            "-y",
-            "-d:release",
-            "--app:lib",
-            "--gc:arc",
-            "-d:fidgetUseCached=true",
-            "--tlsEmulation:off",
-            "--out:libmettascope2.dylib",
-            "--outdir:bindings/generated",
-            "bindings/bindings.nim",
-        ]
+    cmd = ["nimble", "bindings", "-y"]
+    result = subprocess.run(
+        cmd,
+        cwd=METTASCOPE_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
     )
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
+    if result.returncode != 0:
+        raise RuntimeError(f"Command {' '.join(cmd)} failed with exit code {result.returncode}")
 
     print("Successfully built mettascope")
 
