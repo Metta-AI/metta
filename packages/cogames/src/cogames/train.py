@@ -64,14 +64,21 @@ def train(
     num_workers: int,
     use_rnn: bool,
     checkpoint_interval: int,
+    vector_backend: str,
 ):
     checkpoints_path.mkdir(parents=True, exist_ok=True)
     cfg_iterator = EnvConfigIterator(env_cfgs)
 
-    backend = pufferlib.vector.Multiprocessing
-    if platform.system() == "Darwin":
+    backend_options = {
+        "multiprocessing": pufferlib.vector.Multiprocessing,
+        "serial": pufferlib.vector.Serial,
+        "ray": getattr(pufferlib.vector, "Ray", pufferlib.vector.Multiprocessing),
+    }
+
+    backend = backend_options[vector_backend]
+
+    if platform.system() == "Darwin" and backend is pufferlib.vector.Multiprocessing:
         multiprocessing.set_start_method("spawn", force=True)
-        # TODO(jsuarez): Fix multiprocessing backend
         backend = pufferlib.vector.Serial
 
     vecenv = pufferlib.vector.make(

@@ -4,7 +4,7 @@ import contextlib
 import logging
 import sys
 from pathlib import Path
-from typing import Annotated, Any, Iterable, Optional, Sequence
+from typing import Annotated, Any, Iterable, Literal, Optional, Sequence
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -262,9 +262,18 @@ def train_cmd(
         int,
         typer.Option("--checkpoint-interval", help="Steps between automatic checkpoints"),
     ] = 200,
+    vector_backend: Annotated[
+        Literal["multiprocessing", "serial", "ray"],
+        typer.Option(
+            "--vector-backend",
+            help="Vector environment backend to use",
+            case_sensitive=False,
+        ),
+    ] = "multiprocessing",
 ) -> None:
     """Train a policy on a game."""
     with _command_timeout(ctx):
+        backend = vector_backend.lower()
         if game_name is None and curriculum is None:
             raise typer.BadParameter("provide a game or curriculum", param_name="game_name")
 
@@ -302,6 +311,9 @@ def train_cmd(
                 param_name="num_envs",
             )
 
+        if backend == "ray" and not hasattr(train.pufferlib.vector, "Ray"):
+            raise typer.BadParameter("Ray backend is not available", param_name="vector_backend")
+
         train.train(
             env_cfgs=env_cfgs,
             policy_class_path=policy_class_path,
@@ -316,6 +328,7 @@ def train_cmd(
             num_workers=num_workers,
             use_rnn=use_rnn,
             checkpoint_interval=checkpoint_interval,
+            vector_backend=backend,
         )
 
         console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")

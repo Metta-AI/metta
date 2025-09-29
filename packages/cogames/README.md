@@ -61,32 +61,43 @@ cogames play machina_2 --no-render --steps 500
 
 ### Training a Policy
 
-CoGames integrates with standard RL training frameworks. Currently supports:
+`cogames train` launches PuffeRL with a CoGames environment. Important flags:
 
-- PPO (Proximal Policy Optimization)
-- A2C (Advantage Actor-Critic)
-- DQN (Deep Q-Networks)
+- `--policy` selects the policy class (defaults to `SimplePolicy`).
+- `--use-rnn` enables recurrent policies such as `StatefulPolicy`.
+- `--curriculum module.symbol` loads a Python iterable or generator that yields `MettaGridConfig` instances for curricula.
+- `--vector-backend {multiprocessing,serial,ray}` chooses the vector environment implementation. Use `serial` for lightweight local runs or `ray` for distributed sampling when Ray is installed.
+- `--num-envs`, `--num-workers`, `--batch-size`, and `--minibatch-size` tune rollout throughput. When omitted, the batch size defaults to `num_envs * 32`.
+- `--initial-weights` accepts either a specific checkpoint file or a directory; directories automatically load the newest `.pt/.pth/.ckpt` file.
+- `--checkpoint-interval` controls how frequently PuffeRL writes checkpoints into `--checkpoints`.
+
+Examples:
 
 ```bash
-# Train a PPO agent on a single-agent scenario
-cogames train assembler_1_simple --algorithm ppo --steps 50000 --save ./my_policy.ckpt
+# Minimal CPU PPO run that saves checkpoints into ./runs/basic
+cogames train assembler_1_simple \
+  --device cpu \
+  --steps 2000 \
+  --num-envs 2 \
+  --num-workers 1 \
+  --batch-size 128 \
+  --minibatch-size 128 \
+  --checkpoints ./runs/basic
 
-# Train with Weights & Biases logging
-cogames train assembler_2_complex --algorithm ppo --steps 100000 --wandb my-project
+# Stateful policy with a curriculum and the serial backend
+cogames train --curriculum myproject.curricula.cogs_vs_clips \
+  --policy cogames.examples.stateful_policy.StatefulPolicy \
+  --use-rnn \
+  --vector-backend serial \
+  --steps 5000 \
+  --checkpoints ./runs/curriculum
 ```
+
+Every CLI command also accepts a global `--timeout` flag. Set it to automatically abort long-running invocations (useful in CI or quick smoke tests).
 
 ### Evaluating Policies
 
-```bash
-# Evaluate a trained policy
-cogames evaluate assembler_1_simple ./my_policy.ckpt --episodes 100
-
-# Evaluate with video recording
-cogames evaluate assembler_2_complex ./my_policy.ckpt --episodes 10 --render --video ./evaluation.mp4
-
-# Baseline comparison with random policy
-cogames evaluate assembler_1_simple random --episodes 100
-```
+> **Note:** Evaluation support is still under construction. The `cogames evaluate` command currently prints a placeholder message.
 
 ### Implementing Custom Policies
 
