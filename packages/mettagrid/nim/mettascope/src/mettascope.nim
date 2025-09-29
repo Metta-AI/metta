@@ -45,7 +45,7 @@ proc parseArgs() =
 find "/UI/Main":
 
   onLoad:
-    echo "onLoad 2"
+    echo "onLoad"
 
     # We need to build the atlas before loading the replay.
     buildAtlas()
