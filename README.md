@@ -400,6 +400,7 @@ pytest
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
 | Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
+| Train (custom policy)       | `uv run ./tools/run.py experiments.recipes.arena.train run=my-exp policy_architecture.class_path=<POLICY PATH>` |
 | Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
 | Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
 | Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
