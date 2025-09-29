@@ -1,5 +1,4 @@
 import math
-from types import SimpleNamespace
 from typing import Dict, List, Tuple
 
 import torch
@@ -578,10 +577,12 @@ class HRMPolicyInner(nn.Module):
         # Simplified HRM Core instead of complex backbone
         self.core = nn.Sequential(
             nn.Linear(hidden_size, hidden_size * 2),
+            nn.LayerNorm(hidden_size * 2),
             nn.ReLU(),
             nn.Linear(hidden_size * 2, hidden_size),
+            nn.LayerNorm(hidden_size),
             nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size)
+            nn.Linear(hidden_size, hidden_size),
         )
 
         # Critic branch - reduced sizes
@@ -635,42 +636,101 @@ class HRMPolicyInner(nn.Module):
 
     def encode_observations(self, observations, td=None, memory_manager=None):
         """
-        Encode observations using simplified HRM core.
+        Encode observations using proper tokenization like ViT.
 
         Args:
-            observations: Input observation tensor, shape (B, TT, M, 3) or (B, M, 3)
+            observations: Input observation tensor, shape (B, M, 3) where 3 = [coord_byte, attr_idx, attr_val]
             td: TensorDict containing environment metadata
             memory_manager: Object with get_memory/set_memory methods (usually the HRM instance)
 
         Returns:
-            hidden: Encoded representation, shape (B * TT, hidden_size)
+            hidden: Encoded representation, shape (B, hidden_size)
         """
 
         if len(observations.shape) == 4:
-            observations = observations.reshape(-1, 200, 3)
+            observations = observations.reshape(-1, observations.shape[-2], 3)
 
-        # Simple observation encoding
-        obs_flat = observations.float()  # Ensure float32
-        batch_size, seq_len, features = obs_flat.shape
-        obs_reshaped = obs_flat.view(batch_size, seq_len * features)
+        # Proper observation tokenization following ViT approach
+        # observations shape: [B, M, 3] where 3 = [coord_byte, attr_idx, attr_val]
 
-        # Project to hidden size
-        if not hasattr(self, '_obs_encoder'):
-            self._obs_encoder = nn.Linear(seq_len * features, self.hidden_size).to(
+        # Create token embeddings similar to ObsAttrEmbedFourier
+        if not hasattr(self, "_attr_embeds"):
+            self._attr_embeds = nn.Embedding(256, self.hidden_size // 4, padding_idx=255).to(
                 device=observations.device, dtype=torch.float32
             )
-            nn.init.xavier_uniform_(self._obs_encoder.weight)
-            nn.init.zeros_(self._obs_encoder.bias)
+            nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
-        encoded = self._obs_encoder(obs_reshaped)
+            # Fourier frequencies for coordinate encoding
+            num_freqs = 3
+            self.register_buffer("frequencies", 2.0 ** torch.arange(num_freqs))
+
+        # Extract components
+        coords_byte = observations[..., 0].to(torch.uint8)
+        attr_indices = observations[..., 1].long()
+        attr_values = observations[..., 2].float()
+
+        # Mask out padding tokens (coord_byte == 255 means padding)
+        valid_mask = coords_byte != 255
+
+        # Attribute embeddings
+        attr_embeds = self._attr_embeds(attr_indices)  # [B, M, hidden_size//4]
+
+        # Coordinate Fourier features (similar to ObsAttrEmbedFourier)
+        x_coord = ((coords_byte >> 4) & 0x0F).float()
+        y_coord = (coords_byte & 0x0F).float()
+
+        # Normalize coordinates to [-1, 1]
+        x_norm = (x_coord / 10.0) * 2.0 - 1.0
+        y_norm = (y_coord / 10.0) * 2.0 - 1.0
+
+        # Compute Fourier features
+        frequencies = self.frequencies.to(device=x_norm.device)
+        x_scaled = x_norm.unsqueeze(-1) * frequencies
+        y_scaled = y_norm.unsqueeze(-1) * frequencies
+
+        coord_features = torch.cat(
+            [torch.cos(x_scaled), torch.sin(x_scaled), torch.cos(y_scaled), torch.sin(y_scaled)], dim=-1
+        )  # [B, M, 4 * num_freqs]
+
+        # Combine features
+        attr_values_expanded = attr_values.unsqueeze(-1)
+
+        # Concatenate all features and project to hidden_size
+        combined_features = torch.cat(
+            [
+                attr_embeds,  # [B, M, hidden_size//4]
+                coord_features,  # [B, M, 12]
+                attr_values_expanded,  # [B, M, 1]
+            ],
+            dim=-1,
+        )
+
+        # Project to hidden size
+        if not hasattr(self, "_feature_proj"):
+            input_dim = combined_features.shape[-1]
+            self._feature_proj = nn.Linear(input_dim, self.hidden_size).to(
+                device=observations.device, dtype=torch.float32
+            )
+            nn.init.xavier_uniform_(self._feature_proj.weight)
+            nn.init.zeros_(self._feature_proj.bias)
+
+        # Apply feature projection
+        token_features = self._feature_proj(combined_features)  # [B, M, hidden_size]
+
+        # Mask out invalid tokens
+        token_features = token_features * valid_mask.unsqueeze(-1).float()
+
+        # Pool tokens to get sequence representation (mean pooling of valid tokens)
+        valid_count = valid_mask.sum(dim=-1, keepdim=True).float().clamp(min=1)
+        pooled_features = token_features.sum(dim=1) / valid_count  # [B, hidden_size]
 
         # Apply simplified HRM core
-        hidden = self.core(encoded)
+        hidden = self.core(pooled_features)
 
         return hidden
 
     def decode_actions(self, hidden):
-        """Decode actions using simple linear projection."""
+        """Decode actions using proper query/key mechanism like ViT."""
         # Ensure hidden is float32 to prevent numerical issues
         hidden = hidden.float()
 
@@ -678,22 +738,40 @@ class HRMPolicyInner(nn.Module):
         critic_features = torch.tanh(self.critic_1(hidden))
         value = self.value_head(critic_features)
 
-        # Actor branch - simplified approach
+        # Actor branch - query/key mechanism
         actor_features = F.relu(self.actor_1(hidden))
 
-        # Simple linear projection to action logits
-        # Use a direct linear layer instead of complex bilinear operations
-        if not hasattr(self, 'action_head'):
-            self.action_head = nn.Linear(actor_features.shape[1], self.num_active_actions)
-            nn.init.xavier_uniform_(self.action_head.weight)
-            nn.init.zeros_(self.action_head.bias)
-            # Move to same device as actor_features
-            self.action_head = self.action_head.to(device=actor_features.device, dtype=actor_features.dtype)
+        # Create query from actor features (similar to ActorQueryConfig)
+        if not hasattr(self, "actor_query_proj"):
+            embed_dim = 16  # Standard embedding dimension
+            self.actor_query_proj = nn.Linear(actor_features.shape[1], embed_dim).to(
+                device=actor_features.device, dtype=actor_features.dtype
+            )
+            nn.init.xavier_uniform_(self.actor_query_proj.weight)
+            nn.init.zeros_(self.actor_query_proj.bias)
 
-        logits = self.action_head(actor_features)
+        actor_query = self.actor_query_proj(actor_features)  # [B, embed_dim]
+
+        # Action embeddings (keys) - similar to ActionEmbeddingConfig
+        if not hasattr(self, "_action_embeds"):
+            embed_dim = actor_query.shape[1]
+            self._action_embeds = nn.Embedding(self.num_active_actions, embed_dim).to(
+                device=actor_features.device, dtype=actor_features.dtype
+            )
+            # Use Xavier initialization instead of orthogonal for MPS compatibility
+            nn.init.xavier_uniform_(self._action_embeds.weight)
+            # Scale down like in the original action embeddings
+            with torch.no_grad():
+                self._action_embeds.weight.mul_(0.1)
+
+        # Get action embeddings for active actions
+        action_keys = self._action_embeds.weight[: self.num_active_actions]  # [num_actions, embed_dim]
+
+        # Compute logits using query-key interaction (similar to ActorKeyConfig)
+        # logits = query @ keys.T
+        logits = torch.matmul(actor_query, action_keys.t())  # [B, num_actions]
 
         # Ensure no NaNs or infinities
         logits = torch.clamp(logits, min=-10.0, max=10.0)
 
         return logits, value
-
