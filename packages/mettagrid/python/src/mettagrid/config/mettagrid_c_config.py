@@ -324,8 +324,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id,
                 type_name=object_type,
                 resource_type=resource_type_id,
-                deposit_positions=set(expand_position_patterns(object_config.deposit_positions)),
-                withdrawal_positions=set(expand_position_patterns(object_config.withdrawal_positions)),
+                deposit_positions=set(FIXED_POSITIONS.index(pos) for pos in object_config.deposit_positions),
+                withdrawal_positions=set(FIXED_POSITIONS.index(pos) for pos in object_config.withdrawal_positions),
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config
