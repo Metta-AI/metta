@@ -808,7 +808,7 @@ class TransformerPolicy(Policy):
         }
         if self.memory_len > 0:
             spec["transformer_memory_pre"] = UnboundedContinuous(
-                shape=torch.Size([self.memory_len, self.hidden_size]),
+                shape=torch.Size([self.transformer_layers, self.memory_len, self.hidden_size]),
                 dtype=torch.float32,
             )
         return Composite(**spec)
