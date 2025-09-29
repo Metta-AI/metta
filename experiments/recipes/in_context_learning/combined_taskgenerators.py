@@ -22,12 +22,16 @@ from experiments.recipes.in_context_learning.assembly_lines import (
 from experiments.recipes.in_context_learning.foraging import (
     make_task_generator_cfg as make_foraging_cfg,
 )
+from metta.rl.loss import LossConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 
 
 def make_combined_curriculum_config(
     assembly_style: str = "multi_agent_easy",
     foraging_style: str = "multi_agent_multi_altars",
-    num_active_tasks: int = 32,
+    num_active_tasks: int = 64,
     min_generator_proportion: float = 0.1,
     map_dir: Optional[str] = None,
 ) -> CurriculumConfig:
@@ -116,6 +120,9 @@ def make_combined_curriculum_config(
             num_active_tasks=num_active_tasks,
             rand_task_rate=0.1,
             exploration_bonus=0.1,
+            max_memory_tasks=min(1000, num_active_tasks * 2),  # Limit memory usage
+            enable_detailed_slice_logging=False,  # Reduce logging
+            ema_timescale=0.001,  # Standard EMA timescale
         ),
     )
 
@@ -125,7 +132,7 @@ def make_combined_curriculum_config(
 def train(
     assembly_style: str = "multi_agent_easy",
     foraging_style: str = "multi_agent_multi_altars",
-    num_active_tasks: int = 32,
+    num_active_tasks: int = 64,
     min_generator_proportion: float = 0.1,
 ) -> TrainTool:
     """Train using combined assembly line and foraging task generators.
@@ -140,7 +147,7 @@ def train(
         TrainTool configured for combined curriculum training
     """
 
-    # Create combined curriculum
+    # Create combined curriculum config
     curriculum_config = make_combined_curriculum_config(
         assembly_style=assembly_style,
         foraging_style=foraging_style,
@@ -164,12 +171,61 @@ def train(
 
         return assembly_evals + foraging_evals
 
-    # Use the train_icl function but pass curriculum config directly
+    # Create TrainTool similar to train_icl but with our multi-generator curriculum
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+    policy_config = FastLSTMResetConfig()
+
     return TrainTool(
-        curriculum=curriculum_config,
-        eval_suite_factory=make_combined_eval_suite,
-        name=f"combined_taskgens_{assembly_style}_{foraging_style}",
-        suite="in_context_learning",
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum_config),
+        policy_architecture=policy_config,
+        evaluator=EvaluatorConfig(
+            simulations=make_combined_eval_suite(),
+            evaluate_remote=True,
+            evaluate_local=False,
+        ),
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
+
+
+def train_small(
+    assembly_style: str = "single_agent_easy",
+    foraging_style: str = "single_agent_easy",
+) -> TrainTool:
+    """Train with a small, fast configuration for testing."""
+    return train(
+        assembly_style=assembly_style,
+        foraging_style=foraging_style,
+        num_active_tasks=16,
+        min_generator_proportion=0.2,
+    )
+
+
+def train_medium(
+    assembly_style: str = "multi_agent_easy",
+    foraging_style: str = "multi_agent_multi_altars",
+) -> TrainTool:
+    """Train with a medium configuration for development."""
+    return train(
+        assembly_style=assembly_style,
+        foraging_style=foraging_style,
+        num_active_tasks=64,
+        min_generator_proportion=0.15,
+    )
+
+
+def train_large(
+    assembly_style: str = "multi_agent_hard",
+    foraging_style: str = "multi_agent_with_generators",
+) -> TrainTool:
+    """Train with a large configuration for production."""
+    return train(
+        assembly_style=assembly_style,
+        foraging_style=foraging_style,
+        num_active_tasks=256,
+        min_generator_proportion=0.1,
     )
 
 
