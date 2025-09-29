@@ -127,30 +127,22 @@ def _run_bazel_build() -> None:
 
 def _run_mettascope_build() -> None:
     """Run mettascope build script to compile the Nim library."""
-    build_script = METTASCOPE_DIR / "build.sh"
-
-    if not build_script.exists():
-        print(f"Warning: Mettascope build script not found at {build_script}")
-        return
 
     # Check if nim and nimble are available
     if shutil.which("nim") is None:
         print("Warning: Nim compiler not found. Skipping mettascope build.")
         print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        return
+        raise RuntimeError("Nim compiler not found")
 
     if shutil.which("nimble") is None:
         print("Warning: Nimble package manager not found. Skipping mettascope build.")
         print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        return
+        raise RuntimeError("Nimble package manager not found")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Make the build script executable
-    build_script.chmod(0o755)
-
     # Run the build script
-    result = subprocess.run(["./build.sh"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
+    result = subprocess.run(["nimble bindings"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
 
     if result.returncode != 0:
         print("Warning: Mettascope build failed. STDERR:", file=sys.stderr)
@@ -158,6 +150,7 @@ def _run_mettascope_build() -> None:
         print("Mettascope build STDOUT:", file=sys.stderr)
         print(result.stdout, file=sys.stderr)
         print("Continuing without mettascope...", file=sys.stderr)
+        raise RuntimeError("Mettascope build failed")
     else:
         print("Successfully built mettascope")
         if result.stdout:
