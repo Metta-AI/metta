@@ -15,7 +15,7 @@
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
 
-// Forward declaration
+// Forward declarations
 class Agent;
 
 class Assembler : public GridObject, public Usable {
@@ -65,7 +65,7 @@ private:
   bool can_afford_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) const {
     std::map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
-      for (const auto& [item, amount] : agent->inventory) {
+      for (const auto& [item, amount] : agent->inventory.get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
       }
     }
@@ -77,22 +77,6 @@ private:
     return true;
   }
 
-  // Consume resources from surrounding agents for the given recipe
-  void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
-    for (const auto& [item, required_amount] : recipe.input_resources) {
-      InventoryQuantity remaining = required_amount;
-      for (Agent* agent : surrounding_agents) {
-        if (remaining == 0) break;
-        auto it = agent->inventory.find(item);
-        if (it != agent->inventory.end()) {
-          InventoryQuantity available = it->second;
-          InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-          agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-        }
-      }
-    }
-  }
-
   // Give output resources to the triggering agent
   void give_output_to_agent(const Recipe& recipe, Agent& agent) {
     for (const auto& [item, amount] : recipe.output_resources) {
@@ -101,6 +85,21 @@ private:
   }
 
 public:
+  // Consume resources from surrounding agents for the given recipe
+  // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
+  void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
+    for (const auto& [item, required_amount] : recipe.input_resources) {
+      InventoryQuantity remaining = required_amount;
+      for (Agent* agent : surrounding_agents) {
+        if (remaining == 0) break;
+        InventoryQuantity available = agent->inventory.amount(item);
+        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
+        agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
+        remaining -= to_consume;
+      }
+    }
+  }
+
   // Recipe lookup table - 256 possible patterns (2^8)
   std::vector<std::shared_ptr<Recipe>> recipes;
 
@@ -242,11 +241,6 @@ public:
     }
 
     return features;
-  }
-
-  // Handle cooldown completion
-  void finish_cooldown() {
-    this->cooldown_end_timestep = 0;
   }
 };
 

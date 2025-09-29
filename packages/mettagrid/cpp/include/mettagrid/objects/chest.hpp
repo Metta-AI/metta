@@ -20,6 +20,8 @@ class Agent;
 
 class Chest : public GridObject, public Usable, public HasInventory {
 private:
+  // a reference to the game stats tracker
+  StatsTracker* stats_tracker;
   // Get the relative position index of the agent from the chest
   // Returns bit index: NW=0, N=1, NE=2, W=3, E=4, SW=5, S=6, SE=7
   int get_agent_relative_position_index(const Agent& agent) const {
@@ -59,14 +61,17 @@ private:
   // Deposit a resource from agent to chest
   bool deposit_resource(Agent& agent) {
     // Check if agent has the required resource
-    auto it = agent.inventory.find(resource_type);
-    if (it == agent.inventory.end() || it->second == 0) {
+    if (agent.inventory.amount(resource_type) == 0) {
       return false;
     }
 
     InventoryDelta deposited = update_inventory(resource_type, 1);
     if (deposited == 1) {
       agent.update_inventory(resource_type, -1);
+      if (stats_tracker) {
+        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".deposited");
+        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".amount");
+      }
       return true;
     }
     // Chest couldn't accept the resource, give it back to agent
@@ -76,14 +81,17 @@ private:
   // Withdraw a resource from chest to agent
   bool withdraw_resource(Agent& agent) {
     // Check if chest has the required resource
-    auto it = inventory.find(resource_type);
-    if (it == inventory.end() || it->second == 0) {
+    if (inventory.amount(resource_type) == 0) {
       return false;
     }
 
     InventoryDelta withdrawn = agent.update_inventory(resource_type, 1);
     if (withdrawn == 1) {
       update_inventory(resource_type, -1);
+      if (stats_tracker) {
+        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn");
+        stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".amount", -1);
+      }
       return true;
     }
     // Agent couldn't accept the resource, give it back to chest
@@ -100,7 +108,9 @@ public:
   class Grid* grid;
 
   Chest(GridCoord r, GridCoord c, const ChestConfig& cfg)
-      : resource_type(cfg.resource_type),
+      : GridObject(),
+        HasInventory(InventoryConfig()),  // Chests have nothing to configure in their inventory. Yet.
+        resource_type(cfg.resource_type),
         deposit_positions(cfg.deposit_positions),
         withdrawal_positions(cfg.withdrawal_positions),
         grid(nullptr) {
@@ -137,13 +147,13 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2 + this->inventory.size() + this->tag_ids.size());
+    features.reserve(2 + this->inventory.get().size() + this->tag_ids.size());
 
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->resource_type)});
 
     // Add current inventory (inv:resource)
-    for (const auto& [item, amount] : this->inventory) {
+    for (const auto& [item, amount] : this->inventory.get()) {
       if (amount > 0) {
         features.push_back(
             {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
