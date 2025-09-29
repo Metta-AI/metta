@@ -42,45 +42,11 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
-    - name: Install Nim toolchain
-      shell: bash
-      run: |
-        if command -v nim >/dev/null 2>&1 && command -v nimble >/dev/null 2>&1; then
-          echo "Nim and nimble already installed"
-          exit 0
-        fi
-
-        SUDO="sudo"
-        if ! command -v sudo >/dev/null 2>&1 || [ "$(id -u)" -eq 0 ]; then
-          SUDO=""
-        fi
-
-        if command -v apt-get >/dev/null 2>&1; then
-          echo "Installing Nim using apt-get"
-          $SUDO apt-get update
-          $SUDO apt-get install -y nim
-        elif command -v yum >/dev/null 2>&1; then
-          echo "Installing Nim using yum"
-          $SUDO yum install -y nim
-        elif command -v dnf >/dev/null 2>&1; then
-          echo "Installing Nim using dnf"
-          $SUDO dnf install -y nim
-        elif command -v apk >/dev/null 2>&1; then
-          echo "Installing Nim using apk"
-          $SUDO apk add --no-cache nim
-        elif command -v pacman >/dev/null 2>&1; then
-          echo "Installing Nim using pacman"
-          $SUDO pacman -Sy --noconfirm nim
-        elif command -v brew >/dev/null 2>&1; then
-          echo "Installing Nim using Homebrew"
-          brew install nim
-        else
-          echo "Unable to determine package manager to install Nim"
-          exit 1
-        fi
-
-        nim --version
-        nimble --version
+    - name: Set up nim
+      uses: jiro4989/setup-nim-action@v2
+      with:
+        repo-token: ${{ GITHUB_TOKEN }}
+        nim-version: "2.2.4"
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
