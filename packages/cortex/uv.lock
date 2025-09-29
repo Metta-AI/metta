@@ -34,12 +34,19 @@ dependencies = [
     { name = "torch" },
 ]
 
+[package.optional-dependencies]
+triton = [
+    { name = "triton", marker = "sys_platform == 'linux'" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "tensordict" },
     { name = "torch" },
+    { name = "triton", marker = "sys_platform == 'linux' and extra == 'triton'", specifier = ">=2.0.0" },
 ]
+provides-extras = ["triton"]
 
 [[package]]
 name = "filelock"

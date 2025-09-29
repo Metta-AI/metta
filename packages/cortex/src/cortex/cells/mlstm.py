@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from cortex.cells.backends import (
-    MultiHeadLayerNorm,
-    bias_linspace_init_,
+from cortex.kernels import (
+    TRITON_AVAILABLE,
     mlstm_chunkwise_simple,
+    mlstm_chunkwise_triton,
     mlstm_recurrent_step_stabilized_simple,
 )
 from cortex.cells.base import MemoryCell
@@ -17,6 +17,50 @@ from cortex.cells.conv import CausalConv1d
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig, mLSTMCellConfig
 from cortex.types import MaybeState, ResetMask, Tensor
+
+
+def bias_linspace_init_(param: torch.Tensor, start: float = 3.4, end: float = 6.0) -> torch.Tensor:
+    """Linearly spaced bias init across dimensions."""
+    assert param.dim() == 1, f"param must be 1-dimensional (typically a bias), got {param.dim()}"
+    n_dims = param.shape[0]
+    init_vals = torch.linspace(start, end, n_dims)
+    with torch.no_grad():
+        param.copy_(init_vals)
+    return param
+
+
+class MultiHeadLayerNorm(nn.Module):
+    """Multi-head layer normalization using group normalization."""
+
+    def __init__(self, ndim: int, weight: bool = True, bias: bool = False, eps: float = 1e-5):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(ndim)) if weight else None
+        self.bias = nn.Parameter(torch.zeros(ndim)) if bias else None
+        self.eps = eps
+        self.ndim = ndim
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        assert input.dim() == 4, "Input must be 4D tensor (B, NH, S, DH)"
+        B, NH, S, DH = input.shape
+
+        gn_in_1 = input.transpose(1, 2)  # (B, S, NH, DH)
+        gn_in_2 = gn_in_1.reshape(B * S, NH * DH)  # (B * S, NH * DH)
+        out = torch.nn.functional.group_norm(
+            gn_in_2,
+            num_groups=NH,
+            weight=self.weight,
+            bias=self.bias,
+            eps=self.eps,
+        )
+        # (B * S), (NH * DH) -> (B, S, NH, DH) -> (B, NH, S, DH)
+        out = out.view(B, S, NH, DH).transpose(1, 2)
+        return out
+
+    def reset_parameters(self):
+        if self.weight is not None:
+            nn.init.ones_(self.weight)
+        if self.bias is not None:
+            nn.init.zeros_(self.bias)
 
 
 @register_cell(mLSTMCellConfig)
@@ -76,8 +120,11 @@ class mLSTMCell(MemoryCell):
         # Output normalization
         self.outnorm = MultiHeadLayerNorm(cfg.hidden_size, weight=True, bias=False)
 
-        # Backend functions
-        self.backend_fn = mlstm_chunkwise_simple
+        # Backend functions - use Triton if available, otherwise fall back to simple
+        if TRITON_AVAILABLE:
+            self.backend_fn = mlstm_chunkwise_triton
+        else:
+            self.backend_fn = mlstm_chunkwise_simple
         self.backend_fn_step = mlstm_recurrent_step_stabilized_simple
 
         self.reset_parameters()

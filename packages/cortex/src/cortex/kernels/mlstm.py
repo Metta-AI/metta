@@ -13,49 +13,13 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+# Check if triton is available
+try:
+    import triton  # noqa: F401
 
-def bias_linspace_init_(param: torch.Tensor, start: float = 3.4, end: float = 6.0) -> torch.Tensor:
-    """Linearly spaced bias init across dimensions."""
-    assert param.dim() == 1, f"param must be 1-dimensional (typically a bias), got {param.dim()}"
-    n_dims = param.shape[0]
-    init_vals = torch.linspace(start, end, n_dims)
-    with torch.no_grad():
-        param.copy_(init_vals)
-    return param
-
-
-class MultiHeadLayerNorm(nn.Module):
-    """Multi-head layer normalization using group normalization."""
-
-    def __init__(self, ndim: int, weight: bool = True, bias: bool = False, eps: float = 1e-5):
-        super().__init__()
-        self.weight = nn.Parameter(torch.ones(ndim)) if weight else None
-        self.bias = nn.Parameter(torch.zeros(ndim)) if bias else None
-        self.eps = eps
-        self.ndim = ndim
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        assert input.dim() == 4, "Input must be 4D tensor (B, NH, S, DH)"
-        B, NH, S, DH = input.shape
-
-        gn_in_1 = input.transpose(1, 2)  # (B, S, NH, DH)
-        gn_in_2 = gn_in_1.reshape(B * S, NH * DH)  # (B * S, NH * DH)
-        out = torch.nn.functional.group_norm(
-            gn_in_2,
-            num_groups=NH,
-            weight=self.weight,
-            bias=self.bias,
-            eps=self.eps,
-        )
-        # (B * S), (NH * DH) -> (B, S, NH, DH) -> (B, NH, S, DH)
-        out = out.view(B, S, NH, DH).transpose(1, 2)
-        return out
-
-    def reset_parameters(self):
-        if self.weight is not None:
-            nn.init.ones_(self.weight)
-        if self.bias is not None:
-            nn.init.zeros_(self.bias)
+    TRITON_AVAILABLE = True
+except ImportError:
+    TRITON_AVAILABLE = False
 
 
 def mlstm_parallel_stabilized_simple(
@@ -232,23 +196,11 @@ def mlstm_chunkwise_simple(
     # When the sequence length fits into a single chunk, compute outputs and
     # final states using the recurrent step kernel for exact step semantics.
     if S_orig <= chunk_size:
-        c = (
-            initial_C
-            if initial_C is not None
-            else torch.zeros((B, NH, DH, DH), dtype=_dtype, device=_device)
-        )
-        n = (
-            initial_n
-            if initial_n is not None
-            else torch.zeros((B, NH, DH, 1), dtype=_dtype, device=_device)
-        )
+        c = initial_C if initial_C is not None else torch.zeros((B, NH, DH, DH), dtype=_dtype, device=_device)
+        n = initial_n if initial_n is not None else torch.zeros((B, NH, DH, 1), dtype=_dtype, device=_device)
         if n.dim() == 3:
             n = n.unsqueeze(-1)
-        m = (
-            initial_m
-            if initial_m is not None
-            else torch.zeros((B, NH, 1, 1), dtype=_dtype, device=_device)
-        )
+        m = initial_m if initial_m is not None else torch.zeros((B, NH, 1, 1), dtype=_dtype, device=_device)
 
         outs = []
         # Single-step function expects shapes (B, NH, 1, DH) and gates (B, NH, 1, 1)
@@ -372,23 +324,11 @@ def mlstm_chunkwise_simple(
     if R > 0:
         # Initialize states if no main part processed
         if C is None:
-            C_last = (
-                initial_C
-                if initial_C is not None
-                else torch.zeros((B, NH, DH, DH), dtype=_dtype, device=_device)
-            )
-            n_last = (
-                initial_n
-                if initial_n is not None
-                else torch.zeros((B, NH, DH, 1), dtype=_dtype, device=_device)
-            )
+            C_last = initial_C if initial_C is not None else torch.zeros((B, NH, DH, DH), dtype=_dtype, device=_device)
+            n_last = initial_n if initial_n is not None else torch.zeros((B, NH, DH, 1), dtype=_dtype, device=_device)
             if n_last.dim() == 3:
                 n_last = n_last.unsqueeze(-1)
-            m_last = (
-                initial_m
-                if initial_m is not None
-                else torch.zeros((B, NH, 1, 1), dtype=_dtype, device=_device)
-            )
+            m_last = initial_m if initial_m is not None else torch.zeros((B, NH, 1, 1), dtype=_dtype, device=_device)
         else:
             C_last = C[:, :, -1]
             n_last = n[:, :, -1].unsqueeze(-1)
@@ -429,10 +369,123 @@ def mlstm_chunkwise_simple(
         return output
 
 
+def mlstm_chunkwise_triton(
+    queries: torch.Tensor,
+    keys: torch.Tensor,
+    values: torch.Tensor,
+    igate_preact: torch.Tensor,
+    fgate_preact: torch.Tensor,
+    initial_C: Optional[torch.Tensor] = None,
+    initial_n: Optional[torch.Tensor] = None,
+    initial_m: Optional[torch.Tensor] = None,
+    chunk_size: int = 64,
+    return_last_state: bool = False,
+    eps: float = 1e-6,
+    **kwargs,
+) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    """Triton-accelerated chunkwise mLSTM implementation.
+
+    Uses optimized Triton kernels when available via lazy import.
+    Falls back to simple implementation if triton is not available.
+
+    Args:
+        queries: (B, NH, S, DH)
+        keys: (B, NH, S, DH)
+        values: (B, NH, S, DH)
+        igate_preact: (B, NH, S)
+        fgate_preact: (B, NH, S)
+        initial_C: (B, NH, DH, DH), optional
+        initial_n: (B, NH, DH) or (B, NH, DH, 1), optional
+        initial_m: (B, NH, 1, 1), optional
+        chunk_size: Size of chunks for processing
+        return_last_state: Whether to return final states
+        eps: Small constant for numerical stability
+
+    Returns:
+        Output tensor (B, NH, S, DH) and optionally final states (C, n, m)
+    """
+    if not TRITON_AVAILABLE:
+        # Fallback to simple implementation
+        return mlstm_chunkwise_simple(
+            queries=queries,
+            keys=keys,
+            values=values,
+            igate_preact=igate_preact,
+            fgate_preact=fgate_preact,
+            initial_C=initial_C,
+            initial_n=initial_n,
+            initial_m=initial_m,
+            chunk_size=chunk_size,
+            return_last_state=return_last_state,
+            eps=eps,
+            **kwargs,
+        )
+
+    # Lazy import to avoid loading unnecessary modules
+    try:
+        from .mlstm_triton.torch import mlstm_chunkwise__xl_chunk
+    except ImportError:
+        # Fallback if triton kernels are not available
+        return mlstm_chunkwise_simple(
+            queries=queries,
+            keys=keys,
+            values=values,
+            igate_preact=igate_preact,
+            fgate_preact=fgate_preact,
+            initial_C=initial_C,
+            initial_n=initial_n,
+            initial_m=initial_m,
+            chunk_size=chunk_size,
+            return_last_state=return_last_state,
+            eps=eps,
+            **kwargs,
+        )
+
+    # Use Triton kernel
+    B, NH, S, DH = queries.shape
+    _dtype, _device = queries.dtype, queries.device
+
+    # Initialize states if not provided
+    c_initial = initial_C if initial_C is not None else torch.zeros((B, NH, DH, DH), dtype=_dtype, device=_device)
+    n_initial = initial_n if initial_n is not None else torch.zeros((B, NH, DH), dtype=_dtype, device=_device)
+    if n_initial.dim() == 4:
+        n_initial = n_initial.squeeze(-1)
+    m_initial = initial_m if initial_m is not None else torch.zeros((B, NH, 1), dtype=_dtype, device=_device)
+    if m_initial.dim() == 4:
+        m_initial = m_initial.squeeze(-1)
+
+    # Call the kernel directly
+    result = mlstm_chunkwise__xl_chunk(
+        q=queries,
+        k=keys,
+        v=values,
+        i=igate_preact,
+        f=fgate_preact,
+        c_initial=c_initial,
+        n_initial=n_initial,
+        m_initial=m_initial,
+        return_last_states=return_last_state,
+        eps=eps,
+        chunk_size=chunk_size,
+    )
+
+    if return_last_state:
+        h_seq, (c_last, n_last, m_last) = result
+        # Ensure n_last has shape (B, NH, DH, 1) for consistency
+        if n_last.dim() == 3:
+            n_last = n_last.unsqueeze(-1)
+        # Ensure m_last has shape (B, NH, 1, 1) for consistency
+        if m_last.dim() == 3:
+            m_last = m_last.unsqueeze(-1)
+        return h_seq, (c_last, n_last, m_last)
+    else:
+        return result
+
+
 __all__ = [
-    "MultiHeadLayerNorm",
-    "bias_linspace_init_",
+    "TRITON_AVAILABLE",
     "mlstm_chunkwise_simple",
+    "mlstm_chunkwise_triton",
     "mlstm_parallel_stabilized_simple",
     "mlstm_recurrent_step_stabilized_simple",
 ]
