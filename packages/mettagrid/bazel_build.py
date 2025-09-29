@@ -149,7 +149,6 @@ def _run_mettascope_build() -> None:
         print(result.stderr, file=sys.stderr)
         print("Mettascope build STDOUT:", file=sys.stderr)
         print(result.stdout, file=sys.stderr)
-        print("Continuing without mettascope...", file=sys.stderr)
         raise RuntimeError("Mettascope build failed")
     else:
         print("Successfully built mettascope")
