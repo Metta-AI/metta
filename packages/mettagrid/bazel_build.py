@@ -142,6 +142,7 @@ def _run_mettascope_build() -> None:
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
     # Run the build script
+    result = subprocess.run(["nimble update"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
     result = subprocess.run(["nimble bindings"], cwd=METTASCOPE_DIR, capture_output=True, text=True, shell=True)
 
     if result.returncode != 0:
