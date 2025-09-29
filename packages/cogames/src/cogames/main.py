@@ -125,7 +125,11 @@ def games_cmd(
             console.print(table)
             return
 
-        game_config = game.get_game(game_name)
+        try:
+            game_config = game.get_game(game_name)
+        except ValueError as exc:
+            # Provide a friendly CLI error instead of a stack trace for unknown games.
+            raise typer.BadParameter(str(exc), param_name="game_name") from exc
 
         if save:
             game.save_game_config(game_config, save)
