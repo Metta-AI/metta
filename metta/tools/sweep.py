@@ -12,7 +12,7 @@ from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.stores import WandbStore
 from metta.common.tool import Tool
-from metta.common.constants import PROD_STATS_SERVER_URI
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
