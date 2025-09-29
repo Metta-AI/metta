@@ -80,3 +80,14 @@ version_scheme = "no-guess-dev"
 local_scheme = "node-and-date"
 root = "../.."
 fallback_version = "0.0.0"
+
+[tool.setuptools_scm.scm.git]
+describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "mettagrid-v*",
+]

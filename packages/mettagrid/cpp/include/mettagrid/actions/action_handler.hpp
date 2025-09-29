@@ -14,9 +14,9 @@
 
 #include "core/grid.hpp"
 #include "core/grid_object.hpp"
+#include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "core/types.hpp"
 
 struct ActionConfig {
   std::map<InventoryItem, InventoryQuantity> required_resources;
@@ -42,17 +42,15 @@ public:
     // Validate consumed_resources values are non-negative and finite
     for (const auto& [item, probability] : _consumed_resources) {
       if (!std::isfinite(probability) || probability < 0.0f) {
-        throw std::runtime_error(
-            "Consumed resources must be non-negative and finite. Item: " +
-            std::to_string(item) + " has invalid value: " + std::to_string(probability));
+        throw std::runtime_error("Consumed resources must be non-negative and finite. Item: " + std::to_string(item) +
+                                 " has invalid value: " + std::to_string(probability));
       }
 
       // Guard against overflow when casting to uint8_t
       float ceiled = std::ceil(probability);
       if (ceiled > 255.0f) {
-        throw std::runtime_error(
-            "Consumed resources ceiling exceeds uint8_t max (255). Item: " +
-            std::to_string(item) + " has ceiling: " + std::to_string(ceiled));
+        throw std::runtime_error("Consumed resources ceiling exceeds uint8_t max (255). Item: " + std::to_string(item) +
+                                 " has ceiling: " + std::to_string(ceiled));
       }
     }
 
@@ -60,18 +58,15 @@ public:
     for (const auto& [item, probability] : _consumed_resources) {
       auto required_it = _required_resources.find(item);
       if (required_it == _required_resources.end()) {
-        throw std::runtime_error(
-            "Consumed resource item " + std::to_string(item) +
-            " not found in required resources");
+        throw std::runtime_error("Consumed resource item " + std::to_string(item) + " not found in required resources");
       }
 
       // Validate required >= ceil(consumed)
       InventoryQuantity max_consumption = static_cast<InventoryQuantity>(std::ceil(probability));
       if (required_it->second < max_consumption) {
-        throw std::runtime_error(
-            "Required resources must be >= ceil(consumed resources). Item: " +
-            std::to_string(item) + " required: " + std::to_string(required_it->second) +
-            " < ceil(consumed): " + std::to_string(max_consumption));
+        throw std::runtime_error("Required resources must be >= ceil(consumed resources). Item: " +
+                                 std::to_string(item) + " required: " + std::to_string(required_it->second) +
+                                 " < ceil(consumed): " + std::to_string(max_consumption));
       }
     }
   }
@@ -98,7 +93,7 @@ public:
 
     bool has_needed_resources = true;
     for (const auto& [item, amount] : _required_resources) {
-      if (actor->inventory[item] < amount) {
+      if (actor->inventory.amount(item) < amount) {
         has_needed_resources = false;
         break;
       }
@@ -156,8 +151,7 @@ protected:
 
   InventoryDelta compute_probabilistic_delta(InventoryProbability amount) const {
     if (_rng == nullptr) {
-      throw std::runtime_error(
-          "RNG not initialized. Call init() before using compute_probabilistic_delta");
+      throw std::runtime_error("RNG not initialized. Call init() before using compute_probabilistic_delta");
     }
     InventoryProbability magnitude = std::fabs(amount);
     InventoryQuantity integer_part = static_cast<InventoryQuantity>(std::floor(magnitude));
