@@ -135,6 +135,13 @@ class AssemblerConfig(Config):
     type_id: int = Field(default=0, ge=0, le=255)
     recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+    allow_partial_usage: bool = Field(
+        default=False,
+        description=(
+            "Allow assembler to be used during cooldown with scaled resource requirements/outputs. "
+            "This makes less sense if the assembler has multiple recipes."
+        ),
+    )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
 
 
