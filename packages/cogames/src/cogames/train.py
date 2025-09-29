@@ -1,39 +1,42 @@
+from __future__ import annotations
+
 import logging
 import multiprocessing
 import platform
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
-import torch
-
-import pufferlib.pytorch
-import pufferlib.vector
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.module import load_symbol
-from pufferlib import pufferl
-from pufferlib.pufferlib import set_buffers
+
+if TYPE_CHECKING:
+    import torch
 
 logger = logging.getLogger("cogames.pufferlib")
-
-
-def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
-    env = MettaGridEnv(env_cfg=cfg)
-    set_buffers(env, buf)
-    return env
 
 
 def train(
     env_cfg: MettaGridConfig,
     policy_class_path: str,
-    device: torch.device,
+    device: "torch.device",
     initial_weights_path: Optional[str],
     num_steps: int,
     checkpoints_path: Path,
     seed: int,
     batch_size: int,
     minibatch_size: int,
-):
+) -> None:
+    import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
+    import pufferlib.vector
+    from pufferlib import pufferl
+    from pufferlib.pufferlib import set_buffers
+
+    def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
+        env = MettaGridEnv(env_cfg=cfg)
+        set_buffers(env, buf)
+        return env
+
     backend = pufferlib.vector.Multiprocessing
     if platform.system() == "Darwin":
         multiprocessing.set_start_method("spawn", force=True)

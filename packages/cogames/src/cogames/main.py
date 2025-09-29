@@ -8,11 +8,8 @@ from typing import Optional
 # Always add current directory to Python path
 sys.path.insert(0, ".")
 
-import torch
 import typer
 from rich.console import Console
-
-from cogames import game, play, train, utils
 
 logger = logging.getLogger("cogames.main")
 
@@ -34,6 +31,7 @@ def games_cmd(
     save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
 ) -> None:
     """List all available games or describe a specific game."""
+    from cogames import game
     if game_name is None:
         # List all games
         table = game.list_games(console)
@@ -74,6 +72,7 @@ def play_cmd(
     steps: int = typer.Option(100, "--steps", "-s", help="Number of steps to run"),
 ) -> None:
     """Play a game."""
+    from cogames import game, utils
     # If no game specified, list games
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
@@ -93,7 +92,9 @@ def play_cmd(
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}")
 
-    play.play(
+    from cogames import play as play_module
+
+    play_module.play(
         console,
         env_cfg=env_cfg,
         policy_class_path=policy_class_path,
@@ -113,6 +114,7 @@ def make_scenario(
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
     """Create a new game configuration."""
+    from cogames import game, utils
     try:
         # If base_game specified, use it as template
         if base_game:
@@ -172,6 +174,7 @@ def train_cmd(
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
 ) -> None:
     """Train a policy on a game."""
+    from cogames import game, utils
     # If no game specified, list games
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
@@ -189,7 +192,11 @@ def train_cmd(
     env_cfg = game.get_game(resolved_game)
 
     try:
-        train.train(
+        import torch
+
+        from cogames import train as train_module
+
+        train_module.train(
             env_cfg=env_cfg,
             policy_class_path=policy_class_path,
             initial_weights_path=initial_weights_path,
