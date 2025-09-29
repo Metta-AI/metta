@@ -150,3 +150,44 @@ def test_train_stateful_policy_with_curriculum(tmp_path: Path, monkeypatch: pyte
     trainer = DummyTrainer.instances[0]
     assert trainer.config["use_rnn"] is True
     assert Path(trainer.config["data_dir"]).exists()
+
+
+def test_curricula_dump(tmp_path: Path) -> None:
+    destination = tmp_path / "maps"
+    result = runner.invoke(
+        app,
+        [
+            "curricula",
+            "--output-dir",
+            str(destination),
+            "--game",
+            "assembler_1_simple",
+        ],
+    )
+    if result.exception:
+        raise result.exception
+    assert result.exit_code == 0
+    assert (destination / "assembler_1_simple.yaml").exists()
+
+
+def test_curricula_dump_with_curriculum(tmp_path: Path) -> None:
+    destination = tmp_path / "maps"
+    result = runner.invoke(
+        app,
+        [
+            "curricula",
+            "--output-dir",
+            str(destination),
+            "--game",
+            "assembler_1_simple",
+            "--curriculum",
+            f"{__name__}.fake_curriculum",
+            "--max-items",
+            "2",
+        ],
+    )
+    if result.exception:
+        raise result.exception
+    assert result.exit_code == 0
+    # At least one curriculum file should exist alongside the explicit game export.
+    assert any(path.name.startswith("curriculum_") for path in destination.iterdir())

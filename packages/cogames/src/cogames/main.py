@@ -4,6 +4,7 @@ import contextlib
 import logging
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Literal, Optional, Sequence
 
@@ -154,6 +155,80 @@ def games_cmd(
             return
 
         game.describe_game(game_name, console)
+
+
+@app.command("curricula")
+def curricula_cmd(
+    ctx: typer.Context,
+    games: Annotated[
+        Optional[list[str]],
+        typer.Option("--game", "-g", help="Specific games to export (defaults to all Cogs vs Clips games)")
+    ] = None,
+    curriculum: Annotated[
+        Optional[str],
+        typer.Option(
+            "--curriculum",
+            help="Python path to a callable or iterable returning MettaGridConfig instances",
+        ),
+    ] = None,
+    max_items: Annotated[
+        int,
+        typer.Option(
+            "--max-items",
+            help="Maximum number of curriculum items to export",
+        ),
+    ] = 128,
+    output_dir: Annotated[
+        Optional[Path],
+        typer.Option("--output-dir", "-o", help="Directory to write map configurations"),
+    ] = None,
+) -> None:
+    """Export game or curriculum maps into a folder for reuse."""
+
+    with _command_timeout(ctx):
+        env_cfgs: list[MettaGridConfig] = []
+        env_names: list[str] = []
+
+        selected_games: list[str]
+        if games:
+            selected_games = games
+        else:
+            selected_games = list(game.get_all_games().keys())
+
+        for game_name in selected_games:
+            resolved_game, error = utils.resolve_game(game_name)
+            if error:
+                raise typer.BadParameter(error, param_name="game_name")
+            if resolved_game is None:
+                raise typer.BadParameter(f"game '{game_name}' not found", param_name="game_name")
+            env_cfgs.append(game.get_game(resolved_game))
+            env_names.append(resolved_game)
+
+        if curriculum is not None:
+            curriculum_source = load_symbol(curriculum)
+            loaded_cfgs = _load_curriculum_configs(curriculum_source, max_items)
+            env_cfgs.extend(loaded_cfgs)
+            start_index = len(env_names)
+            for offset, cfg in enumerate(loaded_cfgs):
+                cfg_name = getattr(getattr(cfg, "game", None), "name", None)
+                env_names.append(str(cfg_name) if cfg_name else f"curriculum_{start_index + offset:03d}")
+
+        if not env_cfgs:
+            raise typer.BadParameter("no games or curriculum items to export", param_name="game")
+
+        while len(env_names) < len(env_cfgs):
+            env_names.append(f"map_{len(env_names):03d}")
+
+        if output_dir is not None:
+            destination = output_dir.expanduser().resolve()
+        else:
+            base_dir = Path("./runs/curricula").resolve()
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            destination = base_dir / timestamp
+
+        _dump_game_configs(env_cfgs, env_names, destination)
+
+        console.print(f"[green]Exported {len(env_cfgs)} maps to: {destination}[/green]")
 
 
 @app.command(name="play")
