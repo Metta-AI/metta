@@ -75,9 +75,7 @@ def mlstm_chunkwise__recurrent_bw_dC_kernel(
             order=(1, 0),
         )
         # load last state
-        matDeltaC_k_val = tl.load(matDeltaC_last_ptr, boundary_check=(1, 0)).to(
-            tl.float32
-        )
+        matDeltaC_k_val = tl.load(matDeltaC_last_ptr, boundary_check=(1, 0)).to(tl.float32)
 
     # iterate over chunks from last to first
     for k in range(NC, 0, -1):
@@ -104,9 +102,7 @@ def mlstm_chunkwise__recurrent_bw_dC_kernel(
             idx_k_save = k // save_states_every_nth_chunk
             # * store matDeltaC_k_val from previous iteration in HBM
             matDeltaCstates_k_ptr = tl.make_block_ptr(
-                base=matDeltaC_states
-                + idx_b_NH * str_matDeltaC_states_B_NH
-                + idx_k_save * DHQK * DHHV,
+                base=matDeltaC_states + idx_b_NH * str_matDeltaC_states_B_NH + idx_k_save * DHQK * DHHV,
                 shape=(DHQK, DHHV),
                 strides=(str_matDeltaC_states_NCDHQK, str_matDeltaC_states_DHHV),
                 offsets=(idx_b_DHQK * siz_b_DHQK, idx_b_DHHV * siz_b_DHHV),
@@ -131,17 +127,10 @@ def mlstm_chunkwise__recurrent_bw_dC_kernel(
         # scaG_k_val is the sum of all forget gates in the current chunk
         scaG_k_val = tl.sum(vecFlogsig_val, axis=0)  # (1,)
 
-        scaM_inter_km1_val = tl.load(
-            scaM_inter + idx_b_NH * str_scaM_inter_B_NH + (k - 1)
-        ).to(tl.float32)
-        scaM_inter_k_val = tl.load(scaM_inter + idx_b_NH * str_scaM_inter_B_NH + k).to(
-            tl.float32
-        )
+        scaM_inter_km1_val = tl.load(scaM_inter + idx_b_NH * str_scaM_inter_B_NH + (k - 1)).to(tl.float32)
+        scaM_inter_k_val = tl.load(scaM_inter + idx_b_NH * str_scaM_inter_B_NH + k).to(tl.float32)
         vecM_combine_k_val = tl.load(
-            vecM_combine
-            + idx_b_NH * str_vecM_combine_B_NH
-            + (k - 1) * L
-            + tl.arange(0, L)
+            vecM_combine + idx_b_NH * str_vecM_combine_B_NH + (k - 1) * L + tl.arange(0, L)
         ).to(tl.float32)
 
         # compute scaGbar_k, vecBbar_k
@@ -153,19 +142,15 @@ def mlstm_chunkwise__recurrent_bw_dC_kernel(
         matQbar_k_val = (matQ_k_val * vecBbar_k_val[None, :] * qk_scale).to(DTYPE)
 
         # load vecN_out_k, matDeltaH_k
-        vecN_out_k_val = tl.load(
-            vecN_out + idx_b_NH * str_vecN_out_B_NH + (k - 1) * L + tl.arange(0, L)
-        ).to(tl.float32)  # (L,)
-        matDeltaH_k_val = tl.load(matDeltaH_ptr, boundary_check=(0, 1)).to(
+        vecN_out_k_val = tl.load(vecN_out + idx_b_NH * str_vecN_out_B_NH + (k - 1) * L + tl.arange(0, L)).to(
             tl.float32
-        )  # (L, DHHV)
+        )  # (L,)
+        matDeltaH_k_val = tl.load(matDeltaH_ptr, boundary_check=(0, 1)).to(tl.float32)  # (L, DHHV)
         # compute matDeltaHinter_k
         matDeltaH_k_val = (matDeltaH_k_val / (vecN_out_k_val[:, None] + EPS)).to(DTYPE)
 
         # compute matDeltaC_km1
-        matDeltaC_k_val = scaGbar_k_val * matDeltaC_k_val + tl.dot(
-            matQbar_k_val, matDeltaH_k_val
-        )
+        matDeltaC_k_val = scaGbar_k_val * matDeltaC_k_val + tl.dot(matQbar_k_val, matDeltaH_k_val)
 
     # * store the first state from the last iteration
     matDeltaCstates_0_ptr = tl.make_block_ptr(
@@ -176,6 +161,4 @@ def mlstm_chunkwise__recurrent_bw_dC_kernel(
         block_shape=(siz_b_DHQK, siz_b_DHHV),
         order=(1, 0),
     )
-    tl.store(
-        matDeltaCstates_0_ptr, matDeltaC_k_val.to(tl.float32), boundary_check=(0, 1)
-    )
+    tl.store(matDeltaCstates_0_ptr, matDeltaC_k_val.to(tl.float32), boundary_check=(0, 1))

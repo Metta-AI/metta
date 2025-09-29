@@ -4,9 +4,9 @@
 import torch
 import triton
 
-from ...triton import mlstm_chunkwise__parallel_fw_Hintra_kernel
-from ...triton.kernel_param_heuristics import get_head_dim_block_size
-from ...utils.kernels import is_power_of_2
+from ..triton import mlstm_chunkwise__parallel_fw_Hintra_kernel
+from ..triton.kernel_param_heuristics import get_head_dim_block_size
+from ..utils.kernels import is_power_of_2
 from ..utils import torch2triton_dtype
 from .chunkwise_gates import compute_chunkwise_log_gates_vecB
 

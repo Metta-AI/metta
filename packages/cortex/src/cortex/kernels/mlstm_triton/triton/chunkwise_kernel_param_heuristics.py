@@ -5,7 +5,7 @@
 import logging
 from dataclasses import dataclass
 
-from ...utils.kernels import is_power_of_2
+from ..utils.kernels import is_power_of_2
 
 LOGGER = logging.getLogger(__name__)
 
@@ -72,9 +72,7 @@ def select_heuristic_xl_chunk_kernel_params(
 
     # This is a hardware constraint of Triton (tensor core size).
     minimum_divisor_for_sequence_length = 16
-    assert (
-        sequence_length % minimum_divisor_for_sequence_length == 0
-    ), "Sequence length must be divisible by 16."
+    assert sequence_length % minimum_divisor_for_sequence_length == 0, "Sequence length must be divisible by 16."
 
     if sequence_length < DEFAULT_CHUNK_SIZE:
         # choose the maximum possible chunk size, ignore target_chunk_size
@@ -108,12 +106,12 @@ def select_heuristic_xl_chunk_kernel_params(
             siz_b_L_parallel = target_chunk_size
 
         else:
-            assert (
-                target_chunk_size % DEFAULT_CHUNK_BLOCK_SIZE == 0
-            ), f"Target chunk size must be divisible by the default chunk block size {DEFAULT_CHUNK_BLOCK_SIZE}."
-            assert (
-                sequence_length % target_chunk_size == 0
-            ), f"Sequence length must be divisible by the target chunk size {target_chunk_size}."
+            assert target_chunk_size % DEFAULT_CHUNK_BLOCK_SIZE == 0, (
+                f"Target chunk size must be divisible by the default chunk block size {DEFAULT_CHUNK_BLOCK_SIZE}."
+            )
+            assert sequence_length % target_chunk_size == 0, (
+                f"Sequence length must be divisible by the target chunk size {target_chunk_size}."
+            )
 
             chunk_size_inter = min(default_chunk_size_inter, target_chunk_size)
             chunk_size_intra = target_chunk_size
@@ -141,25 +139,23 @@ def get_xl_chunk_kernel_params(
     """
 
     if chunk_size_intra is not None:
-        assert (
-            siz_b_L_loop is not None
-            and siz_b_L_parallel is not None
-            and chunk_size_inter is not None
-        ), "If you specify the chunk size intra, you must also specify the block sizes."
+        assert siz_b_L_loop is not None and siz_b_L_parallel is not None and chunk_size_inter is not None, (
+            "If you specify the chunk size intra, you must also specify the block sizes."
+        )
 
-        assert (
-            sequence_length % chunk_size_inter == 0
-        ), f"Sequence length {sequence_length} is not divisible by inter chunk size {chunk_size_inter}."
+        assert sequence_length % chunk_size_inter == 0, (
+            f"Sequence length {sequence_length} is not divisible by inter chunk size {chunk_size_inter}."
+        )
 
-        assert (
-            sequence_length % chunk_size_intra == 0
-        ), f"Sequence length {sequence_length} is not divisible by intra chunk size {chunk_size_intra}."
-        assert (
-            chunk_size_inter <= chunk_size_intra
-        ), f"chunk_size_inter {chunk_size_inter} must be >= chunk_size_intra {chunk_size_intra}"
-        assert (
-            chunk_size_intra % chunk_size_inter == 0
-        ), f"chunk_size_intra {chunk_size_intra} must be divisible by chunk_size_inter {chunk_size_inter}"
+        assert sequence_length % chunk_size_intra == 0, (
+            f"Sequence length {sequence_length} is not divisible by intra chunk size {chunk_size_intra}."
+        )
+        assert chunk_size_inter <= chunk_size_intra, (
+            f"chunk_size_inter {chunk_size_inter} must be >= chunk_size_intra {chunk_size_intra}"
+        )
+        assert chunk_size_intra % chunk_size_inter == 0, (
+            f"chunk_size_intra {chunk_size_intra} must be divisible by chunk_size_inter {chunk_size_inter}"
+        )
 
         return XLChunkParams(
             siz_b_L_parallel=siz_b_L_parallel,
@@ -169,11 +165,9 @@ def get_xl_chunk_kernel_params(
         )
 
     else:
-        assert (
-            siz_b_L_loop is None
-            and siz_b_L_parallel is None
-            and chunk_size_inter is None
-        ), "If you do not specify the chunk size intra, you must not specify the block sizes or chunk size inter."
+        assert siz_b_L_loop is None and siz_b_L_parallel is None and chunk_size_inter is None, (
+            "If you do not specify the chunk size intra, you must not specify the block sizes or chunk size inter."
+        )
 
         return select_heuristic_xl_chunk_kernel_params(
             sequence_length=sequence_length, target_chunk_size=target_chunk_size

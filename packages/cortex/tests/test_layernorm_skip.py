@@ -11,17 +11,14 @@ from cortex.config import PreUpBlockConfig, PostUpBlockConfig, LSTMCellConfig
 
 def test_preup_block_has_layernorm():
     """Verify PreUpBlock has LayerNorm."""
-    config = PreUpBlockConfig(
-        cell=LSTMCellConfig(hidden_size=256),
-        proj_factor=2.0
-    )
+    config = PreUpBlockConfig(cell=LSTMCellConfig(hidden_size=256), proj_factor=2.0)
     d_hidden = 128
     cell = LSTMCell(LSTMCellConfig(hidden_size=256))
 
     block = PreUpBlock(config, d_hidden, cell)
 
     # Check LayerNorm exists
-    assert hasattr(block, 'norm')
+    assert hasattr(block, "norm")
     assert isinstance(block.norm, nn.LayerNorm)
     assert block.norm.normalized_shape[0] == d_hidden
     assert block.norm.elementwise_affine == True
@@ -30,31 +27,25 @@ def test_preup_block_has_layernorm():
 
 def test_postup_block_has_layernorms():
     """Verify PostUpBlock has both LayerNorms."""
-    config = PostUpBlockConfig(
-        cell=LSTMCellConfig(hidden_size=128),
-        proj_factor=2.0
-    )
+    config = PostUpBlockConfig(cell=LSTMCellConfig(hidden_size=128), proj_factor=2.0)
     d_hidden = 128
     cell = LSTMCell(LSTMCellConfig(hidden_size=128))
 
     block = PostUpBlock(config, d_hidden, cell)
 
     # Check both LayerNorms exist
-    assert hasattr(block, 'norm')
+    assert hasattr(block, "norm")
     assert isinstance(block.norm, nn.LayerNorm)
     assert block.norm.normalized_shape[0] == d_hidden
 
-    assert hasattr(block, 'ffn_norm')
+    assert hasattr(block, "ffn_norm")
     assert isinstance(block.ffn_norm, nn.LayerNorm)
     assert block.ffn_norm.normalized_shape[0] == d_hidden
 
 
 def test_preup_residual_connection():
     """Verify PreUpBlock properly applies residual connection."""
-    config = PreUpBlockConfig(
-        cell=LSTMCellConfig(hidden_size=256),
-        proj_factor=2.0
-    )
+    config = PreUpBlockConfig(cell=LSTMCellConfig(hidden_size=256), proj_factor=2.0)
     d_hidden = 128
     cell = LSTMCell(LSTMCellConfig(hidden_size=256))
 
@@ -66,7 +57,7 @@ def test_preup_residual_connection():
     x = torch.randn(batch_size, seq_len, d_hidden)
 
     # Initialize state
-    state = block.init_state(batch=batch_size, device='cpu', dtype=torch.float32)
+    state = block.init_state(batch=batch_size, device="cpu", dtype=torch.float32)
 
     # Forward pass
     with torch.no_grad():
@@ -83,10 +74,7 @@ def test_preup_residual_connection():
 
 def test_postup_residual_connections():
     """Verify PostUpBlock properly applies dual residual connections."""
-    config = PostUpBlockConfig(
-        cell=LSTMCellConfig(hidden_size=128),
-        proj_factor=2.0
-    )
+    config = PostUpBlockConfig(cell=LSTMCellConfig(hidden_size=128), proj_factor=2.0)
     d_hidden = 128
     cell = LSTMCell(LSTMCellConfig(hidden_size=128))
 
@@ -98,7 +86,7 @@ def test_postup_residual_connections():
     x = torch.randn(batch_size, seq_len, d_hidden)
 
     # Initialize state
-    state = block.init_state(batch=batch_size, device='cpu', dtype=torch.float32)
+    state = block.init_state(batch=batch_size, device="cpu", dtype=torch.float32)
 
     # Forward pass - test that residuals are preserved
     with torch.no_grad():
