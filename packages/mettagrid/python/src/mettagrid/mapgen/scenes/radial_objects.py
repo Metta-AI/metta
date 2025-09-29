@@ -9,7 +9,13 @@ from mettagrid.mapgen.scene import Scene
 
 class RadialObjectsParams(Config):
     objects: Dict[str, int] = {}
-    k: float = 3.0  # falloff exponent; higher -> stronger edge concentration
+    # mode controls the radial weighting function
+    mode: str = "power"  # one of: power, exp, log, gaussian
+    k: float = 3.0  # for power: (r/rmax)^k
+    alpha: float = 5.0  # for exp: exp(alpha * (r/rmax - 1))
+    beta: float = 0.1  # for log: log(1 + beta * r)
+    mu: float = 0.75  # for gaussian: center at mu*rmax
+    sigma: float = 0.1  # for gaussian: std fraction of rmax
     min_radius: int | None = None  # exclude inner radius (cells) if set
     clearance: int = 1  # empty ring around placed object
     carve: bool = False  # if True, carve clearance area to empty before placing
@@ -59,7 +65,24 @@ class RadialObjects(Scene[RadialObjectsParams]):
                 return
 
         # Avoid zero division
-        ws = np.power(np.clip(rs / max(rmax, 1e-6), 0.0, 1.0), self.params.k) + 1e-9
+        rr = np.clip(rs / max(rmax, 1e-6), 0.0, 1.0)
+        mode = self.params.mode
+        if mode == "power":
+            ws = np.power(rr, self.params.k)
+        elif mode == "exp":
+            # favor edges as alpha increases
+            ws = np.exp(self.params.alpha * (rr - 1.0))
+        elif mode == "log":
+            # gentle increase; ensure positive
+            ws = np.log1p(self.params.beta * rs)
+        elif mode == "gaussian":
+            # peak around mu*rmax
+            mu = self.params.mu
+            sigma = max(self.params.sigma, 1e-6)
+            ws = np.exp(-0.5 * ((rr - mu) / sigma) ** 2)
+        else:
+            ws = np.power(rr, self.params.k)
+        ws = ws + 1e-9
         ws = ws / ws.sum()
 
         for name, count in self.params.objects.items():

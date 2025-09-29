@@ -196,7 +196,7 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                         QuadrantResourcesParams(
                             resource_types=["generator_green"],
                             forced_type="generator_green",
-                            count_per_quadrant=3,
+                            count_per_quadrant=6,
                             k=2.5,
                             min_radius=6,
                             clearance=1,
@@ -220,22 +220,6 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     lock="finalize",
                     order_by="first",
                 ),
-                # Relabel converters to target mix while keeping symmetric placements
-                dict(
-                    scene=RelabelConverters.factory(
-                        RelabelConvertersParams(
-                            target_counts={
-                                "generator_red": 3,
-                                "generator_blue": 3,
-                                "generator_green": 3,
-                                "lab": 3,
-                            }
-                        )
-                    ),
-                    where="full",
-                    lock="relabel",
-                    order_by="first",
-                ),
                 # Stamp the central sanctum/base last so it overrides terrain
                 dict(
                     scene=BaseHub.factory(
@@ -247,6 +231,22 @@ def machina_sanctum(num_cogs: int = 4) -> MettaGridConfig:
                     where=AreaWhere(tags=["base"]),
                     limit=1,
                     lock="keep",
+                    order_by="first",
+                ),
+                # Relabel converters to target mix while keeping symmetric placements (run after base)
+                dict(
+                    scene=RelabelConverters.factory(
+                        RelabelConvertersParams(
+                            target_counts={
+                                "generator_red": 4,
+                                "generator_blue": 4,
+                                "generator_green": 4,
+                                "lab": 4,
+                            }
+                        )
+                    ),
+                    where="full",
+                    lock="relabel",
                     order_by="first",
                 ),
                 # Analyze and optionally balance converter distances from the altar
