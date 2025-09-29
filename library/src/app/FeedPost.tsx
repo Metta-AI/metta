@@ -14,7 +14,7 @@ import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
 import { InPostComments } from "@/components/InPostComments";
-import { ChevronRight, MessageSquare, ExternalLink } from "lucide-react";
+import { ChevronRight, MessageSquare, ExternalLink, Quote } from "lucide-react";
 
 /**
  * FeedPost Component
@@ -93,6 +93,55 @@ export const FeedPost: FC<{
   // Handle comment count updates for immediate UI feedback
   const handleCommentCountChange = (delta: number) => {
     setCommentCount((prev) => Math.max(0, prev + delta));
+  };
+
+  // Handle quote post action
+  const handleQuotePost = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Check if there's already a quote draft
+    const existingDraft = sessionStorage.getItem("quote-draft");
+    let quotedPostIds: string[] = [post.id];
+    let content = "";
+
+    if (existingDraft) {
+      try {
+        const parsed = JSON.parse(existingDraft);
+        quotedPostIds = parsed.quotedPostIds || [];
+        content = parsed.content || "";
+
+        // Add this post if not already included and under limit
+        if (!quotedPostIds.includes(post.id) && quotedPostIds.length < 2) {
+          quotedPostIds.push(post.id);
+        }
+      } catch (error) {
+        console.error("Error parsing existing quote draft:", error);
+        quotedPostIds = [post.id];
+      }
+    }
+
+    // Build content with all quoted posts
+    const postUrl = `${window.location.origin}/posts/${post.id}`;
+    if (quotedPostIds.length === 1) {
+      content = `Quoting this post:\n\n${postUrl}\n\n`;
+    } else {
+      // If adding a second post, append to existing content
+      if (!content.includes(postUrl)) {
+        content = content.trim() + `\n\n${postUrl}\n\n`;
+      }
+    }
+
+    // Store the updated quote data in sessionStorage
+    sessionStorage.setItem(
+      "quote-draft",
+      JSON.stringify({
+        quotedPostIds,
+        content: content,
+      })
+    );
+
+    // Navigate to home page where the new post form will pick up the draft
+    router.push("/?quote=" + post.id);
   };
 
   // Generate user initials for avatar
@@ -512,6 +561,15 @@ export const FeedPost: FC<{
           >
             <ExternalLink className="h-4 w-4" />
           </Link>
+
+          {/* Quote post button */}
+          <button
+            onClick={handleQuotePost}
+            className="rounded-full p-1 text-neutral-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-neutral-100 hover:text-green-500"
+            title="Quote post (up to 2 posts can be quoted)"
+          >
+            <Quote className="h-4 w-4" />
+          </button>
           {/* Queue button - only show for posts with papers */}
           {paperData && (
             <button
@@ -640,6 +698,75 @@ export const FeedPost: FC<{
                   alt={`Attached image ${index + 1}`}
                   className="h-32 w-full object-cover transition-transform group-hover:scale-105 sm:h-40"
                 />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quoted posts display */}
+      {post.quotedPosts && post.quotedPosts.length > 0 && (
+        <div className="px-4 pb-4">
+          <div className="space-y-2">
+            {post.quotedPosts.map((quotedPost) => (
+              <div
+                key={quotedPost.id}
+                className="rounded-lg border border-gray-300 bg-gray-50 p-3"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start gap-3">
+                  {/* Author avatar */}
+                  <div className="flex-shrink-0">
+                    {quotedPost.author.image ? (
+                      <img
+                        src={quotedPost.author.image}
+                        alt={quotedPost.author.name || "User"}
+                        className="h-6 w-6 rounded-full"
+                      />
+                    ) : (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-medium text-white">
+                        {(
+                          quotedPost.author.name ||
+                          quotedPost.author.email?.split("@")[0] ||
+                          "U"
+                        )
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quoted post content */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">
+                        {quotedPost.author.name ||
+                          quotedPost.author.email?.split("@")[0] ||
+                          "Unknown User"}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {formatRelativeTime(quotedPost.createdAt)}
+                      </span>
+                    </div>
+
+                    {quotedPost.content && (
+                      <p className="mt-1 line-clamp-3 text-sm text-gray-700">
+                        {quotedPost.content}
+                      </p>
+                    )}
+
+                    <Link
+                      href={`/posts/${quotedPost.id}`}
+                      className="mt-2 inline-block text-xs text-blue-600 hover:text-blue-800"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      View original post →
+                    </Link>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

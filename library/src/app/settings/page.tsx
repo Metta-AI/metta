@@ -11,4 +11,3 @@ export default async function SettingsPage() {
 
   return <SettingsView user={session.user} />;
 }
-

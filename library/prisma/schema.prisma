@@ -88,21 +88,22 @@ model Authenticator {
 }
 
 model Post {
-  id            String         @id @default(cuid())
-  authorId      String
-  title         String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @default(now()) @updatedAt
-  content       String?
-  postType      String         @default("user-post")
-  queues        Int            @default(0)
-  replies       Int            @default(0)
-  paperId       String?
-  images        String[]       @default([])
-  comments      Comment[]
-  notifications Notification[]
-  author        User           @relation(fields: [authorId], references: [id])
-  paper         Paper?         @relation(fields: [paperId], references: [id])
+  id             String         @id @default(cuid())
+  authorId       String
+  title          String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @default(now()) @updatedAt
+  content        String?
+  postType       String         @default("user-post")
+  queues         Int            @default(0)
+  replies        Int            @default(0)
+  paperId        String?
+  images         String[]       @default([])
+  quotedPostIds  String[]       @default([])
+  comments       Comment[]
+  notifications  Notification[]
+  author         User           @relation(fields: [authorId], references: [id])
+  paper          Paper?         @relation(fields: [paperId], references: [id])
 
   @@map("post")
 }
