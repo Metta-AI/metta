@@ -18,7 +18,15 @@ import numpy as np
 import torch
 from tensordict import TensorDict
 
+from metta.agent.policy import Policy
+
 logger = logging.getLogger(__name__)
+
+
+class NoRecurrentStateError(Exception):
+    """Raised when Doxascope tries to log data for a policy with no recurrent state."""
+
+    pass
 
 
 # Coordinate Conversion Utilities
@@ -115,7 +123,7 @@ class DoxascopeLogger:
         else:
             logger.warning("Could not find 'agent' in object_type_names, defaulting to type ID 0.")
 
-        logger.info(f"Doxascope logging enabled for policy '{policy_name}', will save raw data to {self.output_file}")
+        logger.info("Doxascope logging enabled.")
 
     def _build_agent_id_map(self, env_grid_objects: Dict) -> Dict[int, int]:
         """Builds a mapping from agent IDs to grid object IDs."""
@@ -129,49 +137,87 @@ class DoxascopeLogger:
 
     def log_timestep(
         self,
-        policy_state: TensorDict,
+        policy: Policy,
         policy_idxs: torch.Tensor,
         env_grid_objects: Dict,
     ):
         """Log memory vectors and positions for policy agents at current timestep."""
-        if not self.enabled or policy_state is None:
+        if not self.enabled:
+            return
+
+        self.timestep += 1
+
+        # The policy passed in may be a PufferPolicy wrapper. The actual model is inside.
+        inner_policy = getattr(policy, "policy", policy)
+
+        policy_state = None
+        # Standard policies expose a .state attribute on the wrapper
+        if hasattr(policy, "state") and policy.state is not None:
+            policy_state = policy.state
+        # AutoBuilder policies have internal stateful components in a dictionary
+        elif hasattr(inner_policy, "components") and "lstm_reset" in inner_policy.components:
+            lstm_component = inner_policy.components["lstm_reset"]
+            if hasattr(lstm_component, "lstm_h") and hasattr(lstm_component, "lstm_c"):
+                # Reconstruct the state tensordict that doxascope expects
+                policy_state = TensorDict(
+                    {
+                        "lstm_h": lstm_component.lstm_h,
+                        "lstm_c": lstm_component.lstm_c,
+                    },
+                    batch_size=[],
+                )
+
+        memory_vectors = None
+        if policy_state is not None:
+            # Policies can have different nesting structures for recurrent state.
+            # Try to find the source of the LSTM states.
+            recurrent_state_source = policy_state
+            if "recurrent_state" in policy_state:
+                recurrent_state_source = policy_state.get("recurrent_state")
+
+            if recurrent_state_source is not None:
+                lstm_h = recurrent_state_source.get("lstm_h")
+                lstm_c = recurrent_state_source.get("lstm_c")
+                if lstm_h is not None and lstm_c is not None:
+                    memory_vectors = torch.cat([lstm_h, lstm_c], dim=0)
+
+        # On the first logging step, check if we have memory vectors. If not, fail.
+        if self.timestep == 2 and memory_vectors is None:
+            raise NoRecurrentStateError(
+                "The target policy does not have a recurrent state (e.g., LSTM). "
+                "Doxascope requires memory vectors to analyze."
+            )
+
+        # If memory vectors are still None after the first step, just skip logging
+        if memory_vectors is None:
             return
 
         if self.agent_id_map is None:
             self.agent_id_map = self._build_agent_id_map(env_grid_objects)
 
         timestep_data = {"timestep": self.timestep, "agents": []}
-        recurrent_state = policy_state.get("recurrent_state")
 
-        if recurrent_state is not None:
-            lstm_h = recurrent_state.get("lstm_h")
-            lstm_c = recurrent_state.get("lstm_c")
+        for i, agent_idx in enumerate(policy_idxs):
+            agent_idx_int = int(agent_idx.item())
+            memory_vector = memory_vectors[:, i].flatten().cpu()
 
-            if lstm_h is not None and lstm_c is not None:
-                memory_vectors = torch.cat([lstm_h, lstm_c], dim=0)
+            if agent_idx_int in self.agent_id_map:
+                grid_obj_id = self.agent_id_map[agent_idx_int]
+                grid_obj = env_grid_objects[grid_obj_id]
+                position = (grid_obj["r"], grid_obj["c"])
+            else:
+                logger.warning(f"Agent {agent_idx_int} not found in grid objects")
+                continue
 
-                for i, agent_idx in enumerate(policy_idxs):
-                    agent_idx_int = int(agent_idx.item())
-                    memory_vector = memory_vectors[:, i].flatten().cpu()
-
-                    if agent_idx_int in self.agent_id_map:
-                        grid_obj_id = self.agent_id_map[agent_idx_int]
-                        grid_obj = env_grid_objects[grid_obj_id]
-                        position = (grid_obj["r"], grid_obj["c"])
-                    else:
-                        logger.warning(f"Agent {agent_idx_int} not found in grid objects")
-                        continue
-
-                    timestep_data["agents"].append(
-                        {
-                            "agent_id": agent_idx_int,
-                            "memory_vector": memory_vector.tolist(),
-                            "position": position,
-                        }
-                    )
+            timestep_data["agents"].append(
+                {
+                    "agent_id": agent_idx_int,
+                    "memory_vector": memory_vector.tolist(),
+                    "position": position,
+                }
+            )
 
         self.data.append(timestep_data)
-        self.timestep += 1
 
     def save(self):
         """Save logged data to JSON file."""
@@ -181,7 +227,9 @@ class DoxascopeLogger:
         try:
             with open(self.output_file, "w") as f:
                 json.dump(self.data, f)
-            logger.info(f"Doxascope data saved to {self.output_file}")
+            file_size_bytes = self.output_file.stat().st_size
+            file_size_mb = file_size_bytes / (1024 * 1024)
+            logger.info(f"Doxascope data saved to {self.output_file.name} ({file_size_mb:.2f} MB)")
         except Exception as e:
             logger.error(f"Failed to save doxascope data: {e}")
 

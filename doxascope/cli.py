@@ -111,7 +111,7 @@ def handle_collect_command(args: argparse.Namespace):
         return
 
     command_str = (
-        f'uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri="{policy_uri}" doxascope_enabled=true'
+        f"uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri={policy_uri} doxascope_enabled=true"
     )
 
     print("\nHanding off to evaluation tool...")
