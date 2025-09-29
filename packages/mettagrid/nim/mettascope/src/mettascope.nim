@@ -1,29 +1,23 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer]
+  worldmap, minimap, agenttraces]
 
 var replay = ""
 
-proc updateReplayHeader(replayPath: string) =
+proc updateReplayHeader(replayPath: string = "") =
   ## Set the global header's display name for the current session.
-  var display = ""
+  var display = "Mettascope"
 
-  if common.playMode == Realtime:
-    # In play mode we don't necessarily have a replay file/name. Use a fixed title.
-    display = "Mettascope"
-  else:
-    if not common.replay.isNil:
-      if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
-        let node = common.replay.mgConfig["label"]
-        if node.kind == JString:
-          display = node.getStr
-      if display.len == 0 and common.replay.fileName.len > 0:
-        display = common.replay.fileName
-    if display.len == 0 and replayPath.len > 0:
-      display = extractFilename(replayPath)
-    if display.len == 0:
-      display = "unknown"
+  if not common.replay.isNil:
+    if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
+      let node = common.replay.mgConfig["label"]
+      if node.kind == JString:
+        display = node.getStr
+    if display == "Mettascope" and common.replay.fileName.len > 0:
+      display = common.replay.fileName
+  if display == "Mettascope" and replayPath.len > 0:
+    display = extractFilename(replayPath)
 
   let titleNode = find("**/GlobalTitle")
   titleNode.text = display
@@ -56,25 +50,29 @@ find "/UI/Main":
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
-    if replay != "":
-      if replay.startsWith("http"):
-        echo "Loading replay from URL: ", replay
-        let req = startHttpRequest(replay)
-        req.onError = proc(msg: string) =
-          echo "onError: " & msg
-        req.onResponse = proc(response: HttpResponse) =
-          echo "onResponse: code=", $response.code, ", len=", response.body.len
-          common.replay = loadReplay(response.body, replay)
+    echo "playMode: ", common.playMode
+    if common.playMode != Realtime:
+      if replay != "":
+        if replay.startsWith("http"):
+          echo "Loading replay from URL: ", replay
+          let req = startHttpRequest(replay)
+          req.onError = proc(msg: string) =
+            echo "onError: " & msg
+          req.onResponse = proc(response: HttpResponse) =
+            echo "onResponse: code=", $response.code, ", len=", response.body.len
+            common.replay = loadReplay(response.body, replay)
+            updateReplayHeader(replay)
+        else:
+          echo "Loading replay from file: ", replay
+          common.replay = loadReplay(replay)
           updateReplayHeader(replay)
-      else:
-        echo "Loading replay from file: ", replay
-        common.replay = loadReplay(replay)
-        updateReplayHeader(replay)
-
-    elif common.replay == nil:
-      echo "Loading built-in replay"
-      common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
-      updateReplayHeader(dataDir / "replays" / "pens.json.z")
+      elif common.replay == nil:
+        echo "Loading built-in replay"
+        common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
+        updateReplayHeader(dataDir / "replays" / "pens.json.z")
+    else:
+      echo "Realtime mode detected"
+      updateReplayHeader()
 
     rootArea.split(Vertical)
     rootArea.split = 0.20
