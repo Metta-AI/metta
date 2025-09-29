@@ -39,6 +39,9 @@ class AgentConfig(Config):
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
     )
+    shareable_resources: list[str] = Field(
+        default_factory=list, description="Resources that will be shared when we use another agent"
+    )
 
 
 class ActionConfig(Config):
@@ -184,6 +187,14 @@ class GameConfig(Config):
     params: Optional[Any] = None
 
     resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
+
+    # Inventory regeneration settings
+    inventory_regen_amounts: dict[str, int] = Field(
+        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+    )
+    inventory_regen_interval: int = Field(
+        default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
+    )
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
