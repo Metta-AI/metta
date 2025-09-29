@@ -1,7 +1,7 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces]
+  worldmap, minimap, agenttraces, footer]
 
 var replay = ""
 
