@@ -138,9 +138,10 @@ class CollisionSafeLayout(Scene[LayoutParams]):
 
 def _add_extractor_objects(env: MettaGridConfig) -> None:
     objects = env.game.objects
+    objects.setdefault("charger", cvc_stations.charger())
     objects.setdefault("carbon_extractor", cvc_stations.carbon_extractor())
     objects.setdefault("oxygen_extractor", cvc_stations.oxygen_extractor())
-    objects.setdefault("geranium_extractor", cvc_stations.geranium_extractor())
+    objects.setdefault("germanium_extractor", cvc_stations.germanium_extractor())
     objects.setdefault("silicon_extractor", cvc_stations.silicon_extractor())
 
 
@@ -171,7 +172,7 @@ class UniformExtractorParams(Config):
         default_factory=lambda: [
             "carbon_extractor",
             "oxygen_extractor",
-            "geranium_extractor",
+            "germanium_extractor",
             "silicon_extractor",
         ]
     )
@@ -341,7 +342,7 @@ def make_extractor_showcase() -> MettaGridConfig:
     _add_extractor_objects(env)
 
     resources = set(env.game.resource_names)
-    resources.update({"energy", "carbon", "oxygen", "geranium", "silicon"})
+    resources.update({"energy", "carbon", "oxygen", "germanium", "silicon"})
     env.game.resource_names = sorted(resources)
 
     env.game.map_builder = MapGen.Config(
@@ -357,7 +358,7 @@ def make_extractor_showcase() -> MettaGridConfig:
                 extractor_names=[
                     "carbon_extractor",
                     "oxygen_extractor",
-                    "geranium_extractor",
+                    "germanium_extractor",
                     "silicon_extractor",
                 ],
             )
@@ -420,7 +421,7 @@ def make_mettagrid(
     astroid = make_navigation(num_agents=4)
     _add_extractor_objects(astroid)
     astroid_resources = set(astroid.game.resource_names)
-    astroid_resources.update({"energy", "carbon", "oxygen", "geranium", "silicon"})
+    astroid_resources.update({"energy", "carbon", "oxygen", "germanium", "silicon"})
     astroid.game.resource_names = sorted(astroid_resources)
     astroid.game.map_builder = MapGen.Config(
         width=width,
@@ -1310,7 +1311,7 @@ def make_mettagrid(
                             extractor_names=[
                                 "carbon_extractor",
                                 "oxygen_extractor",
-                                "geranium_extractor",
+                                "germanium_extractor",
                                 "silicon_extractor",
                             ],
                         )
@@ -1327,7 +1328,7 @@ def make_mettagrid(
     astroid_big = make_navigation(num_agents=4)
     _add_extractor_objects(astroid_big)
     big_resources = set(astroid_big.game.resource_names)
-    big_resources.update({"energy", "carbon", "oxygen", "geranium", "silicon"})
+    big_resources.update({"energy", "carbon", "oxygen", "germanium", "silicon"})
     astroid_big.game.resource_names = sorted(big_resources)
     astroid_big.game.map_builder = MapGen.Config(
         width=1000,
@@ -3345,7 +3346,7 @@ def make_mettagrid(
                             extractor_names=[
                                 "carbon_extractor",
                                 "oxygen_extractor",
-                                "geranium_extractor",
+                                "germanium_extractor",
                                 "silicon_extractor",
                             ],
                         )

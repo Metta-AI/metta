@@ -49,8 +49,8 @@ def make_evals() -> List[SimulationConfig]:
         objects.setdefault("carbon_extractor_slow", st.carbon_extractor_slow())
         objects.setdefault("oxygen_extractor_fast", st.oxygen_extractor_fast())
         objects.setdefault("oxygen_extractor_slow", st.oxygen_extractor_slow())
-        objects.setdefault("geranium_extractor_fast", st.geranium_extractor_fast())
-        objects.setdefault("geranium_extractor_slow", st.geranium_extractor_slow())
+        objects.setdefault("germanium_extractor_fast", st.germanium_extractor_fast())
+        objects.setdefault("germanium_extractor_slow", st.germanium_extractor_slow())
         objects.setdefault("silicon_extractor_fast", st.silicon_extractor_fast())
         objects.setdefault("silicon_extractor_slow", st.silicon_extractor_slow())
 
@@ -67,8 +67,8 @@ def make_evals() -> List[SimulationConfig]:
             "carbon_extractor_slow": count_per_type,
             "oxygen_extractor_fast": count_per_type,
             "oxygen_extractor_slow": count_per_type,
-            "geranium_extractor_fast": count_per_type,
-            "geranium_extractor_slow": count_per_type,
+            "germanium_extractor_fast": count_per_type,
+            "germanium_extractor_slow": count_per_type,
             "silicon_extractor_fast": count_per_type,
             "silicon_extractor_slow": count_per_type,
         }

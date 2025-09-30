@@ -1,10 +1,3 @@
-# ASCII glyphs used for extractor stations.
-EXTRACTOR_CHAR_MAP: dict[str, list[str]] = {
-    "carbon_extractor": ["C"],
-    "oxygen_extractor": ["O"],
-    "geranium_extractor": ["E"],
-    "silicon_extractor": ["I"],
-}
 
 # first element is the primary character, rest are aliases for backwards compatibility
 NAME_TO_CHAR: dict[str, list[str]] = {
@@ -38,9 +31,12 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "converter": ["c"],
     "chest": ["C"],
     "assembler": ["Z"],
+    "charger": ["H"],
+    "carbon_extractor": ["N"],
+    "oxygen_extractor": ["O"],
+    "germanium_extractor": ["E"],
+    "silicon_extractor": ["I"],
 }
-
-NAME_TO_CHAR.update(EXTRACTOR_CHAR_MAP)
 
 CHAR_TO_NAME: dict[str, str] = {}
 

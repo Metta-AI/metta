@@ -147,7 +147,7 @@ uv run python packages/cogames/src/cogames/main.py play machina_sanctum --steps 
 ### Extending per-quadrant distributions
 
 - Use `QuadrantResources` per quadrant with `RadialObjectsParams(mode=...)`:
-  - Top-right geranium (exponential): `mode="exp"`, `alpha>0`
+  - Top-right germanium (exponential): `mode="exp"`, `alpha>0`
   - Bottom-left oxygen (linear-ish): `mode="power"`, `k≈1`
   - Outer-ring bias: `mode="gaussian"`, `mu≈0.9`, `sigma≈0.05`
   - Gentle increase: `mode="log"`, `beta>0`
