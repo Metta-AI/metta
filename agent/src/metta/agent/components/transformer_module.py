@@ -538,7 +538,10 @@ class XLPositionalEmbedding(nn.Module):
         self.register_buffer("inv_freq", inv_freq)
 
     def forward(self, positions: torch.Tensor, batch_size: Optional[int] = None) -> torch.Tensor:
-        sinusoid_inp = torch.outer(positions, self.inv_freq)
+        inv_freq = self.inv_freq
+        if inv_freq.device != positions.device or inv_freq.dtype != positions.dtype:
+            inv_freq = inv_freq.to(device=positions.device, dtype=positions.dtype)
+        sinusoid_inp = torch.outer(positions, inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
         if batch_size is not None:
             return pos_emb[:, None, :].expand(-1, batch_size, -1)
