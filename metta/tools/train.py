@@ -16,6 +16,7 @@ from metta.agent.policies.transformer import (
 )
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
@@ -217,6 +218,9 @@ class TrainTool(Tool):
             if stats_client and hasattr(stats_client, "close"):
                 stats_client.close()
             distributed_helper.cleanup()
+            if hasattr(self, "_sdpa_context_stack") and self._sdpa_context_stack is not None:
+                self._sdpa_context_stack.close()
+                self._sdpa_context_stack = None
 
     def _load_or_create_policy(
         self,
@@ -410,8 +414,15 @@ class TrainTool(Tool):
         try:
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
-            sdp_kernel = getattr(torch.backends.cuda, "sdp_kernel", None)
-            if sdp_kernel is not None:
-                sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=True)
+            context = build_sdpa_context(
+                prefer_flash=True,
+                prefer_mem_efficient=True,
+                prefer_math=False,
+                set_priority=True,
+            )
+            if context is not None:
+                if not hasattr(self, "_sdpa_context_stack") or self._sdpa_context_stack is None:
+                    self._sdpa_context_stack = contextlib.ExitStack()
+                self._sdpa_context_stack.enter_context(context)
         except Exception as exc:  # pragma: no cover - backend feature gating
             logger.debug("Skipping CUDA backend configuration: %s", exc)

@@ -10,6 +10,7 @@ from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.util.torch_backends import build_sdpa_context
 from mettagrid.config import Config
 
 logger = logging.getLogger("metta_agent")
@@ -84,47 +85,17 @@ class PolicyAutoBuilder(nn.Module):
         self._sdpa_context.close()
         self._sdpa_context = ExitStack()
 
-        configured = False
+        context = build_sdpa_context(
+            prefer_flash=True,
+            prefer_mem_efficient=True,
+            prefer_math=True,
+            set_priority=True,
+        )
 
-        nn_attention = getattr(torch.nn, "attention", None)
-        sdpa_kernel = getattr(nn_attention, "sdpa_kernel", None)
-        if callable(sdpa_kernel):
-            configured = self._enter_sdp_context(
-                sdpa_kernel,
-                backends=[
-                    nn_attention.SDPBackend.FLASH_ATTENTION,
-                    nn_attention.SDPBackend.EFFICIENT_ATTENTION,
-                    nn_attention.SDPBackend.MATH,
-                ],
-            )
-
-        if configured:
-            return
-
-        cuda_backends = getattr(torch.backends, "cuda", None)
-        sdp_kernel = getattr(cuda_backends, "sdp_kernel", None) if cuda_backends else None
-        if callable(sdp_kernel):
-            configured = self._enter_sdp_context(
-                sdp_kernel,
-                enable_flash=True,
-                enable_mem_efficient=True,
-                enable_math=True,
-            )
-
-        if configured or not cuda_backends:
-            return
-
-        for attr in ("enable_flash_sdp", "enable_mem_efficient_sdp", "enable_math_sdp"):
-            fn = getattr(cuda_backends, attr, None)
-            if callable(fn):
-                fn(True)
-
-    def _enter_sdp_context(self, fn, *args, **kwargs) -> bool:
-        try:
-            self._sdpa_context.enter_context(fn(*args, **kwargs))
-            return True
-        except RuntimeError:
-            return False
+        if context is not None:
+            self._sdpa_context.enter_context(context)
+        else:
+            logger.debug("Unable to configure scaled dot-product attention backends; using PyTorch defaults.")
 
     def __getstate__(self) -> dict[str, Any]:
         state = self.__dict__.copy()
