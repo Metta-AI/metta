@@ -3,19 +3,15 @@ import os
 import socket
 from typing import Any
 
-import wandb
-import wandb.sdk.wandb_run
-from wandb.errors import CommError
-
-from mettagrid.config import Config
+from pydantic import BaseModel, ConfigDict
+from wandb.sdk.wandb_run import Run as WandbRun
 
 logger = logging.getLogger(__name__)
 
-# Alias type for easier usage (other modules can import this type)
-WandbRun = wandb.sdk.wandb_run.Run
 
+class WandbConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-class WandbConfig(Config):
     enabled: bool
     project: str
     entity: str
@@ -59,7 +55,7 @@ class WandbContext:
     def __init__(
         self,
         wandb_config: WandbConfig,
-        run_config: Config | dict[str, Any] | str | None = None,
+        run_config: BaseModel | dict[str, Any] | str | None = None,
         timeout: int = 30,
         run_config_name: str | None = None,
     ):
@@ -98,6 +94,9 @@ class WandbContext:
 
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
+        import wandb
+        from wandb.errors import CommError
+
         try:
             tags = list(self.wandb_config.tags)
             tags.append("user:" + os.environ.get("METTA_USER", "unknown"))
@@ -108,8 +107,7 @@ class WandbContext:
                 if isinstance(self.run_config, dict):
                     key = self.run_config_name or "extra_config_dict"
                     config = {key: self.run_config}
-                elif isinstance(self.run_config, Config):
-                    # Assume it's a Config object with model_dump method
+                elif isinstance(self.run_config, BaseModel):
                     class_name = self.run_config.__class__.__name__
                     key = self.run_config_name or class_name or "extra_config_object"
                     config = {key: self.run_config.model_dump()}
@@ -170,6 +168,8 @@ class WandbContext:
     @staticmethod
     def cleanup_run(run: WandbRun | None):
         if run:
+            import wandb
+
             try:
                 wandb.finish()
             except Exception as e:
