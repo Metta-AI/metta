@@ -106,6 +106,7 @@ skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
 mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
+cogworks = "metta.cogworks.cli:app"
 
 [tool.coverage.run]
 source = [
