@@ -21,6 +21,7 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     matC_states: torch.Tensor,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecN_states: torch.Tensor,  # (B, NH, (NC+1) * DHQK)
     scaMinter_states: torch.Tensor,  # (B, NH, (NC+1))
+    vecSegId: torch.Tensor | None = None,  # (B, NH, NC, L) int32 segment ids (inclusive)
     qk_scale: float = None,
     chunk_size: int = 64,
     siz_b_LQ: int = 32,
@@ -75,6 +76,8 @@ def mlstm_chunkwise__parallel_fw_Hintra(
     vecM_out = torch.empty(B, NH, S, device=matQ.device, dtype=output_dtype)
 
     vecB = compute_chunkwise_log_gates_vecB(vecF=vecF, chunk_size=chunk_size)
+    if vecSegId is None:
+        vecSegId = torch.zeros((B, NH, NC, L), device=matQ.device, dtype=torch.int32)
 
     grid = (num_b_DHHV, num_b_LQ, NC * B * NH)
     # print("grid(num_b_DHHV, num_b_LQ, NC*B*NH)", grid)
@@ -87,6 +90,7 @@ def mlstm_chunkwise__parallel_fw_Hintra(
         scaMinter_states=scaMinter_states,
         vecI=vecI,
         vecB=vecB,
+        vecSegId=vecSegId,
         matHout=matH_out,
         vecNout=vecN_out,
         vecMout=vecM_out,
@@ -106,6 +110,9 @@ def mlstm_chunkwise__parallel_fw_Hintra(
         str_vecBI_B_NH=vecB.stride(1),
         str_vecBI_NC=vecB.stride(2),
         str_vecBI_L=vecB.stride(3),
+        str_vecSegId_B_NH=vecSegId.stride(1),
+        str_vecSegId_NC=vecSegId.stride(2),
+        str_vecSegId_L=vecSegId.stride(3),
         str_vecMN_B_NH=vecN_out.stride(1),
         str_vecMN_S=vecN_out.stride(2),
         B=B,

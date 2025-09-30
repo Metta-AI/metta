@@ -18,6 +18,7 @@ def mlstm_chunkwise__parallel_bw_dQ(
     vecI: torch.Tensor,  # (B, NH, NC, L)
     vecA: torch.Tensor,  # (B, NH, NC, L)
     vecB: torch.Tensor,  # (B, NH, NC, L)
+    vecSegId: torch.Tensor,  # (B, NH, NC, L)
     ## Backward arguments
     matCstate_all: torch.Tensor,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecNstate_all: torch.Tensor,  # (B, NH, (NC+1) * DHQK)
@@ -82,6 +83,7 @@ def mlstm_chunkwise__parallel_bw_dQ(
         vecI=vecI,
         vecB=vecB,
         vecA=vecA,
+        vecSegId=vecSegId,
         matCstate_all=matCstate_all,
         vecNstate_all=vecNstate_all,
         scaMstate_all=scaMstate_all,
@@ -106,6 +108,9 @@ def mlstm_chunkwise__parallel_bw_dQ(
         str_scaMstate_B_NH=scaMstate_all.stride(1),
         str_vecMN_B_NH=vecN_out.stride(1),
         str_vecMN_S=vecN_out.stride(2),
+        str_vecSegId_B_NH=vecSegId.stride(1),
+        str_vecSegId_NC=vecSegId.stride(2),
+        str_vecSegId_L=vecSegId.stride(3),
         B=B,
         NH=NH,
         S=S,

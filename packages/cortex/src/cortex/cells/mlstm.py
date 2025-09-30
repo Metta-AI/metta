@@ -170,7 +170,7 @@ class mLSTMCell(MemoryCell):
         Args:
             x: Input tensor [B, T, H] or [B, H]
             state: Optional state TensorDict with c, n, m tensors
-            resets: Optional reset mask [B] or [B, T]
+            resets: Optional reset mask [B, T]
 
         Returns:
             Tuple of (output [B, T, H] or [B, H], new_state)

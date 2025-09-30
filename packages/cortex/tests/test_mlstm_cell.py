@@ -7,7 +7,10 @@ from pathlib import Path
 import torch
 
 # Make cortex package importable relative to this test
-PKG_ROOT = Path(__file__).resolve().parents[1]
+try:
+    PKG_ROOT = Path(__file__).resolve().parents[1]
+except NameError:
+    PKG_ROOT = Path.cwd().parent
 sys.path.insert(0, os.fspath(PKG_ROOT / "src"))
 
 from cortex.blocks import PreUpBlock  # noqa: E402
@@ -70,7 +73,7 @@ def test_mlstm_with_preup_block() -> None:
     dtype = torch.float32
 
     B = 2  # batch size
-    T = 16  # sequence length
+    T = 18  # sequence length
     D = 64  # external hidden size
     proj_factor = 2.0  # PreUp projection factor
 
@@ -215,7 +218,7 @@ def test_mlstm_gradient_flow() -> None:
     dtype = torch.float32
 
     B = 2
-    T = 16
+    T = 18
     H = 64  # head_dim must be >= 16 for triton
     num_heads = 4
 
@@ -259,7 +262,7 @@ def test_mlstm_sequential_vs_parallel_multichunk() -> None:
     dtype = torch.float32
 
     B = 2
-    T = 160  # multiple chunks when chunk_size=64
+    T = 1060  # multiple chunks when chunk_size=64 and not divisible by chunk_size
     H = 64  # head_dim must be >= 16 for triton
     num_heads = 4
     chunk_size = 64
@@ -420,12 +423,12 @@ def test_mlstm_backward_sequential_vs_parallel() -> None:
         x_sequential.grad,
         rtol=1e-2,
         atol=1e-2,
-        msg="Input gradients differ between sequential and parallel"
+        msg="Input gradients differ between sequential and parallel",
     )
 
     # Compare parameter gradients
     for (name_p, param_p), (name_s, param_s) in zip(
-        cell_parallel.named_parameters(), cell_sequential.named_parameters()
+        cell_parallel.named_parameters(), cell_sequential.named_parameters(), strict=False
     ):
         assert name_p == name_s, f"Parameter names don't match: {name_p} vs {name_s}"
 
@@ -438,12 +441,392 @@ def test_mlstm_backward_sequential_vs_parallel() -> None:
 
             # Check with relaxed tolerance
             torch.testing.assert_close(
-                param_p.grad,
-                param_s.grad,
-                rtol=5e-2,
-                atol=5e-2,
-                msg=f"Gradients differ for parameter {name_p}"
+                param_p.grad, param_s.grad, rtol=5e-2, atol=5e-2, msg=f"Gradients differ for parameter {name_p}"
             )
+
+
+def test_mlstm_reset_mask_functionality() -> None:
+    """Test reset mask functionality across different backends."""
+    torch.manual_seed(555)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 4  # batch size
+    T = 98  # sequence length (spans multiple chunks)
+    H = 64  # hidden size
+    num_heads = 4
+    chunk_size = 32  # Will create 3 chunks
+
+    # Import kernel functions directly
+    from cortex.kernels import (
+        mlstm_chunkwise_simple,
+        mlstm_chunkwise_triton,
+        mlstm_recurrent_step_stabilized_simple,
+    )
+
+    # Prepare inputs
+    queries = torch.randn(B, num_heads, T, H // num_heads, device=device, dtype=dtype)
+    keys = torch.randn(B, num_heads, T, H // num_heads, device=device, dtype=dtype)
+    values = torch.randn(B, num_heads, T, H // num_heads, device=device, dtype=dtype)
+    igate_preact = torch.randn(B, num_heads, T, device=device, dtype=dtype)
+    fgate_preact = torch.randn(B, num_heads, T, device=device, dtype=dtype)
+
+    # Create reset mask - reset at various positions including within chunks
+    reset_mask = torch.zeros(B, T, dtype=torch.bool, device=device)
+    reset_mask[0, 20] = True  # Reset batch 0 at timestep 20 (within first chunk)
+    reset_mask[1, 40] = True  # Reset batch 1 at timestep 40 (within second chunk)
+    reset_mask[2, 60] = True  # Reset batch 2 at timestep 60 (within second chunk)
+    reset_mask[3, 32] = True  # Reset batch 3 at chunk boundary
+    # Add more resets within chunks to test thoroughly
+    reset_mask[0, 70] = True  # Another reset within third chunk
+    reset_mask[1, 15] = True  # Reset within first chunk
+
+    # Test 1: Simple backend with reset mask
+    output_simple_reset, (c_simple, n_simple, m_simple) = mlstm_chunkwise_simple(
+        queries=queries,
+        keys=keys,
+        values=values,
+        igate_preact=igate_preact,
+        fgate_preact=fgate_preact,
+        reset_mask=reset_mask,
+        chunk_size=chunk_size,
+        return_last_state=True,
+    )
+
+    # Test 2: Simple backend without reset mask
+    output_simple_no_reset, (c_no_reset, n_no_reset, m_no_reset) = mlstm_chunkwise_simple(
+        queries=queries,
+        keys=keys,
+        values=values,
+        igate_preact=igate_preact,
+        fgate_preact=fgate_preact,
+        reset_mask=None,
+        chunk_size=chunk_size,
+        return_last_state=True,
+    )
+
+    # Outputs should differ when reset mask is applied
+    assert not torch.allclose(output_simple_reset, output_simple_no_reset), (
+        "Outputs should differ with and without reset mask"
+    )
+
+    # Test 3: Triton backend with reset mask (native reset handling)
+    output_triton_reset, (c_triton, n_triton, m_triton) = mlstm_chunkwise_triton(
+        queries=queries,
+        keys=keys,
+        values=values,
+        igate_preact=igate_preact,
+        fgate_preact=fgate_preact,
+        reset_mask=reset_mask,
+        chunk_size=chunk_size,
+        return_last_state=True,
+    )
+
+    # Triton should be numerically close to the simple backend
+    torch.testing.assert_close(
+        output_triton_reset,
+        output_simple_reset,
+        rtol=2e-2,
+        atol=2e-2,
+        msg="Triton should be close to simple backend with reset mask",
+    )
+
+    # Test 4: Sequential processing with reset mask using recurrent step (reference implementation)
+    c_state = torch.zeros(B, num_heads, H // num_heads, H // num_heads, device=device, dtype=dtype)
+    n_state = torch.zeros(B, num_heads, H // num_heads, 1, device=device, dtype=dtype)
+    m_state = torch.zeros(B, num_heads, 1, 1, device=device, dtype=dtype)
+
+    outputs_sequential = []
+    for t in range(T):
+        # Apply reset if needed
+        if t > 0:  # Don't check at t=0 since states are already zero
+            reset_t = reset_mask[:, t]
+            h_step, (c_state, n_state, m_state) = mlstm_recurrent_step_stabilized_simple(
+                c_state=c_state,
+                n_state=n_state,
+                m_state=m_state,
+                q=queries[:, :, t : t + 1, :],
+                k=keys[:, :, t : t + 1, :],
+                v=values[:, :, t : t + 1, :],
+                igate_preact=igate_preact[:, :, t : t + 1].unsqueeze(-1),
+                fgate_preact=fgate_preact[:, :, t : t + 1].unsqueeze(-1),
+                reset_mask=reset_t,
+            )
+        else:
+            h_step, (c_state, n_state, m_state) = mlstm_recurrent_step_stabilized_simple(
+                c_state=c_state,
+                n_state=n_state,
+                m_state=m_state,
+                q=queries[:, :, t : t + 1, :],
+                k=keys[:, :, t : t + 1, :],
+                v=values[:, :, t : t + 1, :],
+                igate_preact=igate_preact[:, :, t : t + 1].unsqueeze(-1),
+                fgate_preact=fgate_preact[:, :, t : t + 1].unsqueeze(-1),
+                reset_mask=None,
+            )
+        outputs_sequential.append(h_step)
+
+    output_sequential = torch.cat(outputs_sequential, dim=2)
+
+    # Test 5: Verify all backends match the sequential reference implementation
+    print("Comparing backends against sequential reference...")
+
+    # Compare simple backend with sequential
+    max_diff_simple = (output_simple_reset - output_sequential).abs().max().item()
+    mean_diff_simple = (output_simple_reset - output_sequential).abs().mean().item()
+    print(f"  Simple vs Sequential - Max diff: {max_diff_simple:.6f}, Mean diff: {mean_diff_simple:.6f}")
+
+    # Compare triton backend with sequential
+    max_diff_triton = (output_triton_reset - output_sequential).abs().max().item()
+    mean_diff_triton = (output_triton_reset - output_sequential).abs().mean().item()
+    print(f"  Triton vs Sequential - Max diff: {max_diff_triton:.6f}, Mean diff: {mean_diff_triton:.6f}")
+
+    # All backends should produce similar outputs to sequential reference
+    # Use reasonable tolerance due to numerical differences in computation paths
+    torch.testing.assert_close(
+        output_simple_reset,
+        output_sequential,
+        rtol=1e-4,
+        atol=1e-4,
+        msg="Simple backend should match sequential reference"
+    )
+
+    torch.testing.assert_close(
+        output_triton_reset,
+        output_sequential,
+        rtol=2e-2,
+        atol=2e-2,
+        msg="Triton backend should be close to sequential reference"
+    )
+
+    # Also verify simple and triton are close (independent implementations)
+    torch.testing.assert_close(
+        output_triton_reset,
+        output_simple_reset,
+        rtol=2e-2,
+        atol=2e-2,
+        msg="Triton and Simple should be close when reset_mask is used"
+    )
+
+    # Test 6: Verify gradient flow with reset mask across all backends
+    print("Testing gradient computation with reset masks...")
+
+    # Test gradient flow for simple backend
+    queries_grad_simple = queries.clone().requires_grad_(True)
+    keys_grad_simple = keys.clone().requires_grad_(True)
+    values_grad_simple = values.clone().requires_grad_(True)
+
+    output_grad_simple = mlstm_chunkwise_simple(
+        queries=queries_grad_simple,
+        keys=keys_grad_simple,
+        values=values_grad_simple,
+        igate_preact=igate_preact,
+        fgate_preact=fgate_preact,
+        reset_mask=reset_mask,
+        chunk_size=chunk_size,
+        return_last_state=False,
+    )
+
+    loss_simple = output_grad_simple.mean()
+    loss_simple.backward()
+
+    # Test gradient flow for triton backend
+    queries_grad_triton = queries.clone().requires_grad_(True)
+    keys_grad_triton = keys.clone().requires_grad_(True)
+    values_grad_triton = values.clone().requires_grad_(True)
+
+    output_grad_triton = mlstm_chunkwise_triton(
+        queries=queries_grad_triton,
+        keys=keys_grad_triton,
+        values=values_grad_triton,
+        igate_preact=igate_preact,
+        fgate_preact=fgate_preact,
+        reset_mask=reset_mask,
+        chunk_size=chunk_size,
+        return_last_state=False,
+    )
+
+    loss_triton = output_grad_triton.mean()
+    loss_triton.backward()
+
+    # Test gradient flow for sequential backend
+    queries_grad_seq = queries.clone().requires_grad_(True)
+    keys_grad_seq = keys.clone().requires_grad_(True)
+    values_grad_seq = values.clone().requires_grad_(True)
+
+    # Run sequential with gradients
+    c_state_grad = torch.zeros(B, num_heads, H // num_heads, H // num_heads, device=device, dtype=dtype)
+    n_state_grad = torch.zeros(B, num_heads, H // num_heads, 1, device=device, dtype=dtype)
+    m_state_grad = torch.zeros(B, num_heads, 1, 1, device=device, dtype=dtype)
+
+    outputs_grad_seq = []
+    for t in range(T):
+        if t > 0:
+            reset_t = reset_mask[:, t]
+            h_step_grad, (c_state_grad, n_state_grad, m_state_grad) = mlstm_recurrent_step_stabilized_simple(
+                c_state=c_state_grad,
+                n_state=n_state_grad,
+                m_state=m_state_grad,
+                q=queries_grad_seq[:, :, t : t + 1, :],
+                k=keys_grad_seq[:, :, t : t + 1, :],
+                v=values_grad_seq[:, :, t : t + 1, :],
+                igate_preact=igate_preact[:, :, t : t + 1].unsqueeze(-1),
+                fgate_preact=fgate_preact[:, :, t : t + 1].unsqueeze(-1),
+                reset_mask=reset_t,
+            )
+        else:
+            h_step_grad, (c_state_grad, n_state_grad, m_state_grad) = mlstm_recurrent_step_stabilized_simple(
+                c_state=c_state_grad,
+                n_state=n_state_grad,
+                m_state=m_state_grad,
+                q=queries_grad_seq[:, :, t : t + 1, :],
+                k=keys_grad_seq[:, :, t : t + 1, :],
+                v=values_grad_seq[:, :, t : t + 1, :],
+                igate_preact=igate_preact[:, :, t : t + 1].unsqueeze(-1),
+                fgate_preact=fgate_preact[:, :, t : t + 1].unsqueeze(-1),
+                reset_mask=None,
+            )
+        outputs_grad_seq.append(h_step_grad)
+
+    output_grad_seq = torch.cat(outputs_grad_seq, dim=2)
+    loss_seq = output_grad_seq.mean()
+    loss_seq.backward()
+
+    # Check that all backends have gradients
+    assert queries_grad_simple.grad is not None, "Simple backend: Queries should have gradients"
+    assert keys_grad_simple.grad is not None, "Simple backend: Keys should have gradients"
+    assert values_grad_simple.grad is not None, "Simple backend: Values should have gradients"
+
+    assert queries_grad_triton.grad is not None, "Triton backend: Queries should have gradients"
+    assert keys_grad_triton.grad is not None, "Triton backend: Keys should have gradients"
+    assert values_grad_triton.grad is not None, "Triton backend: Values should have gradients"
+
+    assert queries_grad_seq.grad is not None, "Sequential backend: Queries should have gradients"
+    assert keys_grad_seq.grad is not None, "Sequential backend: Keys should have gradients"
+    assert values_grad_seq.grad is not None, "Sequential backend: Values should have gradients"
+
+    # Check gradients are non-zero
+    assert not torch.all(queries_grad_simple.grad == 0), "Simple: Query gradients should be non-zero"
+    assert not torch.all(keys_grad_simple.grad == 0), "Simple: Key gradients should be non-zero"
+    assert not torch.all(values_grad_simple.grad == 0), "Simple: Value gradients should be non-zero"
+
+    assert not torch.all(queries_grad_triton.grad == 0), "Triton: Query gradients should be non-zero"
+    assert not torch.all(keys_grad_triton.grad == 0), "Triton: Key gradients should be non-zero"
+    assert not torch.all(values_grad_triton.grad == 0), "Triton: Value gradients should be non-zero"
+
+    assert not torch.all(queries_grad_seq.grad == 0), "Sequential: Query gradients should be non-zero"
+    assert not torch.all(keys_grad_seq.grad == 0), "Sequential: Key gradients should be non-zero"
+    assert not torch.all(values_grad_seq.grad == 0), "Sequential: Value gradients should be non-zero"
+
+    # Compare gradients across backends
+    print("Comparing gradients across backends...")
+
+    # Simple vs Sequential gradients
+    q_grad_diff_simple_seq = (queries_grad_simple.grad - queries_grad_seq.grad).abs().max().item()
+    k_grad_diff_simple_seq = (keys_grad_simple.grad - keys_grad_seq.grad).abs().max().item()
+    v_grad_diff_simple_seq = (values_grad_simple.grad - values_grad_seq.grad).abs().max().item()
+
+    print(f"  Simple vs Sequential gradients - Q: {q_grad_diff_simple_seq:.6f}, K: {k_grad_diff_simple_seq:.6f}, V: {v_grad_diff_simple_seq:.6f}")
+
+    # Triton vs Sequential gradients
+    q_grad_diff_triton_seq = (queries_grad_triton.grad - queries_grad_seq.grad).abs().max().item()
+    k_grad_diff_triton_seq = (keys_grad_triton.grad - keys_grad_seq.grad).abs().max().item()
+    v_grad_diff_triton_seq = (values_grad_triton.grad - values_grad_seq.grad).abs().max().item()
+
+    print(f"  Triton vs Sequential gradients - Q: {q_grad_diff_triton_seq:.6f}, K: {k_grad_diff_triton_seq:.6f}, V: {v_grad_diff_triton_seq:.6f}")
+
+    # Verify gradients are similar across backends (relaxed tolerance due to numerical differences)
+    torch.testing.assert_close(
+        queries_grad_simple.grad,
+        queries_grad_seq.grad,
+        rtol=1e-3,
+        atol=1e-3,
+        msg="Query gradients should match between simple and sequential backends"
+    )
+
+    torch.testing.assert_close(
+        keys_grad_simple.grad,
+        keys_grad_seq.grad,
+        rtol=1e-3,
+        atol=1e-3,
+        msg="Key gradients should match between simple and sequential backends"
+    )
+
+    torch.testing.assert_close(
+        values_grad_simple.grad,
+        values_grad_seq.grad,
+        rtol=1e-3,
+        atol=1e-3,
+        msg="Value gradients should match between simple and sequential backends"
+    )
+
+    # Triton gradients may have larger differences but should be in the same ballpark
+    torch.testing.assert_close(
+        queries_grad_triton.grad,
+        queries_grad_seq.grad,
+        rtol=5e-2,
+        atol=5e-2,
+        msg="Query gradients should be similar between triton and sequential backends"
+    )
+
+    torch.testing.assert_close(
+        keys_grad_triton.grad,
+        keys_grad_seq.grad,
+        rtol=5e-2,
+        atol=5e-2,
+        msg="Key gradients should be similar between triton and sequential backends"
+    )
+
+    torch.testing.assert_close(
+        values_grad_triton.grad,
+        values_grad_seq.grad,
+        rtol=5e-2,
+        atol=5e-2,
+        msg="Value gradients should be similar between triton and sequential backends"
+    )
+
+    # Test 7: Verify within-chunk resets work correctly
+    # Create two reset masks - one with reset at chunk boundary, one within chunk
+    reset_mask_boundary = torch.zeros(B, T, dtype=torch.bool, device=device)
+    reset_mask_boundary[0, 32] = True  # At chunk boundary
+    reset_mask_boundary[0, 64] = True  # At chunk boundary
+
+    reset_mask_within = torch.zeros(B, T, dtype=torch.bool, device=device)
+    reset_mask_within[0, 30] = True  # Within first chunk
+    reset_mask_within[0, 62] = True  # Within second chunk
+
+    output_boundary = mlstm_chunkwise_simple(
+        queries=queries,
+        keys=keys,
+        values=values,
+        igate_preact=igate_preact,
+        fgate_preact=fgate_preact,
+        reset_mask=reset_mask_boundary,
+        chunk_size=chunk_size,
+        return_last_state=False,
+    )
+
+    output_within = mlstm_chunkwise_simple(
+        queries=queries,
+        keys=keys,
+        values=values,
+        igate_preact=igate_preact,
+        fgate_preact=fgate_preact,
+        reset_mask=reset_mask_within,
+        chunk_size=chunk_size,
+        return_last_state=False,
+    )
+
+    # Outputs should differ since resets are at different positions
+    assert not torch.allclose(output_boundary, output_within, rtol=1e-3), (
+        "Outputs should differ when resets are at boundaries vs within chunks"
+    )
+
+    print("✓ Reset mask forward pass tests passed")
+    print("✓ Reset mask backward pass tests passed")
+    print("✓ Reset mask consistency across backends verified")
+    print("✓ Within-chunk reset handling verified")
 
 
 if __name__ == "__main__":
@@ -468,5 +851,8 @@ if __name__ == "__main__":
 
     test_mlstm_backward_sequential_vs_parallel()
     print("✓ test_mlstm_backward_sequential_vs_parallel passed")
+
+    test_mlstm_reset_mask_functionality()
+    print("✓ test_mlstm_reset_mask_functionality passed")
 
     print("\nAll tests passed!")
