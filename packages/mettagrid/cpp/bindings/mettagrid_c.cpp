@@ -252,7 +252,10 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   set_buffers(observations, terminals, truncations, rewards);
 
   // Initialize global systems
-  if (_game_config.clipper_recipe && _game_config.clipper_clip_rate > 0.0f) {
+  if (_game_config.clipper_clip_rate > 0.0f) {
+    if (!_game_config.clipper_recipe) {
+      throw std::runtime_error("Clipper clip rate is greater than 0.0f, but no clipper recipe is provided");
+    }
     _clipper = std::make_unique<Clipper>(_game_config.clipper_recipe, _game_config.clipper_clip_rate);
   }
 }

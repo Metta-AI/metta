@@ -125,6 +125,17 @@ class ActionConfig:
     required_resources: dict[int, int]
     consumed_resources: dict[int, float]
 
+class Recipe:
+    def __init__(
+        self,
+        input_resources: dict[int, int] = {},
+        output_resources: dict[int, int] = {},
+        cooldown: int = 0,
+    ) -> None: ...
+    input_resources: dict[int, int]
+    output_resources: dict[int, int]
+    cooldown: int
+
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
