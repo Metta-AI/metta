@@ -98,8 +98,8 @@ def make_task_generator_cfg(
         room_sizes=room_sizes,
         positions=positions,
         map_dir=map_dir,
-        num_chests=num_chests,
-        chest_positions=chest_positions,
+        # num_chests=num_chests,
+        # chest_positions=chest_positions,
     )
 
 
@@ -261,7 +261,7 @@ def train(
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None
     )
-    from experiments.evals.in_context_learning.assembly_lines import (
+    from experiments.evals.in_context_learning.assemblers.assembly_lines import (
         make_assembly_line_eval_suite,
     )
 
@@ -301,18 +301,18 @@ def replay(
 
 
 def evaluate():
-    from experiments.evals.in_context_learning.assembly_lines import (
+    from experiments.evals.in_context_learning.assemblers.assembly_lines import (
         make_assembly_line_eval_suite,
     )
 
     policy_uris = [
-        "s3://softmax-public/policies/in_context.all_assemblers.eval_remote.2025-09-29/in_context.all_assemblers.eval_remote.2025-09-29:latest.pt",
-        "s3://softmax-public/policies/in_context.foraging_train.2025-09-30/in_context.foraging_train.2025-09-30:latest.pt",
-        "s3://softmax-public/policies/in_context.assembly_lines_train.2025-09-29/in_context.assembly_lines_train.2025-09-29:latest.pt",
-        "s3://softmax-public/policies/in_context.all_assemblers.2025-09-29/in_context.all_assemblers.2025-09-29:latest.pt",
+        "s3://softmax-public/policies/in_context.all_assemblers.eval_remote.2025-09-29/in_context.all_assemblers.eval_remote.2025-09-29/:latest.pt",
+        "s3://softmax-public/policies/in_context.foraging_train.2025-09-30/in_context.foraging_train.2025-09-30/:latest.pt",
+        "s3://softmax-public/policies/in_context.assembly_lines_train.2025-09-29/in_context.assembly_lines_train.2025-09-29/:latest.pt",
+        "s3://softmax-public/policies/in_context.all_assemblers.2025-09-29/in_context.all_assemblers.2025-09-29/:latest.pt",
     ]
     for curriculum_style in curriculum_args:
-        policy_uri = f"s3://softmax-public/policies/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27:latest.pt"
+        policy_uri = f"s3://softmax-public/policies/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/:latest.pt"
         policy_uris.append(policy_uri)
 
     simulations = make_assembly_line_eval_suite()

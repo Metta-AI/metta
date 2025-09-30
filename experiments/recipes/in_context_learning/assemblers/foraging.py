@@ -329,7 +329,6 @@ def make_assembler_env(
     chest_positions: list[Position],
     room_size: str,
     position: list[Position] = ["Any"],
-    num_chests: int = 0,
     chest_position: list[Position] = ["N"],
 ) -> MettaGridConfig:
     task_generator_cfg = make_task_generator_cfg(
@@ -372,7 +371,7 @@ def train(
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None
     )
-    from experiments.evals.in_context_learning.foraging import (
+    from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
     )
 
@@ -381,19 +380,19 @@ def train(
 
 def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> SimTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.foraging import (
+    from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
     )
 
     policy_uris = [
-        "s3://softmax-public/policies/in_context.all_assemblers.eval_remote.2025-09-29/in_context.all_assemblers.eval_remote.2025-09-29:latest.pt",
-        "s3://softmax-public/policies/in_context.foraging_train.2025-09-30/in_context.foraging_train.2025-09-30:latest.pt",
-        "s3://softmax-public/policies/in_context.assembly_lines_train.2025-09-29/in_context.assembly_lines_train.2025-09-29:latest.pt",
-        "s3://softmax-public/policies/in_context.all_assemblers.2025-09-29/in_context.all_assemblers.2025-09-29:latest.pt",
+        "s3://softmax-public/policies/in_context.all_assemblers.eval_remote.2025-09-29/in_context.all_assemblers.eval_remote.2025-09-29/:latest.pt",
+        "s3://softmax-public/policies/in_context.foraging_train.2025-09-30/in_context.foraging_train.2025-09-30/:latest.pt",
+        "s3://softmax-public/policies/in_context.assembly_lines_train.2025-09-29/in_context.assembly_lines_train.2025-09-29/:latest.pt",
+        "s3://softmax-public/policies/in_context.all_assemblers.2025-09-29/in_context.all_assemblers.2025-09-29/:latest.pt",
     ]
     for curriculum_style in curriculum_args:
         policy_uris.append(
-            f"s3://softmax-public/policies/in_context.foraging_{curriculum_style}.eval_local.2025-09-27/in_context.foraging_{curriculum_style}.eval_local.2025-09-27:latest.pt"
+            f"s3://softmax-public/policies/in_context.foraging_{curriculum_style}.eval_local.2025-09-27/in_context.foraging_{curriculum_style}.eval_local.2025-09-27/:latest.pt"
         )
 
     print(f"Policy uris:{policy_uris}")
@@ -467,7 +466,7 @@ def evaluate_remote(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> EvalRemoteTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.foraging import (
+    from experiments.evals.in_context_learning.assemblers.foraging import (
         make_foraging_eval_suite,
     )
 

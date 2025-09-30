@@ -1,6 +1,6 @@
 from metta.sim.simulation_config import SimulationConfig
 
-from experiments.recipes.in_context_learning.foraging import (
+from experiments.recipes.in_context_learning.assemblers.foraging import (
     make_assembler_env,
 )
 
