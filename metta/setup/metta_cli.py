@@ -462,18 +462,17 @@ def cmd_lint(
     # Run C++ linting with cpplint.sh
     if not staged or cpp_files:
         cpplint_script = cli.repo_root / "packages/mettagrid/tests/cpplint.sh"
-        if cpplint_script.exists():
-            try:
-                if cpp_files:
-                    # For staged mode, pass specific files to cpplint.sh
-                    info(f"Running cpplint.sh on {len(cpp_files)} staged C++ files...")
-                    subprocess.run([str(cpplint_script)] + cpp_files, cwd=cli.repo_root, check=True)
-                else:
-                    # For full mode, run cpplint.sh without arguments (finds all files)
-                    info("Running C++ linting with cpplint.sh...")
-                    subprocess.run([str(cpplint_script)], cwd=cli.repo_root, check=True)
-            except subprocess.CalledProcessError as e:
-                raise typer.Exit(e.returncode) from e
+        try:
+            if cpp_files:
+                # For staged mode, pass specific files to cpplint.sh
+                info(f"Running cpplint.sh on {len(cpp_files)} staged C++ files...")
+                subprocess.run([str(cpplint_script)] + cpp_files, cwd=cli.repo_root, check=True)
+            else:
+                # For full mode, run cpplint.sh without arguments (finds all files)
+                info("Running C++ linting with cpplint.sh...")
+                subprocess.run([str(cpplint_script)], cwd=cli.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            raise typer.Exit(e.returncode) from e
 
 
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")
