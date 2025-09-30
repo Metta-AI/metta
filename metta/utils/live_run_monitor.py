@@ -334,6 +334,8 @@ def live_monitor_runs(
     except Exception as e:
         console.print(f"\n\nError during monitoring: {e}")
         raise
+    finally:
+        console.show_cursor(True)
 
 
 def live_monitor_runs_test(
@@ -427,6 +429,8 @@ def live_monitor_runs_test(
     except Exception as e:
         console.print(f"\n\nError during test monitoring: {e}")
         raise
+    finally:
+        console.show_cursor(True)
 
 
 @app.callback(invoke_without_command=True)
