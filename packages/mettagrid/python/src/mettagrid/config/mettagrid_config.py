@@ -19,15 +19,11 @@ def _default_map_builder_config() -> "AnyMapBuilderConfig":
     return RandomMapBuilder.Config(agents=24)
 
 
-def _load_any_map_builder_config():
+@lru_cache(maxsize=1)
+def _map_builder_adapter() -> TypeAdapter["AnyMapBuilderConfig"]:
     from mettagrid.map_builder.map_builder import AnyMapBuilderConfig as _AnyMapBuilderConfig
 
-    return _AnyMapBuilderConfig
-
-
-@lru_cache(maxsize=1)
-def _map_builder_adapter() -> TypeAdapter[Any]:
-    return TypeAdapter(_load_any_map_builder_config())
+    return TypeAdapter(_AnyMapBuilderConfig)
 
 
 # ===== Python Configuration Models =====
