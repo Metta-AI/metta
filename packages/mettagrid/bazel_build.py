@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable
 
 from setuptools.build_meta import (
     build_editable as _build_editable,
@@ -127,34 +126,30 @@ def _run_bazel_build() -> None:
 
 
 def _nim_artifacts_up_to_date() -> bool:
-    """Return True when generated bindings are newer than Nim sources."""
+    """Check whether Nim outputs are still current."""
 
     force_rebuild = os.environ.get("METTAGRID_FORCE_NIM_BUILD", "").lower() in {"1", "true", "yes"}
     if force_rebuild:
         return False
 
     generated_dir = METTASCOPE_DIR / "bindings" / "generated"
-    required_outputs: list[Path] = []
+    if not generated_dir.exists():
+        return False
 
-    if generated_dir.exists():
-        required_outputs.extend(
-            [
-                generated_dir / name
-                for name in (
-                    "mettascope2.py",
-                    "libmettascope2.dylib",
-                    "libmettascope2.so",
-                    "libmettascope2.dll",
-                )
-            ]
+    existing_outputs = {
+        generated_dir / name
+        for name in (
+            "mettascope2.py",
+            "libmettascope2.dylib",
+            "libmettascope2.so",
+            "libmettascope2.dll",
         )
-
-    existing_outputs = [output for output in required_outputs if output.exists()]
+        if (generated_dir / name).exists()
+    }
     if not existing_outputs:
         return False
 
-    source_patterns: Iterable[str] = ("*.nim", "*.nims")
-    source_files = [path for pattern in source_patterns for path in METTASCOPE_DIR.rglob(pattern) if path.is_file()]
+    source_files = [path for pattern in ("*.nim", "*.nims") for path in METTASCOPE_DIR.rglob(pattern) if path.is_file()]
     if not source_files:
         return False
 
@@ -165,10 +160,10 @@ def _nim_artifacts_up_to_date() -> bool:
 
 
 def _run_mettascope_build() -> None:
-    """Run mettascope build script to compile the Nim library."""
+    """Build Nim artifacts when cache misses."""
 
     if _nim_artifacts_up_to_date():
-        print("Mettascope artifacts are up to date; skipping Nim build.")
+        print("Skipping Nim build; artifacts up to date.")
         return
 
     # Check if nim and nimble are available
