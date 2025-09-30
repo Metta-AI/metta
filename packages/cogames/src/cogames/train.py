@@ -69,11 +69,14 @@ def train(
         backend = pufferlib.vector.Serial
         num_workers = 1
 
+    envs_per_worker = max(1, 256 // num_workers)
+    vector_batch_size = max(128, envs_per_worker)
+
     vecenv = pufferlib.vector.make(
         env_creator,
         num_envs=256,
         num_workers=num_workers,
-        batch_size=128,
+        batch_size=vector_batch_size,
         backend=backend,
         env_kwargs={
             "cfg": env_cfg,
