@@ -552,6 +552,11 @@ class TransformerPolicy(Policy):
                 initial_memory = packed_memory[:, 0]
                 memory_batch = self._unpack_memory(initial_memory, device, dtype)
 
+            # Multi-step sequences (tt > 1) are typically processed during offline
+            # training, where consecutive calls may not correspond to contiguous
+            # environment rollouts. Persisting the returned memory in that case can
+            # leak hidden state between unrelated segments, so we intentionally
+            # discard it here and reset the cache below.
             core_out, _ = self.transformer_module(latent_seq, memory_batch)
             new_memory = None
         else:
