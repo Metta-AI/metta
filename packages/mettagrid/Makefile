@@ -45,7 +45,7 @@ benchmark:
 # Run unit tests
 test: build
 	@echo "🧪 Running unit tests..."
-	bazel test //tests:tests_all
+	bazel test --config=dbg //tests:tests_all
 
 # Generate coverage report
 coverage:
@@ -83,13 +83,21 @@ install:
 	@echo "📦 Installing package..."
 	@cd ../.. && uv sync --active --inexact --frozen
 
-pytest: install
-	@echo "🐍 Running Python tests..."
-	@cd ../.. && uv run pytest packages/mettagrid/tests
+pytest:
+	@echo "🐍 Preparing environment for Python tests (ASAN disabled)..."
+	@cd ../.. && DEBUG= uv sync --active --inexact --frozen
+	@echo "🔧 Building C++ extension without ASAN (opt config)..."
+	@cd ../.. && PYTHONPATH=packages/mettagrid DEBUG= uv run python -c "import bazel_build as bb; bb._run_bazel_build()"
+	@echo "🐍 Running Python tests (ASAN disabled)..."
+	@cd ../.. && DEBUG= uv run pytest packages/mettagrid/tests
 
-pytest-coverage: install
-	@echo "📊 Running Python tests with coverage..."
-	@cd ../.. && uv run pytest packages/mettagrid/tests --cov=mettagrid --cov-report=term-missing --cov-report=html:packages/mettagrid/htmlcov
+pytest-coverage:
+	@echo "🐍 Preparing environment for Python tests (ASAN disabled)..."
+	@cd ../.. && DEBUG= uv sync --active --inexact --frozen
+	@echo "🔧 Building C++ extension without ASAN (opt config)..."
+	@cd ../.. && PYTHONPATH=packages/mettagrid DEBUG= uv run python -c "import bazel_build as bb; bb._run_bazel_build()"
+	@echo "📊 Running Python tests with coverage (ASAN disabled)..."
+	@cd ../.. && DEBUG= uv run pytest packages/mettagrid/tests --cov=mettagrid --cov-report=term-missing --cov-report=html:packages/mettagrid/htmlcov
 
 # Cleanup
 clean:
