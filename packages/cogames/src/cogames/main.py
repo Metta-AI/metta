@@ -16,6 +16,30 @@ logger = logging.getLogger("cogames.main")
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
 console = Console()
 
+# Mapping of shorthand policy names to full class paths
+POLICY_SHORTCUTS = {
+    "random": "cogames.policy.random.RandomPolicy",
+    "simple": "cogames.policy.simple.SimplePolicy",
+    "lstm": "cogames.policy.lstm.LSTMPolicy",
+}
+
+
+def resolve_policy_class_path(policy: str) -> str:
+    """Resolve a policy shorthand or full class path.
+
+    Args:
+        policy: Either a shorthand like "random", "simple", "lstm"
+                or a full class path like "cogames.policy.random.RandomPolicy"
+
+    Returns:
+        Full class path to the policy
+    """
+    # If it's a shorthand, expand it
+    if policy in POLICY_SHORTCUTS:
+        return POLICY_SHORTCUTS[policy]
+    # Otherwise assume it's already a full class path
+    return policy
+
 
 @app.callback(invoke_without_command=True)
 def default(ctx: typer.Context) -> None:
@@ -66,7 +90,7 @@ def games_cmd(
 def play_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
     policy_class_path: str = typer.Option(
-        "cogames.examples.random_policy.RandomPolicy", "--policy", help="Path to policy class"
+        "cogames.policy.random.RandomPolicy", "--policy", help="Path to policy class"
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
@@ -91,6 +115,9 @@ def play_cmd(
     assert resolved_game is not None
     env_cfg = game.get_game(resolved_game)
 
+    # Resolve policy shorthand
+    full_policy_path = resolve_policy_class_path(policy_class_path)
+
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}")
 
@@ -99,7 +126,7 @@ def play_cmd(
     play_module.play(
         console,
         env_cfg=env_cfg,
-        policy_class_path=policy_class_path,
+        policy_class_path=full_policy_path,
         policy_data_path=policy_data_path,
         max_steps=steps,
         seed=42,
@@ -160,13 +187,13 @@ def make_scenario(
 def train_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
     policy_class_path: str = typer.Option(
-        "cogames.examples.simple_policy.SimplePolicy", "--policy", help="Path to policy class"
+        "cogames.policy.simple.SimplePolicy", "--policy", help="Path to policy class"
     ),
     initial_weights_path: Optional[str] = typer.Option(
         None, "--initial-weights", help="Path to initial policy weights"
     ),
     checkpoints_path: str = typer.Option(
-        "./experiments",
+        "./train_dir",
         "--checkpoints",
         help="Path to save training data",
     ),
@@ -198,10 +225,13 @@ def train_cmd(
     assert resolved_game is not None
     env_cfg = game.get_game(resolved_game)
 
+    # Resolve policy shorthand
+    full_policy_path = resolve_policy_class_path(policy_class_path)
+
     try:
         train_module.train(
             env_cfg=env_cfg,
-            policy_class_path=policy_class_path,
+            policy_class_path=full_policy_path,
             initial_weights_path=initial_weights_path,
             device=torch.device(device),
             num_steps=steps,
@@ -209,6 +239,7 @@ def train_cmd(
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
+            game_name=resolved_game,
         )
 
     except ValueError as e:
