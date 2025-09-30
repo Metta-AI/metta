@@ -1,7 +1,6 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 
-#include <cstdio>
 #include <map>
 #include <set>
 #include <vector>
@@ -62,24 +61,13 @@ private:
   // Deposit a resource from agent to chest
   bool deposit_resource(Agent& agent) {
     // Check if agent has the required resource
-    InventoryQuantity agent_amount = agent.inventory.amount(resource_type);
-    printf("    Deposit: Agent has %d of resource %d (chest accepts resource %d)\n",
-           agent_amount,
-           resource_type,
-           resource_type);
-
-    if (agent_amount == 0) {
-      printf("    Deposit: Agent has no resource to deposit\n");
+    if (agent.inventory.amount(resource_type) == 0) {
       return false;
     }
 
     InventoryDelta deposited = update_inventory(resource_type, 1);
-    printf("    Deposit: Chest accepted %d\n", deposited);
-
     if (deposited == 1) {
-      InventoryDelta removed = agent.update_inventory(resource_type, -1);
-      printf("    Deposit: Removed %d from agent\n", removed);
-
+      agent.update_inventory(resource_type, -1);
       if (stats_tracker) {
         stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".deposited");
         stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".amount");
@@ -87,28 +75,19 @@ private:
       return true;
     }
     // Chest couldn't accept the resource, give it back to agent
-    printf("    Deposit: Chest couldn't accept resource (at limit?)\n");
     return false;
   }
 
   // Withdraw a resource from chest to agent
   bool withdraw_resource(Agent& agent) {
     // Check if chest has the required resource
-    InventoryQuantity chest_amount = inventory.amount(resource_type);
-    printf("    Withdraw: Chest has %d of resource %d\n", chest_amount, resource_type);
-
-    if (chest_amount == 0) {
-      printf("    Withdraw: Chest has no resource to withdraw\n");
+    if (inventory.amount(resource_type) == 0) {
       return false;
     }
 
     InventoryDelta withdrawn = agent.update_inventory(resource_type, 1);
-    printf("    Withdraw: Agent accepted %d\n", withdrawn);
-
     if (withdrawn == 1) {
-      InventoryDelta removed = update_inventory(resource_type, -1);
-      printf("    Withdraw: Removed %d from chest\n", removed);
-
+      update_inventory(resource_type, -1);
       if (stats_tracker) {
         stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn");
         stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".amount", -1);
@@ -116,7 +95,6 @@ private:
       return true;
     }
     // Agent couldn't accept the resource, give it back to chest
-    printf("    Withdraw: Agent couldn't accept resource (at limit?)\n");
     return false;
   }
 
@@ -148,48 +126,21 @@ public:
 
   // Implement pure virtual method from Usable
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
-    printf("Chest::onUse called - Actor agent_id=%d at (%d,%d) using chest at (%d,%d)\n",
-           actor.agent_id,
-           actor.location.r,
-           actor.location.c,
-           location.r,
-           location.c);
-
     if (!grid) {
-      printf("  Chest: No grid reference, returning false\n");
       return false;
     }
 
     int agent_position_index = get_agent_relative_position_index(actor);
-    printf("  Agent relative position index: %d\n", agent_position_index);
-
     if (agent_position_index == -1) {
-      printf("  Agent not adjacent to chest, returning false\n");
       return false;
     }
 
     // Check if agent is in a valid position for deposit or withdrawal
     if (is_deposit_position(agent_position_index)) {
-      printf("  Agent in deposit position, attempting deposit\n");
-      bool result = deposit_resource(actor);
-      printf("  Deposit result: %s\n", result ? "success" : "failed");
-      return result;
+      return deposit_resource(actor);
     } else if (is_withdrawal_position(agent_position_index)) {
-      printf("  Agent in withdrawal position, attempting withdrawal\n");
-      bool result = withdraw_resource(actor);
-      printf("  Withdrawal result: %s\n", result ? "success" : "failed");
-      return result;
+      return withdraw_resource(actor);
     } else {
-      printf("  Agent not in valid deposit/withdrawal position\n");
-      printf("    Valid deposit positions: ");
-      for (int pos : deposit_positions) {
-        printf("%d ", pos);
-      }
-      printf("\n    Valid withdrawal positions: ");
-      for (int pos : withdrawal_positions) {
-        printf("%d ", pos);
-      }
-      printf("\n");
       return false;
     }
   }
