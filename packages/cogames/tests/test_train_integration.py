@@ -4,6 +4,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 
@@ -114,12 +115,12 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     obs, _ = env.reset()
     # Handle dict-based (per-agent) or array observations where axis 0 indexes agents
     if isinstance(obs, dict):
-        agent_items = obs.items()
+        agent_items = list(obs.items())
     else:
-        obs_array = torch.as_tensor(obs)
+        obs_array = np.asarray(obs)
         obs_dims = len(env.single_observation_space.shape)
         if obs_array.ndim > obs_dims:
-            agent_items = enumerate(obs_array)
+            agent_items = [(idx, obs_array[idx]) for idx in range(obs_array.shape[0])]
         else:
             agent_items = [(0, obs_array)]
 
@@ -161,12 +162,12 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     # Verify the policy can be used for inference with state
     obs, _ = env.reset()
     if isinstance(obs, dict):
-        agent_items = obs.items()
+        agent_items = list(obs.items())
     else:
-        obs_array = torch.as_tensor(obs)
+        obs_array = np.asarray(obs)
         obs_dims = len(env.single_observation_space.shape)
         if obs_array.ndim > obs_dims:
-            agent_items = enumerate(obs_array)
+            agent_items = [(idx, obs_array[idx]) for idx in range(obs_array.shape[0])]
         else:
             agent_items = [(0, obs_array)]
 
