@@ -363,6 +363,9 @@ class Curriculum(StatsLogger):
         # Initialize shared counter for process-safe task ID generation
         self._init_shared_counter()
 
+        # Lock for protecting curriculum state in multi-process environment
+        self._curriculum_lock = multiprocessing.Lock()
+
         # Two separate pools for explore/exploit
         self._explore_pool: dict[int, CurriculumTask] = {}
         self._exploit_pool: dict[int, CurriculumTask] = {}
@@ -407,6 +410,11 @@ class Curriculum(StatsLogger):
 
     def get_task(self) -> CurriculumTask:
         """Two-pool mode task selection."""
+        with self._curriculum_lock:
+            return self._get_task_locked()
+
+    def _get_task_locked(self) -> CurriculumTask:
+        """Internal get_task implementation - must be called with lock held."""
         # Fill explore pool if not at capacity
         if len(self._explore_pool) < self._config.explore_pool_capacity:
             task = self._create_task(pool="explore")
@@ -576,11 +584,13 @@ class Curriculum(StatsLogger):
 
     def update_task_performance(self, task_id: int, score: float):
         """Update the curriculum algorithm with task performance."""
+        # Update algorithm performance tracking (has its own lock)
         if self._algorithm is not None:
             self._algorithm.update_task_performance(task_id, score)
 
-        # Check for promotion
-        self._check_promotion(task_id)
+        # Check for promotion with curriculum lock
+        with self._curriculum_lock:
+            self._check_promotion(task_id)
 
         # Invalidate stats cache since task performance affects curriculum stats
         self.invalidate_cache()
@@ -606,6 +616,9 @@ class Curriculum(StatsLogger):
         if self._algorithm is None:
             # Without algorithm, use random promotion
             promote = self._rng.random() < 0.5
+            # If exploit pool is at capacity, randomly select a task to evict
+            if promote and len(self._exploit_pool) >= self._config.exploit_pool_capacity:
+                worst_exploit_id_to_evict = self._rng.choice(list(self._exploit_pool.keys()))
         else:
             # Find task with minimum LPS in exploit pool
             if not self._exploit_pool:
@@ -623,6 +636,14 @@ class Curriculum(StatsLogger):
                 if exploit_scores:
                     worst_exploit_id = min(exploit_scores.keys(), key=lambda tid: exploit_scores[tid])
                     worst_exploit_score = exploit_scores[worst_exploit_id]
+
+                    # Log promotion decision details (every 10th to avoid spam)
+                    if self._num_promotions_attempted % 10 == 0:
+                        logger.info(
+                            f"Promotion eval: task_id={task_id}, score={promoted_task_score:.4f}, "
+                            f"worst_exploit_score={worst_exploit_score:.4f}, "
+                            f"completions={task._num_completions}, scheduled={task._num_scheduled}"
+                        )
 
                     # Promote if promoted task has higher LPS than worst exploit task
                     if promoted_task_score > worst_exploit_score:
@@ -719,41 +740,42 @@ class Curriculum(StatsLogger):
 
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
-        all_tasks = list(self._explore_pool.values()) + list(self._exploit_pool.values())
+        with self._curriculum_lock:
+            all_tasks = list(self._explore_pool.values()) + list(self._exploit_pool.values())
 
-        # Periodic integrity check (every ~10 stats calls to prevent ID exhaustion)
-        if self._num_created % 10 == 0:
-            pool_task_ids = set(self._explore_pool.keys()) | set(self._exploit_pool.keys())
-            if pool_task_ids != self._task_ids:
-                diff = (
-                    self._task_ids - pool_task_ids
-                    if len(self._task_ids) > len(pool_task_ids)
-                    else pool_task_ids - self._task_ids
-                )
-                logger.error(
-                    f"Task ID integrity check failed! "
-                    f"_task_ids size: {len(self._task_ids)}, pool IDs size: {len(pool_task_ids)}. "
-                    f"Difference: {diff}. "
-                    f"Pool status: explore={len(self._explore_pool)}/{self._config.explore_pool_capacity}, "
-                    f"exploit={len(self._exploit_pool)}/{self._config.exploit_pool_capacity}"
-                )
-                # Auto-fix: sync _task_ids with actual pools
-                self._task_ids = pool_task_ids.copy()
+            # Periodic integrity check (every ~10 stats calls to prevent ID exhaustion)
+            if self._num_created % 10 == 0:
+                pool_task_ids = set(self._explore_pool.keys()) | set(self._exploit_pool.keys())
+                if pool_task_ids != self._task_ids:
+                    diff = (
+                        self._task_ids - pool_task_ids
+                        if len(self._task_ids) > len(pool_task_ids)
+                        else pool_task_ids - self._task_ids
+                    )
+                    logger.error(
+                        f"Task ID integrity check failed! "
+                        f"_task_ids size: {len(self._task_ids)}, pool IDs size: {len(pool_task_ids)}. "
+                        f"Difference: {diff}. "
+                        f"Pool status: explore={len(self._explore_pool)}/{self._config.explore_pool_capacity}, "
+                        f"exploit={len(self._exploit_pool)}/{self._config.exploit_pool_capacity}"
+                    )
+                    # Auto-fix: sync _task_ids with actual pools
+                    self._task_ids = pool_task_ids.copy()
 
-        base_stats: Dict[str, float] = {
-            "num_created": float(self._num_created),
-            "num_evicted": float(self._num_evicted),
-            "num_completed": float(sum(task._num_completions for task in all_tasks)),
-            "num_scheduled": float(sum(task._num_scheduled for task in all_tasks)),
-            "num_active_tasks": float(len(all_tasks)),
-            "num_explore_tasks": float(len(self._explore_pool)),
-            "num_exploit_tasks": float(len(self._exploit_pool)),
-            "P_accept": float(self._P_accept),
-            "num_promotions_attempted": float(self._num_promotions_attempted),
-            "num_promotions_accepted": float(self._num_promotions_accepted),
-            "promotion_rate": float(self._num_promotions_accepted / max(1, self._num_promotions_attempted)),
-            "task_ids_size": float(len(self._task_ids)),  # Track for debugging
-        }
+            base_stats: Dict[str, float] = {
+                "num_created": float(self._num_created),
+                "num_evicted": float(self._num_evicted),
+                "num_completed": float(sum(task._num_completions for task in all_tasks)),
+                "num_scheduled": float(sum(task._num_scheduled for task in all_tasks)),
+                "num_active_tasks": float(len(all_tasks)),
+                "num_explore_tasks": float(len(self._explore_pool)),
+                "num_exploit_tasks": float(len(self._exploit_pool)),
+                "P_accept": float(self._P_accept),
+                "num_promotions_attempted": float(self._num_promotions_attempted),
+                "num_promotions_accepted": float(self._num_promotions_accepted),
+                "promotion_rate": float(self._num_promotions_accepted / max(1, self._num_promotions_attempted)),
+                "task_ids_size": float(len(self._task_ids)),  # Track for debugging
+            }
 
         # Include algorithm stats if available
         if self._algorithm is not None:
@@ -769,95 +791,97 @@ class Curriculum(StatsLogger):
 
     def get_state(self) -> Dict[str, Any]:
         """Get curriculum state for checkpointing."""
-        state = {
-            "config": self._config.model_dump(),  # Save config for validation
-            "seed": self._rng.getstate(),
-            "num_created": self._num_created,
-            "num_evicted": self._num_evicted,
-            "P_accept": self._P_accept,
-            "num_promotions_attempted": self._num_promotions_attempted,
-            "num_promotions_accepted": self._num_promotions_accepted,
-            "explore_pool": {},
-            "exploit_pool": {},
-        }
-
-        # Serialize explore pool tasks
-        for task_id, task in self._explore_pool.items():
-            state["explore_pool"][task_id] = {
-                "num_completions": task._num_completions,
-                "total_score": task._total_score,
-                "mean_score": task._mean_score,
-                "num_scheduled": task._num_scheduled,
-                "slice_values": task._slice_values,
+        with self._curriculum_lock:
+            state = {
+                "config": self._config.model_dump(),  # Save config for validation
+                "seed": self._rng.getstate(),
+                "num_created": self._num_created,
+                "num_evicted": self._num_evicted,
+                "P_accept": self._P_accept,
+                "num_promotions_attempted": self._num_promotions_attempted,
+                "num_promotions_accepted": self._num_promotions_accepted,
+                "explore_pool": {},
+                "exploit_pool": {},
             }
 
-        # Serialize exploit pool tasks
-        for task_id, task in self._exploit_pool.items():
-            state["exploit_pool"][task_id] = {
-                "num_completions": task._num_completions,
-                "total_score": task._total_score,
-                "mean_score": task._mean_score,
-                "num_scheduled": task._num_scheduled,
-                "slice_values": task._slice_values,
-            }
+            # Serialize explore pool tasks
+            for task_id, task in self._explore_pool.items():
+                state["explore_pool"][task_id] = {
+                    "num_completions": task._num_completions,
+                    "total_score": task._total_score,
+                    "mean_score": task._mean_score,
+                    "num_scheduled": task._num_scheduled,
+                    "slice_values": task._slice_values,
+                }
 
-        # Save algorithm state if present
-        if self._algorithm is not None:
-            state["algorithm_state"] = self._algorithm.get_state()
+            # Serialize exploit pool tasks
+            for task_id, task in self._exploit_pool.items():
+                state["exploit_pool"][task_id] = {
+                    "num_completions": task._num_completions,
+                    "total_score": task._total_score,
+                    "mean_score": task._mean_score,
+                    "num_scheduled": task._num_scheduled,
+                    "slice_values": task._slice_values,
+                }
 
-        return state
+            # Save algorithm state if present
+            if self._algorithm is not None:
+                state["algorithm_state"] = self._algorithm.get_state()
+
+            return state
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load curriculum state from checkpoint."""
-        # Validate config matches
-        if state["config"] != self._config.model_dump():
-            logger.warning("Curriculum config mismatch during restore")
+        with self._curriculum_lock:
+            # Validate config matches
+            if state["config"] != self._config.model_dump():
+                logger.warning("Curriculum config mismatch during restore")
 
-        # Restore counters
-        self._num_created = state["num_created"]
-        self._num_evicted = state["num_evicted"]
+            # Restore counters
+            self._num_created = state["num_created"]
+            self._num_evicted = state["num_evicted"]
 
-        # Restore random state
-        self._rng.setstate(state["seed"])
+            # Restore random state
+            self._rng.setstate(state["seed"])
 
-        # Restore two-pool state
-        self._explore_pool.clear()
-        self._exploit_pool.clear()
-        self._task_ids.clear()
+            # Restore two-pool state
+            self._explore_pool.clear()
+            self._exploit_pool.clear()
+            self._task_ids.clear()
 
-        self._P_accept = state.get("P_accept", 0.5)
-        self._num_promotions_attempted = state.get("num_promotions_attempted", 0)
-        self._num_promotions_accepted = state.get("num_promotions_accepted", 0)
+            self._P_accept = state.get("P_accept", 0.5)
+            self._num_promotions_attempted = state.get("num_promotions_attempted", 0)
+            self._num_promotions_accepted = state.get("num_promotions_accepted", 0)
 
-        # Restore explore pool
-        for task_id_str, task_data in state.get("explore_pool", {}).items():
-            task_id = int(task_id_str)
-            env_cfg = self._task_generator.get_task(task_id)
-            task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
-            task._num_completions = task_data["num_completions"]
-            task._total_score = task_data["total_score"]
-            task._mean_score = task_data["mean_score"]
-            task._num_scheduled = task_data["num_scheduled"]
+            # Restore explore pool
+            for task_id_str, task_data in state.get("explore_pool", {}).items():
+                task_id = int(task_id_str)
+                env_cfg = self._task_generator.get_task(task_id)
+                task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
+                task._num_completions = task_data["num_completions"]
+                task._total_score = task_data["total_score"]
+                task._mean_score = task_data["mean_score"]
+                task._num_scheduled = task_data["num_scheduled"]
 
-            self._explore_pool[task_id] = task
-            self._task_ids.add(task_id)
+                self._explore_pool[task_id] = task
+                self._task_ids.add(task_id)
 
-        # Restore exploit pool
-        for task_id_str, task_data in state.get("exploit_pool", {}).items():
-            task_id = int(task_id_str)
-            env_cfg = self._task_generator.get_task(task_id)
-            task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
-            task._num_completions = task_data["num_completions"]
-            task._total_score = task_data["total_score"]
-            task._mean_score = task_data["mean_score"]
-            task._num_scheduled = task_data["num_scheduled"]
+            # Restore exploit pool
+            for task_id_str, task_data in state.get("exploit_pool", {}).items():
+                task_id = int(task_id_str)
+                env_cfg = self._task_generator.get_task(task_id)
+                task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
+                task._num_completions = task_data["num_completions"]
+                task._total_score = task_data["total_score"]
+                task._mean_score = task_data["mean_score"]
+                task._num_scheduled = task_data["num_scheduled"]
 
-            self._exploit_pool[task_id] = task
-            self._task_ids.add(task_id)
+                self._exploit_pool[task_id] = task
+                self._task_ids.add(task_id)
 
-        # Restore algorithm state
-        if self._algorithm is not None and "algorithm_state" in state:
-            self._algorithm.load_state(state["algorithm_state"])
+            # Restore algorithm state
+            if self._algorithm is not None and "algorithm_state" in state:
+                self._algorithm.load_state(state["algorithm_state"])
 
 
 # Import concrete config classes at the end to avoid circular imports
