@@ -189,6 +189,8 @@ class GameConfig:
         inventory_regen_amounts: dict[int, int] | None = None,
         inventory_regen_interval: int = 0,
         clipper_recipe: Optional[Recipe] = None,
+        clipper_length_scale: float = 1.0,
+        clipper_cutoff_distance: float = 0.0,
         clipper_clip_rate: float = 0.0,
     ) -> None: ...
     num_agents: int
@@ -209,6 +211,8 @@ class GameConfig:
     inventory_regen_amounts: dict[int, int]
     inventory_regen_interval: int
     clipper_recipe: Optional[Recipe]
+    clipper_length_scale: float
+    clipper_cutoff_distance: float
     clipper_clip_rate: float
 
 class MettaGrid:

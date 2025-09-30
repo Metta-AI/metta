@@ -15,6 +15,8 @@
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
 
+class Clipper;
+
 class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
@@ -121,6 +123,9 @@ public:
   // Grid access for finding surrounding agents
   class Grid* grid;
 
+  // Clipper pointer, for when we become unclipped.
+  Clipper* clipper_ptr;
+
   // Pointer to current timestep from environment
   unsigned int* current_timestep_ptr;
 
@@ -147,7 +152,8 @@ public:
         recipe_details_obs(cfg.recipe_details_obs),
         input_recipe_offset(cfg.input_recipe_offset),
         output_recipe_offset(cfg.output_recipe_offset),
-        allow_partial_usage(cfg.allow_partial_usage) {
+        allow_partial_usage(cfg.allow_partial_usage),
+        clipper_ptr(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
@@ -225,13 +231,19 @@ public:
   }
 
   // Make this assembler clipped with the given unclip recipes
-  void becomeClipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec) {
+  void become_clipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec, Clipper* clipper) {
     is_clipped = true;
     unclip_recipes = unclip_recipes_vec;
+    // It's a little odd that we store the clipper here, versus having global access to it. This is a
+    // path of least resistance, not a specific intention. But it does present questions around whether
+    // there could be more than one Clipper.
+    clipper_ptr = clipper;
     // Reset cooldown. The assembler being on its normal cooldown shouldn't stop it from being unclipped.
     cooldown_end_timestep = *current_timestep_ptr;
     cooldown_duration = 0;
   }
+
+  void become_unclipped();
 
   // Scale recipe requirements based on cooldown progress (for partial usage)
   const Recipe scale_recipe_for_partial_usage(const Recipe& original_recipe, float progress) const {
@@ -292,8 +304,7 @@ public:
 
     // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
     if (is_clipped) {
-      is_clipped = false;
-      unclip_recipes.clear();
+      become_unclipped();
     } else {
       uses_count++;
 
@@ -356,5 +367,14 @@ public:
     return features;
   }
 };
+
+#include "systems/clipper.hpp"
+
+inline void Assembler::become_unclipped() {
+  is_clipped = false;
+  unclip_recipes.clear();
+  clipper_ptr->on_unclip(*this);
+  clipper_ptr = nullptr;
+}
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
