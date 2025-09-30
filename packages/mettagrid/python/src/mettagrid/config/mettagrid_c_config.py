@@ -188,6 +188,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name in resource_name_to_id
         ]
 
+        # Convert shareable resources from names to IDs
+        shareable_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("shareable_resources", [])
+            if resource_name in resource_name_to_id
+        ]
+
         inventory_config = CppInventoryConfig(
             limits=[
                 [
@@ -212,6 +219,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             "initial_inventory": initial_inventory,
             "tag_ids": tag_ids,
             "soul_bound_resources": soul_bound_resources,
+            "shareable_resources": shareable_resources,
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -304,6 +312,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
             )
             cpp_assembler_config.recipes = cpp_recipes
+            cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
+            cpp_assembler_config.max_uses = object_config.max_uses
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert resource type name to ID
@@ -316,8 +326,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id,
                 type_name=object_type,
                 resource_type=resource_type_id,
-                deposit_positions=set(expand_position_patterns(object_config.deposit_positions)),
-                withdrawal_positions=set(expand_position_patterns(object_config.withdrawal_positions)),
+                deposit_positions=set(FIXED_POSITIONS.index(pos) for pos in object_config.deposit_positions),
+                withdrawal_positions=set(FIXED_POSITIONS.index(pos) for pos in object_config.withdrawal_positions),
                 tag_ids=tag_ids,
             )
             objects_cpp_params[object_type] = cpp_chest_config
@@ -419,6 +429,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
     game_cpp_params["allow_diagonals"] = game_config.allow_diagonals
     game_cpp_params["track_movement_metrics"] = game_config.track_movement_metrics
+
+    # Add inventory regeneration settings
+    # Convert resource names to IDs in inventory_regen_amounts
+    inventory_regen_amounts_cpp = {}
+    for resource_name, amount in game_config.inventory_regen_amounts.items():
+        inventory_regen_amounts_cpp[resource_name_to_id[resource_name]] = amount
+
+    game_cpp_params["inventory_regen_amounts"] = inventory_regen_amounts_cpp
+    game_cpp_params["inventory_regen_interval"] = game_config.inventory_regen_interval
 
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name

@@ -36,6 +36,8 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "factory": ["F"],
     "temple": ["T"],
     "converter": ["c"],
+    "chest": ["C"],
+    "assembler": ["Z"],
 }
 
 NAME_TO_CHAR.update(EXTRACTOR_CHAR_MAP)
