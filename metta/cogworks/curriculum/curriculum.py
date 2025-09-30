@@ -460,9 +460,20 @@ class Curriculum(StatsLogger):
         # Restore random state
         self._rng.setstate(state["seed"])
 
+        # Notify algorithm of task evictions before clearing
+        # This ensures algorithm state is properly synchronized
+        if self._algorithm is not None:
+            for task_id in list(self._tasks.keys()):
+                self._algorithm.on_task_evicted(task_id)
+
         # Clear existing tasks
         self._tasks.clear()
         self._task_ids.clear()
+
+        # Restore algorithm state BEFORE recreating tasks
+        # This ensures the algorithm starts from the correct checkpoint state
+        if self._algorithm is not None and "algorithm_state" in state:
+            self._algorithm.load_state(state["algorithm_state"])
 
         # Restore tasks
         for task_id_str, task_data in state["tasks"].items():
@@ -477,10 +488,6 @@ class Curriculum(StatsLogger):
 
             self._tasks[task_id] = task
             self._task_ids.add(task_id)
-
-        # Restore algorithm state
-        if self._algorithm is not None and "algorithm_state" in state:
-            self._algorithm.load_state(state["algorithm_state"])
 
 
 # Import concrete config classes at the end to avoid circular imports
