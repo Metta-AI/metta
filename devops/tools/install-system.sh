@@ -91,17 +91,15 @@ ensure_tool() {
     return 0
   fi
 
-  if [ "$tool" = "nim" ] || [ "$tool" = "nimble" ]; then
-    if [ "$(uname -s)" = "Linux" ]; then
-      if install_nim_via_choosenim; then
-        ensure_paths
-        if check_cmd "$tool"; then
-          return 0
-        fi
-        err "Installed Nim via choosenim but $tool is not available"
-      else
-        err "Failed to install Nim via choosenim"
+  if [ "$(uname -s)" = "Linux" ] && { [ "$tool" = "nim" ] || [ "$tool" = "nimble" ]; }; then
+    if install_nim_via_choosenim; then
+      ensure_paths
+      if check_cmd "$tool"; then
+        return 0
       fi
+      err "Installed Nim via choosenim but $tool is not available"
+    else
+      err "Failed to install Nim via choosenim"
     fi
   fi
 
@@ -230,18 +228,13 @@ install_nim_via_choosenim() {
 
   ensure_paths
 
-  if ! check_cmd nim; then
-    echo "Nim install finished but 'nim' is still missing. Ensure ~/.nimble/bin is in your PATH or install manually." >&2
-    return 1
+  if check_cmd nim && check_cmd nimble; then
+    echo "Nim installed successfully via choosenim."
+    return 0
   fi
 
-  if ! check_cmd nimble; then
-    echo "Nim install finished but 'nimble' is still missing. Ensure ~/.nimble/bin is in your PATH or install manually." >&2
-    return 1
-  fi
-
-  echo "Nim installed successfully via choosenim."
-  return 0
+  echo "Nim install finished but binaries are still missing. Ensure ~/.nimble/bin is in your PATH or install manually." >&2
+  return 1
 }
 
 get_bazelisk_url() {
