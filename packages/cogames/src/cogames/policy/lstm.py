@@ -1,6 +1,5 @@
 import logging
-from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -13,87 +12,55 @@ from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 logger = logging.getLogger("cogames.policies.lstm_policy")
 
 
-@dataclass
-class _RnnState:
-    """Utility for converting between PyTorch and external LSTM state formats."""
+StateDict = Dict[str, torch.Tensor]
+LSTMState = Tuple[torch.Tensor, torch.Tensor]
 
-    hidden: torch.Tensor  # (num_layers, batch, hidden_size)
-    cell: torch.Tensor  # (num_layers, batch, hidden_size)
 
-    @staticmethod
-    def _expand_to_three_dims(tensor: torch.Tensor) -> torch.Tensor:
-        """Ensure state tensors have shape (layers, batch, hidden)."""
-        if tensor.dim() == 3:
-            return tensor
-        if tensor.dim() == 2:
-            return tensor.unsqueeze(0)
-        if tensor.dim() == 1:
-            return tensor.unsqueeze(0).unsqueeze(1)
-        if tensor.dim() == 0:
-            return tensor.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+def _ensure_three_dims(tensor: torch.Tensor) -> torch.Tensor:
+    """Return tensor shaped as (layers, batch, hidden)."""
+
+    if tensor.dim() == 3:
         return tensor
+    if tensor.dim() == 2:
+        return tensor.unsqueeze(0)
+    if tensor.dim() == 1:
+        return tensor.unsqueeze(0).unsqueeze(1)
+    if tensor.dim() == 0:
+        return tensor.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+    return tensor
 
-    @classmethod
-    def from_container(
-        cls,
-        state: Optional[Union[Tuple[torch.Tensor, torch.Tensor], Dict[str, torch.Tensor]]],
-    ) -> Optional["_RnnState"]:
-        """Convert user-provided state container to layers-first tensors."""
 
-        if state is None:
+def _state_from_container(
+    state: Optional[Union[LSTMState, StateDict]],
+) -> Optional[LSTMState]:
+    """Normalize state containers to a tuple with layers-first tensors."""
+
+    if state is None:
+        return None
+
+    if isinstance(state, tuple):
+        hidden, cell = state
+        return _ensure_three_dims(hidden), _ensure_three_dims(cell)
+
+    if isinstance(state, dict):
+        hidden = state.get("lstm_h")
+        cell = state.get("lstm_c")
+        if hidden is None or cell is None:
             return None
+        hidden_layers = _ensure_three_dims(hidden).transpose(0, 1)
+        cell_layers = _ensure_three_dims(cell).transpose(0, 1)
+        return hidden_layers, cell_layers
 
-        if isinstance(state, dict):
-            hidden = state.get("lstm_h")
-            cell = state.get("lstm_c")
-            if hidden is None or cell is None:
-                return None
-            hidden_expanded = cls._expand_to_three_dims(hidden)
-            cell_expanded = cls._expand_to_three_dims(cell)
-            # Dict storage is batch-first -> transpose to layers-first
-            if hidden_expanded.dim() == 3:
-                hidden_expanded = hidden_expanded.transpose(0, 1)
-                cell_expanded = cell_expanded.transpose(0, 1)
-            return cls(hidden=hidden_expanded, cell=cell_expanded)
-
-        if isinstance(state, tuple):
-            hidden, cell = state
-            hidden_expanded = cls._expand_to_three_dims(hidden)
-            cell_expanded = cls._expand_to_three_dims(cell)
-            return cls(hidden=hidden_expanded, cell=cell_expanded)
-
-        msg = f"Unsupported LSTM state container type: {type(state)!r}"
-        raise TypeError(msg)
-
-    def assign_to_dict(self, target: Dict[str, torch.Tensor]) -> None:
-        """Write the current state into a mutable dict in batch-first format."""
-
-        hidden_store = self.hidden.transpose(0, 1).contiguous()
-        cell_store = self.cell.transpose(0, 1).contiguous()
-        target["lstm_h"] = hidden_store.detach()
-        target["lstm_c"] = cell_store.detach()
-
-    def as_tuple(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Return the state as a tuple in layers-first orientation."""
-
-        return self.hidden.detach(), self.cell.detach()
+    msg = f"Unsupported LSTM state container type: {type(state)!r}"
+    raise TypeError(msg)
 
 
-@dataclass
-class AgentLSTMState:
-    """State container used by per-agent policies (batch-first orientation)."""
+def _write_state_to_dict(target: StateDict, state: LSTMState) -> None:
+    """Store layers-first state tuple into batch-first dict (detached)."""
 
-    hidden: torch.Tensor  # (batch=1, num_layers, hidden_size)
-    cell: torch.Tensor  # (batch=1, num_layers, hidden_size)
-
-    def to_state_dict(self) -> Dict[str, torch.Tensor]:
-        return {"lstm_h": self.hidden, "lstm_c": self.cell}
-
-    @classmethod
-    def from_state_dict(cls, state_dict: Mapping[str, torch.Tensor]) -> "AgentLSTMState":
-        hidden = state_dict["lstm_h"].detach()
-        cell = state_dict["lstm_c"].detach()
-        return cls(hidden=hidden, cell=cell)
+    hidden, cell = state
+    target["lstm_h"] = hidden.transpose(0, 1).contiguous().detach()
+    target["lstm_c"] = cell.transpose(0, 1).contiguous().detach()
 
 
 class LSTMPolicyNet(torch.nn.Module):
@@ -126,31 +93,30 @@ class LSTMPolicyNet(torch.nn.Module):
             observations = observations / 255.0
 
         batch_size = observations.shape[0]
-        obs_flat = observations.reshape(batch_size, -1)
-        features, remainder = divmod(obs_flat.shape[1], self._obs_size)
-        if remainder != 0:
-            msg = (
-                "Observation tensor cannot be reshaped into expected input size. "
-                f"Received flattened size {obs_flat.shape[1]} for expected {self._obs_size}."
-            )
-            raise ValueError(msg)
+        obs_flat = observations.view(batch_size, -1)
+        if obs_flat.shape[1] == self._obs_size:
+            bptt_horizon = 1
+            obs_steps = obs_flat
+        else:
+            if obs_flat.shape[1] % self._obs_size != 0:
+                msg = (
+                    "Observation tensor cannot be reshaped into expected input size. "
+                    f"Received flattened size {obs_flat.shape[1]} for expected {self._obs_size}."
+                )
+                raise ValueError(msg)
+            bptt_horizon = obs_flat.shape[1] // self._obs_size
+            obs_steps = obs_flat.view(batch_size * bptt_horizon, self._obs_size)
 
-        bptt_horizon = max(features, 1)
-        obs_flat = obs_flat.reshape(batch_size * bptt_horizon, self._obs_size)
+        hidden = self._net(obs_steps)
+        hidden = hidden.view(batch_size, bptt_horizon, self.hidden_size)
 
-        hidden = self._net(obs_flat)
-        hidden = hidden.reshape(batch_size, bptt_horizon, self.hidden_size)
+        rnn_state = _state_from_container(state)
+        hidden, new_state = self._rnn(hidden, rnn_state)
 
-        rnn_state = _RnnState.from_container(state)
-        rnn_state_tuple = rnn_state.as_tuple() if rnn_state is not None else None
+        if isinstance(state, dict) and new_state is not None:
+            _write_state_to_dict(state, new_state)
 
-        hidden, new_state_tuple = self._rnn(hidden, rnn_state_tuple)
-
-        if isinstance(state, dict) and new_state_tuple is not None:
-            new_state = _RnnState(hidden=new_state_tuple[0], cell=new_state_tuple[1])
-            new_state.assign_to_dict(state)
-
-        hidden = hidden.reshape(batch_size * bptt_horizon, self.hidden_size)
+        hidden = hidden.view(batch_size * bptt_horizon, self.hidden_size)
         logits = self._action_head(hidden)
         logits = logits.split(self._action_nvec, dim=1)
 
@@ -166,7 +132,7 @@ class LSTMPolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class LSTMAgentPolicy(StatefulAgentPolicy[AgentLSTMState]):
+class LSTMAgentPolicy(StatefulAgentPolicy[LSTMState]):
     """Per-agent policy that uses the shared LSTM network."""
 
     def __init__(self, net: LSTMPolicyNet, device: torch.device, action_nvec: tuple):
@@ -174,7 +140,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[AgentLSTMState]):
         self._device = device
         self._action_nvec = action_nvec
 
-    def agent_state(self) -> Optional[AgentLSTMState]:
+    def agent_state(self) -> Optional[LSTMState]:
         """Get initial state for a new agent.
 
         For LSTM, we return None and let the network initialize the state on first forward pass.
@@ -184,8 +150,8 @@ class LSTMAgentPolicy(StatefulAgentPolicy[AgentLSTMState]):
     def step_with_state(
         self,
         obs: Union[MettaGridObservation, torch.Tensor],
-        state: Optional[AgentLSTMState],
-    ) -> Tuple[MettaGridAction, Optional[AgentLSTMState]]:
+        state: Optional[LSTMState],
+    ) -> Tuple[MettaGridAction, Optional[LSTMState]]:
         """Get action and update state for this agent."""
         # Convert single observation to batch of 1 for network forward pass
         if isinstance(obs, torch.Tensor):
@@ -196,11 +162,9 @@ class LSTMAgentPolicy(StatefulAgentPolicy[AgentLSTMState]):
         with torch.no_grad():
             self._net.eval()
             # For inference, hold state in batch-first dict so forward_eval can reuse it
-            state_dict: Dict[str, torch.Tensor]
+            state_dict: Dict[str, torch.Tensor] = {}
             if state is not None:
-                state_dict = state.to_state_dict()
-            else:
-                state_dict = {}
+                _write_state_to_dict(state_dict, state)
 
             # Debug: check observation
             if torch.isnan(obs_tensor).any():
@@ -222,9 +186,7 @@ class LSTMAgentPolicy(StatefulAgentPolicy[AgentLSTMState]):
                         logger.error(f"NaN in parameter {name}")
 
             # Extract the new state from the dict
-            new_state = None
-            if "lstm_h" in state_dict and "lstm_c" in state_dict:
-                new_state = AgentLSTMState.from_state_dict(state_dict)
+            new_state = _state_from_container(state_dict)
 
             # Sample action from the logits
             actions = []

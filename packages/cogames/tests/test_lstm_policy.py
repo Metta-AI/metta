@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from gymnasium.spaces import Box, MultiDiscrete
 
-from cogames.policy.lstm import AgentLSTMState, LSTMAgentPolicy, LSTMPolicyNet
+from cogames.policy.lstm import LSTMAgentPolicy, LSTMPolicyNet
 
 
 class MockEnv:
@@ -128,8 +128,8 @@ def test_forward_with_tuple_state_layers_first():
     assert values.shape == (batch_size, 1)
 
 
-def test_agent_policy_returns_agent_state_dataclass():
-    """Agent policy should surface AgentLSTMState and reuse it on subsequent calls."""
+def test_agent_policy_returns_tuple_state():
+    """Agent policy should surface tuple state and reuse it on subsequent calls."""
     env = MockEnv()
     net = LSTMPolicyNet(env)
     agent_policy = LSTMAgentPolicy(net, torch.device("cpu"), tuple(env.single_action_space.nvec))
@@ -137,9 +137,9 @@ def test_agent_policy_returns_agent_state_dataclass():
     obs = env.single_observation_space.sample()
 
     action, state = agent_policy.step_with_state(obs, None)
-    assert isinstance(state, AgentLSTMState)
+    assert isinstance(state, tuple)
     assert action.shape == (len(env.single_action_space.nvec),)
 
     next_action, next_state = agent_policy.step_with_state(obs, state)
-    assert isinstance(next_state, AgentLSTMState)
+    assert isinstance(next_state, tuple)
     assert next_action.shape == action.shape
