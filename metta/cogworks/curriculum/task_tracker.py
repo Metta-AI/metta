@@ -382,13 +382,38 @@ class CentralizedTaskTracker(TaskTracker):
     Uses SharedMemoryBackend for cross-process communication.
     """
 
-    def __init__(self, max_memory_tasks: int = 1000, session_id: Optional[str] = None, ema_alpha: float = 0.1):
+    def __init__(
+        self,
+        max_memory_tasks: int = 1000,
+        session_id: Optional[str] = None,
+        ema_alpha: float = 0.1,
+        task_struct_size: int = 12,
+        completion_history_size: int = 1000,
+    ):
+        """Initialize centralized task tracker with shared memory.
+
+        Args:
+            max_memory_tasks: Maximum number of tasks to track
+            session_id: Unique identifier for shared memory session
+            ema_alpha: Alpha parameter for exponential moving average
+            task_struct_size: Size of each task's data structure (default: 12)
+                - Configurable to allow different learning progress algorithms
+                - Current structure: [task_id, creation_time, completion_count,
+                  reward_ema, lp_score, success_rate_ema, total_score, last_score,
+                  success_threshold, seed, generator_type, is_active]
+            completion_history_size: Size of completion history array (default: 1000)
+        """
         super().__init__(max_memory_tasks, ema_alpha)
 
         from metta.cogworks.curriculum.shared_memory_backend import SharedMemoryBackend
 
         # Use max_memory_tasks for shared memory size to ensure consistency
-        self._backend = SharedMemoryBackend(max_tasks=max_memory_tasks, session_id=session_id)
+        self._backend = SharedMemoryBackend(
+            max_tasks=max_memory_tasks,
+            session_id=session_id,
+            task_struct_size=task_struct_size,
+            completion_history_size=completion_history_size,
+        )
         self._task_id_to_index: Dict[int, int] = {}
         self._next_free_index = 0
 

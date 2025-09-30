@@ -50,6 +50,10 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Performance and memory management
     max_memory_tasks: int = 1000
     max_slice_axes: int = 3  # Updated terminology
+
+    # Memory backend configuration
+    task_struct_size: int = 12  # Size of task data structure in shared memory
+    completion_history_size: int = 1000  # Size of completion history array
     enable_detailed_slice_logging: bool = False  # Updated terminology
     use_shared_memory: bool = True  # Enabled by default for production use
     session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate unique
@@ -82,6 +86,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 max_memory_tasks=hypers.max_memory_tasks,
                 session_id=hypers.session_id,
                 ema_alpha=hypers.task_tracker_ema_alpha,
+                task_struct_size=hypers.task_struct_size,
+                completion_history_size=hypers.completion_history_size,
             )
         else:
             self.task_tracker = LocalTaskTracker(

@@ -29,11 +29,12 @@ curriculum_args = {
             "small",
             "medium",
             "large",
-            "impossible_deterministic",  # Impossible task: requires unobtainium
-            "impossible_noisy",  # Impossible task: random cooldowns + resource sinks
         ],
         "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "num_chests": [0],
+        # Special impossible task types (not combinatorial with above params)
+        "impossible_tasks": ["deterministic", "noisy"],
+        "impossible_task_probability": 0.1,  # 10% chance to sample an impossible task
     }
 }
 # "test": {
@@ -55,6 +56,8 @@ def make_task_generator_cfg(
     map_dir: Optional[str] = None,
     num_chests: list[int] = [0],
     chest_positions: list[list[Position]] = [["N"]],
+    impossible_tasks: list[str] = [],
+    impossible_task_probability: float = 0.0,
 ):
     return AssemblyLinesTaskGenerator.Config(
         num_agents=num_agents,
@@ -65,18 +68,31 @@ def make_task_generator_cfg(
         map_dir=map_dir,
         num_chests=num_chests,
         chest_positions=chest_positions,
+        impossible_tasks=impossible_tasks,
+        impossible_task_probability=impossible_task_probability,
     )
 
 
 class AssemblyLinesTaskGenerator(ICLTaskGenerator):
     """Task generator with support for impossible tasks for curriculum validation.
 
-    Impossible tasks are treated as regular task variants, specified via special
-    room_sizes: 'impossible_deterministic' and 'impossible_noisy'.
+    Impossible tasks are sampled separately from normal tasks, not combinatorially.
+    They serve as negative examples to validate curriculum learning behavior.
     """
 
-    def __init__(self, config: "ICLTaskGenerator.Config"):
+    class Config(ICLTaskGenerator.Config):
+        """Configuration for assembly line task generator with impossible tasks."""
+
+        impossible_tasks: list[
+            str
+        ] = []  # List of impossible task types: "deterministic", "noisy"
+        impossible_task_probability: float = (
+            0.0  # Probability of sampling an impossible task
+        )
+
+    def __init__(self, config: "AssemblyLinesTaskGenerator.Config"):
         super().__init__(config)
+        self.config: AssemblyLinesTaskGenerator.Config = config
 
     def _make_resource_chain(
         self,
@@ -254,77 +270,40 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         rng: random.Random,
         num_instances: Optional[int] = None,
     ) -> MettaGridConfig:
-        # Sample configuration parameters first
-        num_agents = rng.choice(self.config.num_agents)
-
-        # Sample resources (inline logic from parent class)
-        num_resources = rng.choice(self.config.num_resources)
-        if num_resources == 0:
-            resources = []
-        else:
-            num_resources = max(1, min(num_resources, len(self.resource_types)))
-            resources = rng.sample(self.resource_types, num_resources)
-
-        num_sinks = rng.choice(self.config.num_converters)
-        room_size_sampled = rng.choice(self.config.room_sizes)
-        position = rng.choice(self.config.positions)
-        num_chests = rng.choice(self.config.num_chests)
-        chest_position = rng.choice(self.config.chest_positions)
-
-        # Check if this is an impossible task variant
-        if room_size_sampled == "impossible_deterministic":
-            # Map to a real room size for dimensions, but track as impossible
-            actual_room_size = rng.choice(["small", "medium", "large"])
-            return self._generate_impossible_task_with_size(
-                task_id,
-                rng,
-                num_instances,
-                num_agents,
-                resources,
-                num_sinks,
-                actual_room_size,
-                position,
-                chest_position,
-                num_chests,
-                is_deterministic=True,
-            )
-        elif room_size_sampled == "impossible_noisy":
-            # Map to a real room size for dimensions, but track as impossible
-            actual_room_size = rng.choice(["small", "medium", "large"])
-            return self._generate_impossible_task_with_size(
-                task_id,
-                rng,
-                num_instances,
-                num_agents,
-                resources,
-                num_sinks,
-                actual_room_size,
-                position,
-                chest_position,
-                num_chests,
-                is_deterministic=False,
+        # First, check if we should generate an impossible task
+        if (
+            self.config.impossible_tasks
+            and rng.random() < self.config.impossible_task_probability
+        ):
+            impossible_type = rng.choice(self.config.impossible_tasks)
+            return self._generate_impossible_task(
+                task_id, rng, num_instances, impossible_type
             )
 
-        # Normal task - need to get terrain and dimensions from _setup_task
-        # Temporarily override config to use the sampled room_size
-        original_room_sizes = self.config.room_sizes
-        try:
-            self.config.room_sizes = [room_size_sampled]
-            (
-                _,  # num_agents
-                _,  # resources
-                _,  # num_sinks
-                room_size,  # actual room_size from setup
-                terrain,
-                width,
-                height,
-                max_steps,
-                _,  # position
-                _,  # chest_position
-                _,  # num_chests
-            ) = self._setup_task(rng)
-        finally:
-            self.config.room_sizes = original_room_sizes
+        # Otherwise, generate a normal assembly line task
+        return self._generate_normal_task(task_id, rng, num_instances)
+
+    def _generate_normal_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        num_instances: Optional[int] = None,
+    ) -> MettaGridConfig:
+        """Generate a normal (possible) assembly line task."""
+        # Use parent class _setup_task to get all parameters
+        (
+            num_agents,
+            resources,
+            num_sinks,
+            room_size,
+            terrain,
+            width,
+            height,
+            max_steps,
+            position,
+            chest_position,
+            num_chests,
+        ) = self._setup_task(rng)
 
         dir = (
             f"./train_dir/{self.config.map_dir}/{room_size}/{len(resources)}chain/{num_sinks}sinks/{terrain}"
@@ -351,47 +330,58 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         icl_env.label = f"{room_size}_{len(resources)}chain_{num_sinks}sinks_{terrain}"
         return icl_env
 
-    def _generate_impossible_task_with_size(
+    def _generate_impossible_task(
         self,
         task_id: int,
         rng: random.Random,
-        num_instances: Optional[int],
-        num_agents: int,
-        resources: list[str],
-        num_sinks: int,
-        room_size: str,
-        position: list[Position],
-        chest_position: list[Position],
-        num_chests: int,
-        is_deterministic: bool,
+        num_instances: Optional[int] = None,
+        impossible_type: str = "deterministic",
     ) -> MettaGridConfig:
-        """Generate an impossible task using a real room size for dimensions."""
-        # Now call the parent's _setup_task with the real room_size to get terrain, dimensions, etc.
-        # But we override the room_size parameter first
+        """Generate an impossible task (deterministic or noisy).
+
+        These tasks are standalone and not combinatorial with normal task parameters.
+        """
+        # Sample basic parameters for the impossible task
+        num_agents = rng.choice(self.config.num_agents)
+
+        # Sample resources for the impossible task chain
+        num_resources = rng.choice(self.config.num_resources)
+        if num_resources == 0:
+            resources = []
+        else:
+            num_resources = max(1, min(num_resources, len(self.resource_types)))
+            resources = rng.sample(self.resource_types, num_resources)
+
+        num_sinks = rng.choice(self.config.num_converters)
+
+        # Use a random room size for dimensions
+        room_size = rng.choice(["small", "medium", "large"])
+        position = rng.choice(self.config.positions)
+        num_chests = rng.choice(self.config.num_chests)
+        chest_position = rng.choice(self.config.chest_positions)
+
+        # Get terrain and dimensions using the chosen room_size
         original_room_sizes = self.config.room_sizes
         try:
-            # Temporarily set room_sizes to just the actual room size
             self.config.room_sizes = [room_size]
-
-            # Get the remaining setup parameters (terrain, width, height, max_steps)
             (
-                _,  # num_agents (we already have it)
-                _,  # resources (we already have it)
-                _,  # num_sinks (we already have it)
-                _,  # room_size (we already have it)
+                _,  # num_agents
+                _,  # resources
+                _,  # num_sinks
+                _,  # room_size
                 terrain,
                 width,
                 height,
                 max_steps,
-                _,  # position (we already have it)
-                _,  # chest_position (we already have it)
-                _,  # num_chests (we already have it)
+                _,  # position
+                _,  # chest_position
+                _,  # num_chests
             ) = self._setup_task(rng)
         finally:
-            # Restore original room_sizes
             self.config.room_sizes = original_room_sizes
 
-        if is_deterministic:
+        # Generate the impossible task based on type
+        if impossible_type == "deterministic":
             return self._generate_impossible_deterministic_task_internal(
                 num_agents,
                 resources,
@@ -407,7 +397,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
                 num_instances or 24 // num_agents,
                 rng,
             )
-        else:
+        elif impossible_type == "noisy":
             return self._generate_impossible_noisy_task_internal(
                 num_agents,
                 resources,
@@ -423,6 +413,8 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
                 num_instances or 24 // num_agents,
                 rng,
             )
+        else:
+            raise ValueError(f"Unknown impossible task type: {impossible_type}")
 
     def generate_task(
         self,

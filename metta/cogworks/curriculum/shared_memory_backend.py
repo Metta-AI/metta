@@ -17,13 +17,16 @@ class TaskMemoryBackend(ABC):
     This interface hides the implementation details of local vs shared memory,
     allowing the rest of the curriculum system to work identically regardless
     of whether running single-process or multi-process training.
+
+    The struct sizes (TASK_STRUCT_SIZE and COMPLETION_HISTORY_SIZE) are configured
+    at initialization to allow different learning progress algorithms to specify
+    their storage requirements.
     """
 
     # Task structure: [task_id, creation_time, completion_count, reward_ema, lp_score,
     #                  success_rate_ema, total_score, last_score, success_threshold,
     #                  seed, generator_type, is_active]
-    TASK_STRUCT_SIZE = 12
-    COMPLETION_HISTORY_SIZE = 1000
+    # Note: Actual sizes are configured per instance in __init__
 
     @abstractmethod
     def get_task_data(self, index: int) -> np.ndarray:
@@ -68,17 +71,26 @@ class LocalMemoryBackend(TaskMemoryBackend):
     No inter-process communication overhead.
     """
 
-    def __init__(self, max_tasks: int = 10000):
+    def __init__(
+        self,
+        max_tasks: int = 10000,
+        task_struct_size: int = 12,
+        completion_history_size: int = 1000,
+    ):
         """Initialize local memory backend.
 
         Args:
             max_tasks: Maximum number of tasks to track
+            task_struct_size: Size of each task's data structure (default: 12)
+            completion_history_size: Size of completion history array (default: 1000)
         """
         self.max_tasks = max_tasks
+        self.task_struct_size = task_struct_size
+        self.completion_history_size = completion_history_size
 
         # Allocate local numpy arrays
-        self._task_array = np.zeros((max_tasks, self.TASK_STRUCT_SIZE), dtype=np.float64)
-        self._completion_history = np.zeros((self.COMPLETION_HISTORY_SIZE,), dtype=np.float64)
+        self._task_array = np.zeros((max_tasks, self.task_struct_size), dtype=np.float64)
+        self._completion_history = np.zeros((self.completion_history_size,), dtype=np.float64)
 
         # No-op lock for local memory (single process)
         from threading import RLock
@@ -118,7 +130,13 @@ class SharedMemoryBackend(TaskMemoryBackend):
     Multiple processes can read/write the same task data concurrently.
     """
 
-    def __init__(self, max_tasks: int = 10000, session_id: Optional[str] = None):
+    def __init__(
+        self,
+        max_tasks: int = 10000,
+        session_id: Optional[str] = None,
+        task_struct_size: int = 12,
+        completion_history_size: int = 1000,
+    ):
         """Initialize shared memory backend.
 
         Args:
@@ -126,8 +144,12 @@ class SharedMemoryBackend(TaskMemoryBackend):
             session_id: Unique identifier for this shared memory session.
                        All processes sharing state must use the same session_id.
                        If None, creates a unique session (not shared across processes).
+            task_struct_size: Size of each task's data structure (default: 12)
+            completion_history_size: Size of completion history array (default: 1000)
         """
         self.max_tasks = max_tasks
+        self.task_struct_size = task_struct_size
+        self.completion_history_size = completion_history_size
 
         # Generate session ID if not provided
         if session_id is None:
@@ -151,8 +173,8 @@ class SharedMemoryBackend(TaskMemoryBackend):
     def _init_shared_memory(self):
         """Initialize shared memory structures."""
         # Calculate sizes
-        task_array_size = self.max_tasks * self.TASK_STRUCT_SIZE * 8  # 8 bytes per float64
-        completion_history_size = self.COMPLETION_HISTORY_SIZE * 8
+        task_array_size = self.max_tasks * self.task_struct_size * 8  # 8 bytes per float64
+        completion_history_size = self.completion_history_size * 8
 
         try:
             # Try to connect to existing shared memory
@@ -181,20 +203,20 @@ class SharedMemoryBackend(TaskMemoryBackend):
 
             # Initialize to zero only if we created it
             task_array = np.ndarray(
-                (self.max_tasks, self.TASK_STRUCT_SIZE), dtype=np.float64, buffer=self._task_array_shm.buf
+                (self.max_tasks, self.task_struct_size), dtype=np.float64, buffer=self._task_array_shm.buf
             )
             completion_array = np.ndarray(
-                (self.COMPLETION_HISTORY_SIZE,), dtype=np.float64, buffer=self._completion_history_shm.buf
+                (self.completion_history_size,), dtype=np.float64, buffer=self._completion_history_shm.buf
             )
             task_array.fill(0.0)
             completion_array.fill(0.0)
 
         # Create numpy views
         self._task_array = np.ndarray(
-            (self.max_tasks, self.TASK_STRUCT_SIZE), dtype=np.float64, buffer=self._task_array_shm.buf
+            (self.max_tasks, self.task_struct_size), dtype=np.float64, buffer=self._task_array_shm.buf
         )
         self._completion_history = np.ndarray(
-            (self.COMPLETION_HISTORY_SIZE,), dtype=np.float64, buffer=self._completion_history_shm.buf
+            (self.completion_history_size,), dtype=np.float64, buffer=self._completion_history_shm.buf
         )
 
         # Use multiprocessing RLock for synchronization
