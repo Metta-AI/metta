@@ -114,8 +114,8 @@ class LSTMPolicyNet(torch.nn.Module):
 
         hidden, new_state = self._rnn(hidden, rnn_state)
 
-        # If state was passed as a dict, update it in-place with new state
-        if state_is_dict:
+        # If state was passed as a dict with LSTM keys, update it in-place with new state
+        if state_has_keys:
             h, c = new_state
             # Transpose back to PufferLib format: (layers, batch, hidden) -> (batch, layers, hidden)
             if h.dim() == 3:
@@ -174,8 +174,8 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
 
         with torch.no_grad():
             self._net.eval()
-            # For inference, we pass state as a tuple and get it back via dict
-            state_dict = {}
+            # For inference, we pass state through a dict so forward_eval can populate it
+            state_dict = {"lstm_h": None, "lstm_c": None}
             if state is not None:
                 state_dict["lstm_h"], state_dict["lstm_c"] = state
 

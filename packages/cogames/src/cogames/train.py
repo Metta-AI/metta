@@ -44,10 +44,31 @@ def train(
         # TODO(jsuarez): Fix multiprocessing backend
         backend = pufferlib.vector.Serial
 
+    desired_workers = 8
+    cpu_cores = None
+    try:
+        import psutil
+
+        cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
+    except Exception:  # pragma: no cover - best effort fallback
+        cpu_cores = None
+
+    if cpu_cores is not None:
+        adjusted_workers = min(desired_workers, max(1, cpu_cores))
+        if adjusted_workers < desired_workers:
+            logger.info(
+                "Reducing num_workers from %s to %s to match available CPU cores",
+                desired_workers,
+                adjusted_workers,
+            )
+        num_workers = adjusted_workers
+    else:
+        num_workers = desired_workers
+
     vecenv = pufferlib.vector.make(
         env_creator,
         num_envs=256,
-        num_workers=8,
+        num_workers=num_workers,
         batch_size=128,
         backend=backend,
         env_kwargs={
