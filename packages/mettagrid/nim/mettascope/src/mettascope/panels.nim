@@ -98,7 +98,7 @@ proc beginPanAndZoom*(panel: Panel) =
       mouseCapturedPanel = panel
 
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
-      panel.vel = window.mouseDelta.vec2
+      panel.vel = window.logicalMouseDelta
     else:
       panel.vel *= 0.9
 
@@ -106,7 +106,7 @@ proc beginPanAndZoom*(panel: Panel) =
 
     if window.scrollDelta.y != 0:
       # Apply zoom at focal point (mouse position) with consistent sensitivity.
-      let localMousePos = window.mousePos.vec2 - panel.rect.xy.vec2
+      let localMousePos = window.logicalMousePos - panel.rect.xy.vec2
       let zoomSensitivity = 0.005
 
       let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) *

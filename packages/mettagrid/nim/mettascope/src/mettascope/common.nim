@@ -127,3 +127,6 @@ proc wh*(rect: IRect): IVec2 =
 
 proc logicalMousePos*(window: Window): Vec2 =
   window.mousePos.vec2 / window.contentScale
+
+proc logicalMouseDelta*(window: Window): Vec2 =
+  window.mouseDelta.vec2 / window.contentScale
