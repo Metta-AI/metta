@@ -8,12 +8,14 @@
 import { InstitutionWorker } from "./institution-worker";
 import { LLMWorker } from "./llm-worker";
 import { TaggingWorker } from "./tagging-worker";
+import { ExternalNotificationWorker } from "./external-notification-worker";
 import { JobQueueService } from "../job-queue";
 
 export class WorkerManager {
   private institutionWorker?: InstitutionWorker;
   private llmWorker?: LLMWorker;
   private taggingWorker?: TaggingWorker;
+  private externalNotificationWorker?: ExternalNotificationWorker;
   private isShuttingDown = false;
 
   async start(): Promise<void> {
@@ -24,12 +26,16 @@ export class WorkerManager {
       this.institutionWorker = new InstitutionWorker();
       this.llmWorker = new LLMWorker();
       this.taggingWorker = new TaggingWorker();
+      this.externalNotificationWorker = new ExternalNotificationWorker();
 
       console.log("✅ All workers started successfully!");
       console.log("📊 Worker status:");
       console.log("   🏛️ Institution Worker: Running (concurrency: 2)");
       console.log("   🤖 LLM Worker: Running (concurrency: 1)");
       console.log("   🏷️ Tagging Worker: Running (concurrency: 3)");
+      console.log(
+        "   📧 External Notification Worker: Running (concurrency: 3)"
+      );
 
       // Setup graceful shutdown
       this.setupGracefulShutdown();
@@ -77,6 +83,9 @@ export class WorkerManager {
         console.log(
           `   🏷️ Tagging: ${stats.tagging.active} active, ${stats.tagging.waiting} waiting, ${stats.tagging.completed} completed`
         );
+        console.log(
+          `   📧 Notifications: ${stats.notifications.active} active, ${stats.notifications.waiting} waiting, ${stats.notifications.completed} completed`
+        );
       } catch (error) {
         console.error("❌ Failed to get queue stats:", error);
       }
@@ -96,6 +105,9 @@ export class WorkerManager {
     }
     if (this.taggingWorker) {
       shutdownPromises.push(this.taggingWorker.shutdown());
+    }
+    if (this.externalNotificationWorker) {
+      shutdownPromises.push(this.externalNotificationWorker.shutdown());
     }
 
     await Promise.all(shutdownPromises);
