@@ -12,12 +12,7 @@ class RandomPolicy(Policy, AgentPolicy):
     """Random policy that samples actions uniformly from the action space."""
 
     def __init__(self, env: MettaGridEnv, device: Optional[object] = None):
-        """Initialize random policy.
-
-        Args:
-            env: The environment to sample actions from
-            device: Device to use (ignored for random policy)
-        """
+        """Create a random policy that samples uniformly from the action space."""
         self._env = env
         self._action_space = env.single_action_space
 
@@ -25,17 +20,10 @@ class RandomPolicy(Policy, AgentPolicy):
         return self
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
-        """Get random action.
-
-        Args:
-            obs: The observation (unused for random policy)
-
-        Returns:
-            A random action sampled from the action space
-        """
+        """Sample a random action ignoring the observation."""
         sample = self._action_space.sample()
         return np.asarray(sample, dtype=np.int32)
 
     def reset(self) -> None:
-        """Reset the policy state (no-op for random policy)."""
+        """Reset policy state (no-op)."""
         pass
