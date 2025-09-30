@@ -27,6 +27,10 @@ def train(
     batch_size: int,
     minibatch_size: int,
     game_name: Optional[str] = None,
+    *,
+    vector_num_envs: Optional[int] = None,
+    vector_batch_size: Optional[int] = None,
+    vector_num_workers: Optional[int] = None,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
     import pufferlib.vector
@@ -44,7 +48,7 @@ def train(
         # TODO(jsuarez): Fix multiprocessing backend
         backend = pufferlib.vector.Serial
 
-    desired_workers = 8
+    desired_workers = vector_num_workers if vector_num_workers is not None else 8
     cpu_cores = None
     try:
         import psutil
@@ -65,11 +69,32 @@ def train(
     else:
         num_workers = desired_workers
 
+    if backend is pufferlib.vector.Multiprocessing and device.type != "cuda":
+        backend = pufferlib.vector.Serial
+        num_workers = 1
+
+    num_envs = vector_num_envs if vector_num_envs is not None else 256
+
+    envs_per_worker = max(1, num_envs // num_workers)
+    base_batch_size = vector_batch_size if vector_batch_size is not None else 128
+    vector_batch_size = max(base_batch_size, envs_per_worker)
+    remainder = vector_batch_size % envs_per_worker
+    if remainder:
+        vector_batch_size += envs_per_worker - remainder
+
+    logger.debug(
+        "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
+        num_envs,
+        num_workers,
+        vector_batch_size,
+        envs_per_worker,
+    )
+
     vecenv = pufferlib.vector.make(
         env_creator,
-        num_envs=256,
+        num_envs=num_envs,
         num_workers=num_workers,
-        batch_size=128,
+        batch_size=vector_batch_size,
         backend=backend,
         env_kwargs={
             "cfg": env_cfg,
@@ -107,12 +132,52 @@ def train(
         optimizer = "muon"
         adam_eps = 1e-12
 
+    total_agents = max(1, getattr(vecenv, "num_agents", 1))
+    num_envs = max(1, getattr(vecenv, "num_envs", 1))
+    num_workers = max(1, getattr(vecenv, "num_workers", 1))
+    envs_per_worker = max(1, num_envs // num_workers)
+
+    # PuffeRL enforces two simple rules:
+    # 1. batch_size >= num_agents * bptt_horizon
+    # 2. batch_size % (num_envs / num_workers) == 0
+    original_batch_size = batch_size
+    amended_batch_size = max(original_batch_size, total_agents * bptt_horizon)
+    remainder = amended_batch_size % envs_per_worker
+    if remainder:
+        amended_batch_size += envs_per_worker - remainder
+
+    if amended_batch_size != original_batch_size:
+        logger.info(
+            "Adjusted batch_size from %s to %s (agents=%s, horizon=%s, envs/worker=%s)",
+            original_batch_size,
+            amended_batch_size,
+            total_agents,
+            bptt_horizon,
+            envs_per_worker,
+        )
+
+    amended_minibatch_size = min(minibatch_size, amended_batch_size)
+    if amended_minibatch_size != minibatch_size:
+        logger.info(
+            "Reducing minibatch_size from %s to %s to keep it <= batch_size",
+            minibatch_size,
+            amended_minibatch_size,
+        )
+
+    effective_timesteps = max(num_steps, amended_batch_size)
+    if effective_timesteps != num_steps:
+        logger.info(
+            "Raising total_timesteps from %s to %s to keep it >= batch_size",
+            num_steps,
+            effective_timesteps,
+        )
+
     train_args = dict(
         env=env_name,
         device=device.type,
-        total_timesteps=num_steps,
-        minibatch_size=minibatch_size,
-        batch_size=batch_size,
+        total_timesteps=effective_timesteps,
+        minibatch_size=amended_minibatch_size,
+        batch_size=amended_batch_size,
         data_dir=str(checkpoints_path),
         checkpoint_interval=200,
         bptt_horizon=bptt_horizon,

@@ -17,7 +17,6 @@ from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
-from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
 
@@ -38,6 +37,7 @@ PYTHON_TEST_FOLDERS = [
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 PACKAGE_TAG_PREFIXES = {
     "mettagrid": "mettagrid-v",
+    "cogames": "cogames-v",
 }
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
@@ -418,6 +418,8 @@ def cmd_status(
     console = Console()
     console.print(table)
 
+    from metta.tools.utils.auto_config import auto_policy_storage_decision
+
     policy_decision = auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:
         if policy_decision.reason == "env_override":
@@ -475,6 +477,16 @@ def cmd_run(
 
 @app.command(name="clean", help="Clean build artifacts and temporary files")
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
+    def _remove_matching_dirs(base: Path, patterns: list[str], *, include_globs: bool = False) -> None:
+        for pattern in patterns:
+            candidates = base.glob(pattern) if include_globs else (base / pattern,)
+            for path in candidates:
+                if not path.exists() or not path.is_dir():
+                    continue
+                info(f"  Removing {path.relative_to(cli.repo_root)}...")
+                subprocess.run(["chmod", "-R", "u+w", str(path)], cwd=cli.repo_root, check=False)
+                subprocess.run(["rm", "-rf", str(path)], cwd=cli.repo_root, check=False)
+
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
         info("  Removing root build directory...")
@@ -486,6 +498,12 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
         if build_path.exists():
             info(f"  Removing packages/mettagrid/{build_name}...")
             shutil.rmtree(build_path)
+
+    _remove_matching_dirs(cli.repo_root, ["bazel-*"], include_globs=True)
+    _remove_matching_dirs(cli.repo_root, [".bazel_output"])
+    if mettagrid_dir.exists():
+        _remove_matching_dirs(mettagrid_dir, ["bazel-*"], include_globs=True)
+        _remove_matching_dirs(mettagrid_dir, [".bazel_output"])
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
     if cleanup_script.exists():
@@ -500,7 +518,7 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
 
 @app.command(name="publish", help="Create and push a release tag for a package")
 def cmd_publish(
-    package: Annotated[str, typer.Argument(help="Package to publish (currently only 'mettagrid')")],
+    package: Annotated[str, typer.Argument(help="Package to publish (for example 'mettagrid' or 'cogames')")],
     version_override: Annotated[
         Optional[str],
         typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
