@@ -247,15 +247,7 @@ POLICY_SHORTCUTS = {
 
 
 def resolve_policy_class_path(policy: str) -> str:
-    """Resolve a policy shorthand or full class path.
-
-    Args:
-        policy: Either a shorthand like "random", "simple", "lstm"
-                or a full class path like "cogames.policy.random.RandomPolicy"
-
-    Returns:
-        Full class path to the policy
-    """
+    """Return the full class path for a policy shorthand (``random``, ``simple``, ``lstm``)."""
     # If it's a shorthand, expand it
     if policy in POLICY_SHORTCUTS:
         return POLICY_SHORTCUTS[policy]
@@ -510,6 +502,15 @@ def make_scenario(
                     return float(raw)
                 return raw
 
+            def resolve_attr_value(obj: Any, path: str) -> Any:
+                target = obj
+                for part in path.split("."):
+                    if hasattr(target, part):
+                        target = getattr(target, part)
+                    else:
+                        raise typer.BadParameter(f"Unknown config key '{path}'.", param_name="key")
+                return target
+
             def assign_attr(obj: Any, path: str, raw_value: float) -> Any:
                 parts = path.split(".")
                 target = obj
@@ -534,20 +535,26 @@ def make_scenario(
             if num_variants > 1 and variant_key is None:
                 raise typer.BadParameter("Provide --key when generating multiple variants", param_name="key")
 
-            if num_variants > 1 and (variant_min is None or variant_max is None):
-                raise typer.BadParameter(
-                    "Provide both --min and --max when generating multiple variants",
-                    param_name="min",
-                )
+            if variant_key is not None:
+                if variant_min is None and variant_max is None:
+                    raise typer.BadParameter("Provide --min and/or --max when using --key", param_name="min")
+                if variant_min is not None and variant_max is not None and variant_min > variant_max:
+                    raise typer.BadParameter("--min must be <= --max", param_name="min")
 
             variant_values: list[Optional[float]]
             if variant_key:
                 if num_variants == 1:
-                    chosen = variant_min if variant_min is not None else variant_max
-                    variant_values = [chosen]
+                    probe_cfg = apply_common_fields(base_config.model_copy(deep=True))
+                    current_value = resolve_attr_value(probe_cfg, variant_key)
+                    base_value = float(current_value) if isinstance(current_value, (int, float)) else 0.0
+                    if variant_min is not None:
+                        base_value = variant_min
+                    if variant_max is not None:
+                        base_value = variant_max
+                    variant_values = [base_value]
                 else:
-                    start = variant_min or 0.0
-                    end = variant_max or start
+                    start = variant_min if variant_min is not None else variant_max or 0.0
+                    end = variant_max if variant_max is not None else variant_min or start
                     denominator = max(num_variants - 1, 1)
                     span = end - start
                     variant_values = [start + span * (idx / denominator) for idx in range(num_variants)]
@@ -580,7 +587,14 @@ def make_scenario(
                 for idx, cfg in enumerate(variants):
                     filename = output_dir / f"{safe_base_label}_{idx:03d}.yaml"
                     game.save_game_config(cfg, filename)
-                console.print(f"[green]Generated {len(variants)} variants at: {output_dir}[/green]")
+                if variant_key:
+                    formatted = ", ".join(f"{val:g}" for val in variant_values if val is not None)
+                    console.print(
+                        f"[green]Generated {len(variants)} variants at: {output_dir}[/green]"
+                        + (f" [dim](values: {formatted})[/dim]" if formatted else "")
+                    )
+                else:
+                    console.print(f"[green]Generated {len(variants)} variants at: {output_dir}[/green]")
             else:
                 cfg = variants[0]
                 if output:
@@ -591,7 +605,10 @@ def make_scenario(
                         output.parent.mkdir(parents=True, exist_ok=True)
                         target_path = output.resolve()
                     game.save_game_config(cfg, target_path)
-                    console.print(f"[green]Game configuration saved to: {target_path}[/green]")
+                    message = f"[green]Game configuration saved to: {target_path}[/green]"
+                    if variant_key and variant_values[0] is not None:
+                        message += f" [dim]({variant_key}={variant_values[0]:g})[/dim]"
+                    console.print(message)
                 else:
                     console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
         except typer.BadParameter:

@@ -107,15 +107,14 @@ class MettaGridEnv(MettaGridPufferBase):
         """Execute one timestep for training."""
         self.timer.stop("thread_idle")
 
-        sanitized_actions = self._sanitize_actions(actions)
-
         with self.timer("_c_env.step"):
-            observations, rewards, terminals, truncations, infos = super().step(sanitized_actions)
+            observations, rewards, terminals, truncations, infos = super().step(actions)
             self._steps += 1
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._episode_id, sanitized_actions, rewards)
+                logged_actions = self._last_sanitized_actions if self._last_sanitized_actions is not None else actions
+                self._replay_writer.log_step(self._episode_id, logged_actions, rewards)
 
         # Handle early reset for #DesyncEpisodes
         if self._early_reset is not None and self._steps >= self._early_reset:

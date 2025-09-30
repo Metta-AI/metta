@@ -96,6 +96,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         self.terminals: np.ndarray
         self.truncations: np.ndarray
         self.rewards: np.ndarray
+        self._last_sanitized_actions: Optional[np.ndarray] = None
 
     # PufferLib required properties
     @property
@@ -118,14 +119,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         return observations
 
     def _sanitize_actions(self, actions: np.ndarray) -> np.ndarray:
-        """Clamp action indices to valid ranges to avoid invalid-arg warnings.
-
-        Args:
-            actions: Action array matching PufferLib joint space layout.
-
-        Returns:
-            Sanitized action array with valid action type/argument combinations.
-        """
+        """Return a copy of ``actions`` clamped to valid type/argument ranges."""
 
         if actions.size == 0:
             return actions
@@ -151,6 +145,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         allowed_args = max_args.take(normalized_types)
         sanitized[..., 1] = np.clip(sanitized[..., 1], 0, allowed_args)
 
+        self._last_sanitized_actions = sanitized
         return sanitized
 
     @override
