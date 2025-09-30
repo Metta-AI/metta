@@ -109,6 +109,10 @@ public:
   // Current cooldown state
   unsigned int cooldown_end_timestep;
 
+  // Usage tracking
+  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
+  unsigned int uses_count;  // Current number of times used
+
   // Grid access for finding surrounding agents
   class Grid* grid;
 
@@ -125,6 +129,8 @@ public:
         unclip_recipes(),
         is_clipped(false),
         cooldown_end_timestep(0),
+        max_uses(cfg.max_uses),
+        uses_count(0),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         recipe_details_obs(cfg.recipe_details_obs),
@@ -199,6 +205,10 @@ public:
     if (!grid || !current_timestep_ptr) {
       return false;
     }
+    // Check if max uses has been reached
+    if (max_uses > 0 && uses_count >= max_uses) {
+      return false;
+    }
     if (cooldown_remaining() > 0) {
       return false;
     }
@@ -216,10 +226,12 @@ public:
       cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
     }
 
-    // If we were clipped and successfully used an unclip recipe, become unclipped
+    // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
     if (is_clipped) {
       is_clipped = false;
       unclip_recipes.clear();
+    } else {
+      uses_count++;
     }
 
     return true;
@@ -237,6 +249,13 @@ public:
     // Add clipped status to observations if clipped
     if (is_clipped) {
       features.push_back({ObservationFeature::Clipped, static_cast<ObservationType>(1)});
+    }
+
+    // Add remaining uses to observations if max_uses is set
+    if (max_uses > 0) {
+      unsigned int remaining_uses = (uses_count < max_uses) ? (max_uses - uses_count) : 0;
+      remaining_uses = std::min(remaining_uses, 255u);  // Cap at 255 for observation
+      features.push_back({ObservationFeature::RemainingUses, static_cast<ObservationType>(remaining_uses)});
     }
 
     // Add recipe details if configured to do so
