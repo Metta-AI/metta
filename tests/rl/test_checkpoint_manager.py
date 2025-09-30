@@ -48,7 +48,7 @@ class TestBasicSaveLoad:
         # Test :latest resolution
         from metta.rl.checkpoint_manager import key_and_version
 
-        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
+        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/:latest"
         run_name, epoch = key_and_version(latest_uri)
 
         assert run_name == "test_run"
@@ -62,7 +62,7 @@ class TestBasicSaveLoad:
         checkpoint_manager.save_agent(mock_agent, epoch=3, metadata={})
 
         # Load using :latest selector
-        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/test_run:latest.pt"
+        latest_uri = f"file://{checkpoint_manager.checkpoint_dir}/:latest"
         loaded_agent = CheckpointManager.load_from_uri(latest_uri)
 
         assert loaded_agent is not None
