@@ -84,9 +84,7 @@ jobs:
             export CHOOSENIM_NO_ANALYTICS=1
             curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
             export PATH="$HOME/.nimble/bin:$PATH"
-          CIBW_ENVIRONMENT_MACOS: |
-            MACOSX_DEPLOYMENT_TARGET=11.0
-            PATH="$HOME/.nimble/bin:$PATH"
+          CIBW_ENVIRONMENT_MACOS: PATH="$HOME/.nimble/bin:$PATH" MACOSX_DEPLOYMENT_TARGET=11.0
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
           CI: "true"
         with:
