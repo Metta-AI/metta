@@ -689,6 +689,14 @@ py::dict MettaGrid::grid_objects() {
       obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
     }
 
+    if (auto* has_inventory = dynamic_cast<HasInventory*>(obj)) {
+      py::dict inventory_dict;
+      for (const auto& [resource, quantity] : has_inventory->inventory.get()) {
+        inventory_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["inventory"] = inventory_dict;
+    }
+
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
@@ -698,11 +706,6 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["freeze_duration"] = agent->freeze_duration;
       obj_dict["color"] = agent->color;
 
-      py::dict inventory_dict;
-      for (const auto& [resource, quantity] : agent->inventory.get()) {
-        inventory_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["inventory"] = inventory_dict;
       // We made resource limits more complicated than this, and need to review how to expose them.
       // py::dict resource_limits_dict;
       // for (const auto& [resource, quantity] : agent->inventory.limits) {
@@ -713,11 +716,6 @@ py::dict MettaGrid::grid_objects() {
     }
 
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
-      py::dict inventory_dict;
-      for (const auto& [resource, quantity] : converter->inventory.get()) {
-        inventory_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["inventory"] = inventory_dict;
       obj_dict["is_converting"] = converter->converting;
       obj_dict["is_cooling_down"] = converter->cooling_down;
       obj_dict["conversion_duration"] = converter->conversion_ticks;

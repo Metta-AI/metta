@@ -180,7 +180,7 @@ assembler_temple = AssemblerConfig(
 )
 
 
-# Chest building definitions
+# Chest building definitions. Maybe not needed beyond the raw config?
 def make_chest(
     resource_type: str,
     type_id: int,
@@ -189,9 +189,9 @@ def make_chest(
 ) -> ChestConfig:
     """Create a chest configuration for a specific resource type."""
     if deposit_positions is None:
-        deposit_positions = ["N", "S", "E", "W"]  # Default to cardinal directions
+        deposit_positions = []  # Default to no deposit positions
     if withdrawal_positions is None:
-        withdrawal_positions = ["N", "S", "E", "W"]  # Default to cardinal directions
+        withdrawal_positions = []  # Default to no withdrawal positions
 
     return ChestConfig(
         type_id=type_id,
@@ -202,18 +202,4 @@ def make_chest(
 
 
 # Example chest configurations
-chest_ore_red = make_chest("ore_red", 20)
-chest_ore_blue = make_chest("ore_blue", 21)
-chest_ore_green = make_chest("ore_green", 22)
-chest_battery_red = make_chest("battery_red", 23)
-chest_battery_blue = make_chest("battery_blue", 24)
-chest_battery_green = make_chest("battery_green", 25)
-chest_heart = make_chest("heart", 26)
-
-# Special chest that only allows deposits from North and withdrawals from South
-chest_depot = ChestConfig(
-    type_id=26,
-    resource_type="ore_red",
-    deposit_positions=["N"],
-    withdrawal_positions=["S"],
-)
+chest_heart = make_chest("heart", 20, deposit_positions=["N"], withdrawal_positions=["S"])
