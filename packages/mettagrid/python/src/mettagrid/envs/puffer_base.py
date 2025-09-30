@@ -117,6 +117,42 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         observations, _ = super().reset()
         return observations
 
+    def _sanitize_actions(self, actions: np.ndarray) -> np.ndarray:
+        """Clamp action indices to valid ranges to avoid invalid-arg warnings.
+
+        Args:
+            actions: Action array matching PufferLib joint space layout.
+
+        Returns:
+            Sanitized action array with valid action type/argument combinations.
+        """
+
+        if actions.size == 0:
+            return actions
+
+        # Ensure we are working on an int32 copy to avoid mutating caller buffers
+        sanitized = np.array(actions, dtype=dtype_actions, copy=True)
+
+        if sanitized.shape[-1] < 2:
+            return sanitized
+
+        num_action_types = len(self.action_names)
+        if num_action_types == 0:
+            return sanitized
+
+        # Normalize action types into valid range
+        action_types = sanitized[..., 0]
+        normalized_types = np.mod(action_types, num_action_types)
+        sanitized[..., 0] = normalized_types
+
+        # Clip action arguments to the per-action max argument value
+        max_args = np.asarray(self.max_action_args, dtype=dtype_actions)
+        max_args = np.clip(max_args, 0, None)
+        allowed_args = max_args.take(normalized_types)
+        sanitized[..., 1] = np.clip(sanitized[..., 1], 0, allowed_args)
+
+        return sanitized
+
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         self._should_reset = False
@@ -129,7 +165,8 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
-        observations, rewards, terminals, truncations, infos = super().step(actions)
+        sanitized_actions = self._sanitize_actions(actions)
+        observations, rewards, terminals, truncations, infos = super().step(sanitized_actions)
         if terminals.all() or truncations.all():
             self._should_reset = True
 
