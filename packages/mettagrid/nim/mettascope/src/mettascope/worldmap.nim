@@ -12,11 +12,11 @@ proc buildAtlas*() =
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.
-  let f = id.float32
+  let n = id.float32 + Pi + E + sqrt(2.0)
   color(
-    f * Pi mod 1.0,
-    f * E mod 1.0,
-    f * sqrt(2.0) mod 1.0,
+    n * Pi mod 1.0,
+    n * E mod 1.0,
+    n * sqrt(2.0) mod 1.0,
     1.0
   )
 
@@ -586,7 +586,6 @@ proc fitFullMap*(panel: Panel) =
     z = panel.zoom * panel.zoom
   panel.pos.x = rectW / 2.0f - cx * z
   panel.pos.y = rectH / 2.0f - cy * z
-
 
 proc drawWorldMap*(panel: Panel) =
 
