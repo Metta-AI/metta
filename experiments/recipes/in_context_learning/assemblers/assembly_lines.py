@@ -73,6 +73,14 @@ curriculum_args = {
     #     "positions": [["Any", "Any"]],
     # },
 }
+# "test": {
+#     "num_agents": [2],
+#     "chain_lengths": [5],
+#     "num_sinks": [2],
+#     "room_sizes": ["medium"],
+#     "positions": [["Any", "Any"]],
+# },
+# }
 
 
 def make_task_generator_cfg(
@@ -90,6 +98,8 @@ def make_task_generator_cfg(
         room_sizes=room_sizes,
         positions=positions,
         map_dir=map_dir,
+        num_chests=num_chests,
+        chest_positions=chest_positions,
     )
 
 
@@ -235,6 +245,14 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
 
         icl_env.label = f"{room_size}_{len(resources)}chain_{num_sinks}sinks_{terrain}"
         return icl_env
+
+    def generate_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        num_instances: Optional[int] = None,
+    ) -> MettaGridConfig:
+        return self._generate_task(task_id, rng, num_instances)
 
 
 def train(

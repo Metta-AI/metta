@@ -12,7 +12,7 @@
 using std::max;
 using std::unique_ptr;
 using std::vector;
-using GridType = std::vector<std::vector<std::vector<GridObjectId>>>;
+using GridType = std::vector<std::vector<std::vector<GridObject*>>>;
 
 class Grid {
 public:
@@ -29,8 +29,9 @@ public:
         width(width),
         objects(),  // Initialize objects in member init list
         grid() {    // Initialize grid in member init list
-    grid.resize(height,
-                std::vector<std::vector<GridObjectId>>(width, std::vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
+    grid.resize(
+        height,
+        std::vector<std::vector<GridObject*>>(width, std::vector<GridObject*>(GridLayer::GridLayerCount, nullptr)));
 
     // Reserve space for objects to avoid frequent reallocations
     // Assume ~50% of grid cells will contain objects
@@ -59,51 +60,47 @@ public:
     if (!is_valid_location(obj->location)) {
       return false;
     }
-    if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
+    if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != nullptr) {
       return false;
     }
 
     obj->id = static_cast<GridObjectId>(this->objects.size());
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
-    this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
+    this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj;
     return true;
   }
 
-  inline bool move_object(GridObjectId id, const GridLocation& loc) {
+  inline bool move_object(GridObject& obj, const GridLocation& loc) {
     if (!is_valid_location(loc)) {
       return false;
     }
 
-    if (grid[loc.r][loc.c][loc.layer] != 0) {
+    if (grid[loc.r][loc.c][loc.layer] != nullptr) {
       return false;
     }
 
-    GridObject* obj = object(id);
-    grid[loc.r][loc.c][loc.layer] = id;
-    grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
-    obj->location = loc;
+    grid[loc.r][loc.c][loc.layer] = &obj;
+    grid[obj.location.r][obj.location.c][obj.location.layer] = nullptr;
+    obj.location = loc;
     return true;
   }
 
-  inline void swap_objects(GridObjectId id1, GridObjectId id2) {
-    GridObject* obj1 = object(id1);
-    GridObject* obj2 = object(id2);
-
+  inline void swap_objects(GridObject& obj1, GridObject& obj2) {
     // Store the original locations.
-    GridLocation loc1 = obj1->location;
-    GridLocation loc2 = obj2->location;
+    GridLocation loc1 = obj1.location;
+    GridLocation loc2 = obj2.location;
 
     // Clear the objects from their original positions in the grid.
-    grid[loc1.r][loc1.c][loc1.layer] = 0;
-    grid[loc2.r][loc2.c][loc2.layer] = 0;
+    grid[loc1.r][loc1.c][loc1.layer] = nullptr;
+    grid[loc2.r][loc2.c][loc2.layer] = nullptr;
 
     // Update the location property of each object, preserving their original layers.
-    obj1->location = {loc2.r, loc2.c, loc1.layer};
-    obj2->location = {loc1.r, loc1.c, loc2.layer};
+    obj1.location = {loc2.r, loc2.c, loc1.layer};
+    obj2.location = {loc1.r, loc1.c, loc2.layer};
 
     // Place the objects in their new positions in the grid.
-    grid[obj1->location.r][obj1->location.c][obj1->location.layer] = id1;
-    grid[obj2->location.r][obj2->location.c][obj2->location.layer] = id2;
+    grid[obj1.location.r][obj1.location.c][obj1.location.layer] = &obj1;
+    grid[obj2.location.r][obj2.location.c][obj2.location.layer] = &obj2;
   }
 
   inline GridObject* object(GridObjectId obj_id) const {
@@ -115,10 +112,7 @@ public:
     if (!is_valid_location(loc)) {
       return nullptr;
     }
-    if (grid[loc.r][loc.c][loc.layer] == 0) {
-      return nullptr;
-    }
-    return object(grid[loc.r][loc.c][loc.layer]);
+    return grid[loc.r][loc.c][loc.layer];
   }
 
   inline const GridLocation relative_location(const GridLocation& loc,
@@ -169,14 +163,14 @@ public:
 
   inline bool is_empty(GridCoord row, GridCoord col) const {
     for (const auto& layer_objects : grid[row][col]) {
-      if (layer_objects != 0) return false;
+      if (layer_objects != nullptr) return false;
     }
     return true;
   }
 
   // is_empty for a specific layer
   inline bool is_empty_at_layer(GridCoord row, GridCoord col, ObservationType layer) const {
-    if (grid[row][col][layer] != 0) return false;
+    if (grid[row][col][layer] != nullptr) return false;
     return true;
   }
 };

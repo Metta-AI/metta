@@ -60,8 +60,7 @@ class Checkpointer(TrainerComponent):
         candidate_uri: Optional[str] = policy_uri
 
         if candidate_uri is None:
-            existing = self._checkpoint_manager.select_checkpoints("latest", count=1)
-            candidate_uri = existing[0] if existing else None
+            candidate_uri = self._checkpoint_manager.get_latest_checkpoint()
 
         if self._distributed.is_master() and candidate_uri:
             normalized_uri = CheckpointManager.normalize_uri(candidate_uri)
@@ -85,8 +84,7 @@ class Checkpointer(TrainerComponent):
         """Return the most recent checkpoint URI tracked by this component."""
         if self._latest_policy_uri:
             return self._latest_policy_uri
-        latest = self._checkpoint_manager.select_checkpoints("latest", count=1)
-        return latest[0] if latest else None
+        return self._checkpoint_manager.get_latest_checkpoint()
 
     # ------------------------------------------------------------------
     # Callback entry-points
@@ -104,7 +102,7 @@ class Checkpointer(TrainerComponent):
         if not self._distributed.should_checkpoint():
             return
 
-        self._save_policy(self.context.epoch, force=True)
+        self._save_policy(self.context.epoch)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -115,30 +113,10 @@ class Checkpointer(TrainerComponent):
             return policy.module  # type: ignore[return-value]
         return policy
 
-    def _collect_metadata(self, epoch: int, *, is_final: bool = False) -> dict:
-        elapsed_breakdown = self.context.stopwatch.get_all_elapsed()
-        metadata = {
-            "epoch": epoch,
-            "agent_step": self.context.agent_step,
-            "total_time": self.context.stopwatch.get_elapsed(),
-            "total_train_time": elapsed_breakdown.get("_rollout", 0) + elapsed_breakdown.get("_train", 0),
-            "is_final": is_final,
-        }
-        eval_scores = self.context.latest_eval_scores
-        if eval_scores and (eval_scores.category_scores or eval_scores.simulation_scores):
-            metadata.update(
-                {
-                    "score": eval_scores.avg_simulation_score,
-                    "avg_reward": eval_scores.avg_category_score,
-                }
-            )
-        return metadata
-
-    def _save_policy(self, epoch: int, *, force: bool = False) -> None:
+    def _save_policy(self, epoch: int) -> None:
         policy = self._policy_to_save()
-        metadata = self._collect_metadata(epoch, is_final=force)
 
-        uri = self._checkpoint_manager.save_agent(policy, epoch, metadata)
+        uri = self._checkpoint_manager.save_agent(policy, epoch)
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
         try:

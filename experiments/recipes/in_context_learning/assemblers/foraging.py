@@ -149,12 +149,14 @@ class ForagingTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
         self.config = config
+        self.used_resources = set()
 
     def _make_generators(self, num_generators, cfg, position, rng: random.Random):
         """Make generators that input nothing and output resources for the altar"""
 
         for _ in range(num_generators):
             resource = rng.choice(self.resource_types)
+            self.used_resources.add(resource)
             self._add_assembler(
                 input_resources={},
                 output_resources={resource: 1},
@@ -176,7 +178,8 @@ class ForagingTaskGenerator(ICLTaskGenerator):
             input_resources = {
                 resource: 1
                 for resource in rng.sample(
-                    self.resource_types, rng.randint(1, len(self.resource_types))
+                    list(self.used_resources),
+                    rng.randint(1, len(self.config.max_recipe_inputs)),
                 )
             }
             # if we want multiple altars with different recipes, we need to give them different names
@@ -210,11 +213,15 @@ class ForagingTaskGenerator(ICLTaskGenerator):
         dir=None,
     ) -> MettaGridConfig:
         cfg = _BuildCfg()
+
+        if num_generators > 3 and num_altars > 6:
+            num_altars = 6
+
         self._make_generators(num_generators, cfg, recipe_position, rng)
 
         self._make_altars(num_altars, cfg, recipe_position, num_generators, rng)
 
-        self._make_chests(num_chests, cfg, chest_position)
+        # self._make_chests(num_chests, cfg, chest_position)
 
         if dir is not None and os.path.exists(dir):
             print(f"Loading from {dir}")
@@ -295,6 +302,14 @@ class ForagingTaskGenerator(ICLTaskGenerator):
         )
         return icl_env
 
+    def generate_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        num_instances: Optional[int] = None,
+    ) -> MettaGridConfig:
+        return self._generate_task(task_id, rng, num_instances)
+
 
 def make_mettagrid(
     curriculum_style: str = "single_agent_two_altars",
@@ -314,6 +329,8 @@ def make_assembler_env(
     chest_positions: list[Position],
     room_size: str,
     position: list[Position] = ["Any"],
+    num_chests: int = 0,
+    chest_position: list[Position] = ["N"],
 ) -> MettaGridConfig:
     task_generator_cfg = make_task_generator_cfg(
         num_agents=[num_agents],
@@ -353,7 +370,7 @@ def train(
     curriculum_style: str = "single_agent_two_altars", lp_params: LPParams = LPParams()
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(
-        **make_curriculum_args(**curriculum_args[curriculum_style]), map_dir=None
+        **curriculum_args[curriculum_style], map_dir=None
     )
     from experiments.evals.in_context_learning.foraging import (
         make_foraging_eval_suite,

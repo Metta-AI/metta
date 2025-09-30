@@ -137,8 +137,50 @@ assembler_armory = AssemblerConfig(
     ],
 )
 
+assembler_lab = AssemblerConfig(
+    type_id=17,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
 
-# Chest building definitions
+assembler_factory = AssemblerConfig(
+    type_id=18,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+assembler_temple = AssemblerConfig(
+    type_id=19,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+
+# Chest building definitions. Maybe not needed beyond the raw config?
 def make_chest(
     resource_type: str,
     type_id: int,
@@ -147,9 +189,9 @@ def make_chest(
 ) -> ChestConfig:
     """Create a chest configuration for a specific resource type."""
     if deposit_positions is None:
-        deposit_positions = ["N", "S", "E", "W"]  # Default to cardinal directions
+        deposit_positions = []  # Default to no deposit positions
     if withdrawal_positions is None:
-        withdrawal_positions = ["N", "S", "E", "W"]  # Default to cardinal directions
+        withdrawal_positions = []  # Default to no withdrawal positions
 
     return ChestConfig(
         type_id=type_id,

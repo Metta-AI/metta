@@ -51,7 +51,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             name="single_agent_many_altars_S",
             env=make_assembler_env(
                 num_agents=1,
-                num_altars=24,
+                num_altars=20,
                 num_generators=0,
                 room_size="large",
                 position=["S"],
@@ -103,8 +103,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             name="large_3_agent_30_altars_any",
             env=make_assembler_env(
                 num_agents=3,
-                num_altars=30,
-                room_size="xlarge",
+                num_altars=12,
+                room_size="large",
                 num_generators=0,
                 position=["Any", "Any", "Any"],
                 num_chests=0,
@@ -116,8 +116,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             name="3_agent_12_altars_any",
             env=make_assembler_env(
                 num_agents=3,
-                num_altars=12,
-                room_size="large",
+                num_altars=20,
+                room_size="xlarge",
                 num_generators=0,
                 position=["Any", "Any", "Any"],
                 num_chests=0,
@@ -142,9 +142,9 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             name="large_three_agent_many_altars_NSE",
             env=make_assembler_env(
                 num_agents=3,
-                num_altars=30,
-                room_size="xlarge",
-                num_generators=0,
+                num_altars=5,
+                room_size="large",
+                num_generators=5,
                 position=["N", "S", "E"],
                 num_chests=0,
                 chest_positions=[],
@@ -155,7 +155,7 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
             name="large_12_agent_12_altars_NSE",
             env=make_assembler_env(
                 num_agents=12,
-                num_altars=30,
+                num_altars=5,
                 room_size="xlarge",
                 num_generators=0,
                 position=["N", "S", "E"],
