@@ -5,21 +5,19 @@ import std/[os, strutils, parseopt, json],
 
 var replay = ""
 
-proc updateReplayHeader(replayPath: string) =
-  ## Set the global header's display name for the current replay.
-  if common.replay.isNil:
-    return
-  var display = ""
-  if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
-    let node = common.replay.mgConfig["label"]
-    if node.kind == JString:
-      display = node.getStr
-  if display.len == 0 and common.replay.fileName.len > 0:
-    display = common.replay.fileName
-  if display.len == 0 and replayPath.len > 0:
+proc updateReplayHeader(replayPath: string = "") =
+  ## Set the global header's display name for the current session.
+  var display = "Mettascope"
+
+  if not common.replay.isNil:
+    if common.replay.mgConfig != nil and common.replay.mgConfig.contains("label"):
+      let node = common.replay.mgConfig["label"]
+      if node.kind == JString:
+        display = node.getStr
+    if display == "Mettascope" and common.replay.fileName.len > 0:
+      display = common.replay.fileName
+  if display == "Mettascope" and replayPath.len > 0:
     display = extractFilename(replayPath)
-  if display.len == 0:
-    display = "unknown"
 
   let titleNode = find("**/GlobalTitle")
   titleNode.text = display
@@ -52,40 +50,43 @@ find "/UI/Main":
 
     utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
 
-    if replay != "":
-      if replay.startsWith("http"):
-        echo "Loading replay from URL: ", replay
-        let req = startHttpRequest(replay)
-        req.onError = proc(msg: string) =
-          echo "onError: " & msg
-        req.onResponse = proc(response: HttpResponse) =
-          echo "onResponse: code=", $response.code, ", len=", response.body.len
-          common.replay = loadReplay(response.body, replay)
+    if common.playMode != Realtime:
+      if replay != "":
+        if replay.startsWith("http"):
+          echo "Loading replay from URL: ", replay
+          let req = startHttpRequest(replay)
+          req.onError = proc(msg: string) =
+            echo "onError: " & msg
+          req.onResponse = proc(response: HttpResponse) =
+            echo "onResponse: code=", $response.code, ", len=", response.body.len
+            common.replay = loadReplay(response.body, replay)
+            updateReplayHeader(replay)
+        else:
+          echo "Loading replay from file: ", replay
+          common.replay = loadReplay(replay)
           updateReplayHeader(replay)
-      else:
-        echo "Loading replay from file: ", replay
-        common.replay = loadReplay(replay)
-        updateReplayHeader(replay)
-
-    elif common.replay == nil:
-      echo "Loading built-in replay"
-      common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
-      updateReplayHeader(dataDir / "replays" / "pens.json.z")
+      elif common.replay == nil:
+        echo "Loading built-in replay"
+        common.replay = loadReplay( dataDir / "replays" / "pens.json.z")
+        updateReplayHeader(dataDir / "replays" / "pens.json.z")
+    else:
+      echo "Realtime mode detected"
+      updateReplayHeader()
 
     rootArea.split(Vertical)
     rootArea.split = 0.20
 
-    objectInfoPanel = rootArea.areas[0].addPanel(ObjectInfo, "Object")
-    environmentInfoPanel = rootArea.areas[0].addPanel(EnvironmentInfo, "Environment")
+    rootArea.areas[0].split(Horizontal)
+    rootArea.areas[0].split = 0.5
 
-    rootArea.areas[1].split(Horizontal)
-    rootArea.areas[1].split = 0.5
+    objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
+    environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
 
-    worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
-    minimapPanel = rootArea.areas[1].areas[0].addPanel(Minimap, "Minimap")
+    worldMapPanel = rootArea.areas[1].addPanel(WorldMap, "Map")
+    minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
 
-    agentTracesPanel = rootArea.areas[1].areas[1].addPanel(AgentTraces, "Agent Traces")
-    agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
+    agentTracesPanel = rootArea.areas[1].addPanel(AgentTraces, "Agent Traces")
+    # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
 
     rootArea.refresh()
 
@@ -101,6 +102,8 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
+      if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
+        fitFullMap(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
@@ -150,8 +153,6 @@ find "/UI/Main":
       mouseCaptured = false
       mouseCapturedPanel = nil
 
-    if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
-      fitFullMap(worldMapPanel)
 
 when isMainModule:
 

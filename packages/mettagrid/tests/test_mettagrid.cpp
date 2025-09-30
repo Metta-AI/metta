@@ -1396,3 +1396,262 @@ TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
       (initial_ore1 - final_ore1) + (initial_ore2 - final_ore2) + (initial_ore3 - final_ore3);
   EXPECT_EQ(total_consumed, 10) << "Should consume exactly 10 ore, consumed " << total_consumed;
 }
+
+TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  std::mt19937 rng(42);  // Fixed seed for reproducibility
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with normal recipes
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+
+  // Create normal recipes (pattern 0: no agents needed)
+  auto normal_recipe = std::make_shared<Recipe>();
+  normal_recipe->input_resources[TestItems::ORE] = 2;
+  normal_recipe->output_resources[TestItems::LASER] = 1;
+  normal_recipe->cooldown = 0;
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = normal_recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent to interact with the assembler
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+  agent_cfg.initial_inventory[TestItems::HEART] = 5;
+
+  Agent* agent = new Agent(4, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify assembler is not clipped initially
+  EXPECT_FALSE(assembler.is_clipped) << "Assembler should not be clipped initially";
+
+  // Test 2: Verify normal recipe works when not clipped
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use normal recipe when not clipped";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 8) << "Should consume 2 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
+
+  // Test 3: Create unclipping recipes and clip the assembler
+  auto unclip_recipe = std::make_shared<Recipe>();
+  unclip_recipe->input_resources[TestItems::HEART] = 1;
+  unclip_recipe->output_resources[TestItems::ORE] = 3;
+  unclip_recipe->cooldown = 0;
+
+  std::vector<std::shared_ptr<Recipe>> unclip_recipes(256, unclip_recipe);
+  assembler.becomeClipped(unclip_recipes);
+
+  EXPECT_TRUE(assembler.is_clipped) << "Assembler should be clipped after becomeClipped()";
+  EXPECT_EQ(assembler.unclip_recipes.size(), 256) << "Should have unclip recipes set";
+
+  // Test 4: Verify clipped observation feature
+  auto features = assembler.obs_features();
+  bool found_clipped = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::Clipped) {
+      EXPECT_EQ(feature.value, 1) << "Clipped observation should be 1";
+      found_clipped = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_clipped) << "Should have Clipped observation feature when clipped";
+
+  // Test 5: Verify unclip recipe is used when clipped
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use unclip recipe when clipped";
+  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 4) << "Should consume 1 heart for unclipping";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 11) << "Should produce 3 ore from unclip recipe";
+
+  // Test 6: Verify assembler is automatically unclipped after successful use
+  EXPECT_FALSE(assembler.is_clipped) << "Assembler should be unclipped after successful use";
+  EXPECT_TRUE(assembler.unclip_recipes.empty()) << "Unclip recipes should be cleared";
+
+  // Test 7: Verify normal recipe works again after unclipping
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use normal recipe after unclipping";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 2 ore (normal recipe)";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 2) << "Should produce 1 more laser";
+
+  // Test 8: Verify no clipped observation after unclipping
+  features = assembler.obs_features();
+  found_clipped = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::Clipped) {
+      found_clipped = true;
+      break;
+    }
+  }
+  EXPECT_FALSE(found_clipped) << "Should not have Clipped observation feature when not clipped";
+}
+
+TEST_F(MettaGridCppTest, AssemblerMaxUses) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with max_uses set to 3
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.max_uses = 3;  // Limit to 3 uses
+
+  // Create simple recipe
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;
+  recipe->output_resources[TestItems::LASER] = 1;
+  recipe->cooldown = 0;
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent with plenty of resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+
+  Agent* agent = new Agent(4, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify initial state
+  EXPECT_EQ(assembler.max_uses, 3) << "Max uses should be 3";
+  EXPECT_EQ(assembler.uses_count, 0) << "Uses count should be 0 initially";
+
+  // Test 2: Verify remaining uses in observations
+  auto features = assembler.obs_features();
+  bool found_remaining_uses = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 3) << "Should show 3 remaining uses";
+      found_remaining_uses = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_remaining_uses) << "Should have RemainingUses observation when max_uses is set";
+
+  // Test 3: First use should succeed
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "First use should succeed";
+  EXPECT_EQ(assembler.uses_count, 1) << "Uses count should be 1";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 1 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
+
+  // Test 4: Check remaining uses after first use
+  features = assembler.obs_features();
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 2) << "Should show 2 remaining uses";
+      break;
+    }
+  }
+
+  // Test 5: Second use should succeed
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Second use should succeed";
+  EXPECT_EQ(assembler.uses_count, 2) << "Uses count should be 2";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 2) << "Should have 2 lasers";
+
+  // Test 6: Third use should succeed
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Third use should succeed";
+  EXPECT_EQ(assembler.uses_count, 3) << "Uses count should be 3";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should have 3 lasers";
+
+  // Test 7: Check remaining uses after max reached
+  features = assembler.obs_features();
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 0) << "Should show 0 remaining uses";
+      break;
+    }
+  }
+
+  // Test 8: Fourth use should fail (max uses reached)
+  success = assembler.onUse(*agent, 0);
+  EXPECT_FALSE(success) << "Fourth use should fail - max uses reached";
+  EXPECT_EQ(assembler.uses_count, 3) << "Uses count should still be 3";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 7) << "Should still have 7 ore (no consumption)";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should still have 3 lasers (no production)";
+}
+
+TEST_F(MettaGridCppTest, AssemblerExhaustion) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with exhaustion enabled
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.exhaustion = 0.5f;  // 50% exhaustion rate - multiplier grows by 1.5x each use
+
+  // Create recipe with cooldown
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;
+  recipe->output_resources[TestItems::LASER] = 1;
+  recipe->cooldown = 10;  // Base cooldown of 10 timesteps
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent with plenty of resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+
+  Agent* agent = new Agent(4, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify initial state
+  EXPECT_EQ(assembler.exhaustion, 0.5f) << "Exhaustion rate should be 0.5";
+  EXPECT_EQ(assembler.cooldown_multiplier, 1.0f) << "Initial cooldown multiplier should be 1.0";
+
+  // Test 2: First use should have normal cooldown
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "First use should succeed";
+  EXPECT_EQ(assembler.cooldown_end_timestep, 10) << "First cooldown should be 10 (base cooldown)";
+  EXPECT_EQ(assembler.cooldown_multiplier, 1.5f) << "Cooldown multiplier should be 1.5 after first use";
+
+  // Test 3: Wait for cooldown and use again
+  current_timestep = 10;
+  EXPECT_EQ(assembler.cooldown_remaining(), 0) << "Should have no cooldown at timestep 10";
+
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Second use should succeed";
+  // Second cooldown should be 10 * 1.5 = 15
+  EXPECT_EQ(assembler.cooldown_end_timestep, 25) << "Second cooldown should end at 25 (10 + 15)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 2.25f) << "Cooldown multiplier should be 2.25 after second use";
+
+  // Test 4: Third use should have even longer cooldown
+  current_timestep = 25;
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Third use should succeed";
+  // Third cooldown should be 10 * 2.25 = 22.5, rounded to 22
+  EXPECT_EQ(assembler.cooldown_end_timestep, 47) << "Third cooldown should end at 47 (25 + 22)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 3.375f) << "Cooldown multiplier should be 3.375 after third use";
+
+  // Test 5: Verify exhaustion grows exponentially
+  current_timestep = 47;
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Fourth use should succeed";
+  // Fourth cooldown should be 10 * 3.375 = 33.75, rounded to 33
+  EXPECT_EQ(assembler.cooldown_end_timestep, 80) << "Fourth cooldown should end at 80 (47 + 33)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f) << "Cooldown multiplier should be 5.0625 after fourth use";
+}
