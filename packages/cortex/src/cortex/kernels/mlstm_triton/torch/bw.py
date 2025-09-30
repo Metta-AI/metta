@@ -11,6 +11,7 @@ import torch
 from ..triton.chunkwise_kernel_param_heuristics import (
     get_xl_chunk_kernel_params,
 )
+import math
 from ..utils import contiguous_noctx
 from .bw_parallel_dK import mlstm_chunkwise__parallel_bw_dK
 from .bw_parallel_dQ import mlstm_chunkwise__parallel_bw_dQ
@@ -56,6 +57,7 @@ def mlstm_chunkwise_bw(
     num_stages_intra: int | None = None,
     num_stages_inter: int | None = None,
     eps: float = 0.0,
+    reset_mask: torch.Tensor | None = None,  # (B, S) boolean
 ):
     B, NH, S, DHQK = matQ.shape
     DHHV = matV.shape[-1]
@@ -63,13 +65,25 @@ def mlstm_chunkwise_bw(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
+    # Choose explicit chunk params based on largest power-of-two divisor of S,
+    # capped by the requested chunk_size. This avoids heuristic constraints and
+    # ensures a single-kernel execution with consistent tiling.
+    def largest_pow2_divisor(n: int) -> int:
+        return n & -n
+
+    L_pow2 = largest_pow2_divisor(S)
+    L = min(L_pow2, chunk_size)
+    L = max(16, L)
+    while S % L != 0 and L > 16:
+        L //= 2
+
     kernel_chunk_params = get_xl_chunk_kernel_params(
         sequence_length=S,
-        target_chunk_size=chunk_size,
-        siz_b_L_loop=siz_b_L_loop,
-        siz_b_L_parallel=siz_b_L_parallel,
-        chunk_size_inter=chunk_size_inter,
-        chunk_size_intra=chunk_size_intra,
+        target_chunk_size=None,
+        chunk_size_intra=L,
+        siz_b_L_loop=L,
+        siz_b_L_parallel=L,
+        chunk_size_inter=L,
     )
 
     #! recompute the "all" states if needed
@@ -83,6 +97,7 @@ def mlstm_chunkwise_bw(
             matV=matV,
             vecF=vecF,
             vecI=vecI,
+            vecLastSegMask=None,
             matC_initial=matC_initial,
             vecN_initial=vecN_initial,
             scaMinter_initial=scaM_initial,
@@ -94,6 +109,18 @@ def mlstm_chunkwise_bw(
 
     #! recurrent backward: compute the deltaC (& deltaN) gradients
     # matDeltaC_states (B, NH, (NC+1) * DHQK, DHHV)
+    # Build last-segment mask for recurrent backward if resets provided
+    vecLastSegMask_inter = None
+    if reset_mask is not None:
+        Bm, NHm, Sm = matQ.shape[0], matQ.shape[1], matQ.shape[2]
+        reset_full = reset_mask.unsqueeze(1).expand(Bm, NHm, Sm).to(dtype=torch.int32)
+        L_inter = kernel_chunk_params.chunk_size_inter
+        NC_inter = Sm // L_inter
+        seg_inter = reset_full.view(Bm, NHm, NC_inter, L_inter)
+        prefix_inclusive = torch.cumsum(seg_inter, dim=-1)
+        last_prefix = prefix_inclusive[..., -1:].expand_as(prefix_inclusive)
+        vecLastSegMask_inter = prefix_inclusive.eq(last_prefix).to(matQ.dtype)
+
     matDeltaC_states = mlstm_chunkwise__recurrent_bw_dC(
         matQ=matQ,  # (B, NH, S, DHQK)
         vecF=vecF,  # (B, NH, S)
@@ -111,9 +138,24 @@ def mlstm_chunkwise_bw(
     )
 
     #! parallel backward: compute the deltaQ, deltaK, deltaV gradients
+    # Compute reset-aware gates for backward parallel (mask vecA for last-segment positions per intra-chunk)
     vecB, vecA = compute_chunkwise_log_gates_vecB_vecA(
         chunk_size=kernel_chunk_params.chunk_size_intra, vecI=vecI, vecF=vecF
     )
+    vecSegId_intra = None
+    if reset_mask is not None:
+        L_intra = kernel_chunk_params.chunk_size_intra
+        NC_intra = S // L_intra
+        reset_full = reset_mask.unsqueeze(1).expand(B, NH, S).to(dtype=torch.int32)
+        seg = reset_full.view(B, NH, NC_intra, L_intra)
+        vecSegId_intra = torch.cumsum(seg, dim=-1).contiguous()
+        # Build last-segment mask per intra-chunk and mask vecA (set to -inf where not last segment)
+        prefix_inclusive = torch.cumsum(seg, dim=-1)
+        last_prefix = prefix_inclusive[..., -1:].expand_as(prefix_inclusive)
+        last_mask = prefix_inclusive.eq(last_prefix)
+        vecA = vecA.masked_fill(~last_mask, float('-inf'))
+    else:
+        vecSegId_intra = torch.zeros((B, NH, S // kernel_chunk_params.chunk_size_intra, kernel_chunk_params.chunk_size_intra), device=matQ.device, dtype=torch.int32)
     grad_output_dtype = matQ.dtype
     #! compute deltaV
     matDeltaV = mlstm_chunkwise__parallel_bw_dV(
@@ -123,6 +165,7 @@ def mlstm_chunkwise_bw(
         vecI=vecI,
         vecB=vecB,
         vecA=vecA,
+        vecSegId=vecSegId_intra,
         matCstate_all=matCstate_all,
         vecNstate_all=vecNstate_all,
         scaMstate_all=scaMstate_all,
@@ -150,6 +193,7 @@ def mlstm_chunkwise_bw(
         vecI=vecI,
         vecB=vecB,
         vecA=vecA,
+        vecSegId=vecSegId_intra,
         matCstate_all=matCstate_all,
         vecNstate_all=vecNstate_all,
         scaMstate_all=scaMstate_all,
@@ -177,6 +221,7 @@ def mlstm_chunkwise_bw(
         vecI=vecI,
         vecB=vecB,
         vecA=vecA,
+        vecSegId=vecSegId_intra,
         matCstate_all=matCstate_all,
         vecNstate_all=vecNstate_all,
         scaMstate_all=scaMstate_all,

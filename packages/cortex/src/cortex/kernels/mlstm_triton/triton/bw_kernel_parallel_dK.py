@@ -22,6 +22,7 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
     vecI,  # (B, NH, NC, L)
     vecB,  # (B, NH, NC, L)
     vecA,  # (B, NH, NC, L)
+    vecSegId,  # (B, NH, NC, L) int32
     matCstate_all,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecNstate_all,  # (B, NH, (NC+1) * DHQK)
     scaMstate_all,  # (B, NH, (NC+1))
@@ -48,6 +49,9 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
     str_scaMstate_B_NH: tl.constexpr,
     str_vecMN_B_NH: tl.constexpr,
     str_vecMN_S: tl.constexpr,
+    str_vecSegId_B_NH: tl.constexpr,
+    str_vecSegId_NC: tl.constexpr,
+    str_vecSegId_L: tl.constexpr,
     ## dimensions
     B: tl.constexpr,
     NH: tl.constexpr,
@@ -193,6 +197,18 @@ def mlstm_chunkwise__parallel_bw_dK_kernel(
             b_q_idxes = b_q_offset + tl.arange(0, siz_b_LQ)
             mask = b_q_idxes[:, None] >= b_kv_idxes[None, :]
             matDtilde_val = tl.where(mask, matDtilde_val, -float("inf"))
+
+        # Reset-aware mask: disallow contributions across different segments
+        segQ_ptr = (
+            vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
+        )
+        segK_ptr = (
+            vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LKV * siz_b_LKV + tl.arange(0, siz_b_LKV)
+        )
+        segQ = tl.load(segQ_ptr).to(tl.int32)
+        segK = tl.load(segK_ptr).to(tl.int32)
+        same_seg = segQ[:, None] == segK[None, :]
+        matDtilde_val = tl.where(same_seg, matDtilde_val, -float("inf"))
 
         # load vecM_out (siz_b_LQ,)
         vecM_out_ptr = (

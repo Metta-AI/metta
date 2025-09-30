@@ -15,6 +15,7 @@ def mlstm_chunkwise__recurrent_fw_C(
     matV: torch.Tensor,  # (B, NH, S, DHHV)
     vecF: torch.Tensor,  # (B, NH, NC * L) = (B, NH, S)
     vecI: torch.Tensor,  # (B, NH, NC * L) = (B, NH, S)
+    vecLastSegMask: torch.Tensor | None = None,  # (B, NH, NC, L) with 1.0 for last-segment positions
     matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
     vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
     scaMinter_initial: torch.Tensor = None,  # (B, NH, 1)
@@ -88,11 +89,15 @@ def mlstm_chunkwise__recurrent_fw_C(
     scaMinter_states = torch.empty(B, NH, (num_chunks_saved + 1), device=matK.device, dtype=torch.float32)
 
     grid = (num_b_DHQK, num_b_DHHV, B * NH)
+    # Provide default all-ones last-segment mask when none is given
+    if vecLastSegMask is None:
+        vecLastSegMask = torch.ones((B, NH, NC, L), device=matK.device, dtype=torch.float32)
     mlstm_chunkwise__recurrent_fw_C_kernel[grid](
         matK=matK,
         matV=matV,
         vecF=vecF,
         vecI=vecI,
+        vecLastSegMask=vecLastSegMask,
         matC_states=matC_states,
         vecN_states=vecN_states,
         scaMinter_states=scaMinter_states,
@@ -113,6 +118,8 @@ def mlstm_chunkwise__recurrent_fw_C(
         str_vecNstates_NCDHQK=vecN_states.stride(2),
         str_scaMinterstates_B_NH=scaMinter_states.stride(1),
         str_scaMinterstates_NC=scaMinter_states.stride(2),
+        str_vecLastSegMask_B_NH=vecLastSegMask.stride(1),
+        str_vecLastSegMask_NC=vecLastSegMask.stride(2),
         str_matCinitial_B_NH=str_matCinitial_B_NH,
         str_matCinitial_DHQK=str_matCinitial_DHQK,
         str_matCinitial_DHHV=str_matCinitial_DHHV,

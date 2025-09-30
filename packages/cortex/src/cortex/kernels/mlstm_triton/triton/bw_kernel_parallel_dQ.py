@@ -22,6 +22,7 @@ def mlstm_chunkwise__parallel_bw_dQ_kernel(
     vecI,  # (B, NH, NC, L)
     vecB,  # (B, NH, NC, L)
     vecA,  # (B, NH, NC, L)
+    vecSegId,  # (B, NH, NC, L) int32
     matCstate_all,  # (B, NH, (NC+1) * DHQK, DHHV)
     vecNstate_all,  # (B, NH, (NC+1) * DHQK)
     scaMstate_all,  # (B, NH, (NC+1))
@@ -48,6 +49,9 @@ def mlstm_chunkwise__parallel_bw_dQ_kernel(
     str_scaMstate_B_NH: tl.constexpr,
     str_vecMN_B_NH: tl.constexpr,
     str_vecMN_S: tl.constexpr,
+    str_vecSegId_B_NH: tl.constexpr,
+    str_vecSegId_NC: tl.constexpr,
+    str_vecSegId_L: tl.constexpr,
     ## dimensions
     B: tl.constexpr,
     NH: tl.constexpr,
@@ -95,6 +99,12 @@ def mlstm_chunkwise__parallel_bw_dQ_kernel(
     vecM_out_val = tl.load(vecM_out_ptr).to(tl.float32)
     # compute vecBbar (siz_b_LQ,)
     vecBbar_val = tl.exp(vecB_LQ_val + scaMinter_km1_val - vecM_out_val)
+    # Zero inter-chunk carryover for rows with any reset in prefix
+    segQ_ptr_full = (
+        vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
+    )
+    segQ_full = tl.load(segQ_ptr_full).to(tl.int32)
+    vecBbar_val = tl.where(segQ_full == 0, vecBbar_val, 0.0)
     # ? end compute vecBbar
 
     # for causal masking
@@ -185,6 +195,18 @@ def mlstm_chunkwise__parallel_bw_dQ_kernel(
             b_kv_idxes = b_kv_offset + tl.arange(0, siz_b_LKV)
             mask = b_q_idxes[:, None] >= b_kv_idxes[None, :]
             matDtilde_val = tl.where(mask, matDtilde_val, -float("inf"))
+
+        # Reset-aware mask: disallow contributions across different segments
+        segQ_ptr = (
+            vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
+        )
+        segK_ptr = (
+            vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LKV * siz_b_LKV + tl.arange(0, siz_b_LKV)
+        )
+        segQ = tl.load(segQ_ptr).to(tl.int32)
+        segK = tl.load(segK_ptr).to(tl.int32)
+        same_seg = segQ[:, None] == segK[None, :]
+        matDtilde_val = tl.where(same_seg, matDtilde_val, -float("inf"))
 
         # compute matD (siz_b_LQ, siz_b_LKV)
         matD_val = tl.exp(matDtilde_val - vecM_out_val[:, None])
