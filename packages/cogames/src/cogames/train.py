@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+import math
 import multiprocessing
 import platform
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence, Tuple
 
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig, MettaGridEnv
@@ -12,38 +13,66 @@ from mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
     import torch
+    from torch import nn
 
 logger = logging.getLogger("cogames.pufferlib")
 
 
 class EnvConfigIterator:
-    """Selects configs for vector environments, cycling when needed."""
+    """Cycles through MettaGridConfigs, cloning for isolation when reused."""
 
     def __init__(self, configs: Sequence[MettaGridConfig]) -> None:
         if not configs:
             msg = "At least one MettaGridConfig is required to create environments."
             raise ValueError(msg)
-        # Work with deep copies to avoid shared state across workers
         self._configs = tuple(cfg.model_copy(deep=True) for cfg in configs)
-        self._next_index = 0
+        self._next = 0
 
     def take(self, seed: Optional[int] = None) -> MettaGridConfig:
         if seed is not None:
             index = seed % len(self._configs)
-            cfg = self._configs[index].model_copy(deep=True)
-            return cfg
-        index = self._next_index
-        self._next_index = (self._next_index + 1) % len(self._configs)
-        cfg = self._configs[index].model_copy(deep=True)
-        return cfg
+        else:
+            index = self._next
+            self._next = (self._next + 1) % len(self._configs)
+        return self._configs[index].model_copy(deep=True)
+
+
+def _normalize_env_configs(
+    env_cfgs: Sequence[MettaGridConfig] | MettaGridConfig | None,
+    env_cfg: Optional[MettaGridConfig],
+) -> Tuple[MettaGridConfig, ...]:
+    if env_cfgs is not None:
+        if isinstance(env_cfgs, MettaGridConfig):
+            candidates: Iterable[MettaGridConfig] = (env_cfgs,)
+        else:
+            candidates = env_cfgs
+    elif env_cfg is not None:
+        candidates = (env_cfg,)
+    else:
+        raise ValueError("Either env_cfgs or env_cfg must be provided to train a policy")
+
+    normalized = tuple(cfg for cfg in candidates)
+    if not normalized:
+        raise ValueError("No MettaGridConfig instances provided for training")
+    return normalized
+
+
+def _cpu_core_count() -> Optional[int]:
+    try:
+        import psutil
+
+        return psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
+    except Exception:  # pragma: no cover - best effort fallback
+        return None
 
 
 def train(
     env_cfgs: Sequence[MettaGridConfig] | MettaGridConfig | None = None,
     *,
+    env_cfg: Optional[MettaGridConfig] = None,
     policy_class_path: str,
     device: "torch.device",
-    initial_weights_path: Optional[Path],
+    initial_weights_path: Optional[Path | str],
     num_steps: int,
     checkpoints_path: Path,
     seed: int,
@@ -55,7 +84,9 @@ def train(
     checkpoint_interval: int = 200,
     vector_backend: str = "multiprocessing",
     game_name: Optional[str] = None,
-    env_cfg: Optional[MettaGridConfig] = None,
+    vector_num_envs: Optional[int] = None,
+    vector_batch_size: Optional[int] = None,
+    vector_num_workers: Optional[int] = None,
 ) -> None:
     import torch
     import torch.distributed
@@ -67,15 +98,7 @@ def train(
 
     checkpoints_path.mkdir(parents=True, exist_ok=True)
 
-    if env_cfgs is not None and isinstance(env_cfgs, MettaGridConfig):
-        env_sequence: Sequence[MettaGridConfig] = (env_cfgs,)
-    elif env_cfgs is not None:
-        env_sequence = tuple(env_cfgs)
-    elif env_cfg is not None:
-        env_sequence = (env_cfg,)
-    else:
-        raise ValueError("Either env_cfgs or env_cfg must be provided to train a policy")
-
+    env_sequence = _normalize_env_configs(env_cfgs, env_cfg)
     cfg_iterator = EnvConfigIterator(env_sequence)
 
     backend_options = {
@@ -93,11 +116,36 @@ def train(
         multiprocessing.set_start_method("spawn", force=True)
         backend = pufferlib.vector.Serial
 
+    requested_envs = vector_num_envs if vector_num_envs is not None else num_envs
+    requested_envs = max(1, requested_envs)
+
+    requested_workers = vector_num_workers if vector_num_workers is not None else num_workers
+    default_workers = requested_workers if requested_workers is not None else 8
+
+    cpu_cores = _cpu_core_count()
+    if cpu_cores is not None:
+        default_workers = min(default_workers, max(1, cpu_cores))
+
+    if backend is pufferlib.vector.Multiprocessing and device.type != "cuda":
+        backend = pufferlib.vector.Serial
+
+    effective_num_workers = requested_workers if requested_workers is not None else default_workers
+    if backend is pufferlib.vector.Serial:
+        effective_num_workers = 1
+    effective_num_workers = max(1, min(effective_num_workers, requested_envs))
+
+    envs_per_worker = max(1, math.ceil(requested_envs / effective_num_workers))
+    base_batch_size = vector_batch_size if vector_batch_size is not None else 128
+    vector_batch = max(base_batch_size, requested_envs, envs_per_worker)
+    remainder = vector_batch % envs_per_worker
+    if remainder:
+        vector_batch += envs_per_worker - remainder
+
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         local_rank = torch.distributed.get_rank()
         if device.type == "cuda":
             torch.cuda.set_device(local_rank)
-        seed = seed + local_rank
+        seed += local_rank
 
     def env_creator(buf: Optional[Any] = None, seed: Optional[int] = None) -> MettaGridEnv:
         cfg = cfg_iterator.take(seed=seed)
@@ -105,55 +153,20 @@ def train(
         set_buffers(env, buf)
         return env
 
-    effective_num_workers = num_workers
-    if effective_num_workers is None:
-        desired_workers = 8
-        cpu_cores = None
-        try:
-            import psutil
-
-            cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
-        except Exception:  # pragma: no cover - best effort fallback
-            cpu_cores = None
-
-        if cpu_cores is not None:
-            adjusted_workers = min(desired_workers, max(1, cpu_cores))
-            if adjusted_workers < desired_workers:
-                logger.info(
-                    "Reducing num_workers from %s to %s to match available CPU cores",
-                    desired_workers,
-                    adjusted_workers,
-                )
-            effective_num_workers = adjusted_workers
-        else:
-            effective_num_workers = desired_workers
-
-    if backend is pufferlib.vector.Multiprocessing and device.type != "cuda":
-        backend = pufferlib.vector.Serial
-        effective_num_workers = 1
-
-    if effective_num_workers is None:
-        effective_num_workers = 1
-
-    effective_num_workers = max(1, min(effective_num_workers, num_envs))
     vecenv = pufferlib.vector.make(
         env_creator,
-        num_envs=num_envs,
+        num_envs=requested_envs,
         num_workers=effective_num_workers,
-        batch_size=num_envs,
+        batch_size=vector_batch,
         backend=backend,
     )
 
-    # Load the TrainablePolicy class using the new API
     policy_class = load_symbol(policy_class_path)
     policy = policy_class(vecenv.driver_env, device)
-
-    # Ensure it implements the TrainablePolicy interface
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
 
-    # Load initial weights if provided
     if initial_weights_path:
         policy.load_policy_data(str(initial_weights_path))
 
@@ -162,12 +175,11 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    # Use RNN-specific hyperparameters if needed
     if use_rnn:
-        learning_rate = 0.0003  # Much lower LR for RNN stability
-        bptt_horizon = 1  # Use bptt=1 for now (TODO: fix bptt>1 observation reshaping)
-        optimizer = "adam"  # Adam is more stable for RNNs than Muon
-        adam_eps = 1e-8  # Standard eps value, not too small
+        learning_rate = 0.0003
+        bptt_horizon = 1
+        optimizer = "adam"
+        adam_eps = 1e-8
         logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
     else:
         learning_rate = 0.015
@@ -175,18 +187,53 @@ def train(
         optimizer = "muon"
         adam_eps = 1e-12
 
+    total_agents = max(1, getattr(vecenv, "num_agents", 1))
+    realised_envs = max(1, getattr(vecenv, "num_envs", requested_envs))
+    realised_workers = max(1, getattr(vecenv, "num_workers", effective_num_workers))
+    realised_envs_per_worker = max(1, realised_envs // realised_workers)
+
+    original_batch_size = batch_size
+    amended_batch_size = max(original_batch_size, total_agents * bptt_horizon)
+    remainder = amended_batch_size % realised_envs_per_worker
+    if remainder:
+        amended_batch_size += realised_envs_per_worker - remainder
+    if amended_batch_size != original_batch_size:
+        logger.info(
+            "Adjusted batch_size from %s to %s (agents=%s, horizon=%s, envs/worker=%s)",
+            original_batch_size,
+            amended_batch_size,
+            total_agents,
+            bptt_horizon,
+            realised_envs_per_worker,
+        )
+
+    amended_minibatch_size = min(minibatch_size, amended_batch_size)
+    if amended_minibatch_size != minibatch_size:
+        logger.info(
+            "Reducing minibatch_size from %s to %s to keep it <= batch_size",
+            minibatch_size,
+            amended_minibatch_size,
+        )
+
+    effective_timesteps = max(num_steps, amended_batch_size)
+    if effective_timesteps != num_steps:
+        logger.info(
+            "Raising total_timesteps from %s to %s to keep it >= batch_size",
+            num_steps,
+            effective_timesteps,
+        )
+
     train_args = dict(
         env=env_name,
         device=device.type,
-        total_timesteps=num_steps,
-        minibatch_size=minibatch_size,
-        batch_size=batch_size,
+        total_timesteps=effective_timesteps,
+        minibatch_size=amended_minibatch_size,
+        batch_size=amended_batch_size,
         data_dir=str(checkpoints_path),
         checkpoint_interval=checkpoint_interval,
         bptt_horizon=bptt_horizon,
         seed=seed,
         use_rnn=use_rnn,
-        # Defaults
         torch_deterministic=True,
         cpu_offload=False,
         optimizer=optimizer,
@@ -212,42 +259,37 @@ def train(
         prio_beta0=0.2,
     )
 
-    # Pass the neural network from TrainablePolicy to PuffeRL for training
-    # The network() method is part of the new TrainablePolicy API
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
-
-    # Track if training diverged
     training_diverged = False
 
     while trainer.global_step < num_steps:
         trainer.evaluate()
         trainer.train()
+
         rewards_tensor = getattr(trainer, "rewards", None)
         if rewards_tensor is None:
             continue
         if not hasattr(rewards_tensor, "numel") or rewards_tensor.numel() == 0:
             continue
-
         rewards = rewards_tensor.detach() if hasattr(rewards_tensor, "detach") else torch.as_tensor(rewards_tensor)
         trainer.stats["reward_mean"] = float(rewards.mean().item())
         trainer.stats["reward_std"] = float(rewards.std(unbiased=False).item())
         trainer.stats["reward_sum"] = float(rewards.sum().item())
 
-        # Check for NaN in network parameters after each training step
-        network = policy.network()
+        network: nn.Module = policy.network()
         has_nan = False
         for name, param in network.named_parameters():
             if param.grad is not None and not param.grad.isfinite().all():
-                logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
+                logger.error("NaN/Inf detected in gradients for parameter: %s", name)
                 has_nan = True
             if not param.isfinite().all():
-                logger.error(f"NaN/Inf detected in parameter: {name}")
+                logger.error("NaN/Inf detected in parameter: %s", name)
                 has_nan = True
 
         if has_nan:
             logger.error(
-                f"Training diverged at step {trainer.global_step}! "
-                "Stopping early to prevent saving corrupted checkpoint."
+                "Training diverged at step %s! Stopping early to prevent saving corrupted checkpoint.",
+                trainer.global_step,
             )
             training_diverged = True
             break
@@ -255,7 +297,6 @@ def train(
     trainer.print_dashboard()
     trainer.close()
 
-    # Print checkpoint path and usage commands with colored output
     from rich.console import Console
 
     console = Console()
@@ -277,45 +318,35 @@ def train(
         )
         console.print("=" * 80, style="bold green")
 
-    # Try to find the final checkpoint
-    # PufferLib saves checkpoints in data_dir/env_name/
     checkpoint_dir = checkpoints_path / env_name
     checkpoints = []
 
     if checkpoint_dir.exists():
         checkpoints = sorted(checkpoint_dir.glob("*.pt"))
 
-    # Fallback: also check directly in checkpoints_path
     if not checkpoints and checkpoints_path.exists():
         checkpoints = sorted(checkpoints_path.glob("*.pt"))
 
+    console.print()
     if checkpoints and not training_diverged:
         final_checkpoint = checkpoints[-1]
-        console.print()
         console.print(f"Final checkpoint: [cyan]{final_checkpoint}[/cyan]")
-
-        # Show shorthand version if available
         policy_shorthand = {
             "cogames.policy.random.RandomPolicy": "random",
             "cogames.policy.simple.SimplePolicy": "simple",
             "cogames.policy.lstm.LSTMPolicy": "lstm",
         }.get(policy_class_path)
-
-        # Build the command with game name if provided
         game_arg = f" {game_name}" if game_name else ""
         policy_arg = policy_shorthand if policy_shorthand else policy_class_path
-
         console.print()
         console.print("To play with this policy:", style="bold")
         console.print(
             f"  [yellow]cogames play{game_arg} --policy {policy_arg} --policy-data {final_checkpoint}[/yellow]"
         )
     elif checkpoints and training_diverged:
-        console.print()
         console.print(f"[yellow]Found {len(checkpoints)} checkpoint(s). The most recent may be corrupted.[/yellow]")
         console.print("[yellow]Try using an earlier checkpoint or retraining.[/yellow]")
     else:
-        console.print()
         console.print(f"[yellow]No checkpoint files found. Check {checkpoints_path} for saved models.[/yellow]")
 
     console.print("=" * 80, style="bold green")
