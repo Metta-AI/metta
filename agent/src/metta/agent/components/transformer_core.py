@@ -36,6 +36,12 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "same_length": False,
         "clamp_len": -1,
         "positional_scale": 0.1,
+        "use_gating": True,
+        "ext_len": 0,
+        "activation_checkpoint": False,
+        "use_flash_checkpoint": False,
+        "allow_tf32": True,
+        "use_fused_layernorm": False,
     },
     TransformerBackboneVariant.TRXL: {
         "latent_size": 32,
@@ -51,6 +57,12 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "same_length": False,
         "clamp_len": -1,
         "positional_scale": 0.1,
+        "use_gating": False,
+        "ext_len": 0,
+        "activation_checkpoint": False,
+        "use_flash_checkpoint": False,
+        "allow_tf32": True,
+        "use_fused_layernorm": False,
     },
     TransformerBackboneVariant.TRXL_NVIDIA: {
         "latent_size": 48,
@@ -66,6 +78,12 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "same_length": False,
         "clamp_len": -1,
         "positional_scale": 0.1,
+        "use_gating": False,
+        "ext_len": 0,
+        "activation_checkpoint": False,
+        "use_flash_checkpoint": False,
+        "allow_tf32": True,
+        "use_fused_layernorm": False,
     },
 }
 
@@ -92,6 +110,12 @@ class TransformerBackboneConfig(ComponentConfig):
     same_length: bool | None = None
     clamp_len: int | None = None
     positional_scale: float | None = Field(default=None, description="Scaling applied to sinusoidal embeddings")
+    use_gating: bool | None = None
+    ext_len: int | None = None
+    activation_checkpoint: bool | None = None
+    use_flash_checkpoint: bool | None = None
+    allow_tf32: bool | None = None
+    use_fused_layernorm: bool | None = None
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerBackboneConfig":
@@ -121,9 +145,13 @@ class TransformerBackboneConfig(ComponentConfig):
                 max_seq_len=self.max_seq_len,
                 memory_len=memory_len,
                 dropout=self.dropout,
-                use_gating=True,
+                use_gating=bool(self.use_gating),
                 use_causal_mask=True,
                 positional_scale=self.positional_scale or 0.1,
+                attn_dropout=self.attn_dropout or self.dropout or 0.0,
+                activation_checkpoint=bool(self.activation_checkpoint),
+                use_flash_checkpoint=bool(self.use_flash_checkpoint),
+                use_fused_layernorm=bool(self.use_fused_layernorm),
             )
         elif self.variant is TransformerBackboneVariant.TRXL:
             core = TransformerXLModule(
@@ -138,8 +166,11 @@ class TransformerBackboneConfig(ComponentConfig):
                 pre_lnorm=bool(self.pre_lnorm),
                 same_length=bool(self.same_length),
                 clamp_len=self.clamp_len or -1,
-                ext_len=0,
+                ext_len=int(self.ext_len or 0),
                 attn_type=0,
+                activation_checkpoint=bool(self.activation_checkpoint),
+                use_flash_checkpoint=bool(self.use_flash_checkpoint),
+                use_fused_layernorm=bool(self.use_fused_layernorm),
             )
         else:
             core = NvidiaTransformerModule(
@@ -153,6 +184,10 @@ class TransformerBackboneConfig(ComponentConfig):
                 dropatt=self.attn_dropout or 0.0,
                 pre_lnorm=bool(self.pre_lnorm),
                 clamp_len=self.clamp_len or -1,
+                ext_len=int(self.ext_len or 0),
+                activation_checkpoint=bool(self.activation_checkpoint),
+                use_flash_checkpoint=bool(self.use_flash_checkpoint),
+                use_fused_layernorm=bool(self.use_fused_layernorm),
             )
 
         return core

@@ -9,6 +9,12 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
+
+try:  # pragma: no cover - optional dependency
+    from apex.normalization.fused_layer_norm import FusedLayerNorm  # type: ignore
+except ImportError:  # pragma: no cover
+    FusedLayerNorm = None
 
 try:  # pragma: no cover - optional dependency
     from flash_attn.flash_attn_interface import flash_attn_func  # type: ignore
@@ -21,6 +27,12 @@ def _record_function(name: str):
     if profiler_mod is not None and hasattr(profiler_mod, "record_function"):
         return profiler_mod.record_function(name)
     return contextlib.nullcontext()
+
+
+def _make_layer_norm(d_model: int, use_fused: bool) -> nn.Module:
+    if use_fused and FusedLayerNorm is not None:
+        return FusedLayerNorm(d_model)
+    return nn.LayerNorm(d_model)
 
 
 def empty_memory(
@@ -161,6 +173,8 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         n_heads: int,
         dropout: float = 0.1,
         use_causal_mask: bool = True,
+        attn_dropout: float = 0.1,
+        use_flash_checkpoint: bool = False,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -174,7 +188,9 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
         self.out_proj = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(dropout)
         self._flash_available = flash_attn_func is not None
-        self._attn_dropout_p = float(dropout)
+        self._attn_dropout_p = float(attn_dropout)
+        self._dropout_p = float(dropout)
+        self.use_flash_checkpoint = use_flash_checkpoint
 
         nn.init.xavier_uniform_(self.qkv_proj.weight, gain=1.0)
         nn.init.xavier_uniform_(self.out_proj.weight, gain=1.0)
@@ -192,14 +208,20 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
             q_flash = q.permute(0, 3, 1, 2)  # (batch, seq, heads, d)
             k_flash = k.permute(0, 3, 1, 2)
             v_flash = v.permute(0, 3, 1, 2)
-            out = flash_attn_func(
-                q_flash,
-                k_flash,
-                v_flash,
-                dropout_p=dropout_p,
-                softmax_scale=None,
-                causal=True,
-            )
+            def _flash(q_t, k_t, v_t):
+                return flash_attn_func(
+                    q_t,
+                    k_t,
+                    v_t,
+                    dropout_p=dropout_p,
+                    softmax_scale=None,
+                    causal=True,
+                )
+
+            if self.use_flash_checkpoint and q_flash.requires_grad:
+                out = checkpoint(_flash, q_flash, k_flash, v_flash, use_reentrant=False)
+            else:
+                out = _flash(q_flash, k_flash, v_flash)
             out = out.permute(1, 0, 2, 3).reshape(seq_len, batch_size, self.d_model)
             return self.out_proj(out)
 
@@ -243,7 +265,7 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
             scores = scores.view(batch_size * self.n_heads, seq_len, seq_len)
 
         weights = F.softmax(scores, dim=-1)
-        weights = self.dropout(weights)
+        weights = F.dropout(weights, p=self._attn_dropout_p if self.training else 0.0, training=self.training)
 
         out = torch.bmm(weights, v_2d)
         out = out.view(batch_size, self.n_heads, seq_len, self.d_k)
@@ -262,12 +284,23 @@ class GTrXLTransformerBlock(nn.Module):
         dropout: float,
         use_causal_mask: bool,
         use_gating: bool,
+        *,
+        attn_dropout: float = 0.1,
+        use_flash_checkpoint: bool = False,
+        use_fused_layernorm: bool = False,
     ) -> None:
         super().__init__()
         self.use_gating = use_gating
-        self.attention = GTrXLMultiHeadSelfAttention(d_model, n_heads, dropout, use_causal_mask)
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+        self.attention = GTrXLMultiHeadSelfAttention(
+            d_model,
+            n_heads,
+            dropout,
+            use_causal_mask,
+            attn_dropout=attn_dropout,
+            use_flash_checkpoint=use_flash_checkpoint,
+        )
+        self.norm1 = _make_layer_norm(d_model, use_fused_layernorm)
+        self.norm2 = _make_layer_norm(d_model, use_fused_layernorm)
 
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),
@@ -314,6 +347,10 @@ class GTrXLModule(nn.Module):
         use_causal_mask: bool = True,
         *,
         positional_scale: float = 0.1,
+        attn_dropout: float = 0.1,
+        activation_checkpoint: bool = False,
+        use_flash_checkpoint: bool = False,
+        use_fused_layernorm: bool = False,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -328,6 +365,10 @@ class GTrXLModule(nn.Module):
         self.use_input_proj = True
         self.use_gating = use_gating
         self.use_causal_mask = use_causal_mask
+        self.use_activation_checkpoint = activation_checkpoint
+        self.use_flash_checkpoint = use_flash_checkpoint
+        self.use_fused_layernorm = use_fused_layernorm
+        self.attn_dropout = attn_dropout
 
         positional_max = max_seq_len + self.memory_len + 1024
         self.positional_encoding = FCPositionalEncoding(
@@ -349,12 +390,15 @@ class GTrXLModule(nn.Module):
                     d_ff=d_ff,
                     dropout=dropout,
                     use_causal_mask=use_causal_mask,
-                    use_gating=False,
+                    use_gating=self.use_gating,
+                    attn_dropout=attn_dropout,
+                    use_flash_checkpoint=self.use_flash_checkpoint,
+                    use_fused_layernorm=self.use_fused_layernorm,
                 )
                 for _ in range(n_layers)
             ]
         )
-        self.output_norm = nn.LayerNorm(d_model)
+        self.output_norm = _make_layer_norm(d_model, self.use_fused_layernorm)
         self.dropout = nn.Dropout(dropout)
         self._mask_cache: dict[tuple[int, torch.device], torch.Tensor] = {}
 
@@ -415,7 +459,14 @@ class GTrXLModule(nn.Module):
                     if self.use_causal_mask:
                         total_len = combined.size(0)
                         attn_mask = self._get_causal_mask(total_len, device)
-                    layer_out = layer(combined, attn_mask)
+
+                    if self.use_activation_checkpoint and combined.requires_grad:
+                        def _layer_run(inp, *, _layer=layer, _mask=attn_mask):
+                            return _layer(inp, _mask)
+
+                        layer_out = checkpoint(_layer_run, combined, use_reentrant=False)
+                    else:
+                        layer_out = layer(combined, attn_mask)
                     layer_outputs.append(layer_out)
 
                     if mem_len > 0:
