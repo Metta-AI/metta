@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import multiprocessing
 import platform
 from pathlib import Path
@@ -112,35 +111,36 @@ def train(
         optimizer = "muon"
         adam_eps = 1e-12
 
-    total_agents = getattr(vecenv, "num_agents", 1)
+    total_agents = max(1, getattr(vecenv, "num_agents", 1))
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
     num_workers = max(1, getattr(vecenv, "num_workers", 1))
     envs_per_worker = max(1, num_envs // num_workers)
 
-    divisibility_target = 1
-    for divisor in (envs_per_worker, minibatch_size):
-        if divisor > 0:
-            divisibility_target = math.lcm(divisibility_target, divisor)
-
-    min_required_batch = max(total_agents * bptt_horizon, 1)
-    amended_batch_size = max(batch_size, min_required_batch)
-    if divisibility_target > 1:
-        amended_batch_size = (
-            (amended_batch_size + divisibility_target - 1) // divisibility_target
-        ) * divisibility_target
-
-    if amended_batch_size != batch_size:
+    # PuffeRL enforces two simple rules:
+    # 1. batch_size >= num_agents * bptt_horizon
+    # 2. batch_size % (num_envs / num_workers) == 0
+    required_batch = max(batch_size, total_agents * bptt_horizon)
+    if required_batch != batch_size:
         logger.info(
-            "Adjusting batch_size from %s to %s to cover %s agents with horizon %s",
+            "Raising batch_size from %s to %s to cover %s agents with horizon %s",
             batch_size,
-            amended_batch_size,
+            required_batch,
             total_agents,
             bptt_horizon,
         )
 
-    amended_minibatch_size = minibatch_size
-    if amended_minibatch_size > amended_batch_size:
-        amended_minibatch_size = amended_batch_size
+    remainder = required_batch % envs_per_worker
+    if remainder:
+        required_batch += envs_per_worker - remainder
+        logger.info(
+            "Rounding batch_size up to %s to stay divisible by envs/worker (%s)",
+            required_batch,
+            envs_per_worker,
+        )
+
+    amended_batch_size = required_batch
+    amended_minibatch_size = min(minibatch_size, amended_batch_size)
+    if amended_minibatch_size != minibatch_size:
         logger.info(
             "Reducing minibatch_size from %s to %s to keep it <= batch_size",
             minibatch_size,
