@@ -74,7 +74,7 @@ git push -u origin release-qual/<VERSION>
 
 #### 3.7 CI Workflow
 
-- Verify CI pipeline has completed successful on the release commit push to main.
+- Verify CI pipeline has completed successfully on the release commit push to main.
 
 ### 4. Release
 
