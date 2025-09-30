@@ -164,10 +164,18 @@ def train(
             amended_minibatch_size,
         )
 
+    effective_timesteps = max(num_steps, amended_batch_size)
+    if effective_timesteps != num_steps:
+        logger.info(
+            "Raising total_timesteps from %s to %s to keep it >= batch_size",
+            num_steps,
+            effective_timesteps,
+        )
+
     train_args = dict(
         env=env_name,
         device=device.type,
-        total_timesteps=num_steps,
+        total_timesteps=effective_timesteps,
         minibatch_size=amended_minibatch_size,
         batch_size=amended_batch_size,
         data_dir=str(checkpoints_path),
