@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Literal, Optional
 
 import typer
 from rich.console import Console
@@ -519,7 +519,7 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
 @app.command(name="publish", help="Create and push a release tag for a package")
 def cmd_publish(
     package: Annotated[
-        str,
+        Literal["mettagrid", "cogames", "pufferlib-core"],
         typer.Argument(help="Package to publish (for example 'mettagrid', 'cogames', or 'pufferlib-core')"),
     ],
     version_override: Annotated[
