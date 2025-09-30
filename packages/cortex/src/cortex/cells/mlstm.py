@@ -6,16 +6,16 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
+from cortex.cells.base import MemoryCell
+from cortex.cells.conv import CausalConv1d
+from cortex.cells.registry import register_cell
+from cortex.config import CausalConv1dConfig, mLSTMCellConfig
 from cortex.kernels import (
     TRITON_AVAILABLE,
     mlstm_chunkwise_simple,
     mlstm_chunkwise_triton,
     mlstm_recurrent_step_stabilized_simple,
 )
-from cortex.cells.base import MemoryCell
-from cortex.cells.conv import CausalConv1d
-from cortex.cells.registry import register_cell
-from cortex.config import CausalConv1dConfig, mLSTMCellConfig
 from cortex.types import MaybeState, ResetMask, Tensor
 
 
@@ -84,8 +84,11 @@ class mLSTMCell(MemoryCell):
     Notes on state semantics and shapes
     - The returned state is always the final (last-timestep) state for the given call.
     - Step vs. sequence parity:
-      * If `T <= chunk_size`, outputs and states are computed by replaying the recurrent step for exact parity.
-      * If `T > chunk_size`, full chunks are computed with a closed-form chunkwise backend and any tail is handled by recurrent steps; the returned state matches step semantics.
+      * If `T <= chunk_size`, outputs and states are computed by replaying the
+        recurrent step for exact parity.
+      * If `T > chunk_size`, full chunks are computed with a closed-form
+        chunkwise backend and any tail is handled by recurrent steps; the
+        returned state matches step semantics.
     - When this cell is wrapped by `PreUpBlock`, the cell state is nested under the key "cell":
       `TensorDict({"cell": {"c":..., "n":..., "m":..., "conv":...}})`.
 
@@ -194,17 +197,8 @@ class mLSTMCell(MemoryCell):
         n_state = st.get("n")  # [B, NH, DH, 1]
         m_state = st.get("m")  # [B, NH, 1, 1]
 
-        # Apply resets if provided
-        if resets is not None:
-            if is_step:
-                mask = resets.to(dtype=x.dtype).view(B, 1, 1, 1)
-                c_state = c_state * (1.0 - mask)
-                n_state = n_state * (1.0 - mask)
-                m_state = m_state * (1.0 - mask)
-            else:
-                # For sequences, we need to handle resets per timestep
-                # TODO: This is simplified - proper implementation would reset before each timestep
-                pass
+        # Note: mLSTM backends support reset masks directly. For step we pass a
+        # [B] mask; for sequences we pass a [B, T] mask to the chunkwise backend.
 
         # Causal conv on input to form q/k (v remains raw input)
         # Extract conv state from the combined state
@@ -250,6 +244,14 @@ class mLSTMCell(MemoryCell):
             igate_preact = igate_preact.unsqueeze(-1)  # [B, NH, T, 1]
             fgate_preact = fgate_preact.unsqueeze(-1)  # [B, NH, T, 1]
 
+            # Prepare a step reset mask if provided
+            reset_step: Optional[torch.Tensor]
+            if resets is None:
+                reset_step = None
+            else:
+                # Accept [B] or [B, 1] and convert to [B]
+                reset_step = resets.view(B)
+
             h_state, (c_new, n_new, m_new) = self.backend_fn_step(
                 c_state=c_state,
                 n_state=n_state,
@@ -259,6 +261,7 @@ class mLSTMCell(MemoryCell):
                 v=v,
                 igate_preact=igate_preact,
                 fgate_preact=fgate_preact,
+                reset_mask=reset_step,
             )
             new_state = TensorDict({"c": c_new, "n": n_new, "m": m_new}, batch_size=[B])
             new_state.update(conv_state_new)  # Add updated conv state
@@ -276,6 +279,16 @@ class mLSTMCell(MemoryCell):
                 "chunk_size": self.cfg.chunk_size,
                 "return_last_state": True,
             }
+
+            # Pass reset mask in sequence mode if provided. Expect [B, T]. If a
+            # batch-only mask [B] is given, interpret as a reset at t=0 only.
+            if resets is not None:
+                if resets.dim() == 1:
+                    rm = torch.zeros(B, T, dtype=resets.dtype, device=x.device)
+                    rm[:, 0] = resets
+                else:
+                    rm = resets
+                backend_kwargs["reset_mask"] = rm
 
             backend_output = self.backend_fn(**backend_kwargs)
 

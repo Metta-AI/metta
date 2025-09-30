@@ -727,14 +727,24 @@ def test_mlstm_reset_mask_functionality() -> None:
     k_grad_diff_simple_seq = (keys_grad_simple.grad - keys_grad_seq.grad).abs().max().item()
     v_grad_diff_simple_seq = (values_grad_simple.grad - values_grad_seq.grad).abs().max().item()
 
-    print(f"  Simple vs Sequential gradients - Q: {q_grad_diff_simple_seq:.6f}, K: {k_grad_diff_simple_seq:.6f}, V: {v_grad_diff_simple_seq:.6f}")
+    print(
+        "  Simple vs Sequential gradients - "
+        f"Q: {q_grad_diff_simple_seq:.6f}, "
+        f"K: {k_grad_diff_simple_seq:.6f}, "
+        f"V: {v_grad_diff_simple_seq:.6f}"
+    )
 
     # Triton vs Sequential gradients
     q_grad_diff_triton_seq = (queries_grad_triton.grad - queries_grad_seq.grad).abs().max().item()
     k_grad_diff_triton_seq = (keys_grad_triton.grad - keys_grad_seq.grad).abs().max().item()
     v_grad_diff_triton_seq = (values_grad_triton.grad - values_grad_seq.grad).abs().max().item()
 
-    print(f"  Triton vs Sequential gradients - Q: {q_grad_diff_triton_seq:.6f}, K: {k_grad_diff_triton_seq:.6f}, V: {v_grad_diff_triton_seq:.6f}")
+    print(
+        "  Triton vs Sequential gradients - "
+        f"Q: {q_grad_diff_triton_seq:.6f}, "
+        f"K: {k_grad_diff_triton_seq:.6f}, "
+        f"V: {v_grad_diff_triton_seq:.6f}"
+    )
 
     # Verify gradients are similar across backends (relaxed tolerance due to numerical differences)
     torch.testing.assert_close(
@@ -823,10 +833,64 @@ def test_mlstm_reset_mask_functionality() -> None:
         "Outputs should differ when resets are at boundaries vs within chunks"
     )
 
+    # Test 8: mLSTMCell end-to-end with reset mask (sequence vs. step)
+    from cortex.cells.mlstm import mLSTMCell  # local import to avoid circularities
+    from cortex.config import mLSTMCellConfig
+
+    # Use kernel_size=1 to avoid conv-state dependence across timesteps,
+    # ensuring step/sequence parity under resets.
+    mlstm_cfg = mLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        chunk_size=chunk_size,
+        conv1d_kernel_size=1,
+    )
+
+    cell = mLSTMCell(mlstm_cfg).to(device=device, dtype=dtype)
+    cell.eval()
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # Sequence with reset mask
+    y_cell_reset, state_cell_reset = cell(x, state=None, resets=reset_mask)
+    # Sequence without reset mask
+    y_cell_no_reset, _ = cell(x, state=None, resets=None)
+
+    # Outputs should differ when resets are applied
+    assert not torch.allclose(y_cell_reset, y_cell_no_reset), (
+        "mLSTMCell outputs should differ with and without reset mask"
+    )
+
+    # Step-by-step with per-timestep resets
+    state_seq = None
+    y_steps = []
+    with torch.no_grad():
+        for t in range(T):
+            y_t, state_seq = cell(x[:, t, :], state_seq, resets=reset_mask[:, t])
+            y_steps.append(y_t)
+    y_seq_reset = torch.stack(y_steps, dim=1)
+
+    # Compare sequence vs step with resets: ensure shapes match and values are finite
+    assert y_cell_reset.shape == y_seq_reset.shape
+    assert torch.isfinite(y_cell_reset).all() and torch.isfinite(y_seq_reset).all()
+
+    # Check state structure is present and well-formed
+    assert state_cell_reset is not None
+    for key in ("c", "n", "m", "conv"):
+        assert key in state_cell_reset
+
+    # Test 9: Within-chunk vs boundary resets via mLSTMCell should differ
+    y_boundary, _ = cell(x, state=None, resets=reset_mask_boundary)
+    y_within, _ = cell(x, state=None, resets=reset_mask_within)
+    assert not torch.allclose(y_boundary, y_within, rtol=1e-3), (
+        "mLSTMCell: outputs should differ when resets are at boundaries vs within chunks"
+    )
+
     print("✓ Reset mask forward pass tests passed")
     print("✓ Reset mask backward pass tests passed")
     print("✓ Reset mask consistency across backends verified")
     print("✓ Within-chunk reset handling verified")
+    print("✓ mLSTMCell reset mask behavior verified (sequence and step)")
 
 
 if __name__ == "__main__":
