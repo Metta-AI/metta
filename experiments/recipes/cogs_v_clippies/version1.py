@@ -12,6 +12,9 @@
 # hardest recipe: some number of some resources and four cogs to make a heart
 
 # resource extractors
+import subprocess
+import time
+
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 import random
@@ -392,7 +395,19 @@ def make_eval_suite():
 
 
 def experiment():
-    play()
+    for curriculum_style in curriculum_args:
+        subprocess.run(
+            [
+                "./devops/skypilot/launch.py",
+                "experiments.recipes.cogs_v_clippies.version1.train",
+                f"run=daphne.cogs_v_clippies.version1.{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                f"curriculum_style={curriculum_style}",
+                "--gpus=4",
+                "--heartbeat-timeout=3600",
+                "--skip-git-check",
+            ]
+        )
+        time.sleep(1)
 
 
 if __name__ == "__main__":
