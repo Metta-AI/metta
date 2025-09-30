@@ -417,7 +417,7 @@ class TrainTool(Tool):
             context = build_sdpa_context(
                 prefer_flash=True,
                 prefer_mem_efficient=True,
-                prefer_math=False,
+                prefer_math=True,
                 set_priority=True,
             )
             if context is not None:
