@@ -21,10 +21,19 @@ from cogames.cogs_vs_clips.scenarios import make_game
 from metta.tools.play import PlayTool
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import ChestConfig
+from metta.tools.train import TrainTool
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.rl.trainer_config import TrainerConfig
+from metta.rl.loss import LossConfig
+from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from mettagrid.mapgen.mapgen import MapGen
+
 
 curriculum_args = {
-    "single_agent": {
-        "num_cogs": [1],
+    "multi_agent_singles": {
+        "num_cogs": [2, 4, 6, 8, 12],
         "assembler_positions": [["Any"]],
         "num_chargers": [3, 5, 10, 15],
         "charger_positions": [["Any"]],
@@ -35,7 +44,7 @@ curriculum_args = {
         "num_chests": [1, 5, 10],
         "chest_positions": [["N"]],
         "regeneration_rate": [5, 10, 15],
-        "shareable_energy": [True, False],
+        "shareable_energy": [False],
     },
     "multi_agent_pairs": {
         "num_cogs": [2, 4, 6, 8, 12],
@@ -49,10 +58,10 @@ curriculum_args = {
         "num_chests": [1, 5, 10],
         "chest_positions": [["N", "S"]],
         "regeneration_rate": [5, 10, 15],
-        "shareable_energy": [True, False],
+        "shareable_energy": [True],
     },
     "multi_agent_triplets": {
-        "num_cogs": [3, 6, 9, 12, 21],
+        "num_cogs": [3, 6, 8, 12, 24],
         "assembler_positions": [["Any", "Any"]],
         "num_chargers": [3, 5, 10, 15],
         "charger_positions": [["Any", "Any", "Any"]],
@@ -64,6 +73,7 @@ curriculum_args = {
         "num_chests": [1, 5, 10],
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [5, 10, 15],
+        "shareable_energy": [True],
     },
     # "test":
     #     {
@@ -80,6 +90,65 @@ curriculum_args = {
     #     "regeneration_rate": [5],
     #     "shareable_energy": [True],
     #     }
+}
+
+evals = {
+    "single_agent": {
+        "num_cogs": 1,
+        "assembler_positions": ["Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any"],
+        "carbon_extractor_positions": ["Any"],
+        "oxygen_extractor_positions": ["Any"],
+        "germanium_extractor_positions": ["Any"],
+        "silicon_extractor_positions": ["Any"],
+        "num_chests": 5,
+        "chest_positions": ["N"],
+        "regeneration_rate": 10,
+        "shareable_energy": False,
+    },
+    "two_agent_pairs": {
+        "num_cogs": 2,
+        "assembler_positions": ["Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+    },
+    "three_agent_triplets": {
+        "num_cogs": 3,
+        "assembler_positions": ["Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S", "E"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+    },
+    "many_agent_triplets": {
+        "num_cogs": 12,
+        "assembler_positions": ["Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S", "E"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+    },
 }
 
 
@@ -161,9 +230,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         )
         shareable_energy = rng.choice(self.config.shareable_energy)
 
-        print(
-            f"Building env with {num_cogs} agents, {num_assemblers} assemblers, {num_chargers} chargers, {num_carbon_extractors} carbon extractors, {num_oxygen_extractors} oxygen extractors, {num_germanium_extractors} germanium extractors, {num_silicon_extractors} silicon extractors, {num_chests} chests, {regeneration_rate} regeneration rate"
-        )
+        num_instances = 24 // num_cogs
 
         env = make_game(
             num_cogs=num_cogs,
@@ -203,6 +270,12 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         if shareable_energy:
             env.game.agent.shareable_resources = ["energy"]
         env.label = f"{env.game.num_agents}_cogs_{num_assemblers}_assemblers_{num_chargers}_chargers_{num_carbon_extractors + num_oxygen_extractors + num_germanium_extractors + num_silicon_extractors}_extractors_{num_chests}_chests_{env.game.inventory_regen_interval}_regeneration_rate"
+        env.game.map_builder = MapGen.Config(
+            instances=num_instances,
+            instance_map=env.game.map_builder,
+            num_agents=24,
+        )
+        env.game.num_agents = 24
         return env
 
     def _overwrite_positions(self, object, positions):
@@ -228,3 +301,99 @@ def play(curriculum_style: str = "multi_agent_pairs") -> PlayTool:
             env=make_mettagrid(task_generator), suite="cogs_vs_clippies", name="play"
         )
     )
+
+
+def train(curriculum_style: str = "multi_agent_pairs") -> TrainTool:
+    task_generator_cfg = CogsVsClippiesTaskGenerator.Config(
+        **curriculum_args[curriculum_style]
+    )
+    algorithm_config = LearningProgressConfig(
+        ema_timescale=0.001,
+        exploration_bonus=0.15,
+        max_memory_tasks=1000,
+        max_slice_axes=3,
+        progress_smoothing=0.15,
+    )
+    trainer_cfg = TrainerConfig(
+        losses=LossConfig(),
+    )
+    policy_config = ViTResetConfig()
+
+    curriculum = CurriculumConfig(
+        task_generator=task_generator_cfg,
+        algorithm_config=algorithm_config,
+    )
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        policy_architecture=policy_config,
+        evaluator=EvaluatorConfig(
+            simulations=make_eval_suite(),
+            evaluate_remote=True,
+            evaluate_local=False,
+        ),
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
+
+
+def make_env(
+    num_cogs=1,
+    num_assemblers=1,
+    num_chargers=1,
+    num_carbon_extractors=1,
+    num_oxygen_extractors=1,
+    num_germanium_extractors=1,
+    num_silicon_extractors=1,
+    num_chests=1,
+    chest_positions=["N"],
+    assembler_positions=["Any"],
+    charger_positions=["Any"],
+    carbon_extractor_positions=["Any"],
+    oxygen_extractor_positions=["Any"],
+    germanium_extractor_positions=["Any"],
+    silicon_extractor_positions=["Any"],
+    regeneration_rate=10,
+    shareable_energy=False,
+):
+    task_generator = CogsVsClippiesTaskGenerator(
+        config=CogsVsClippiesTaskGenerator.Config(
+            num_cogs=[num_cogs],
+            num_assemblers=[num_assemblers],
+            num_chargers=[num_chargers],
+            num_carbon_extractors=[num_carbon_extractors],
+            num_oxygen_extractors=[num_oxygen_extractors],
+            num_germanium_extractors=[num_germanium_extractors],
+            num_silicon_extractors=[num_silicon_extractors],
+            num_chests=[num_chests],
+            chest_positions=[chest_positions],
+            assembler_positions=[assembler_positions],
+            charger_positions=[charger_positions],
+            carbon_extractor_positions=[carbon_extractor_positions],
+            oxygen_extractor_positions=[oxygen_extractor_positions],
+            germanium_extractor_positions=[germanium_extractor_positions],
+            silicon_extractor_positions=[silicon_extractor_positions],
+            regeneration_rate=[regeneration_rate],
+            shareable_energy=[shareable_energy],
+        )
+    )
+    return task_generator.get_task(random.randint(0, 1000000))
+
+
+def make_eval_suite():
+    return [
+        SimulationConfig(
+            env=make_env(**evals[curriculum_style]),
+            suite="cogs_vs_clippies",
+            name=f"eval_{curriculum_style}",
+        )
+        for curriculum_style in evals
+    ]
+
+
+def experiment():
+    play()
+
+
+if __name__ == "__main__":
+    experiment()
