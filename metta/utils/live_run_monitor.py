@@ -26,11 +26,11 @@ Usage:
 import logging
 import os
 import sys
-import time
 import threading
+import time
 from collections import deque
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Optional, Deque
+from typing import TYPE_CHECKING, Annotated, Deque, Optional
 
 import typer
 from rich.console import Console, Group
