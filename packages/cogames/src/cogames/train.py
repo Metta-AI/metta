@@ -27,6 +27,10 @@ def train(
     batch_size: int,
     minibatch_size: int,
     game_name: Optional[str] = None,
+    *,
+    vector_num_envs: Optional[int] = None,
+    vector_batch_size: Optional[int] = None,
+    vector_num_workers: Optional[int] = None,
 ) -> None:
     import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
     import pufferlib.vector
@@ -44,7 +48,7 @@ def train(
         # TODO(jsuarez): Fix multiprocessing backend
         backend = pufferlib.vector.Serial
 
-    desired_workers = 8
+    desired_workers = vector_num_workers if vector_num_workers is not None else 8
     cpu_cores = None
     try:
         import psutil
@@ -69,12 +73,26 @@ def train(
         backend = pufferlib.vector.Serial
         num_workers = 1
 
-    envs_per_worker = max(1, 256 // num_workers)
-    vector_batch_size = max(128, envs_per_worker)
+    num_envs = vector_num_envs if vector_num_envs is not None else 256
+
+    envs_per_worker = max(1, num_envs // num_workers)
+    base_batch_size = vector_batch_size if vector_batch_size is not None else 128
+    vector_batch_size = max(base_batch_size, envs_per_worker)
+    remainder = vector_batch_size % envs_per_worker
+    if remainder:
+        vector_batch_size += envs_per_worker - remainder
+
+    logger.debug(
+        "Vec env config: num_envs=%s, num_workers=%s, batch_size=%s (envs/worker=%s)",
+        num_envs,
+        num_workers,
+        vector_batch_size,
+        envs_per_worker,
+    )
 
     vecenv = pufferlib.vector.make(
         env_creator,
-        num_envs=256,
+        num_envs=num_envs,
         num_workers=num_workers,
         batch_size=vector_batch_size,
         backend=backend,
@@ -146,10 +164,18 @@ def train(
             amended_minibatch_size,
         )
 
+    effective_timesteps = max(num_steps, amended_batch_size)
+    if effective_timesteps != num_steps:
+        logger.info(
+            "Raising total_timesteps from %s to %s to keep it >= batch_size",
+            num_steps,
+            effective_timesteps,
+        )
+
     train_args = dict(
         env=env_name,
         device=device.type,
-        total_timesteps=num_steps,
+        total_timesteps=effective_timesteps,
         minibatch_size=amended_minibatch_size,
         batch_size=amended_batch_size,
         data_dir=str(checkpoints_path),
