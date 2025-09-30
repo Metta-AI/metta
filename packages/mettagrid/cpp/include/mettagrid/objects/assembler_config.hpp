@@ -18,7 +18,8 @@ struct AssemblerConfig : public GridObjectConfig {
       : GridObjectConfig(type_id, type_name, tag_ids),
         recipe_details_obs(false),
         input_recipe_offset(0),
-        output_recipe_offset(0) {}
+        output_recipe_offset(0),
+        max_uses(0) {}  // 0 means unlimited uses
 
   // Recipes will be set separately via initialize_recipes()
   std::vector<std::shared_ptr<Recipe>> recipes;
@@ -27,6 +28,9 @@ struct AssemblerConfig : public GridObjectConfig {
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
+
+  // Maximum number of uses (0 = unlimited)
+  unsigned int max_uses;
 };
 
 namespace py = pybind11;
@@ -41,7 +45,8 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("type_name", &AssemblerConfig::type_name)
       .def_readwrite("tag_ids", &AssemblerConfig::tag_ids)
       .def_readwrite("recipes", &AssemblerConfig::recipes)
-      .def_readwrite("recipe_details_obs", &AssemblerConfig::recipe_details_obs);
+      .def_readwrite("recipe_details_obs", &AssemblerConfig::recipe_details_obs)
+      .def_readwrite("max_uses", &AssemblerConfig::max_uses);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_CONFIG_HPP_

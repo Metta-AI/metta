@@ -312,6 +312,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
             )
             cpp_assembler_config.recipes = cpp_recipes
+            cpp_assembler_config.max_uses = object_config.max_uses
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert resource type name to ID

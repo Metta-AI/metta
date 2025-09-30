@@ -1491,3 +1491,97 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   }
   EXPECT_FALSE(found_clipped) << "Should not have Clipped observation feature when not clipped";
 }
+
+TEST_F(MettaGridCppTest, AssemblerMaxUses) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with max_uses set to 3
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.max_uses = 3;  // Limit to 3 uses
+
+  // Create simple recipe
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;
+  recipe->output_resources[TestItems::LASER] = 1;
+  recipe->cooldown = 0;
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent with plenty of resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+
+  Agent* agent = new Agent(4, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify initial state
+  EXPECT_EQ(assembler.max_uses, 3) << "Max uses should be 3";
+  EXPECT_EQ(assembler.uses_count, 0) << "Uses count should be 0 initially";
+
+  // Test 2: Verify remaining uses in observations
+  auto features = assembler.obs_features();
+  bool found_remaining_uses = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 3) << "Should show 3 remaining uses";
+      found_remaining_uses = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_remaining_uses) << "Should have RemainingUses observation when max_uses is set";
+
+  // Test 3: First use should succeed
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "First use should succeed";
+  EXPECT_EQ(assembler.uses_count, 1) << "Uses count should be 1";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 1 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
+
+  // Test 4: Check remaining uses after first use
+  features = assembler.obs_features();
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 2) << "Should show 2 remaining uses";
+      break;
+    }
+  }
+
+  // Test 5: Second use should succeed
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Second use should succeed";
+  EXPECT_EQ(assembler.uses_count, 2) << "Uses count should be 2";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 2) << "Should have 2 lasers";
+
+  // Test 6: Third use should succeed
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Third use should succeed";
+  EXPECT_EQ(assembler.uses_count, 3) << "Uses count should be 3";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should have 3 lasers";
+
+  // Test 7: Check remaining uses after max reached
+  features = assembler.obs_features();
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::RemainingUses) {
+      EXPECT_EQ(feature.value, 0) << "Should show 0 remaining uses";
+      break;
+    }
+  }
+
+  // Test 8: Fourth use should fail (max uses reached)
+  success = assembler.onUse(*agent, 0);
+  EXPECT_FALSE(success) << "Fourth use should fail - max uses reached";
+  EXPECT_EQ(assembler.uses_count, 3) << "Uses count should still be 3";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 7) << "Should still have 7 ore (no consumption)";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should still have 3 lasers (no production)";
+}
