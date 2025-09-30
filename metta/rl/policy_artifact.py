@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import ast
 import io
-import json
 import pickle
 import tempfile
 import zipfile
@@ -25,25 +25,6 @@ def _component_config_to_manifest(component: ComponentConfig) -> dict[str, Any]:
     data = component.model_dump(mode="json")
     data["class_path"] = f"{component.__class__.__module__}.{component.__class__.__qualname__}"
     return data
-
-
-def _serialize_policy_architecture(policy_architecture: PolicyArchitecture) -> str:
-    config_data = policy_architecture.model_dump(mode="json")
-
-    if "components" in config_data:
-        config_data["components"] = [
-            _component_config_to_manifest(component) for component in policy_architecture.components
-        ]
-
-    action_probs_config = getattr(policy_architecture, "action_probs_config", None)
-    if action_probs_config is not None:
-        config_data["action_probs_config"] = _component_config_to_manifest(action_probs_config)
-
-    manifest = {
-        "class_path": f"{policy_architecture.__class__.__module__}.{policy_architecture.__class__.__qualname__}",
-        "config": config_data,
-    }
-    return json.dumps(manifest, indent=2, sort_keys=True)
 
 
 def _load_component_config(
@@ -77,18 +58,68 @@ def _load_component_config(
     return component_class.model_validate(payload)
 
 
-def _deserialize_policy_architecture(str: str) -> PolicyArchitecture:
-    manifest = json.loads(str)
-    config_class_path = manifest.get("class_path")
-    config_data = manifest.get("config")
-    if not config_class_path or config_data is None:
-        raise ValueError("Invalid model architecture manifest; expected class_path and config fields")
+def _expr_to_dotted(expr: ast.expr) -> str:
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        return f"{_expr_to_dotted(expr.value)}.{expr.attr}"
+    raise ValueError("Expected a dotted name for policy architecture class path")
 
-    config_class = load_symbol(config_class_path)
+
+def _sorted_structure(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _sorted_structure(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_sorted_structure(item) for item in value]
+    return value
+
+
+def policy_architecture_to_string(architecture: PolicyArchitecture) -> str:
+    class_path = f"{architecture.__class__.__module__}.{architecture.__class__.__qualname__}"
+    config_data = architecture.model_dump(mode="json")
+    config_data.pop("class_path", None)
+
+    if "components" in config_data:
+        config_data["components"] = [_component_config_to_manifest(component) for component in architecture.components]
+
+    action_probs_config = getattr(architecture, "action_probs_config", None)
+    if action_probs_config is not None:
+        config_data["action_probs_config"] = _component_config_to_manifest(action_probs_config)
+
+    if not config_data:
+        return class_path
+
+    sorted_config = _sorted_structure(config_data)
+    parts = [f"{key}={repr(sorted_config[key])}" for key in sorted(sorted_config)]
+    args_repr = ", ".join(parts)
+    return f"{class_path}({args_repr})"
+
+
+def policy_architecture_from_string(spec: str) -> PolicyArchitecture:
+    spec = spec.strip()
+    if not spec:
+        raise ValueError("Policy architecture specification cannot be empty")
+
+    expr = ast.parse(spec, mode="eval").body
+
+    if isinstance(expr, ast.Call):
+        class_path = _expr_to_dotted(expr.func)
+        kwargs = {}
+        for keyword in expr.keywords:
+            if keyword.arg is None:
+                raise ValueError("Policy architecture arguments must be keyword-based")
+            kwargs[keyword.arg] = ast.literal_eval(keyword.value)
+    elif isinstance(expr, (ast.Name, ast.Attribute)):
+        class_path = _expr_to_dotted(expr)
+        kwargs = {}
+    else:
+        raise ValueError("Unsupported policy architecture specification format")
+
+    config_class = load_symbol(class_path)
     if not isinstance(config_class, type) or not issubclass(config_class, PolicyArchitecture):
-        raise TypeError(f"Loaded symbol {config_class_path} is not a PolicyArchitecture subclass")
+        raise TypeError(f"Loaded symbol {class_path} is not a PolicyArchitecture subclass")
 
-    payload: dict[str, Any] = dict(config_data)
+    payload: dict[str, Any] = dict(kwargs)
 
     default_components: list[ComponentConfig] = []
     default_action_probs: ComponentConfig | None = None
@@ -121,7 +152,10 @@ def _deserialize_policy_architecture(str: str) -> PolicyArchitecture:
             default_class=default_class,
         )
 
-    return config_class.model_validate(payload)
+    architecture = config_class.model_validate(payload)
+    if not isinstance(architecture, PolicyArchitecture):
+        raise TypeError("Deserialized object is not a PolicyArchitecture")
+    return architecture
 
 
 def _to_safetensors_state_dict(
@@ -256,7 +290,10 @@ def save_policy_artifact(
                 if artifact_state is not None and policy_architecture is not None:
                     weights_blob = save_safetensors(artifact_state)
                     archive.writestr("weights.safetensors", weights_blob)
-                    archive.writestr("modelarchitecture.json", _serialize_policy_architecture(policy_architecture))
+                    archive.writestr(
+                        "modelarchitecture.txt",
+                        policy_architecture_to_string(policy_architecture),
+                    )
 
                 if policy_payload is not None:
                     archive.writestr("policy.pt", policy_payload)
@@ -307,9 +344,9 @@ def load_policy_artifact(path: str | Path) -> PolicyArtifact:
     with zipfile.ZipFile(input_path, mode="r") as archive:
         names = set(archive.namelist())
 
-        if "modelarchitecture.json" in names and "weights.safetensors" in names:
-            architecture_blob = archive.read("modelarchitecture.json")
-            architecture = _deserialize_policy_architecture(architecture_blob)
+        if "modelarchitecture.txt" in names and "weights.safetensors" in names:
+            architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
+            architecture = policy_architecture_from_string(architecture_blob)
 
             weights_blob = archive.read("weights.safetensors")
             loaded_state = load_safetensors(weights_blob)

@@ -8,8 +8,16 @@ import torch.nn as nn
 from pydantic import Field
 from tensordict import TensorDict
 
+from metta.agent.policies.fast import FastConfig
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact
+from metta.rl.policy_artifact import (
+    PolicyArtifact,
+    load_policy_artifact,
+    policy_architecture_from_string,
+    policy_architecture_to_string,
+    save_policy_artifact,
+)
 from metta.rl.training import EnvironmentMetaData
 from mettagrid.config import Config
 
@@ -115,3 +123,49 @@ def test_save_policy_artifact_rejects_include_policy_with_weights(tmp_path: Path
             policy_architecture=architecture,
             include_policy=True,
         )
+
+
+def test_policy_architecture_round_trip_vit() -> None:
+    config = ViTDefaultConfig()
+    spec = policy_architecture_to_string(config)
+    reconstructed = policy_architecture_from_string(spec)
+
+    assert isinstance(reconstructed, ViTDefaultConfig)
+    assert reconstructed.model_dump() == config.model_dump()
+
+
+def test_policy_architecture_round_trip_fast_with_override() -> None:
+    config = FastConfig(actor_hidden_dim=321)
+    spec = policy_architecture_to_string(config)
+    reconstructed = policy_architecture_from_string(spec)
+
+    assert isinstance(reconstructed, FastConfig)
+    assert reconstructed.model_dump() == config.model_dump()
+
+
+def test_policy_architecture_from_string_without_args() -> None:
+    spec = "metta.agent.policies.vit.ViTDefaultConfig"
+    architecture = policy_architecture_from_string(spec)
+    assert isinstance(architecture, ViTDefaultConfig)
+
+    canonical = policy_architecture_to_string(architecture)
+    assert canonical.startswith("metta.agent.policies.vit.ViTDefaultConfig(")
+    # Canonical string should parse back to the same config
+    round_tripped = policy_architecture_from_string(canonical)
+    assert round_tripped.model_dump() == architecture.model_dump()
+
+
+def test_policy_architecture_from_string_with_args_round_trip() -> None:
+    spec = "metta.agent.policies.fast.FastConfig(actor_hidden_dim=2048, critic_hidden_dim=4096)"
+    architecture = policy_architecture_from_string(spec)
+
+    assert isinstance(architecture, FastConfig)
+    assert architecture.actor_hidden_dim == 2048
+    assert architecture.critic_hidden_dim == 4096
+
+    canonical = policy_architecture_to_string(architecture)
+    assert "actor_hidden_dim=2048" in canonical
+    assert "critic_hidden_dim=4096" in canonical
+    # Canonical string should parse back to the same config
+    round_tripped = policy_architecture_from_string(canonical)
+    assert round_tripped.model_dump() == architecture.model_dump()
