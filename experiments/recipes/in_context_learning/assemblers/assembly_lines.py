@@ -18,6 +18,9 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 import random
 from typing import Optional
+from experiments.recipes.in_context_learning.in_context_learning import (
+    num_agents_to_positions,
+)
 import os
 
 curriculum_args = {
@@ -26,19 +29,40 @@ curriculum_args = {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
         "chest_positions": [["N"], ["N", "S"], ["N", "S", "E"]],
-        "num_chests": [2,5,8],
-    }
+        "num_chests": [2, 5, 8],
+    },
+    "train_pairs": {
+        "num_agents": [2, 6, 12],
+        "chain_lengths": [2, 3, 4, 5],
+        "num_sinks": [0, 1, 2],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[2],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
+    "train_triplets": {
+        "num_agents": [3, 6, 12],
+        "chain_lengths": [2, 3, 4, 5],
+        "num_sinks": [0, 1, 2],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[3],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
+    # "test": {
+    #     "num_agents": [2],
+    #     "chain_lengths": [2],
+    #     "num_sinks": [0],
+    #     "chest_positions": [["N"]],
+    #     "num_chests": [1],
+    #     "room_sizes": ["medium"],
+    #     "positions": [["Any", "Any"]],
+    # }
 }
-# "test": {
-#     "num_agents": [2],
-#     "chain_lengths": [5],
-#     "num_sinks": [2],
-#     "room_sizes": ["medium"],
-#     "positions": [["Any", "Any"]],
-# },
-# }
 
 
 def make_task_generator_cfg(

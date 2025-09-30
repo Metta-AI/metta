@@ -37,18 +37,36 @@ curriculum_args = {
         + num_agents_to_positions[2]
         + num_agents_to_positions[3],
         "max_recipe_inputs": [1, 2, 3],
-        "num_chests": [2,5,8],
+        "num_chests": [2, 5, 8],
         "chest_positions": [["N"], ["N", "S"], ["N", "S", "E"]],
     },
-    "test": {
-        "num_agents": [3],
-        "num_altars": [2],
-        "num_generators": [2],
-        "num_chests": [2],
+    "train_pairs": {
+        "num_agents": [2, 6, 12],
+        "num_altars": [2, 5, 8],
+        "num_generators": [0, 1, 4],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[2],
         "chest_positions": [["N"]],
-        "room_sizes": ["medium"],
-        "positions": [["N", "S"]],
+        "num_chests": [2, 5, 8],
     },
+    "train_triplets": {
+        "num_agents": [3, 6, 12],
+        "num_altars": [2, 5, 8],
+        "num_generators": [0, 1, 4],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[3],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
+    # "test": {
+    #     "num_agents": [3],
+    #     "num_altars": [2],
+    #     "num_generators": [2],
+    #     "num_chests": [2],
+    #     "chest_positions": [["N"]],
+    #     "room_sizes": ["medium"],
+    #     "positions": [["N", "S"]],
+    # },
 }
 
 
