@@ -151,6 +151,43 @@ app = typer.Typer(
 )
 
 
+def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[str]]:
+    python_files: list[str] = []
+    cpp_files: list[str] = []
+    seen: set[str] = set()
+
+    for raw_path in paths:
+        if not (raw_path and (path := raw_path.strip()) and path not in seen):
+            continue
+        seen.add(path)
+
+        suffix = Path(path).suffix.lower()
+        if path.endswith(".py"):
+            python_files.append(path)
+        elif suffix in {".cpp", ".hpp", ".h"}:
+            cpp_files.append(path)
+
+    return python_files, cpp_files
+
+
+def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
+    check_cmd = ["uv", "run", "--active", "ruff", "check"]
+    format_cmd = ["uv", "run", "--active", "ruff", "format"]
+
+    if fix:
+        check_cmd.append("--fix")
+    else:
+        format_cmd.append("--check")
+
+    for cmd in [format_cmd, check_cmd]:
+        cmd.extend(python_targets or [])
+        info(f"Running: {' '.join(cmd)}")
+        try:
+            subprocess.run(cmd, cwd=cli.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            raise typer.Exit(e.returncode) from e
+
+
 def _run_git_command(args: list[str], *, capture_output: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["git", *args],
@@ -438,6 +475,16 @@ def cmd_run(
 
 @app.command(name="clean", help="Clean build artifacts and temporary files")
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
+    def _remove_matching_dirs(base: Path, patterns: list[str], *, include_globs: bool = False) -> None:
+        for pattern in patterns:
+            candidates = base.glob(pattern) if include_globs else (base / pattern,)
+            for path in candidates:
+                if not path.exists() or not path.is_dir():
+                    continue
+                info(f"  Removing {path.relative_to(cli.repo_root)}...")
+                subprocess.run(["chmod", "-R", "u+w", str(path)], cwd=cli.repo_root, check=False)
+                subprocess.run(["rm", "-rf", str(path)], cwd=cli.repo_root, check=False)
+
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
         info("  Removing root build directory...")
@@ -449,6 +496,12 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
         if build_path.exists():
             info(f"  Removing packages/mettagrid/{build_name}...")
             shutil.rmtree(build_path)
+
+    _remove_matching_dirs(cli.repo_root, ["bazel-*"], include_globs=True)
+    _remove_matching_dirs(cli.repo_root, [".bazel_output"])
+    if mettagrid_dir.exists():
+        _remove_matching_dirs(mettagrid_dir, ["bazel-*"], include_globs=True)
+        _remove_matching_dirs(mettagrid_dir, [".bazel_output"])
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
     if cleanup_script.exists():
@@ -568,12 +621,12 @@ def cmd_lint(
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
 ):
-    # Determine which files to lint
-    if files:
-        # Filter to only Python files
-        files = [f for f in files if f.endswith(".py")]
+    python_targets: list[str] | None
+    cpp_targets: list[str] | None
+
+    if files is not None:
+        python_targets, cpp_targets = _partition_supported_lint_files(files)
     elif staged:
-        # Discover staged files
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
             cwd=cli.repo_root,
@@ -581,32 +634,30 @@ def cmd_lint(
             text=True,
             check=True,
         )
-        files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
-
-    if files is not None and not files:
-        info("No Python files to lint")
-        return
-
-    # Build commands
-    check_cmd = ["uv", "run", "--active", "ruff", "check"]
-    format_cmd = ["uv", "run", "--active", "ruff", "format"]
-
-    if fix:
-        check_cmd.append("--fix")
+        staged_files = [f for f in result.stdout.strip().split("\n") if f]
+        python_targets, cpp_targets = _partition_supported_lint_files(staged_files)
     else:
-        format_cmd.append("--check")
+        python_targets = None
+        cpp_targets = None
 
-    if files:
-        check_cmd.extend(files)
-        format_cmd.extend(files)
+    # Run ruff if the user specified targets that include python files or they did not specify any targets
+    if python_targets is not None and not python_targets:
+        info("No Python files to lint")
+    else:
+        _run_ruff(python_targets, fix=fix)
 
-    # Run commands
-    for cmd in [format_cmd, check_cmd]:
-        try:
-            info(f"Running: {' '.join(cmd)}")
-            subprocess.run(cmd, cwd=cli.repo_root, check=True)
-        except subprocess.CalledProcessError as e:
-            raise typer.Exit(e.returncode) from e
+    # Run cpplint if the user specified targets that include c++ files or they did not specify any targets
+    if cpp_targets is not None and not cpp_targets:
+        info("No C++ files to lint")
+    else:
+        script_path = cli.repo_root / "packages" / "mettagrid" / "tests" / "cpplint.sh"
+        res = subprocess.run(["bash", str(script_path)], cwd=cli.repo_root, check=False, capture_output=True)
+        if res.returncode != 0:
+            error("C++ linting failed")
+            info(res.stderr.decode("utf-8"))
+            raise typer.Exit(res.returncode)
+        else:
+            success("C++ linting passed!")
 
 
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")

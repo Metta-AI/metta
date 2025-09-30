@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from cogames.policy import Policy
+from cogames.policy.policy import Policy
 from mettagrid import MettaGridEnv
 
 
@@ -16,21 +16,20 @@ class RandomPolicy(Policy):
             env: The environment to sample actions from
             device: Device to use (ignored for random policy)
         """
-        self.env = env
-        self.action_space = env.single_action_space
+        self._env = env
+        self._action_space = env.single_action_space
 
-    def step(self, agent_id: int, agent_obs: Any) -> Any:
-        """Get random action for a single agent.
+    def step(self, obs: Any) -> Any:
+        """Get random action.
 
         Args:
-            agent_id: The ID of the agent (unused for random policy)
-            agent_obs: The observation for this specific agent (unused for random policy)
+            obs: The observation (unused for random policy)
 
         Returns:
             A random action sampled from the action space
         """
-        # Return a single random action for this agent
-        return self.action_space.sample()
+        # Return a random action
+        return self._action_space.sample()
 
     def reset(self) -> None:
         """Reset the policy state (no-op for random policy)."""

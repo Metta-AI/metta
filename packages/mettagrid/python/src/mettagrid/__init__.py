@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-# Import environment classes
-from mettagrid.core import MettaGridCore
+# Import environment classes and types
+from mettagrid.core import MettaGridAction, MettaGridCore, MettaGridObservation
 
 # Import other commonly used classes
 from mettagrid.envs.gym_env import MettaGridGymEnv
@@ -34,13 +34,23 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+
+# Import type validation functions
+from mettagrid.types import (
+    get_action_nvec,
+    get_observation_shape,
+    validate_action_space,
+    validate_observation_space,
+)
 from mettagrid.util.replay_writer import ReplayWriter
 from mettagrid.util.stats_writer import StatsWriter
 
 # Import mettascope submodule (optional, for visualization)
 try:
     from mettagrid import mettascope
-except ImportError:
+except (ImportError, OSError):
+    # On headless machines the optional Nim binding may try to load libGL
+    # and fail; degrade gracefully by disabling mettascope instead of crashing.
     mettascope = None
 
 __all__ = [
@@ -53,7 +63,7 @@ __all__ = [
     # Environment adapters
     "MettaGridGymEnv",
     "MettaGridPettingZooEnv",
-    # Data types
+    # Data types (from C++)
     "dtype_actions",
     "dtype_observations",
     "dtype_rewards",
@@ -61,6 +71,13 @@ __all__ = [
     "dtype_truncations",
     "dtype_masks",
     "dtype_success",
+    # Type definitions
+    "MettaGridObservation",
+    "MettaGridAction",
+    "validate_observation_space",
+    "validate_action_space",
+    "get_observation_shape",
+    "get_action_nvec",
     # Supporting classes
     "GameMap",
     "ReplayWriter",

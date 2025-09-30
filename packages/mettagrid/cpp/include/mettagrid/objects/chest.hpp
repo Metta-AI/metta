@@ -14,9 +14,7 @@
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
-
-// Forward declaration
-class Agent;
+#include "systems/stats_tracker.hpp"
 
 class Chest : public GridObject, public Usable, public HasInventory {
 private:
@@ -113,6 +111,7 @@ public:
         resource_type(cfg.resource_type),
         deposit_positions(cfg.deposit_positions),
         withdrawal_positions(cfg.withdrawal_positions),
+        stats_tracker(nullptr),
         grid(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }

@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import subprocess
+import sys
 import time
 
 import sky
@@ -311,7 +312,7 @@ Examples:
   %(prog)s --check      # Check for active sandboxes and exit
   %(prog)s --new        # Launch a new sandbox with 1 GPU
   %(prog)s --new --gpus 4  # Launch a new sandbox with 4 GPUs
-  %(prog)s --new --sweep-controller  # Launch a cheap CPU-only sandbox (t3.medium)
+  %(prog)s --new --sweep-controller  # Launch a CPU-only sandbox (uses config instance_type)
   %(prog)s --new --git-ref feature-branch  # Launch with specific git branch
   %(prog)s --new --wait-timeout 600  # Wait up to 10 minutes for cluster to be ready
 
@@ -344,7 +345,7 @@ Common management commands:
     parser.add_argument(
         "--sweep-controller",
         action="store_true",
-        help="Launch a sweep-controller CPU-only sandbox (t3.medium, ~$0.04/hour)",
+        help="Launch a sweep-controller CPU-only sandbox (instance type from config)",
     )
 
     args = parser.parse_args()
@@ -380,7 +381,7 @@ Common management commands:
 
     # Determine configuration based on --sweep-controller flag
     if args.sweep_controller:
-        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CHEAP MODE')} (CPU-only, t3.medium)")
+        print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
         config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
         print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(args.gpus))} L4 GPU(s)")
@@ -397,11 +398,26 @@ Common management commands:
     region = resources.get("region", "us-east-1")
 
     if args.sweep_controller:
-        # For cheap mode, we know the instance type from config
-        instance_type = resources.get("instance_type", "t3.medium")
+        # For CPU-only mode, read the instance type from config
+        instance_type = resources.get("instance_type", "m6i.2xlarge")
         print(f"Instance type: {bold(instance_type)} in {bold(region)}")
-        # t3.medium is approximately $0.04/hour on-demand
-        print(f"Approximate cost: {green('~$0.04/hour')} (on-demand pricing)")
+
+        # Try to calculate on-demand cost dynamically
+        hourly_cost = None
+        try:
+            with spinner(f"Calculating cost for {instance_type}", style=cyan):
+                hourly_cost = get_instance_cost(instance_type=instance_type, region=region, use_spot=False)
+        except Exception:
+            hourly_cost = None
+
+        if hourly_cost is not None:
+            print(f"Approximate cost: {green(f'~${hourly_cost:.3f}/hour')} (on-demand pricing)")
+        else:
+            # Fallback hint when cost API is unavailable
+            if instance_type == "m6i.2xlarge":
+                print(f"Approximate cost: {green('~$0.384/hour')} (on-demand pricing, us-east-1)")
+            else:
+                print("Approximate cost: (unavailable) – check AWS pricing for your region.")
     else:
         # Parse GPU type from the config (e.g., "L4:1" -> "L4")
         accelerators_str = resources.get("accelerators", "L4:1")
@@ -496,7 +512,7 @@ Common management commands:
             print(f"  • Update SSH config: {green(f'sky status {cluster_name}')}")
             print(f"Error: {str(e)}")
 
-    # For cheap mode, SCP the additional files over
+    # For CPU-only mode, SCP the additional files over
     if args.sweep_controller:
         print("\n📤 Transferring additional files to sandbox...")
         scp_success = True
@@ -517,6 +533,31 @@ Common management commands:
                     scp_success = False
             except subprocess.CalledProcessError as e:
                 print(f"  {red('✗')} Failed to transfer ~/.sky folder: {str(e)}")
+                scp_success = False
+
+        # Transfer .aws folder (for AWS CLI configuration and SSO)
+        with spinner("Copying ~/.aws folder", style=cyan):
+            try:
+                aws_path = os.path.expanduser("~/.aws")
+                if os.path.exists(aws_path):
+                    subprocess.run(
+                        ["scp", "-rq", aws_path, f"{cluster_name}:~/"],
+                        check=True,
+                        capture_output=True,
+                    )
+                    print(f"  {green('✓')} ~/.aws folder transferred")
+                    # Check if SSO is configured
+                    config_path = os.path.join(aws_path, "config")
+                    if os.path.exists(config_path):
+                        with open(config_path, "r") as f:
+                            if "sso_session" in f.read() or "sso_start_url" in f.read():
+                                print(f"    {yellow('Note:')} AWS SSO detected")
+                                print("    Run 'aws sso login' if tokens expired")
+                else:
+                    print(f"  {yellow('⚠')} ~/.aws folder not found locally")
+                    print("    AWS credentials will need to be configured via environment variables")
+            except subprocess.CalledProcessError as e:
+                print(f"  {red('✗')} Failed to transfer ~/.aws folder: {str(e)}")
                 scp_success = False
 
         # Transfer observatory tokens
@@ -554,6 +595,4 @@ Common management commands:
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.exit(main() or 0)
