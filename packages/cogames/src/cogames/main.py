@@ -516,6 +516,10 @@ def train_cmd(
         )
         env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
 
+        if env_cfgs:
+            resolved_num_envs = max(1, min(resolved_num_envs, len(env_cfgs)))
+            resolved_num_workers = max(1, min(resolved_num_workers, resolved_num_envs))
+
         if not env_cfgs:
             if game_name is None and curriculum is None:
                 console.print("[yellow]No game or curriculum specified. Available games:[/yellow]")
@@ -535,8 +539,16 @@ def train_cmd(
         if initial_weights_path is not None:
             resolved_initial = _resolve_initial_weights(initial_weights_path)
 
-        effective_batch = batch_size or max(resolved_num_envs * 32, 512)
-        effective_minibatch = minibatch_size or effective_batch
+        default_batch = max(resolved_num_envs * 32, 512)
+        if batch_size is not None:
+            effective_batch = max(resolved_num_envs, min(batch_size, steps))
+        else:
+            effective_batch = min(default_batch, max(resolved_num_envs, steps))
+
+        if minibatch_size is not None:
+            effective_minibatch = max(1, min(minibatch_size, effective_batch))
+        else:
+            effective_minibatch = effective_batch
 
         if effective_minibatch > effective_batch:
             raise typer.BadParameter("minibatch must be <= batch size", param_name="minibatch_size")
