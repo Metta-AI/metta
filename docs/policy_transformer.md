@@ -210,9 +210,9 @@ class GRUGating(nn.Module):
 | Residual gating | ✅ GRU-style gates | ❌ | ❌ |
 | Pre-layer normalization | ✅ | ✅ | ❌ (matches NVIDIA post-norm) |
 | Layer count (default) | 2 | 2 | 8 |
-| Hidden size (`d_model`) | 48 | 48 | 256 |
-| Feed-forward size | 192 | 192 | 1024 |
-| Memory length | 32 | 32 | 96 |
+| Hidden size (`d_model`) | 40 | 40 | 256 |
+| Feed-forward size | 160 | 160 | 1024 |
+| Memory length | 16 | 16 | 96 |
 | Relative positional bias | Sinusoidal, causal mask | Relative bias + memory | NVIDIA partial-relative bias |
 | Dropout | 0.05 | 0.05 | 0.05 |
 | Attention dropout | 0.05 | 0.05 | 0.0 |
@@ -220,12 +220,12 @@ class GRUGating(nn.Module):
 ## Default Hyperparameters (Base Config)
 | Parameter | variant="gtrxl" | variant="trxl" | variant="trxl_nvidia" |
 |-----------|--------------------|---------------|-------------------------|
-| `latent_size` / `hidden_size` | 48 | 48 | 256 |
+| `latent_size` / `hidden_size` | 40 | 40 | 256 |
 | `num_layers` | 2 | 2 | 8 |
 | `n_heads` | 4 | 4 | 4 |
-| `d_ff` / `d_inner` | 192 | 192 | 1024 |
-| `max_seq_len` | 256 | 256 | 192 |
-| `memory_len` | 0 | 32 | 96 |
+| `d_ff` / `d_inner` | 160 | 160 | 1024 |
+| `max_seq_len` | 128 | 128 | 192 |
+| `memory_len` | 16 | 16 | 96 |
 | `pre_lnorm` | True | True | False |
 | `manual_init` (policy heads) | False | False | True |
 | Suggested optimizer LR | 7.5e-4 | 9.0e-4 | 3.0e-4 |
