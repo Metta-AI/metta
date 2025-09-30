@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import abc
 import logging
+import multiprocessing
 import random
 from abc import ABC
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Union
@@ -337,6 +338,17 @@ class Curriculum(StatsLogger):
     Inherits from StatsLogger to provide unified statistics interface.
     """
 
+    # Class-level atomic counter for process-safe task ID generation
+    _task_id_counter: Optional[multiprocessing.Value] = None
+    _counter_lock: Optional[multiprocessing.Lock] = None
+
+    @classmethod
+    def _init_shared_counter(cls):
+        """Initialize shared counter for multi-process task ID generation."""
+        if cls._task_id_counter is None:
+            cls._task_id_counter = multiprocessing.Value("i", 0)
+            cls._counter_lock = multiprocessing.Lock()
+
     def __init__(self, config: CurriculumConfig, seed: int = 0):
         # Initialize StatsLogger (algorithm handles detailed stats)
         StatsLogger.__init__(self, enable_detailed_logging=False)
@@ -346,6 +358,9 @@ class Curriculum(StatsLogger):
         self._rng = random.Random(seed)
         self._num_created = 0
         self._num_evicted = 0
+
+        # Initialize shared counter for process-safe task ID generation
+        self._init_shared_counter()
 
         # Two separate pools for explore/exploit
         self._explore_pool: dict[int, CurriculumTask] = {}
@@ -471,6 +486,16 @@ class Curriculum(StatsLogger):
         Args:
             pool: Which pool to add task to ("explore" or "exploit")
         """
+        # Proactive integrity check before creation to prevent ID exhaustion
+        pool_task_ids = set(self._explore_pool.keys()) | set(self._exploit_pool.keys())
+        if pool_task_ids != self._task_ids:
+            logger.warning(
+                f"Task ID integrity issue detected before creation. "
+                f"_task_ids size: {len(self._task_ids)}, pool IDs size: {len(pool_task_ids)}. "
+                f"Auto-fixing to prevent ID exhaustion."
+            )
+            self._task_ids = pool_task_ids.copy()
+
         # Find unused task ID with collision detection and timeout
         max_attempts = 1000
         attempt = 0
@@ -553,6 +578,8 @@ class Curriculum(StatsLogger):
         self._num_promotions_attempted += 1
 
         # Get LPS scores for promotion and comparison
+        worst_exploit_id_to_evict = None  # Track which task to evict after successful promotion
+
         if self._algorithm is None:
             # Without algorithm, use random promotion
             promote = self._rng.random() < 0.5
@@ -577,8 +604,8 @@ class Curriculum(StatsLogger):
                     # Promote if promoted task has higher LPS than worst exploit task
                     if promoted_task_score > worst_exploit_score:
                         promote = True
-                        # Remove worst task from exploit pool
-                        self._evict_from_pool(worst_exploit_id, "exploit")
+                        # Mark worst task for eviction (will evict after successful promotion)
+                        worst_exploit_id_to_evict = worst_exploit_id
                     else:
                         promote = False
                 else:
@@ -589,21 +616,29 @@ class Curriculum(StatsLogger):
         if promote:
             # Promotion accepted
             self._num_promotions_accepted += 1
-            # Move task from explore to exploit pool
-            self._explore_pool.pop(task_id)
-            self._exploit_pool[task_id] = task
-            # Create new task in explore pool to maintain capacity
+
+            # First, try to create replacement explore task BEFORE modifying pools
             try:
+                # Move task from explore to exploit pool
+                self._explore_pool.pop(task_id)
+                self._exploit_pool[task_id] = task
+
+                # Create new task in explore pool to maintain capacity
                 self._create_task(pool="explore")
+
+                # Success - now evict worst task if we identified one earlier
+                if worst_exploit_id_to_evict is not None:
+                    self._evict_from_pool(worst_exploit_id_to_evict, "exploit")
+
+                success_indicator = 1.0
             except Exception as e:
-                logger.error(f"Failed to create new explore task after promotion: {e}")
-                # Put the task back to prevent pool from shrinking
-                self._explore_pool[task_id] = task
-                self._exploit_pool.pop(task_id)
+                logger.error(f"Failed to complete promotion: {e}")
+                # Rollback: put the task back in explore if we moved it
+                if task_id in self._exploit_pool:
+                    self._exploit_pool.pop(task_id)
+                    self._explore_pool[task_id] = task
                 self._num_promotions_accepted -= 1
                 success_indicator = 0.0
-            else:
-                success_indicator = 1.0
         else:
             # Promotion rejected
             # Discard task from explore pool
@@ -653,8 +688,8 @@ class Curriculum(StatsLogger):
         """Get basic curriculum statistics."""
         all_tasks = list(self._explore_pool.values()) + list(self._exploit_pool.values())
 
-        # Periodic integrity check (every ~100 stats calls to minimize overhead)
-        if self._num_created % 100 == 0:
+        # Periodic integrity check (every ~10 stats calls to prevent ID exhaustion)
+        if self._num_created % 10 == 0:
             pool_task_ids = set(self._explore_pool.keys()) | set(self._exploit_pool.keys())
             if pool_task_ids != self._task_ids:
                 diff = (
