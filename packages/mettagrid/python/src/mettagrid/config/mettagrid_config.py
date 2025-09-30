@@ -216,7 +216,7 @@ class GameConfig(Config):
     )
 
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: AnyMapBuilderConfig = Field(default_factory=_default_map_builder_config)
+    map_builder: "AnyMapBuilderConfig" = Field(default_factory=_default_map_builder_config)
 
     # Feature Flags
     track_movement_metrics: bool = Field(
