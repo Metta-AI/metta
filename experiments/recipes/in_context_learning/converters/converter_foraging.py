@@ -189,7 +189,7 @@ def train(
     task_generator_cfg = ConverterForagingTaskGenerator.Config(
         **curriculum_args[curriculum_style]
     )
-    from experiments.evals.in_context_learning.converter_foraging import (
+    from experiments.evals.in_context_learning.converters.converter_foraging import (
         make_unordered_chain_eval_suite,
     )
 
@@ -219,7 +219,7 @@ def evaluate(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> SimTool:
     # Local import to   avoid circular import at module load time
-    from experiments.evals.in_context_learning.converter_foraging import (
+    from experiments.evals.in_context_learning.converters.converter_foraging import (
         make_unordered_chain_eval_suite,
     )
 

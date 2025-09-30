@@ -12,6 +12,7 @@ dependencies = [
   "pufferlib-core",
   "pydantic>=2.11.5",
   "pyyaml>=6.0.2",
+  "einops>=0.8.0",
   "scipy>=1.15.3",
   "typer>=0.9.0",
   "rich>=13.7.0",

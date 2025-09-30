@@ -58,6 +58,11 @@ ASSEMBLER_TYPES = {
     "mine_blue": building.assembler_mine_blue,
     "mine_green": building.assembler_mine_green,
     "altar": building.assembler_altar,
+    "factory": building.assembler_factory,
+    "temple": building.assembler_temple,
+    "armory": building.assembler_armory,
+    "lab": building.assembler_lab,
+    "lasery": building.assembler_lasery,
 }
 
 size_ranges = {
@@ -170,6 +175,14 @@ class ICLTaskGenerator(TaskGenerator):
             default=None,
             description="Directory for pre-generated maps (None to build procedurally).",
         )
+        num_chests: list[int] = Field(
+            default=[0],
+            description="Number of chests to include.",
+        )
+        chest_positions: list[list[Position]] = Field(
+            default=[["N"]],
+            description="Positions for chests.",
+        )
 
         # Unordered-only (ignored by Ordered subclasses)
         max_recipe_inputs: list[int] = Field(
@@ -270,6 +283,31 @@ class ICLTaskGenerator(TaskGenerator):
         else:
             cfg.map_builder_objects[assembler_name] = 1
 
+    def _add_chest(
+        self,
+        position,
+        cfg: _BuildCfg,
+        chest_name: str | None = None,
+    ):
+        print(f"Making chest with deposit positions {position}")
+        chest = building.make_chest(
+            resource_type="heart",
+            type_id=26,
+            deposit_positions=position,
+            withdrawal_positions=[],
+        )
+        chest_name = "chest"
+
+        if chest_name in cfg.map_builder_objects:
+            cfg.map_builder_objects[chest_name] += 1
+        else:
+            cfg.map_builder_objects[chest_name] = 1
+        cfg.game_objects[chest_name] = chest
+
+    def _make_chests(self, num_chests, cfg, position):
+        for _ in range(num_chests):
+            self._add_chest(position=position, cfg=cfg)
+
     def _get_width_and_height(self, room_size: str, rng: random.Random):
         lo, hi = size_ranges[room_size]
         width = rng.randint(lo, hi)
@@ -280,7 +318,7 @@ class ICLTaskGenerator(TaskGenerator):
         """Set the width and height of the environment to be at least the minimum area required for the number of agents, altars, and generators."""
         width, height = self._get_width_and_height(room_size, rng)
         area = width * height
-        minimum_area = (num_agents + num_objects) * 2
+        minimum_area = num_agents + num_objects * 9
         if area < minimum_area:
             width, height = minimum_area // 2, minimum_area // 2
         return width, height
@@ -329,6 +367,11 @@ class ICLTaskGenerator(TaskGenerator):
         max_steps = self.calculate_max_steps(
             num_resources, num_converters, width, height
         )
+
+        chest_position = rng.choice(
+            [p for p in self.config.chest_positions if len(p) <= num_agents]
+        )
+        num_chests = rng.choice(cfg.num_chests)
         return (
             num_agents,
             resources,
@@ -339,6 +382,8 @@ class ICLTaskGenerator(TaskGenerator):
             height,
             max_steps,
             recipe_position,
+            chest_position,
+            num_chests,
         )
 
     def load_from_numpy(
