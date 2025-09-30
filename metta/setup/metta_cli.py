@@ -1,12 +1,10 @@
 """CLI for Metta development tasks."""
 
 import importlib.util
-import os
 import re
 import shutil
 import subprocess
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -178,10 +176,10 @@ def cmd_test(
     keyword: Annotated[Optional[str], typer.Option("--keyword", "-k", help="Run tests matching the keyword")] = None,
     markers: Annotated[Optional[str], typer.Option("--markers", "-m", help="Run tests matching the markers")] = None,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Verbose output")] = False,
-    capture: Annotated[
-        str, typer.Option("--capture", help="Capture output: 'yes' (default), 'no', or 'sys'")
-    ] = "yes",
-    debug: Annotated[bool, typer.Option("--debug", help="Enable pytest debug mode (-vv --log-cli-level=DEBUG)")] = False,
+    capture: Annotated[str, typer.Option("--capture", help="Capture output: 'yes' (default), 'no', or 'sys'")] = "yes",
+    debug: Annotated[
+        bool, typer.Option("--debug", help="Enable pytest debug mode (-vv --log-cli-level=DEBUG)")
+    ] = False,
     pdb: Annotated[bool, typer.Option("--pdb", help="Enter debugger on test failure")] = False,
     parallel: Annotated[
         Optional[str],
@@ -391,7 +389,7 @@ def cmd_publish(
             _validate_branch_and_clean_state(remote)
 
         # Preview summary
-        info(f"\nRelease Summary:")
+        info("\nRelease Summary:")
         info(f"  Package: {package}")
         info(f"  Tag: {full_tag}")
         info(f"  Remote: {remote}")
@@ -444,9 +442,9 @@ def _find_next_version(prefix: str) -> str:
     # Parse version
     try:
         parts = [int(p) for p in version_str.split(".")]
-    except ValueError:
+    except ValueError as e:
         error(f"Could not parse version from tag '{latest_tag}'. Expected format: {prefix}<major>.<minor>.<patch>")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     # Increment patch version
     if len(parts) < 3:
