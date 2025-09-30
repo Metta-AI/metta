@@ -223,6 +223,7 @@ class GTrXLMultiHeadSelfAttention(nn.Module):
             q_flash = q.permute(0, 3, 1, 2)  # (batch, seq, heads, d)
             k_flash = k.permute(0, 3, 1, 2)
             v_flash = v.permute(0, 3, 1, 2)
+
             def _flash(q_t, k_t, v_t):
                 return flash_attn_func(
                     q_t,
@@ -478,6 +479,7 @@ class GTrXLModule(nn.Module):
                         attn_mask = self._get_causal_mask(total_len, device)
 
                     if self.use_activation_checkpoint and combined.requires_grad:
+
                         def _layer_run(inp, *, _layer=layer, _mask=attn_mask):
                             return _layer(inp, _mask)
 
@@ -925,9 +927,7 @@ class TransformerXLModule(nn.Module):
 
                     if self.use_activation_checkpoint and core_out.requires_grad:
                         placeholder = (
-                            mem_layer
-                            if mem_layer is not None
-                            else core_out.new_zeros(0, batch_size, self.d_model)
+                            mem_layer if mem_layer is not None else core_out.new_zeros(0, batch_size, self.d_model)
                         )
 
                         def _layer_run(

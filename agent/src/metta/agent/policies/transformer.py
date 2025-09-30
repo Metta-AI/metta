@@ -407,12 +407,9 @@ class TransformerPolicy(Policy):
         if self.memory_len <= 0 or packed.numel() == 0:
             return {"hidden_states": None}
         if packed.dim() != 4:
-            raise ValueError(
-                "transformer_memory_pre must have shape (batch, num_layers, memory_len, hidden_size)"
-            )
+            raise ValueError("transformer_memory_pre must have shape (batch, num_layers, memory_len, hidden_size)")
         unpacked = (
-            packed.to(device=device, dtype=dtype)
-            [:, : self.transformer_layers, -self.memory_len :, :]
+            packed.to(device=device, dtype=dtype)[:, : self.transformer_layers, -self.memory_len :, :]
             .permute(1, 2, 0, 3)
             .contiguous()
         )
@@ -433,7 +430,7 @@ class TransformerPolicy(Policy):
         if self._memory_tensor is None or self._memory_tensor.numel() == 0:
             return {"hidden_states": None}
 
-        index = torch.tensor(env_ids, device=self._memory_tensor.device)
+        index = torch.tensor(env_ids, dtype=torch.long, device=self._memory_tensor.device)
         memory_slice = self._memory_tensor.index_select(0, index)  # [batch, layers, mem_len, hidden]
         if memory_slice.numel() == 0:
             return {"hidden_states": None}
@@ -600,7 +597,7 @@ class TransformerPolicy(Policy):
                         env_tensor = torch.cat([pad, env_tensor], dim=2)
                     self._ensure_memory_capacity(max(env_ids) + 1, env_tensor.device, env_tensor.dtype)
                     if self._memory_tensor is not None:
-                        index = torch.tensor(env_ids, device=self._memory_tensor.device)
+                        index = torch.tensor(env_ids, dtype=torch.long, device=self._memory_tensor.device)
                         self._memory_tensor.index_copy_(
                             0,
                             index,
@@ -608,16 +605,16 @@ class TransformerPolicy(Policy):
                         )
 
                 if reset_mask is not None and reset_mask.any() and self._memory_tensor is not None:
-                    reset_indices = [env_ids[i] for i, flag in enumerate(reset_mask.tolist()) if flag]
+                    reset_indices = [env_ids[i] for i, flag in enumerate(reset_mask.cpu().tolist()) if flag]
                     if reset_indices:
-                        index = torch.tensor(reset_indices, device=self._memory_tensor.device)
+                        index = torch.tensor(reset_indices, dtype=torch.long, device=self._memory_tensor.device)
                         self._memory_tensor.index_fill_(0, index, 0.0)
 
                 if self._diag_enabled and self._diag_counter < self._diag_limit:
                     logger.info("[TRANSFORMER_DIAG] memory cached for envs %s", env_ids)
             else:
                 if self._memory_tensor is not None:
-                    index = torch.tensor(env_ids, device=self._memory_tensor.device)
+                    index = torch.tensor(env_ids, dtype=torch.long, device=self._memory_tensor.device)
                     self._memory_tensor.index_fill_(0, index, 0.0)
                 if self._diag_enabled and self._diag_counter < self._diag_limit:
                     logger.info("[TRANSFORMER_DIAG] cleared cached memory for envs %s (tt=%s)", env_ids, tt)
@@ -794,9 +791,7 @@ class TransformerPolicy(Policy):
         if new_len < 0:
             raise ValueError("memory length must be non-negative")
         if new_len > self._memory_len_initial:
-            raise ValueError(
-                f"memory length {new_len} exceeds initial allocation {self._memory_len_initial}"
-            )
+            raise ValueError(f"memory length {new_len} exceeds initial allocation {self._memory_len_initial}")
         if new_len == self._memory_len:
             return
 
