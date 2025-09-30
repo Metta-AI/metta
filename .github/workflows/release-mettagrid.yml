@@ -50,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-13, macos-14]
+        os: [ubuntu-latest, macos-14]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,15 +68,23 @@ jobs:
         env:
           CIBW_BUILD: "cp311-* cp312-*"
           CIBW_SKIP: "*-musllinux* *i686"
-          CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-14' && 'arm64' || 'x86_64' }}
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_ARCHS_MACOS: "arm64"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
           CIBW_BEFORE_ALL_LINUX: |
             python3 -m pip install "pip<25"
             curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
-          CIBW_BEFORE_ALL_MACOS: python3 -m pip install "pip<25"
-          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0
+            export CHOOSENIM_NO_ANALYTICS=1
+            curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
+            export PATH="$HOME/.nimble/bin:$PATH"
+          CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.nimble/bin:$PATH"
+          CIBW_BEFORE_ALL_MACOS: |
+            python3 -m pip install "pip<25"
+            export CHOOSENIM_NO_ANALYTICS=1
+            curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
+            export PATH="$HOME/.nimble/bin:$PATH"
+          CIBW_ENVIRONMENT_MACOS: PATH="$HOME/.nimble/bin:$PATH" MACOSX_DEPLOYMENT_TARGET=11.0
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
           CI: "true"
         with:
