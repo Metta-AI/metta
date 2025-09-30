@@ -151,6 +151,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         self._should_reset = False
+        self._last_sanitized_actions = None
 
         if seed is not None:
             self._current_seed = seed

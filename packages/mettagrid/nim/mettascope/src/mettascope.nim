@@ -103,6 +103,8 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
+      if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
+        fitFullMap(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
@@ -154,8 +156,6 @@ find "/UI/Main":
       mouseCaptured = false
       mouseCapturedPanel = nil
 
-    if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
-      fitFullMap(worldMapPanel)
 
 when isMainModule:
 
