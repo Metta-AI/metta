@@ -50,10 +50,7 @@ class MemoryScheduler(TrainerComponent):
         policy = getattr(self.context, "policy", None)
         if policy is None or not hasattr(policy, "update_memory_len"):
             return
-        try:
-            policy.update_memory_len(int(target_memory))
-        except Exception:  # pragma: no cover - defensive
-            pass
+        policy.update_memory_len(int(target_memory))
 
 
 __all__ = ["MemorySchedulerConfig", "MemoryScheduler"]

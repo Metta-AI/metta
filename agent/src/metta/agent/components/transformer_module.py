@@ -424,7 +424,7 @@ class GTrXLModule(nn.Module):
         inputs: torch.Tensor,
         memory: Optional[Dict[str, Optional[List[torch.Tensor]]]] = None,
     ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        with _record_function("GTrXLModule/forward"), TF32Context(getattr(self, "allow_tf32", False)):
+        with _record_function("GTrXLModule/forward"), TF32Context(self.allow_tf32):
             squeeze = False
             if inputs.dim() == 2:
                 inputs = inputs.unsqueeze(0)
@@ -878,7 +878,7 @@ class TransformerXLModule(nn.Module):
     def forward(
         self, inputs: torch.Tensor, memory: Optional[Dict[str, List[torch.Tensor]]] = None
     ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        with _record_function("TransformerXLModule/forward"), TF32Context(getattr(self, "allow_tf32", False)):
+        with _record_function("TransformerXLModule/forward"), TF32Context(self.allow_tf32):
             if inputs.dim() == 2:
                 inputs = inputs.unsqueeze(0)
             if inputs.dim() != 3:

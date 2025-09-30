@@ -340,7 +340,7 @@ class NvidiaTransformerModule(nn.Module):
         if inputs.dim() != 3:
             raise ValueError(f"Expected tensor of shape (T, B, D), received {inputs.shape}")
 
-        with TF32Context(getattr(self, "allow_tf32", False)):
+        with TF32Context(self.allow_tf32):
             stored_memory = memory.get("hidden_states") if isinstance(memory, dict) else None
             normalized = normalize_memory(
                 self.memory_len,
