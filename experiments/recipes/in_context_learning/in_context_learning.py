@@ -383,6 +383,12 @@ class LPParams:
         enable_detailed_slice_logging: bool = False,
         num_active_tasks: int = 1000,
         rand_task_rate: float = 0.25,
+        # Two-pool curriculum parameters
+        explore_pool_capacity: int | None = None,
+        exploit_pool_capacity: int | None = None,
+        promotion_threshold: int = 10,
+        min_explore_rate: float = 0.01,
+        alpha: float = 0.1,
     ):
         self.ema_timescale = ema_timescale
         self.exploration_bonus = exploration_bonus
@@ -392,14 +398,44 @@ class LPParams:
         self.enable_detailed_slice_logging = enable_detailed_slice_logging
         self.num_active_tasks = num_active_tasks
         self.rand_task_rate = rand_task_rate
+        # Two-pool curriculum parameters
+        self.explore_pool_capacity = explore_pool_capacity
+        self.exploit_pool_capacity = exploit_pool_capacity
+        self.promotion_threshold = promotion_threshold
+        self.min_explore_rate = min_explore_rate
+        self.alpha = alpha
 
 
 def setup_curriculum(task_generator_cfg, lp_params: LPParams) -> CurriculumConfig:
-    algorithm_config = LearningProgressConfig(**lp_params.__dict__)
-    return CurriculumConfig(
-        task_generator=task_generator_cfg,
-        algorithm_config=algorithm_config,
-    )
+    # Extract algorithm-specific params
+    algorithm_params = {
+        "ema_timescale": lp_params.ema_timescale,
+        "exploration_bonus": lp_params.exploration_bonus,
+        "max_memory_tasks": lp_params.max_memory_tasks,
+        "max_slice_axes": lp_params.max_slice_axes,
+        "progress_smoothing": lp_params.progress_smoothing,
+        "enable_detailed_slice_logging": lp_params.enable_detailed_slice_logging,
+        "rand_task_rate": lp_params.rand_task_rate,
+    }
+    algorithm_config = LearningProgressConfig(**algorithm_params)
+
+    # Build curriculum config with two-pool parameters
+    curriculum_kwargs = {
+        "task_generator": task_generator_cfg,
+        "algorithm_config": algorithm_config,
+        "num_active_tasks": lp_params.num_active_tasks,
+        "promotion_threshold": lp_params.promotion_threshold,
+        "min_explore_rate": lp_params.min_explore_rate,
+        "alpha": lp_params.alpha,
+    }
+
+    # Add pool capacities if explicitly set
+    if lp_params.explore_pool_capacity is not None:
+        curriculum_kwargs["explore_pool_capacity"] = lp_params.explore_pool_capacity
+    if lp_params.exploit_pool_capacity is not None:
+        curriculum_kwargs["exploit_pool_capacity"] = lp_params.exploit_pool_capacity
+
+    return CurriculumConfig(**curriculum_kwargs)
 
 
 def train_icl(

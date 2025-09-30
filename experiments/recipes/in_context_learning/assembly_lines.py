@@ -229,6 +229,19 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
 
 def train(
     curriculum_style: str = "multi_agent_easy",
+    # Two-pool curriculum parameters (optional - will use defaults if not provided)
+    num_active_tasks: int = 1000,
+    explore_pool_capacity: Optional[int] = None,
+    exploit_pool_capacity: Optional[int] = None,
+    promotion_threshold: int = 10,
+    min_explore_rate: float = 0.01,
+    alpha: float = 0.1,
+    # Learning progress parameters
+    ema_timescale: float = 0.001,
+    exploration_bonus: float = 0.15,
+    max_memory_tasks: int = 1000,
+    progress_smoothing: float = 0.15,
+    rand_task_rate: float = 0.25,
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None
@@ -236,8 +249,25 @@ def train(
     from experiments.evals.in_context_learning.assembly_lines import (
         make_icl_assembler_resource_chain_eval_suite,
     )
+    from experiments.recipes.in_context_learning.in_context_learning import LPParams
 
-    return train_icl(task_generator_cfg, make_icl_assembler_resource_chain_eval_suite)
+    lp_params = LPParams(
+        ema_timescale=ema_timescale,
+        exploration_bonus=exploration_bonus,
+        max_memory_tasks=max_memory_tasks,
+        progress_smoothing=progress_smoothing,
+        num_active_tasks=num_active_tasks,
+        rand_task_rate=rand_task_rate,
+        explore_pool_capacity=explore_pool_capacity,
+        exploit_pool_capacity=exploit_pool_capacity,
+        promotion_threshold=promotion_threshold,
+        min_explore_rate=min_explore_rate,
+        alpha=alpha,
+    )
+
+    return train_icl(
+        task_generator_cfg, make_icl_assembler_resource_chain_eval_suite, lp_params
+    )
 
 
 def play(curriculum_style: str = "test") -> PlayTool:
