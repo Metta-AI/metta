@@ -57,6 +57,12 @@ const objectDrawers: Record<string, ObjectDrawer> = {
   oxygen_extractor: [{ tile: "oxygen_extractor" }],
   germanium_extractor: [{ tile: "germanium_extractor" }],
   silicon_extractor: [{ tile: "silicon_extractor" }],
+  chest: [{ tile: "block" }], // TODO: create chest.png asset
+  // depleted variants reuse base extractor tiles for now
+  carbon_ex_dep: [{ tile: "carbon_extractor" }],
+  oxygen_ex_dep: [{ tile: "oxygen_extractor" }],
+  germanium_ex_dep: [{ tile: "germanium_extractor" }],
+  silicon_ex_dep: [{ tile: "silicon_extractor" }],
   "agent.agent": [{ tile: "agent" }],
   "agent.team_1": [{ tile: "agent", modulate: colorFromId(0) }],
   "agent.team_2": [{ tile: "agent", modulate: colorFromId(1) }],

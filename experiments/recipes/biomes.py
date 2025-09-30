@@ -1,14 +1,11 @@
 from typing import List
 
 import numpy as np
-from pydantic import Field
-
 from cogames.cogs_vs_clips import stations as cvc_stations
-
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid import MettaGridConfig
-from mettagrid.config.config import Config
 from mettagrid.builder.envs import make_navigation
+from mettagrid.config.config import Config
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scene import ChildrenAction, Scene
@@ -25,6 +22,7 @@ from mettagrid.mapgen.scenes.maze import Maze, MazeParams
 from mettagrid.mapgen.scenes.quadrants import Quadrants, QuadrantsParams
 from mettagrid.mapgen.scenes.radial_maze import RadialMaze, RadialMazeParams
 from mettagrid.mapgen.types import AreaWhere
+from pydantic import Field
 
 
 def areas_overlap(
@@ -143,6 +141,12 @@ def _add_extractor_objects(env: MettaGridConfig) -> None:
     objects.setdefault("oxygen_extractor", cvc_stations.oxygen_extractor())
     objects.setdefault("germanium_extractor", cvc_stations.germanium_extractor())
     objects.setdefault("silicon_extractor", cvc_stations.silicon_extractor())
+    objects.setdefault("chest", cvc_stations.chest())
+    # depleted variants
+    objects.setdefault("carbon_ex_dep", cvc_stations.carbon_ex_dep())
+    objects.setdefault("oxygen_ex_dep", cvc_stations.oxygen_ex_dep())
+    objects.setdefault("germanium_ex_dep", cvc_stations.germanium_ex_dep())
+    objects.setdefault("silicon_ex_dep", cvc_stations.silicon_ex_dep())
 
 
 def _linspace_positions(count: int, interior_size: int) -> list[int]:
@@ -221,7 +225,9 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
                     else:
                         self.grid[rr, cc] = "empty"
 
-        def can_place(center_row: int, center_col: int, centers: list[tuple[int, int]]) -> bool:
+        def can_place(
+            center_row: int, center_col: int, centers: list[tuple[int, int]]
+        ) -> bool:
             return not any(
                 abs(center_row - r0) <= padding and abs(center_col - c0) <= padding
                 for r0, c0 in centers
@@ -244,8 +250,16 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
             desired = int(params.target_coverage * interior_width * interior_height)
             placement_goal = min(max_possible, max(1, desired))
 
-            valid_row_starts = [row_min + offset for offset in range(spacing) if row_min + offset <= row_max]
-            valid_col_starts = [col_min + offset for offset in range(spacing) if col_min + offset <= col_max]
+            valid_row_starts = [
+                row_min + offset
+                for offset in range(spacing)
+                if row_min + offset <= row_max
+            ]
+            valid_col_starts = [
+                col_min + offset
+                for offset in range(spacing)
+                if col_min + offset <= col_max
+            ]
             if not valid_row_starts or not valid_col_starts:
                 return
 
@@ -269,12 +283,12 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
             assignment_perm = self.rng.permutation(len(assignments))
             assignments = [assignments[i] for i in assignment_perm]
 
-            placed_centers: list[tuple[int, int]] = []
+            placed_centers_tc: list[tuple[int, int]] = []
             for (row, col), name in zip(positions, assignments):
-                if not can_place(row, col, placed_centers):
+                if not can_place(row, col, placed_centers_tc):
                     continue
                 carve_and_place(row, col, name)
-                placed_centers.append((row, col))
+                placed_centers_tc.append((row, col))
             return
 
         row_positions = _linspace_positions(params.rows, interior_height)
@@ -324,7 +338,10 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
                         col_max,
                     )
                 )
-                if not (row_min <= offset_row <= row_max and col_min <= offset_col <= col_max):
+                if not (
+                    row_min <= offset_row <= row_max
+                    and col_min <= offset_col <= col_max
+                ):
                     continue
                 if not can_place(offset_row, offset_col, placed_centers):
                     continue
@@ -1284,6 +1301,12 @@ def make_mettagrid(
                                     BaseHubParams(
                                         altar_object="altar",
                                         include_inner_wall=True,
+                                        corner_objects=[
+                                            "carbon_ex_dep",  # TL
+                                            "oxygen_ex_dep",  # TR
+                                            "germanium_ex_dep",  # BL
+                                            "silicon_ex_dep",  # BR
+                                        ],
                                     )
                                 ),
                                 where=AreaWhere(tags=["sanctum.center"]),
@@ -3317,8 +3340,14 @@ def make_mettagrid(
                             ChildrenAction(
                                 scene=BaseHub.factory(
                                     BaseHubParams(
-                                        altar_object="altar",
+                                        altar_object="assembler",
                                         include_inner_wall=True,
+                                        corner_objects=[
+                                            "carbon_ex_dep",  # TL
+                                            "oxygen_ex_dep",  # TR
+                                            "germanium_ex_dep",  # BL
+                                            "silicon_ex_dep",  # BR
+                                        ],
                                     )
                                 ),
                                 where=AreaWhere(tags=["sanctum.center"]),
@@ -3572,6 +3601,12 @@ def make_mettagrid(
                                     BaseHubParams(
                                         altar_object="altar",
                                         include_inner_wall=True,
+                                        corner_objects=[
+                                            "carbon_ex_dep",  # TL
+                                            "oxygen_ex_dep",  # TR
+                                            "germanium_ex_dep",  # BL
+                                            "silicon_ex_dep",  # BR
+                                        ],
                                     )
                                 ),
                                 where=AreaWhere(tags=["sanctum.center"]),

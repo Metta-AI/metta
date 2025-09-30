@@ -1,4 +1,3 @@
-
 # first element is the primary character, rest are aliases for backwards compatibility
 NAME_TO_CHAR: dict[str, list[str]] = {
     # agents
@@ -36,6 +35,11 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "oxygen_extractor": ["O"],
     "germanium_extractor": ["E"],
     "silicon_extractor": ["I"],
+    # depleted extractors
+    "carbon_ex_dep": ["K"],
+    "oxygen_ex_dep": ["Q"],
+    "germanium_ex_dep": ["Y"],
+    "silicon_ex_dep": ["V"],
 }
 
 CHAR_TO_NAME: dict[str, str] = {}

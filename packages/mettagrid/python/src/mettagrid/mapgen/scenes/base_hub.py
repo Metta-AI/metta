@@ -11,6 +11,8 @@ class BaseHubParams(Config):
     corner_generator: str = "generator_red"
     spawn_symbol: str = "agent.agent"
     include_inner_wall: bool = True
+    # Order: top-left, top-right, bottom-left, bottom-right.
+    corner_objects: list[str] | None = None
 
 
 class BaseHub(Scene[BaseHubParams]):
@@ -69,38 +71,6 @@ class BaseHub(Scene[BaseHubParams]):
             if 1 <= x < w - 1 and 1 <= y < h - 1 and grid[y, x] == "empty":
                 grid[y, x] = self.params.spawn_symbol
 
-        # Corner generators: place near each corner with one-cell clearance
-        # Place generators in corners with 1-cell clearance from borders
-        gens = [
-            (2, 2),  # top-left
-            (w - 3, 2),  # top-right
-            (2, h - 3),  # bottom-left
-            (w - 3, h - 3),  # bottom-right
-        ]
-        placed = 0
-        for x, y in gens:
-            if 1 <= x < w - 1 and 1 <= y < h - 1:
-                # Ensure 3x3 around is empty
-                x0, x1 = max(0, x - 1), min(w, x + 2)
-                y0, y1 = max(0, y - 1), min(h, y + 2)
-                if np.all(grid[y0:y1, x0:x1] == "empty"):
-                    grid[y, x] = self.params.corner_generator
-                    placed += 1
-        # If not all 4 placed (e.g., too small), try fallback inward spots
-        if placed < 4:
-            alt = [
-                (3, 3),
-                (w - 4, 3),
-                (3, h - 4),
-                (w - 4, h - 4),
-            ]
-            for x, y in alt:
-                if placed >= 4:
-                    break
-                if 1 <= x < w - 1 and 1 <= y < h - 1 and grid[y, x] == "empty":
-                    grid[y, x] = self.params.corner_generator
-                    placed += 1
-
         # Carve symmetric L-shaped exits in four corners: two-leg corridors 3-wide
         # Ensure each L opens a gap in the inner wall ring to the outside.
         # Top-left L
@@ -111,6 +81,49 @@ class BaseHub(Scene[BaseHubParams]):
         self._carve_L(1, h - 4, orientation="right-up")
         # Bottom-right L
         self._carve_L(w - 4, h - 4, orientation="left-up")
+
+        # Place corner objects after carving corridors so they are not overwritten
+        # Corner order: TL, TR, BL, BR
+        primary_positions = [
+            (2, 2),
+            (w - 3, 2),
+            (2, h - 3),
+            (w - 3, h - 3),
+        ]
+        fallback_positions = [
+            (3, 3),
+            (w - 4, 3),
+            (3, h - 4),
+            (w - 4, h - 4),
+        ]
+
+        names: list[str]
+        if self.params.corner_objects and len(self.params.corner_objects) == 4:
+            names = list(self.params.corner_objects)
+        else:
+            names = [self.params.corner_generator] * 4
+
+        remaining: list[tuple[int, int, str]] = []
+        # First pass: try primary positions
+        for (x, y), name in zip(primary_positions, names, strict=False):
+            if 1 <= x < w - 1 and 1 <= y < h - 1:
+                x0, x1 = max(0, x - 1), min(w, x + 2)
+                y0, y1 = max(0, y - 1), min(h, y + 2)
+                if np.all(grid[y0:y1, x0:x1] == "empty"):
+                    grid[y, x] = name
+                else:
+                    remaining.append((x, y, name))
+            else:
+                remaining.append((x, y, name))
+
+        # Second pass: fallback inward spots for any that couldn't be placed
+        for (fx, fy), (_, _, name) in zip(fallback_positions, remaining, strict=False):
+            if 1 <= fx < w - 1 and 1 <= fy < h - 1 and grid[fy, fx] == "empty":
+                grid[fy, fx] = name
+
+        # Place chest directly below altar after corridors are carved
+        if 1 <= cx < w - 1 and 1 <= cy + 1 < h - 1:
+            grid[cy + 3, cx] = "chest"
 
     def _carve_L(self, x: int, y: int, orientation: Literal["right-down", "left-down", "right-up", "left-up"]):
         grid = self.grid
