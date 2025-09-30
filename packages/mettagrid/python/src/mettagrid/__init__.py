@@ -48,7 +48,9 @@ from mettagrid.util.stats_writer import StatsWriter
 # Import mettascope submodule (optional, for visualization)
 try:
     from mettagrid import mettascope
-except ImportError:
+except (ImportError, OSError):
+    # On headless machines the optional Nim binding may try to load libGL
+    # and fail; degrade gracefully by disabling mettascope instead of crashing.
     mettascope = None
 
 __all__ = [
