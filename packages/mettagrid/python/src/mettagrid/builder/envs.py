@@ -260,6 +260,7 @@ def make_icl_assembler(
                 move=ActionConfig(),
                 rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
+                put_items=ActionConfig(enabled=False),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(

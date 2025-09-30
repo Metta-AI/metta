@@ -445,21 +445,23 @@ find "/UI/Main":
         dragArea = area
         dropHighlight.visible = true
     onDrag:
+      let mousePos = window.mousePos.vec2 / window.contentScale
       if dragArea != nil:
         if dragArea.layout == Horizontal:
-          dropHighlight.position = vec2(dragArea.node.absolutePosition.x, window.mousePos.vec2.y)
+          dropHighlight.position = vec2(dragArea.node.absolutePosition.x, mousePos.y)
           dropHighlight.size = vec2(dragArea.node.size.x, AreaMargin)
           thisCursor = Cursor(kind: ResizeUpDownCursor)
         else:
-          dropHighlight.position = vec2(window.mousePos.vec2.x, dragArea.node.absolutePosition.y)
+          dropHighlight.position = vec2(mousePos.x, dragArea.node.absolutePosition.y)
           dropHighlight.size = vec2(AreaMargin, dragArea.node.size.y)
           thisCursor = Cursor(kind: ResizeLeftRightCursor)
     onDragEnd:
+      let mousePos = window.mousePos.vec2 / window.contentScale
       if dragArea != nil:
         if dragArea.layout == Horizontal:
-          dragArea.split = (window.mousePos.vec2.y - dragArea.node.absolutePosition.y) / dragArea.node.size.y
+          dragArea.split = (mousePos.y - dragArea.node.absolutePosition.y) / dragArea.node.size.y
         else:
-          dragArea.split = (window.mousePos.vec2.x - dragArea.node.absolutePosition.x) / dragArea.node.size.x
+          dragArea.split = (mousePos.x - dragArea.node.absolutePosition.x) / dragArea.node.size.x
         dragArea.refresh()
       dragArea = nil
       dropHighlight.visible = false

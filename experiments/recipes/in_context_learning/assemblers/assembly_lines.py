@@ -27,7 +27,8 @@ curriculum_args = {
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
         "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_chests": [0],
+        "chest_positions": [["N"], ["N", "S"], ["N", "S", "E"]],
+        "num_chests": [2,5,8],
     }
 }
 # "test": {
@@ -74,7 +75,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         cfg: _BuildCfg,
         rng: random.Random,
     ):
-        cooldown = avg_hop * (len(resources) + 1)
+        cooldown = avg_hop * len(resources)
         resource_chain = ["nothing"] + list(resources) + ["heart"]
         for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
