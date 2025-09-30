@@ -69,10 +69,7 @@ def test_forward_with_dict_state():
 
 
 def test_forward_with_empty_dict_state():
-    """Test that forward_eval works with an empty dict (no initial state).
-
-    Empty dict means no LSTM state, so the dict should remain empty.
-    """
+    """Empty dict should be populated with new LSTM state for subsequent calls."""
     env = MockEnv()
     net = LSTMPolicyNet(env)
     obs = torch.randint(0, 256, (4, 7, 7, 3))
@@ -82,8 +79,10 @@ def test_forward_with_empty_dict_state():
 
     logits, values = net.forward_eval(obs, state)
 
-    # Empty dict should stay empty (no state to update)
-    assert len(state) == 0, "Empty dict should remain empty"
+    # Dict should now contain the new hidden state tensors
+    assert set(state.keys()) == {"lstm_h", "lstm_c"}
+    assert state["lstm_h"].shape[0] == obs.shape[0]
+    assert state["lstm_c"].shape[0] == obs.shape[0]
 
 
 def test_forward_with_none_state():

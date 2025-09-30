@@ -40,6 +40,7 @@ class EnvConfigIterator:
 
 def train(
     env_cfgs: Sequence[MettaGridConfig] | MettaGridConfig | None = None,
+    *,
     policy_class_path: str,
     device: "torch.device",
     initial_weights_path: Optional[Path],
@@ -48,8 +49,8 @@ def train(
     seed: int,
     batch_size: int,
     minibatch_size: int,
-    num_envs: int = 256,
-    num_workers: int = 8,
+    num_envs: int = 1,
+    num_workers: int = 1,
     use_rnn: bool = False,
     checkpoint_interval: int = 200,
     vector_backend: str = "multiprocessing",
@@ -67,11 +68,11 @@ def train(
     checkpoints_path.mkdir(parents=True, exist_ok=True)
 
     if env_cfgs is not None and isinstance(env_cfgs, MettaGridConfig):
-        env_sequence: Sequence[MettaGridConfig] = [env_cfgs]
+        env_sequence: Sequence[MettaGridConfig] = (env_cfgs,)
     elif env_cfgs is not None:
-        env_sequence = env_cfgs
+        env_sequence = tuple(env_cfgs)
     elif env_cfg is not None:
-        env_sequence = [env_cfg]
+        env_sequence = (env_cfg,)
     else:
         raise ValueError("Either env_cfgs or env_cfg must be provided to train a policy")
 

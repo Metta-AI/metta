@@ -89,15 +89,12 @@ class LSTMPolicyNet(torch.nn.Module):
                     # PufferLib uses shape (batch_size, num_layers, hidden_size)
                     # but PyTorch LSTM expects (num_layers, batch_size, hidden_size)
                     if h.dim() == 3:
-                        # Transpose from (batch, layers, hidden) to (layers, batch, hidden)
                         h = h.transpose(0, 1)
                         c = c.transpose(0, 1)
                     elif h.dim() == 2:
-                        # (batch, hidden) -> (1, batch, hidden)
                         h = h.unsqueeze(0)
                         c = c.unsqueeze(0)
                     elif h.dim() == 1:
-                        # (hidden,) -> (1, 1, hidden)
                         h = h.unsqueeze(0).unsqueeze(0)
                         c = c.unsqueeze(0).unsqueeze(0)
                     rnn_state = (h, c)
@@ -114,14 +111,17 @@ class LSTMPolicyNet(torch.nn.Module):
 
         hidden, new_state = self._rnn(hidden, rnn_state)
 
-        # If state was passed as a dict with state keys, update it in-place with new state
-        if state_has_keys:
+        # If a dict was provided, update it in-place with the new state for subsequent calls
+        if state_is_dict and new_state is not None:
             h, c = new_state
-            # Transpose back to PufferLib format: (layers, batch, hidden) -> (batch, layers, hidden)
             if h.dim() == 3:
-                h = h.transpose(0, 1)
-                c = c.transpose(0, 1)
-            state["lstm_h"], state["lstm_c"] = h, c
+                h_store = h.transpose(0, 1)
+                c_store = c.transpose(0, 1)
+            else:
+                h_store = h
+                c_store = c
+            state["lstm_h"] = h_store.detach()
+            state["lstm_c"] = c_store.detach()
 
         hidden = rearrange(hidden, "b t h -> (b t) h")
         logits = self._action_head(hidden)
