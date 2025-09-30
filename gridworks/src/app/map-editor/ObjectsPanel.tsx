@@ -2,36 +2,40 @@ import clsx from "clsx";
 import { FC, useEffect, useRef } from "react";
 
 import { useDrawer } from "@/components/MapViewer/hooks";
+import { Tooltip } from "@/components/Tooltip";
 import { Shortcut, useGlobalShortcuts } from "@/hooks/useGlobalShortcut";
-import { Drawer, objectNames } from "@/lib/draw/Drawer";
-import encoding from "@/lib/encoding.json" assert { type: "json" };
+import { Drawer } from "@/lib/draw/Drawer";
+import { MAP_BACKGROUND_COLOR } from "@/lib/draw/drawGrid";
+import { gridObjectRegistry } from "@/lib/gridObjectRegistry";
 
-function entityToHotkey(entity: string): string | undefined {
-  if (!(entity in encoding)) {
-    return undefined;
-  }
-  return (encoding as Record<string, string[]>)[entity][0];
-}
-
-function useObjectShortcuts(setSelectedEntity: (entity: string) => void) {
+function useObjectShortcuts(
+  setSelectedEntity: (entity: string) => void,
+  selectedEntity: string,
+  enableHotkeys: boolean
+) {
   useGlobalShortcuts(
-    Object.keys(encoding).map((entity) => {
-      const key = entityToHotkey(entity)!;
-      const shortcut: Shortcut = { key: key[0] };
-      if ((key < "a" || key > "z") && (key < "1" || key > "9") && key !== ".") {
-        shortcut.shiftKey = true;
-      }
-      return [
-        shortcut,
-        () => {
-          setSelectedEntity(entity);
-          const activeElement = document.activeElement;
-          if (activeElement instanceof HTMLElement) {
-            activeElement.blur();
-          }
-        },
-      ];
-    })
+    enableHotkeys
+      ? gridObjectRegistry.allHotkeys().map((hotkey) => {
+          const shortcut: Shortcut = { key: hotkey };
+          return [
+            shortcut,
+            () => {
+              const object = gridObjectRegistry.objectByHotkey(
+                hotkey,
+                selectedEntity
+              );
+              if (!object) {
+                return;
+              }
+              setSelectedEntity(object.name);
+              const activeElement = document.activeElement;
+              if (activeElement instanceof HTMLElement) {
+                activeElement.blur();
+              }
+            },
+          ];
+        })
+      : []
   );
 }
 
@@ -39,23 +43,17 @@ const SelectableButton: FC<{
   children: React.ReactNode;
   isSelected: boolean;
   onClick: () => void;
-  title: string;
-}> = ({ children, isSelected, onClick, title }) => {
-  let fullTitle = title;
-  const hotkey = entityToHotkey(title);
-  if (hotkey) {
-    fullTitle = `${title} (hotkey: ${hotkey})`;
-  }
+  name: string;
+}> = ({ children, isSelected, onClick, name }) => {
   return (
     <button
       onClick={onClick}
       className={clsx(
-        "cursor-pointer",
+        "w-full cursor-pointer",
         isSelected
           ? "bg-blue-100 ring-2 ring-blue-300"
           : "hover:ring-2 hover:ring-blue-300"
       )}
-      title={fullTitle}
     >
       {children}
     </button>
@@ -80,22 +78,39 @@ const ObjectIcon: FC<{
     const dpr = window.devicePixelRatio || 1;
     const scaledSize = size * dpr;
 
-    canvas.width = scaledSize;
-    canvas.height = scaledSize;
+    canvas.width = canvas.height = scaledSize;
 
     drawer.drawObject(name, ctx, 0, 0, scaledSize);
   }, [name, drawer]);
 
+  let content: React.ReactNode;
   if (name === "empty") {
-    return <div className="h-8 w-8 bg-gray-200" />;
+    content = (
+      <div
+        className="h-8 w-8"
+        style={{ backgroundColor: MAP_BACKGROUND_COLOR }}
+      />
+    );
+  } else {
+    content = (
+      <canvas
+        style={{ width: size, height: size }}
+        ref={canvasRef}
+        className="rounded-sm"
+      />
+    );
   }
-
   return (
-    <canvas
-      style={{ width: size, height: size }}
-      ref={canvasRef}
-      className="rounded-sm"
-    />
+    <Tooltip
+      render={() => (
+        <div>
+          <header>{name}</header>
+          <div>Hotkey: {gridObjectRegistry.objectByName(name)?.hotkey}</div>
+        </div>
+      )}
+    >
+      {content}
+    </Tooltip>
   );
 };
 
@@ -108,7 +123,7 @@ const ObjectEntry: FC<{
   return (
     <SelectableButton
       onClick={() => onClick()}
-      title={name}
+      name={name}
       isSelected={isSelected}
     >
       <div className="flex items-center justify-between gap-2">
@@ -134,13 +149,13 @@ const GroupedObjectEntry: FC<{
       <div className="mx-1 font-mono text-xs tracking-wider text-gray-600 uppercase">
         {groupName}
       </div>
-      <div className="flex">
+      <div className="flex items-stretch">
         {names.map((name) => (
           <SelectableButton
             key={name}
             onClick={() => onClick(name)}
             isSelected={selected === name}
-            title={name}
+            name={name}
           >
             <ObjectIcon name={name} drawer={drawer} />
           </SelectableButton>
@@ -153,10 +168,11 @@ const GroupedObjectEntry: FC<{
 export const ObjectsPanel: FC<{
   selectedEntity: string;
   setSelectedEntity: (entity: string) => void;
-}> = ({ selectedEntity, setSelectedEntity }) => {
+  enableHotkeys?: boolean;
+}> = ({ selectedEntity, setSelectedEntity, enableHotkeys = false }) => {
   const drawer = useDrawer();
 
-  useObjectShortcuts(setSelectedEntity);
+  useObjectShortcuts(setSelectedEntity, selectedEntity, enableHotkeys);
 
   if (!drawer) {
     return null;
@@ -165,7 +181,7 @@ export const ObjectsPanel: FC<{
   const basicNames: string[] = [];
   const groupedNames: Record<string, string[]> = {};
 
-  for (const name of objectNames) {
+  for (const name of gridObjectRegistry.objectNames) {
     if (
       name.startsWith("agent.") ||
       name.startsWith("mine_") ||

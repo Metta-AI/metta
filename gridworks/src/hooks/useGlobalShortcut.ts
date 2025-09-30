@@ -8,7 +8,7 @@ export type Shortcut = {
   key: string;
 };
 
-//TODO: Make sure that keyboard shortcut only works when exact modifiers are pressed. This means checking for altKey and controlKey as well.
+// TODO: Make sure that keyboard shortcut only works when exact modifiers are pressed. This means checking for altKey and controlKey as well.
 function eventMatchesShortcut(event: KeyboardEvent, shortcut: Shortcut) {
   if (
     (shortcut.shiftKey ?? false) !== event.shiftKey ||
@@ -37,7 +37,7 @@ export function useGlobalShortcuts(shortcuts: [Shortcut, () => void][]) {
     return () => {
       document.removeEventListener("keydown", handleKeyPress);
     };
-    // Since `shortcuts` is an array and could be a new array on every render,
+    // TODO: Since `shortcuts` is an array and could be a new array on every render,
     // memoize it to prevent unnecessary effect executions. That said, this should run quickly anyway.
   }, [shortcuts]);
 }

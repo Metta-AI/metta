@@ -11,7 +11,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
-export function useCopyTooltip(text: string) {
+export function useCopyTooltip(text: string | (() => string)) {
   const [open, setOpen] = useState(false);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const arrowRef = useRef(null);
@@ -50,9 +50,11 @@ export function useCopyTooltip(text: string) {
     hideTimerRef.current = setTimeout(() => setOpen(false), ms);
   }
 
-  const onClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    await navigator.clipboard.writeText(text);
+  const onClick = async (e?: React.MouseEvent<HTMLDivElement>) => {
+    e?.preventDefault();
+    await navigator.clipboard.writeText(
+      typeof text === "function" ? text() : text
+    );
     showFor(durationMs);
   };
 

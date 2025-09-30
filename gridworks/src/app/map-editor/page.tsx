@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-import { Button } from "@/components/Button";
+import { CopyTextButton } from "@/components/CopyTextButton";
 import { MapViewer } from "@/components/MapViewer";
 import { useSpacePressed } from "@/components/MapViewer/hooks";
 import { Tabs } from "@/components/Tabs";
@@ -28,13 +28,20 @@ export default function MapEditorPage() {
     });
   };
 
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("map");
+
   return (
     <div className="flex h-screen">
       {/* Left Sidebar */}
       <div className="w-80 border-r border-gray-300 bg-gray-50 p-4">
         <div className="mb-4">
           <h2 className="mb-2 text-lg font-semibold">Tools</h2>
-          <ResetGridButton currentGrid={grid} setGrid={setGrid} />
+          <ResetGridButton
+            currentGrid={grid}
+            setGrid={setGrid}
+            onModalStateChange={setShowResetModal}
+          />
         </div>
 
         <div>
@@ -42,12 +49,14 @@ export default function MapEditorPage() {
           <ObjectsPanel
             selectedEntity={selectedEntity}
             setSelectedEntity={setSelectedEntity}
+            enableHotkeys={!showResetModal && activeTab === "map"}
           />
         </div>
       </div>
 
       {/* Main Content Area */}
       <Tabs
+        onTabChange={setActiveTab}
         tabs={[
           {
             id: "map",
@@ -82,15 +91,13 @@ export default function MapEditorPage() {
         defaultTab="map"
         additionalTabBarContent={
           <div className="flex items-center gap-4">
-            <Button
-              onClick={() => {
-                navigator.clipboard.writeText(grid.toAscii());
-              }}
+            <CopyTextButton
+              text={() => grid.toAscii()}
               theme="primary"
               size="sm"
             >
               Copy ASCII
-            </Button>
+            </CopyTextButton>
             <div className="text-xs text-gray-700">
               {
                 'Tip: hold down "Space" to pan. Double-click to reset zoom and pan.'

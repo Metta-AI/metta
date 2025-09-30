@@ -2,7 +2,7 @@ import { MettaGrid } from "@/lib/MettaGrid";
 
 import { Drawer } from "../../lib/draw/Drawer";
 
-const BACKGROUND_COLOR = "#cfa970";
+export const MAP_BACKGROUND_COLOR = "#cfa970";
 
 export function drawGrid({
   grid,
@@ -14,7 +14,7 @@ export function drawGrid({
   drawer: Drawer;
 }) {
   // Clear drawing area
-  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillStyle = MAP_BACKGROUND_COLOR;
   ctx.fillRect(0, 0, grid.width, grid.height);
 
   // Draw the map
