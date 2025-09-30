@@ -1,7 +1,7 @@
 import
   std/[strformat, math, os, strutils],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays
+  common, panels, actions, utils, replays, objectinfo
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -31,7 +31,7 @@ proc useSelections*(panel: Panel) =
       gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
       for obj in replay.objects:
         if obj.location.at(step).xy == gridPos:
-          selection = obj
+          selectObject(obj)
           break
 
 proc drawFloor*() =

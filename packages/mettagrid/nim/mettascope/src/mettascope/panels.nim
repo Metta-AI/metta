@@ -16,6 +16,7 @@ var
   rootArea*: Area
   dropHighlight: Node
   dragArea: Area
+  objectInfoTemplate*: Node
 
 proc updateMouse*(panel: Panel) =
   let box = Rect(
@@ -394,17 +395,15 @@ proc visiblePanels*(area: Area): seq[Panel] =
 
 find "/UI/Main":
   onLoad:
-    echo "onLoad"
 
     areaTemplate = find("Area").copy()
-    panelHeaderTemplate = find("**/PanelHeader").copy()
-    panelTemplate = find("**/Panel").copy()
     areaTemplate.findAll("**/Panel").remove()
     areaTemplate.findAll("**/PanelHeader").remove()
+    panelHeaderTemplate = find("**/PanelHeader").copy()
+    panelTemplate = find("**/Panel").copy()
 
-    echo areaTemplate
-    echo panelHeaderTemplate
-    echo panelTemplate
+    objectInfoTemplate = find("../ObjectInfo").copy()
+    echo "objectInfoTemplate: ", objectInfoTemplate
 
     find("Area").remove()
 
@@ -424,7 +423,6 @@ find "/UI/Main":
     thisNode.addChild(dropHighlight)
 
   onResize:
-    echo "onResize"
     rootArea.node.size = vec2(
       thisFrame.size.x,
       thisFrame.size.y - 64 * 3
