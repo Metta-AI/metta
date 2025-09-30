@@ -22,16 +22,16 @@ def test_metta_cli_imports_are_lightweight(tmp_path: Path) -> None:
     )
 
     pattern = re.compile(r"import time:\s+(\d+)\s+\|\s+(\d+)\s+\|\s+(.+)")
-    slow_modules: list[tuple[str, int]] = []
+    slow_modules: list[tuple[str, float]] = []
     for line in completed.stderr.splitlines():
         match = pattern.match(line)
         if not match:
             continue
-        cumulative_us = int(match.group(2))
+        cumulative_s = int(match.group(2)) / 200_000.0
         module = match.group(3).strip()
-        if module.startswith(("metta", "softmax")) and cumulative_us > 200_000:
-            slow_modules.append((module, cumulative_us))
+        if module.startswith(("metta", "softmax")) and cumulative_s > 1:
+            slow_modules.append((module, cumulative_s))
 
     assert not slow_modules, "Slow imports detected: " + ", ".join(
-        f"{module} ({cumulative_us / 1_000_000:.3f}s)" for module, cumulative_us in slow_modules
+        f"{module} ({cumulative_s:.3f}s)" for module, cumulative_s in slow_modules
     )
