@@ -10,7 +10,7 @@ In Cogs vs Clips, multiple "Cog" agents must cooperate to gather resources, oper
 to achieve objectives. The environment features:
 
 - **Multi-agent cooperation**: Agents must coordinate to efficiently use shared resources and stations
-- **Resource management**: Energy, materials (carbon, oxygen, geranium, silicon), and crafted components
+- **Resource management**: Energy, materials (carbon, oxygen, germanium, silicon), and crafted components
 - **Station-based interactions**: Different stations provide unique capabilities (extractors, assemblers, chargers,
   chests)
 - **Sparse rewards**: Agents receive rewards only upon successfully crafting target items (hearts)
@@ -21,9 +21,9 @@ to achieve objectives. The environment features:
 **Resources:**
 
 - `energy`: Consumed for movement and operating extractors
-- `carbon`, `oxygen`, `geranium`, `silicon`: Base materials extracted from stations
+- `carbon`, `oxygen`, `germanium`, `silicon`: Base materials extracted from stations
 - `heart`: The target objective item
-- `disruptor`, `modulator`, `resonator`, `scrabbler`: Advanced components
+- `decoder`, `modulator`, `resonator`, `scrambler`: Advanced components
 
 **Station Types:**
 
@@ -262,7 +262,7 @@ config = make_game(
     num_chargers=1,                # Energy stations
     num_carbon_extractors=1,       # Material extractors
     num_oxygen_extractors=1,
-    num_geranium_extractors=1,
+    num_germanium_extractors=1,
     num_silicon_extractors=1,
     num_chests=2,                  # Storage chests
 )
