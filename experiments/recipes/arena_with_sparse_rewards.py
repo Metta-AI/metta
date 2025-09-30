@@ -186,7 +186,7 @@ def sweep_async_progressive(
     min_timesteps: int,
     max_timesteps: int,
     initial_timesteps: int,
-    max_concurrent_evals: int = 1,
+    max_concurrent_evals: int = 5,
     liar_strategy: str = "best",
 ) -> SweepTool:
     """Async-capped sweep that also sweeps over total timesteps.
@@ -203,8 +203,8 @@ def sweep_async_progressive(
     """
 
     protein_cfg = make_custom_protein_config(
-        PPO_CORE,
-        {
+        base_config=PPO_CORE,
+        parameters={
             "trainer.total_timesteps": ParameterConfig(
                 min=min_timesteps,
                 max=max_timesteps,
@@ -228,7 +228,7 @@ def sweep_async_progressive(
             )
         },
     )
-
+    protein_cfg.metric = "evaluator/eval_arena_sparse/score"
     return SweepTool(
         # Protein with swept timesteps
         protein_config=protein_cfg,
