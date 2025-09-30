@@ -144,11 +144,11 @@ class SimTool(Tool):
                 metadata = CheckpointManager.get_policy_metadata(normalized_uri)
                 del agent
             except Exception as e:
-                logger.warning(f"Failed to load policy from {policy_uri}: {e}")
+                logger.warning(f"Failed to load policy from {normalized_uri}: {e}")
                 continue
 
-            eval_run_name = _determine_run_name(policy_uri)
-            results = {"policy_uri": policy_uri, "checkpoints": []}
+            eval_run_name = _determine_run_name(normalized_uri)
+            results = {"policy_uri": normalized_uri, "checkpoints": []}
 
             eval_results = evaluate_policy(
                 checkpoint_uri=normalized_uri,
