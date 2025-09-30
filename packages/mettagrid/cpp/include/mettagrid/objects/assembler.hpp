@@ -14,10 +14,6 @@
 #include "objects/constants.hpp"
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
-#include "systems/stats_tracker.hpp"
-
-// Forward declaration
-class Agent;
 
 class Assembler : public GridObject, public Usable {
 private:
@@ -66,7 +62,7 @@ private:
   bool can_afford_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) const {
     std::map<InventoryItem, InventoryQuantity> total_resources;
     for (Agent* agent : surrounding_agents) {
-      for (const auto& [item, amount] : agent->inventory) {
+      for (const auto& [item, amount] : agent->inventory.get()) {
         total_resources[item] = static_cast<InventoryQuantity>(total_resources[item] + amount);
       }
     }
@@ -78,47 +74,48 @@ private:
     return true;
   }
 
+  // Give output resources to the triggering agent
+  void give_output_to_agent(const Recipe& recipe, Agent& agent) {
+    for (const auto& [item, amount] : recipe.output_resources) {
+      agent.update_inventory(item, static_cast<InventoryDelta>(amount));
+    }
+  }
+
+public:
   // Consume resources from surrounding agents for the given recipe
+  // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
   void consume_resources_for_recipe(const Recipe& recipe, const std::vector<Agent*>& surrounding_agents) {
     for (const auto& [item, required_amount] : recipe.input_resources) {
       InventoryQuantity remaining = required_amount;
       for (Agent* agent : surrounding_agents) {
         if (remaining == 0) break;
-        auto it = agent->inventory.find(item);
-        if (it != agent->inventory.end()) {
-          InventoryQuantity available = it->second;
-          InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
-          InventoryDelta delta = agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
-          InventoryQuantity actually_consumed = static_cast<InventoryQuantity>(-delta);
-          remaining = static_cast<InventoryQuantity>(remaining - actually_consumed);
-          if (actually_consumed > 0) {
-            stats.add(stats.resource_name(item) + ".consumed", actually_consumed);
-          }
-        }
+        InventoryQuantity available = agent->inventory.amount(item);
+        InventoryQuantity to_consume = static_cast<InventoryQuantity>(std::min<int>(available, remaining));
+        agent->update_inventory(item, static_cast<InventoryDelta>(-to_consume));
+        remaining -= to_consume;
       }
     }
   }
 
-  // Give output resources to the triggering agent
-  void give_output_to_agent(const Recipe& recipe, Agent& agent) {
-    for (const auto& [item, amount] : recipe.output_resources) {
-      InventoryDelta delta = agent.update_inventory(item, static_cast<InventoryDelta>(amount));
-      InventoryQuantity actually_produced = static_cast<InventoryQuantity>(delta);
-      if (actually_produced > 0) {
-        stats.add(stats.resource_name(item) + ".produced", actually_produced);
-      }
-    }
-  }
-
-public:
   // Recipe lookup table - 256 possible patterns (2^8)
   std::vector<std::shared_ptr<Recipe>> recipes;
+
+  // Unclip recipes - used when assembler is clipped
+  std::vector<std::shared_ptr<Recipe>> unclip_recipes;
+
+  // Clipped state
+  bool is_clipped;
 
   // Current cooldown state
   unsigned int cooldown_end_timestep;
 
-  // Stats tracking
-  class StatsTracker stats;
+  // Usage tracking
+  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
+  unsigned int uses_count;  // Current number of times used
+
+  // Exhaustion tracking
+  float exhaustion;           // Exhaustion rate (0 = no exhaustion)
+  float cooldown_multiplier;  // Current cooldown multiplier from exhaustion
 
   // Grid access for finding surrounding agents
   class Grid* grid;
@@ -133,7 +130,13 @@ public:
 
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : recipes(cfg.recipes),
+        unclip_recipes(),
+        is_clipped(false),
         cooldown_end_timestep(0),
+        max_uses(cfg.max_uses),
+        uses_count(0),
+        exhaustion(cfg.exhaustion),
+        cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         recipe_details_obs(cfg.recipe_details_obs),
@@ -190,36 +193,61 @@ public:
   const Recipe* get_current_recipe() const {
     if (!grid) return nullptr;
     uint8_t pattern = get_agent_pattern_byte();
-    if (pattern >= recipes.size()) return nullptr;
-    return recipes[pattern].get();
+
+    // Use unclip recipes if clipped, normal recipes otherwise
+    const std::vector<std::shared_ptr<Recipe>>& active_recipes = is_clipped ? unclip_recipes : recipes;
+
+    if (pattern >= active_recipes.size()) return nullptr;
+    return active_recipes[pattern].get();
   }
 
-  // Implement pure virtual method from Usable
+  // Make this assembler clipped with the given unclip recipes
+  void becomeClipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec) {
+    is_clipped = true;
+    unclip_recipes = unclip_recipes_vec;
+  }
+
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid || !current_timestep_ptr) {
       return false;
     }
+    // Check if max uses has been reached
+    if (max_uses > 0 && uses_count >= max_uses) {
+      return false;
+    }
     if (cooldown_remaining() > 0) {
-      stats.incr("assembler.blocked.cooldown");
       return false;
     }
     const Recipe* recipe = get_current_recipe();
     if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
-      stats.incr("assembler.blocked.no_recipe");
       return false;
     }
     std::vector<Agent*> surrounding_agents = get_surrounding_agents();
     if (!can_afford_recipe(*recipe, surrounding_agents)) {
-      stats.incr("assembler.blocked.insufficient_resources");
       return false;
     }
     consume_resources_for_recipe(*recipe, surrounding_agents);
     give_output_to_agent(*recipe, actor);
-    stats.incr("assembler.recipes_executed");
+
+    // Apply cooldown with exhaustion multiplier
     if (recipe->cooldown > 0) {
-      cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
-      stats.incr("assembler.cooldown_started");
+      unsigned int adjusted_cooldown = static_cast<unsigned int>(recipe->cooldown * cooldown_multiplier);
+      cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
     }
+
+    // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
+    if (is_clipped) {
+      is_clipped = false;
+      unclip_recipes.clear();
+    } else {
+      uses_count++;
+
+      // Apply exhaustion (increase cooldown multiplier exponentially)
+      if (exhaustion > 0.0f) {
+        cooldown_multiplier *= (1.0f + exhaustion);
+      }
+    }
+
     return true;
   }
 
@@ -230,6 +258,18 @@ public:
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
       features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
+    }
+
+    // Add clipped status to observations if clipped
+    if (is_clipped) {
+      features.push_back({ObservationFeature::Clipped, static_cast<ObservationType>(1)});
+    }
+
+    // Add remaining uses to observations if max_uses is set
+    if (max_uses > 0) {
+      unsigned int remaining_uses = (uses_count < max_uses) ? (max_uses - uses_count) : 0;
+      remaining_uses = std::min(remaining_uses, 255u);  // Cap at 255 for observation
+      features.push_back({ObservationFeature::RemainingUses, static_cast<ObservationType>(remaining_uses)});
     }
 
     // Add recipe details if configured to do so
@@ -260,12 +300,6 @@ public:
     }
 
     return features;
-  }
-
-  // Handle cooldown completion
-  void finish_cooldown() {
-    this->cooldown_end_timestep = 0;
-    stats.incr("assembler.cooldown_completed");
   }
 };
 

@@ -2,7 +2,7 @@
 requires = [
   "setuptools>=61.0",
   "wheel",
-  "numpy>=1.26.4,<2",
+  "numpy>=2",
   "pybind11==2.10.4",
   "setuptools_scm>=8",
 ]
@@ -11,11 +11,10 @@ backend-path = ["."]
 
 [project]
 name = "mettagrid" # Do not change! Has to be 'mettagrid' for our PyPi package
-# dynamic = ["version"]
-version = "0.2.0.11"
+dynamic = ["version"]
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11"
 license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
@@ -23,8 +22,8 @@ keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environmen
 dependencies = [
   "boto3>=1.38.32",
   "botocore>=1.38.29",
-  "gymnasium==0.29.1",
-  "pettingzoo>=1.24.1,<1.25",
+  "gymnasium>=1.1.1",
+  "pettingzoo>=1.25",
   "pufferlib-core",
   "benchmarl>=1.5.0,<1.6.0",
   "torchrl>=0.8.0",
@@ -51,7 +50,6 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 # Exclude the generic Bazel C++ test runner script (not a pytest test)
 addopts = "--ignore=tests/run_test.py"
-filterwarnings = ["ignore:Gym has been unmaintained:UserWarning"]
 
 [tool.uv]
 cache-keys = [
@@ -60,6 +58,8 @@ cache-keys = [
   { file = "cpp/BUILD.bazel" },
   { file = "MODULE.bazel" },
   { file = "cpp/**/*.{cpp,hpp}" },
+  { file = "nim/mettascope/src/**/*.{nim,nims}" },
+  { file = "nim/mettascope/mettascope.nimble" },
 ]
 
 [tool.setuptools.packages.find]
@@ -82,4 +82,16 @@ demo = "mettagrid.demo:main"
 tag_regex = "^mettagrid-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
 version_scheme = "no-guess-dev"
 local_scheme = "node-and-date"
+root = "../.."
 fallback_version = "0.0.0"
+
+[tool.setuptools_scm.scm.git]
+describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "mettagrid-v*",
+]

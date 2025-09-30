@@ -265,9 +265,9 @@ class Evaluator(TrainerComponent):
 
         stats_epoch_id = stats_reporter.create_epoch(
             stats_run_id,  # Now the type checker knows this is not None
+            epoch,  # Technically this is wrong, but we're not actually using this field
             epoch,
-            epoch,
-            attributes={"source": "evaluation"},
+            attributes={"source": "evaluation", "agent_step": self.context.agent_step},
         )
 
         scores = self.evaluate(

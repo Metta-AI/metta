@@ -25,8 +25,6 @@ class SimplePolicyNet(torch.nn.Module):
         )
 
         self.action_nvec = tuple(env.single_action_space.nvec)
-        num_actions = sum(self.action_nvec)
-        self.decoder = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, num_actions), std=0.01)
 
         self.action_head = torch.nn.Linear(self.hidden_size, sum(self.action_nvec))
         self.value_head = torch.nn.Linear(self.hidden_size, 1)

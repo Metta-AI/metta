@@ -18,7 +18,6 @@ dtype_success: np.dtype
 class EpisodeStats(TypedDict):
     game: StatsDict
     agent: list[StatsDict]
-    converter: list[StatsDict]
 
 class PackedCoordinate:
     """Packed coordinate encoding utilities."""
@@ -73,8 +72,6 @@ class AgentConfig(GridObjectConfig):
         freeze_duration: int = 0,
         action_failure_penalty: float = 0,
         resource_limits: dict[int, int] = {},
-        resource_rewards: dict[int, float] = {},
-        resource_reward_max: dict[int, float] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
         group_reward_pct: float = 0,
@@ -87,8 +84,6 @@ class AgentConfig(GridObjectConfig):
     freeze_duration: int
     action_failure_penalty: float
     resource_limits: dict[int, int]
-    resource_rewards: dict[int, float]
-    resource_reward_max: dict[int, float]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
     group_reward_pct: float

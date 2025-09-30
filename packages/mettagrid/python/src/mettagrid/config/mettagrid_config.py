@@ -17,8 +17,10 @@ Position = FixedPosition | Literal["Any"]
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
+    # inventory rewards get merged into stats rewards in the C++ environment. The advantage of using inventory rewards
+    # is that it's easier for us to assert that these inventory items exist, and thus catch typos.
     inventory: dict[str, float] = Field(default_factory=dict)
-    inventory_max: dict[str, int] = Field(default_factory=dict)
+    inventory_max: dict[str, float] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
     stats_max: dict[str, float] = Field(default_factory=dict)
 
@@ -36,6 +38,9 @@ class AgentConfig(Config):
     tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
+    )
+    shareable_resources: list[str] = Field(
+        default_factory=list, description="Resources that will be shared when we use another agent"
     )
 
 
@@ -103,6 +108,7 @@ class WallConfig(Config):
 class ConverterConfig(Config):
     """Python converter configuration."""
 
+    name: str = Field(default="converter")
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int = Field(default=0, ge=0, le=255)
@@ -119,6 +125,7 @@ class RecipeConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
+    max_use: Optional[int] = Field(ge=0, default=None)
 
 
 class AssemblerConfig(Config):
@@ -128,6 +135,7 @@ class AssemblerConfig(Config):
     type_id: int = Field(default=0, ge=0, le=255)
     recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+    max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
 
 
 class ChestConfig(Config):
@@ -182,6 +190,14 @@ class GameConfig(Config):
     params: Optional[Any] = None
 
     resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
+
+    # Inventory regeneration settings
+    inventory_regen_amounts: dict[str, int] = Field(
+        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+    )
+    inventory_regen_interval: int = Field(
+        default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
+    )
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)

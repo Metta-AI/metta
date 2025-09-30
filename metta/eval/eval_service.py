@@ -107,20 +107,16 @@ def evaluate_policy(
 def extract_scores(
     checkpoint_uri: str, simulations: list[SimulationConfig], stats_db: EvalStatsDB
 ) -> EvalRewardSummary:
-    categories: set[str] = set()
-    for sim_config in simulations:
-        categories.add(sim_config.suite)
+    suites = {sim_config.suite for sim_config in simulations}
 
-    category_scores: dict[str, float] = {}
-    for category in categories:
-        score = stats_db.get_average_metric("reward", checkpoint_uri, f"sim_name LIKE '%{category}%'")
-        logger.info(f"{category} score: {score}")
-        if score is None:
-            continue
-        category_scores[category] = score
-    all_scores = stats_db.simulation_scores(checkpoint_uri, "reward")
+    def suite_score(suite: str) -> float | None:
+        score = stats_db.get_average_metric("reward", checkpoint_uri, f"sim_name LIKE '%{suite}%'")
+        logger.info(f"{suite} score: {score}")
+        return score
+
+    category_scores = {suite: score for suite in suites if (score := suite_score(suite)) is not None}
 
     return EvalRewardSummary(
         category_scores=category_scores,
-        simulation_scores=all_scores,
+        simulation_scores=stats_db.simulation_scores(checkpoint_uri, "reward"),
     )

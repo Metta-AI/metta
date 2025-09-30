@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime
-from typing import Any, TypeVar
+from datetime import datetime, timedelta
+from typing import Any, Optional, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -148,6 +148,24 @@ class TaskAvgRuntimeResponse(BaseModel):
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/tasks", tags=["eval_tasks"])
 
+    # Cache for latest commit
+    _latest_commit_cache: Optional[tuple[str, datetime]] = None
+    _cache_ttl = timedelta(minutes=3)
+
+    async def get_cached_latest_commit() -> str:
+        nonlocal _latest_commit_cache
+
+        now = datetime.now()
+        if _latest_commit_cache:
+            commit_hash, cached_time = _latest_commit_cache
+            if now - cached_time < _cache_ttl:
+                return commit_hash
+
+        # Cache miss or expired - fetch new value
+        commit_hash = await git.get_latest_commit(REPO_SLUG, branch="main")
+        _latest_commit_cache = (commit_hash, now)
+        return commit_hash
+
     user_or_token = Depends(create_user_or_token_dependency(stats_repo))
 
     @router.post("", response_model=TaskResponse)
@@ -160,7 +178,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
                 # Remove this once clients have migrated
                 attributes["git_hash"] = request.git_hash
             else:
-                attributes["git_hash"] = await git.get_latest_commit(REPO_SLUG, branch="main")
+                attributes["git_hash"] = await get_cached_latest_commit()
 
         policy = await stats_repo.get_policy_by_id(request.policy_id)
         if not policy:

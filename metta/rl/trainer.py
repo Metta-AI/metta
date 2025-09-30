@@ -1,9 +1,10 @@
-import logging
+import importlib
 from typing import Any, Callable, Optional
 
 import torch
 
 from metta.agent.policy import Policy
+from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     ComponentContext,
@@ -20,21 +21,11 @@ from metta.rl.training.optimizer import create_optimizer
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
-    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
+    importlib.import_module("pufferlib._C")
 except ImportError:
-    raise ImportError(
-        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
-        "try installing with --no-build-isolation"
-    ) from None
+    raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
 
-# Keep TF32 fast paths enabled on compatible GPUs.
-torch.set_float32_matmul_precision("medium")
-
-if torch.cuda.is_available() and hasattr(torch.backends, "cuda"):
-    torch.backends.cuda.enable_flash_sdp(True)
-    torch.backends.cuda.enable_mem_efficient_sdp(True)
-    torch.backends.cuda.enable_math_sdp(True)
-logger = logging.getLogger(__name__)
+logger = getRankAwareLogger(__name__)
 
 
 class Trainer:
