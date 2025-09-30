@@ -6,12 +6,12 @@
 > Historical notes on GTrXL remain below for context when comparing design choices.
 
 > **Variants (September 2025):**
-> - `TransformerPolicyConfig(variant="gtrxl")` — gated Transformer without memory
+> - `TransformerPolicyConfig(variant="gtrxl")` — gated Transformer-XL with layer memory restored
 > - `TransformerPolicyConfig(variant="trxl")` — vanilla Transformer-XL with layer memory
 > - `TransformerPolicyConfig(variant="trxl_nvidia")` — NVIDIA's optimized Transformer-XL core
 
 ### Variant overview (September 2025)
-- **variant="gtrxl"** retains the GRU-style gating and pre-layernorm identity-map stabilization introduced for reinforcement learning stability while running without transformer-XL memory.
+- **variant="gtrxl"** retains the GRU-style gating and pre-layernorm identity-map stabilization introduced for reinforcement learning stability while sharing Transformer-XL memory semantics.
 - **variant="trxl"** mirrors the original Transformer-XL decoder with layer-wise memory caching and relative positional attention but no gating modifications.
 - **variant="trxl_nvidia"** keeps NVIDIA's optimized Transformer-XL core (including custom bias handling, clamp length and memory window) while sharing the common CNN/actor heads with the other variants.
 
@@ -187,15 +187,15 @@ class GRUGating(nn.Module):
 5. **Fused operations**: QKV projection and gating operations optimized for performance
 
 ### What Needs Improvement ⚠️
-1. **Memory mechanism**: Currently missing - transformer processes full context but lacks memory
-2. **Positional encoding**: Using standard sinusoidal, should consider relative positional encoding
-3. **Action attention system**: Current implementation is overly complex vs standard GTrXL
-4. **Memory gradient handling**: No gradient stopping through memory (since memory is missing)
-5. **Episode boundary handling**: Missing proper reset mechanisms
+1. **Positional encoding**: Using standard sinusoidal, should consider relative positional encoding
+2. **Action attention system**: Current implementation is overly complex vs standard GTrXL
+3. **Memory gradient handling**: Ensure gradient stop-through remains wired when cache length > 0
+4. **Episode boundary handling**: Missing proper reset mechanisms
+5. **Benchmark coverage**: Lack of long-horizon regression tests with the larger default model
 
 ### Key Differences from Reference Implementations
 - **OpenDILab GTrXL**: Has explicit memory management with gradient stopping
-- **Our implementation**: Full-context processing without memory mechanism  
+- **Our implementation**: Shares the recurrent cache but still uses simplified sinusoidal positional encoding  
 - **Paper GTrXL**: Emphasizes memory for handling long sequences beyond context window
 
 ## Implementation Status (September 2025)
@@ -209,10 +209,10 @@ class GRUGating(nn.Module):
 |---------|--------------------|---------------|-------------------------|
 | Residual gating | ✅ GRU-style gates | ❌ | ❌ |
 | Pre-layer normalization | ✅ | ✅ | ❌ (matches NVIDIA post-norm) |
-| Layer count (default) | 2 | 2 | 8 |
-| Hidden size (`d_model`) | 40 | 40 | 256 |
-| Feed-forward size | 128 | 128 | 1024 |
-| Memory length | 16 | 16 | 96 |
+| Layer count (default) | 4 | 4 | 8 |
+| Hidden size (`d_model`) | 64 | 64 | 256 |
+| Feed-forward size | 256 | 256 | 1024 |
+| Memory length | 64 | 64 | 96 |
 | Relative positional bias | Sinusoidal, causal mask | Relative bias + memory | NVIDIA partial-relative bias |
 | Dropout | 0.05 | 0.05 | 0.05 |
 | Attention dropout | 0.05 | 0.05 | 0.0 |
@@ -220,20 +220,20 @@ class GRUGating(nn.Module):
 ## Default Hyperparameters (Base Config)
 | Parameter | variant="gtrxl" | variant="trxl" | variant="trxl_nvidia" |
 |-----------|--------------------|---------------|-------------------------|
-| `latent_size` / `hidden_size` | 40 | 40 | 256 |
-| `num_layers` | 2 | 2 | 8 |
+| `latent_size` / `hidden_size` | 64 | 64 | 256 |
+| `num_layers` | 4 | 4 | 8 |
 | `n_heads` | 4 | 4 | 4 |
-| `d_ff` / `d_inner` | 128 | 128 | 1024 |
+| `d_ff` / `d_inner` | 256 | 256 | 1024 |
 | `max_seq_len` | 128 | 128 | 192 |
-| `memory_len` | 16 | 16 | 96 |
+| `memory_len` | 64 | 64 | 96 |
 | `pre_lnorm` | True | True | False |
 | `manual_init` (policy heads) | False | False | True |
 | Suggested optimizer LR | 7.5e-4 | 9.0e-4 | 3.0e-4 |
 
 ## Behavioural Notes
-- variant="gtrxl" retains gating to stabilize on-policy RL gradients as described by Parisotto et al. and omits Transformer-XL memory to match historically successful training runs.
-- variant="gtrxl" now exposes a slimmed-down constructor focused on the gated architecture used in our RL agents.
-- variant="trxl" reinstates layer-wise memory caching and relative attention from the original Transformer-XL formulation for long context handling while keeping the simplified actor/critic heads used internally.
+- variant="gtrxl" retains gating to stabilize on-policy RL gradients while sharing the same 64-step memory cache as the vanilla Transformer-XL variant.
+- variant="gtrxl" and variant="trxl" now ship with the same 4-layer, 64-wide backbone so swaps between them isolate the effect of residual gating and relative attention.
+- variant="trxl" keeps layer-wise memory caching and relative attention from the original Transformer-XL formulation while relying on the homogenized defaults for simpler tuning.
 - variant="trxl_nvidia" uses the NVIDIA Megatron-style Transformer-XL block with post-norm residuals, clamp-free relative positional embeddings, and longer default memory to reflect the `wt103_base` recipe.
 
 ## Pending Documentation Work
