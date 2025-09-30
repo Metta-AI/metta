@@ -1,5 +1,7 @@
 from typing import List
 
+from cogames.cogs_vs_clips import stations as cvc_stations
+
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid import MettaGridConfig
 from mettagrid.builder.envs import make_navigation
@@ -13,6 +15,7 @@ from mettagrid.mapgen.scenes.biome_desert import BiomeDesert, BiomeDesertParams
 from mettagrid.mapgen.scenes.biome_forest import BiomeForest, BiomeForestParams
 from mettagrid.mapgen.scenes.bsp import BSP, BSPLayout, BSPLayoutParams, BSPParams
 from mettagrid.mapgen.scenes.fill_area import FillArea, FillAreaParams
+from mettagrid.mapgen.scenes.inline_ascii import InlineAscii, InlineAsciiParams
 from mettagrid.mapgen.scenes.layout import Layout, LayoutArea, LayoutParams
 from mettagrid.mapgen.scenes.make_connected import MakeConnected, MakeConnectedParams
 from mettagrid.mapgen.scenes.maze import Maze, MazeParams
@@ -130,9 +133,46 @@ class CollisionSafeLayout(Scene[LayoutParams]):
                 )
 
 
+def _add_extractor_objects(env: MettaGridConfig) -> None:
+    objects = env.game.objects
+    objects.setdefault("carbon_extractor", cvc_stations.carbon_extractor())
+    objects.setdefault("oxygen_extractor", cvc_stations.oxygen_extractor())
+    objects.setdefault("geranium_extractor", cvc_stations.geranium_extractor())
+    objects.setdefault("silicon_extractor", cvc_stations.silicon_extractor())
+
+
+def make_extractor_showcase() -> MettaGridConfig:
+    env = make_navigation(num_agents=4)
+    _add_extractor_objects(env)
+
+    resources = set(env.game.resource_names)
+    resources.update({"energy", "carbon", "oxygen", "geranium", "silicon"})
+    env.game.resource_names = sorted(resources)
+
+    ascii_map = (
+        "###############\n"
+        "#.............#\n"
+        "#.....C.O.....#\n"
+        "#.............#\n"
+        "#.....E.I.....#\n"
+        "#.............#\n"
+        "###############"
+    )
+
+    lines = ascii_map.splitlines()
+    env.game.map_builder = MapGen.Config(
+        width=len(lines[0]),
+        height=len(lines),
+        root=InlineAscii.factory(InlineAsciiParams(data=ascii_map)),
+    )
+
+    return env
+
+
 def make_mettagrid(
     width: int = 500, height: int = 500
 ) -> tuple[
+    MettaGridConfig,
     MettaGridConfig,
     MettaGridConfig,
     MettaGridConfig,
@@ -3330,6 +3370,8 @@ def make_mettagrid(
         ),
     )
 
+    extractor_showcase = make_extractor_showcase()
+
     return (
         env,
         desert_noise,
@@ -3340,6 +3382,7 @@ def make_mettagrid(
         radial_maze,
         astroid,
         astroid_big,
+        extractor_showcase,
     )
 
 
@@ -3354,6 +3397,7 @@ def make_evals() -> List[SimulationConfig]:
         radial_maze,
         astroid,
         astroid_big,
+        extractor_showcase,
     ) = make_mettagrid()
     return [
         SimulationConfig(suite="biomes", name="biomes_quadrants", env=env),
@@ -3365,4 +3409,7 @@ def make_evals() -> List[SimulationConfig]:
         SimulationConfig(suite="biomes", name="radial_maze", env=radial_maze),
         SimulationConfig(suite="biomes", name="astroid", env=astroid),
         SimulationConfig(suite="biomes", name="astroid_big", env=astroid_big),
+        SimulationConfig(
+            suite="biomes", name="extractor_showcase", env=extractor_showcase
+        ),
     ]
