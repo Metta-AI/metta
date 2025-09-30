@@ -1,17 +1,33 @@
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 from mettagrid.config.config import Config
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+
+if TYPE_CHECKING:
+    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+else:
+    AnyMapBuilderConfig = Any
 
 
 def _default_map_builder_config() -> "AnyMapBuilderConfig":
     from mettagrid.map_builder.random import RandomMapBuilder
 
     return RandomMapBuilder.Config(agents=24)
+
+
+def _load_any_map_builder_config():
+    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig as _AnyMapBuilderConfig
+
+    return _AnyMapBuilderConfig
+
+
+@lru_cache(maxsize=1)
+def _map_builder_adapter() -> TypeAdapter[Any]:
+    return TypeAdapter(_load_any_map_builder_config())
 
 
 # ===== Python Configuration Models =====
@@ -215,6 +231,15 @@ class GameConfig(Config):
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: "AnyMapBuilderConfig" = Field(default_factory=_default_map_builder_config)
+
+    @field_validator("map_builder", mode="before")
+    @classmethod
+    def _coerce_map_builder(cls, value: Any) -> Any:
+        if value is None:
+            return value
+
+        adapter = _map_builder_adapter()
+        return adapter.validate_python(value)
 
     # Feature Flags
     track_movement_metrics: bool = Field(
