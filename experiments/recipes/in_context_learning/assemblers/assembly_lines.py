@@ -6,6 +6,7 @@ from experiments.recipes.in_context_learning.in_context_learning import (
     play_icl,
     replay_icl,
 )
+from metta.tools.sim import SimTool
 import subprocess
 import time
 from mettagrid.config.mettagrid_config import (
@@ -20,56 +21,23 @@ from typing import Optional
 import os
 
 curriculum_args = {
-    "single_agent_easy": {
-        "num_agents": [1],
-        "chain_lengths": [2, 3],
-        "num_sinks": [0, 1],
-        "room_sizes": ["tiny", "small"],
-        "positions": [["Any"]],
-    },
-    "single_agent_hard": {
-        "num_agents": [1],
+    "train": {
+        "num_agents": [1, 2, 6, 12],
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
-        "room_sizes": ["tiny", "small", "medium"],
-        "positions": [["Any"]],
-    },
-    "two_agent_easy": {
-        "num_agents": [2],
-        "chain_lengths": [2, 3],
-        "num_sinks": [0, 1],
-        "room_sizes": ["tiny", "small"],
-        "positions": [["Any", "Any"]],
-    },
-    "two_agent_hard": {
-        "num_agents": [2],
-        "chain_lengths": [2, 3, 4, 5],
-        "num_sinks": [0, 1, 2],
-        "room_sizes": ["tiny", "small", "medium"],
-        "positions": [["Any", "Any"]],
-    },
-    "multi_agent_easy": {
-        "num_agents": [1, 2],
-        "chain_lengths": [2, 3],
-        "num_sinks": [0, 1],
-        "room_sizes": ["tiny", "small"],
-        "positions": [["Any", "Any"], ["Any"]],
-    },
-    "multi_agent_hard": {
-        "num_agents": [1, 2],
-        "chain_lengths": [2, 3, 4, 5],
-        "num_sinks": [0, 1, 2],
-        "room_sizes": ["tiny", "small", "medium"],
-        "positions": [["Any", "Any"], ["Any"]],
-    },
-    # "test": {
-    #     "num_agents": [2],
-    #     "chain_lengths": [5],
-    #     "num_sinks": [2],
-    #     "room_sizes": ["medium"],
-    #     "positions": [["Any", "Any"]],
-    # },
+        "room_sizes": ["small", "medium", "large"],
+        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "num_chests": [0],
+    }
 }
+# "test": {
+#     "num_agents": [2],
+#     "chain_lengths": [5],
+#     "num_sinks": [2],
+#     "room_sizes": ["medium"],
+#     "positions": [["Any", "Any"]],
+# },
+# }
 
 
 def make_task_generator_cfg(
@@ -78,19 +46,23 @@ def make_task_generator_cfg(
     num_sinks: list[int],
     room_sizes: list[str],
     positions: list[list[Position]],
-    map_dir: Optional[str] = "in_context_assembly_lines",
+    map_dir: Optional[str] = None,
+    num_chests: list[int] = [0],
+    chest_positions: list[list[Position]] = [["N"]],
 ):
-    return AssemblerConverterChainTaskGenerator.Config(
+    return AssemblyLinesTaskGenerator.Config(
         num_agents=num_agents,
         num_resources=[c - 1 for c in chain_lengths],
         num_converters=num_sinks,
         room_sizes=room_sizes,
         positions=positions,
         map_dir=map_dir,
+        num_chests=num_chests,
+        chest_positions=chest_positions,
     )
 
 
-class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
+class AssemblyLinesTaskGenerator(ICLTaskGenerator):
     def __init__(self, config: "ICLTaskGenerator.Config"):
         super().__init__(config)
 
@@ -140,6 +112,8 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
         width,
         height,
         position,
+        chest_position,
+        num_chests,
         terrain,
         max_steps,
         num_instances,
@@ -150,6 +124,8 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
 
         self._make_resource_chain(resources, width + height / 2, position, cfg, rng)
         self._make_sinks(num_sinks, position, cfg, rng)
+        if num_chests > 0:
+            self._make_chests(num_chests, cfg, chest_position)
 
         if dir is not None and os.path.exists(dir):
             return self.load_from_numpy(
@@ -201,6 +177,8 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
             height,
             max_steps,
             position,
+            chest_position,
+            num_chests,
         ) = self._setup_task(rng)
 
         dir = (
@@ -216,6 +194,8 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
             width=width,
             height=height,
             position=position,
+            chest_position=chest_position,
+            num_chests=num_chests,
             terrain=terrain,
             max_steps=max_steps,
             num_instances=num_instances or 24 // num_agents,
@@ -226,6 +206,14 @@ class AssemblerConverterChainTaskGenerator(ICLTaskGenerator):
         icl_env.label = f"{room_size}_{len(resources)}chain_{num_sinks}sinks_{terrain}"
         return icl_env
 
+    def generate_task(
+        self,
+        task_id: int,
+        rng: random.Random,
+        num_instances: Optional[int] = None,
+    ) -> MettaGridConfig:
+        return self._generate_task(task_id, rng, num_instances)
+
 
 def train(
     curriculum_style: str = "multi_agent_easy",
@@ -233,16 +221,29 @@ def train(
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None
     )
-    from experiments.evals.in_context_learning.assembly_lines import (
-        make_icl_assembler_resource_chain_eval_suite,
+    from experiments.evals.in_context_learning.assemblers.assembly_lines import (
+        make_assembly_line_eval_suite,
     )
 
-    return train_icl(task_generator_cfg, make_icl_assembler_resource_chain_eval_suite)
+    return train_icl(task_generator_cfg, make_assembly_line_eval_suite)
 
 
 def play(curriculum_style: str = "test") -> PlayTool:
-    task_generator = AssemblerConverterChainTaskGenerator(
+    task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
+    )
+    return play_icl(task_generator)
+
+
+def play_eval() -> PlayTool:
+    task_generator = AssemblyLinesTaskGenerator(
+        make_task_generator_cfg(
+            num_agents=[2],
+            chain_lengths=[5],
+            num_sinks=[2],
+            room_sizes=["large"],
+            positions=[["Any", "Any"]],
+        )
     )
     return play_icl(task_generator)
 
@@ -250,7 +251,7 @@ def play(curriculum_style: str = "test") -> PlayTool:
 def replay(
     curriculum_style: str = "hard_eval",
 ) -> ReplayTool:
-    task_generator = AssemblerConverterChainTaskGenerator(
+    task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(**curriculum_args[curriculum_style])
     )
     # Default to the research policy if none specified
@@ -259,36 +260,23 @@ def replay(
     return replay_icl(task_generator, default_policy_uri)
 
 
-def save_envs_to_numpy(dir="in_context_assembly_lines/", num_envs: int = 500):
-    import os
-    import numpy as np
+def evaluate():
+    from experiments.evals.in_context_learning.assemblers.assembly_lines import (
+        make_assembly_line_eval_suite,
+    )
 
-    for chain_length in range(2, 6):
-        for num_sinks in range(0, 3):
-            for room_size in ["tiny", "small", "medium"]:
-                for i in range(num_envs):
-                    task_generator_cfg = make_task_generator_cfg(
-                        num_agents=[4],
-                        chain_lengths=[chain_length],
-                        num_sinks=[num_sinks],
-                        room_sizes=[room_size],
-                        positions=[["Any", "Any"]],
-                        map_dir=None,
-                    )
-                    task_generator = AssemblerConverterChainTaskGenerator(
-                        config=task_generator_cfg
-                    )
-                    env_cfg = task_generator._generate_task(
-                        i, random.Random(i), num_instances=1
-                    )
-                    terrain = env_cfg.label.split("_")[-1]
-                    map_builder = env_cfg.game.map_builder.create()
-                    grid = map_builder.build().grid
-                    random_number = random.randint(0, 1000000)
-                    filename = f"{dir}/{room_size}/{chain_length}chain/{num_sinks}sinks/{terrain}/{random_number}.npy"
-                    os.makedirs(os.path.dirname(filename), exist_ok=True)
-                    print(f"saving to {filename}")
-                    np.save(filename, grid)
+    policy_uris = []
+
+    for curriculum_style in curriculum_args:
+        policy_uri = f"s3://softmax-public/policies/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27:latest.pt"
+        policy_uris.append(policy_uri)
+
+    simulations = make_assembly_line_eval_suite()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=policy_uris,
+        stats_server_uri="https://api.observatory.softmax-research.net",
+    )
 
 
 def experiment():
@@ -296,7 +284,7 @@ def experiment():
         subprocess.run(
             [
                 "./devops/skypilot/launch.py",
-                "experiments.recipes.in_context_learning.assembly_lines.train",
+                "experiments.recipes.in_context_learning.assemblers.assembly_lines.train",
                 f"run=in_context.assembly_lines_{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                 f"curriculum_style={curriculum_style}",
                 "--gpus=4",

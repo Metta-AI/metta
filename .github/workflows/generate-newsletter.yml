@@ -108,7 +108,7 @@ jobs:
           restore-keys: |
             pr-summaries-${{ github.repository }}-
 
-      - name: Install uv
+      - name: Set up environment (minimal)
         uses: ./.github/actions/setup-environment
         with:
           install-mode: minimal
