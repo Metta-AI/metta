@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
 from mettagrid.config.config import Config
-
-if TYPE_CHECKING:
-    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
 
 def _default_map_builder_config() -> "AnyMapBuilderConfig":

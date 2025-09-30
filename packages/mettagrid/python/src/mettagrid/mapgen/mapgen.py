@@ -1,14 +1,10 @@
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import numpy as np
 from pydantic import Field, model_validator
 
+from mettagrid.map_builder import AnyMapBuilderConfig, GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
-
-if TYPE_CHECKING:
-    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-
-from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.scene import ChildrenAction, SceneConfig
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
