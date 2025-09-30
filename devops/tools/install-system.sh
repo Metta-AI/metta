@@ -92,7 +92,7 @@ ensure_tool() {
   fi
 
   if [ "$(uname -s)" = "Linux" ] && { [ "$tool" = "nim" ] || [ "$tool" = "nimble" ]; }; then
-    if install_nim_via_choosenim; then
+    if ensure_linux_nim_version "$REQUIRED_NIM_VERSION"; then
       ensure_paths
       if check_cmd "$tool"; then
         return 0
@@ -121,6 +121,9 @@ ensure_tool() {
     err "Installed $tool but it is not available"
   fi
 }
+
+# Required tool versions
+REQUIRED_NIM_VERSION="2.2.4"
 
 # Common install directories in order of preference
 COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.nimble/bin $HOME/.cargo/bin /opt/homebrew/bin"
@@ -214,14 +217,109 @@ ensure_bazel_setup() {
   fi
 }
 
+version_ge() {
+  local current="$1"
+  local required="$2"
+
+  local -a current_parts
+  local -a required_parts
+
+  IFS='.' read -r -a current_parts <<< "$current"
+  IFS='.' read -r -a required_parts <<< "$required"
+
+  local length="${#current_parts[@]}"
+  if [ "${#required_parts[@]}" -gt "$length" ]; then
+    length="${#required_parts[@]}"
+  fi
+
+  for ((i = 0; i < length; i++)); do
+    local current_segment="${current_parts[i]:-0}"
+    local required_segment="${required_parts[i]:-0}"
+
+    if (( current_segment > required_segment )); then
+      return 0
+    fi
+
+    if (( current_segment < required_segment )); then
+      return 1
+    fi
+  done
+
+  return 0
+}
+
+get_nim_version() {
+  if ! check_cmd nim; then
+    return 1
+  fi
+
+  local version_line
+  if ! version_line=$(nim --version 2>/dev/null | head -n1); then
+    return 1
+  fi
+
+  # Expected format: "Nim Compiler Version X.Y.Z [os: arch]"
+  local version
+  version=$(echo "$version_line" | awk '{print $4}')
+
+  if [ -z "$version" ]; then
+    return 1
+  fi
+
+  echo "$version"
+  return 0
+}
+
+ensure_linux_nim_version() {
+  local required_version="$1"
+
+  ensure_paths
+
+  local current_version=""
+  if check_cmd nim; then
+    current_version=$(get_nim_version 2>/dev/null || echo "")
+  fi
+
+  if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
+    return 0
+  fi
+
+  if [ -n "$current_version" ]; then
+    echo "Found Nim $current_version but require >= $required_version. Upgrading via choosenim..."
+  else
+    echo "Nim not found. Installing via choosenim..."
+  fi
+
+  if ! install_nim_via_choosenim "$required_version"; then
+    return 1
+  fi
+
+  ensure_paths
+  current_version=$(get_nim_version 2>/dev/null || echo "")
+
+  if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
+    echo "Nim $current_version with nimble found."
+    return 0
+  fi
+
+  echo "Nim install finished but requirements are still not satisfied." >&2
+  return 1
+}
+
 install_nim_via_choosenim() {
   if [ "$(uname -s)" != "Linux" ]; then
     return 1
   fi
 
-  echo "Installing Nim via choosenim..."
+  local target_version="${1:-}"
+  local choosenim_args="-y"
+  if [ -n "$target_version" ]; then
+    choosenim_args="$choosenim_args $target_version"
+  fi
 
-  if ! env CHOOSENIM_NO_ANALYTICS=1 CHOOSENIM_NO_COLOR=1 bash -lc "curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y"; then
+  echo "Installing Nim via choosenim${target_version:+ (target $target_version)}..."
+
+  if ! env CHOOSENIM_NO_ANALYTICS=1 CHOOSENIM_NO_COLOR=1 bash -lc "curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- $choosenim_args"; then
     echo "Failed to run choosenim installer" >&2
     return 1
   fi
