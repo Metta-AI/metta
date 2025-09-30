@@ -38,6 +38,7 @@ PYTHON_TEST_FOLDERS = [
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 PACKAGE_TAG_PREFIXES = {
     "mettagrid": "mettagrid-v",
+    "cogames": "cogames-v",
 }
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
@@ -516,7 +517,7 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
 
 @app.command(name="publish", help="Create and push a release tag for a package")
 def cmd_publish(
-    package: Annotated[str, typer.Argument(help="Package to publish (currently only 'mettagrid')")],
+    package: Annotated[str, typer.Argument(help="Package to publish (for example 'mettagrid' or 'cogames')")],
     version_override: Annotated[
         Optional[str],
         typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
