@@ -209,10 +209,10 @@ class GRUGating(nn.Module):
 |---------|--------------------|---------------|-------------------------|
 | Residual gating | ✅ GRU-style gates | ❌ | ❌ |
 | Pre-layer normalization | ✅ | ✅ | ❌ (matches NVIDIA post-norm) |
-| Layer count (default) | 4 | 4 | 8 |
+| Layer count (default) | 2 | 2 | 8 |
 | Hidden size (`d_model`) | 64 | 64 | 256 |
 | Feed-forward size | 256 | 256 | 1024 |
-| Memory length | 0 (stateless) | 32 | 96 |
+| Memory length | 32 | 32 | 96 |
 | Relative positional bias | Sinusoidal, causal mask | Relative bias + memory | NVIDIA partial-relative bias |
 | Dropout | 0.05 | 0.05 | 0.05 |
 | Attention dropout | 0.05 | 0.05 | 0.0 |
@@ -221,7 +221,7 @@ class GRUGating(nn.Module):
 | Parameter | variant="gtrxl" | variant="trxl" | variant="trxl_nvidia" |
 |-----------|--------------------|---------------|-------------------------|
 | `latent_size` / `hidden_size` | 64 | 64 | 256 |
-| `num_layers` | 4 | 4 | 8 |
+| `num_layers` | 2 | 2 | 8 |
 | `n_heads` | 4 | 4 | 4 |
 | `d_ff` / `d_inner` | 256 | 256 | 1024 |
 | `max_seq_len` | 256 | 256 | 192 |
