@@ -71,10 +71,10 @@ def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
         prefix = parsed.key or ""
         response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
 
-        if "Contents" not in response:
-            raise ValueError(f"Unable to contact s3 - response {response}")
+        if response["KeyCount"] == 0:
+            return []
 
-        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Content"] if obj.endswith(".pt")]
+        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".pt")]
     else:
         raise ValueError(f"Cannot get checkpoints from uri: {uri}")
 
@@ -83,7 +83,7 @@ def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
         if not path.name.endswith("trainer_state.pt"):
             run_and_epoch = _extract_run_and_epoch(path)
             if run_and_epoch:
-                path_uri = uri + "/" + path.stem
+                path_uri = uri.rstrip("/") + "/" + path.name
                 metadata: PolicyMetadata = {
                     "run_name": run_and_epoch[0],
                     "epoch": run_and_epoch[1],
