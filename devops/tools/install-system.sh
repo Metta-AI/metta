@@ -85,8 +85,24 @@ get_package_name() {
 ensure_tool() {
   local tool="$1"
 
+  ensure_paths
+
   if check_cmd "$tool"; then
     return 0
+  fi
+
+  if [ "$tool" = "nim" ] || [ "$tool" = "nimble" ]; then
+    if [ "$(uname -s)" = "Linux" ]; then
+      if install_nim_via_choosenim; then
+        ensure_paths
+        if check_cmd "$tool"; then
+          return 0
+        fi
+        err "Installed Nim via choosenim but $tool is not available"
+      else
+        err "Failed to install Nim via choosenim"
+      fi
+    fi
   fi
 
   echo "$tool not found. Installing $tool..."
@@ -109,7 +125,7 @@ ensure_tool() {
 }
 
 # Common install directories in order of preference
-COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.cargo/bin /opt/homebrew/bin"
+COMMON_INSTALL_DIRS="/usr/local/bin /usr/bin /opt/bin $HOME/.local/bin $HOME/bin $HOME/.nimble/bin $HOME/.cargo/bin /opt/homebrew/bin"
 
 # Add common directories to PATH if not already present
 ensure_paths() {
@@ -198,6 +214,34 @@ ensure_bazel_setup() {
       err "Failed to install bazelisk. Please install it manually from https://github.com/bazelbuild/bazelisk"
     fi
   fi
+}
+
+install_nim_via_choosenim() {
+  if [ "$(uname -s)" != "Linux" ]; then
+    return 1
+  fi
+
+  echo "Installing Nim via choosenim..."
+
+  if ! env CHOOSENIM_NO_ANALYTICS=1 CHOOSENIM_NO_COLOR=1 bash -lc "curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y"; then
+    echo "Failed to run choosenim installer" >&2
+    return 1
+  fi
+
+  ensure_paths
+
+  if ! check_cmd nim; then
+    echo "Nim install finished but 'nim' is still missing. Ensure ~/.nimble/bin is in your PATH or install manually." >&2
+    return 1
+  fi
+
+  if ! check_cmd nimble; then
+    echo "Nim install finished but 'nimble' is still missing. Ensure ~/.nimble/bin is in your PATH or install manually." >&2
+    return 1
+  fi
+
+  echo "Nim installed successfully via choosenim."
+  return 0
 }
 
 get_bazelisk_url() {
