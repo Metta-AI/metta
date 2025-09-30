@@ -15,9 +15,6 @@
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
 
-// Forward declarations
-class Agent;
-
 class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
@@ -103,6 +100,12 @@ public:
   // Recipe lookup table - 256 possible patterns (2^8)
   std::vector<std::shared_ptr<Recipe>> recipes;
 
+  // Unclip recipes - used when assembler is clipped
+  std::vector<std::shared_ptr<Recipe>> unclip_recipes;
+
+  // Clipped state
+  bool is_clipped;
+
   // Current cooldown state
   unsigned int cooldown_end_timestep;
 
@@ -119,6 +122,8 @@ public:
 
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : recipes(cfg.recipes),
+        unclip_recipes(),
+        is_clipped(false),
         cooldown_end_timestep(0),
         grid(nullptr),
         current_timestep_ptr(nullptr),
@@ -176,11 +181,20 @@ public:
   const Recipe* get_current_recipe() const {
     if (!grid) return nullptr;
     uint8_t pattern = get_agent_pattern_byte();
-    if (pattern >= recipes.size()) return nullptr;
-    return recipes[pattern].get();
+
+    // Use unclip recipes if clipped, normal recipes otherwise
+    const std::vector<std::shared_ptr<Recipe>>& active_recipes = is_clipped ? unclip_recipes : recipes;
+
+    if (pattern >= active_recipes.size()) return nullptr;
+    return active_recipes[pattern].get();
   }
 
-  // Implement pure virtual method from Usable
+  // Make this assembler clipped with the given unclip recipes
+  void becomeClipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec) {
+    is_clipped = true;
+    unclip_recipes = unclip_recipes_vec;
+  }
+
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid || !current_timestep_ptr) {
       return false;
@@ -201,6 +215,13 @@ public:
     if (recipe->cooldown > 0) {
       cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
     }
+
+    // If we were clipped and successfully used an unclip recipe, become unclipped
+    if (is_clipped) {
+      is_clipped = false;
+      unclip_recipes.clear();
+    }
+
     return true;
   }
 
@@ -211,6 +232,11 @@ public:
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
       features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
+    }
+
+    // Add clipped status to observations if clipped
+    if (is_clipped) {
+      features.push_back({ObservationFeature::Clipped, static_cast<ObservationType>(1)});
     }
 
     // Add recipe details if configured to do so
