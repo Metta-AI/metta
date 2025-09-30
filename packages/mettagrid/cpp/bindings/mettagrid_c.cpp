@@ -253,7 +253,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   // Initialize global systems
   if (_game_config.clipper_recipe && _game_config.clipper_clip_rate > 0.0f) {
-    _clipper = std::make_unique<ClipperSystem>(_game_config.clipper_recipe, _game_config.clipper_clip_rate);
+    _clipper = std::make_unique<Clipper>(_game_config.clipper_recipe, _game_config.clipper_clip_rate);
   }
 }
 
