@@ -65,6 +65,10 @@ def train(
     else:
         num_workers = desired_workers
 
+    if backend is pufferlib.vector.Multiprocessing and device.type != "cuda":
+        backend = pufferlib.vector.Serial
+        num_workers = 1
+
     vecenv = pufferlib.vector.make(
         env_creator,
         num_envs=256,
