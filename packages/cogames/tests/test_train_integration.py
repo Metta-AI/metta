@@ -38,8 +38,11 @@ def test_train_simple_policy(test_env_config, temp_checkpoint_dir):
         num_steps=1000,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
-        batch_size=256,
-        minibatch_size=256,
+        batch_size=128,
+        minibatch_size=128,
+        vector_num_envs=32,
+        vector_batch_size=32,
+        vector_num_workers=1,
     )
 
     # Check that checkpoints were created
@@ -65,8 +68,11 @@ def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
         num_steps=1000,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
-        batch_size=256,
-        minibatch_size=256,
+        batch_size=128,
+        minibatch_size=128,
+        vector_num_envs=32,
+        vector_batch_size=32,
+        vector_num_workers=1,
     )
 
     # Check that checkpoints were created
@@ -98,8 +104,11 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         num_steps=1000,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
-        batch_size=256,
-        minibatch_size=256,
+        batch_size=128,
+        minibatch_size=128,
+        vector_num_envs=32,
+        vector_batch_size=32,
+        vector_num_workers=1,
     )
 
     # Find the saved checkpoint
@@ -146,8 +155,11 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         num_steps=1000,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
-        batch_size=256,
-        minibatch_size=256,
+        batch_size=128,
+        minibatch_size=128,
+        vector_num_envs=32,
+        vector_batch_size=32,
+        vector_num_workers=1,
     )
 
     # Find the saved checkpoint
