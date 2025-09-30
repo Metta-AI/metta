@@ -287,11 +287,8 @@ public:
     consume_resources_for_recipe(recipe_to_use, surrounding_agents);
     give_output_to_agent(recipe_to_use, actor);
 
-    // Apply cooldown with exhaustion multiplier
-    if (recipe_to_use.cooldown > 0) {
-      unsigned int adjusted_cooldown = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
-      cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
-    }
+    unsigned int adjusted_cooldown = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
+    cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
 
     // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
     if (is_clipped) {
@@ -305,9 +302,6 @@ public:
         cooldown_multiplier *= (1.0f + exhaustion);
       }
     }
-
-    cooldown_duration = recipe_to_use.cooldown;
-    cooldown_end_timestep = *current_timestep_ptr + recipe_to_use.cooldown;
     return true;
   }
 
