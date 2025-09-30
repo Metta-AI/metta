@@ -2,12 +2,16 @@ from pathlib import Path
 
 from cogames.cogs_vs_clips.stations import (
     assembler,
+    carbon_ex_dep,
     carbon_extractor,
     charger,
     chest,
+    germanium_ex_dep,
     germanium_extractor,
+    oxygen_ex_dep,
     oxygen_extractor,
     resources,
+    silicon_ex_dep,
     silicon_extractor,
 )
 from mettagrid.config.mettagrid_config import (
@@ -43,6 +47,11 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                 "oxygen_extractor": oxygen_extractor(),
                 "germanium_extractor": germanium_extractor(),
                 "silicon_extractor": silicon_extractor(),
+                # depleted variants
+                "silicon_ex_dep": silicon_ex_dep(),
+                "oxygen_ex_dep": oxygen_ex_dep(),
+                "carbon_ex_dep": carbon_ex_dep(),
+                "germanium_ex_dep": germanium_ex_dep(),
                 "chest": chest(),
                 "assembler": assembler(),
             },
