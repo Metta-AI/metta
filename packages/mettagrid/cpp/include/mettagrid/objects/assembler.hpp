@@ -271,7 +271,7 @@ public:
     }
 
     const Recipe* original_recipe = get_current_recipe();
-    if (!original_recipe || (original_recipe->input_resources.empty() && original_recipe->output_resources.empty())) {
+    if (!original_recipe) {
       return false;
     }
 
