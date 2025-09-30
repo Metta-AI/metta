@@ -179,14 +179,19 @@ class AsyncCappedOptimizingScheduler:
         # Update state
         self._update_state_from_runs(runs)
 
-        # Eval scheduling: only one at a time (or max_concurrent_evals)
+        # Eval scheduling: honor max_concurrent_evals
         eval_capacity = max(0, self.config.max_concurrent_evals - len(self.state.runs_in_eval))
-        if eval_capacity > 0:
-            # Find next candidate needing evaluation
-            eval_candidate = next((r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL), None)
-            if eval_candidate is not None:
+        # First, schedule any forced re-evaluations
+        if eval_capacity > 0 and self.state.runs_pending_force_eval:
+            for run_id in list(self.state.runs_pending_force_eval):
+                if eval_capacity <= 0:
+                    break
+                run = next((r for r in runs if r.run_id == run_id), None)
+                if run is None:
+                    self.state.runs_pending_force_eval.discard(run_id)
+                    continue
                 job = create_eval_job(
-                    run_id=eval_candidate.run_id,
+                    run_id=run_id,
                     experiment_id=self.config.experiment_id,
                     recipe_module=self.config.recipe_module,
                     eval_entrypoint=self.config.eval_entrypoint,
@@ -194,12 +199,35 @@ class AsyncCappedOptimizingScheduler:
                     eval_overrides=self.config.eval_overrides,
                 )
                 jobs.append(job)
-                # State transition: mark as in eval
-                self.state.runs_in_training.discard(eval_candidate.run_id)
-                self.state.runs_in_eval.add(eval_candidate.run_id)
-                logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", eval_candidate.run_id)
+                self.state.runs_in_eval.add(run_id)
+                self.state.runs_pending_force_eval.discard(run_id)
+                eval_capacity -= 1
+                logger.info("[AsyncCappedOptimizingScheduler] Scheduling forced re-evaluation for %s", run_id)
+        # Then, schedule normal eval candidates up to remaining capacity
+        if eval_capacity > 0:
+            eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
+            for candidate in eval_candidates:
+                if eval_capacity <= 0:
+                    break
+                job = create_eval_job(
+                    run_id=candidate.run_id,
+                    experiment_id=self.config.experiment_id,
+                    recipe_module=self.config.recipe_module,
+                    eval_entrypoint=self.config.eval_entrypoint,
+                    stats_server_uri=self.config.stats_server_uri,
+                    eval_overrides=self.config.eval_overrides,
+                )
+                jobs.append(job)
+                self.state.runs_in_training.discard(candidate.run_id)
+                self.state.runs_in_eval.add(candidate.run_id)
+                eval_capacity -= 1
+                logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", candidate.run_id)
 
-        # Training scheduling: fill as slots free up
+        # If any runs still need evaluation, do not schedule new training
+        if any(r.status == JobStatus.TRAINING_DONE_NO_EVAL for r in runs):
+            return jobs
+
+        # Training scheduling: fill as slots free up (only when no eval backlog)
         total_created = len(runs)
         if total_created >= self.config.max_trials:
             logger.info(
@@ -353,4 +381,3 @@ class AsyncCappedOptimizingScheduler:
             fantasies.append({"score": liar_score, "cost": liar_cost, "suggestion": dict(suggestion)})
 
         return fantasies
-
