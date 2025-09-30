@@ -63,12 +63,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
-    // IMPORTANT: arg parameter is completely ignored for resource_mod action.
-    // This is an AoE (Area of Effect) action centered on the actor's position.
-    // The arg value has no effect on targeting or behavior.
-    (void)arg;  // Suppress unused parameter warning
-
+  bool _handle_action(Agent* actor, ActionArg /* arg */) override {
     // Center AoE on actor's position
     int center_row = static_cast<int>(actor->location.r);
     int center_col = static_cast<int>(actor->location.c);

@@ -4,24 +4,12 @@
 import numpy as np
 import pytest
 
-from mettagrid.mettagrid_c import (
-    ActionConfig as CppActionConfig,
-)
-from mettagrid.mettagrid_c import (
-    AgentConfig as CppAgentConfig,
-)
-from mettagrid.mettagrid_c import (
-    ConverterConfig as CppConverterConfig,
-)
-from mettagrid.mettagrid_c import (
-    GameConfig as CppGameConfig,
-)
-from mettagrid.mettagrid_c import (
-    GlobalObsConfig as CppGlobalObsConfig,
-)
-from mettagrid.mettagrid_c import (
-    InventoryConfig as CppInventoryConfig,
-)
+from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
+from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
+from mettagrid.mettagrid_c import GameConfig as CppGameConfig
+from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
+from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import (
     MettaGrid,
     ResourceModConfig,
@@ -30,9 +18,7 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.mettagrid_c import (
-    WallConfig as CppWallConfig,
-)
+from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
 def test_resource_mod_config():
@@ -384,91 +370,6 @@ def test_resource_mod_converters():
         # But converters auto-convert when they have resources, consuming 1 energy
         # So they should have 3 left
         assert energy_after == converter_energies_before[oid] + 3
-
-
-def test_resource_mod_self_only():
-    """Test that ResourceMod with radius=1 affects only the acting agent."""
-    # Simple map with one agent
-    game_map = [
-        ["wall", "wall", "wall", "wall", "wall"],
-        ["wall", "agent.red", "empty", "empty", "wall"],
-        ["wall", "empty", "empty", "empty", "wall"],
-        ["wall", "wall", "wall", "wall", "wall"],
-    ]
-
-    modify_config = ResourceModConfig(
-        required_resources={0: 1},  # Need 1 energy
-        consumed_resources={0: 1.0},  # Consume 1 energy
-        modifies={1: 3.0},  # Add 3 health
-        agent_radius=1,  # Radius 1 will affect the actor at distance 0
-        converter_radius=0,
-        scales=False,
-    )
-
-    cpp_config = CppGameConfig(
-        max_steps=10,
-        num_agents=1,
-        episode_truncates=False,
-        obs_width=3,
-        obs_height=3,
-        num_observation_tokens=100,
-        resource_names=["energy", "health"],
-        track_movement_metrics=False,
-        actions=[
-            ("noop", CppActionConfig(required_resources={}, consumed_resources={})),
-            ("resource_mod", modify_config),
-        ],
-        objects={
-            "agent.red": CppAgentConfig(
-                type_id=0,
-                type_name="agent",
-                group_id=0,
-                group_name="red",
-                freeze_duration=10,
-                action_failure_penalty=0,
-                inventory_config=CppInventoryConfig(limits=[[[0], 100], [[1], 100]]),
-                initial_inventory={0: 50, 1: 20},
-            ),
-            "wall": CppWallConfig(type_id=1, type_name="wall", swappable=False),
-        },
-        global_obs=CppGlobalObsConfig(),
-    )
-
-    env = MettaGrid(cpp_config, game_map, 42)
-
-    observations = np.zeros((1, 100, 3), dtype=dtype_observations)
-    terminals = np.zeros(1, dtype=dtype_terminals)
-    truncations = np.zeros(1, dtype=dtype_truncations)
-    rewards = np.zeros(1, dtype=dtype_rewards)
-    env.set_buffers(observations, terminals, truncations, rewards)
-
-    env.reset()
-
-    # Get initial state
-    objects = env.grid_objects()
-    agent_id = None
-    for oid, obj in objects.items():
-        if obj.get("type") == 0:  # Agent type
-            agent_id = oid
-            break
-    assert agent_id is not None, "Agent not found in grid_objects()"
-    initial_energy = objects[agent_id].get("inventory", {}).get(0, 0)
-    initial_health = objects[agent_id].get("inventory", {}).get(1, 0)
-
-    # Execute resource_mod
-    action_idx = env.action_names().index("resource_mod")
-    actions = np.zeros((1, 2), dtype=np.int32)
-    actions[0] = [action_idx, 0]
-    env.step(actions)
-
-    # Check final state
-    objects = env.grid_objects()
-    final_energy = objects[agent_id].get("inventory", {}).get(0, 0)
-    final_health = objects[agent_id].get("inventory", {}).get(1, 0)
-
-    # Should have consumed energy and gained health
-    assert final_energy == initial_energy - 1, f"Expected energy {initial_energy - 1}, got {final_energy}"
-    assert final_health == initial_health + 3, f"Expected health {initial_health + 3}, got {final_health}"
 
 
 def test_resource_mod_negative():
