@@ -133,16 +133,8 @@ class TrainTool(Tool):
                 self.trainer.optimizer.min_learning_rate = self.trainer.optimizer.learning_rate * 0.05
 
             sched_cfg = self.trainer.hyperparameter_scheduler
-            if not sched_cfg.enabled:
-                sched_cfg.enabled = True
-            if sched_cfg.schedule_type == "exponential":
-                sched_cfg.schedule_type = "cosine"
-            if sched_cfg.learning_rate_decay == 1.0:
-                sched_cfg.learning_rate_decay = 1.0
-            if sched_cfg.min_learning_rate == 0.0:
-                sched_cfg.min_learning_rate = self.trainer.optimizer.min_learning_rate
-            if sched_cfg.warmup_steps == 0:
-                sched_cfg.warmup_steps = self.trainer.optimizer.warmup_steps
+            if sched_cfg.enabled:
+                sched_cfg.enabled = False
 
             seq_cfg = self.trainer.sequence_curriculum
             if not seq_cfg.enabled:
