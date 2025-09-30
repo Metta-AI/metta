@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import numpy.typing as npt
 from gymnasium import spaces
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
@@ -37,6 +38,17 @@ if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
 
 logger = logging.getLogger("MettaGridCore")
+
+
+# MettaGrid Type Definitions
+# Observations are token-based: shape (num_tokens, 3) where each token is [PackedCoordinate, key, value]
+# - PackedCoordinate: uint8 packed (x, y) coordinate
+# - key: uint8 feature key
+# - value: uint8 feature value
+MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
+
+# Actions are MultiDiscrete: shape (num_action_dims,) where each dimension is an action choice
+MettaGridAction = npt.NDArray[np.int32]  # Shape: (num_action_dims,)
 
 
 @dataclass
@@ -139,6 +151,9 @@ class MettaGridCore:
         c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
         self._update_core_buffers()
 
+        # Validate that C++ environment conforms to expected types
+        self._validate_c_env_types(c_env)
+
         # Initialize renderer if needed
         if (
             self._render_mode is not None
@@ -153,6 +168,20 @@ class MettaGridCore:
 
         self.__c_env_instance = c_env
         return c_env
+
+    def _validate_c_env_types(self, c_env: MettaGridCpp) -> None:
+        """Validate that the C++ environment conforms to expected MettaGrid types."""
+        from mettagrid.types import validate_action_space, validate_observation_space
+
+        try:
+            validate_observation_space(c_env.observation_space)
+        except TypeError as e:
+            raise TypeError(f"C++ environment observation space does not conform to MettaGrid types: {e}") from e
+
+        try:
+            validate_action_space(c_env.action_space)
+        except TypeError as e:
+            raise TypeError(f"C++ environment action space does not conform to MettaGrid types: {e}") from e
 
     def _update_core_buffers(self) -> None:
         if hasattr(self, "observations") and self.observations is not None:
