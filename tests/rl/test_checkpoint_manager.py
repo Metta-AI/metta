@@ -102,7 +102,7 @@ class TestBasicSaveLoad:
             (10, {"agent_step": 10000, "total_time": 300, "score": 0.9}),
         ]
 
-        for epoch, metadata in epochs_data:
+        for epoch, _metadata in epochs_data:
             checkpoint_manager.save_agent(mock_agent, epoch=epoch)
 
         # Test loading latest (should be epoch 10)

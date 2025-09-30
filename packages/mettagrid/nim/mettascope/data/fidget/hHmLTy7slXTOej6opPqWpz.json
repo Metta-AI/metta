@@ -42855,13 +42855,13 @@
                     "strokeGeometry": [],
                     "absoluteBoundingBox": {
                       "x": 1872.0,
-                      "y": 17.0,
+                      "y": 12.0,
                       "width": 652.0,
                       "height": 31.0
                     },
                     "absoluteRenderBounds": {
                       "x": 1874.2320556640625,
-                      "y": 24.959999084472656,
+                      "y": 19.959999084472656,
                       "width": 159.3411865234375,
                       "height": 21.84000015258789
                     },
@@ -42878,7 +42878,7 @@
                       [
                         0.0,
                         1.0,
-                        17.0
+                        12.0
                       ]
                     ],
                     "size": {
@@ -90887,9 +90887,9 @@
   "schemaVersion": 0,
   "styles": {},
   "name": "MetaScope V2 Rig",
-  "lastModified": "2025-09-26T20:39:58Z",
-  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/fe225861-5a05-4875-8a1c-00a877b6b963?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWCVSWHJJFD%2F20250925%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20250925T000000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=b7a846c7012d436228a6f793e8009a42cce9deb61075231f7a82d6b8ee1649dd",
-  "version": "2268196907936193043",
+  "lastModified": "2025-09-30T18:28:16Z",
+  "thumbnailUrl": "https://s3-alpha.figma.com/thumbnails/303e5599-e800-4abc-afe4-60bfd0122fa3?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAQ4GOSFWC6UK6QLJ2%2F20250928%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20250928T120000Z&X-Amz-Expires=604800&X-Amz-SignedHeaders=host&X-Amz-Signature=ec25daad8d0ce0732ae278ea0c2bdeb43bcf43061a0825e36d1f29b549f4e12d",
+  "version": "2269650269010694876",
   "role": "owner",
   "editorType": "figma",
   "linkAccess": "inherit"

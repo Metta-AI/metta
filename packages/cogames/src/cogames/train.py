@@ -50,7 +50,7 @@ def train(
     batch_size: int,
     minibatch_size: int,
     num_envs: int = 1,
-    num_workers: int = 1,
+    num_workers: Optional[int] = None,
     use_rnn: bool = False,
     checkpoint_interval: int = 200,
     vector_backend: str = "multiprocessing",
@@ -105,10 +105,41 @@ def train(
         set_buffers(env, buf)
         return env
 
+    effective_num_workers = num_workers
+    if effective_num_workers is None:
+        desired_workers = 8
+        cpu_cores = None
+        try:
+            import psutil
+
+            cpu_cores = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True)
+        except Exception:  # pragma: no cover - best effort fallback
+            cpu_cores = None
+
+        if cpu_cores is not None:
+            adjusted_workers = min(desired_workers, max(1, cpu_cores))
+            if adjusted_workers < desired_workers:
+                logger.info(
+                    "Reducing num_workers from %s to %s to match available CPU cores",
+                    desired_workers,
+                    adjusted_workers,
+                )
+            effective_num_workers = adjusted_workers
+        else:
+            effective_num_workers = desired_workers
+
+    if backend is pufferlib.vector.Multiprocessing and device.type != "cuda":
+        backend = pufferlib.vector.Serial
+        effective_num_workers = 1
+
+    if effective_num_workers is None:
+        effective_num_workers = 1
+
+    effective_num_workers = max(1, min(effective_num_workers, num_envs))
     vecenv = pufferlib.vector.make(
         env_creator,
         num_envs=num_envs,
-        num_workers=num_workers,
+        num_workers=effective_num_workers,
         batch_size=num_envs,
         backend=backend,
     )
