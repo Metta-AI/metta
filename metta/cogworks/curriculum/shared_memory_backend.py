@@ -102,10 +102,9 @@ class SharedTaskMemory:
             (self.COMPLETION_HISTORY_SIZE,), dtype=np.float64, buffer=self._completion_history_shm.buf
         )
 
-        # Use threading.Lock for synchronization
-        # This works correctly with fork()-based multiprocessing since child processes
-        # inherit the parent's lock object. For spawn/forkserver, would need semaphore.
-        from threading import RLock
+        # Use multiprocessing RLock for synchronization
+        # This works with both fork and spawn multiprocessing contexts
+        from multiprocessing import RLock
 
         self._lock = RLock()
 
