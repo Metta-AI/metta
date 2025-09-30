@@ -6,13 +6,12 @@ using fast and slow exponential moving averages to detect learning opportunities
 """
 
 import random
-from multiprocessing import Lock
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
-from .task_tracker import TaskTracker
+from .task_tracker import CentralizedTaskTracker, LocalTaskTracker, TaskTracker
 
 # Constants for bidirectional learning progress
 DEFAULT_SUCCESS_RATE = 0.0
@@ -42,6 +41,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     max_slice_axes: int = 3  # Updated terminology
     enable_detailed_slice_logging: bool = False  # Updated terminology
     use_shared_memory: bool = True  # Enabled by default for production use
+    session_id: Optional[str] = None  # Session ID for shared memory, None = auto-generate unique
 
     def algorithm_type(self) -> str:
         return "learning_progress"
@@ -65,15 +65,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
 
-        # Initialize task tracker with configurable shared memory support
-        self.task_tracker = TaskTracker(
-            max_memory_tasks=hypers.max_memory_tasks, use_shared_memory=hypers.use_shared_memory
-        )
+        # Initialize task tracker with appropriate implementation
+        if hypers.use_shared_memory:
+            self.task_tracker: TaskTracker = CentralizedTaskTracker(
+                max_memory_tasks=hypers.max_memory_tasks,
+                session_id=hypers.session_id,
+            )
+        else:
+            self.task_tracker = LocalTaskTracker(max_memory_tasks=hypers.max_memory_tasks)
 
         # Note: slice_analyzer is already initialized in parent class via StatsLogger
-
-        # Multiprocessing synchronization
-        self._lock = Lock()
 
         # Initialize scoring method (bidirectional by default)
         if hypers.use_bidirectional:
@@ -167,17 +168,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using bidirectional learning progress."""
         scores = {}
-        with self._lock:
-            for task_id in task_ids:
-                scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
+        for task_id in task_ids:
+            scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
         return scores
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
         scores = {}
-        with self._lock:
-            for task_id in task_ids:
-                scores[task_id] = self._get_basic_learning_progress_score(task_id)
+        for task_id in task_ids:
+            scores[task_id] = self._get_basic_learning_progress_score(task_id)
         return scores
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
@@ -292,15 +291,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def on_task_evicted(self, task_id: int) -> None:
         """Clean up when a task is evicted."""
-        with self._lock:
-            # Remove from task tracker
-            self.task_tracker.remove_task(task_id)
+        # Remove from task tracker (handles its own locking)
+        self.task_tracker.remove_task(task_id)
 
-            # Learning progress specific cleanup
-            self._remove_task_from_scoring(task_id)
+        # Learning progress specific cleanup
+        self._remove_task_from_scoring(task_id)
 
-            # Invalidate stats cache when task state changes
-            self.invalidate_cache()
+        # Invalidate stats cache when task state changes
+        self.invalidate_cache()
 
     def _remove_task_from_scoring(self, task_id: int) -> None:
         """Remove task from scoring system."""
@@ -317,29 +315,28 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the appropriate scoring method."""
-        with self._lock:
-            # Update task tracker first to ensure completion count is correct
-            self.task_tracker.update_task_performance(task_id, score)
+        # Update EMA tracking first
+        if self.hypers.use_bidirectional:
+            self._update_bidirectional_ema(task_id, score)
+        else:
+            self._update_basic_ema(task_id, score)
 
-            # Update scoring method (this invalidates cache)
-            if self.hypers.use_bidirectional:
-                self._update_bidirectional_ema(task_id, score)
-                # Clear cache to ensure fresh calculation
-                self._cache_valid_tasks.discard(task_id)
-                self._score_cache.pop(task_id, None)
-                lp_score = self._get_bidirectional_learning_progress_score(task_id)
-            else:
-                self._update_basic_ema(task_id, score)
-                # Clear cache to ensure fresh calculation
-                self._cache_valid_tasks.discard(task_id)
-                self._score_cache.pop(task_id, None)
-                lp_score = self._get_basic_learning_progress_score(task_id)
+        # Clear cache to ensure fresh calculation
+        self._cache_valid_tasks.discard(task_id)
+        self._score_cache.pop(task_id, None)
 
-            # Update task tracker with the calculated LP score
-            self.task_tracker.update_lp_score(task_id, lp_score)
+        # Calculate LP score based on updated EMAs
+        if self.hypers.use_bidirectional:
+            lp_score = self._get_bidirectional_learning_progress_score(task_id)
+        else:
+            lp_score = self._get_basic_learning_progress_score(task_id)
 
-            # Invalidate stats cache
-            self.invalidate_cache()
+        # Single atomic update to task tracker with both score and LP score
+        # This ensures consistency and avoids multiple writes to shared memory
+        self.task_tracker.update_task_performance(task_id, score, lp_score=lp_score)
+
+        # Invalidate stats cache
+        self.invalidate_cache()
 
     def _choose_task_from_list(self, task_ids: List[int]) -> int:
         """Choose a task from the provided list based on scores."""
@@ -760,7 +757,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return
 
         try:
-            if hasattr(self.task_tracker, "cleanup_shared_memory"):
+            # CentralizedTaskTracker has cleanup_shared_memory method
+            if isinstance(self.task_tracker, CentralizedTaskTracker):
                 self.task_tracker.cleanup_shared_memory()
         except Exception as e:
             # Log but don't raise - cleanup should be best-effort

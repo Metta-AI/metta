@@ -14,7 +14,6 @@ import pytest
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import SingleTaskGenerator
-from metta.cogworks.curriculum.task_tracker import TaskTracker
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from mettagrid.config import GameConfig, MettaGridConfig
@@ -188,7 +187,9 @@ class TestCurriculumStateSerialization:
 
     def test_task_tracker_state(self):
         """Test TaskTracker state serialization."""
-        tracker = TaskTracker(max_memory_tasks=100, use_shared_memory=False)
+        from metta.cogworks.curriculum.task_tracker import LocalTaskTracker
+
+        tracker = LocalTaskTracker(max_memory_tasks=100)
 
         # Add some tasks and performance data
         for i in range(10):
@@ -209,7 +210,7 @@ class TestCurriculumStateSerialization:
         assert "cache_valid" in state
 
         # Test loading state
-        new_tracker = TaskTracker(max_memory_tasks=50, use_shared_memory=False)
+        new_tracker = LocalTaskTracker(max_memory_tasks=50)
         new_tracker.load_state(state)
 
         # Verify state was loaded correctly

@@ -454,25 +454,19 @@ class Curriculum(StatsLogger):
         if state["config"] != self._config.model_dump():
             logger.warning("Curriculum config mismatch during restore")
 
-        # Restore counters FIRST (before clearing tasks)
+        # Restore counters first
         self._num_created = state["num_created"]
         self._num_evicted = state["num_evicted"]
 
-        # Restore random state BEFORE any operations that use RNG
+        # Restore random state before any RNG operations
         self._rng.setstate(state["seed"])
 
-        # Notify algorithm of task evictions before clearing
-        # This ensures algorithm state is properly synchronized
-        if self._algorithm is not None:
-            for task_id in list(self._tasks.keys()):
-                self._algorithm.on_task_evicted(task_id)
-
-        # Clear existing tasks
+        # Clear existing tasks (no need to notify algorithm - we're doing full restore)
         self._tasks.clear()
         self._task_ids.clear()
 
         # Restore algorithm state BEFORE recreating tasks
-        # This ensures the algorithm starts from the correct checkpoint state
+        # Algorithm's load_state will handle clearing and restoring its internal state atomically
         if self._algorithm is not None and "algorithm_state" in state:
             self._algorithm.load_state(state["algorithm_state"])
 
@@ -490,10 +484,10 @@ class Curriculum(StatsLogger):
             self._tasks[task_id] = task
             self._task_ids.add(task_id)
 
-            # NOTE: We don't call on_task_created() here because:
-            # 1. Algorithm state (including task_tracker) is already restored above
-            # 2. Calling it would re-initialize tracking with default values
-            # 3. slice_analyzer state is not checkpointed, so it will rebuild naturally
+        # NOTE: We don't call on_task_created() here because:
+        # 1. Algorithm state (including task_tracker) is already restored above via load_state()
+        # 2. Calling it would re-initialize tracking with default values
+        # 3. slice_analyzer state is not checkpointed, so it will rebuild naturally
 
 
 # Import concrete config classes at the end to avoid circular imports

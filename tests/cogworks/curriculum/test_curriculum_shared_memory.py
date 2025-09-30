@@ -7,7 +7,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 
 
 def child_process_reader(
-    unique_task_id: int, expected_score: float, result_queue: multiprocessing.Queue, pid: int
+    unique_task_id: int, expected_score: float, result_queue: multiprocessing.Queue, session_id: str
 ) -> None:
     """Child process that reads from shared memory and verifies the value.
 
@@ -15,27 +15,18 @@ def child_process_reader(
         unique_task_id: The task ID to look up in shared memory
         expected_score: The expected score value to verify
         result_queue: Queue to return the verification result
-        pid: Parent process ID for shared memory naming
+        session_id: Shared memory session ID to connect to
     """
     try:
         # Create algorithm in child process - it should connect to existing shared memory
         config = LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=100,
-            use_shared_memory=True,  # Enable shared memory
+            use_shared_memory=True,
+            session_id=session_id,  # Use same session ID as parent
         )
 
-        # Override the PID in the child to match parent for shared memory name
-        import os
-
-        # Monkey patch os.getpid() for TaskTracker initialization
-        original_getpid = os.getpid
-        os.getpid = lambda: pid
-
-        try:
-            algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
-        finally:
-            os.getpid = original_getpid
+        algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
 
         # Wait briefly to ensure parent has written the data
         time.sleep(0.1)
@@ -71,7 +62,9 @@ def child_process_reader(
             )
 
     except Exception as e:
-        result_queue.put({"success": False, "error": f"Child process error: {str(e)}"})
+        import traceback
+
+        result_queue.put({"success": False, "error": f"Child process error: {str(e)}\n{traceback.format_exc()}"})
 
 
 class TestSharedMemoryIntegration:
@@ -86,16 +79,18 @@ class TestSharedMemoryIntegration:
         unique_task_id = 123456
         unique_score = 0.7890123
 
-        # Get parent PID for shared memory naming
-        import os
+        # Create unique session ID for this test with timestamp
+        import time
+        import uuid
 
-        parent_pid = os.getpid()
+        session_id = f"t{int(time.time() * 1000) % 100000}_{uuid.uuid4().hex[:4]}"
 
         # Create algorithm with shared memory enabled in parent process
         config = LearningProgressConfig(
             ema_timescale=0.001,
             max_memory_tasks=100,
-            use_shared_memory=True,  # Enable shared memory
+            use_shared_memory=True,
+            session_id=session_id,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
 
@@ -116,7 +111,7 @@ class TestSharedMemoryIntegration:
         # Spawn child process to read from shared memory
         child_process = ctx.Process(
             target=child_process_reader,
-            args=(unique_task_id, unique_score, result_queue, parent_pid),
+            args=(unique_task_id, unique_score, result_queue, session_id),
         )
         child_process.start()
         child_process.join(timeout=5.0)  # Wait max 5 seconds
@@ -143,9 +138,11 @@ class TestSharedMemoryIntegration:
         # Use fork method for multiprocessing to enable proper shared memory access
         ctx = multiprocessing.get_context("fork")
 
-        import os
+        # Create unique session ID with timestamp
+        import time
+        import uuid
 
-        parent_pid = os.getpid()
+        session_id = f"t{int(time.time() * 1000) % 100000}_{uuid.uuid4().hex[:4]}"
 
         # Create multiple unique task IDs and scores
         task_data = [
@@ -160,6 +157,7 @@ class TestSharedMemoryIntegration:
             ema_timescale=0.001,
             max_memory_tasks=100,
             use_shared_memory=True,
+            session_id=session_id,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
 
@@ -181,7 +179,7 @@ class TestSharedMemoryIntegration:
         for task_id, score in task_data:
             p = ctx.Process(
                 target=child_process_reader,
-                args=(task_id, score, result_queue, parent_pid),
+                args=(task_id, score, result_queue, session_id),
             )
             p.start()
             processes.append(p)
@@ -210,9 +208,12 @@ class TestSharedMemoryIntegration:
         # Use fork method for multiprocessing to enable proper shared memory access
         ctx = multiprocessing.get_context("fork")
 
-        import os
+        # Create unique session ID with timestamp
+        import time
+        import uuid
 
-        parent_pid = os.getpid()
+        session_id = f"t{int(time.time() * 1000) % 100000}_{uuid.uuid4().hex[:4]}"
+
         task_id = 555555
         initial_score = 0.5
         updated_score = 0.9
@@ -222,6 +223,7 @@ class TestSharedMemoryIntegration:
             ema_timescale=0.001,
             max_memory_tasks=100,
             use_shared_memory=True,
+            session_id=session_id,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
 
@@ -245,7 +247,7 @@ class TestSharedMemoryIntegration:
         result_queue = ctx.Queue()
         child_process = ctx.Process(
             target=child_process_reader,
-            args=(task_id, updated_score, result_queue, parent_pid),
+            args=(task_id, updated_score, result_queue, session_id),
         )
         child_process.start()
         child_process.join(timeout=5.0)
