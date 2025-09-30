@@ -27,14 +27,25 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
     ema_timescale: float = 0.001
+    slow_timescale_factor: float = 0.2  # Multiplier for slow EMA timescale (slow = ema_timescale * this)
     exploration_bonus: float = 0.1
     progress_smoothing: float = 0.05  # For bidirectional reweighting
+    performance_bonus_weight: float = 0.0  # Weight for performance bonus in LP calculation
 
     # Task distribution and sampling
     num_active_tasks: int = 16
     rand_task_rate: float = 0.25
     sample_threshold: int = 10
     memory: int = 25
+    eviction_threshold_percentile: float = 0.4  # Bottom percentile for task eviction
+
+    # Basic EMA mode parameters (when use_bidirectional=False)
+    basic_ema_initial_alpha: float = 0.3  # Initial learning rate for basic EMA
+    basic_ema_alpha_decay: float = 0.2  # Decay factor for basic EMA alpha
+    exploration_blend_factor: float = 0.5  # Blend factor for exploration in basic mode
+
+    # Task tracker EMA configuration
+    task_tracker_ema_alpha: float = 0.1  # Learning rate for task tracker EMAs (reward, success rate)
 
     # Performance and memory management
     max_memory_tasks: int = 1000
@@ -70,9 +81,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self.task_tracker: TaskTracker = CentralizedTaskTracker(
                 max_memory_tasks=hypers.max_memory_tasks,
                 session_id=hypers.session_id,
+                ema_alpha=hypers.task_tracker_ema_alpha,
             )
         else:
-            self.task_tracker = LocalTaskTracker(max_memory_tasks=hypers.max_memory_tasks)
+            self.task_tracker = LocalTaskTracker(
+                max_memory_tasks=hypers.max_memory_tasks,
+                ema_alpha=hypers.task_tracker_ema_alpha,
+            )
 
         # Note: slice_analyzer is already initialized in parent class via StatsLogger
 
@@ -243,7 +258,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 exploration_weight = (10 - num_samples) / 10
                 exploration_bonus = self.hypers.exploration_bonus * exploration_weight
                 # Blend variance-based score with exploration bonus, favoring variance as we get more data
-                learning_progress = learning_progress * (1 - exploration_weight * 0.5) + exploration_bonus
+                learning_progress = (
+                    learning_progress * (1 - exploration_weight * self.hypers.exploration_blend_factor)
+                    + exploration_bonus
+                )
 
             score = learning_progress
 
@@ -281,10 +299,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         scores = self.score_tasks(all_task_ids)
         task_score = scores.get(task_id, 0.0)
 
-        # Evict if this task is in the bottom 40% of learning progress scores
+        # Evict if this task is in the bottom N% of learning progress scores
         # This ensures eviction happens more readily with small task pools
         sorted_scores = sorted(scores.values())
-        threshold_index = max(0, int(len(sorted_scores) * 0.4))
+        threshold_index = max(0, int(len(sorted_scores) * self.hypers.eviction_threshold_percentile))
         threshold_score = sorted_scores[threshold_index] if sorted_scores else 0.0
 
         return task_score <= threshold_score
@@ -414,7 +432,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # Use higher learning rate initially, then decay to configured timescale
             if num_samples < 10:
                 # Start with higher learning rate for better sensitivity
-                base_alpha = 0.3 / (1 + num_samples * 0.2)  # Starts at ~0.3, decays to ~0.05
+                base_alpha = self.hypers.basic_ema_initial_alpha / (1 + num_samples * self.hypers.basic_ema_alpha_decay)
             else:
                 # Use configured timescale for larger samples
                 base_alpha = self.hypers.ema_timescale * num_samples
@@ -607,7 +625,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                     + self._p_fast[self._update_mask] * (1.0 - self.hypers.ema_timescale)
                 )
                 # Slow EMA uses a much slower timescale for better differentiation
-                slow_timescale = self.hypers.ema_timescale * 0.2
+                slow_timescale = self.hypers.ema_timescale * self.hypers.slow_timescale_factor
                 self._p_slow[self._update_mask] = normalized_task_success_rates * slow_timescale + self._p_slow[
                     self._update_mask
                 ] * (1.0 - slow_timescale)
@@ -632,7 +650,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Add a small amount based on fast EMA to slightly favor above-baseline tasks
         # but still prioritize change/variance
-        performance_bonus = np.maximum(fast, 0) * 0.1
+        performance_bonus = np.maximum(fast, 0) * self.hypers.performance_bonus_weight
 
         return lp + performance_bonus
 

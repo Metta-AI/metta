@@ -14,9 +14,9 @@ from typing import Any, Dict, List, Optional, Tuple
 class TaskTracker(ABC):
     """Abstract base class for task tracking."""
 
-    def __init__(self, max_memory_tasks: int = 1000):
+    def __init__(self, max_memory_tasks: int = 1000, ema_alpha: float = 0.1):
         self.max_memory_tasks = max_memory_tasks
-        self.ema_alpha = 0.1  # Learning rate for EMA updates
+        self.ema_alpha = ema_alpha  # Learning rate for EMA updates
 
     @abstractmethod
     def track_task_creation(
@@ -71,8 +71,8 @@ class TaskTracker(ABC):
 class LocalTaskTracker(TaskTracker):
     """In-memory task tracker for single-process use."""
 
-    def __init__(self, max_memory_tasks: int = 1000):
-        super().__init__(max_memory_tasks)
+    def __init__(self, max_memory_tasks: int = 1000, ema_alpha: float = 0.1):
+        super().__init__(max_memory_tasks, ema_alpha)
 
         # Task memory: task_id -> (creation_time, completion_count, reward_ema, lp_score,
         #                          success_rate_ema, total_score, last_score, success_threshold,
@@ -382,8 +382,8 @@ class CentralizedTaskTracker(TaskTracker):
     Uses SharedTaskMemory backend for cross-process communication.
     """
 
-    def __init__(self, max_memory_tasks: int = 1000, session_id: Optional[str] = None):
-        super().__init__(max_memory_tasks)
+    def __init__(self, max_memory_tasks: int = 1000, session_id: Optional[str] = None, ema_alpha: float = 0.1):
+        super().__init__(max_memory_tasks, ema_alpha)
 
         from metta.cogworks.curriculum.shared_memory_backend import SharedTaskMemory
 

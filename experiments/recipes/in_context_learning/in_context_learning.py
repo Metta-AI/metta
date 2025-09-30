@@ -373,25 +373,56 @@ class ICLTaskGenerator(TaskGenerator):
 
 
 class LPParams:
+    """Learning Progress configuration parameters for in-context learning recipes."""
+
     def __init__(
         self,
+        # Core bidirectional LP parameters
+        use_bidirectional: bool = True,
         ema_timescale: float = 0.001,
+        slow_timescale_factor: float = 0.2,
         exploration_bonus: float = 0.15,
-        max_memory_tasks: int = 1000,
-        max_slice_axes: int = 3,
         progress_smoothing: float = 0.15,
-        enable_detailed_slice_logging: bool = False,
+        performance_bonus_weight: float = 0.0,
+        # Task management
         num_active_tasks: int = 1000,
         rand_task_rate: float = 0.25,
+        sample_threshold: int = 10,
+        memory: int = 25,
+        eviction_threshold_percentile: float = 0.4,
+        # Basic EMA mode (when use_bidirectional=False)
+        basic_ema_initial_alpha: float = 0.3,
+        basic_ema_alpha_decay: float = 0.2,
+        exploration_blend_factor: float = 0.5,
+        # Task tracker EMA
+        task_tracker_ema_alpha: float = 0.1,
+        # Memory and logging
+        max_memory_tasks: int = 1000,
+        max_slice_axes: int = 3,
+        enable_detailed_slice_logging: bool = False,
+        use_shared_memory: bool = True,
+        session_id: str | None = None,
     ):
+        self.use_bidirectional = use_bidirectional
         self.ema_timescale = ema_timescale
+        self.slow_timescale_factor = slow_timescale_factor
         self.exploration_bonus = exploration_bonus
-        self.max_memory_tasks = max_memory_tasks
-        self.max_slice_axes = max_slice_axes
         self.progress_smoothing = progress_smoothing
-        self.enable_detailed_slice_logging = enable_detailed_slice_logging
+        self.performance_bonus_weight = performance_bonus_weight
         self.num_active_tasks = num_active_tasks
         self.rand_task_rate = rand_task_rate
+        self.sample_threshold = sample_threshold
+        self.memory = memory
+        self.eviction_threshold_percentile = eviction_threshold_percentile
+        self.basic_ema_initial_alpha = basic_ema_initial_alpha
+        self.basic_ema_alpha_decay = basic_ema_alpha_decay
+        self.exploration_blend_factor = exploration_blend_factor
+        self.task_tracker_ema_alpha = task_tracker_ema_alpha
+        self.max_memory_tasks = max_memory_tasks
+        self.max_slice_axes = max_slice_axes
+        self.enable_detailed_slice_logging = enable_detailed_slice_logging
+        self.use_shared_memory = use_shared_memory
+        self.session_id = session_id
 
 
 def setup_curriculum(task_generator_cfg, lp_params: LPParams) -> CurriculumConfig:
