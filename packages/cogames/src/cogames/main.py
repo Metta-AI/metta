@@ -538,6 +538,9 @@ def train_cmd(
                 gcd = math.gcd(resolved_num_envs, resolved_num_workers)
                 resolved_num_workers = gcd or 1
 
+            env_cfgs = env_cfgs[:resolved_num_envs]
+            env_names = env_names[:resolved_num_envs]
+
         if not env_cfgs:
             if game_name is None and curriculum is None:
                 console.print("[yellow]No game or curriculum specified. Available games:[/yellow]")
