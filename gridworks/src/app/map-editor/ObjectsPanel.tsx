@@ -2,7 +2,38 @@ import clsx from "clsx";
 import { FC, useEffect, useRef } from "react";
 
 import { useDrawer } from "@/components/MapViewer/hooks";
+import { Shortcut, useGlobalShortcuts } from "@/hooks/useGlobalShortcut";
 import { Drawer, objectNames } from "@/lib/draw/Drawer";
+import encoding from "@/lib/encoding.json" assert { type: "json" };
+
+function entityToHotkey(entity: string): string | undefined {
+  if (!(entity in encoding)) {
+    return undefined;
+  }
+  return (encoding as Record<string, string[]>)[entity][0];
+}
+
+function useObjectShortcuts(setSelectedEntity: (entity: string) => void) {
+  useGlobalShortcuts(
+    Object.keys(encoding).map((entity) => {
+      const key = entityToHotkey(entity)!;
+      const shortcut: Shortcut = { key: key[0] };
+      if ((key < "a" || key > "z") && (key < "1" || key > "9") && key !== ".") {
+        shortcut.shiftKey = true;
+      }
+      return [
+        shortcut,
+        () => {
+          setSelectedEntity(entity);
+          const activeElement = document.activeElement;
+          if (activeElement instanceof HTMLElement) {
+            activeElement.blur();
+          }
+        },
+      ];
+    })
+  );
+}
 
 const SelectableButton: FC<{
   children: React.ReactNode;
@@ -10,6 +41,11 @@ const SelectableButton: FC<{
   onClick: () => void;
   title: string;
 }> = ({ children, isSelected, onClick, title }) => {
+  let fullTitle = title;
+  const hotkey = entityToHotkey(title);
+  if (hotkey) {
+    fullTitle = `${title} (hotkey: ${hotkey})`;
+  }
   return (
     <button
       onClick={onClick}
@@ -19,7 +55,7 @@ const SelectableButton: FC<{
           ? "bg-blue-100 ring-2 ring-blue-300"
           : "hover:ring-2 hover:ring-blue-300"
       )}
-      title={title}
+      title={fullTitle}
     >
       {children}
     </button>
@@ -119,6 +155,8 @@ export const ObjectsPanel: FC<{
   setSelectedEntity: (entity: string) => void;
 }> = ({ selectedEntity, setSelectedEntity }) => {
   const drawer = useDrawer();
+
+  useObjectShortcuts(setSelectedEntity);
 
   if (!drawer) {
     return null;
