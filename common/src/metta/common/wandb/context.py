@@ -3,16 +3,11 @@ import os
 import socket
 from typing import Any
 
-import wandb
-import wandb.sdk.wandb_run
-from wandb.errors import CommError
+from wandb.sdk.wandb_run import Run as WandbRun
 
 from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
-
-# Alias type for easier usage (other modules can import this type)
-WandbRun = wandb.sdk.wandb_run.Run
 
 
 class WandbConfig(Config):
@@ -98,6 +93,9 @@ class WandbContext:
 
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
+        import wandb
+        from wandb.errors import CommError
+
         try:
             tags = list(self.wandb_config.tags)
             tags.append("user:" + os.environ.get("METTA_USER", "unknown"))
@@ -170,6 +168,8 @@ class WandbContext:
     @staticmethod
     def cleanup_run(run: WandbRun | None):
         if run:
+            import wandb
+
             try:
                 wandb.finish()
             except Exception as e:

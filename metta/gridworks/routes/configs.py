@@ -1,4 +1,5 @@
 import logging
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException
 
@@ -11,8 +12,10 @@ from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid.config import Config, MettaGridConfig
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
+
+if TYPE_CHECKING:
+    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +31,7 @@ def make_configs_router() -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Config {path} not found")
         return cfg
 
-    def config_to_map_builder(cfg: Config | list[Config]) -> AnyMapBuilderConfig:
+    def config_to_map_builder(cfg: Config | list[Config]) -> "AnyMapBuilderConfig":
         if isinstance(cfg, MettaGridConfig):
             return cfg.game.map_builder
         if isinstance(cfg, SimulationConfig):
@@ -44,7 +47,7 @@ def make_configs_router() -> APIRouter:
             status_code=400, detail=f"Config of type {type(cfg)} can't be converted to a MapBuilderConfig"
         )
 
-    def config_to_map_builder_by_name(cfg: Config | list[Config], name: str) -> AnyMapBuilderConfig:
+    def config_to_map_builder_by_name(cfg: Config | list[Config], name: str) -> "AnyMapBuilderConfig":
         if isinstance(cfg, SimTool):
             return config_to_map_builder_by_name(list(cfg.simulations), name)
 
