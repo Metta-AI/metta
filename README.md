@@ -148,7 +148,8 @@ Clone the repository and run the setup:
 ```bash
 git clone https://github.com/Metta-AI/metta.git
 cd metta
-./install.sh  # Interactive setup - installs uv, configures metta, and installs components
+./install.sh  # Interactive setup - installs uv and other system packages, configures metta, and installs
+              # Can provide --help to see all available options
 ```
 
 After installation, you can use metta commands directly:
@@ -159,52 +160,33 @@ metta install      # Install additional components
 metta configure    # Reconfigure for a different profile
 ```
 
-#### Additional installation options
-
-```
-./install.sh --profile softmax   # For Softmax employees
-./install.sh --profile external  # For external collaborators
-./install.sh --help             # Show all available options
-```
-
 ## Usage
 
 The repository contains command-line tools in the `tools/` directory.
 
-### Run tasks with the runner
+### Quickstart: train, evaluate, play, and replay
 
-`run.py` is a script that kicks off tasks like training, evaluation, and visualization. The runner looks up the task,
-builds its configuration, and runs it. The current available tasks are:
-
-- **experiments.recipes.arena.train**: Train on the arena curriculum
-
-  `./tools/run.py experiments.recipes.arena.train run=my_experiment`
-
-- **experiments.recipes.navigation.train**: Train on the navigation curriculum
-
-  `./tools/run.py experiments.recipes.navigation.train run=my_experiment`
-
-- **experiments.recipes.arena.play**: Play in the browser
-
-  `./tools/run.py experiments.recipes.arena.play`
-
-- **experiments.recipes.arena.replay**: Replay a single episode from a saved policy
-
-  `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
-
-- **experiments.recipes.arena.evaluate**: Evaluate a policy on the arena eval suite
-
-  `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`
-
-### Runner arguments
-
-Use the runner like this:
+`run.py` is a script that kicks off tasks like training, evaluation, and visualization.
 
 ```bash
 ./tools/run.py <task_name> [key=value ...] [--verbose]
 ```
 
-The runner automatically classifies arguments:
+Example tasks:
+
+| Task                        | Command                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
+| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
+| Train (custom policy)       | `./tools/run.py experiments.recipes.arena.train run=my_experiment policy_architecture.class_path=<POLICY PATH>`                |
+| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
+| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
+| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
+| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
+
+#### Task arguments
+
+run.py applies arguments provided through `[key=value ...]`, classifying each:
 
 - **Function arguments**: Arguments that match parameters of your task function
 - **Configuration overrides**: Arguments that match fields in the Tool configuration (supports nested paths with dots)
@@ -229,7 +211,7 @@ Tips:
 - Booleans are lowercase: `true` and `false`.
 - If a value looks numeric but should be a string, wrap it in quotes (for example, `run="001"`).
 
-### Defining your own runner tasks
+#### Defining your own runner tasks
 
 A “task” is just a Python function (or class) that returns a Tool configuration. The runner loads it by name and runs
 its `invoke()` method.
@@ -244,25 +226,30 @@ Minimal example:
 
 ```python
 # experiments/user/my_tasks.py
+from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from mettagrid.config.envs import make_arena
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.train import TrainTool
+from mettagrid.builder.envs import make_arena
 
-def my_train(run: str = "local.me.1") -> TrainTool:
-    trainer = TrainerConfig(
-        evaluation=EvaluationConfig(
-            simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
-        )
+
+def my_train() -> TrainTool:
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(),
+        evaluator=EvaluatorConfig(
+            simulations=[
+                SimulationConfig(
+                    suite="arena", name="arena/basic", env=make_arena(num_agents=6)
+                )
+            ]
+        ),
     )
-    return TrainTool(trainer=trainer, run=run)
 ```
 
 Run your task:
 
 ```bash
-./tools/run.py experiments.user.my_tasks.my_train run=local.me.2 \
-  system.device=cpu wandb.enabled=false
+./tools/run.py experiments.user.my_tasks.my_train run=local.me.1 system.device=cpu wandb.enabled=false
 ```
 
 Notes:
@@ -271,28 +258,6 @@ Notes:
 - The runner automatically determines which arguments go to the function vs configuration overrides
 - Use `--verbose` to see how arguments are being classified
 - If an argument doesn't match either category, you'll get a helpful error message
-
-### Setting up Weights & Biases for Personal Use
-
-To use WandB with your personal account:
-
-1. Get your WandB API key from [wandb.ai](https://wandb.ai) (click your profile → API keys)
-2. Add it to your `~/.netrc` file:
-   ```
-   machine api.wandb.ai
-     login user
-     password YOUR_API_KEY_HERE
-   ```
-3. Edit `configs/wandb/external_user.yaml` and replace `???` with your WandB username:
-   ```yaml
-   entity: ??? # Replace with your WandB username
-   ```
-
-Now you can run training with your personal WandB config:
-
-```
-./tools/run.py experiments.recipes.arena.train run=local.yourname.123 wandb.enabled=true wandb.entity=<your_user>
-```
 
 ## Visualizing a Model
 
@@ -315,47 +280,52 @@ Optional overrides:
   - Local checkpoints: `file://./train_dir/<run>/checkpoints/<run>:v{epoch}.pt`
 - S3 checkpoints: `s3://bucket/path/<run_name>/checkpoints/<run_name>:v5.pt`
 
-### Replay a single episode
+#### Replay a single episode
 
 ```
 ./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
 ```
 
-### Evaluating a Model
+### Viewing evaluation results while training
 
-When you run training, if you have WandB enabled, then you will be able to see in your WandB run page results for the
-eval suites.
+You can always run model evaluation locally with `./tools/run.py path.to.sim.tool`. See the Quickstart table for
+examples.
 
-However, this will not apply for anything trained before April 8th.
+If you have Weights and Biases enabled, you will also be able to see results on evaluation suites on your WandB run page
+when training.
 
-#### Post Hoc Evaluation
+### Setting up Weights & Biases for Personal Use
 
-If you want to run evaluation post-training to compare different policies, you can do the following:
+To use WandB with your personal account:
 
-Evaluate a policy against the arena eval suite:
+1. Get your WandB API key from [wandb.ai](https://wandb.ai) (click your profile → API keys)
+2. Add it to your `~/.netrc` file:
+   ```
+   machine api.wandb.ai
+     login user
+     password YOUR_API_KEY_HERE
+   ```
+
+Now you can run training with your personal WandB config:
 
 ```
-./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
-```
-
-Evaluate on the navigation eval suite (provide the policy URI):
-
-```
-./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt
+./tools/run.py experiments.recipes.arena.train run=local.yourname.123 wandb.enabled=true wandb.entity=<your_user>
 ```
 
 ### Specifying your agent architecture
 
 #### Configuring a MettaAgent
 
-This repo implements a `MettaAgent` policy class. The underlying network is parameterized by config files in
-`configs/agent` (with `configs/agent/fast.yaml` used by default). See `configs/agent/reference_design.yaml` for an
-explanation of the config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture)
-for further documentation.
+This repo implements a `MettaAgent` policy class. By default we now build policies using the ViT-based
+`ViTDefaultConfig` (defined in `metta.agent.policies.vit`). Policy architectures are now expressed as Python configs in
+`metta.agent.policies`, replacing the legacy `configs/agent/*.yaml` files referenced in older docs. See
+[`metta.agent.policies.vit`](agent/src/metta/agent/policies/vit.py) for a concrete example and consult the
+[agent-architecture wiki](https://deepwiki.com/Metta-AI/metta/6-agent-architecture) for conceptual documentation.
 
 To use `MettaAgent` with a non-default architecture config:
 
-- (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
+- (Optional): Implement your own `PolicyArchitecture` subclass (for example by copying `ViTDefaultConfig` into
+  `metta/agent/policies/my_agent.py`).
 - Run with the configuration file of your choice:
   ```bash
   ./tools/run.py experiments.recipes.arena.train policy_architecture.agent_config=my_agent
@@ -381,21 +351,7 @@ Further updates to support bringing your own agent are coming soon.
 To run the style checks and tests locally:
 
 ```bash
-ruff format
-ruff check
+metta lint
+metta pytest
 pyright metta  # optional, some stubs are missing
-pytest
 ```
-
-### CLI cheat sheet
-
-| Task                        | Command                                                                                                                        |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Train (arena)               | `./tools/run.py experiments.recipes.arena.train run=my_experiment`                                                             |
-| Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train run=my_experiment`                                                        |
-| Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                                                |
-| Replay (policy)             | `./tools/run.py experiments.recipes.arena.replay policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
-| Evaluate (arena)            | `./tools/run.py experiments.recipes.arena.evaluate policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`   |
-| Evaluate (navigation suite) | `./tools/run.py experiments.recipes.navigation.eval policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
-
-Running these commands mirrors our CI configuration and helps keep the codebase consistent.

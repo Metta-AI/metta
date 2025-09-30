@@ -10,28 +10,19 @@ from mettagrid.map_builder.random import RandomMapBuilder
 # ===== Python Configuration Models =====
 
 # Left to right, top to bottom.
-Position = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE", "Any"]
-
-
-class StatsRewards(Config):
-    """Agent stats-based reward configuration.
-
-    Maps stat names to reward values. Stats are tracked by the StatsTracker
-    and can include things like 'action.attack.agent', 'inventory.armor.gained', etc.
-    Each entry can have:
-    - stat_name: reward_per_unit
-    - stat_name_max: maximum cumulative reward for this stat
-    """
-
-    model_config = ConfigDict(extra="allow")  # Allow any stat names to be added dynamically
+FixedPosition = Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]
+Position = FixedPosition | Literal["Any"]
 
 
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
+    # inventory rewards get merged into stats rewards in the C++ environment. The advantage of using inventory rewards
+    # is that it's easier for us to assert that these inventory items exist, and thus catch typos.
     inventory: dict[str, float] = Field(default_factory=dict)
-    inventory_max: dict[str, int] = Field(default_factory=dict)
-    stats: StatsRewards = Field(default_factory=StatsRewards)
+    inventory_max: dict[str, float] = Field(default_factory=dict)
+    stats: dict[str, float] = Field(default_factory=dict)
+    stats_max: dict[str, float] = Field(default_factory=dict)
 
 
 class AgentConfig(Config):
@@ -44,6 +35,13 @@ class AgentConfig(Config):
     action_failure_penalty: float = Field(default=0, ge=0)
     initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
+    tags: list[str] = Field(default_factory=list, description="Tags for this agent instance")
+    soul_bound_resources: list[str] = Field(
+        default_factory=list, description="Resources that cannot be stolen during attacks"
+    )
+    shareable_resources: list[str] = Field(
+        default_factory=list, description="Resources that will be shared when we use another agent"
+    )
 
 
 class ActionConfig(Config):
@@ -95,9 +93,6 @@ class GlobalObsConfig(Config):
 
     last_reward: bool = Field(default=True)
 
-    # Controls whether resource rewards are included in observations
-    resource_rewards: bool = Field(default=False)
-
     # Controls whether visitation counts are included in observations
     visitation_counts: bool = Field(default=False)
 
@@ -107,11 +102,13 @@ class WallConfig(Config):
 
     type_id: int
     swappable: bool = Field(default=False)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class ConverterConfig(Config):
     """Python converter configuration."""
 
+    name: str = Field(default="converter")
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int = Field(default=0, ge=0, le=255)
@@ -121,19 +118,38 @@ class ConverterConfig(Config):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class RecipeConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
+    max_use: Optional[int] = Field(ge=0, default=None)
 
 
 class AssemblerConfig(Config):
     """Python assembler configuration."""
 
+    name: str = Field(default="assembler")
     type_id: int = Field(default=0, ge=0, le=255)
     recipes: list[tuple[list[Position], RecipeConfig]] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+    max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
+
+
+class ChestConfig(Config):
+    """Python chest configuration."""
+
+    type_id: int = Field(default=0, ge=0, le=255)
+    resource_type: str = Field(description="Resource type that this chest can store")
+    deposit_positions: list[FixedPosition] = Field(
+        default_factory=list, description="Positions where agents can deposit resources"
+    )
+    withdrawal_positions: list[FixedPosition] = Field(
+        default_factory=list, description="Positions where agents can withdraw resources"
+    )
+    tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
 
 
 class GameConfig(Config):
@@ -167,13 +183,21 @@ class GameConfig(Config):
     agents: list[AgentConfig] = Field(default_factory=list)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    objects: dict[str, ConverterConfig | WallConfig | AssemblerConfig] = Field(default_factory=dict)
+    objects: dict[str, ConverterConfig | WallConfig | AssemblerConfig | ChestConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
     resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
+
+    # Inventory regeneration settings
+    inventory_regen_amounts: dict[str, int] = Field(
+        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+    )
+    inventory_regen_interval: int = Field(
+        default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
+    )
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)

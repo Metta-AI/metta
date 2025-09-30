@@ -2,7 +2,6 @@
 
 import pytest
 
-from metta.sweep.models import Observation
 from metta.sweep.optimizer.protein import ProteinOptimizer
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
 
@@ -29,14 +28,16 @@ def base_protein_config():
 class TestProteinOptimizer:
     """Test cases for ProteinOptimizer class."""
 
-    def test_unsupported_method_error(self):
-        """Test that ProteinOptimizer raises error for unsupported methods."""
-        with pytest.raises(ValueError, match="Unsupported optimization method"):
-            # This should fail since we only allow 'bayes' now
-            config = ProteinConfig(
+    def test_unsupported_method_validation(self):
+        """Test that ProteinConfig only accepts 'bayes' as method."""
+        # Try to create a config with an unsupported method
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            ProteinConfig(
                 metric="loss",
                 goal="minimize",
-                method="bayes",  # This is supported, but let's create an invalid one
+                method="grid",  # Grid search is not supported
                 parameters={
                     "learning_rate": ParameterConfig(
                         distribution="log_normal",
@@ -47,169 +48,203 @@ class TestProteinOptimizer:
                     )
                 },
             )
-            # Manually set an invalid method to test error handling
-            config.method = "invalid_method"
-            ProteinOptimizer(config)
 
-    def test_suggest_method_single(self):
-        """Test the suggest method of ProteinOptimizer with single suggestion."""
+    def test_optimizer_initialization(self):
+        """Test that ProteinOptimizer initializes correctly with bayes method."""
         config = ProteinConfig(
-            metric="test_metric",
+            metric="accuracy",
             goal="maximize",
-            method="bayes",
+            method="bayes",  # Bayesian optimization is supported
             parameters={
-                "param1": ParameterConfig(
-                    distribution="uniform",
-                    min=0,
-                    max=1,
+                "learning_rate": ParameterConfig(
+                    distribution="log_normal",
+                    min=1e-4,
+                    max=1e-1,
                     scale="auto",
-                    mean=0.5,
-                )
+                    mean=1e-2,
+                ),
+                "batch_size": ParameterConfig(
+                    distribution="int_uniform",
+                    min=16,
+                    max=128,
+                    mean=64,
+                    scale="auto",
+                ),
             },
         )
 
+        # Should not raise error
         optimizer = ProteinOptimizer(config)
+        assert optimizer.config == config
 
-        # Test suggest with no observations
-        suggestions = optimizer.suggest(observations=[], n_suggestions=1)
+    def test_suggest_with_no_observations(self, base_protein_config):
+        """Test that suggest method works with no observations."""
+        base_protein_config.parameters = {
+            "lr": ParameterConfig(
+                distribution="log_normal",
+                min=1e-4,
+                max=1e-1,
+                scale="auto",
+                mean=1e-2,
+            )
+        }
 
-        # Check suggestion format
-        assert isinstance(suggestions, list)
-        assert len(suggestions) == 1
-        suggestion = suggestions[0]
-        assert isinstance(suggestion, dict)
-        assert "param1" in suggestion
-        assert 0 <= suggestion["param1"] <= 1
+        optimizer = ProteinOptimizer(base_protein_config)
 
-    def test_suggest_method_multiple(self):
-        """Test the suggest method of ProteinOptimizer with multiple suggestions."""
-        config = ProteinConfig(
-            metric="test_metric",
-            goal="maximize",
-            method="bayes",
-            parameters={
-                "param1": ParameterConfig(
-                    distribution="uniform",
-                    min=0,
-                    max=1,
-                    scale="auto",
-                    mean=0.5,
-                )
-            },
-        )
+        # Request suggestions with no observations
+        suggestions = optimizer.suggest([], n_suggestions=3)
 
-        optimizer = ProteinOptimizer(config)
-
-        # Test suggest with multiple suggestions
-        suggestions = optimizer.suggest(observations=[], n_suggestions=3)
-
-        # Check suggestion format
-        assert isinstance(suggestions, list)
         assert len(suggestions) == 3
-        for suggestion in suggestions:
-            assert isinstance(suggestion, dict)
-            assert "param1" in suggestion
-            assert 0 <= suggestion["param1"] <= 1
+        assert all("lr" in s for s in suggestions)
+        assert all(1e-4 <= s["lr"] <= 1e-1 for s in suggestions)
 
     def test_suggest_with_observations(self):
-        """Test the suggest method with previous observations."""
+        """Test that suggest method works with observations."""
         config = ProteinConfig(
-            metric="test_metric",
+            metric="score",
             goal="maximize",
             method="bayes",
             parameters={
-                "param1": ParameterConfig(
-                    distribution="uniform",
-                    min=0,
-                    max=1,
+                "lr": ParameterConfig(
+                    distribution="log_normal",
+                    min=1e-4,
+                    max=1e-1,
                     scale="auto",
-                    mean=0.5,
+                    mean=1e-2,
                 )
             },
         )
 
         optimizer = ProteinOptimizer(config)
 
-        # Create some observations
+        # Create observations as dictionaries (not Observation objects)
         observations = [
-            Observation(score=0.5, cost=100, suggestion={"param1": 0.3}),
-            Observation(score=0.8, cost=100, suggestion={"param1": 0.7}),
+            {"score": 0.5, "cost": 100, "suggestion": {"lr": 0.001}},
+            {"score": 0.7, "cost": 120, "suggestion": {"lr": 0.01}},
+            {"score": 0.6, "cost": 110, "suggestion": {"lr": 0.005}},
         ]
 
-        # Get suggestions based on observations
-        suggestions = optimizer.suggest(observations=observations, n_suggestions=2)
+        # Request suggestions with observations
+        suggestions = optimizer.suggest(observations, n_suggestions=2)
 
-        # Check that we got suggestions back
-        assert isinstance(suggestions, list)
         assert len(suggestions) == 2
+        assert all("lr" in s for s in suggestions)
+        assert all(1e-4 <= s["lr"] <= 1e-1 for s in suggestions)
+
+    def test_suggest_respects_parameter_bounds(self):
+        """Test that suggestions respect parameter bounds."""
+        config = ProteinConfig(
+            metric="score",
+            goal="minimize",
+            method="bayes",
+            parameters={
+                "lr": ParameterConfig(
+                    distribution="uniform",
+                    min=0.1,
+                    max=0.5,
+                    mean=0.3,
+                    scale="auto",
+                ),
+                "momentum": ParameterConfig(
+                    distribution="uniform",
+                    min=0.8,
+                    max=0.99,
+                    mean=0.9,
+                    scale="auto",
+                ),
+            },
+        )
+
+        optimizer = ProteinOptimizer(config)
+
+        # Request multiple suggestions
+        suggestions = optimizer.suggest([], n_suggestions=10)
+
+        assert len(suggestions) == 10
         for suggestion in suggestions:
-            assert isinstance(suggestion, dict)
-            assert "param1" in suggestion
-            assert 0 <= suggestion["param1"] <= 1
+            assert 0.1 <= suggestion["lr"] <= 0.5
+            assert 0.8 <= suggestion["momentum"] <= 0.99
 
-    def test_suggest_stateless_behavior(self):
-        """Test that ProteinOptimizer is stateless - each call creates fresh instance."""
+    def test_suggest_handles_integer_parameters(self):
+        """Test that optimizer handles integer parameters."""
         config = ProteinConfig(
-            metric="test_metric",
+            metric="score",
             goal="maximize",
             method="bayes",
             parameters={
-                "param1": ParameterConfig(
-                    distribution="uniform",
-                    min=0,
-                    max=1,
+                "num_layers": ParameterConfig(
+                    distribution="int_uniform",
+                    min=1,
+                    max=10,
+                    mean=5,
                     scale="auto",
-                    mean=0.5,
+                ),
+                "hidden_size": ParameterConfig(
+                    distribution="uniform_pow2",  # Powers of 2
+                    min=32,
+                    max=512,
+                    mean=128,
+                    scale="auto",
+                ),
+            },
+        )
+
+        optimizer = ProteinOptimizer(config)
+
+        suggestions = optimizer.suggest([], n_suggestions=5)
+
+        assert len(suggestions) == 5
+        for suggestion in suggestions:
+            assert 1 <= suggestion["num_layers"] <= 10
+            assert 32 <= suggestion["hidden_size"] <= 512
+
+    def test_empty_suggestions_request(self):
+        """Test requesting zero suggestions."""
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "lr": ParameterConfig(
+                    distribution="uniform",
+                    min=0.1,
+                    max=0.5,
+                    mean=0.3,
+                    scale="auto",
+                ),
+            },
+        )
+
+        optimizer = ProteinOptimizer(config)
+        suggestions = optimizer.suggest([], n_suggestions=0)
+
+        assert suggestions == []
+
+    def test_observations_with_missing_fields(self):
+        """Test that optimizer handles observations with missing fields gracefully."""
+        config = ProteinConfig(
+            metric="score",
+            goal="maximize",
+            method="bayes",
+            parameters={
+                "lr": ParameterConfig(
+                    distribution="log_normal",
+                    min=1e-4,
+                    max=1e-1,
+                    scale="auto",
+                    mean=1e-2,
                 )
             },
         )
 
         optimizer = ProteinOptimizer(config)
 
-        # Create an observation
-        observation = Observation(score=0.8, cost=100, suggestion={"param1": 0.7})
-
-        # First call with the observation
-        suggestions1 = optimizer.suggest(observations=[observation], n_suggestions=1)
-
-        # Second call with no observations - should not remember the previous observation
-        suggestions2 = optimizer.suggest(observations=[], n_suggestions=1)
-
-        # Both should return valid suggestions
-        assert len(suggestions1) == 1
-        assert len(suggestions2) == 1
-        assert isinstance(suggestions1[0], dict)
-        assert isinstance(suggestions2[0], dict)
-
-    def test_suggest_with_failure_observations(self):
-        """Test suggest method with failure observations."""
-        config = ProteinConfig(
-            metric="test_metric",
-            goal="maximize",
-            method="bayes",
-            parameters={
-                "param1": ParameterConfig(
-                    distribution="uniform",
-                    min=0,
-                    max=1,
-                    scale="auto",
-                    mean=0.5,
-                )
-            },
-        )
-
-        optimizer = ProteinOptimizer(config)
-
-        # Create observations with one failure (score should be ignored for failures)
+        # Observations with missing cost field (should default to 0)
         observations = [
-            Observation(score=0.5, cost=100, suggestion={"param1": 0.3}),
-            Observation(score=0.0, cost=50, suggestion={"param1": 0.1}),  # This would be marked as failure
+            {"score": 0.5, "suggestion": {"lr": 0.001}},
+            {"score": 0.7, "cost": None, "suggestion": {"lr": 0.01}},
         ]
 
-        # Should still work fine
-        suggestions = optimizer.suggest(observations=observations, n_suggestions=1)
-
-        assert isinstance(suggestions, list)
+        # Should handle gracefully
+        suggestions = optimizer.suggest(observations, n_suggestions=1)
         assert len(suggestions) == 1
-        assert isinstance(suggestions[0], dict)
-        assert "param1" in suggestions[0]

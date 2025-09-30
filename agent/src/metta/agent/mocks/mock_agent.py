@@ -1,10 +1,13 @@
+from typing import Mapping
+
 import torch
 from tensordict import TensorDict
 
-from metta.agent.metta_agent import MettaAgent
+from metta.agent.policy import Policy
+from metta.rl.training import EnvironmentMetaData
 
 
-class MockAgent(MettaAgent):
+class MockAgent(Policy):
     """
     An agent that always does nothing. Used for tests and to run play without requiring a policy.
 
@@ -12,7 +15,7 @@ class MockAgent(MettaAgent):
     minimal functionality for simulation runs.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Don't call parent __init__ as it requires many parameters we don't have
         # Instead, manually initialize as nn.Module and set required attributes
         torch.nn.Module.__init__(self)
@@ -20,7 +23,7 @@ class MockAgent(MettaAgent):
         # Initialize required attributes that MettaAgent expects
         self.components_with_memory = []
         self.components = torch.nn.ModuleDict()  # Use ModuleDict for proper nn.Module handling
-        self.device = "cpu"
+        self._device: torch.device = torch.device("cpu")
         self.policy = None  # MockAgent doesn't have a separate policy
 
         # Initialize feature remapping attributes
@@ -92,75 +95,74 @@ class MockAgent(MettaAgent):
 
     def initialize_to_environment(
         self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device,
-        is_training: bool = None,
-    ):
-        """Initialize the agent to work with a specific environment.
+        env: EnvironmentMetaData,
+        device: torch.device,
+        *,
+        is_training: bool | None = None,
+    ) -> None:
+        """Initialize the agent to work with a specific environment."""
 
-        One-stop shop for setting up agents to interact with environments.
-        Handles both new agents and agents loaded from disk with existing feature mappings.
+        self._device = torch.device(device)
 
-        Auto-detects training vs simulation context:
-        - Training context (gradients enabled): Learn new features, remap known features
-        - Simulation context (gradients disabled): Remap known features, map unknown to 255
-        """
-        self.device = device
-
-        # Auto-detect training context if not explicitly provided
         if is_training is None:
-            # Use the module's training state (set by .train()/.eval())
-            # Training context: self.training=True → learn new features
-            # Simulation context: self.training=False → map unknown to 255
             is_training = self.training
-
         self.training = is_training
 
-        # Store action configuration
-        self.action_names = action_names
-        self.action_max_params = action_max_params
+        # Action configuration
+        self.action_names = list(env.action_names)
+        self.action_max_params = list(env.max_action_args)
 
-        # Build feature mappings
-        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
-        self.feature_normalizations = {
-            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
-        }
+        features: Mapping[str, object] = env.obs_features
+        feature_map = {}
+        for name, feat in features.items():
+            if hasattr(feat, "id"):
+                feature_id = feat.id
+                normalization = getattr(feat, "normalization", 1.0)
+            elif isinstance(feat, Mapping):
+                feature_id = feat["id"]
+                normalization = feat.get("normalization", 1.0)
+            else:
+                raise TypeError(f"Unsupported feature description for '{name}': {type(feat)!r}")
+            feature_map[name] = {"id": int(feature_id), "normalization": float(normalization)}
 
-        # Handle feature remapping for backward compatibility
+        self.feature_id_to_name = {props["id"]: name for name, props in feature_map.items()}
+        self.feature_normalizations = dict(env.feature_normalizations)
+        for props in feature_map.values():
+            self.feature_normalizations.setdefault(props["id"], props["normalization"])
+
         if self.original_feature_mapping is None:
-            # First initialization - store the mapping
-            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-        else:
-            # Re-initialization - create remapping
-            UNKNOWN_FEATURE_ID = 255
-            self.feature_id_remap = {}
-            unknown_features = []
+            self.original_feature_mapping = {name: props["id"] for name, props in feature_map.items()}
+            return
 
-            for name, props in features.items():
-                new_id = props["id"]
-                if name in self.original_feature_mapping:
-                    # Remap known features to their original IDs
-                    original_id = self.original_feature_mapping[name]
-                    if new_id != original_id:
-                        self.feature_id_remap[new_id] = original_id
-                elif not self.training:
-                    # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
-                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-                    unknown_features.append(name)
-                else:
-                    # In training mode, learn new features
-                    self.original_feature_mapping[name] = new_id
+        UNKNOWN_FEATURE_ID = 255
+        self.feature_id_remap = {}
 
-            if self.feature_id_remap:
-                # Apply the remapping to any observation components
-                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
+        for name, props in feature_map.items():
+            new_id = props["id"]
+            if name in self.original_feature_mapping:
+                original_id = self.original_feature_mapping[name]
+                if new_id != original_id:
+                    self.feature_id_remap[new_id] = original_id
+            elif not self.training:
+                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+            else:
+                self.original_feature_mapping[name] = new_id
 
-    def reset_memory(self):
+        if self.feature_id_remap:
+            self._apply_feature_remapping(feature_map, UNKNOWN_FEATURE_ID)
+
+    def reset_memory(self) -> None:
         """Mock implementation - no memory to reset."""
         pass
 
-    def get_memory(self):
+    def get_memory(self) -> dict:
         """Mock implementation - returns empty memory dict."""
         return {}
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+    @property
+    def total_params(self) -> int:
+        return sum(param.numel() for param in self.parameters())

@@ -18,7 +18,6 @@ dtype_success: np.dtype
 class EpisodeStats(TypedDict):
     game: StatsDict
     agent: list[StatsDict]
-    converter: list[StatsDict]
 
 class PackedCoordinate:
     """Packed coordinate encoding utilities."""
@@ -63,12 +62,6 @@ class WallConfig(GridObjectConfig):
     type_name: str
     swappable: bool
 
-class BoxConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, returned_resources: dict[int, int]): ...
-    type_id: int
-    type_name: str
-    returned_resources: dict[int, int]
-
 class AgentConfig(GridObjectConfig):
     def __init__(
         self,
@@ -79,8 +72,6 @@ class AgentConfig(GridObjectConfig):
         freeze_duration: int = 0,
         action_failure_penalty: float = 0,
         resource_limits: dict[int, int] = {},
-        resource_rewards: dict[int, float] = {},
-        resource_reward_max: dict[int, float] = {},
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
         group_reward_pct: float = 0,
@@ -93,8 +84,6 @@ class AgentConfig(GridObjectConfig):
     freeze_duration: int
     action_failure_penalty: float
     resource_limits: dict[int, int]
-    resource_rewards: dict[int, float]
-    resource_reward_max: dict[int, float]
     stat_rewards: dict[str, float]  # Added this
     stat_reward_max: dict[str, float]  # Added this
     group_reward_pct: float
@@ -160,13 +149,11 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        resource_rewards: bool = False,
         visitation_counts: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    resource_rewards: bool
     visitation_counts: bool
 
 class GameConfig:
@@ -230,3 +217,4 @@ class MettaGrid:
     def object_type_names(self) -> list[str]: ...
     def resource_names(self) -> list[str]: ...
     def feature_spec(self) -> dict[str, dict[str, float | int]]: ...
+    def set_inventory(self, agent_id: int, inventory: dict[int, int]) -> None: ...

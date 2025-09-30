@@ -360,3 +360,71 @@ def test_diagonal_movement_integration(configured_env):
         assert actual_pos == expected_pos, f"After {direction}, expected {expected_pos}, got {actual_pos}"
 
     print("✅ Diagonal movement pattern completed successfully!")
+
+
+def test_noop_is_always_index_0():
+    """Test that noop action is always at index 0 when present."""
+    # Test 1: Default config with noop enabled
+    config = GameConfig(
+        max_steps=10,
+        num_agents=2,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=10,
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+        ),
+    )
+
+    c_config = from_mettagrid_config(config)
+    map_data = [[".", "."], ["agent.team_0", "agent.team_0"]]
+    env = MettaGrid(c_config, map_data, 0)
+
+    action_names = env.action_names()
+    assert action_names[0] == "noop", f"Expected 'noop' at index 0, got '{action_names[0]}'"
+
+    # Test 2: noop listed last but should still be at index 0
+    config2 = GameConfig(
+        max_steps=10,
+        num_agents=2,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=10,
+        actions=ActionsConfig(
+            attack=AttackActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+            noop=ActionConfig(enabled=True),  # noop listed last
+            swap=ActionConfig(enabled=True),
+        ),
+    )
+
+    c_config2 = from_mettagrid_config(config2)
+    env2 = MettaGrid(c_config2, map_data, 0)
+
+    action_names2 = env2.action_names()
+    assert action_names2[0] == "noop", f"Expected 'noop' at index 0, got '{action_names2[0]}'"
+
+    # Test 3: Config without noop - first action should not be noop
+    config3 = GameConfig(
+        max_steps=10,
+        num_agents=2,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=10,
+        actions=ActionsConfig(
+            move=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+            attack=AttackActionConfig(enabled=True),
+            # noop not included
+        ),
+    )
+
+    c_config3 = from_mettagrid_config(config3)
+    env3 = MettaGrid(c_config3, map_data, 0)
+
+    action_names3 = env3.action_names()
+    assert "noop" not in action_names3, "noop should not be present when not enabled"
+    assert action_names3[0] != "noop", "First action should not be noop when noop is disabled"

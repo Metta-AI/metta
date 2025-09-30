@@ -12,23 +12,24 @@ import numpy as np
 import torch
 from einops import rearrange
 
-from metta.agent.metta_agent import PolicyAgent
 from metta.agent.mocks import MockAgent
+from metta.agent.policy import Policy
 from metta.agent.utils import obs_to_td
-from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import HttpStatsClient, StatsClient
 from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.training.training_environment import EnvironmentMetaData
 from metta.rl.vecenv import make_vecenv
+from metta.sim.replay_writer import S3ReplayWriter
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.sim.stats import DuckDBStatsWriter
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids
 from mettagrid import MettaGridEnv, dtype_actions
-from mettagrid.util.replay_writer import ReplayWriter
-from mettagrid.util.stats_writer import StatsWriter
 
-SYNTHETIC_EVAL_PREFIX = "eval/"
+SYNTHETIC_EVAL_SUITE = "training"
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +45,8 @@ class Simulation:
 
     def __init__(
         self,
-        name: str,
         cfg: SimulationConfig,
-        policy: PolicyAgent,
+        policy: Policy,
         policy_uri: str,
         device: torch.device,
         vectorization: str,
@@ -55,13 +55,10 @@ class Simulation:
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         eval_task_id: uuid.UUID | None = None,
-        episode_tags: list[str] | None = None,
     ):
-        self._name = name
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
-        self._episode_tags = episode_tags
         self._policy_uri = policy_uri
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
@@ -69,9 +66,11 @@ class Simulation:
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
         sim_stats_dir.mkdir(parents=True, exist_ok=True)
         self._stats_dir = sim_stats_dir
-        self._stats_writer = StatsWriter(sim_stats_dir)
-        self._replay_writer = ReplayWriter(replay_dir)
+        self._stats_writer = DuckDBStatsWriter(sim_stats_dir)
+        self._replay_writer = S3ReplayWriter(replay_dir)
         self._device = device
+
+        self._full_name = f"{cfg.suite}/{cfg.name}"
 
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
@@ -120,20 +119,26 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
+        env_metadata = EnvironmentMetaData(
+            obs_width=metta_grid_env.obs_width,
+            obs_height=metta_grid_env.obs_height,
+            obs_features=metta_grid_env.observation_features,
+            action_names=metta_grid_env.action_names,
+            max_action_args=metta_grid_env.max_action_args,
+            num_agents=metta_grid_env.num_agents,
+            observation_space=metta_grid_env.observation_space,
+            action_space=metta_grid_env.action_space,
+            feature_normalizations=metta_grid_env.feature_normalizations,
+        )
+
         # Initialize policy to environment
         self._policy.eval()  # Set to evaluation mode for simulation
-        features = metta_grid_env.get_observation_features()
-        self._policy.initialize_to_environment(
-            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
-        )
+        self._policy.initialize_to_environment(env_metadata, self._device)
 
         if self._npc_policy is not None:
             # Initialize NPC policy to environment
             self._npc_policy.eval()  # Set to evaluation mode for simulation
-            features = metta_grid_env.get_observation_features()
-            self._npc_policy.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
-            )
+            self._npc_policy.initialize_to_environment(env_metadata, self._device)
 
         # agent-index bookkeeping
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -172,7 +177,6 @@ class Simulation:
 
         # Create and return simulation
         return cls(
-            sim_config.name,
             sim_config,
             policy,
             policy_uri or "mock://",
@@ -186,7 +190,7 @@ class Simulation:
         """Start the simulation."""
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
-            self._name,
+            self._full_name,
             self._num_envs,
             self._agents_per_env,
             100 * self._policy_agents_per_env / self._agents_per_env,
@@ -288,13 +292,13 @@ class Simulation:
         """Generate thumbnail if this is the first run for this eval_name."""
         try:
             # Skip synthetic evaluation framework simulations
-            if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
-                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._name}")
+            if self._config.suite == SYNTHETIC_EVAL_SUITE:
+                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._full_name}")
                 return None
 
             # Get any replay data from this simulation
             if not self._replay_writer.episodes:
-                logger.warning(f"No replay data available for thumbnail generation: {self._name}")
+                logger.warning(f"No replay data available for thumbnail generation: {self._full_name}")
                 return None
 
             # Use first available episode replay and get its ID
@@ -312,7 +316,7 @@ class Simulation:
                 return None
 
         except Exception as e:
-            logger.error(f"Thumbnail generation failed for {self._name}: {e}")
+            logger.error(f"Thumbnail generation failed for {self._full_name}: {e}")
             return None
 
     def end_simulation(self) -> SimulationResults:
@@ -325,7 +329,7 @@ class Simulation:
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
-            self._name,
+            self._full_name,
             int(self._episode_counters.sum()),
             time.time() - self._t0,
         )
@@ -374,15 +378,15 @@ class Simulation:
             sim_id=self._id,
             dir_with_shards=self._stats_dir,
             agent_map=agent_map,
-            sim_name=self._name,
-            sim_env=self._config.env.label,
+            sim_name=self._config.suite,
+            sim_env=self._config.name,
             policy_uri=self._policy_uri or "",
         )
         return db
 
     def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
-        if self._stats_client is not None:
+        if self._stats_client is not None and isinstance(self._stats_client, HttpStatsClient):
             # Use policy_uri directly
             policy_details: list[tuple[str, str | None]] = []
 
@@ -435,19 +439,17 @@ class Simulation:
                     attributes[attr_name] = attr_value
 
                 # Record the episode remotely
-                episode_tags = self._episode_tags or None
                 try:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
                         primary_policy_id=policy_ids[self._policy_uri],
                         stats_epoch=self._stats_epoch_id,
-                        sim_name=self._name,
-                        env_label=self._config.env.label,
+                        sim_suite=self._config.suite,
+                        env_name=self._config.name,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,
-                        tags=episode_tags,
                         thumbnail_url=thumbnail_url,
                     )
                 except Exception as e:
@@ -462,8 +464,8 @@ class Simulation:
         return None
 
     @property
-    def name(self) -> str:
-        return self._name
+    def full_name(self) -> str:
+        return self._full_name
 
     def get_envs(self):
         """Returns a list of all envs in the simulation."""

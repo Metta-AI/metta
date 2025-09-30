@@ -1,0 +1,67 @@
+resources:
+  cloud: aws
+  region: us-east-1
+  instance_type: m6i.2xlarge  # 8 vCPUs, 32GB RAM (~$0.384/hour on-demand)
+  cpus: 8+
+  memory: 32+
+  image_id: docker:metta:latest
+
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
+
+file_mounts:
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+  /mnt/s3/train_dir:
+    source: s3://softmax-train-dir
+    mode: MOUNT_CACHED
+
+setup: |
+  set -u
+
+  # Create directories for credentials that will be SCP'd later
+  mkdir -p ~/.metta
+
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
+
+run: |
+  set -e
+  cd /workspace/metta
+
+  # Note that the docker image may start with its own venv - switch to metta venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+  fi
+  . .venv/bin/activate
+
+  echo "[SETUP] Setting up Python environment..."
+  uv sync
+
+  bash ./devops/skypilot/config/lifecycle/configure_environment.sh
+
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  source "$METTA_ENV_FILE"
+
+  echo "Starting bash shell..."
+  exec bash
+
+envs:
+  GITHUB_REPOSITORY: Metta-AI/metta
+  METTA_GIT_REF: main
+
+  # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
+  SKYPILOT_DOCKER_USERNAME: ""
+  SKYPILOT_DOCKER_PASSWORD: ""
+  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+
+# Note: secrets are intentionally minimal for cheap mode
+# Credentials will be transferred via SCP after launch
+secrets:
+  WANDB_PASSWORD: ""
+  OBSERVATORY_TOKEN: ""

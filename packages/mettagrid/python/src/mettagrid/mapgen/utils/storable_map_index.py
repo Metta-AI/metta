@@ -1,11 +1,10 @@
 import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from mettagrid.mapgen.utils.s3utils import list_objects
 from mettagrid.mapgen.utils.storable_map import StorableMap
-from mettagrid.util import file as file_utils
 
 
 @dataclass
@@ -62,24 +61,34 @@ class StorableMapIndex:
 
             map_files = list(map_files_set) if map_files_set else []
         else:
-            map_files = [f for f in list_objects(self.dir) if f.endswith(".yaml")]
+            # List all yaml files in directory
+            dir_path = Path(self.dir)
+            map_files = [str(f) for f in dir_path.glob("*.yaml")]
 
         return map_files
 
     def _index_dir(self):
-        filenames = list_objects(self.dir)
+        # List all yaml files in directory
+        dir_path = Path(self.dir)
+        filenames = list(dir_path.glob("*.yaml"))
         for filename in filenames:
-            map = StorableMap.from_uri(filename)
-            self._process(map, filename)
+            map = StorableMap.from_uri(str(filename))
+            self._process(map, str(filename))
 
     def _save(self):
         index_uri = f"{self.dir}/index.json"
-        file_utils.write_data(index_uri, json.dumps(self.index_data), content_type="text/plain")
+        content = json.dumps(self.index_data)
+        # Only supports local files
+        path = Path(index_uri)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
 
     @staticmethod
     def load(dir: str):
         """Load an index from `dir`."""
-        index_content = file_utils.read(f"{dir}/index.json")
+        index_uri = f"{dir}/index.json"
+        # Only supports local files
+        index_content = Path(index_uri).read_bytes()
         index_data = json.loads(index_content.decode("utf-8"))
         index = StorableMapIndex(dir=dir, index_data=index_data)
         return index

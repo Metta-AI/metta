@@ -1,6 +1,8 @@
 from typing import Optional
 
 import mettagrid.mapgen.scenes.random
+
+# Local import moved to factory usage to avoid forbidden cross-package dependency at import time
 from mettagrid.config.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -10,6 +12,7 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     MettaGridConfig,
 )
+from mettagrid.map_builder.assembler_map_builder import AssemblerMapBuilder
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
@@ -181,11 +184,14 @@ def make_in_context_chains(
     map_builder_objects: dict,
     width: int = 6,
     height: int = 6,
-    obstacle_type: Optional[str] = None,
-    density: Optional[str] = None,
+    terrain: str = "no-terrain",
+    chain_length: int = 2,
+    num_sinks: int = 0,
+    dir: Optional[str] = None,
 ) -> MettaGridConfig:
     game_objects["wall"] = empty_converters.wall
     cfg = MettaGridConfig(
+        desync_episodes=False,
         game=GameConfig(
             max_steps=max_steps,
             num_agents=num_agents,
@@ -197,8 +203,10 @@ def make_in_context_chains(
                     width=width,
                     height=height,
                     objects=map_builder_objects,
-                    obstacle_type=obstacle_type,
-                    density=density,
+                    density=terrain,
+                    chain_length=chain_length,
+                    num_sinks=num_sinks,
+                    dir=dir,
                 ),
             ),
             actions=ActionsConfig(
@@ -216,6 +224,91 @@ def make_in_context_chains(
                 default_resource_limit=1,
                 resource_limits={"heart": 15},
             ),
-        )
+        ),
     )
+    return cfg
+
+
+def make_icl_assembler(
+    num_agents: int,
+    num_instances: int,
+    max_steps,
+    game_objects: dict,
+    map_builder_objects: dict,
+    width: int = 6,
+    height: int = 6,
+    terrain: str = "no-terrain",
+) -> MettaGridConfig:
+    game_objects["wall"] = empty_converters.wall
+    cfg = MettaGridConfig(
+        desync_episodes=False,
+        game=GameConfig(
+            max_steps=max_steps,
+            num_agents=num_agents * num_instances,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_instances,
+                instance_map=AssemblerMapBuilder.Config(
+                    agents=num_agents,
+                    width=width,
+                    height=height,
+                    objects=map_builder_objects,
+                    terrain=terrain,
+                ),
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                get_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    stats={"chest.heart.amount": 1},
+                    inventory_max={"heart": 15},
+                    inventory={"heart": 1},
+                ),
+                default_resource_limit=3,
+                resource_limits={"heart": 30},
+            ),
+        ),
+    )
+    return cfg
+
+
+def make_icl_with_numpy(
+    num_agents: int,
+    num_instances: int,
+    max_steps,
+    game_objects: dict,
+    instance_map: MapBuilderConfig,
+) -> MettaGridConfig:
+    game_objects["wall"] = empty_converters.wall
+    cfg = MettaGridConfig(
+        desync_episodes=False,
+        game=GameConfig(
+            max_steps=max_steps,
+            num_agents=num_agents * num_instances,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_instances,
+                instance_map=instance_map,
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
+                get_items=ActionConfig(),
+                put_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory={
+                        "heart": 1,
+                    },
+                ),
+                default_resource_limit=1,
+                resource_limits={"heart": 15},
+            ),
+        ),
+    )
+
     return cfg

@@ -13,6 +13,7 @@ dependencies = [
   "bidict>=0.23.1",
   "boto3>=1.38.32",
   "codebot",
+  "cogames",
   "colorama>=0.4.6",
   "cpplint>=2.0.2",
   "ddtrace>=2.6.0",
@@ -22,7 +23,7 @@ dependencies = [
   "google-api-python-client>=2.0.0",
   "google-auth>=2.0.0",
   "google-auth-oauthlib>=1.0.0",
-  "gymnasium==0.29.1",
+  "gymnasium>=1.1.1",
   "heavyball>=1.7.2",
   "httpx>=0.28.1",
   "imageio>=2.37.0",
@@ -31,20 +32,19 @@ dependencies = [
   "metta-agent",
   "metta-app-backend",
   "metta-common",
-  "mettagrid",
-  "numpy>=1.26.4,<2",
+  "numpy>=2",
+  "nvidia-ml-py",
   "omegaconf>=2.3.0",
   "pandas>=2.3.0",
-  "pettingzoo>=1.24.1,<1.25",
+  "pettingzoo>=1.25",
   "pixie-python>=4.3.0",
   "plotly>=6.1.1",
   "psycopg[binary]>=3.2.9",
-  "pufferlib>=3.0.0,<3.1.0",
+  "pufferlib-core",
   "pyarrow>=21.0.0",
   "pybind11>=2.10.4",
   "pydantic>=2.11.5",
   "pydantic-settings>=2.10.1",
-  "pynvml>=11.5.3",
   "pyro-ppl>=1.9.1",
   "python-dotenv>=1.1.0",
   "pyyaml>=6.0.2",
@@ -108,7 +108,15 @@ mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
-source = ["cogames", "metta", "mettagrid", "metta.common", "metta.agent", "metta.app_backend"]
+source = [
+  "cogames",
+  "metta",
+  "mettagrid",
+  "metta.common",
+  "metta.agent",
+  "metta.app_backend",
+  "pufferlib-core",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -117,16 +125,14 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = [
   "ignore::DeprecationWarning:wandb.analytics.sentry",
-  "ignore:.*Gym has been unmaintained.*:UserWarning",
-  "ignore:.*Gym has been unmaintained.*",
-  "ignore::UserWarning:gym",
+  "ignore:The @wait_container_is_ready decorator is deprecated.*:DeprecationWarning",
 ]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
 ]
 console_output_style = "progress"
-addopts = "-n auto --import-mode=importlib -W ignore:Gym\\ has\\ been\\ unmaintained:UserWarning"
+addopts = "-n auto --import-mode=importlib"
 pythonpath = [".", "packages/mettagrid/python/src"]
 
 [tool.uv]
@@ -148,6 +154,7 @@ members = [
   "gitta",
   "packages/cogames",
   "packages/mettagrid",
+  "packages/pufferlib-core",
   "softmax",
 ]
 
@@ -158,21 +165,5 @@ gitta = { workspace = true }
 metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
-mettagrid = { workspace = true }
+pufferlib-core = { workspace = true }
 softmax = { workspace = true }
-
-[tool.ruff]
-exclude = ["*.ipynb"]
-
-[tool.ruff.lint.isort]
-known-first-party = [
-  "codebot",
-  "cogames",
-  "gitta",
-  "metta_agent",
-  "metta_app_backend",
-  "metta_common",
-  "metta",
-  "mettagrid",
-  "softmax",
-]

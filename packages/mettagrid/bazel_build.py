@@ -26,6 +26,7 @@ from setuptools.build_meta import (
 from setuptools.dist import Distribution
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 
 
 def _run_bazel_build() -> None:
@@ -46,9 +47,26 @@ def _run_bazel_build() -> None:
     else:
         config = "dbg" if debug else "opt"
 
+    # Align Bazel's registered Python toolchain with the active interpreter.
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+
+    env = os.environ.copy()
+    env.setdefault("METTAGRID_BAZEL_PYTHON_VERSION", py_version)
+
+    # Provide a writable output root for environments with restricted /var/tmp access.
+    output_user_root = env.get(
+        "METTAGRID_BAZEL_OUTPUT_ROOT",
+        str(PROJECT_ROOT / ".bazel_output"),
+    )
+
+    # Ensure the output root exists before invoking Bazel.
+    Path(output_user_root).mkdir(parents=True, exist_ok=True)
+
     # Build the Python extension with auto-detected parallelism
     cmd = [
         "bazel",
+        "--batch",
+        f"--output_user_root={output_user_root}",
         "build",
         f"--config={config}",
         "--jobs=auto",
@@ -57,7 +75,7 @@ def _run_bazel_build() -> None:
     ]
 
     print(f"Running Bazel build: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=True, text=True, env=env)
 
     if result.returncode != 0:
         print("Bazel build failed. STDERR:", file=sys.stderr)
@@ -107,9 +125,38 @@ def _run_bazel_build() -> None:
             print(f"Copied {extension_file} to {dest}")
 
 
+def _run_mettascope_build() -> None:
+    """Run mettascope build script to compile the Nim library."""
+
+    # Check if nim and nimble are available
+    if shutil.which("nim") is None:
+        print("Warning: Nim compiler not found. Skipping mettascope build.")
+        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
+        raise RuntimeError("Nim compiler not found")
+
+    if shutil.which("nimble") is None:
+        print("Warning: Nimble package manager not found. Skipping mettascope build.")
+        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
+        raise RuntimeError("Nimble package manager not found")
+
+    print(f"Building mettascope from {METTASCOPE_DIR}")
+
+    # Run the build script
+    for cmd in ["update", "install", "bindings"]:
+        result = subprocess.run(["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+        print(result.stderr, file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
+        if result.returncode != 0:
+            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
+            print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
+            raise RuntimeError("Mettascope build failed")
+    print("Successfully built mettascope")
+
+
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
-    """Build a wheel, compiling the C++ extension with Bazel first."""
+    """Build a wheel, compiling the C++ extension with Bazel first, then mettascope."""
     _run_bazel_build()
+    _run_mettascope_build()
     # Ensure wheel is tagged as non-pure (platform-specific) since we bundle a native extension
     # Setuptools/wheel derive purity from Distribution.has_ext_modules(). Monkeypatch to force True.
     original_has_ext_modules = Distribution.has_ext_modules
@@ -121,8 +168,9 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
 
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
-    """Build an editable install, compiling the C++ extension with Bazel first."""
+    """Build an editable install, compiling the C++ extension with Bazel first, then mettascope."""
     _run_bazel_build()
+    _run_mettascope_build()
     return _build_editable(wheel_directory, config_settings, metadata_directory)
 
 

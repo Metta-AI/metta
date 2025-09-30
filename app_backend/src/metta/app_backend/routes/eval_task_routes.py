@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime
-from typing import Any, TypeVar
+from datetime import datetime, timedelta
+from typing import Any, Optional, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -46,9 +46,10 @@ class TaskFilterParams(BaseModel):
     sim_suites: list[str] | None = None
 
 
-class TaskResponse(BaseModel):
+class EvalTaskResponse(BaseModel):
     id: uuid.UUID
     policy_id: uuid.UUID
+    policy_uri: str
     sim_suite: str
     status: TaskStatus
     assigned_at: datetime | None = None
@@ -72,12 +73,39 @@ class TaskResponse(BaseModel):
         return self._attribute_property("workers_spawned") or 0
 
     @classmethod
-    def from_db(cls, task: EvalTaskRow | EvalTaskWithPolicyName) -> "TaskResponse":
-        # Handle both EvalTaskRow and EvalTaskWithPolicyName
-        policy_name = None
-        if isinstance(task, EvalTaskWithPolicyName):
-            policy_name = task.policy_name
+    def from_db(cls, row: EvalTaskWithPolicyName) -> "EvalTaskResponse":
+        return cls(
+            id=row.id,
+            policy_id=row.policy_id,
+            policy_uri=row.policy_url,
+            sim_suite=row.sim_suite,
+            status=row.status,  # type: ignore
+            assigned_at=row.assigned_at,
+            assignee=row.assignee,
+            created_at=row.created_at,
+            attributes=row.attributes,
+            policy_name=row.policy_name,
+            retries=row.retries,
+            user_id=row.user_id,
+            updated_at=row.updated_at,
+        )
 
+
+class TaskResponse(BaseModel):
+    id: uuid.UUID
+    policy_id: uuid.UUID
+    sim_suite: str
+    status: TaskStatus
+    assigned_at: datetime | None = None
+    assignee: str | None = None
+    created_at: datetime
+    attributes: dict[str, Any]
+    retries: int
+    user_id: str | None = None
+    updated_at: datetime
+
+    @classmethod
+    def from_db(cls, task: EvalTaskRow) -> "TaskResponse":
         return cls(
             id=task.id,
             policy_id=task.policy_id,
@@ -87,7 +115,6 @@ class TaskResponse(BaseModel):
             assignee=task.assignee,
             created_at=task.created_at,
             attributes=task.attributes or {},
-            policy_name=policy_name,
             retries=task.retries,
             user_id=task.user_id,
             updated_at=task.updated_at,
@@ -99,7 +126,7 @@ class TaskUpdateResponse(BaseModel):
 
 
 class TasksResponse(BaseModel):
-    tasks: list[TaskResponse]
+    tasks: list[EvalTaskResponse]
 
 
 class GitHashesRequest(BaseModel):
@@ -121,6 +148,24 @@ class TaskAvgRuntimeResponse(BaseModel):
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/tasks", tags=["eval_tasks"])
 
+    # Cache for latest commit
+    _latest_commit_cache: Optional[tuple[str, datetime]] = None
+    _cache_ttl = timedelta(minutes=3)
+
+    async def get_cached_latest_commit() -> str:
+        nonlocal _latest_commit_cache
+
+        now = datetime.now()
+        if _latest_commit_cache:
+            commit_hash, cached_time = _latest_commit_cache
+            if now - cached_time < _cache_ttl:
+                return commit_hash
+
+        # Cache miss or expired - fetch new value
+        commit_hash = await git.get_latest_commit(REPO_SLUG, branch="main")
+        _latest_commit_cache = (commit_hash, now)
+        return commit_hash
+
     user_or_token = Depends(create_user_or_token_dependency(stats_repo))
 
     @router.post("", response_model=TaskResponse)
@@ -133,11 +178,17 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
                 # Remove this once clients have migrated
                 attributes["git_hash"] = request.git_hash
             else:
-                attributes["git_hash"] = await git.get_latest_commit(REPO_SLUG, branch="main")
+                attributes["git_hash"] = await get_cached_latest_commit()
 
         policy = await stats_repo.get_policy_by_id(request.policy_id)
         if not policy:
             raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
+
+        if not policy.url:
+            raise HTTPException(status_code=400, detail="Policy URL is not set")
+
+        if not policy.url.startswith("s3://"):
+            raise HTTPException(status_code=400, detail="Policy URL is not an S3 URL")
 
         task = await stats_repo.create_eval_task(
             policy_id=request.policy_id,
@@ -147,11 +198,11 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         )
         return TaskResponse.from_db(task)
 
-    @router.get("/latest", response_model=TaskResponse)
+    @router.get("/latest", response_model=EvalTaskResponse)
     @timed_http_handler
-    async def get_latest_assigned_task_for_worker(assignee: str) -> TaskResponse | None:
+    async def get_latest_assigned_task_for_worker(assignee: str) -> EvalTaskResponse | None:
         task = await stats_repo.get_latest_assigned_task_for_worker(assignee=assignee)
-        return TaskResponse.from_db(task) if task else None
+        return EvalTaskResponse.from_db(task) if task else None
 
     @router.get("/available", response_model=TasksResponse)
     @timed_http_handler
@@ -159,7 +210,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         limit: int = Query(default=200, ge=1, le=1000),
     ) -> TasksResponse:
         tasks = await stats_repo.get_available_tasks(limit=limit)
-        task_responses = [TaskResponse.from_db(task) for task in tasks]
+        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
     @router.post("/claim")
@@ -175,7 +226,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def get_claimed_tasks(assignee: str | None = Query(None)) -> TasksResponse:
         tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
-        task_responses = [TaskResponse.from_db(task) for task in tasks]
+        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
     @router.post("/git-hashes")
@@ -200,7 +251,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             policy_ids=policy_ids,
             sim_suites=sim_suites,
         )
-        task_responses = [TaskResponse.from_db(task) for task in tasks]
+        task_responses = [EvalTaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
     @router.post("/claimed/update")

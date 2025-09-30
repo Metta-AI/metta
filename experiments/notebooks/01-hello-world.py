@@ -307,7 +307,7 @@ repo_root = get_repo_root()
 train_cmd = [
     str(repo_root / "tools" / "train.py"),
     f"run={run_name}",
-    f"trainer.curriculum=tmp/{curriculum_name}",
+    f"training_env.curriculum=tmp/{curriculum_name}",
     "wandb=off",
     "device=cpu",
     "trainer.total_timesteps=10000",  # tiny demo run

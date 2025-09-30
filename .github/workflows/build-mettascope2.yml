@@ -24,14 +24,14 @@ jobs:
         with:
           name: mettascope2
           path: |
-            mettascope2/mettascope
-            mettascope2/data/
-            mettascope2/replays
+            packages/mettagrid/nim/mettascope/mettascope
+            packages/mettagrid/nim/mettascope/data/
+            packages/mettagrid/nim/mettascope/replays
           if-no-files-found: error
 
       - name: Upload browser build
         uses: actions/upload-artifact@v4
         with:
           name: mettascope2-dist
-          path: mettascope2/dist
+          path: packages/mettagrid/nim/mettascope//dist
           if-no-files-found: error

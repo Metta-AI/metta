@@ -1,3 +1,4 @@
+import random
 from collections import deque
 from typing import Optional
 
@@ -17,7 +18,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         Always a single agent in this map.
 
         Obstacle types: can be None, "square", "cross", or "L"
-        Densities: can be None, "sparse", "balanced", or "high"
+        Densities: can be None, "sparse", "balanced", or "dense"
 
         Given the width and height, the number of obstacles and obstacle size is determined by the density.
         """
@@ -27,27 +28,37 @@ class PerimeterInContextMapBuilder(MapBuilder):
         width: int = 7
         height: int = 7
         objects: dict[str, int] = {}
-        obstacle_type: Optional[str] = None
-        density: Optional[str] = None
+        density: str = "no-terrain"
         agents: int | dict[str, int] = 1
         border_width: int = 0
         border_object: str = "wall"
 
+        chain_length: int = 2
+        num_sinks: int = 0
+        dir: Optional[str] = None
+
     def __init__(self, config: Config):
         self._config = config
         self._rng = np.random.default_rng(self._config.seed)
+        # Pre-compute obstacle shapes to avoid recreating them
+        self._obstacle_shapes_cache = {}
 
     def _create_obstacle_shapes(self, obstacle_type: str, size: int = 2):
-        """Create obstacle shape patterns."""
-        if obstacle_type == "square":
-            return self._create_square_obstacle(size)
-        elif obstacle_type == "cross":
-            return self._create_cross_obstacle(size)
-        elif obstacle_type == "L":
-            return self._create_l_obstacle(size)
-        else:
-            # Default to single block
-            return np.array([["wall"]])
+        """Create obstacle shape patterns with caching."""
+        cache_key = (obstacle_type, size)
+        if cache_key not in self._obstacle_shapes_cache:
+            if obstacle_type == "square":
+                shape = self._create_square_obstacle(size)
+            elif obstacle_type == "cross":
+                shape = self._create_cross_obstacle(size)
+            elif obstacle_type == "L":
+                shape = self._create_l_obstacle(size)
+            else:
+                # Default to single block
+                shape = np.array([["wall"]])
+            self._obstacle_shapes_cache[cache_key] = shape
+
+        return self._obstacle_shapes_cache[cache_key]
 
     def _create_square_obstacle(self, size: int):
         """Create a square obstacle of given size."""
@@ -83,7 +94,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         elif density == "balanced":
             num_obstacles = max(2, inner_area // 12)  # Moderate obstacles
             obstacle_size = 2
-        elif density == "high":
+        elif density == "dense":
             # Adjust for obstacle type - larger shapes need fewer obstacles
             if obstacle_type == "cross":
                 num_obstacles = max(2, inner_area // 15)  # Crosses are large (3x3)
@@ -98,72 +109,87 @@ class PerimeterInContextMapBuilder(MapBuilder):
 
         return num_obstacles, obstacle_size
 
-    def _can_reach_perimeter(self, grid: np.ndarray, start_i: int, start_j: int) -> bool:
-        """Check if there's a path from start position to perimeter using BFS."""
+    def _can_reach_perimeter_optimized(self, grid: np.ndarray, start_i: int, start_j: int) -> bool:
+        """Optimized BFS pathfinding with early termination and vectorized operations."""
         if grid[start_i, start_j] == "wall":
             return False
 
         height, width = grid.shape
-        visited = np.zeros((height, width), dtype=bool)
-        queue = deque([(start_i, start_j)])
-        visited[start_i, start_j] = True
 
-        # Directions: up, down, left, right
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        # Use a single array for visited tracking
+        visited = np.zeros(height * width, dtype=bool)
+        queue = deque([(start_i, start_j)])
+        visited[start_i * width + start_j] = True
+
+        # Pre-compute perimeter check
+        def is_perimeter(i, j):
+            return i == 0 or i == height - 1 or j == 0 or j == width - 1
 
         while queue:
             i, j = queue.popleft()
 
             # Check if we've reached the perimeter
-            if i == 0 or i == height - 1 or j == 0 or j == width - 1:
+            if is_perimeter(i, j):
                 return True
 
-            # Check all directions
-            for di, dj in directions:
+            # Check all four directions with bounds checking
+            for di, dj in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 ni, nj = i + di, j + dj
-                if 0 <= ni < height and 0 <= nj < width and not visited[ni, nj] and grid[ni, nj] != "wall":
-                    visited[ni, nj] = True
-                    queue.append((ni, nj))
+                if 0 <= ni < height and 0 <= nj < width:
+                    flat_idx = ni * width + nj
+                    if not visited[flat_idx] and grid[ni, nj] != "wall":
+                        visited[flat_idx] = True
+                        queue.append((ni, nj))
 
         return False
 
-    def _place_obstacle(self, grid: np.ndarray, obstacle_shape: np.ndarray, avoid_mask: np.ndarray) -> bool:
-        """Try to place an obstacle shape on the grid, avoiding specified areas."""
+    def _get_valid_positions_vectorized(self, grid_shape, obstacle_shape, avoid_mask):
+        """Vectorized computation of valid obstacle positions."""
+        grid_h, grid_w = grid_shape
         shape_h, shape_w = obstacle_shape.shape
-        grid_h, grid_w = grid.shape
 
-        # Find valid placement positions
         valid_positions = []
+
+        # Use numpy broadcasting for efficient overlap checking
         for i in range(grid_h - shape_h + 1):
             for j in range(grid_w - shape_w + 1):
-                # Check if this position is valid (no overlap with avoid_mask)
-                if not np.any(avoid_mask[i : i + shape_h, j : j + shape_w]):
+                # Check if this position overlaps with avoid_mask
+                region = avoid_mask[i : i + shape_h, j : j + shape_w]
+                if not np.any(region):
                     valid_positions.append((i, j))
+
+        return valid_positions
+
+    def _place_obstacle_optimized(self, grid: np.ndarray, obstacle_shape: np.ndarray, avoid_mask: np.ndarray) -> bool:
+        """Optimized obstacle placement with reduced redundant operations."""
+        # Get valid positions once
+        valid_positions = self._get_valid_positions_vectorized(grid.shape, obstacle_shape, avoid_mask)
 
         if not valid_positions:
             return False
 
-        # Try placing the obstacle and check if agent can still escape
-        center_i, center_j = grid_h // 2, grid_w // 2
+        center_i, center_j = grid.shape[0] // 2, grid.shape[1] // 2
 
-        # Shuffle positions to try them randomly
+        # Shuffle positions once
         self._rng.shuffle(valid_positions)
 
+        # Pre-extract wall positions from obstacle shape
+        wall_positions = np.where(obstacle_shape == "wall")
+        wall_coords = list(zip(wall_positions[0], wall_positions[1], strict=True))
+
         for i, j in valid_positions:
-            # Temporarily place the obstacle
+            # Create temporary grid more efficiently
             temp_grid = grid.copy()
-            for di in range(shape_h):
-                for dj in range(shape_w):
-                    if obstacle_shape[di, dj] == "wall":
-                        temp_grid[i + di, j + dj] = "wall"
+
+            # Apply obstacle using pre-computed wall coordinates
+            for di, dj in wall_coords:
+                temp_grid[i + di, j + dj] = "wall"
 
             # Check if agent can still reach perimeter
-            if self._can_reach_perimeter(temp_grid, center_i, center_j):
-                # Place the obstacle permanently
-                for di in range(shape_h):
-                    for dj in range(shape_w):
-                        if obstacle_shape[di, dj] == "wall":
-                            grid[i + di, j + dj] = "wall"
+            if self._can_reach_perimeter_optimized(temp_grid, center_i, center_j):
+                # Place the obstacle permanently using the same coordinates
+                for di, dj in wall_coords:
+                    grid[i + di, j + dj] = "wall"
                 return True
 
         return False
@@ -195,104 +221,92 @@ class PerimeterInContextMapBuilder(MapBuilder):
         # always a single agent
         agents = ["agent.agent"]
 
-        # Find perimeter cells (cells touching the border)
+        # Create perimeter mask more efficiently using vectorized operations
         perimeter_mask = np.zeros((height, width), dtype=bool)
 
-        # Top and bottom rows
-        perimeter_mask[0, :] = True
-        perimeter_mask[height - 1, :] = True
+        # Use array slicing for efficiency
+        perimeter_mask[0, :] = True  # Top row
+        perimeter_mask[-1, :] = True  # Bottom row
+        perimeter_mask[:, 0] = True  # Left column
+        perimeter_mask[:, -1] = True  # Right column
 
-        # Left and right columns
-        perimeter_mask[:, 0] = True
-        perimeter_mask[:, width - 1] = True
-
-        # Exclude the four corners from placement
+        # Exclude corners if grid is large enough
         if height >= 2 and width >= 2:
-            perimeter_mask[0, 0] = False
-            perimeter_mask[0, width - 1] = False
-            perimeter_mask[height - 1, 0] = False
-            perimeter_mask[height - 1, width - 1] = False
+            corners = [(0, 0), (0, -1), (-1, 0), (-1, -1)]
+            for i, j in corners:
+                perimeter_mask[i, j] = False
 
-        # Find empty perimeter cells for objects
+        # Find empty perimeter cells for objects using vectorized operations
         empty_perimeter_mask = (grid == "empty") & perimeter_mask
-        empty_perimeter_indices = np.where(empty_perimeter_mask.flatten())[0]
+        empty_perimeter_indices = np.flatnonzero(empty_perimeter_mask.ravel())
 
-        # Prepare objects for perimeter placement
+        # Prepare and place objects on perimeter
         object_symbols = []
         for obj_name, count in self._config.objects.items():
             object_symbols.extend([obj_name] * count)
 
-        flat_grid = grid.flatten()
+        if object_symbols and len(empty_perimeter_indices) > 0:
+            object_symbols = np.array(object_symbols, dtype=str)
+            self._rng.shuffle(object_symbols)
+            self._rng.shuffle(empty_perimeter_indices)
 
-        # Place objects on perimeter
-        object_symbols = np.array(object_symbols).astype(str)
-        self._rng.shuffle(object_symbols)
-        self._rng.shuffle(empty_perimeter_indices)
-        num_placeable = min(len(object_symbols), len(empty_perimeter_indices))
-        if num_placeable > 0:
-            selected_perimeter_indices = empty_perimeter_indices[:num_placeable]
-            flat_grid[selected_perimeter_indices] = object_symbols[:num_placeable]
+            num_placeable = min(len(object_symbols), len(empty_perimeter_indices))
+            if num_placeable > 0:
+                flat_grid = grid.ravel()
+                selected_indices = empty_perimeter_indices[:num_placeable]
+                flat_grid[selected_indices] = object_symbols[:num_placeable]
+                grid = flat_grid.reshape(height, width)
 
-        grid = flat_grid.reshape(height, width)
-
-        # Place obstacles if specified (only for PerimeterInContextMapBuilderWithObstacles)
-        obstacle_type = getattr(self._config, "obstacle_type", None)
-        density = getattr(self._config, "density", None)
+        # Place obstacles if specified with optimizations
+        density = self._config.density
+        if density == "no-terrain":
+            density = None
+        obstacle_type = random.choice(["square", "cross", "L"])
 
         if obstacle_type and density:
-            # Try different densities if the requested one fails
             densities_to_try = [density, "balanced", "sparse"]
             obstacles_placed = 0
 
             for fallback_density in densities_to_try:
                 num_obstacles, obstacle_size = self._get_density_config(fallback_density, inner_area, obstacle_type)
 
-                # Create mask of areas to avoid
-                avoid_mask = np.zeros((height, width), dtype=bool)
+                # Create avoid mask more efficiently
+                avoid_mask = perimeter_mask.copy()  # Start with perimeter mask
 
-                # Avoid perimeter (where converters are placed)
-                avoid_mask |= perimeter_mask
-
-                # Avoid inner perimeter (cells just inside the border) to ensure accessibility
-                inner_perimeter_mask = np.zeros((height, width), dtype=bool)
+                # Add inner perimeter efficiently
                 if height > 2 and width > 2:
-                    # Inner perimeter: one cell in from the border
-                    inner_perimeter_mask[1, :] = True  # Top inner row
-                    inner_perimeter_mask[height - 2, :] = True  # Bottom inner row
-                    inner_perimeter_mask[:, 1] = True  # Left inner column
-                    inner_perimeter_mask[:, width - 2] = True  # Right inner column
+                    inner_perimeter = np.zeros((height, width), dtype=bool)
+                    inner_perimeter[1, :] = True
+                    inner_perimeter[-2, :] = True
+                    inner_perimeter[:, 1] = True
+                    inner_perimeter[:, -2] = True
 
-                    # Exclude corners from inner perimeter
-                    inner_perimeter_mask[1, 1] = False
-                    inner_perimeter_mask[1, width - 2] = False
-                    inner_perimeter_mask[height - 2, 1] = False
-                    inner_perimeter_mask[height - 2, width - 2] = False
+                    # Exclude inner corners
+                    inner_corners = [(1, 1), (1, -2), (-2, 1), (-2, -2)]
+                    for i, j in inner_corners:
+                        inner_perimeter[i, j] = False
 
-                avoid_mask |= inner_perimeter_mask
+                    avoid_mask |= inner_perimeter
 
                 # Reserve center for agent
                 center_i, center_j = height // 2, width // 2
                 avoid_mask[center_i, center_j] = True
 
-                # Try to place obstacles
-                obstacles_placed = 0
+                # Try to place obstacles with optimized method
+                obstacle_shape = self._create_obstacle_shapes(obstacle_type, obstacle_size)
+
                 for _ in range(num_obstacles):
-                    obstacle_shape = self._create_obstacle_shapes(obstacle_type, obstacle_size)
-                    success = self._place_obstacle(grid, obstacle_shape, avoid_mask)
+                    success = self._place_obstacle_optimized(grid, obstacle_shape, avoid_mask)
                     if success:
                         obstacles_placed += 1
                     else:
-                        break  # No more valid positions
+                        break
 
-                # If we placed at least one obstacle, we're done
                 if obstacles_placed > 0:
                     break
 
-        # place agent in center
-        center_index = (height // 2) * width + (width // 2)
-        flat_grid = grid.flatten()
-        flat_grid[center_index] = agents[0]
-
-        grid = flat_grid.reshape(height, width)
+        # Place agent in center efficiently
+        center_i, center_j = height // 2, width // 2
+        grid[center_i, center_j] = agents[0]
 
         return GameMap(grid)

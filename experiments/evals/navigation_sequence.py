@@ -33,7 +33,8 @@ def make_nav_sequence_ascii_env(
 def make_navigation_sequence_eval_suite() -> list[SimulationConfig]:
     evals = [
         SimulationConfig(
-            name=f"navigation_sequence/{eval['name']}",
+            suite="navigation_sequence",
+            name=eval["name"],
             env=make_nav_sequence_ascii_env(
                 name=eval["name"],
                 max_steps=eval["max_steps"],

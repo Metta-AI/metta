@@ -68,7 +68,8 @@ def make_emptyspace_sparse_env() -> MettaGridConfig:
 def make_navigation_eval_suite() -> list[SimulationConfig]:
     evals = [
         SimulationConfig(
-            name=f"navigation/{eval['name']}",
+            suite="navigation",
+            name=eval["name"],
             env=make_nav_ascii_env(
                 name=eval["name"],
                 max_steps=eval["max_steps"],
@@ -77,5 +78,11 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
             ),
         )
         for eval in NAVIGATION_EVALS
-    ] + [SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env())]
+    ] + [
+        SimulationConfig(
+            suite="navigation",
+            name="emptyspace_sparse",
+            env=make_emptyspace_sparse_env(),
+        )
+    ]
     return evals

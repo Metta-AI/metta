@@ -1,4 +1,6 @@
-from mettagrid.config.mettagrid_config import AssemblerConfig, ConverterConfig, RecipeConfig, WallConfig
+from typing import Literal
+
+from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ConverterConfig, RecipeConfig, WallConfig
 
 wall = WallConfig(type_id=1)
 block = WallConfig(type_id=14, swappable=True)
@@ -134,3 +136,70 @@ assembler_armory = AssemblerConfig(
         )
     ],
 )
+
+assembler_lab = AssemblerConfig(
+    type_id=17,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+assembler_factory = AssemblerConfig(
+    type_id=18,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+assembler_temple = AssemblerConfig(
+    type_id=19,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+
+# Chest building definitions. Maybe not needed beyond the raw config?
+def make_chest(
+    resource_type: str,
+    type_id: int,
+    deposit_positions: list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]] | None = None,
+    withdrawal_positions: list[Literal["NW", "N", "NE", "W", "E", "SW", "S", "SE"]] | None = None,
+) -> ChestConfig:
+    """Create a chest configuration for a specific resource type."""
+    if deposit_positions is None:
+        deposit_positions = []  # Default to no deposit positions
+    if withdrawal_positions is None:
+        withdrawal_positions = []  # Default to no withdrawal positions
+
+    return ChestConfig(
+        type_id=type_id,
+        resource_type=resource_type,
+        deposit_positions=deposit_positions,
+        withdrawal_positions=withdrawal_positions,
+    )
+
+
+# Example chest configurations
+chest_heart = make_chest("heart", 20, deposit_positions=["N"], withdrawal_positions=["S"])

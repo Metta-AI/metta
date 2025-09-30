@@ -1,4 +1,5 @@
 import logging
+import os
 import pickle
 from collections import OrderedDict
 from pathlib import Path
@@ -7,8 +8,12 @@ from typing import Any, Dict, List, Optional, TypedDict
 import torch
 
 from metta.agent.mocks import MockAgent
-from mettagrid.util.file import local_copy, write_file
-from mettagrid.util.uri import ParsedURI
+from metta.agent.policy import Policy
+from metta.rl.puffer_policy import _is_puffer_state_dict, load_pufferlib_checkpoint
+from metta.rl.system_config import SystemConfig
+from metta.tools.utils.auto_config import auto_policy_storage_decision
+from metta.utils.file import local_copy, write_file
+from metta.utils.uri import ParsedURI
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +33,16 @@ class PolicyMetadata(TypedDict, total=False):
 
 def key_and_version(uri: str) -> tuple[str, int]:
     """Extract key (run name) and version (epoch) from a policy URI.
-    "file:///tmp/my_run/checkpoints/my_run:v5.pt" -> ("my_run", 5)
-    "s3://bucket/policies/my_run/checkpoints/my_run:v10.pt" -> ("my_run", 10)
-    "mock://test_agent" -> ("test_agent", 0)
+
+    Examples:
+        "file:///tmp/my_run/checkpoints/my_run:v5.pt" -> ("my_run", 5)
+        "s3://bucket/policies/my_run/checkpoints/my_run:v10.pt" -> ("my_run", 10)
+        "file:///tmp/my_run/checkpoints/my_run:latest.pt" -> ("my_run", latest_epoch)
+        "s3://bucket/policies/my_run/checkpoints/my_run:latest.pt" -> ("my_run", latest_epoch)
+        "mock://test_agent" -> ("test_agent", 0)
+
+    The :latest selector automatically resolves to the highest epoch number
+    available in the checkpoint directory.
     """
     parsed = ParsedURI.parse(uri)
 
@@ -38,7 +50,10 @@ def key_and_version(uri: str) -> tuple[str, int]:
         path = parsed.local_path
 
         if path.suffix == ".pt":
-            return _extract_run_and_epoch(path)
+            run_name, epoch = _extract_run_and_epoch(path)
+            if epoch == -1:  # :latest selector
+                epoch = _resolve_latest_epoch(path, run_name)
+            return (run_name, epoch)
 
         if path.is_dir():
             checkpoint_file = _find_latest_checkpoint_in_dir(path)
@@ -50,7 +65,10 @@ def key_and_version(uri: str) -> tuple[str, int]:
         key_path = Path(parsed.key)
         if key_path.suffix == ".pt":
             try:
-                return _extract_run_and_epoch(Path(key_path.name))
+                run_name, epoch = _extract_run_and_epoch(Path(key_path.name))
+                if epoch == -1:  # :latest selector
+                    epoch = _resolve_latest_epoch_s3(uri, run_name)
+                return (run_name, epoch)
             except ValueError:
                 pass
         return (key_path.stem if key_path.suffix else key_path.name, 0)
@@ -69,6 +87,9 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
     structure, leading ``v{epoch}.pt}``, or legacy ``run__e{epoch}``
     filenames. Unexpected filenames return epoch ``0`` with a best-effort
     run name instead of failing.
+
+    Special handling for :latest selector - returns epoch -1 to indicate
+    latest epoch resolution is needed.
     """
 
     stem = path.stem
@@ -83,6 +104,11 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int]:
             run_name = candidate_run
         if suffix.isdigit():
             epoch = int(suffix)
+    elif ":latest" in stem:
+        candidate_run = stem.replace(":latest", "")
+        if candidate_run:
+            run_name = candidate_run
+            epoch = -1  # Special marker for latest resolution
 
     # Fall back to directory structure (…/<run>/checkpoints/<file>.pt)
     if run_name is None:
@@ -132,10 +158,82 @@ def _find_latest_checkpoint_in_dir(directory: Path) -> Optional[Path]:
     return None
 
 
-def _load_checkpoint_file(path: str, device: str | torch.device):
+def _resolve_latest_epoch(path: Path, run_name: str) -> int:
+    """Resolve :latest to actual epoch number by finding latest checkpoint."""
+    checkpoint_dir = path.parent
+    if checkpoint_dir.name != "checkpoints":
+        # Try to find checkpoints directory
+        potential_checkpoints = checkpoint_dir / "checkpoints"
+        if potential_checkpoints.is_dir():
+            checkpoint_dir = potential_checkpoints
+
+    latest_checkpoint = _find_latest_checkpoint_in_dir(checkpoint_dir)
+    if latest_checkpoint:
+        _, epoch = _extract_run_and_epoch(latest_checkpoint)
+        return epoch
+    return 0
+
+
+def _resolve_latest_epoch_s3(uri: str, run_name: str) -> int:
+    """Resolve :latest for S3 URIs by listing available checkpoints."""
+    try:
+        import boto3
+
+        from metta.utils.uri import ParsedURI
+
+        # Extract base path without the filename
+        base_uri = uri.rsplit("/", 1)[0] + "/"
+        parsed = ParsedURI.parse(base_uri)
+
+        if parsed.scheme != "s3" or not parsed.bucket:
+            return 0
+
+        # List objects in S3
+        s3_client = boto3.client("s3")
+        prefix = parsed.key or ""
+
+        response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
+
+        if "Contents" not in response:
+            return 0
+
+        # Filter for checkpoint files
+        checkpoint_files = []
+        for obj in response["Contents"]:
+            key = obj["Key"]
+            filename = key.split("/")[-1]  # Get just the filename
+            if filename.endswith(".pt") and not filename.endswith("trainer_state.pt"):
+                checkpoint_files.append(filename)
+
+        if not checkpoint_files:
+            return 0
+
+        # Extract epochs from filenames and find maximum
+        max_epoch = 0
+        for filename in checkpoint_files:
+            try:
+                _, epoch = _extract_run_and_epoch(Path(filename))
+                if epoch > max_epoch:
+                    max_epoch = epoch
+            except ValueError:
+                continue
+
+        return max_epoch
+    except Exception as e:
+        logger.warning(f"Failed to resolve :latest for S3 URI {uri}: {e}, defaulting to epoch 0")
+        return 0
+
+
+def _load_checkpoint_file(path: str, device: str | torch.device) -> Policy:
     """Load a checkpoint file, raising FileNotFoundError on corruption."""
     try:
-        return torch.load(path, weights_only=False, map_location=device)
+        checkpoint_data = torch.load(path, weights_only=False, map_location=device)
+
+        if _is_puffer_state_dict(checkpoint_data):
+            return load_pufferlib_checkpoint(checkpoint_data, device)
+
+        return checkpoint_data
+
     except FileNotFoundError:
         raise
     except (pickle.UnpicklingError, RuntimeError, OSError) as err:
@@ -147,10 +245,9 @@ class CheckpointManager:
 
     def __init__(
         self,
-        run: str = "default",
-        run_dir: str = "./train_dir",
+        run: str,
+        system_cfg: SystemConfig,
         cache_size: int = 3,
-        remote_prefix: str | None = None,
     ):
         # Validate run name
         if not run or not run.strip():
@@ -162,28 +259,78 @@ class CheckpointManager:
 
         self.run = run
         self.run_name = run
-        self.run_dir = Path(run_dir)
-        self.checkpoint_dir = self.run_dir / self.run / "checkpoints"
+        self.run_dir = system_cfg.data_dir / self.run
+        self.checkpoint_dir = self.run_dir / "checkpoints"
+
+        os.makedirs(system_cfg.data_dir, exist_ok=True)
+        os.makedirs(self.run_dir, exist_ok=True)
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
         self.cache_size = cache_size
         self._cache = OrderedDict()
+
         self._remote_prefix = None
-        if remote_prefix:
-            parsed = ParsedURI.parse(remote_prefix)
-            if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
-                raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
-            # Remove trailing slash from prefix for deterministic joins
-            key_prefix = parsed.key.rstrip("/")
-            self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+        if not system_cfg.local_only:
+            if system_cfg.remote_prefix:
+                parsed = ParsedURI.parse(system_cfg.remote_prefix)
+                if parsed.scheme != "s3" or not parsed.bucket or not parsed.key:
+                    raise ValueError("remote_prefix must be an s3:// URI with bucket and key prefix")
+                # Remove trailing slash from prefix for deterministic joins
+                key_prefix = parsed.key.rstrip("/")
+                self._remote_prefix = f"s3://{parsed.bucket}/{key_prefix}" if key_prefix else f"s3://{parsed.bucket}"
+
+            if self._remote_prefix is None:
+                self._setup_remote_prefix()
+
+    def _setup_remote_prefix(self) -> None:
+        """Determine and set the remote prefix for policy storage if needed."""
+        if self._remote_prefix is None:
+            storage_decision = auto_policy_storage_decision(self.run)
+            if storage_decision.remote_prefix:
+                self._remote_prefix = storage_decision.remote_prefix
+                if storage_decision.reason == "env_override":
+                    logger.info("Using POLICY_REMOTE_PREFIX for policy storage: %s", storage_decision.remote_prefix)
+                else:
+                    logger.info(
+                        "Policies will sync to %s (Softmax AWS profile detected).",
+                        storage_decision.remote_prefix,
+                    )
+            elif storage_decision.reason == "not_connected":
+                logger.info(
+                    "Softmax AWS SSO not detected; policies will remain local. "
+                    "Run 'aws sso login --profile softmax' then 'metta status --components=aws' to enable uploads."
+                )
+            elif storage_decision.reason == "aws_not_enabled":
+                logger.info(
+                    "AWS component disabled; policies will remain local. Run 'metta configure aws' to set up S3."
+                )
+            elif storage_decision.reason == "no_base_prefix":
+                logger.info(
+                    "Remote policy prefix unset; policies will remain local. Configure POLICY_REMOTE_PREFIX or run "
+                    "'metta configure aws'."
+                )
+
+    @property
+    def remote_checkpoints_enabled(self) -> bool:
+        return self._remote_prefix is not None
 
     def clear_cache(self):
         """Clear the instance's LRU cache."""
         self._cache.clear()
 
     @staticmethod
-    def load_from_uri(uri: str, device: str | torch.device = "cpu"):
-        """Load a policy from a URI (file://, s3://, or mock://)."""
+    def load_from_uri(uri: str, device: str | torch.device = "cpu") -> Policy:
+        """Load a policy from a URI (file://, s3://, or mock://).
+
+        Supports :latest selector for automatic resolution to the most recent checkpoint:
+            file:///path/to/run/checkpoints/run_name:latest.pt
+            s3://bucket/path/run/checkpoints/run_name:latest.pt
+        """
         if uri.startswith(("http://", "https://", "ftp://", "gs://")):
             raise ValueError(f"Invalid URI: {uri}")
+
+        # Resolve :latest selector before proceeding
+        uri = CheckpointManager._resolve_latest_uri(uri)
         parsed = ParsedURI.parse(uri)
 
         if parsed.scheme == "file" and parsed.local_path is not None:
@@ -283,6 +430,10 @@ class CheckpointManager:
         }
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
+        if "curriculum_state" in state:
+            result["curriculum_state"] = state["curriculum_state"]
+        if "loss_states" in state:
+            result["loss_states"] = state["loss_states"]
         return result
 
     def save_agent(self, agent, epoch: int, metadata: Dict[str, Any]) -> str:
@@ -318,13 +469,23 @@ class CheckpointManager:
         return f"file://{checkpoint_path.resolve()}"
 
     def save_trainer_state(
-        self, optimizer, epoch: int, agent_step: int, stopwatch_state: Optional[Dict[str, Any]] = None
+        self,
+        optimizer,
+        epoch: int,
+        agent_step: int,
+        stopwatch_state: Optional[Dict[str, Any]] = None,
+        curriculum_state: Optional[Dict[str, Any]] = None,
+        loss_states: Optional[Dict[str, Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         state = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
+        if curriculum_state:
+            state["curriculum_state"] = curriculum_state
+        if loss_states is not None:
+            state["loss_states"] = loss_states
         torch.save(state, trainer_file)
 
     def select_checkpoints(self, strategy: str = "latest", count: int = 1) -> List[str]:
@@ -354,3 +515,35 @@ class CheckpointManager:
             trainer_file = self.checkpoint_dir / "trainer_state.pt"
             trainer_file.unlink(missing_ok=True)
         return len(files_to_remove)
+
+    @staticmethod
+    def _resolve_latest_uri(uri: str) -> str:
+        """Resolve :latest in URI to actual epoch number."""
+        if ":latest" not in uri:
+            return uri
+
+        try:
+            # Parse the URI to handle it properly
+            parsed = ParsedURI.parse(uri)
+
+            if parsed.scheme == "file" and parsed.local_path:
+                # For file URIs, find the latest checkpoint in the directory
+                checkpoint_dir = parsed.local_path.parent
+                latest_checkpoint = _find_latest_checkpoint_in_dir(checkpoint_dir)
+                if latest_checkpoint:
+                    return f"file://{latest_checkpoint.resolve()}"
+                else:
+                    logger.warning(f"No checkpoints found in directory for :latest URI {uri}")
+                    return uri
+            elif parsed.scheme == "s3":
+                # For S3 URIs, extract run name and resolve latest epoch
+                run_name = parsed.local_path.stem.replace(":latest", "") if parsed.local_path else "unknown"
+                actual_epoch = _resolve_latest_epoch_s3(uri, run_name)
+                return uri.replace(":latest", f":v{actual_epoch}")
+            else:
+                logger.warning(f"Unsupported scheme for :latest resolution: {parsed.scheme}")
+                return uri
+        except Exception as e:
+            logger.warning(f"Failed to resolve :latest in URI {uri}: {e}")
+
+        return uri

@@ -5,7 +5,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter
 from typing_extensions import TypedDict
 
-import mettagrid.util.file as file_utils
+import metta.utils.file as file_utils
 from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
 from mettagrid.mapgen.utils.storable_map_index import StorableMapIndex
 

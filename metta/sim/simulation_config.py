@@ -11,6 +11,7 @@ from mettagrid.config import Config
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
+    suite: str = Field(description="Name of the simulation suite")
     name: str = Field(description="Name of the simulation")
     env: MettaGridConfig
 
@@ -22,3 +23,7 @@ class SimulationConfig(Config):
     policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
 
     episode_tags: Optional[list[str]] = Field(default=None, description="Tags to add to each episode")
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.suite}/{self.name}"

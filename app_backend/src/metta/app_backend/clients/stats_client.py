@@ -1,5 +1,7 @@
 import logging
 import uuid
+from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Optional, Type, TypeVar
 
 import httpx
@@ -11,6 +13,7 @@ from metta.app_backend.routes.score_routes import (
     PolicyScoresData,
     PolicyScoresRequest,
 )
+from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     EpisodeCreate,
     EpisodeResponse,
@@ -30,7 +33,176 @@ logger = logging.getLogger("stats_client")
 T = TypeVar("T", bound=BaseModel)
 
 
-class StatsClient:
+class StatsClient(ABC):
+    @abstractmethod
+    def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None):
+        pass
+
+    @abstractmethod
+    def __enter__(self):
+        pass
+
+    @abstractmethod
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+        pass
+
+    @abstractmethod
+    def close(self):
+        pass
+
+    @abstractmethod
+    def create_training_run(
+        self,
+        name: str,
+        attributes: dict[str, str] | None = None,
+        url: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> TrainingRunResponse:
+        pass
+
+    @abstractmethod
+    def create_epoch(
+        self,
+        run_id: uuid.UUID,
+        start_training_epoch: int,
+        end_training_epoch: int,
+        attributes: dict[str, Any] | None = None,
+    ) -> EpochResponse:
+        pass
+
+    @abstractmethod
+    def create_policy(
+        self,
+        name: str,
+        description: str | None = None,
+        url: str | None = None,
+        epoch_id: uuid.UUID | None = None,
+    ) -> PolicyResponse:
+        pass
+
+    @abstractmethod
+    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        pass
+
+    @abstractmethod
+    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
+        pass
+
+    @abstractmethod
+    def record_episode(
+        self,
+        *,
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
+        primary_policy_id: uuid.UUID,
+        sim_suite: str,
+        env_name: str,
+        stats_epoch: uuid.UUID | None = None,
+        replay_url: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        eval_task_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
+    ) -> EpisodeResponse:
+        pass
+
+    @abstractmethod
+    def sql_query(self, query: str) -> SQLQueryResponse:
+        pass
+
+    @staticmethod
+    def create(stats_server_uri: Optional[str]) -> "StatsClient":
+        if stats_server_uri is None:
+            return NoopStatsClient()
+
+        machine_token = get_machine_token(stats_server_uri)
+        if machine_token is None:
+            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
+        stats_client = HttpStatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client._validate_authenticated()
+        return stats_client
+
+
+# TODO: REMOVE THIS
+class NoopStatsClient(StatsClient):
+    def __init__(self):
+        self.id = uuid.uuid1()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+        pass
+
+    def close(self):
+        pass
+
+    def create_training_run(
+        self,
+        name: str,
+        attributes: dict[str, str] | None = None,
+        url: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> TrainingRunResponse:
+        return TrainingRunResponse(id=self.id)
+
+    def create_epoch(
+        self,
+        run_id: uuid.UUID,
+        start_training_epoch: int,
+        end_training_epoch: int,
+        attributes: dict[str, Any] | None = None,
+    ) -> EpochResponse:
+        return EpochResponse(id=self.id)
+
+    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        pass
+
+    def create_task(self, request: TaskCreateRequest) -> TaskResponse:
+        return TaskResponse(
+            id=self.id,
+            policy_id=uuid.uuid4(),
+            sim_suite="default_suite",
+            status="unprocessed",
+            created_at=datetime.now(),
+            attributes={},
+            retries=0,
+            updated_at=datetime.now(),
+        )
+
+    def record_episode(
+        self,
+        *,
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
+        primary_policy_id: uuid.UUID,
+        sim_suite: str,
+        env_name: str,
+        stats_epoch: uuid.UUID | None = None,
+        replay_url: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        eval_task_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
+    ) -> EpisodeResponse:
+        return EpisodeResponse(id=self.id)
+
+    def create_policy(
+        self,
+        name: str,
+        description: str | None = None,
+        url: str | None = None,
+        epoch_id: uuid.UUID | None = None,
+    ) -> PolicyResponse:
+        return PolicyResponse(id=self.id)
+
+    def sql_query(self, query: str) -> SQLQueryResponse:
+        return SQLQueryResponse(columns=[], rows=[], row_count=0)
+
+
+class HttpStatsClient(StatsClient):
     """Synchronous wrapper around AsyncStatsClient using httpx sync client."""
 
     def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None):
@@ -102,7 +274,7 @@ class StatsClient:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: dict[str, str] | None = None,
+        attributes: dict[str, Any] | None = None,
     ) -> EpochResponse:
         data = EpochCreate(
             start_training_epoch=start_training_epoch,
@@ -134,8 +306,8 @@ class StatsClient:
         agent_policies: dict[int, uuid.UUID],
         agent_metrics: dict[int, dict[str, float]],
         primary_policy_id: uuid.UUID,
-        sim_name: str,
-        env_label: str,
+        sim_suite: str,
+        env_name: str,
         stats_epoch: uuid.UUID | None = None,
         replay_url: str | None = None,
         attributes: dict[str, Any] | None = None,
@@ -148,8 +320,8 @@ class StatsClient:
             agent_metrics=agent_metrics,
             primary_policy_id=primary_policy_id,
             stats_epoch=stats_epoch,
-            sim_name=sim_name,
-            env_label=env_label,
+            sim_suite=sim_suite,
+            env_name=env_name,
             replay_url=replay_url,
             attributes=attributes or {},
             eval_task_id=eval_task_id,
@@ -170,11 +342,5 @@ class StatsClient:
             PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
         )
 
-    @staticmethod
-    def create(stats_server_uri: str) -> Optional["StatsClient"]:
-        machine_token = get_machine_token(stats_server_uri)
-        if machine_token is None:
-            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
-        stats_client = StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
-        stats_client._validate_authenticated()
-        return stats_client
+    def sql_query(self, query: str) -> SQLQueryResponse:
+        return self._make_sync_request(SQLQueryResponse, "POST", "/sql/query", json={"query": query})
