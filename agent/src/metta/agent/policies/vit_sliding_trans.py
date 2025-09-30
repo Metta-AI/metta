@@ -50,7 +50,7 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             name="critic",
             in_features=_core_out_dim,
             out_features=1,
-            hidden_features=[512],
+            hidden_features=[256],
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
         ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
