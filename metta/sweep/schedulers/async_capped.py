@@ -187,6 +187,12 @@ class AsyncCappedOptimizingScheduler:
         # Update state
         self._update_state_from_runs(runs)
 
+        # On first tick after restart, wait until we've initialized from observed runs
+        # to avoid scheduling new training before we see any pending evals.
+        if not self._state_initialized:
+            logger.info("[AsyncCappedOptimizingScheduler] Waiting for initial run state; skipping scheduling this tick")
+            return []
+
         # Eval scheduling: honor max_concurrent_evals
         eval_capacity = max(0, self.config.max_concurrent_evals - len(self.state.runs_in_eval))
         # First, schedule any forced re-evaluations
@@ -232,7 +238,8 @@ class AsyncCappedOptimizingScheduler:
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", candidate.run_id)
 
         # If any runs still need evaluation, do not schedule new training
-        if any(r.status == JobStatus.TRAINING_DONE_NO_EVAL for r in runs):
+        # Also block training if we have forced re-evals queued but no capacity left
+        if any(r.status == JobStatus.TRAINING_DONE_NO_EVAL for r in runs) or self.state.runs_pending_force_eval:
             return jobs
 
         # Training scheduling: fill as slots free up (only when no eval backlog)
