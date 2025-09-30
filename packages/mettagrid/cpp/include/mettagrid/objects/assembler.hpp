@@ -15,9 +15,6 @@
 #include "objects/recipe.hpp"
 #include "objects/usable.hpp"
 
-// Forward declarations
-class Agent;
-
 class Assembler : public GridObject, public Usable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
@@ -103,8 +100,22 @@ public:
   // Recipe lookup table - 256 possible patterns (2^8)
   std::vector<std::shared_ptr<Recipe>> recipes;
 
+  // Unclip recipes - used when assembler is clipped
+  std::vector<std::shared_ptr<Recipe>> unclip_recipes;
+
+  // Clipped state
+  bool is_clipped;
+
   // Current cooldown state
   unsigned int cooldown_end_timestep;
+
+  // Usage tracking
+  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
+  unsigned int uses_count;  // Current number of times used
+
+  // Exhaustion tracking
+  float exhaustion;           // Exhaustion rate (0 = no exhaustion)
+  float cooldown_multiplier;  // Current cooldown multiplier from exhaustion
 
   // Grid access for finding surrounding agents
   class Grid* grid;
@@ -119,7 +130,13 @@ public:
 
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : recipes(cfg.recipes),
+        unclip_recipes(),
+        is_clipped(false),
         cooldown_end_timestep(0),
+        max_uses(cfg.max_uses),
+        uses_count(0),
+        exhaustion(cfg.exhaustion),
+        cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         recipe_details_obs(cfg.recipe_details_obs),
@@ -176,13 +193,26 @@ public:
   const Recipe* get_current_recipe() const {
     if (!grid) return nullptr;
     uint8_t pattern = get_agent_pattern_byte();
-    if (pattern >= recipes.size()) return nullptr;
-    return recipes[pattern].get();
+
+    // Use unclip recipes if clipped, normal recipes otherwise
+    const std::vector<std::shared_ptr<Recipe>>& active_recipes = is_clipped ? unclip_recipes : recipes;
+
+    if (pattern >= active_recipes.size()) return nullptr;
+    return active_recipes[pattern].get();
   }
 
-  // Implement pure virtual method from Usable
+  // Make this assembler clipped with the given unclip recipes
+  void becomeClipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec) {
+    is_clipped = true;
+    unclip_recipes = unclip_recipes_vec;
+  }
+
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid || !current_timestep_ptr) {
+      return false;
+    }
+    // Check if max uses has been reached
+    if (max_uses > 0 && uses_count >= max_uses) {
       return false;
     }
     if (cooldown_remaining() > 0) {
@@ -198,9 +228,26 @@ public:
     }
     consume_resources_for_recipe(*recipe, surrounding_agents);
     give_output_to_agent(*recipe, actor);
+
+    // Apply cooldown with exhaustion multiplier
     if (recipe->cooldown > 0) {
-      cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
+      unsigned int adjusted_cooldown = static_cast<unsigned int>(recipe->cooldown * cooldown_multiplier);
+      cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
     }
+
+    // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
+    if (is_clipped) {
+      is_clipped = false;
+      unclip_recipes.clear();
+    } else {
+      uses_count++;
+
+      // Apply exhaustion (increase cooldown multiplier exponentially)
+      if (exhaustion > 0.0f) {
+        cooldown_multiplier *= (1.0f + exhaustion);
+      }
+    }
+
     return true;
   }
 
@@ -211,6 +258,18 @@ public:
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
       features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
+    }
+
+    // Add clipped status to observations if clipped
+    if (is_clipped) {
+      features.push_back({ObservationFeature::Clipped, static_cast<ObservationType>(1)});
+    }
+
+    // Add remaining uses to observations if max_uses is set
+    if (max_uses > 0) {
+      unsigned int remaining_uses = (uses_count < max_uses) ? (max_uses - uses_count) : 0;
+      remaining_uses = std::min(remaining_uses, 255u);  // Cap at 255 for observation
+      features.push_back({ObservationFeature::RemainingUses, static_cast<ObservationType>(remaining_uses)});
     }
 
     // Add recipe details if configured to do so
