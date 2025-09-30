@@ -1,0 +1,853 @@
+{
+  "$defs": {
+    "ActionConfig": {
+      "additionalProperties": false,
+      "description": "Python action configuration.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "required_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Required Resources",
+          "type": "object"
+        },
+        "consumed_resources": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Consumed Resources",
+          "type": "object"
+        }
+      },
+      "title": "ActionConfig",
+      "type": "object"
+    },
+    "ActionsConfig": {
+      "additionalProperties": false,
+      "description": "Actions configuration.\n\nOmitted actions are disabled by default.",
+      "properties": {
+        "noop": {
+          "$ref": "#/$defs/ActionConfig"
+        },
+        "move": {
+          "$ref": "#/$defs/ActionConfig"
+        },
+        "rotate": {
+          "$ref": "#/$defs/ActionConfig"
+        },
+        "put_items": {
+          "$ref": "#/$defs/ActionConfig"
+        },
+        "get_items": {
+          "$ref": "#/$defs/ActionConfig"
+        },
+        "attack": {
+          "$ref": "#/$defs/AttackActionConfig"
+        },
+        "swap": {
+          "$ref": "#/$defs/ActionConfig"
+        },
+        "change_color": {
+          "$ref": "#/$defs/ActionConfig"
+        },
+        "change_glyph": {
+          "$ref": "#/$defs/ChangeGlyphActionConfig"
+        }
+      },
+      "title": "ActionsConfig",
+      "type": "object"
+    },
+    "AgentConfig": {
+      "additionalProperties": false,
+      "description": "Python agent configuration.",
+      "properties": {
+        "default_resource_limit": {
+          "default": 255,
+          "minimum": 0,
+          "title": "Default Resource Limit",
+          "type": "integer"
+        },
+        "resource_limits": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Resource Limits",
+          "type": "object"
+        },
+        "freeze_duration": {
+          "default": 10,
+          "minimum": -1,
+          "title": "Freeze Duration",
+          "type": "integer"
+        },
+        "rewards": {
+          "$ref": "#/$defs/AgentRewards"
+        },
+        "action_failure_penalty": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Action Failure Penalty",
+          "type": "number"
+        },
+        "initial_inventory": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Initial Inventory",
+          "type": "object"
+        },
+        "team_id": {
+          "default": 0,
+          "description": "Team identifier for grouping agents",
+          "minimum": 0,
+          "title": "Team Id",
+          "type": "integer"
+        },
+        "tags": {
+          "description": "Tags for this agent instance",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "soul_bound_resources": {
+          "description": "Resources that cannot be stolen during attacks",
+          "items": {
+            "type": "string"
+          },
+          "title": "Soul Bound Resources",
+          "type": "array"
+        },
+        "shareable_resources": {
+          "description": "Resources that will be shared when we use another agent",
+          "items": {
+            "type": "string"
+          },
+          "title": "Shareable Resources",
+          "type": "array"
+        }
+      },
+      "title": "AgentConfig",
+      "type": "object"
+    },
+    "AgentRewards": {
+      "additionalProperties": false,
+      "description": "Agent reward configuration with separate inventory and stats rewards.",
+      "properties": {
+        "inventory": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Inventory",
+          "type": "object"
+        },
+        "inventory_max": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Inventory Max",
+          "type": "object"
+        },
+        "stats": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Stats",
+          "type": "object"
+        },
+        "stats_max": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Stats Max",
+          "type": "object"
+        }
+      },
+      "title": "AgentRewards",
+      "type": "object"
+    },
+    "AssemblerConfig": {
+      "additionalProperties": false,
+      "description": "Python assembler configuration.",
+      "properties": {
+        "name": {
+          "default": "assembler",
+          "title": "Name",
+          "type": "string"
+        },
+        "type_id": {
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Type Id",
+          "type": "integer"
+        },
+        "recipes": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "NW",
+                        "N",
+                        "NE",
+                        "W",
+                        "E",
+                        "SW",
+                        "S",
+                        "SE"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "const": "Any",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/$defs/RecipeConfig"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Recipes",
+          "type": "array"
+        },
+        "tags": {
+          "description": "Tags for this object instance",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "allow_partial_usage": {
+          "default": false,
+          "description": "Allow assembler to be used during cooldown with scaled resource requirements/outputs. This makes less sense if the assembler has multiple recipes.",
+          "title": "Allow Partial Usage",
+          "type": "boolean"
+        },
+        "max_uses": {
+          "default": 0,
+          "description": "Maximum number of uses (0 = unlimited)",
+          "minimum": 0,
+          "title": "Max Uses",
+          "type": "integer"
+        },
+        "exhaustion": {
+          "default": 0.0,
+          "description": "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)",
+          "minimum": 0.0,
+          "title": "Exhaustion",
+          "type": "number"
+        }
+      },
+      "title": "AssemblerConfig",
+      "type": "object"
+    },
+    "AttackActionConfig": {
+      "additionalProperties": false,
+      "description": "Python attack action configuration.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "required_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Required Resources",
+          "type": "object"
+        },
+        "consumed_resources": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Consumed Resources",
+          "type": "object"
+        },
+        "defense_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Defense Resources",
+          "type": "object"
+        }
+      },
+      "title": "AttackActionConfig",
+      "type": "object"
+    },
+    "ChangeGlyphActionConfig": {
+      "additionalProperties": false,
+      "description": "Change glyph action configuration.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "required_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Required Resources",
+          "type": "object"
+        },
+        "consumed_resources": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Consumed Resources",
+          "type": "object"
+        },
+        "number_of_glyphs": {
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Number Of Glyphs",
+          "type": "integer"
+        }
+      },
+      "title": "ChangeGlyphActionConfig",
+      "type": "object"
+    },
+    "ChestConfig": {
+      "additionalProperties": false,
+      "description": "Python chest configuration.",
+      "properties": {
+        "type_id": {
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Type Id",
+          "type": "integer"
+        },
+        "resource_type": {
+          "description": "Resource type that this chest can store",
+          "title": "Resource Type",
+          "type": "string"
+        },
+        "deposit_positions": {
+          "description": "Positions where agents can deposit resources",
+          "items": {
+            "enum": [
+              "NW",
+              "N",
+              "NE",
+              "W",
+              "E",
+              "SW",
+              "S",
+              "SE"
+            ],
+            "type": "string"
+          },
+          "title": "Deposit Positions",
+          "type": "array"
+        },
+        "withdrawal_positions": {
+          "description": "Positions where agents can withdraw resources",
+          "items": {
+            "enum": [
+              "NW",
+              "N",
+              "NE",
+              "W",
+              "E",
+              "SW",
+              "S",
+              "SE"
+            ],
+            "type": "string"
+          },
+          "title": "Withdrawal Positions",
+          "type": "array"
+        },
+        "tags": {
+          "description": "Tags for this object instance",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "resource_type"
+      ],
+      "title": "ChestConfig",
+      "type": "object"
+    },
+    "ConverterConfig": {
+      "additionalProperties": false,
+      "description": "Python converter configuration.",
+      "properties": {
+        "name": {
+          "default": "converter",
+          "title": "Name",
+          "type": "string"
+        },
+        "input_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Input Resources",
+          "type": "object"
+        },
+        "output_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Output Resources",
+          "type": "object"
+        },
+        "type_id": {
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Type Id",
+          "type": "integer"
+        },
+        "max_output": {
+          "default": 5,
+          "minimum": -1,
+          "title": "Max Output",
+          "type": "integer"
+        },
+        "max_conversions": {
+          "default": -1,
+          "title": "Max Conversions",
+          "type": "integer"
+        },
+        "conversion_ticks": {
+          "default": 1,
+          "minimum": 0,
+          "title": "Conversion Ticks",
+          "type": "integer"
+        },
+        "cooldown": {
+          "minimum": 0,
+          "title": "Cooldown",
+          "type": "integer"
+        },
+        "initial_resource_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Initial Resource Count",
+          "type": "integer"
+        },
+        "color": {
+          "default": 0,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Color",
+          "type": "integer"
+        },
+        "tags": {
+          "description": "Tags for this object instance",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cooldown"
+      ],
+      "title": "ConverterConfig",
+      "type": "object"
+    },
+    "GameConfig": {
+      "additionalProperties": false,
+      "description": "Python game configuration.",
+      "properties": {
+        "resource_names": {
+          "default": [
+            "ore_red",
+            "ore_blue",
+            "ore_green",
+            "battery_red",
+            "battery_blue",
+            "battery_green",
+            "heart",
+            "armor",
+            "laser",
+            "blueprint"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Resource Names",
+          "type": "array"
+        },
+        "num_agents": {
+          "default": 24,
+          "minimum": 1,
+          "title": "Num Agents",
+          "type": "integer"
+        },
+        "max_steps": {
+          "default": 1000,
+          "minimum": 0,
+          "title": "Max Steps",
+          "type": "integer"
+        },
+        "episode_truncates": {
+          "default": false,
+          "title": "Episode Truncates",
+          "type": "boolean"
+        },
+        "obs_width": {
+          "default": 11,
+          "enum": [
+            3,
+            5,
+            7,
+            9,
+            11,
+            13,
+            15
+          ],
+          "title": "Obs Width",
+          "type": "integer"
+        },
+        "obs_height": {
+          "default": 11,
+          "enum": [
+            3,
+            5,
+            7,
+            9,
+            11,
+            13,
+            15
+          ],
+          "title": "Obs Height",
+          "type": "integer"
+        },
+        "num_observation_tokens": {
+          "default": 200,
+          "minimum": 1,
+          "title": "Num Observation Tokens",
+          "type": "integer"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentConfig"
+        },
+        "agents": {
+          "items": {
+            "$ref": "#/$defs/AgentConfig"
+          },
+          "title": "Agents",
+          "type": "array"
+        },
+        "actions": {
+          "$ref": "#/$defs/ActionsConfig"
+        },
+        "global_obs": {
+          "$ref": "#/$defs/GlobalObsConfig"
+        },
+        "objects": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ConverterConfig"
+              },
+              {
+                "$ref": "#/$defs/WallConfig"
+              },
+              {
+                "$ref": "#/$defs/AssemblerConfig"
+              },
+              {
+                "$ref": "#/$defs/ChestConfig"
+              }
+            ]
+          },
+          "title": "Objects",
+          "type": "object"
+        },
+        "params": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Params"
+        },
+        "resource_loss_prob": {
+          "default": 0.0,
+          "description": "Probability of resource loss per step",
+          "title": "Resource Loss Prob",
+          "type": "number"
+        },
+        "inventory_regen_amounts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Resources to regenerate and their amounts per regeneration interval",
+          "title": "Inventory Regen Amounts",
+          "type": "object"
+        },
+        "inventory_regen_interval": {
+          "default": 0,
+          "description": "Interval in timesteps between regenerations (0 = disabled)",
+          "minimum": 0,
+          "title": "Inventory Regen Interval",
+          "type": "integer"
+        },
+        "map_builder": {
+          "title": "Map Builder"
+        },
+        "track_movement_metrics": {
+          "default": true,
+          "description": "Enable movement metrics tracking (sequential rotations)",
+          "title": "Track Movement Metrics",
+          "type": "boolean"
+        },
+        "recipe_details_obs": {
+          "default": false,
+          "description": "Converters show their recipe inputs and outputs when observed",
+          "title": "Recipe Details Obs",
+          "type": "boolean"
+        },
+        "allow_diagonals": {
+          "default": false,
+          "description": "Enable actions to be aware of diagonal orientations",
+          "title": "Allow Diagonals",
+          "type": "boolean"
+        },
+        "reward_estimates": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reward Estimates"
+        }
+      },
+      "title": "GameConfig",
+      "type": "object"
+    },
+    "GlobalObsConfig": {
+      "additionalProperties": false,
+      "description": "Global observation configuration.",
+      "properties": {
+        "episode_completion_pct": {
+          "default": true,
+          "title": "Episode Completion Pct",
+          "type": "boolean"
+        },
+        "last_action": {
+          "default": true,
+          "title": "Last Action",
+          "type": "boolean"
+        },
+        "last_reward": {
+          "default": true,
+          "title": "Last Reward",
+          "type": "boolean"
+        },
+        "visitation_counts": {
+          "default": false,
+          "title": "Visitation Counts",
+          "type": "boolean"
+        }
+      },
+      "title": "GlobalObsConfig",
+      "type": "object"
+    },
+    "MettaGridConfig": {
+      "additionalProperties": false,
+      "description": "Environment configuration.",
+      "properties": {
+        "label": {
+          "default": "mettagrid",
+          "title": "Label",
+          "type": "string"
+        },
+        "game": {
+          "$ref": "#/$defs/GameConfig"
+        },
+        "desync_episodes": {
+          "default": true,
+          "title": "Desync Episodes",
+          "type": "boolean"
+        }
+      },
+      "title": "MettaGridConfig",
+      "type": "object"
+    },
+    "RecipeConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "input_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Input Resources",
+          "type": "object"
+        },
+        "output_resources": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Output Resources",
+          "type": "object"
+        },
+        "cooldown": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Cooldown",
+          "type": "integer"
+        },
+        "max_use": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Use"
+        }
+      },
+      "title": "RecipeConfig",
+      "type": "object"
+    },
+    "SimulationConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for a single simulation run.",
+      "properties": {
+        "suite": {
+          "description": "Name of the simulation suite",
+          "title": "Suite",
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the simulation",
+          "title": "Name",
+          "type": "string"
+        },
+        "env": {
+          "$ref": "#/$defs/MettaGridConfig"
+        },
+        "num_episodes": {
+          "default": 1,
+          "description": "Number of episodes to run",
+          "minimum": 1,
+          "title": "Num Episodes",
+          "type": "integer"
+        },
+        "max_time_s": {
+          "default": 120,
+          "description": "Maximum time in seconds to run the simulation",
+          "minimum": 0,
+          "title": "Max Time S",
+          "type": "integer"
+        },
+        "npc_policy_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URI of the policy to use for NPC agents",
+          "title": "Npc Policy Uri"
+        },
+        "policy_agents_pct": {
+          "default": 1.0,
+          "description": "pct of agents to be controlled by policies",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Policy Agents Pct",
+          "type": "number"
+        },
+        "episode_tags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tags to add to each episode",
+          "title": "Episode Tags"
+        }
+      },
+      "required": [
+        "suite",
+        "name",
+        "env"
+      ],
+      "title": "SimulationConfig",
+      "type": "object"
+    },
+    "WallConfig": {
+      "additionalProperties": false,
+      "description": "Python wall/block configuration.",
+      "properties": {
+        "type_id": {
+          "title": "Type Id",
+          "type": "integer"
+        },
+        "swappable": {
+          "default": false,
+          "title": "Swappable",
+          "type": "boolean"
+        },
+        "tags": {
+          "description": "Tags for this object instance",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type_id"
+      ],
+      "title": "WallConfig",
+      "type": "object"
+    }
+  },
+  "title": "Gridworks Schemas"
+}
