@@ -1,9 +1,9 @@
 # This example shows a draggable panel UI like in a large editor like VS Code or Blender.
 
 import
-  std/sequtils,
+  std/[random, sequtils],
   fidget2, bumpy, chroma, windy, boxy, fidget2/hybridrender,
-  common, utils
+  common
 
 const
   AreaHeaderHeight = 28
@@ -328,36 +328,35 @@ proc scan*(area: Area): (Area,AreaScan, Rect) =
   var areaScan: AreaScan
   var rect: Rect
   proc visit(area: Area) =
-    let areaRect = rect(nodeTopLeft(area.node), area.node.size)
+    let areaRect = rect(area.node.absolutePosition, area.node.size)
     if mousePos.overlaps(areaRect):
       if area.areas.len > 0:
         for subarea in area.areas:
           visit(subarea)
       else:
         let
-          topLeft = nodeTopLeft(area.node)
           headerRect = rect(
-            topLeft,
+            area.node.absolutePosition,
             vec2(area.node.size.x, AreaHeaderHeight)
           )
           bodyRect = rect(
-            topLeft + vec2(0, AreaHeaderHeight),
+            area.node.absolutePosition + vec2(0, AreaHeaderHeight),
             vec2(area.node.size.x, area.node.size.y - AreaHeaderHeight)
           )
           northRect = rect(
-            topLeft + vec2(0, AreaHeaderHeight),
+            area.node.absolutePosition + vec2(0, AreaHeaderHeight),
             vec2(area.node.size.x, area.node.size.y * 0.2)
           )
           southRect = rect(
-            topLeft + vec2(0, area.node.size.y * 0.8),
+            area.node.absolutePosition + vec2(0, area.node.size.y * 0.8),
             vec2(area.node.size.x, area.node.size.y * 0.2)
           )
           eastRect = rect(
-            topLeft + vec2(area.node.size.x * 0.8, 0) + vec2(0, AreaHeaderHeight),
+            area.node.absolutePosition + vec2(area.node.size.x * 0.8, 0) + vec2(0, AreaHeaderHeight),
             vec2(area.node.size.x * 0.2, area.node.size.y - AreaHeaderHeight)
           )
           westRect = rect(
-            topLeft + vec2(0, 0) + vec2(0, AreaHeaderHeight),
+            area.node.absolutePosition + vec2(0, 0) + vec2(0, AreaHeaderHeight),
             vec2(area.node.size.x * 0.2, area.node.size.y - AreaHeaderHeight)
           )
         if mousePos.overlaps(headerRect):
@@ -433,31 +432,39 @@ find "/UI/Main":
 
   find "**/Area":
     onMouseMove:
-      if dragArea != nil and window.buttonDown[MouseLeft]:
-        if dragArea.layout == Horizontal:
-          let dragPos = nodeTopLeft(dragArea.node)
-          dropHighlight.position = vec2(dragPos.x, window.mousePos.vec2.y)
-          dropHighlight.size = vec2(dragArea.node.size.x, AreaMargin)
-        else:
-          let dragPos = nodeTopLeft(dragArea.node)
-          dropHighlight.position = vec2(window.mousePos.vec2.x, dragPos.y)
-          dropHighlight.size = vec2(AreaMargin, dragArea.node.size.y)
-    onButtonPress:
-      if window.buttonDown[MouseLeft]:
+      if thisNode == hoverNodes[0]:
         let area = findAreaByNode(thisNode)
-        if area != nil and area.areas.len > 0:
-          dragArea = area
-          dropHighlight.visible = true
-    onButtonRelease:
-      if dragArea != nil and not window.buttonDown[MouseLeft]:
-        let dragPos = nodeTopLeft(dragArea.node)
+        if area != nil:
+          if area.layout == Horizontal:
+            thisCursor = Cursor(kind: ResizeUpDownCursor)
+          else:
+            thisCursor = Cursor(kind: ResizeLeftRightCursor)
+    onDragStart:
+      let area = findAreaByNode(thisNode)
+      if area != nil and area.areas.len > 0:
+        dragArea = area
+        dropHighlight.visible = true
+    onDrag:
+      let mousePos = window.mousePos.vec2 / window.contentScale
+      if dragArea != nil:
         if dragArea.layout == Horizontal:
-          dragArea.split = (window.mousePos.vec2.y - dragPos.y) / dragArea.node.size.y
+          dropHighlight.position = vec2(dragArea.node.absolutePosition.x, mousePos.y)
+          dropHighlight.size = vec2(dragArea.node.size.x, AreaMargin)
+          thisCursor = Cursor(kind: ResizeUpDownCursor)
         else:
-          dragArea.split = (window.mousePos.vec2.x - dragPos.x) / dragArea.node.size.x
+          dropHighlight.position = vec2(mousePos.x, dragArea.node.absolutePosition.y)
+          dropHighlight.size = vec2(AreaMargin, dragArea.node.size.y)
+          thisCursor = Cursor(kind: ResizeLeftRightCursor)
+    onDragEnd:
+      let mousePos = window.mousePos.vec2 / window.contentScale
+      if dragArea != nil:
+        if dragArea.layout == Horizontal:
+          dragArea.split = (mousePos.y - dragArea.node.absolutePosition.y) / dragArea.node.size.y
+        else:
+          dragArea.split = (mousePos.x - dragArea.node.absolutePosition.x) / dragArea.node.size.x
         dragArea.refresh()
-        dragArea = nil
-        dropHighlight.visible = false
+      dragArea = nil
+      dropHighlight.visible = false
 
   find "**/PanelHeader":
     onClick:
@@ -465,44 +472,42 @@ find "/UI/Main":
       if panel != nil:
         panel.parentArea.selectedPanelNum = thisNode.childIndex
         panel.parentArea.refresh()
-    onButtonPress:
-      if window.buttonDown[MouseLeft]:
-        dropHighlight.visible = true
 
-    onMouseMove:
-      if dropHighlight.visible and window.buttonDown[MouseLeft]:
-        let (_, _, rect) = rootArea.scan()
-        dropHighlight.position = rect.xy
-        dropHighlight.size = rect.wh
+    onDragStart:
+      dropHighlight.visible = true
 
-    onButtonRelease:
-      if dropHighlight.visible and not window.buttonDown[MouseLeft]:
-        dropHighlight.visible = false
-        let (targetArea, areaScan, _) = rootArea.scan()
-        if targetArea != nil:
-          let panel = findPanelByHeader(thisNode)
-          if panel != nil:
-            case areaScan:
-              of Header:
-                targetArea.movePanel(panel)
-              of Body:
-                targetArea.movePanel(panel)
-              of North:
-                targetArea.split(Horizontal)
-                targetArea.areas[0].movePanel(panel)
-                targetArea.areas[1].movePanels(targetArea.panels)
-              of South:
-                targetArea.split(Horizontal)
-                targetArea.areas[1].movePanel(panel)
-                targetArea.areas[0].movePanels(targetArea.panels)
-              of East:
-                targetArea.split(Vertical)
-                targetArea.areas[1].movePanel(panel)
-                targetArea.areas[0].movePanels(targetArea.panels)
-              of West:
-                targetArea.split(Vertical)
-                targetArea.areas[0].movePanel(panel)
-                targetArea.areas[1].movePanels(targetArea.panels)
+    onDrag:
+      let (_, _, rect) = rootArea.scan()
+      dropHighlight.position = rect.xy
+      dropHighlight.size = rect.wh
 
-          rootArea.removeBlankAreas()
-          rootArea.refresh()
+    onDragEnd:
+      dropHighlight.visible = false
+      let (targetArea, areaScan, _) = rootArea.scan()
+      if targetArea != nil:
+        let panel = findPanelByHeader(thisNode)
+        if panel != nil:
+          case areaScan:
+            of Header:
+              targetArea.movePanel(panel)
+            of Body:
+              targetArea.movePanel(panel)
+            of North:
+              targetArea.split(Horizontal)
+              targetArea.areas[0].movePanel(panel)
+              targetArea.areas[1].movePanels(targetArea.panels)
+            of South:
+              targetArea.split(Horizontal)
+              targetArea.areas[1].movePanel(panel)
+              targetArea.areas[0].movePanels(targetArea.panels)
+            of East:
+              targetArea.split(Vertical)
+              targetArea.areas[1].movePanel(panel)
+              targetArea.areas[0].movePanels(targetArea.panels)
+            of West:
+              targetArea.split(Vertical)
+              targetArea.areas[0].movePanel(panel)
+              targetArea.areas[1].movePanels(targetArea.panels)
+
+        rootArea.removeBlankAreas()
+        rootArea.refresh()
