@@ -278,6 +278,7 @@ ensure_linux_nim_version() {
   fi
 
   if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
+    link_nim_bins
     return 0
   fi
 
@@ -296,11 +297,52 @@ ensure_linux_nim_version() {
 
   if [ -n "$current_version" ] && version_ge "$current_version" "$required_version" && check_cmd nimble; then
     echo "Nim $current_version with nimble found."
+    link_nim_bins
     return 0
   fi
 
   echo "Nim install finished but requirements are still not satisfied." >&2
   return 1
+}
+
+link_nim_bins() {
+  local nimble_dir="$HOME/.nimble/bin"
+
+  if [ ! -d "$nimble_dir" ]; then
+    return 0
+  fi
+
+  local install_dir=$(get_install_dir)
+
+  if [ -z "$install_dir" ]; then
+    echo "Nim is installed in $nimble_dir. Add it to your PATH (e.g. export PATH=\"$nimble_dir:\$PATH\")."
+    return 0
+  fi
+
+  if [ ! -d "$install_dir" ]; then
+    if ! mkdir -p "$install_dir"; then
+      echo "Unable to create $install_dir. Nim binaries remain in $nimble_dir." >&2
+      return 1
+    fi
+  fi
+
+  local linked_any=0
+  for tool in nim nimble; do
+    local src="$nimble_dir/$tool"
+    local dest="$install_dir/$tool"
+
+    if [ -x "$src" ]; then
+      if ln -sf "$src" "$dest"; then
+        linked_any=1
+      fi
+    fi
+  done
+
+  if [ "$linked_any" -eq 1 ]; then
+    echo "Linked Nim binaries into $install_dir. Ensure this directory is in your PATH."
+  else
+    echo "Could not link Nim binaries into $install_dir. Binaries remain in $nimble_dir." >&2
+  fi
 }
 
 install_nim_via_choosenim() {
