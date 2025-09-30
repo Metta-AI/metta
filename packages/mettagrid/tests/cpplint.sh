@@ -16,7 +16,10 @@ if [ $# -eq 0 ]; then
     # No arguments provided - find all C++ files in the relevant directories
     find "$PROJECT_ROOT/cpp/" "$PROJECT_ROOT/tests" "$PROJECT_ROOT/benchmarks" -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
       | xargs uv run cpplint $CPPLINT_FILTERS
+    exit_code=$?
 else
     # Arguments provided - lint the specific files
     uv run cpplint $CPPLINT_FILTERS "$@"
+    exit_code=$?
 fi
+exit $exit_code
