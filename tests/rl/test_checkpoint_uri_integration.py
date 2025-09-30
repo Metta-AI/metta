@@ -70,7 +70,9 @@ class TestS3URIs:
         assert isinstance(loaded, torch.nn.Module)
 
     def test_key_and_version_parsing(self):
-        key, version = key_and_version("s3://bucket/foo/checkpoints/foo:v9.pt")
+        metadata = key_and_version("s3://bucket/foo/checkpoints/foo:v9.pt")
+        assert metadata is not None
+        key, version = metadata
         assert key == "foo"
         assert version == 9
 
@@ -78,18 +80,19 @@ class TestS3URIs:
 class TestCheckpointManagerOperations:
     def test_save_agent_returns_uri(self, test_system_cfg, mock_policy):
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
-        uri = manager.save_agent(mock_policy, epoch=1, metadata={})
+        uri = manager.save_agent(mock_policy, epoch=1)
         assert uri.startswith("file://")
         saved_path = Path(uri[7:])
         assert saved_path.exists()
 
     def test_select_checkpoints_sorted(self, test_system_cfg, mock_policy):
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
-        manager.save_agent(mock_policy, epoch=1, metadata={})
-        manager.save_agent(mock_policy, epoch=3, metadata={})
-        uris = manager.select_checkpoints(strategy="latest", count=1)
-        assert len(uris) == 1
-        assert uris[0].endswith(":v3.pt")
+        manager.save_agent(mock_policy, epoch=1)
+        manager.save_agent(mock_policy, epoch=3)
+
+        uri = manager.get_latest_checkpoint()
+        assert uri is not None
+        assert uri.endswith(":v3.pt")
 
     def test_normalize_uri(self, tmp_path: Path):
         path = tmp_path / "model.pt"

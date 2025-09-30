@@ -52,13 +52,19 @@ def carbon_extractor(max_use: Optional[int] = 1) -> AssemblerConfig:
 
 
 # accumulates oxygen over time, needs to be emptied periodically
-def oxygen_extractor() -> ConverterConfig:
-    return ConverterConfig(
+def oxygen_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
+    return AssemblerConfig(
         name="oxygen_extractor",
         type_id=3,
-        output_resources={"oxygen": 1},
-        max_output=10,
-        cooldown=10,
+        recipes=[
+            (
+                ["Any"],
+                RecipeConfig(
+                    output_resources={"oxygen": 1},
+                    max_use=max_use,
+                ),
+            )
+        ],
     )
 
 
