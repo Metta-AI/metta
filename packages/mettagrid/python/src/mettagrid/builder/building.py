@@ -137,6 +137,48 @@ assembler_armory = AssemblerConfig(
     ],
 )
 
+assembler_lab = AssemblerConfig(
+    type_id=17,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+assembler_factory = AssemblerConfig(
+    type_id=18,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
+assembler_temple = AssemblerConfig(
+    type_id=19,
+    recipes=[
+        (
+            ["Any"],
+            RecipeConfig(
+                input_resources={"battery_red": 1, "ore_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+            ),
+        )
+    ],
+)
+
 
 # Chest building definitions
 def make_chest(
@@ -166,6 +208,7 @@ chest_ore_green = make_chest("ore_green", 22)
 chest_battery_red = make_chest("battery_red", 23)
 chest_battery_blue = make_chest("battery_blue", 24)
 chest_battery_green = make_chest("battery_green", 25)
+chest_heart = make_chest("heart", 26)
 
 # Special chest that only allows deposits from North and withdrawals from South
 chest_depot = ChestConfig(
