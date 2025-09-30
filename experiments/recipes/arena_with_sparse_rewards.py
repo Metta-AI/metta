@@ -233,9 +233,9 @@ def sweep_async_progressive(
         # Protein with swept timesteps
         protein_config=protein_cfg,
         # Recipe entrypoints
-        recipe_module="experiments.recipes.arena_basic_easy_shaped",
+        recipe_module="experiments.recipes.arena_with_sparse_rewards",
         train_entrypoint="train",
-        eval_entrypoint="evaluate_in_sweep",
+        eval_entrypoint="evaluate",
         # Async scheduler selection + knobs
         scheduler_type=SweepSchedulerType.ASYNC_CAPPED,
         max_concurrent_evals=max_concurrent_evals,
