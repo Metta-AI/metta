@@ -63,10 +63,10 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg /* arg */) override {
+  bool _handle_action(Agent& actor, ActionArg /* arg */) override {
     // Center AoE on actor's position
-    int center_row = static_cast<int>(actor->location.r);
-    int center_col = static_cast<int>(actor->location.c);
+    int center_row = static_cast<int>(actor.location.r);
+    int center_col = static_cast<int>(actor.location.c);
 
     std::vector<Agent*> affected_agents;
     std::vector<Converter*> affected_converters;
@@ -84,8 +84,8 @@ protected:
           int target_row = center_row + dr;
           int target_col = center_col + dc;
 
-          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) && target_col >= 0 &&
-              target_col < static_cast<int>(_grid->width)) {
+          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) &&
+              target_col >= 0 && target_col < static_cast<int>(_grid->width)) {
             GridLocation loc(target_row, target_col, GridLayer::AgentLayer);
             GridObject* obj = _grid->object_at(loc);
             if (obj != nullptr) {
@@ -110,8 +110,8 @@ protected:
           int target_row = center_row + dr;
           int target_col = center_col + dc;
 
-          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) && target_col >= 0 &&
-              target_col < static_cast<int>(_grid->width)) {
+          if (target_row >= 0 && target_row < static_cast<int>(_grid->height) &&
+              target_col >= 0 && target_col < static_cast<int>(_grid->width)) {
             GridLocation loc(target_row, target_col, GridLayer::ObjectLayer);
             GridObject* obj = _grid->object_at(loc);
             if (obj != nullptr) {

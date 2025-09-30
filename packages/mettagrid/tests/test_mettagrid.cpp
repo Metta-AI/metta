@@ -1674,17 +1674,21 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   EXPECT_TRUE(success) << "Fourth use should succeed";
   // Fourth cooldown should be 10 * 3.375 = 33.75, rounded to 33
   EXPECT_EQ(assembler.cooldown_end_timestep, 80) << "Fourth cooldown should end at 80 (47 + 33)";
-  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f) << "Cooldown multiplier should be 5.0625 after fourth use";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f)
+      << "Cooldown multiplier should be 5.0625 after fourth use";
+}
+
 // ==================== ResourceMod Tests ====================
 
 TEST_F(MettaGridCppTest, ResourceModBasic) {
   Grid grid(5, 5);
   std::mt19937 rng(42);
+  auto resource_names = create_test_resource_names();
 
   // Create actor at center
   AgentConfig actor_cfg = create_test_agent_config();
   actor_cfg.initial_inventory[TestItems::ORE] = 10;
-  Agent* actor = new Agent(2, 2, actor_cfg);
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
   float actor_reward = 0.0f;
   actor->init(&actor_reward);
   grid.add_object(actor);
@@ -1692,7 +1696,7 @@ TEST_F(MettaGridCppTest, ResourceModBasic) {
   // Create target agent nearby
   AgentConfig target_cfg = create_test_agent_config();
   target_cfg.initial_inventory[TestItems::HEART] = 10;
-  Agent* target = new Agent(2, 3, target_cfg);
+  Agent* target = new Agent(2, 3, target_cfg, &resource_names);
   float target_reward = 0.0f;
   target->init(&target_reward);
   grid.add_object(target);
@@ -1708,7 +1712,7 @@ TEST_F(MettaGridCppTest, ResourceModBasic) {
   modify.init(&grid, &rng);
 
   ActionArg arg = 0;  // Unused
-  bool success = modify.handle_action(actor->id, arg);
+  bool success = modify.handle_action(*actor, arg);
   EXPECT_TRUE(success);
 
   // Check that target gained 1 heart
@@ -1720,11 +1724,12 @@ TEST_F(MettaGridCppTest, ResourceModBasic) {
 TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
   Grid grid(5, 5);
   std::mt19937 rng(42);
+  auto resource_names = create_test_resource_names();
 
   // Create actor
   AgentConfig actor_cfg = create_test_agent_config();
   actor_cfg.initial_inventory[TestItems::ORE] = 200;
-  Agent* actor = new Agent(2, 2, actor_cfg);
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
   float actor_reward = 0.0f;
   actor->init(&actor_reward);
   grid.add_object(actor);
@@ -1732,7 +1737,7 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
   // Create target
   AgentConfig target_cfg = create_test_agent_config();
   target_cfg.initial_inventory[TestItems::HEART] = 10;
-  Agent* target = new Agent(2, 3, target_cfg);
+  Agent* target = new Agent(2, 3, target_cfg, &resource_names);
   float target_reward = 0.0f;
   target->init(&target_reward);
   grid.add_object(target);
@@ -1762,7 +1767,7 @@ TEST_F(MettaGridCppTest, ResourceModProbabilistic) {
       break;
     }
 
-    bool success = modify.handle_action(actor->id, arg);
+    bool success = modify.handle_action(*actor, arg);
     EXPECT_TRUE(success);
 
     ore_consumed += (ore_before - actor->inventory.amount(TestItems::ORE));
@@ -1781,10 +1786,11 @@ TEST_F(MettaGridCppTest, ResourceModConverter) {
   Grid grid(5, 5);
   std::mt19937 rng(42);
   EventManager event_manager;
+  auto resource_names = create_test_resource_names();
 
   // Create actor
   AgentConfig actor_cfg = create_test_agent_config();
-  Agent* actor = new Agent(2, 2, actor_cfg);
+  Agent* actor = new Agent(2, 2, actor_cfg, &resource_names);
   float actor_reward = 0.0f;
   actor->init(&actor_reward);
   grid.add_object(actor);
@@ -1817,7 +1823,7 @@ TEST_F(MettaGridCppTest, ResourceModConverter) {
 
   // Target converter at (3, 2) from actor at (2, 2)
   ActionArg arg = 0;  // Unused
-  bool success = modify.handle_action(actor->id, arg);
+  bool success = modify.handle_action(*actor, arg);
   EXPECT_TRUE(success);
 
   // Check that converter gained 1 ore
