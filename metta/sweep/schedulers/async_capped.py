@@ -233,9 +233,14 @@ class AsyncCappedOptimizingScheduler:
                 eval_capacity -= 1
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", candidate.run_id)
 
-        # If any runs still need evaluation, do not schedule new training
-        # Also block training if we have forced re-evals queued but no capacity left
-        if any(r.status == JobStatus.TRAINING_DONE_NO_EVAL for r in runs) or self.state.runs_pending_force_eval:
+        # If any runs still need evaluation, do not schedule new training.
+        # Also block training if we have forced re-evals queued (no capacity left)
+        # or if any evaluations are currently running.
+        if (
+            any(r.status == JobStatus.TRAINING_DONE_NO_EVAL for r in runs)
+            or len(self.state.runs_pending_force_eval) > 0
+            or len(self.state.runs_in_eval) > 0
+        ):
             return jobs
 
         # Training scheduling: fill as slots free up (only when no eval backlog)
