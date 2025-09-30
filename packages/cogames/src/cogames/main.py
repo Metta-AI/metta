@@ -91,6 +91,8 @@ def _sanitize_filename(name: str) -> str:
 
 def _dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str], output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    for existing in output_dir.glob("*.yaml"):
+        existing.unlink()
     for index, (config_obj, raw_name) in enumerate(zip(configs, names, strict=False)):
         base_name = raw_name or f"map_{index:03d}"
         file_stem = _sanitize_filename(base_name)
@@ -502,6 +504,8 @@ def train_cmd(
         backend = vector_backend.lower()
         resolved_device_name = _default_device(device)
         resolved_num_envs, resolved_num_workers = _suggest_parallelism(resolved_device_name, num_envs, num_workers)
+        if vector_backend.lower() == "multiprocessing" and sys.platform == "darwin":
+            resolved_num_workers = 1
 
         fallback_curricula = resolved_run_dir / "curricula"
         base_games = [game_name] if game_name is not None else []
@@ -517,8 +521,22 @@ def train_cmd(
         env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
 
         if env_cfgs:
-            resolved_num_envs = max(1, min(resolved_num_envs, len(env_cfgs)))
-            resolved_num_workers = max(1, min(resolved_num_workers, resolved_num_envs))
+            import math
+
+            available = len(env_cfgs)
+            if num_envs is None:
+                resolved_num_envs = max(1, min(resolved_num_envs, available))
+            else:
+                resolved_num_envs = max(1, min(num_envs, available))
+
+            if num_workers is None:
+                resolved_num_workers = max(1, min(resolved_num_workers, resolved_num_envs))
+            else:
+                resolved_num_workers = max(1, min(num_workers, resolved_num_envs))
+
+            if resolved_num_envs % resolved_num_workers != 0:
+                gcd = math.gcd(resolved_num_envs, resolved_num_workers)
+                resolved_num_workers = gcd or 1
 
         if not env_cfgs:
             if game_name is None and curriculum is None:
