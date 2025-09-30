@@ -1,10 +1,12 @@
+import os
 import random
 import subprocess
 import time
-import os
 from typing import Optional, Sequence
+
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
@@ -14,17 +16,17 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
+
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
-    train_icl,
-    play_icl,
-    replay_icl,
     _BuildCfg,
     num_agents_to_positions,
+    play_icl,
+    replay_icl,
     room_size_templates,
+    train_icl,
 )
-from metta.tools.eval_remote import EvalRemoteTool
 
 
 def make_curriculum_args(
@@ -366,7 +368,12 @@ def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> SimToo
         make_foraging_eval_suite,
     )
 
-    policy_uris = []
+    policy_uris = [
+        "s3://softmax-public/policies/in_context.all_assemblers.eval_remote.2025-09-29/in_context.all_assemblers.eval_remote.2025-09-29:latest.pt",
+        "s3://softmax-public/policies/in_context.foraging_train.2025-09-30/in_context.foraging_train.2025-09-30:latest.pt",
+        "s3://softmax-public/policies/in_context.assembly_lines_train.2025-09-29/in_context.assembly_lines_train.2025-09-29:latest.pt",
+        "s3://softmax-public/policies/in_context.all_assemblers.2025-09-29/in_context.all_assemblers.2025-09-29:latest.pt",
+    ]
     for curriculum_style in curriculum_args:
         policy_uris.append(
             f"s3://softmax-public/policies/in_context.foraging_{curriculum_style}.eval_local.2025-09-27/in_context.foraging_{curriculum_style}.eval_local.2025-09-27:latest.pt"

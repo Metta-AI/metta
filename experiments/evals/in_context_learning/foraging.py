@@ -1,7 +1,8 @@
+from metta.sim.simulation_config import SimulationConfig
+
 from experiments.recipes.in_context_learning.foraging import (
     make_assembler_env,
 )
-from metta.sim.simulation_config import SimulationConfig
 
 
 def make_foraging_eval_suite() -> list[SimulationConfig]:
@@ -15,6 +16,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 num_generators=0,
                 room_size="small",
                 position=["Any"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -26,6 +29,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 num_generators=0,
                 room_size="small",
                 position=["S"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -37,6 +42,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 num_generators=0,
                 room_size="large",
                 position=["Any"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -48,6 +55,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 num_generators=0,
                 room_size="large",
                 position=["S"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -59,6 +68,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 num_generators=0,
                 room_size="small",
                 position=["S", "N"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -70,6 +81,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 num_generators=0,
                 room_size="xlarge",
                 position=["N", "S"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -81,6 +94,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 num_generators=0,
                 room_size="xlarge",
                 position=["Any", "Any"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -92,6 +107,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 room_size="xlarge",
                 num_generators=0,
                 position=["Any", "Any", "Any"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -103,6 +120,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 room_size="large",
                 num_generators=0,
                 position=["Any", "Any", "Any"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -114,6 +133,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 room_size="xlarge",
                 num_generators=0,
                 position=["Any", "Any", "Any"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -125,6 +146,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 room_size="xlarge",
                 num_generators=0,
                 position=["N", "S", "E"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
         SimulationConfig(
@@ -136,6 +159,8 @@ def make_foraging_eval_suite() -> list[SimulationConfig]:
                 room_size="xlarge",
                 num_generators=0,
                 position=["N", "S", "E"],
+                num_chests=0,
+                chest_positions=[],
             ),
         ),
     ]

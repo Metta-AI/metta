@@ -1,6 +1,8 @@
+import random
+
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig, Position
-import random
+
 from experiments.recipes.in_context_learning.assembly_lines import (
     AssemblyLinesTaskGenerator,
     make_task_generator_cfg,
@@ -20,7 +22,7 @@ def make_icl_assembler_chain_eval_env(
         num_sinks=[num_sinks],
         room_sizes=[room_size],
         positions=positions,
-        map_dir=None
+        map_dir=None,
     )
     task_generator = AssemblyLinesTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
