@@ -67,9 +67,9 @@ Your chassis has limited capacity for:
 
 ### Resource Acquisition
 
-Resources are stockpiled by automated extraction facilities called extractors. Extractors have finite storage capacity. If they have storage space remaining they will automatically produce and store resources until they are full.
+Resources are gathered by Cogs using facilities called extractors. Cogs activate an extractor protocol to extract the corresponding available resource. After use, extractors have a cooldown. Some extractors can't be used on cooldown, while others can still be activated but will produce fewer resources.
 
-Note: extractors are facilities, and may offer multi-Cog protocols as well.
+Note: extractors are facilities, and may offer multi-Cog protocols as well as single-Cog. Generally multi-Cog extractor protocols return resources to all Cogs using them, although there may be exceptions.
 
 Common extractor types
 - **Carbon Furnace** - Harvests and purifies carbon compounds
@@ -131,7 +131,7 @@ different terminals and move into the Chest
 - **Approach**: Move adjacent to the infested facility with your fellow Cogs and explore to find the reclamation protocol
 - **Reclaim**: Move into the facility to attempt a reclamation protocols
 
-- Act quickly: infestation levels may rise over time, requiring more difficult reclamation procedures, and the Clips will drain more and more resources from infected facilities over time!
+- Act quickly: infestation levels may rise over time, requiring more difficult reclamation procedures, and the Clips will drain more and more resources from subverted facilities over time!
 
 ### Infestation Patterns
 
