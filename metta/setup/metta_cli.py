@@ -448,7 +448,7 @@ def cmd_lint(
         else:
             format_cmd.append("--check")
 
-        if staged and py_files:
+        if py_files:
             for cmd in cmds:
                 cmd.extend(py_files)
 
@@ -464,7 +464,7 @@ def cmd_lint(
         cpplint_script = cli.repo_root / "packages/mettagrid/tests/cpplint.sh"
         if cpplint_script.exists():
             try:
-                if staged and cpp_files:
+                if cpp_files:
                     # For staged mode, pass specific files to cpplint.sh
                     info(f"Running cpplint.sh on {len(cpp_files)} staged C++ files...")
                     subprocess.run([str(cpplint_script)] + cpp_files, cwd=cli.repo_root, check=True)
