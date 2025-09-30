@@ -26,7 +26,7 @@ proc updateMouse*(panel: Panel) =
   )
 
   panel.hasMouse =
-    (not mouseCaptured and window.mousePos.vec2.overlaps(box)) or
+    (not mouseCaptured and window.logicalMousePos.overlaps(box)) or
     (mouseCaptured and mouseCapturedPanel == panel)
 
 proc clampMapPan*(panel: Panel) =
@@ -109,8 +109,8 @@ proc beginPanAndZoom*(panel: Panel) =
       let localMousePos = window.mousePos.vec2 - panel.rect.xy.vec2
       let zoomSensitivity = 0.005
 
-      let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-          panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) *
+        scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
       let oldWorldPoint = oldMat.inverse() * localMousePos
 
       # Apply zoom with multiplicative scaling.
@@ -119,8 +119,8 @@ proc beginPanAndZoom*(panel: Panel) =
       panel.zoom *= zoomFactor
       panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
 
-      let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(
-          panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let newMat = translate(vec2(panel.pos.x, panel.pos.y)) *
+        scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
       let newWorldPoint = newMat.inverse() * localMousePos
 
       # Adjust pan position to keep the same world point under the mouse.
@@ -128,8 +128,9 @@ proc beginPanAndZoom*(panel: Panel) =
 
   clampMapPan(panel)
 
-  bxy.translate(panel.pos)
-  bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+  bxy.translate(panel.pos * window.contentScale)
+  let zoomScale = panel.zoom * panel.zoom * window.contentScale
+  bxy.scale(vec2(zoomScale, zoomScale))
 
 proc endPanAndZoom*(panel: Panel) =
   bxy.restoreTransform()
@@ -323,7 +324,7 @@ type
     West
 
 proc scan*(area: Area): (Area,AreaScan, Rect) =
-  let mousePos = window.mousePos.vec2
+  let mousePos = window.logicalMousePos
   var targetArea: Area
   var areaScan: AreaScan
   var rect: Rect
@@ -445,7 +446,7 @@ find "/UI/Main":
         dragArea = area
         dropHighlight.visible = true
     onDrag:
-      let mousePos = window.mousePos.vec2 / window.contentScale
+      let mousePos = window.logicalMousePos
       if dragArea != nil:
         if dragArea.layout == Horizontal:
           dropHighlight.position = vec2(dragArea.node.absolutePosition.x, mousePos.y)
@@ -456,7 +457,7 @@ find "/UI/Main":
           dropHighlight.size = vec2(AreaMargin, dragArea.node.size.y)
           thisCursor = Cursor(kind: ResizeLeftRightCursor)
     onDragEnd:
-      let mousePos = window.mousePos.vec2 / window.contentScale
+      let mousePos = window.logicalMousePos
       if dragArea != nil:
         if dragArea.layout == Horizontal:
           dragArea.split = (mousePos.y - dragArea.node.absolutePosition.y) / dragArea.node.size.y
