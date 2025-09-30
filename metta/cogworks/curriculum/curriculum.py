@@ -358,6 +358,7 @@ class Curriculum(StatsLogger):
         self._rng = random.Random(seed)
         self._num_created = 0
         self._num_evicted = 0
+        self._num_tasks_scheduled = 0  # Track total scheduled for periodic logging
 
         # Initialize shared counter for process-safe task ID generation
         self._init_shared_counter()
@@ -424,17 +425,27 @@ class Curriculum(StatsLogger):
 
         # Defensive check: ensure pools are not empty before sampling
         if len(self._explore_pool) == 0 and len(self._exploit_pool) == 0:
-            logger.error("Both pools are empty! Creating emergency task.")
+            logger.error(
+                f"Both pools are empty! Creating emergency task. "
+                f"_task_ids size: {len(self._task_ids)}, "
+                f"num_created: {self._num_created}, num_evicted: {self._num_evicted}"
+            )
             task = self._create_task(pool="explore")
             task._num_scheduled += 1
             return task
 
         # If one pool is empty, use the other
         if len(self._explore_pool) == 0:
-            logger.warning("Explore pool is empty, sampling from exploit pool only")
+            logger.warning(
+                f"Explore pool is empty, sampling from exploit pool only. "
+                f"Exploit: {len(self._exploit_pool)}/{self._config.exploit_pool_capacity}"
+            )
             task = self._choose_task_from_pool(self._exploit_pool)
         elif len(self._exploit_pool) == 0:
-            logger.warning("Exploit pool is empty, sampling from explore pool only")
+            logger.warning(
+                f"Exploit pool is empty, sampling from explore pool only. "
+                f"Explore: {len(self._explore_pool)}/{self._config.explore_pool_capacity}"
+            )
             task = self._choose_task_from_pool(self._explore_pool)
         elif self._rng.random() < effective_explore_rate:
             # Sample from explore pool
@@ -444,6 +455,18 @@ class Curriculum(StatsLogger):
             task = self._choose_task_from_pool(self._exploit_pool)
 
         task._num_scheduled += 1
+        self._num_tasks_scheduled += 1
+
+        # Periodic status logging (every 1000 tasks)
+        if self._num_tasks_scheduled % 1000 == 0:
+            logger.info(
+                f"Pool status [{self._num_tasks_scheduled} tasks scheduled]: "
+                f"explore={len(self._explore_pool)}/{self._config.explore_pool_capacity}, "
+                f"exploit={len(self._exploit_pool)}/{self._config.exploit_pool_capacity}, "
+                f"P_accept={self._P_accept:.3f}, "
+                f"promotion_rate={self._num_promotions_accepted / max(1, self._num_promotions_attempted):.3f}"
+            )
+
         return task
 
     def _initialize_at_capacity(self) -> None:
@@ -630,6 +653,11 @@ class Curriculum(StatsLogger):
                 if worst_exploit_id_to_evict is not None:
                     self._evict_from_pool(worst_exploit_id_to_evict, "exploit")
 
+                logger.info(
+                    f"Task promoted: explore={len(self._explore_pool)}/{self._config.explore_pool_capacity}, "
+                    f"exploit={len(self._exploit_pool)}/{self._config.exploit_pool_capacity}, "
+                    f"P_accept={self._P_accept:.3f}"
+                )
                 success_indicator = 1.0
             except Exception as e:
                 logger.error(f"Failed to complete promotion: {e}")
@@ -646,6 +674,11 @@ class Curriculum(StatsLogger):
             # Create new task in explore pool
             try:
                 self._create_task(pool="explore")
+                logger.info(
+                    f"Task rejected: explore={len(self._explore_pool)}/{self._config.explore_pool_capacity}, "
+                    f"exploit={len(self._exploit_pool)}/{self._config.exploit_pool_capacity}, "
+                    f"P_accept={self._P_accept:.3f}"
+                )
             except Exception as e:
                 logger.error(f"Failed to create new explore task after rejection: {e}")
                 # Put the task back to prevent pool from shrinking
@@ -700,7 +733,9 @@ class Curriculum(StatsLogger):
                 logger.error(
                     f"Task ID integrity check failed! "
                     f"_task_ids size: {len(self._task_ids)}, pool IDs size: {len(pool_task_ids)}. "
-                    f"Difference: {diff}"
+                    f"Difference: {diff}. "
+                    f"Pool status: explore={len(self._explore_pool)}/{self._config.explore_pool_capacity}, "
+                    f"exploit={len(self._exploit_pool)}/{self._config.exploit_pool_capacity}"
                 )
                 # Auto-fix: sync _task_ids with actual pools
                 self._task_ids = pool_task_ids.copy()
