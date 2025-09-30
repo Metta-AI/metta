@@ -1,19 +1,22 @@
-"""Low-level shared memory backend for curriculum task tracking.
+"""Memory backends for curriculum task tracking.
 
-Provides a clean separation between shared memory management and task tracking logic.
+Provides unified interface for task data storage with both local and shared memory implementations.
+The abstraction allows TaskTracker to work identically whether using in-process or multi-process storage.
 """
 
-from multiprocessing import shared_memory
+from abc import ABC, abstractmethod
+from multiprocessing import RLock, shared_memory
 from typing import Optional
 
 import numpy as np
 
 
-class SharedTaskMemory:
-    """Pure shared memory data structure for task tracking.
+class TaskMemoryBackend(ABC):
+    """Abstract interface for task memory storage.
 
-    Handles low-level shared memory operations without mixing in logic.
-    Designed for cross-process access with proper synchronization.
+    This interface hides the implementation details of local vs shared memory,
+    allowing the rest of the curriculum system to work identically regardless
+    of whether running single-process or multi-process training.
     """
 
     # Task structure: [task_id, creation_time, completion_count, reward_ema, lp_score,
@@ -22,6 +25,99 @@ class SharedTaskMemory:
     TASK_STRUCT_SIZE = 12
     COMPLETION_HISTORY_SIZE = 1000
 
+    @abstractmethod
+    def get_task_data(self, index: int) -> np.ndarray:
+        """Get task data at given index (raw array view).
+
+        Returns numpy array of length TASK_STRUCT_SIZE that can be read/written.
+        """
+        pass
+
+    @abstractmethod
+    def get_completion_history(self) -> np.ndarray:
+        """Get completion history array (raw view).
+
+        Returns numpy array of length COMPLETION_HISTORY_SIZE that can be read/written.
+        """
+        pass
+
+    @abstractmethod
+    def acquire_lock(self):
+        """Acquire lock for thread-safe access.
+
+        Returns context manager for use with 'with' statement.
+        For local backend, this may be a no-op lock.
+        """
+        pass
+
+    @abstractmethod
+    def clear(self):
+        """Clear all memory data."""
+        pass
+
+    @abstractmethod
+    def cleanup(self):
+        """Clean up resources (close files, free memory, etc.)."""
+        pass
+
+
+class LocalMemoryBackend(TaskMemoryBackend):
+    """In-memory backend for single-process use.
+
+    Uses simple numpy arrays stored in local process memory.
+    No inter-process communication overhead.
+    """
+
+    def __init__(self, max_tasks: int = 10000):
+        """Initialize local memory backend.
+
+        Args:
+            max_tasks: Maximum number of tasks to track
+        """
+        self.max_tasks = max_tasks
+
+        # Allocate local numpy arrays
+        self._task_array = np.zeros((max_tasks, self.TASK_STRUCT_SIZE), dtype=np.float64)
+        self._completion_history = np.zeros((self.COMPLETION_HISTORY_SIZE,), dtype=np.float64)
+
+        # No-op lock for local memory (single process)
+        from threading import RLock
+
+        self._lock = RLock()
+
+    def get_task_data(self, index: int) -> np.ndarray:
+        """Get task data at given index (raw array view)."""
+        return self._task_array[index]
+
+    def get_completion_history(self) -> np.ndarray:
+        """Get completion history array (raw view)."""
+        return self._completion_history
+
+    def acquire_lock(self):
+        """Acquire lock (no-op for local memory)."""
+        return self._lock
+
+    def clear(self):
+        """Clear all memory data."""
+        self._task_array.fill(0.0)
+        self._completion_history.fill(0.0)
+
+    def cleanup(self):
+        """Clean up resources (no-op for local memory)."""
+        pass
+
+    def __del__(self):
+        """Cleanup on destruction (no-op for local memory)."""
+        pass
+
+
+class SharedMemoryBackend(TaskMemoryBackend):
+    """Shared memory backend for multi-process use.
+
+    Uses multiprocessing.shared_memory for cross-process data sharing.
+    Multiple processes can read/write the same task data concurrently.
+    """
+
     def __init__(self, max_tasks: int = 10000, session_id: Optional[str] = None):
         """Initialize shared memory backend.
 
@@ -29,7 +125,7 @@ class SharedTaskMemory:
             max_tasks: Maximum number of tasks to track in shared memory
             session_id: Unique identifier for this shared memory session.
                        All processes sharing state must use the same session_id.
-                       If None, creates a unique session (not shared).
+                       If None, creates a unique session (not shared across processes).
         """
         self.max_tasks = max_tasks
 
@@ -45,7 +141,6 @@ class SharedTaskMemory:
         # Use short prefixes to stay within limits
         self._task_array_name = f"ta_{session_id}"  # task array
         self._completion_history_name = f"ch_{session_id}"  # completion history
-        self._lock_name = f"lk_{session_id}"  # lock
 
         # Track if we created the shared memory (for cleanup)
         self._created_shared_memory = False
@@ -104,25 +199,19 @@ class SharedTaskMemory:
 
         # Use multiprocessing RLock for synchronization
         # This works with both fork and spawn multiprocessing contexts
-        from multiprocessing import RLock
-
         self._lock = RLock()
-
-    def acquire_lock(self):
-        """Acquire the shared lock."""
-        return self._lock
 
     def get_task_data(self, index: int) -> np.ndarray:
         """Get task data at given index (raw array view)."""
         return self._task_array[index]
 
-    def set_task_data(self, index: int, data: np.ndarray):
-        """Set task data at given index."""
-        self._task_array[index] = data
-
     def get_completion_history(self) -> np.ndarray:
         """Get completion history array (raw view)."""
         return self._completion_history
+
+    def acquire_lock(self):
+        """Acquire the shared lock."""
+        return self._lock
 
     def clear(self):
         """Clear all shared memory data."""
@@ -160,3 +249,7 @@ class SharedTaskMemory:
                 self._completion_history_shm.close()
         except Exception:
             pass
+
+
+# Backwards compatibility alias
+SharedTaskMemory = SharedMemoryBackend

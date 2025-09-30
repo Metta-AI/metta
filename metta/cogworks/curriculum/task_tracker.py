@@ -379,16 +379,16 @@ class LocalTaskTracker(TaskTracker):
 class CentralizedTaskTracker(TaskTracker):
     """Shared memory task tracker for multi-process use.
 
-    Uses SharedTaskMemory backend for cross-process communication.
+    Uses SharedMemoryBackend for cross-process communication.
     """
 
     def __init__(self, max_memory_tasks: int = 1000, session_id: Optional[str] = None, ema_alpha: float = 0.1):
         super().__init__(max_memory_tasks, ema_alpha)
 
-        from metta.cogworks.curriculum.shared_memory_backend import SharedTaskMemory
+        from metta.cogworks.curriculum.shared_memory_backend import SharedMemoryBackend
 
         # Use max_memory_tasks for shared memory size to ensure consistency
-        self._shared = SharedTaskMemory(max_tasks=max_memory_tasks, session_id=session_id)
+        self._backend = SharedMemoryBackend(max_tasks=max_memory_tasks, session_id=session_id)
         self._task_id_to_index: Dict[int, int] = {}
         self._next_free_index = 0
 
@@ -397,12 +397,12 @@ class CentralizedTaskTracker(TaskTracker):
 
     def _rebuild_task_mapping(self):
         """Rebuild task ID to array index mapping by scanning shared memory."""
-        with self._shared.acquire_lock():
+        with self._backend.acquire_lock():
             self._task_id_to_index.clear()
             self._next_free_index = 0
 
-            for i in range(self._shared.max_tasks):
-                task_data = self._shared.get_task_data(i)
+            for i in range(self._backend.max_tasks):
+                task_data = self._backend.get_task_data(i)
                 task_id = int(task_data[0])
                 is_active = bool(task_data[11])
 
@@ -413,7 +413,7 @@ class CentralizedTaskTracker(TaskTracker):
                     self._next_free_index = i
                     break
             else:
-                self._next_free_index = self._shared.max_tasks
+                self._next_free_index = self._backend.max_tasks
 
     def track_task_creation(
         self,
@@ -423,7 +423,7 @@ class CentralizedTaskTracker(TaskTracker):
         generator_type: float = 0.0,
     ) -> None:
         """Track when a task is created with metadata."""
-        with self._shared.acquire_lock():
+        with self._backend.acquire_lock():
             timestamp = time.time()
             if seed is None:
                 seed = hash(str(task_id) + str(timestamp)) % (2**31)
@@ -433,14 +433,14 @@ class CentralizedTaskTracker(TaskTracker):
                 return
 
             # Find slot in shared memory
-            if self._next_free_index >= self._shared.max_tasks:
+            if self._next_free_index >= self._backend.max_tasks:
                 return  # No space available
 
             index = self._next_free_index
             self._task_id_to_index[task_id] = index
 
             # Write to shared memory
-            task_data = self._shared.get_task_data(index)
+            task_data = self._backend.get_task_data(index)
             task_data[0] = float(task_id)
             task_data[1] = timestamp
             task_data[2] = 0.0  # completion_count
@@ -464,7 +464,7 @@ class CentralizedTaskTracker(TaskTracker):
         success_threshold: Optional[float] = None,
     ) -> None:
         """Update task performance with new completion score."""
-        with self._shared.acquire_lock():
+        with self._backend.acquire_lock():
             # Ensure task exists (create if needed, then continue to process this score)
             if task_id not in self._task_id_to_index:
                 # Release lock, create task, then reacquire
@@ -474,14 +474,14 @@ class CentralizedTaskTracker(TaskTracker):
         if task_id not in self._task_id_to_index:
             self.track_task_creation(task_id, success_threshold=success_threshold or 0.5)
 
-        with self._shared.acquire_lock():
+        with self._backend.acquire_lock():
             # Task should exist now
             if task_id not in self._task_id_to_index:
                 # Race condition - another process might have removed it
                 return
 
             index = self._task_id_to_index[task_id]
-            task_data = self._shared.get_task_data(index)
+            task_data = self._backend.get_task_data(index)
 
             # Read current values
             completion_count = int(task_data[2])
@@ -522,7 +522,7 @@ class CentralizedTaskTracker(TaskTracker):
             task_data[8] = current_threshold
 
             # Add score to completion history
-            history = self._shared.get_completion_history()
+            history = self._backend.get_completion_history()
             for i in range(len(history)):
                 if history[i] == 0.0:
                     history[i] = score
@@ -534,12 +534,12 @@ class CentralizedTaskTracker(TaskTracker):
 
     def update_lp_score(self, task_id: int, lp_score: float) -> None:
         """Update the learning progress score for a task."""
-        with self._shared.acquire_lock():
+        with self._backend.acquire_lock():
             if task_id not in self._task_id_to_index:
                 return
 
             index = self._task_id_to_index[task_id]
-            task_data = self._shared.get_task_data(index)
+            task_data = self._backend.get_task_data(index)
             task_data[4] = lp_score
 
     def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
@@ -552,7 +552,7 @@ class CentralizedTaskTracker(TaskTracker):
             return None
 
         index = self._task_id_to_index[task_id]
-        task_data = self._shared.get_task_data(index)
+        task_data = self._backend.get_task_data(index)
 
         if task_data[11] == 0:  # not active
             return None
@@ -604,10 +604,10 @@ class CentralizedTaskTracker(TaskTracker):
 
     def remove_task(self, task_id: int) -> None:
         """Remove a task from tracking."""
-        with self._shared.acquire_lock():
+        with self._backend.acquire_lock():
             if task_id in self._task_id_to_index:
                 index = self._task_id_to_index[task_id]
-                task_data = self._shared.get_task_data(index)
+                task_data = self._backend.get_task_data(index)
                 task_data[11] = 0.0  # is_active = False
                 del self._task_id_to_index[task_id]
 
@@ -618,7 +618,7 @@ class CentralizedTaskTracker(TaskTracker):
         for monitoring purposes. Avoids lock contention on frequent stat queries.
         """
         # Get completion history
-        history = self._shared.get_completion_history()
+        history = self._backend.get_completion_history()
         completion_history = [score for score in history if score != 0.0]
 
         if not completion_history:
@@ -631,7 +631,7 @@ class CentralizedTaskTracker(TaskTracker):
         # Calculate total completions
         total_completions = 0
         for index in self._task_id_to_index.values():
-            task_data = self._shared.get_task_data(index)
+            task_data = self._backend.get_task_data(index)
             if task_data[11] > 0:  # is_active
                 total_completions += int(task_data[2])
 
@@ -649,7 +649,7 @@ class CentralizedTaskTracker(TaskTracker):
         """
         task_memory = {}
         for task_id, index in self._task_id_to_index.items():
-            task_data = self._shared.get_task_data(index)
+            task_data = self._backend.get_task_data(index)
             if task_data[11] > 0:  # is_active
                 task_memory[task_id] = {
                     "creation_time": task_data[1],
@@ -665,15 +665,15 @@ class CentralizedTaskTracker(TaskTracker):
                 }
 
         # Get completion history
-        history = self._shared.get_completion_history()
+        history = self._backend.get_completion_history()
         completion_history = [score for score in history if score != 0.0]
 
-        total_completions = sum(int(self._shared.get_task_data(idx)[2]) for idx in self._task_id_to_index.values())
+        total_completions = sum(int(self._backend.get_task_data(idx)[2]) for idx in self._task_id_to_index.values())
 
         return {
             "max_memory_tasks": self.max_memory_tasks,
             "tracker_type": "centralized",
-            "session_id": self._shared.session_id,
+            "session_id": self._backend.session_id,
             "task_memory": task_memory,
             "completion_history": completion_history,
             "task_creation_order": [],  # Not used in centralized mode
@@ -683,20 +683,20 @@ class CentralizedTaskTracker(TaskTracker):
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load task tracker state from checkpoint."""
-        with self._shared.acquire_lock():
+        with self._backend.acquire_lock():
             self.max_memory_tasks = state["max_memory_tasks"]
 
             # Clear shared memory
-            self._shared.clear()
+            self._backend.clear()
             self._task_id_to_index.clear()
 
             # Restore tasks
             for i, (task_id, task_data) in enumerate(state["task_memory"].items()):
-                if i >= self._shared.max_tasks:
+                if i >= self._backend.max_tasks:
                     break
 
                 self._task_id_to_index[int(task_id)] = i
-                data = self._shared.get_task_data(i)
+                data = self._backend.get_task_data(i)
                 data[0] = float(task_id)
                 data[1] = task_data.get("creation_time", time.time())
                 data[2] = float(task_data.get("completion_count", 0))
@@ -713,15 +713,15 @@ class CentralizedTaskTracker(TaskTracker):
             self._next_free_index = len(state["task_memory"])
 
             # Restore completion history
-            history = self._shared.get_completion_history()
+            history = self._backend.get_completion_history()
             completion_history = state.get("completion_history", [])
             for i, score in enumerate(completion_history[: len(history)]):
                 history[i] = score
 
     def cleanup_shared_memory(self) -> None:
         """Clean up shared memory resources."""
-        if hasattr(self, "_shared"):
-            self._shared.cleanup()
+        if hasattr(self, "_backend"):
+            self._backend.cleanup()
 
     def __del__(self):
         """Cleanup on destruction."""
