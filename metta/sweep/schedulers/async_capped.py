@@ -211,12 +211,14 @@ class AsyncCappedOptimizingScheduler:
                 self.state.runs_pending_force_eval.discard(run_id)
                 eval_capacity -= 1
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling forced re-evaluation for %s", run_id)
-        # Then, schedule a normal eval candidate if capacity remains
+        # Then, schedule normal eval candidates up to remaining capacity
         if eval_capacity > 0:
-            eval_candidate = next((r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL), None)
-            if eval_candidate is not None:
+            eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
+            for candidate in eval_candidates:
+                if eval_capacity <= 0:
+                    break
                 job = create_eval_job(
-                    run_id=eval_candidate.run_id,
+                    run_id=candidate.run_id,
                     experiment_id=self.config.experiment_id,
                     recipe_module=self.config.recipe_module,
                     eval_entrypoint=self.config.eval_entrypoint,
@@ -224,11 +226,16 @@ class AsyncCappedOptimizingScheduler:
                     eval_overrides=self.config.eval_overrides,
                 )
                 jobs.append(job)
-                self.state.runs_in_training.discard(eval_candidate.run_id)
-                self.state.runs_in_eval.add(eval_candidate.run_id)
-                logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", eval_candidate.run_id)
+                self.state.runs_in_training.discard(candidate.run_id)
+                self.state.runs_in_eval.add(candidate.run_id)
+                eval_capacity -= 1
+                logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", candidate.run_id)
 
-        # Training scheduling: fill as slots free up
+        # If any runs still need evaluation, do not schedule new training
+        if any(r.status == JobStatus.TRAINING_DONE_NO_EVAL for r in runs):
+            return jobs
+
+        # Training scheduling: fill as slots free up (only when no eval backlog)
         total_created = len(runs)
         if total_created >= self.config.max_trials:
             logger.info(
