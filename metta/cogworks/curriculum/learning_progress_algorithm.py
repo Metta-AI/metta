@@ -485,16 +485,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Get detailed bidirectional learning progress statistics."""
         if not self._outcomes:
             return {
-                "num_tracked_tasks": 0.0,
                 "mean_task_success_rate": 0.0,
                 "mean_learning_progress": 0.0,
-                "num_active_tasks": 0.0,
             }
 
         self._update_bidirectional_progress()
 
         stats = {
-            "num_tracked_tasks": float(len(self._outcomes)),
             "mean_task_success_rate": float(np.mean(self._task_success_rate))
             if len(self._task_success_rate) > 0
             else 0.0,
@@ -523,7 +520,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Get detailed basic learning progress statistics."""
         if not self._task_emas:
             return {
-                "num_tracked_tasks": 0.0,
                 "mean_num_samples": 0.0,
                 "mean_ema_score": 0.0,
                 "mean_learning_progress": 0.0,
@@ -540,7 +536,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             learning_progress_scores.append(std_dev)
 
         return {
-            "num_tracked_tasks": float(len(self._task_emas)),
             "mean_num_samples": float(np.mean(num_samples_list)),
             "mean_ema_score": float(np.mean(ema_scores)),
             "mean_learning_progress": float(np.mean(learning_progress_scores)) if learning_progress_scores else 0.0,

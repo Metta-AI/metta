@@ -67,9 +67,11 @@ class CurriculumEnv(PufferEnv):
 
             # Add per-label learning progress metrics
             if self._per_label_lp_scores:
-                info_dict["per_label_lp_scores"] = self._per_label_lp_scores.copy()
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
             if self._per_label_completion_counts:
-                info_dict["per_label_completion_counts"] = self._per_label_completion_counts.copy()
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_completion_counts"] = (
+                    self._per_label_completion_counts.copy()
+                )
 
             self._stats_update_counter = 0
 

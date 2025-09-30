@@ -313,9 +313,10 @@ class TestLearningProgressProductionPatterns:
 
         # Test that stats are available
         stats = algorithm.stats()
-        assert "tracker/total_tracked_tasks" in stats
-        assert "lp/num_tracked_tasks" in stats
-        assert stats["tracker/total_tracked_tasks"] > 0
+        assert "tracker/mean_recent_score" in stats
+        assert "lp/mean_learning_progress" in stats
+        # mean_recent_score should be non-zero if we have performance data
+        assert stats["tracker/mean_recent_score"] >= 0
 
     def test_learning_progress_memory_management(self, random_seed):
         """Test that memory management works under production load."""
@@ -421,7 +422,7 @@ class TestLearningProgressIntegration:
         # Check that algorithm has been updated
         assert curriculum._algorithm is not None
         stats = curriculum.stats()
-        assert "algorithm/tracker/total_tracked_tasks" in stats
+        assert "algorithm/tracker/mean_recent_score" in stats
 
     def test_learning_progress_with_task_eviction(self, curriculum_with_algorithm):
         """Test learning progress behavior during task eviction scenarios."""
@@ -576,8 +577,9 @@ class TestBidirectionalLearningProgressBehavior:
         stats = algorithm.lp_scorer.get_stats()
 
         # Bidirectional scorer should provide these specific stats
-        expected_keys = ["num_tracked_tasks", "mean_task_success_rate"]
+        expected_keys = ["mean_task_success_rate", "mean_learning_progress"]
         for key in expected_keys:
             assert key in stats, f"Missing stat key: {key}"
 
-        assert stats["num_tracked_tasks"] > 0, "Should track some tasks"
+        # mean_task_success_rate should be >= 0
+        assert stats["mean_task_success_rate"] >= 0, "Should have valid success rate"

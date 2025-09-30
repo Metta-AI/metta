@@ -214,29 +214,23 @@ class SliceAnalyzer:
                 "num_total_bins": num_total_bins,
             }
 
-            # Add individual slice probabilities if detailed logging is enabled and this is one of the first 3 slices
+            # Add top bins if detailed logging is enabled and this is one of the first 3 dimensions
             if self.enable_detailed_logging:
                 slice_index = sorted_slice_names.index(slice_name)
-                if slice_index < 3:  # First three slices
-                    # Calculate probability for each slice value (bin)
+                if slice_index < 3:  # First three dimensions
+                    # Log top 5 bins by count
                     if total_completions > 0:
-                        # Get all possible bins (not just used ones)
-                        all_bins = self._slice_bins.get(slice_name, [])
-                        for bin_idx in range(min(len(all_bins), 20)):  # Limit to first 20 slices to avoid spam
-                            count = completion_counts.get(bin_idx, 0)
-                            probability = count / total_completions
-                            slice_stats[f"slice_{bin_idx}_probability"] = probability
-                            slice_stats[f"slice_{bin_idx}_count"] = count
+                        # Get top 5 bins by count
+                        sorted_bins = sorted(completion_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                        for rank, (bin_idx, count) in enumerate(sorted_bins):
+                            slice_stats[f"top_bin_{rank}_count"] = count
 
                             # Add bin value for context (if available)
+                            all_bins = self._slice_bins.get(slice_name, [])
                             if bin_idx < len(all_bins):
                                 bin_value = all_bins[bin_idx]
                                 if isinstance(bin_value, (int, float)):
-                                    slice_stats[f"slice_{bin_idx}_value"] = float(bin_value)
-                                else:
-                                    # For categorical values, we can't log the string directly to wandb
-                                    # So we'll create a hash or index
-                                    slice_stats[f"slice_{bin_idx}_value_hash"] = hash(str(bin_value)) % 1000000
+                                    slice_stats[f"top_bin_{rank}_value"] = float(bin_value)
 
             stats[slice_name] = slice_stats
 
@@ -267,14 +261,9 @@ class SliceAnalyzer:
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic slice analysis statistics."""
         total_tracked_slices = len(self._monitored_slices)
-        total_tasks_tracked = len(
-            set(task_id for slice_tasks in self._slice_tracking.values() for task_id in slice_tasks.keys())
-        )
 
         return {
             "total_tracked_slices": total_tracked_slices,
-            "total_tasks_tracked": total_tasks_tracked,
-            "max_slice_axes": self.max_slice_axes,
         }
 
     def get_detailed_stats(self) -> Dict[str, float]:
@@ -301,10 +290,10 @@ class SliceAnalyzer:
             "avg_completions_per_bin": avg_completions_per_bin,
         }
 
-        # Add individual slice statistics with proper prefixing
+        # Add individual dimension statistics with proper prefixing
         for slice_name, slice_stats in distribution_stats.items():
             for stat_name, stat_value in slice_stats.items():
-                detailed_stats[f"slice_{slice_name}_{stat_name}"] = stat_value
+                detailed_stats[f"dimension_{slice_name}_{stat_name}"] = stat_value
 
         return detailed_stats
 

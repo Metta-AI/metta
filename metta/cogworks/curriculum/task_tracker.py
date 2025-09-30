@@ -283,20 +283,10 @@ class LocalTaskTracker(TaskTracker):
         if not self._completion_history:
             return {
                 "mean_recent_score": 0.0,
-                "total_tracked_tasks": 0,
-                "total_completions": 0,
             }
-
-        if not self._cache_valid:
-            self._cached_total_completions = sum(
-                completion_count for (_, completion_count, *_) in self._task_memory.values()
-            )
-            self._cache_valid = True
 
         return {
             "mean_recent_score": sum(self._completion_history) / len(self._completion_history),
-            "total_tracked_tasks": len(self._task_memory),
-            "total_completions": self._cached_total_completions,
         }
 
     def _cleanup_old_tasks(self) -> None:
@@ -649,21 +639,10 @@ class CentralizedTaskTracker(TaskTracker):
         if not completion_history:
             return {
                 "mean_recent_score": 0.0,
-                "total_tracked_tasks": 0,
-                "total_completions": 0,
             }
-
-        # Calculate total completions
-        total_completions = 0
-        for index in self._task_id_to_index.values():
-            task_data = self._backend.get_task_data(index)
-            if task_data[11] > 0:  # is_active
-                total_completions += int(task_data[2])
 
         return {
             "mean_recent_score": sum(completion_history) / len(completion_history),
-            "total_tracked_tasks": len(self._task_id_to_index),
-            "total_completions": total_completions,
         }
 
     def get_state(self) -> Dict[str, Any]:

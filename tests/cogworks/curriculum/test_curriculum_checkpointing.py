@@ -181,9 +181,10 @@ class TestCurriculumStateSerialization:
             new_algorithm.task_tracker.get_all_tracked_tasks()
         )
 
+        # Verify that global stats are preserved (mean_recent_score)
         original_stats = algorithm.task_tracker.get_global_stats()
         loaded_stats = new_algorithm.task_tracker.get_global_stats()
-        assert original_stats["total_completions"] == loaded_stats["total_completions"]
+        assert abs(original_stats["mean_recent_score"] - loaded_stats["mean_recent_score"]) < 1e-6
 
     def test_task_tracker_state(self):
         """Test TaskTracker state serialization."""
@@ -216,11 +217,10 @@ class TestCurriculumStateSerialization:
         # Verify state was loaded correctly
         assert len(tracker.get_all_tracked_tasks()) == len(new_tracker.get_all_tracked_tasks())
 
-        # Compare global stats instead of direct attributes
+        # Compare global stats (mean_recent_score is preserved)
         original_stats = tracker.get_global_stats()
         loaded_stats = new_tracker.get_global_stats()
-        assert original_stats["total_tracked_tasks"] == loaded_stats["total_tracked_tasks"]
-        assert original_stats["total_completions"] == loaded_stats["total_completions"]
+        assert abs(original_stats["mean_recent_score"] - loaded_stats["mean_recent_score"]) < 1e-6
 
     def test_file_size_limits(self):
         """Test that checkpoint files don't become too large."""
@@ -610,11 +610,11 @@ class TestCurriculumRoundtripBehavior:
                 # Scores should be approximately equal (floating point tolerance)
                 assert abs(original_task_scores[task_id] - restored_task_scores[task_id]) < 1e-6
 
-        # Key statistics should be preserved
-        key_stats = ["tracker/total_completions", "tracker/total_tracked_tasks"]
+        # Key statistics should be preserved (mean_recent_score from task tracker)
+        key_stats = ["tracker/mean_recent_score"]
         for stat_key in key_stats:
             if stat_key in original_stats and stat_key in restored_stats:
-                assert original_stats[stat_key] == restored_stats[stat_key]
+                assert abs(original_stats[stat_key] - restored_stats[stat_key]) < 1e-6
 
         # Continue training and verify algorithm functionality
         for _ in range(20):
