@@ -4,6 +4,7 @@ import contextlib
 import logging
 import os
 import re
+import shutil
 import sys
 from collections import Counter
 from pathlib import Path
@@ -338,6 +339,68 @@ def curricula_cmd(
         _dump_game_configs(env_cfgs, env_names, destination)
 
         console.print(f"[green]Exported {len(env_cfgs)} maps to: {destination}[/green]")
+
+
+@app.command("clean")
+def clean_cmd(
+    ctx: typer.Context,
+    run_dir: Annotated[
+        Optional[Path],
+        typer.Option("--run-dir", help="Base run directory to clean (defaults to cogames runs directory)"),
+    ] = None,
+    remove_curricula: Annotated[
+        bool,
+        typer.Option("--curricula/--no-curricula", help="Remove exported curriculum maps"),
+    ] = True,
+    remove_checkpoints: Annotated[
+        bool,
+        typer.Option("--checkpoints/--no-checkpoints", help="Remove training checkpoints"),
+    ] = True,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show actions without deleting files")] = False,
+) -> None:
+    """Remove cached curricula and checkpoint artifacts for runs."""
+
+    if not remove_curricula and not remove_checkpoints:
+        console.print("[yellow]Nothing to clean: enable --curricula and/or --checkpoints.")
+        return
+
+    with _command_timeout(ctx):
+        resolved_run_dir = _resolve_run_dir(run_dir)
+        targets: list[Path] = []
+
+        if remove_curricula:
+            targets.append((resolved_run_dir / "curricula").resolve())
+        if remove_checkpoints:
+            targets.append((resolved_run_dir / "checkpoints").resolve())
+
+        seen: set[Path] = set()
+        removed_any = False
+
+        for target in targets:
+            if target in seen:
+                continue
+            seen.add(target)
+
+            if not target.exists():
+                console.print(f"[yellow]Skipping missing path: {target}")
+                continue
+
+            if not target.is_dir():
+                console.print(f"[yellow]Skipping non-directory path: {target}")
+                continue
+
+            if dry_run:
+                console.print(f"[cyan]Would remove: {target}")
+                continue
+
+            shutil.rmtree(target)
+            console.print(f"[green]Removed: {target}")
+            removed_any = True
+
+        if dry_run:
+            console.print("[green]Dry run complete. No changes made.")
+        elif not removed_any:
+            console.print("[yellow]No matching directories were removed.")
 
 
 @app.command(name="play")

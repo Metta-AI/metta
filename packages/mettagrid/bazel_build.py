@@ -127,42 +127,44 @@ def _run_bazel_build() -> None:
 
 def _run_mettascope_build() -> None:
     """Run mettascope build script to compile the Nim library."""
-    build_script = METTASCOPE_DIR / "build.sh"
-
-    if not build_script.exists():
-        print(f"Warning: Mettascope build script not found at {build_script}")
-        return
 
     # Check if nim and nimble are available
     if shutil.which("nim") is None:
-        raise RuntimeError(
-            "Nim compiler not found. Install Nim (https://nim-lang.org/install.html) to build the mettascope renderer."
-        )
+        print("Warning: Nim compiler not found. Skipping mettascope build.")
+        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
+        raise RuntimeError("Nim compiler not found")
 
     if shutil.which("nimble") is None:
-        raise RuntimeError(
-            "Nimble package manager not found. Install Nimble alongside Nim to build the mettascope renderer."
-        )
+        print("Warning: Nimble package manager not found. Skipping mettascope build.")
+        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
+        raise RuntimeError("Nimble package manager not found")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Make the build script executable
-    build_script.chmod(0o755)
+    def _run_nimble(args: list[str]) -> None:
+        result = subprocess.run(["nimble", *args], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+        if result.stdout:
+            print(result.stdout, file=sys.stderr)
+        if result.returncode != 0:
+            print(
+                f"Warning: Mettascope build failed. {' '.join(['nimble', *args])} failed.",
+                file=sys.stderr,
+            )
+            raise RuntimeError("Mettascope build failed")
 
-    # Run the build script
-    cmd = ["bash", "build.sh"]
-    result = subprocess.run(cmd, cwd=METTASCOPE_DIR, capture_output=True, text=True, check=False)
+    # Refresh metadata, ensure windy is on a compatible version, then build bindings
+    nimble_steps = [
+        ["update", "-y"],
+        ["install", "windy@0.3.1", "-y"],
+        ["install", "-y"],
+        ["bindings", "-y"],
+    ]
 
-    if result.returncode != 0:
-        print("Mettascope build failed. STDERR:", file=sys.stderr)
-        print(result.stderr, file=sys.stderr)
-        print("Mettascope build STDOUT:", file=sys.stderr)
-        print(result.stdout, file=sys.stderr)
-        raise RuntimeError("Failed to build mettascope Nim bindings")
-
+    for step in nimble_steps:
+        _run_nimble(step)
     print("Successfully built mettascope")
-    if result.stdout:
-        print("Build output:", result.stdout)
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):

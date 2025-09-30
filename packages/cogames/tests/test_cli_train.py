@@ -240,3 +240,35 @@ def test_train_uses_run_dir_curricula(tmp_path: Path, monkeypatch: pytest.Monkey
     )
 
     assert checkpoints_dir.exists()
+
+
+def test_clean_removes_targets(tmp_path: Path) -> None:
+    run_dir = tmp_path / "clean"
+    curricula_dir = run_dir / "curricula"
+    checkpoints_dir = run_dir / "checkpoints"
+    curricula_dir.mkdir(parents=True, exist_ok=True)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+    (curricula_dir / "map.yaml").write_text("test")
+    (checkpoints_dir / "ckpt.bin").write_text("test")
+
+    result = runner.invoke(app, ["clean", "--run-dir", str(run_dir)])
+    if result.exception:
+        raise result.exception
+    assert result.exit_code == 0
+    assert not curricula_dir.exists()
+    assert not checkpoints_dir.exists()
+
+
+def test_clean_dry_run_preserves_files(tmp_path: Path) -> None:
+    run_dir = tmp_path / "dry"
+    curricula_dir = run_dir / "curricula"
+    checkpoints_dir = run_dir / "checkpoints"
+    curricula_dir.mkdir(parents=True, exist_ok=True)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+
+    result = runner.invoke(app, ["clean", "--run-dir", str(run_dir), "--dry-run"])
+    if result.exception:
+        raise result.exception
+    assert result.exit_code == 0
+    assert curricula_dir.exists()
+    assert checkpoints_dir.exists()

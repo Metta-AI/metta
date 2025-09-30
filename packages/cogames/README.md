@@ -129,6 +129,23 @@ uv run cogames curricula --output-dir ./tmp/maps --game assembler_1_simple --gam
 
 The command writes each map configuration once (deduplicated by name) and prints the final output directory. `cogames train` automatically looks for maps in `packages/cogames/runs/default/curricula` when no `--curriculum` argument is provided.
 
+### Cleaning Run Artifacts
+
+If you need to reset the fallback run directories (for example, to clear out stale curricula that no longer match the latest game definitions), use `cogames clean`:
+
+```bash
+# Remove curricula and checkpoints from the default runs directory
+uv run cogames clean
+
+# Target a specific run directory and leave checkpoints untouched
+uv run cogames clean --run-dir ./runs/assembler_1_simple --no-checkpoints
+
+# Preview what would be deleted without modifying the filesystem
+uv run cogames clean --dry-run
+```
+
+By default the command deletes both the `curricula/` and `checkpoints/` subdirectories. Use the boolean flags to fine-tune what gets removed.
+
 ### Policy Bundles
 
 Use `cogames policy` utilities to package checkpoints with their class paths and reload them later:
