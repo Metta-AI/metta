@@ -1,4 +1,5 @@
 from cortex.blocks import (
+    AdapterBlock,
     BaseBlock,
     PassThroughBlock,
     PostUpBlock,
@@ -8,6 +9,7 @@ from cortex.blocks import (
 )
 from cortex.cells import LSTMCell, mLSTMCell, MemoryCell, build_cell, register_cell
 from cortex.config import (
+    AdapterBlockConfig,
     BlockConfig,
     CellConfig,
     CortexStackConfig,
@@ -24,6 +26,7 @@ from cortex.types import MaybeState, ResetMask, State, Tensor
 __all__ = [
     # Configuration
     "BlockConfig",
+    "AdapterBlockConfig",
     "PassThroughBlockConfig",
     "PreUpBlockConfig",
     "PostUpBlockConfig",
@@ -41,6 +44,7 @@ __all__ = [
     "build_cell",
     # Blocks
     "BaseBlock",
+    "AdapterBlock",
     "PassThroughBlock",
     "PreUpBlock",
     "PostUpBlock",
