@@ -169,4 +169,4 @@ pufferlib-core = { workspace = true }
 softmax = { workspace = true }
 
 [tool.ruff]
-extend-exclude = [".nim_runtime"]
+exclude = [".nim_runtime"]
