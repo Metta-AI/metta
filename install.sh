@@ -50,7 +50,7 @@ check_cmd() {
 
 echo "Welcome to Metta!"
 
-for cmd in uv bazel git g++; do
+for cmd in uv bazel git g++ nimble nim; do
   if ! check_cmd "$cmd"; then
     echo "$cmd not found. Consider running ./devops/tools/install-system.sh"
     exit 1
