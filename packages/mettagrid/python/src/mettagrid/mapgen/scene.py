@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from enum import Enum
-from typing import Any, ClassVar, Generic, TypeVar, get_args, get_origin
+from enum import StrEnum, auto
+from typing import Any, ClassVar, Final, Generic, TypeVar, get_args, get_origin
 
 import numpy as np
 from pydantic import model_serializer
@@ -12,16 +12,27 @@ from mettagrid.mapgen.area import Area, AreaQuery
 from mettagrid.util.module import load_symbol
 
 
-class GridTransform(Enum):
-    # Tuples: transpose, flip_v, flip_h
-    IDENTITY = (False, False, False)
-    ROT_90 = (True, False, True)
-    ROT_180 = (False, True, True)
-    ROT_270 = (True, True, False)
-    FLIP_H = (False, False, True)
-    FLIP_V = (False, True, False)
-    TRANSPOSE = (True, False, False)
-    TRANSPOSE_ALT = (True, True, True)
+class GridTransform(StrEnum):
+    IDENTITY = auto()
+    ROT_90 = auto()
+    ROT_180 = auto()
+    ROT_270 = auto()
+    FLIP_H = auto()
+    FLIP_V = auto()
+    TRANSPOSE = auto()
+    TRANSPOSE_ALT = auto()
+
+    @property
+    def transpose(self) -> bool:
+        return TRANSFORM_FLAGS[self][0]
+
+    @property
+    def flip_v(self) -> bool:
+        return TRANSFORM_FLAGS[self][1]
+
+    @property
+    def flip_h(self) -> bool:
+        return TRANSFORM_FLAGS[self][2]
 
     def inverse(self):
         if self == GridTransform.ROT_90:
@@ -30,18 +41,6 @@ class GridTransform(Enum):
             return GridTransform.ROT_90
         else:
             return self
-
-    @property
-    def transpose(self):
-        return self.value[0]
-
-    @property
-    def flip_v(self):
-        return self.value[1]
-
-    @property
-    def flip_h(self):
-        return self.value[2]
 
     def apply(self, grid: MapGrid) -> MapGrid:
         """
@@ -87,6 +86,18 @@ class GridTransform(Enum):
                 return transform
 
         raise RuntimeError("Composition not found")  # Should never happen
+
+
+TRANSFORM_FLAGS: Final[dict[GridTransform, tuple[bool, bool, bool]]] = {
+    GridTransform.IDENTITY: (False, False, False),
+    GridTransform.ROT_90: (True, False, True),
+    GridTransform.ROT_180: (False, True, True),
+    GridTransform.ROT_270: (True, True, False),
+    GridTransform.FLIP_H: (False, False, True),
+    GridTransform.FLIP_V: (False, True, False),
+    GridTransform.TRANSPOSE: (True, False, False),
+    GridTransform.TRANSPOSE_ALT: (True, True, True),
+}
 
 
 class SceneConfig(Config):
