@@ -8,7 +8,6 @@ from cortex.kernels.mlstm import (
     TRITON_AVAILABLE,
     mlstm_chunkwise_simple,
     mlstm_chunkwise_triton,
-    mlstm_parallel_stabilized_simple,
     mlstm_recurrent_step_stabilized_simple,
 )
 from cortex.kernels.slstm import slstm_sequence_triton
@@ -17,7 +16,6 @@ __all__ = [
     "TRITON_AVAILABLE",
     "mlstm_chunkwise_simple",
     "mlstm_chunkwise_triton",
-    "mlstm_parallel_stabilized_simple",
     "mlstm_recurrent_step_stabilized_simple",
     "slstm_sequence_triton",
 ]

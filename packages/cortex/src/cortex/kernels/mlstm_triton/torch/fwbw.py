@@ -43,6 +43,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
             num_stages_intra: int | None = None,
             num_stages_inter: int | None = None,
             recompute_states_in_bw: bool = True,
+            reset_mask: torch.Tensor | None = None,
         ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
             B, NH, S, DHQK = matQ.shape
             if qk_scale is None:
@@ -54,6 +55,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 matV=matV,
                 vecI=vecI,
                 vecF=vecF,
+                reset_mask=reset_mask,
                 matC_initial=matC_initial,
                 vecN_initial=vecN_initial,
                 scaM_initial=scaM_initial,
@@ -112,6 +114,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 tensor_or_none(num_stages_intra),
                 tensor_or_none(num_stages_inter),
                 torch.tensor(eps),
+                tensor_or_none(reset_mask),
             )
             return matH_out, matC_last, vecN_last, scaM_last
 
@@ -146,6 +149,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 num_stages_intra,
                 num_stages_inter,
                 eps,
+                reset_mask,
             ) = ctx.saved_tensors
 
             (
@@ -186,6 +190,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 num_stages_intra=int_or_none(num_stages_intra),
                 num_stages_inter=int_or_none(num_stages_inter),
                 eps=float(eps),
+                reset_mask=reset_mask if isinstance(reset_mask, torch.Tensor) else None,
             )
 
             return (
@@ -212,6 +217,7 @@ def _mlstm_chunkwise_fwbw_generator(autocast_kernel_dtype=torch.bfloat16) -> Cal
                 None,
                 None,
                 None,
+                None,  # reset_mask has no gradient
             )
 
     return _mlstm_chunkwise_fwbw
@@ -257,6 +263,7 @@ def mlstm_chunkwise__xl_chunk(
     num_stages_inter: int | None = None,
     recompute_states_in_bw: bool = True,
     autocast_kernel_dtype: torch.dtype = torch.float32,
+    reset_mask: torch.Tensor | None = None,
 ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
     _mlstm_chunkwise_fwbw = _get_chunkwise_fwbw_kernel(autocast_kernel_dtype)
     matH_out, matC_last, vecN_last, scaM_last = _mlstm_chunkwise_fwbw.apply(
@@ -283,6 +290,7 @@ def mlstm_chunkwise__xl_chunk(
         num_stages_intra,
         num_stages_inter,
         recompute_states_in_bw,
+        reset_mask,
     )
     if return_last_states:
         return matH_out, (matC_last, vecN_last, scaM_last)

@@ -11,6 +11,7 @@ import torch
 from ..triton.chunkwise_kernel_param_heuristics import (
     get_xl_chunk_kernel_params,
 )
+import math
 from ..utils import contiguous_noctx
 from .fw_parallel import mlstm_chunkwise__parallel_fw_Hintra
 from .fw_recurrent import mlstm_chunkwise__recurrent_fw_C
@@ -23,6 +24,7 @@ def mlstm_chunkwise_fw(
     matV: torch.Tensor,  # (B, NH, S, DHHV)
     vecI: torch.Tensor,  # (B, NH, S)
     vecF: torch.Tensor,  # (B, NH, S)
+    reset_mask: torch.Tensor | None = None,  # (B, S) boolean
     matC_initial: torch.Tensor = None,  # (B, NH, DHQK, DHHV)
     vecN_initial: torch.Tensor = None,  # (B, NH, DHQK)
     scaM_initial: torch.Tensor = None,  # (B, NH, 1)
@@ -61,14 +63,52 @@ def mlstm_chunkwise_fw(
     if qk_scale is None:
         qk_scale = DHQK**-0.5
 
+    # Always use explicit chunk params based on largest power-of-two divisor of S,
+    # capped by the requested chunk_size to keep behavior consistent and avoid
+    # heuristic constraints on sequence length.
+    def largest_pow2_divisor(n: int) -> int:
+        return n & -n  # largest power-of-two factor
+
+    L_pow2 = largest_pow2_divisor(S)
+    L = min(L_pow2, chunk_size)
+    L = max(16, L)  # keep a reasonable lower bound
+    # Ensure L divides S; if not, shrink L by factors of 2 until it does
+    while S % L != 0 and L > 16:
+        L //= 2
+
     kernel_chunk_params = get_xl_chunk_kernel_params(
         sequence_length=S,
-        target_chunk_size=chunk_size,
-        siz_b_L_loop=siz_b_L_loop,
-        siz_b_L_parallel=siz_b_L_parallel,
-        chunk_size_inter=chunk_size_inter,
-        chunk_size_intra=chunk_size_intra,
+        target_chunk_size=None,
+        chunk_size_intra=L,
+        siz_b_L_loop=L,
+        siz_b_L_parallel=L,
+        chunk_size_inter=L,
     )
+
+    # Prepare optional reset-aware chunk metadata
+    vecSegId_intra = None
+    vecLastSegMask_inter = None
+    if reset_mask is not None:
+        # Broadcast reset mask to heads and build chunked structures
+        Bm, NHm, Sm = matQ.shape[0], matQ.shape[1], matQ.shape[2]
+        assert reset_mask.shape == (Bm, Sm)
+        reset_full = reset_mask.unsqueeze(1).expand(Bm, NHm, Sm).to(dtype=torch.int32)
+
+        # Intra-chunk segmentation IDs (inclusive prefix of resets per chunk)
+        L_intra = kernel_chunk_params.chunk_size_intra
+        assert Sm % L_intra == 0
+        NC_intra = Sm // L_intra
+        seg = reset_full.view(Bm, NHm, NC_intra, L_intra)
+        vecSegId_intra = torch.cumsum(seg, dim=-1).contiguous()  # (B, NH, NC_intra, L_intra)
+
+        # Inter-chunk last-segment mask: True for positions at/after last reset in chunk
+        L_inter = kernel_chunk_params.chunk_size_inter
+        assert Sm % L_inter == 0
+        NC_inter = Sm // L_inter
+        seg_inter = reset_full.view(Bm, NHm, NC_inter, L_inter)
+        prefix_inclusive = torch.cumsum(seg_inter, dim=-1)
+        last_prefix = prefix_inclusive[..., -1:].expand_as(prefix_inclusive)
+        vecLastSegMask_inter = prefix_inclusive.eq(last_prefix).to(matQ.dtype)
 
     #! materialize the  C_k, n_k, m_k states for each chunk
     matC_k_states, vecN_k_states, scaMinter_k_states = mlstm_chunkwise__recurrent_fw_C(
@@ -76,6 +116,7 @@ def mlstm_chunkwise_fw(
         matV=matV,
         vecF=vecF,
         vecI=vecI,
+        vecLastSegMask=vecLastSegMask_inter,
         matC_initial=matC_initial,
         vecN_initial=vecN_initial,
         scaMinter_initial=scaM_initial,
@@ -95,6 +136,7 @@ def mlstm_chunkwise_fw(
         matC_states=matC_k_states,
         vecN_states=vecN_k_states,
         scaMinter_states=scaMinter_k_states,
+        vecSegId=vecSegId_intra,
         qk_scale=qk_scale,
         chunk_size=kernel_chunk_params.chunk_size_intra,
         siz_b_LQ=kernel_chunk_params.siz_b_L_parallel,

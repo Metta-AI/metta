@@ -16,6 +16,7 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
     matV,  # (B, NH, S, DHHV)
     vecF,  # (B, NH, NC * L) = (B, NH, S)
     vecI,  # (B, NH, NC * L) = (B, NH, S)
+    vecLastSegMask,  # (B, NH, NC, L) float32 {0.,1.}
     matC_initial,  # (B, NH, DHQK, DHHV)
     vecN_initial,  # (B, NH, DHQK)
     scaMinter_initial,  # (B, NH)
@@ -36,6 +37,8 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
     str_vecNstates_NCDHQK: tl.constexpr,
     str_scaMinterstates_B_NH: tl.constexpr,
     str_scaMinterstates_NC: tl.constexpr,
+    str_vecLastSegMask_B_NH: tl.constexpr,
+    str_vecLastSegMask_NC: tl.constexpr,
     str_matCinitial_B_NH: tl.constexpr,
     str_matCinitial_DHQK: tl.constexpr,
     str_matCinitial_DHHV: tl.constexpr,
@@ -149,8 +152,13 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
         vecFlogsig_masked = tl.where(idx_L < L - 1, vecFlogsig_k_val, 0.0).to(tl.float32)
 
         vecI_k_val = tl.load(vecI + idx_b_BNH * str_vecFI_B_NH + k * L + idx_L).to(tl.float32)
+        # Load last-segment mask for current chunk positions
+        vecMask_ptr = vecLastSegMask + idx_b_BNH * str_vecLastSegMask_B_NH + k * str_vecLastSegMask_NC + idx_L
+        vecMask_val = tl.load(vecMask_ptr).to(tl.float32)
 
         vecA_k_val = tl.flip(tl.cumsum(tl.flip(vecFlogsig_masked, dim=0), axis=0), dim=0) + vecI_k_val
+        # Mask out positions not belonging to the last segment within this chunk
+        vecA_k_val = tl.where(vecMask_val > 0.0, vecA_k_val, -float("inf"))
 
         vecFfirst_k_val = tl.load(vecF + idx_b_BNH * str_vecFI_B_NH + k * L + 0).to(tl.float32)
         vecFfirstlogsig_k_val = tl.log(tl.sigmoid(vecFfirst_k_val))
@@ -158,6 +166,7 @@ def mlstm_chunkwise__recurrent_fw_C_kernel(
 
         # scaM_inter_k update
         scaAmax_k_val = tl.max(vecA_k_val)
+        # Use standard stabilized combine as in non-reset case; masking in vecA already encodes last-segment
         scaMinter_next_val = tl.maximum(scaG_k_val + scaMinter_k_val, scaAmax_k_val)
 
         # load matK_k, matV_k
