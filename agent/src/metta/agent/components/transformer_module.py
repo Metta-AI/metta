@@ -919,6 +919,8 @@ class TransformerXLModule(nn.Module):
                 if self.clamp_len > 0:
                     pos_seq = pos_seq.clamp(max=float(self.clamp_len))
                 pos_emb = self.pos_emb(pos_seq)
+                if pos_emb.device != device or pos_emb.dtype != dtype:
+                    pos_emb = pos_emb.to(device=device, dtype=dtype)
                 pos_emb = self.drop(pos_emb)
 
             core_out = self.drop(inputs)
