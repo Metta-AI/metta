@@ -1,24 +1,26 @@
-from mettagrid.builder.envs import make_icl_assembler
-from experiments.recipes.in_context_learning.in_context_learning import (
-    ICLTaskGenerator,
-    _BuildCfg,
-    train_icl,
-    play_icl,
-    replay_icl,
-)
-from metta.tools.sim import SimTool
+import os
+import random
 import subprocess
 import time
+from typing import Optional
+
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from metta.tools.sim import SimTool
+from metta.tools.train import TrainTool
+from mettagrid.builder.envs import make_icl_assembler
 from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
-from metta.tools.train import TrainTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-import random
-from typing import Optional
-import os
+
+from experiments.recipes.in_context_learning.in_context_learning import (
+    ICLTaskGenerator,
+    _BuildCfg,
+    play_icl,
+    replay_icl,
+    train_icl,
+)
 
 curriculum_args = {
     "train": {
@@ -268,7 +270,7 @@ def evaluate():
     policy_uris = []
 
     for curriculum_style in curriculum_args:
-        policy_uri = f"s3://softmax-public/policies/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27:latest.pt"
+        policy_uri = f"s3://softmax-public/policies/in_context.assembly_lines_{curriculum_style}.eval_local.2025-09-27/:latest"
         policy_uris.append(policy_uri)
 
     simulations = make_assembly_line_eval_suite()
