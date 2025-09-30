@@ -21,7 +21,7 @@ class ViTSlidingTransConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _embed_dim = 16
-    _core_out_dim = 32
+    _core_out_dim = 48
     _memory_num_layers = 2
 
     components: List[ComponentConfig] = [
@@ -50,7 +50,7 @@ class ViTSlidingTransConfig(PolicyArchitecture):
             name="critic",
             in_features=_core_out_dim,
             out_features=1,
-            hidden_features=[256],
+            hidden_features=[1024],
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
         ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
