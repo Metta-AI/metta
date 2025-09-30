@@ -69,7 +69,7 @@ class SlidingTransformerConfig(ComponentConfig):
     in_key: str
     out_key: str
     name: str = "sliding_transformer"
-    output_dim: int = 16
+    output_dim: int
     input_dim: int = 64
     num_heads: int = 1
     ff_mult: int = 4
