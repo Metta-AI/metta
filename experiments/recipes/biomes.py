@@ -163,6 +163,8 @@ class UniformExtractorParams(Config):
     rows: int = 4
     cols: int = 4
     jitter: int = 1
+    clear_existing: bool = False
+    frame_with_walls: bool = False
     extractor_names: list[str] = Field(
         default_factory=lambda: [
             "carbon_extractor",
@@ -181,12 +183,14 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
         if self.width < 3 or self.height < 3:
             raise ValueError("Extractor map must be at least 3x3 to fit border walls")
 
-        # Fill the map with empty cells and frame it with walls.
-        self.grid[:, :] = "empty"
-        self.grid[0, :] = "wall"
-        self.grid[-1, :] = "wall"
-        self.grid[:, 0] = "wall"
-        self.grid[:, -1] = "wall"
+        if params.clear_existing:
+            # Start from an empty canvas when requested (used for dedicated showcase maps).
+            self.grid[:, :] = "empty"
+            if params.frame_with_walls:
+                self.grid[0, :] = "wall"
+                self.grid[-1, :] = "wall"
+                self.grid[:, 0] = "wall"
+                self.grid[:, -1] = "wall"
 
         interior_width = self.width - 2
         interior_height = self.height - 2
@@ -221,26 +225,36 @@ class UniformExtractorScene(Scene[UniformExtractorParams]):
         for (base_row, base_col), name in zip(positions, assignments):
             row = int(base_row)
             col = int(base_col)
-            if jitter:
-                for _ in range(5):
-                    offset_row = int(
-                        np.clip(
-                            row + self.rng.integers(-jitter, jitter + 1),
-                            1,
-                            self.height - 2,
-                        )
+            attempts = max(1, 8 if jitter else 1)
+            placement: tuple[int, int] | None = None
+            for _ in range(attempts):
+                offset_row = int(
+                    np.clip(
+                        row + (self.rng.integers(-jitter, jitter + 1) if jitter else 0),
+                        1,
+                        self.height - 2,
                     )
-                    offset_col = int(
-                        np.clip(
-                            col + self.rng.integers(-jitter, jitter + 1),
-                            1,
-                            self.width - 2,
-                        )
+                )
+                offset_col = int(
+                    np.clip(
+                        col + (self.rng.integers(-jitter, jitter + 1) if jitter else 0),
+                        1,
+                        self.width - 2,
                     )
-                    if (offset_row, offset_col) not in used_cells:
-                        row, col = offset_row, offset_col
-                        break
-            used_cells.add((row, col))
+                )
+                if (offset_row, offset_col) in used_cells:
+                    continue
+                if (
+                    not params.clear_existing
+                    and self.grid[offset_row, offset_col] != "empty"
+                ):
+                    continue
+                placement = (offset_row, offset_col)
+                break
+            if placement is None:
+                continue
+            row, col = placement
+            used_cells.add(placement)
             self.grid[row, col] = name
 
 
@@ -260,6 +274,8 @@ def make_extractor_showcase() -> MettaGridConfig:
                 rows=4,
                 cols=4,
                 jitter=1,
+                clear_existing=True,
+                frame_with_walls=True,
                 extractor_names=[
                     "carbon_extractor",
                     "oxygen_extractor",
@@ -324,6 +340,10 @@ def make_mettagrid(
     )
 
     astroid = make_navigation(num_agents=4)
+    _add_extractor_objects(astroid)
+    astroid_resources = set(astroid.game.resource_names)
+    astroid_resources.update({"energy", "carbon", "oxygen", "geranium", "silicon"})
+    astroid.game.resource_names = sorted(astroid_resources)
     astroid.game.map_builder = MapGen.Config(
         width=width,
         height=height,
@@ -1204,11 +1224,36 @@ def make_mettagrid(
                     lock="connect",
                     limit=1,
                 ),
+                ChildrenAction(
+                    scene=UniformExtractorScene.factory(
+                        UniformExtractorParams(
+                            rows=5,
+                            cols=5,
+                            jitter=3,
+                            clear_existing=False,
+                            frame_with_walls=False,
+                            extractor_names=[
+                                "carbon_extractor",
+                                "oxygen_extractor",
+                                "geranium_extractor",
+                                "silicon_extractor",
+                            ],
+                        )
+                    ),
+                    where="full",
+                    order_by="last",
+                    lock="sanctum_extractors",
+                    limit=1,
+                ),
             ],
         ),
     )
 
     astroid_big = make_navigation(num_agents=4)
+    _add_extractor_objects(astroid_big)
+    big_resources = set(astroid_big.game.resource_names)
+    big_resources.update({"energy", "carbon", "oxygen", "geranium", "silicon"})
+    astroid_big.game.resource_names = sorted(big_resources)
     astroid_big.game.map_builder = MapGen.Config(
         width=1000,
         height=1000,
@@ -3215,6 +3260,27 @@ def make_mettagrid(
                     where="full",
                     order_by="last",
                     lock="connect",
+                    limit=1,
+                ),
+                ChildrenAction(
+                    scene=UniformExtractorScene.factory(
+                        UniformExtractorParams(
+                            rows=7,
+                            cols=7,
+                            jitter=4,
+                            clear_existing=False,
+                            frame_with_walls=False,
+                            extractor_names=[
+                                "carbon_extractor",
+                                "oxygen_extractor",
+                                "geranium_extractor",
+                                "silicon_extractor",
+                            ],
+                        )
+                    ),
+                    where="full",
+                    order_by="last",
+                    lock="sanctum_extractors",
                     limit=1,
                 ),
             ],
