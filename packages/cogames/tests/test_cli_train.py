@@ -6,8 +6,9 @@ from typing import Any, Iterable, Iterator, List, Sequence
 import pytest
 from typer.testing import CliRunner
 
+import pufferlib.pufferl
+import pufferlib.vector
 from cogames import game
-from cogames import train as train_module
 from cogames.main import app
 
 runner = CliRunner()
@@ -55,9 +56,15 @@ class DummyVecEnv:
         pass
 
 
-def fake_vector_make(env_creator, num_envs, num_workers, batch_size, backend, env_kwargs):
-    cfg_iterator = env_kwargs["cfg_iterator"]
-    env = env_creator(cfg_iterator, buf=None, seed=None)
+def fake_vector_make(
+    env_creator,
+    num_envs,
+    num_workers,
+    batch_size,
+    backend,
+    env_kwargs=None,
+):
+    env = env_creator()
     return DummyVecEnv(env, num_envs=num_envs)
 
 
@@ -75,8 +82,8 @@ def fake_curriculum() -> Iterable[Any]:
 
 
 def _invoke_cli(args: Sequence[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    monkeypatch.setattr(train_module.pufferl, "PuffeRL", DummyTrainer)
-    monkeypatch.setattr(train_module.pufferlib.vector, "make", fake_vector_make)
+    monkeypatch.setattr(pufferlib.pufferl, "PuffeRL", DummyTrainer)
+    monkeypatch.setattr(pufferlib.vector, "make", fake_vector_make)
 
     result = runner.invoke(app, ["train", *args])
     if result.exception:

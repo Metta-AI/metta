@@ -28,6 +28,8 @@ console = Console()
 policy_app = typer.Typer(help="Policy utilities")
 app.add_typer(policy_app, name="policy")
 
+BASE_RUNS_DIR = (Path(__file__).resolve().parent / "runs").resolve()
+
 
 @contextlib.contextmanager
 def _command_timeout(ctx: typer.Context):
@@ -111,7 +113,7 @@ def _default_device(explicit: Optional[str]) -> str:
 def _resolve_run_dir(run_dir: Optional[Path]) -> Path:
     if run_dir is not None:
         return run_dir.expanduser().resolve()
-    return Path("./runs/default").resolve()
+    return (BASE_RUNS_DIR / "default").resolve()
 
 
 def _suggest_parallelism(
@@ -329,7 +331,7 @@ def curricula_cmd(
         if output_dir is not None:
             destination = output_dir.expanduser().resolve()
         else:
-            destination = Path("./runs/default/curricula").resolve()
+            destination = (_resolve_run_dir(None) / "curricula").resolve()
 
         _dump_game_configs(env_cfgs, env_names, destination)
 
