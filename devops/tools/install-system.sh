@@ -87,20 +87,17 @@ ensure_tool() {
 
   ensure_paths
 
-  if check_cmd "$tool"; then
-    return 0
-  fi
-
   if [ "$(uname -s)" = "Linux" ] && { [ "$tool" = "nim" ] || [ "$tool" = "nimble" ]; }; then
     if ensure_linux_nim_version "$REQUIRED_NIM_VERSION"; then
       ensure_paths
-      if check_cmd "$tool"; then
-        return 0
-      fi
-      err "Installed Nim via choosenim but $tool is not available"
-    else
-      err "Failed to install Nim via choosenim"
+      return 0
     fi
+
+    err "Failed to install Nim via choosenim"
+  fi
+
+  if check_cmd "$tool"; then
+    return 0
   fi
 
   echo "$tool not found. Installing $tool..."
