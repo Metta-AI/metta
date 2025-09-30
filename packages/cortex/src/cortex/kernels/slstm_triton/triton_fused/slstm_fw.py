@@ -26,21 +26,26 @@ from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype
 
 # we assume for simplicity: NGR == NGI
 
-ENABLE_AUTOTUNING = False
+ENABLE_AUTOTUNING = True
 
 if ENABLE_AUTOTUNING:
-    configs = [
-        triton.Config({"siz_B": siz_B}, num_stages=s, num_warps=w)
-        for siz_B in [16, 32, 64]
-        for s in [1]
-        for w in [1, 2, 4, 8]
-    ]
+    configs = []
+    for siz_B in [16, 32]:
+        # tl.dot requires M,N,K >= 16; keep TN >= 16
+        for TN in [16, 32]:
+            for TK in [16, 32]:
+                for w in [4]:
+                    for s in [1]:
+                        configs.append(
+                            triton.Config(
+                                {"siz_B": siz_B, "TN": TN, "TK": TK},
+                                num_stages=s,
+                                num_warps=w,
+                            )
+                        )
 else:
     configs = [
-        triton.Config({"siz_B": siz_B}, num_stages=s, num_warps=w)
-        for siz_B in [16]
-        for s in [1]
-        for w in [4]
+        triton.Config({"siz_B": 16, "TN": 32, "TK": 32}, num_stages=1, num_warps=4)
     ]
 
 
@@ -600,10 +605,17 @@ def forward_sequence(
 
     def grid(args):
         siz_B = args["siz_B"]
+        TN = args.get("TN", 32)
+        TK = args.get("TK", 32)
         assert siz_B >= MIN_BATCH_SIZE, "siz_B must be at least 16"
         if siz_B > effective_B:
-            # we raise this to skip it in the autotuning
+            # skip when batch tile exceeds effective B
             raise OutOfResources(required=siz_B, limit=effective_B, name="siz_B")
+        # Ensure tile sizes fit DH
+        if TN > DH:
+            raise OutOfResources(required=TN, limit=DH, name="TN")
+        if TK > DH:
+            raise OutOfResources(required=TK, limit=DH, name="TK")
         g = (NH, triton.cdiv(B, siz_B))
         return g
 
@@ -624,8 +636,6 @@ def forward_sequence(
         DH=DH,
         NGI=NGI,
         NGR=NGR,
-        TK=32,
-        TN=TN,
         OUTPUT_GATES=output_gates_and_states_initial,
         DTYPE=torch2triton_dtype(dtype),
     )
