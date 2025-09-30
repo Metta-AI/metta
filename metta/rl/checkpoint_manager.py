@@ -27,7 +27,7 @@ class PolicyMetadata(TypedDict):
     uri: str
 
 
-def _key_and_version(uri: str) -> tuple[str, int] | None:
+def key_and_version(uri: str) -> tuple[str, int] | None:
     """Extract key (run name) and version (epoch) from a policy URI.
 
     Examples:
@@ -215,7 +215,8 @@ class CheckpointManager:
                 checkpoint_file = _latest_checkpoint(f"file://{path}")
                 if not checkpoint_file:
                     raise FileNotFoundError(f"No checkpoint files in {uri}")
-                return _load_checkpoint_file(str(checkpoint_file), device)
+                local_path = ParsedURI.parse(checkpoint_file["uri"]).local_path
+                return _load_checkpoint_file(local_path, device)  # type: ignore
             if not path.exists():
                 raise FileNotFoundError(f"Checkpoint file not found: {path}")
             return _load_checkpoint_file(str(path), device)
@@ -248,7 +249,7 @@ class CheckpointManager:
     def get_policy_metadata(uri: str) -> PolicyMetadata:
         """Extract metadata from policy URI."""
         normalized_uri = CheckpointManager.normalize_uri(uri)
-        metadata = _key_and_version(normalized_uri)
+        metadata = key_and_version(normalized_uri)
         if not metadata:
             raise ValueError(f"Could not extract metadata from uri {uri}")
         run_name, epoch = metadata
