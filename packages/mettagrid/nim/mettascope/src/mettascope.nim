@@ -76,17 +76,17 @@ find "/UI/Main":
     rootArea.split(Vertical)
     rootArea.split = 0.20
 
-    objectInfoPanel = rootArea.areas[0].addPanel(ObjectInfo, "Object")
-    environmentInfoPanel = rootArea.areas[0].addPanel(EnvironmentInfo, "Environment")
+    rootArea.areas[0].split(Horizontal)
+    rootArea.areas[0].split = 0.5
 
-    rootArea.areas[1].split(Horizontal)
-    rootArea.areas[1].split = 0.5
+    objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
+    environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
 
-    worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
-    minimapPanel = rootArea.areas[1].areas[0].addPanel(Minimap, "Minimap")
+    worldMapPanel = rootArea.areas[1].addPanel(WorldMap, "Map")
+    minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
 
-    agentTracesPanel = rootArea.areas[1].areas[1].addPanel(AgentTraces, "Agent Traces")
-    agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
+    agentTracesPanel = rootArea.areas[1].addPanel(AgentTraces, "Agent Traces")
+    # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
 
     rootArea.refresh()
 
@@ -102,6 +102,8 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
+      if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
+        fitFullMap(worldMapPanel)
       bxy.translate(worldMapPanel.rect.xy.vec2)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
@@ -151,8 +153,6 @@ find "/UI/Main":
       mouseCaptured = false
       mouseCapturedPanel = nil
 
-    if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
-      fitFullMap(worldMapPanel)
 
 when isMainModule:
 

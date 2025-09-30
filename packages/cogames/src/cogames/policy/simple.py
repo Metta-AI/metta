@@ -6,10 +6,10 @@ import torch
 import torch.nn as nn
 
 import pufferlib.pytorch
-from cogames.policy import TrainablePolicy
+from cogames.policy.policy import AgentPolicy, TrainablePolicy
 from mettagrid import MettaGridEnv
 
-logger = logging.getLogger("cogames.examples.simple_policy")
+logger = logging.getLogger("cogames.policies.simple_policy")
 
 
 class SimplePolicyNet(torch.nn.Module):
@@ -44,28 +44,18 @@ class SimplePolicyNet(torch.nn.Module):
         return self.forward_eval(observations, state)
 
 
-class SimplePolicy(TrainablePolicy):
-    def __init__(self, env: MettaGridEnv, device: torch.device):
-        super().__init__()
-        self._net = SimplePolicyNet(env).to(device)
+class SimpleAgentPolicyImpl(AgentPolicy):
+    """Per-agent policy that uses the shared feedforward network."""
+
+    def __init__(self, net: SimplePolicyNet, device: torch.device, action_nvec: tuple):
+        self._net = net
         self._device = device
-        self.action_nvec = tuple(env.single_action_space.nvec)
+        self._action_nvec = action_nvec
 
-    def network(self) -> nn.Module:
-        return self._net
-
-    def step(self, agent_id: int, agent_obs: Any) -> Any:
-        """Get action for a single agent given its observation.
-
-        Args:
-            agent_id: The ID of the agent (unused in this policy)
-            agent_obs: The observation for this specific agent
-
-        Returns:
-            The action for this agent to take
-        """
+    def step(self, obs: Any) -> Any:
+        """Get action for this agent."""
         # Convert single observation to batch of 1 for network forward pass
-        obs_tensor = torch.tensor(agent_obs, device=self._device).unsqueeze(0).float()
+        obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
 
         with torch.no_grad():
             self._net.eval()
@@ -80,11 +70,29 @@ class SimplePolicy(TrainablePolicy):
             return np.array(actions, dtype=np.int32)
 
     def reset(self) -> None:
+        """No state to reset for feedforward policy."""
         pass
 
-    def load_checkpoint(self, checkpoint_path: str) -> None:
+
+class SimplePolicy(TrainablePolicy):
+    """Simple feedforward policy."""
+
+    def __init__(self, env: MettaGridEnv, device: torch.device):
+        super().__init__()
+        self._net = SimplePolicyNet(env).to(device)
+        self._device = device
+        self.action_nvec = tuple(env.single_action_space.nvec)
+
+    def network(self) -> nn.Module:
+        return self._net
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        """Create a Policy instance for a specific agent."""
+        return SimpleAgentPolicyImpl(self._net, self._device, self.action_nvec)
+
+    def load_policy_data(self, checkpoint_path: str) -> None:
         self._net.load_state_dict(torch.load(checkpoint_path, map_location=self._device))
         self._net = self._net.to(self._device)
 
-    def save_checkpoint(self, checkpoint_path: str) -> None:
+    def save_policy_data(self, checkpoint_path: str) -> None:
         torch.save(self._net.state_dict(), checkpoint_path)
