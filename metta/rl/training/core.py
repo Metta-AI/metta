@@ -263,11 +263,11 @@ class CoreTrainingLoop:
                 stop_update_epoch_mb = False
 
                 autocast_enabled = self._amp_enabled and self.device.type == "cuda"
-                with autocast(
-                    device_type="cuda",
-                    dtype=self._amp_dtype,
-                    enabled=autocast_enabled,
-                ):
+                autocast_kwargs = {"enabled": autocast_enabled}
+                if autocast_enabled:
+                    autocast_kwargs["dtype"] = self._amp_dtype
+
+                with autocast(**autocast_kwargs):
                     for _loss_name, loss_obj in self.losses.items():
                         loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
                             shared_loss_mb_data, context, mb_idx
