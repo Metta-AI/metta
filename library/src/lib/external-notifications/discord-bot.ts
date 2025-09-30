@@ -293,6 +293,12 @@ export class DiscordBotService {
     const contextType = notification.post ? "post" : "comment";
     const contextTitle = notification.post?.title || "a comment";
 
+    // Get the full content (either comment content or notification message)
+    const fullContent =
+      notification.comment?.content ||
+      notification.message ||
+      notification.mentionText;
+
     return {
       ...embed,
       title: "📧 You were mentioned!",
@@ -306,11 +312,13 @@ export class DiscordBotService {
             contextType === "post" ? `Post: "${contextTitle}"` : contextTitle,
           inline: true,
         },
-        ...(notification.mentionText
+        ...(fullContent
           ? [
               {
-                name: "Mention",
-                value: `"${notification.mentionText}"`,
+                name: contextType === "post" ? "Post Content" : "Comment",
+                value:
+                  fullContent.substring(0, 1000) +
+                  (fullContent.length > 1000 ? "..." : ""),
                 inline: false,
               },
             ]

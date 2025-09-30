@@ -35,12 +35,23 @@ export class EmailNotificationService {
   private fromName: string;
   private baseUrl: string;
   private useAWSsES: boolean;
+  private isEnabled: boolean;
 
   constructor() {
     this.fromAddress =
       process.env.EMAIL_FROM_ADDRESS || "notifications@yourapp.com";
     this.fromName = process.env.EMAIL_FROM_NAME || "Library Notifications";
     this.baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3001";
+
+    // Check if email notifications are enabled
+    this.isEnabled = process.env.ENABLE_EMAIL_NOTIFICATIONS !== "false";
+
+    if (!this.isEnabled) {
+      console.log(
+        "📧 Email notifications are DISABLED (ENABLE_EMAIL_NOTIFICATIONS=false)"
+      );
+      return;
+    }
 
     // Determine email sending method based on available configuration
     this.useAWSsES = !!(
@@ -82,6 +93,13 @@ export class EmailNotificationService {
     deliveryId?: string
   ): Promise<boolean> {
     try {
+      if (!this.isEnabled) {
+        console.log(
+          `📧 Email notifications are disabled, skipping notification ${notification.id}`
+        );
+        return false;
+      }
+
       if (!notification.user.email) {
         console.warn(`No email address for user ${notification.userId}`);
         return false;
