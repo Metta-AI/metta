@@ -23,6 +23,12 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.13 /uv /uvx /bin/
 
 COPY .python-version pyproject.toml uv.lock ./
 RUN uv python install
+
+# Install any missing system deps
+COPY devops/tools/install-system.sh /usr/local/bin/install-system.sh
+RUN chmod +x /usr/local/bin/install-system.sh
+RUN /usr/local/bin/install-system.sh
+
 COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
