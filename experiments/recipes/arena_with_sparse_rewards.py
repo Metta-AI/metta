@@ -2,6 +2,7 @@
 
 from typing import List, Optional, Sequence
 
+from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.cogworks.curriculum.curriculum import (
@@ -13,10 +14,12 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.protein_config import ParameterConfig
 from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
+from metta.tools.sweep import SweepTool, SweepSchedulerType
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -99,6 +102,8 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     enable_contrastive: bool = False,
+    temperature: float = 0.07,
+    contrastive_coef: float = 0.1,
 ) -> TrainTool:
     """Train with sparse rewards and optional contrastive loss."""
     curriculum = curriculum or make_curriculum(
@@ -110,8 +115,8 @@ def train(
     from metta.rl.loss.ppo import PPOConfig
 
     contrastive_config = ContrastiveConfig(
-        temperature=0.07,
-        contrastive_coef=0.1,
+        temperature=temperature,
+        contrastive_coef=contrastive_coef,
         embedding_dim=128,
         use_projection_head=True,
         log_similarities=True,
@@ -175,4 +180,64 @@ def evaluate_remote(
     return EvalRemoteTool(
         simulations=simulations,
         policy_uri=policy_uri,
+    )
+
+def sweep_async_progressive(
+    min_timesteps: int,
+    max_timesteps: int,
+    initial_timesteps: int,
+    max_concurrent_evals: int = 1,
+    liar_strategy: str = "best",
+) -> SweepTool:
+    """Async-capped sweep that also sweeps over total timesteps.
+
+    Args:
+        min_timesteps: Minimum trainer.total_timesteps to consider.
+        max_timesteps: Maximum trainer.total_timesteps to consider.
+        initial_timesteps: Initial/mean value for trainer.total_timesteps.
+        max_concurrent_evals: Max number of concurrent evals (default: 1).
+        liar_strategy: Constant Liar strategy (best|mean|worst).
+
+    Returns:
+        SweepTool configured for async-capped scheduling and progressive timesteps.
+    """
+
+    protein_cfg = make_custom_protein_config(
+        PPO_CORE,
+        {
+            "trainer.total_timesteps": ParameterConfig(
+                min=min_timesteps,
+                max=max_timesteps,
+                distribution="int_uniform",
+                mean=initial_timesteps,
+                scale="auto",
+            ),
+            "temperature": ParameterConfig(
+                min=0,
+                max=0.5,
+                distribution="uniform",
+                mean=0.07,
+                scale="auto",
+            ),
+            "contrastive_coef": ParameterConfig(
+                min=0,
+                max=1.0,
+                distribution="uniform",
+                mean=0.5,
+                scale="auto",
+            )
+        },
+    )
+
+    return SweepTool(
+        # Protein with swept timesteps
+        protein_config=protein_cfg,
+        # Recipe entrypoints
+        recipe_module="experiments.recipes.arena_basic_easy_shaped",
+        train_entrypoint="train",
+        eval_entrypoint="evaluate_in_sweep",
+        # Async scheduler selection + knobs
+        scheduler_type=SweepSchedulerType.ASYNC_CAPPED,
+        max_concurrent_evals=max_concurrent_evals,
+        liar_strategy=liar_strategy,
     )
