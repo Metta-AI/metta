@@ -112,7 +112,7 @@ class TestCurriculumStateSerialization:
         state = curriculum1.get_state()
 
         # Create new curriculum with different seed and load state
-        curriculum2 = Curriculum(curriculum_config, seed=999)  # Different seed
+        curriculum2 = Curriculum(curriculum_config, seed=999, defer_init=True)  # Defer init for checkpoint load
         curriculum2.load_state(state)
 
         # Verify state restoration
@@ -279,7 +279,7 @@ class TestCurriculumStateSerialization:
             num_active_tasks=20,  # Different number of active tasks
         )
 
-        curriculum2 = Curriculum(curriculum_config2, seed=789)
+        curriculum2 = Curriculum(curriculum_config2, seed=789, defer_init=True)  # Defer init for checkpoint load
 
         # Loading should work even with config mismatch
         # The warning will be logged but we just verify loading succeeds
@@ -658,7 +658,7 @@ class TestCurriculumRoundtripBehavior:
 
         # Checkpoint curriculum1 and restore to curriculum3
         state = curriculum1.get_state()
-        curriculum3 = Curriculum(curriculum_config, seed=999)  # Different seed
+        curriculum3 = Curriculum(curriculum_config, seed=999, defer_init=True)  # Defer init for checkpoint load
         curriculum3.load_state(state)
 
         # Continue with curriculum2 and curriculum3 - they should be identical

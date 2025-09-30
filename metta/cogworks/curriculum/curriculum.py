@@ -282,7 +282,7 @@ class Curriculum(StatsLogger):
     Inherits from StatsLogger to provide unified statistics interface.
     """
 
-    def __init__(self, config: CurriculumConfig, seed: int = 0):
+    def __init__(self, config: CurriculumConfig, seed: int = 0, defer_init: bool = False):
         # Initialize StatsLogger (algorithm handles detailed stats)
         StatsLogger.__init__(self, enable_detailed_logging=False)
 
@@ -301,8 +301,9 @@ class Curriculum(StatsLogger):
             if hasattr(self._algorithm, "set_curriculum_reference"):
                 self._algorithm.set_curriculum_reference(self)
 
-        # Always initialize task pool at capacity
-        self._initialize_at_capacity()
+        # Initialize task pool at capacity unless deferred (e.g., for checkpoint loading)
+        if not defer_init:
+            self._initialize_at_capacity()
 
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population."""
@@ -453,11 +454,11 @@ class Curriculum(StatsLogger):
         if state["config"] != self._config.model_dump():
             logger.warning("Curriculum config mismatch during restore")
 
-        # Restore counters
+        # Restore counters FIRST (before clearing tasks)
         self._num_created = state["num_created"]
         self._num_evicted = state["num_evicted"]
 
-        # Restore random state
+        # Restore random state BEFORE any operations that use RNG
         self._rng.setstate(state["seed"])
 
         # Notify algorithm of task evictions before clearing
@@ -488,6 +489,11 @@ class Curriculum(StatsLogger):
 
             self._tasks[task_id] = task
             self._task_ids.add(task_id)
+
+            # NOTE: We don't call on_task_created() here because:
+            # 1. Algorithm state (including task_tracker) is already restored above
+            # 2. Calling it would re-initialize tracking with default values
+            # 3. slice_analyzer state is not checkpointed, so it will rebuild naturally
 
 
 # Import concrete config classes at the end to avoid circular imports
