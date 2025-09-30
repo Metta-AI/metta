@@ -167,7 +167,7 @@ export const GroupsView: FC<GroupsViewProps> = ({
   ];
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full w-full flex-col">
       {/* Header Section - matches NewPostForm styling */}
       <div className="border-b border-gray-200 bg-white p-4 md:p-6">
         <div className="flex items-center justify-between">
