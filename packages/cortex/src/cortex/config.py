@@ -61,6 +61,24 @@ class mLSTMCellConfig(CellConfig):
     conv1d_kernel_size: int = Field(default=4, ge=1)
 
 
+class sLSTMCellConfig(CellConfig):
+    """Config for a stateful sLSTM (Structured LSTM) cell.
+
+    This cell follows the reference sLSTM layer structure with optional
+    causal depthwise Conv1d used to form pre-activations for gates.
+
+    The recurrence uses per-head recurrent matrices and maintains four
+    state tensors per batch row: y, c, n, m.
+    """
+
+    hidden_size: int = Field(ge=1)
+    num_heads: int = Field(default=4, ge=1)
+    # Optional depthwise causal conv to precondition inputs (0 disables)
+    conv1d_kernel_size: int = Field(default=4, ge=0)
+    # Dropout applied to the cell output prior to normalization
+    dropout: float = Field(default=0.0, ge=0.0)
+
+
 class BlockConfig(BaseModel):
     """Base configuration for a cortex block.
 
@@ -115,6 +133,25 @@ class PostUpBlockConfig(BlockConfig):
     proj_factor: float = Field(default=1.5, gt=0.0)
 
 
+class AdapterBlockConfig(BlockConfig):
+    """Configuration for an adapter block that wraps another block.
+
+    The adapter adds a trainable residual path that is identity at initialization.
+    This allows inserting adapters into pretrained models without changing behavior at t=0.
+    """
+
+    base_block: BlockConfig  # The block to wrap
+    cell: CellConfig | None = None  # Not used for adapters, delegated to base_block
+    bottleneck: int = Field(default=64, ge=1)
+    dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    per_channel_gate: bool = Field(default=False)
+    activation: str = Field(default="gelu")
+
+    def get_cell_hidden_size(self, d_hidden: int) -> int:
+        """Delegate to wrapped block."""
+        return self.base_block.get_cell_hidden_size(d_hidden)
+
+
 class CortexStackConfig(BaseModel):
     """Recipe for building a cortex stack composed of blocks."""
 
@@ -128,9 +165,11 @@ __all__ = [
     "CausalConv1dConfig",
     "LSTMCellConfig",
     "mLSTMCellConfig",
+    "sLSTMCellConfig",
     "BlockConfig",
     "PassThroughBlockConfig",
     "PreUpBlockConfig",
     "PostUpBlockConfig",
+    "AdapterBlockConfig",
     "CortexStackConfig",
 ]
