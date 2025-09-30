@@ -108,10 +108,11 @@ public:
 
   // Current cooldown state
   unsigned int cooldown_end_timestep;
+  unsigned int cooldown_duration;  // Total duration of current cooldown
 
   // Usage tracking
-  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
   unsigned int uses_count;  // Current number of times used
+  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
 
   // Exhaustion tracking
   float exhaustion;           // Exhaustion rate (0 = no exhaustion)
@@ -128,20 +129,25 @@ public:
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
 
+  // Allow partial usage during cooldown
+  bool allow_partial_usage;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg)
       : recipes(cfg.recipes),
         unclip_recipes(),
         is_clipped(false),
         cooldown_end_timestep(0),
-        max_uses(cfg.max_uses),
+        cooldown_duration(0),
         uses_count(0),
+        max_uses(cfg.max_uses),
         exhaustion(cfg.exhaustion),
         cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         recipe_details_obs(cfg.recipe_details_obs),
         input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset) {
+        output_recipe_offset(cfg.output_recipe_offset),
+        allow_partial_usage(cfg.allow_partial_usage) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }
   virtual ~Assembler() = default;
@@ -162,6 +168,23 @@ public:
       return 0;
     }
     return cooldown_end_timestep - *current_timestep_ptr;
+  }
+
+  // Get the fraction of cooldown completed (0.0 = just started, 1.0 = completed)
+  float cooldown_progress() const {
+    // If no cooldown is active or no timestep pointer, return 1.0 (completed)
+    if (!current_timestep_ptr || cooldown_duration == 0 || cooldown_end_timestep <= *current_timestep_ptr) {
+      return 1.0f;
+    }
+
+    // Calculate how much time has elapsed since cooldown started
+    unsigned int cooldown_start = cooldown_end_timestep - cooldown_duration;
+    if (*current_timestep_ptr <= cooldown_start) {
+      return 0.0f;  // Cooldown just started
+    }
+
+    unsigned int elapsed = *current_timestep_ptr - cooldown_start;
+    return static_cast<float>(elapsed) / static_cast<float>(cooldown_duration);
   }
 
   // Helper function to convert surrounding agent positions to byte value
@@ -205,35 +228,67 @@ public:
   void becomeClipped(const std::vector<std::shared_ptr<Recipe>>& unclip_recipes_vec) {
     is_clipped = true;
     unclip_recipes = unclip_recipes_vec;
+    // Reset cooldown. The assembler being on its normal cooldown shouldn't stop it from being unclipped.
+    cooldown_end_timestep = *current_timestep_ptr;
+    cooldown_duration = 0;
+  }
+
+  // Scale recipe requirements based on cooldown progress (for partial usage)
+  const Recipe scale_recipe_for_partial_usage(const Recipe& original_recipe, float progress) const {
+    Recipe scaled_recipe;
+
+    // Scale input resources (multiply by progress and round up)
+    for (const auto& [resource, amount] : original_recipe.input_resources) {
+      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::ceil(amount * progress));
+      scaled_recipe.input_resources[resource] = scaled_amount;
+    }
+
+    // Scale output resources (multiply by progress and round down)
+    for (const auto& [resource, amount] : original_recipe.output_resources) {
+      InventoryQuantity scaled_amount = static_cast<InventoryQuantity>(std::floor(amount * progress));
+      scaled_recipe.output_resources[resource] = scaled_amount;
+    }
+
+    // Keep the same cooldown
+    scaled_recipe.cooldown = original_recipe.cooldown;
+
+    return scaled_recipe;
   }
 
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid || !current_timestep_ptr) {
       return false;
     }
-    // Check if max uses has been reached
+
     if (max_uses > 0 && uses_count >= max_uses) {
       return false;
     }
-    if (cooldown_remaining() > 0) {
-      return false;
-    }
-    const Recipe* recipe = get_current_recipe();
-    if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
-      return false;
-    }
-    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
-    if (!can_afford_recipe(*recipe, surrounding_agents)) {
-      return false;
-    }
-    consume_resources_for_recipe(*recipe, surrounding_agents);
-    give_output_to_agent(*recipe, actor);
 
-    // Apply cooldown with exhaustion multiplier
-    if (recipe->cooldown > 0) {
-      unsigned int adjusted_cooldown = static_cast<unsigned int>(recipe->cooldown * cooldown_multiplier);
-      cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
+    // Check if on cooldown and whether partial usage is allowed
+    float progress = cooldown_progress();
+    if (progress < 1.0f && !allow_partial_usage) {
+      return false;  // On cooldown and partial usage not allowed
     }
+
+    const Recipe* original_recipe = get_current_recipe();
+    if (!original_recipe) {
+      return false;
+    }
+
+    Recipe recipe_to_use = *original_recipe;
+    if (progress < 1.0f && allow_partial_usage) {
+      recipe_to_use = scale_recipe_for_partial_usage(*original_recipe, progress);
+    }
+
+    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
+    if (!can_afford_recipe(recipe_to_use, surrounding_agents)) {
+      return false;
+    }
+    consume_resources_for_recipe(recipe_to_use, surrounding_agents);
+    give_output_to_agent(recipe_to_use, actor);
+
+    cooldown_duration = static_cast<unsigned int>(recipe_to_use.cooldown * cooldown_multiplier);
+    cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
 
     // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
     if (is_clipped) {
@@ -247,7 +302,6 @@ public:
         cooldown_multiplier *= (1.0f + exhaustion);
       }
     }
-
     return true;
   }
 
