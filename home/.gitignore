@@ -25,4 +25,3 @@ nginx.conf
 *.njsproj
 *.sln
 *.sw?
-.nim_runtime
