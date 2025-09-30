@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Iterable
 
 from setuptools.build_meta import (
     build_editable as _build_editable,
@@ -125,8 +126,50 @@ def _run_bazel_build() -> None:
             print(f"Copied {extension_file} to {dest}")
 
 
+def _nim_artifacts_up_to_date() -> bool:
+    """Return True when generated bindings are newer than Nim sources."""
+
+    force_rebuild = os.environ.get("METTAGRID_FORCE_NIM_BUILD", "").lower() in {"1", "true", "yes"}
+    if force_rebuild:
+        return False
+
+    generated_dir = METTASCOPE_DIR / "bindings" / "generated"
+    required_outputs: list[Path] = []
+
+    if generated_dir.exists():
+        required_outputs.extend(
+            [
+                generated_dir / name
+                for name in (
+                    "mettascope2.py",
+                    "libmettascope2.dylib",
+                    "libmettascope2.so",
+                    "libmettascope2.dll",
+                )
+            ]
+        )
+
+    existing_outputs = [output for output in required_outputs if output.exists()]
+    if not existing_outputs:
+        return False
+
+    source_patterns: Iterable[str] = ("*.nim", "*.nims")
+    source_files = [path for pattern in source_patterns for path in METTASCOPE_DIR.rglob(pattern) if path.is_file()]
+    if not source_files:
+        return False
+
+    latest_source_mtime = max(path.stat().st_mtime for path in source_files)
+    oldest_output_mtime = min(path.stat().st_mtime for path in existing_outputs)
+
+    return oldest_output_mtime >= latest_source_mtime
+
+
 def _run_mettascope_build() -> None:
     """Run mettascope build script to compile the Nim library."""
+
+    if _nim_artifacts_up_to_date():
+        print("Mettascope artifacts are up to date; skipping Nim build.")
+        return
 
     # Check if nim and nimble are available
     if shutil.which("nim") is None:
