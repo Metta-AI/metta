@@ -10,6 +10,8 @@ from mettagrid.config.config import Config
 if TYPE_CHECKING:
     from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 else:
+    # Pydantic needs a value for this else we will get a PydanticUndefinedAnnotation error
+    # We have a field-validator to check that the value is a valid AnyMapBuilderConfig
     AnyMapBuilderConfig = Any
 
 
