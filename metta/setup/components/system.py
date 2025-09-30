@@ -1,5 +1,7 @@
 import functools
+import os
 import platform
+import shutil
 import subprocess
 import sys
 
@@ -77,6 +79,7 @@ class SystemSetup(SetupModule):
 
                 If you are on a mettabox, you can run `./devops/mettabox/setup_machine.sh`.
             """)
+            self._ensure_linux_nim()
             return
 
         if not self._config:
@@ -90,6 +93,8 @@ class SystemSetup(SetupModule):
 
         if self._installer:
             self._installer.install(self._get_applicable_packages())
+
+        self._ensure_linux_nim()
 
         success("System dependencies installed")
 
@@ -108,3 +113,30 @@ class SystemSetup(SetupModule):
         except subprocess.CalledProcessError as e:
             error(f"Error installing Homebrew: {e}")
             sys.exit(1)
+
+    def _ensure_linux_nim(self) -> None:
+        if platform.system() != "Linux":
+            return
+
+        if shutil.which("nim"):
+            return
+
+        info("Installing Nim with choosenim (Linux detected)...")
+        env = os.environ.copy()
+        env.setdefault("CHOOSENIM_NO_ANALYTICS", "1")
+        env.setdefault("CHOOSENIM_NO_COLOR", "1")
+
+        try:
+            subprocess.run(
+                ["bash", "-lc", "curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y"],
+                check=True,
+                env=env,
+            )
+        except subprocess.CalledProcessError as err:
+            warning(f"Failed to install Nim using choosenim: {err}")
+            return
+
+        if shutil.which("nim"):
+            info("Nim installed successfully. Ensure ~/.nimble/bin is in your PATH if needed.")
+        else:
+            warning("Nim install finished but 'nim' is still missing. Add ~/.nimble/bin to PATH or install manually.")
