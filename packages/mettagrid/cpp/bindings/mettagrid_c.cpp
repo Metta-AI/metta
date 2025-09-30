@@ -50,7 +50,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
       _track_movement_metrics(game_config.track_movement_metrics),
-      _resource_loss_prob(game_config.resource_loss_prob) {
+      _resource_loss_prob(game_config.resource_loss_prob),
+      _inventory_regen_amounts(game_config.inventory_regen_amounts),
+      _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -456,15 +458,15 @@ void MettaGrid::_step(Actions actions) {
         continue;
       }
 
-      auto& agent = _agents[agent_idx];
+      auto* agent = _agents[agent_idx];
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
-      _action_success[agent_idx] = handler->handle_action(agent->id, arg);
+      _action_success[agent_idx] = handler->handle_action(*agent, arg);
     }
   }
 
   // Handle resource loss
-  for (auto& agent : _agents) {
+  for (auto* agent : _agents) {
     if (_resource_loss_prob > 0.0f) {
       // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
       // Make a real copy of the agent's inventory map to avoid iterator invalidation
@@ -482,6 +484,15 @@ void MettaGrid::_step(Actions actions) {
             agent->update_inventory(item, -lost);
           }
         }
+      }
+    }
+  }
+
+  // Handle inventory regeneration
+  if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
+    for (auto* agent : _agents) {
+      for (const auto& [item, amount] : _inventory_regen_amounts) {
+        agent->update_inventory(item, amount);
       }
     }
   }
@@ -678,6 +689,14 @@ py::dict MettaGrid::grid_objects() {
       obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
     }
 
+    if (auto* has_inventory = dynamic_cast<HasInventory*>(obj)) {
+      py::dict inventory_dict;
+      for (const auto& [resource, quantity] : has_inventory->inventory.get()) {
+        inventory_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["inventory"] = inventory_dict;
+    }
+
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
@@ -687,11 +706,6 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["freeze_duration"] = agent->freeze_duration;
       obj_dict["color"] = agent->color;
 
-      py::dict inventory_dict;
-      for (const auto& [resource, quantity] : agent->inventory.get()) {
-        inventory_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["inventory"] = inventory_dict;
       // We made resource limits more complicated than this, and need to review how to expose them.
       // py::dict resource_limits_dict;
       // for (const auto& [resource, quantity] : agent->inventory.limits) {
@@ -702,11 +716,6 @@ py::dict MettaGrid::grid_objects() {
     }
 
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
-      py::dict inventory_dict;
-      for (const auto& [resource, quantity] : converter->inventory.get()) {
-        inventory_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["inventory"] = inventory_dict;
       obj_dict["is_converting"] = converter->converting;
       obj_dict["is_cooling_down"] = converter->cooling_down;
       obj_dict["conversion_duration"] = converter->conversion_ticks;
