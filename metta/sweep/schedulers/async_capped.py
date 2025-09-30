@@ -187,11 +187,7 @@ class AsyncCappedOptimizingScheduler:
         # Update state
         self._update_state_from_runs(runs)
 
-        # On first tick after restart, wait until we've initialized from observed runs
-        # to avoid scheduling new training before we see any pending evals.
-        if not self._state_initialized:
-            logger.info("[AsyncCappedOptimizingScheduler] Waiting for initial run state; skipping scheduling this tick")
-            return []
+        # Proceed with scheduling using the refreshed state
 
         # Eval scheduling: honor max_concurrent_evals
         eval_capacity = max(0, self.config.max_concurrent_evals - len(self.state.runs_in_eval))
