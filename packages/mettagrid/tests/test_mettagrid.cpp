@@ -1396,3 +1396,98 @@ TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
       (initial_ore1 - final_ore1) + (initial_ore2 - final_ore2) + (initial_ore3 - final_ore3);
   EXPECT_EQ(total_consumed, 10) << "Should consume exactly 10 ore, consumed " << total_consumed;
 }
+
+TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  std::mt19937 rng(42);  // Fixed seed for reproducibility
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with normal recipes
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+
+  // Create normal recipes (pattern 0: no agents needed)
+  auto normal_recipe = std::make_shared<Recipe>();
+  normal_recipe->input_resources[TestItems::ORE] = 2;
+  normal_recipe->output_resources[TestItems::LASER] = 1;
+  normal_recipe->cooldown = 0;
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = normal_recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent to interact with the assembler
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+  agent_cfg.initial_inventory[TestItems::HEART] = 5;
+
+  Agent* agent = new Agent(4, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify assembler is not clipped initially
+  EXPECT_FALSE(assembler.is_clipped) << "Assembler should not be clipped initially";
+
+  // Test 2: Verify normal recipe works when not clipped
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use normal recipe when not clipped";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 8) << "Should consume 2 ore";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 1) << "Should produce 1 laser";
+
+  // Test 3: Create unclipping recipes and clip the assembler
+  auto unclip_recipe = std::make_shared<Recipe>();
+  unclip_recipe->input_resources[TestItems::HEART] = 1;
+  unclip_recipe->output_resources[TestItems::ORE] = 3;
+  unclip_recipe->cooldown = 0;
+
+  std::vector<std::shared_ptr<Recipe>> unclip_recipes(256, unclip_recipe);
+  assembler.becomeClipped(unclip_recipes);
+
+  EXPECT_TRUE(assembler.is_clipped) << "Assembler should be clipped after becomeClipped()";
+  EXPECT_EQ(assembler.unclip_recipes.size(), 256) << "Should have unclip recipes set";
+
+  // Test 4: Verify clipped observation feature
+  auto features = assembler.obs_features();
+  bool found_clipped = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::Clipped) {
+      EXPECT_EQ(feature.value, 1) << "Clipped observation should be 1";
+      found_clipped = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_clipped) << "Should have Clipped observation feature when clipped";
+
+  // Test 5: Verify unclip recipe is used when clipped
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use unclip recipe when clipped";
+  EXPECT_EQ(agent->inventory.amount(TestItems::HEART), 4) << "Should consume 1 heart for unclipping";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 11) << "Should produce 3 ore from unclip recipe";
+
+  // Test 6: Verify assembler is automatically unclipped after successful use
+  EXPECT_FALSE(assembler.is_clipped) << "Assembler should be unclipped after successful use";
+  EXPECT_TRUE(assembler.unclip_recipes.empty()) << "Unclip recipes should be cleared";
+
+  // Test 7: Verify normal recipe works again after unclipping
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Should be able to use normal recipe after unclipping";
+  EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 9) << "Should consume 2 ore (normal recipe)";
+  EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 2) << "Should produce 1 more laser";
+
+  // Test 8: Verify no clipped observation after unclipping
+  features = assembler.obs_features();
+  found_clipped = false;
+  for (const auto& feature : features) {
+    if (feature.feature_id == ObservationFeature::Clipped) {
+      found_clipped = true;
+      break;
+    }
+  }
+  EXPECT_FALSE(found_clipped) << "Should not have Clipped observation feature when not clipped";
+}
