@@ -475,6 +475,16 @@ def cmd_run(
 
 @app.command(name="clean", help="Clean build artifacts and temporary files")
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
+    def _remove_matching_dirs(base: Path, patterns: list[str], *, include_globs: bool = False) -> None:
+        for pattern in patterns:
+            candidates = base.glob(pattern) if include_globs else (base / pattern,)
+            for path in candidates:
+                if not path.exists() or not path.is_dir():
+                    continue
+                info(f"  Removing {path.relative_to(cli.repo_root)}...")
+                subprocess.run(["chmod", "-R", "u+w", str(path)], cwd=cli.repo_root, check=False)
+                subprocess.run(["rm", "-rf", str(path)], cwd=cli.repo_root, check=False)
+
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
         info("  Removing root build directory...")
@@ -486,6 +496,12 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
         if build_path.exists():
             info(f"  Removing packages/mettagrid/{build_name}...")
             shutil.rmtree(build_path)
+
+    _remove_matching_dirs(cli.repo_root, ["bazel-*"], include_globs=True)
+    _remove_matching_dirs(cli.repo_root, [".bazel_output"])
+    if mettagrid_dir.exists():
+        _remove_matching_dirs(mettagrid_dir, ["bazel-*"], include_globs=True)
+        _remove_matching_dirs(mettagrid_dir, [".bazel_output"])
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
     if cleanup_script.exists():
