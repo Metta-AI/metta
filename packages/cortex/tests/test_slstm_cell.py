@@ -1,0 +1,521 @@
+"""Tests for sLSTM cell implementation (Triton vs vanilla parity)."""
+
+import os
+import sys
+from pathlib import Path
+
+import torch
+
+# Make cortex package importable relative to this test
+PKG_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, os.fspath(PKG_ROOT / "src"))
+
+from cortex.blocks import PostUpBlock  # noqa: E402
+from cortex.cells.slstm import sLSTMCell  # noqa: E402
+from cortex.config import PostUpBlockConfig, sLSTMCellConfig  # noqa: E402
+
+
+def get_test_device():
+    """Get the appropriate device for testing (CUDA if available, else CPU)."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    return device
+
+
+def test_slstm_parallel_vs_sequential_close() -> None:
+    """Test that parallel and sequential processing produce similar outputs."""
+    torch.manual_seed(0)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2  # batch size
+    T = 32  # sequence length
+    H = 64  # hidden size (must be divisible by num_heads; DH should be power of 2)
+    num_heads = 4
+
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+    )
+
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell.eval()
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # Parallel over the entire sequence (uses Triton if available on CUDA, else vanilla)
+    y_parallel, _ = cell(x, state=None)
+
+    # Sequential: feed one timestep at a time, carrying state
+    state = None
+    y_steps = []
+    for t in range(T):
+        y_t, state = cell(x[:, t, :], state)
+        y_steps.append(y_t)
+    y_sequential = torch.stack(y_steps, dim=1)
+
+    assert y_parallel.shape == y_sequential.shape
+    torch.testing.assert_close(y_parallel, y_sequential, rtol=5e-3, atol=5e-3)
+
+
+def test_slstm_with_postup_block() -> None:
+    """Test sLSTM cell within a PostUp block for proper forward pass."""
+    torch.manual_seed(42)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2  # batch size
+    T = 16  # sequence length
+    D = 64  # external hidden size
+    proj_factor = 2.0  # PostUp projection factor
+
+    # Create PostUp block config with sLSTM cell
+    # The cell operates on the base dimension D directly
+    slstm_config = sLSTMCellConfig(
+        hidden_size=D,  # PostUp uses base dimension for the cell
+        num_heads=4,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+    )
+
+    postup_config = PostUpBlockConfig(
+        cell=slstm_config,
+        proj_factor=proj_factor,
+    )
+
+    # Create the cell and PostUp block
+    cell = sLSTMCell(slstm_config).to(device=device, dtype=dtype)
+    block = PostUpBlock(postup_config, d_hidden=D, cell=cell).to(device=device, dtype=dtype)
+    block.eval()
+
+    # Create input
+    x = torch.randn(B, T, D, device=device, dtype=dtype)
+
+    # Forward pass through PreUp block
+    with torch.no_grad():
+        output, state = block(x, state=None)
+
+    # Check output shape matches input (due to skip connection and down projection)
+    assert output.shape == (B, T, D), f"Expected shape {(B, T, D)}, got {output.shape}"
+
+    # Check that state exists and has correct structure
+    assert state is not None, "State should not be None"
+
+    # The PostUpBlock wraps the cell state in a 'cell' key
+    assert "cell" in state, f"State should contain 'cell' key, got keys: {list(state.keys())}"
+    cell_state = state["cell"]
+
+    # Check cell state components
+    assert "y" in cell_state, "Cell state should contain 'y' component"
+    assert "c" in cell_state, "Cell state should contain 'c' component"
+    assert "n" in cell_state, "Cell state should contain 'n' component"
+    assert "m" in cell_state, "Cell state should contain 'm' component"
+    assert "conv" in cell_state, "Cell state should contain 'conv' component"
+
+    # Check state dimensions match the base dimension D (PostUp applies cell at base dim)
+    assert cell_state["y"].shape == (B, D)
+    assert cell_state["c"].shape == (B, D)
+    assert cell_state["n"].shape == (B, D)
+    assert cell_state["m"].shape == (B, D)
+    assert cell_state["conv"].shape == (B, slstm_config.conv1d_kernel_size, D)
+
+
+def test_slstm_sequential_vs_parallel_with_smaller_seq() -> None:
+    """Test sequential vs parallel with smaller sequence to minimize numerical differences."""
+    torch.manual_seed(123)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2  # batch size
+    T = 16  # smaller sequence length to reduce numerical accumulation
+    H = 64  # hidden size (head_dim should be power of 2 for Triton)
+    num_heads = 4
+
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+    )
+
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell.eval()
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # Parallel processing
+    with torch.no_grad():
+        y_parallel, state_parallel = cell(x, state=None)
+
+    # Sequential processing
+    state = None
+    y_steps = []
+    with torch.no_grad():
+        for t in range(T):
+            y_t, state = cell(x[:, t, :], state)
+            y_steps.append(y_t)
+    y_sequential = torch.stack(y_steps, dim=1)
+
+    # Compare outputs
+    assert y_parallel.shape == y_sequential.shape
+    torch.testing.assert_close(
+        y_parallel,
+        y_sequential,
+        rtol=5e-3,
+        atol=5e-3,
+        msg="Sequential and parallel outputs differ beyond tolerance",
+    )
+
+    # Compare final states
+    assert state_parallel is not None and state is not None, "States should not be None"
+
+    for key in ["c", "n", "m"]:
+        if key in state_parallel and key in state:
+            diff_max = (state_parallel[key] - state[key]).abs().max().item()
+            print(f"Max absolute difference in {key} state: {diff_max:.6f}")
+
+    # Check state components with relaxed tolerance
+    torch.testing.assert_close(
+        state_parallel["c"],
+        state["c"],
+        rtol=1e-2,
+        atol=1e-2,
+        msg="Final 'c' states differ",
+    )
+    torch.testing.assert_close(
+        state_parallel["n"],
+        state["n"],
+        rtol=1e-2,
+        atol=1e-2,
+        msg="Final 'n' states differ",
+    )
+    torch.testing.assert_close(
+        state_parallel["m"],
+        state["m"],
+        rtol=1e-2,
+        atol=1e-2,
+        msg="Final 'm' states differ",
+    )
+
+
+def test_slstm_gradient_flow() -> None:
+    """Test gradient flow through sLSTM cell."""
+    torch.manual_seed(456)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2
+    T = 16
+    H = 64  # head_dim should be power of 2 for Triton
+    num_heads = 4
+
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+    )
+
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell.train()  # Ensure we're in training mode
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype, requires_grad=True)
+
+    # Forward pass
+    output, _ = cell(x, state=None)
+
+    # Compute simple loss
+    loss = output.mean()
+
+    # Backward pass
+    loss.backward()
+
+    # Check gradients exist
+    assert x.grad is not None, "Input should have gradients"
+    assert x.grad.shape == x.shape, "Gradient shape should match input"
+
+    # Check that model parameters have gradients
+    for name, param in cell.named_parameters():
+        if param.requires_grad:
+            assert param.grad is not None, f"Parameter {name} should have gradients"
+            # Some parameters might be zero initialized, so we check for non-zero grad norm instead
+            grad_norm = param.grad.norm().item()
+            if grad_norm == 0:
+                print(f"Warning: Parameter {name} has zero gradients (may be expected for some params)")
+
+
+def test_slstm_sequential_vs_parallel_long_sequence() -> None:
+    """Test sequential vs parallel processing with longer sequences."""
+    torch.manual_seed(321)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2
+    T = 128  # longer sequence
+    H = 64  # head_dim should be power of 2 for Triton
+    num_heads = 4
+
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+    )
+
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell.eval()
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # Parallel processing
+    with torch.no_grad():
+        y_parallel, state_parallel = cell(x, state=None)
+
+    # Sequential processing
+    state = None
+    y_steps = []
+    with torch.no_grad():
+        for t in range(T):
+            y_t, state = cell(x[:, t, :], state)
+            y_steps.append(y_t)
+    y_sequential = torch.stack(y_steps, dim=1)
+
+    # Compare outputs (relaxed tolerance for longer sequences)
+    assert y_parallel.shape == y_sequential.shape
+    torch.testing.assert_close(
+        y_parallel,
+        y_sequential,
+        rtol=1e-2,
+        atol=1e-2,
+        msg="Sequential and parallel outputs differ beyond tolerance for long sequence",
+    )
+
+    # Compare final states with looser tolerance for accumulators
+    assert state_parallel is not None and state is not None, "States should not be None"
+
+    print(f"[long sequence] Comparing final states")
+    for key in ["c", "n", "m"]:
+        if key in state_parallel and key in state:
+            diff_rel = ((state_parallel[key] - state[key]).abs() / (state_parallel[key].abs() + 1e-8)).max().item()
+            print(f"Max relative difference in {key}: {diff_rel:.6f}")
+
+    torch.testing.assert_close(state_parallel["c"], state["c"], rtol=0.1, atol=0.1)
+    torch.testing.assert_close(state_parallel["n"], state["n"], rtol=0.1, atol=0.1)
+    torch.testing.assert_close(state_parallel["m"], state["m"], rtol=0.1, atol=0.1)
+
+
+def test_slstm_state_reset() -> None:
+    """Test state reset functionality."""
+    torch.manual_seed(789)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 4  # batch size
+    H = 64  # head_dim should be power of 2 for Triton
+    num_heads = 4
+
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+    )
+
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+
+    # Initialize state
+    state = cell.init_state(B, device=device, dtype=dtype)
+
+    # Set state to non-zero values
+    state["y"] = torch.ones_like(state["y"])
+    state["c"] = torch.ones_like(state["c"])
+    state["n"] = torch.ones_like(state["n"])
+    state["m"] = torch.ones_like(state["m"])
+    state["conv"] = torch.ones_like(state["conv"])
+
+    # Create reset mask (reset first two batch elements)
+    reset_mask = torch.tensor([True, True, False, False], device=device)
+
+    # Reset state
+    reset_state = cell.reset_state(state, reset_mask)
+
+    # Check that first two batch elements are zeros
+    assert torch.all(reset_state["y"][:2] == 0), "First two batch elements of 'y' should be reset"
+    assert torch.all(reset_state["c"][:2] == 0), "First two batch elements of 'c' should be reset"
+    assert torch.all(reset_state["n"][:2] == 0), "First two batch elements of 'n' should be reset"
+    assert torch.all(reset_state["m"][:2] == 0), "First two batch elements of 'm' should be reset"
+    assert torch.all(reset_state["conv"][:2] == 0), "First two batch elements of 'conv' should be reset"
+
+    # Check that last two batch elements are unchanged
+    assert torch.all(reset_state["y"][2:] == 1), "Last two batch elements of 'y' should be unchanged"
+    assert torch.all(reset_state["c"][2:] == 1), "Last two batch elements of 'c' should be unchanged"
+    assert torch.all(reset_state["n"][2:] == 1), "Last two batch elements of 'n' should be unchanged"
+    assert torch.all(reset_state["m"][2:] == 1), "Last two batch elements of 'm' should be unchanged"
+    assert torch.all(reset_state["conv"][2:] == 1), "Last two batch elements of 'conv' should be unchanged"
+
+
+def test_slstm_no_conv() -> None:
+    """Test sLSTM cell without convolutional preprocessing."""
+    torch.manual_seed(555)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2
+    T = 16
+    H = 64
+    num_heads = 4
+
+    # Config with conv1d_kernel_size=0 to disable conv
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        conv1d_kernel_size=0,  # Disable conv
+        dropout=0.0,
+    )
+
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell.eval()
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # Forward pass
+    with torch.no_grad():
+        y, state = cell(x, state=None)
+
+    # Check output shape
+    assert y.shape == (B, T, H), f"Expected output shape {(B, T, H)}, got {y.shape}"
+
+    # Check state doesn't have conv component when conv is disabled
+    assert "conv" not in state, "State should not have 'conv' when conv1d_kernel_size=0"
+
+    # Check other state components exist
+    assert "y" in state, "State should contain 'y'"
+    assert "c" in state, "State should contain 'c'"
+    assert "n" in state, "State should contain 'n'"
+    assert "m" in state, "State should contain 'm'"
+
+
+def test_slstm_different_head_counts() -> None:
+    """Test sLSTM with different numbers of attention heads."""
+    torch.manual_seed(999)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2
+    T = 16
+    H = 128
+
+    # Test with different head counts
+    for num_heads in [1, 2, 4, 8]:
+        if H % num_heads != 0:
+            continue
+
+        cfg = sLSTMCellConfig(
+            hidden_size=H,
+            num_heads=num_heads,
+            conv1d_kernel_size=4,
+            dropout=0.0,
+        )
+
+        cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+        cell.eval()
+
+        x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+        # Forward pass
+        with torch.no_grad():
+            y, _ = cell(x, state=None)
+
+        # Check output shape
+        assert y.shape == (B, T, H), f"With {num_heads} heads: expected shape {(B, T, H)}, got {y.shape}"
+
+        # Verify head_dim calculation
+        head_dim = H // num_heads
+        assert head_dim == cell.head_dim, f"Head dimension mismatch for {num_heads} heads"
+
+        print(f"✓ Test passed for num_heads={num_heads}, head_dim={head_dim}")
+
+
+def test_slstm_with_dropout() -> None:
+    """Test sLSTM cell with dropout enabled."""
+    torch.manual_seed(111)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2
+    T = 16
+    H = 64
+    num_heads = 4
+    dropout_rate = 0.1
+
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        conv1d_kernel_size=4,
+        dropout=dropout_rate,
+    )
+
+    cell = sLSTMCell(cfg).to(device=device, dtype=dtype)
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # Test in training mode (dropout active)
+    cell.train()
+    y_train1, _ = cell(x, state=None)
+    y_train2, _ = cell(x, state=None)
+
+    # Outputs should be different in training mode due to dropout
+    assert not torch.allclose(y_train1, y_train2), "Training outputs should differ with dropout"
+
+    # Test in eval mode (dropout inactive)
+    cell.eval()
+    with torch.no_grad():
+        y_eval1, _ = cell(x, state=None)
+        y_eval2, _ = cell(x, state=None)
+
+    # Outputs should be identical in eval mode
+    torch.testing.assert_close(y_eval1, y_eval2, msg="Eval outputs should be identical")
+
+
+if __name__ == "__main__":
+    # Run all tests
+    test_slstm_parallel_vs_sequential_close()
+    print("✓ test_slstm_parallel_vs_sequential_close passed")
+
+    test_slstm_with_postup_block()
+    print("✓ test_slstm_with_postup_block passed")
+
+    test_slstm_sequential_vs_parallel_with_smaller_seq()
+    print("✓ test_slstm_sequential_vs_parallel_with_smaller_seq passed")
+
+    test_slstm_gradient_flow()
+    print("✓ test_slstm_gradient_flow passed")
+
+    test_slstm_sequential_vs_parallel_long_sequence()
+    print("✓ test_slstm_sequential_vs_parallel_long_sequence passed")
+
+    test_slstm_state_reset()
+    print("✓ test_slstm_state_reset passed")
+
+    test_slstm_no_conv()
+    print("✓ test_slstm_no_conv passed")
+
+    test_slstm_different_head_counts()
+    print("✓ test_slstm_different_head_counts passed")
+
+    test_slstm_with_dropout()
+    print("✓ test_slstm_with_dropout passed")
+
+    print("\nAll tests passed!")
+

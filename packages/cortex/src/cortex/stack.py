@@ -27,15 +27,21 @@ class CortexStack(nn.Module):
         d_hidden = cfg.d_hidden
 
         for _idx, block_cfg in enumerate(cfg.blocks):
-            # Get the appropriate hidden size for the cell
-            cell_hidden_size = block_cfg.get_cell_hidden_size(d_hidden)
+            # For adapter blocks, cell comes from base_block, so skip cell building
+            if block_cfg.cell is None:
+                # Build block without cell (adapters handle this internally)
+                block = build_block(config=block_cfg, d_hidden=d_hidden, cell=None)
+            else:
+                # Get the appropriate hidden size for the cell
+                cell_hidden_size = block_cfg.get_cell_hidden_size(d_hidden)
 
-            # Build cell with the appropriate hidden size using generic builder
-            cell_config = type(block_cfg.cell)(**{**block_cfg.cell.model_dump(), "hidden_size": cell_hidden_size})
-            cell = build_cell(cell_config)
+                # Build cell with the appropriate hidden size using generic builder
+                cell_config = type(block_cfg.cell)(**{**block_cfg.cell.model_dump(), "hidden_size": cell_hidden_size})
+                cell = build_cell(cell_config)
 
-            # Use generic block builder
-            block = build_block(config=block_cfg, d_hidden=d_hidden, cell=cell)
+                # Use generic block builder
+                block = build_block(config=block_cfg, d_hidden=d_hidden, cell=cell)
+
             blocks.append(block)
 
         return blocks
