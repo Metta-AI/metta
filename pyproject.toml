@@ -167,3 +167,6 @@ metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
 pufferlib-core = { workspace = true }
 softmax = { workspace = true }
+
+[tool.ruff]
+extend-exclude = [".nim_runtime"]
