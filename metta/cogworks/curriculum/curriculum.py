@@ -407,7 +407,21 @@ class Curriculum(StatsLogger):
         # Both pools at capacity - probabilistically choose pool
         effective_explore_rate = max(self._P_accept, self._config.min_explore_rate)
 
-        if self._rng.random() < effective_explore_rate:
+        # Defensive check: ensure pools are not empty before sampling
+        if len(self._explore_pool) == 0 and len(self._exploit_pool) == 0:
+            logger.error("Both pools are empty! Creating emergency task.")
+            task = self._create_task(pool="explore")
+            task._num_scheduled += 1
+            return task
+
+        # If one pool is empty, use the other
+        if len(self._explore_pool) == 0:
+            logger.warning("Explore pool is empty, sampling from exploit pool only")
+            task = self._choose_task_from_pool(self._exploit_pool)
+        elif len(self._exploit_pool) == 0:
+            logger.warning("Exploit pool is empty, sampling from explore pool only")
+            task = self._choose_task_from_pool(self._explore_pool)
+        elif self._rng.random() < effective_explore_rate:
             # Sample from explore pool
             task = self._choose_task_from_pool(self._explore_pool)
         else:
@@ -429,6 +443,10 @@ class Curriculum(StatsLogger):
     def _choose_task_from_pool(self, pool: dict[int, CurriculumTask]) -> CurriculumTask:
         """Choose a task from a specific pool using algorithm guidance."""
         if not pool:
+            logger.error(
+                f"Pool is empty! Explore pool size: {len(self._explore_pool)}, "
+                f"Exploit pool size: {len(self._exploit_pool)}. This indicates a bug in task management."
+            )
             raise ValueError("Cannot choose from empty pool")
 
         if self._algorithm is not None:
@@ -453,9 +471,35 @@ class Curriculum(StatsLogger):
         Args:
             pool: Which pool to add task to ("explore" or "exploit")
         """
+        # Find unused task ID with collision detection and timeout
+        max_attempts = 1000
+        attempt = 0
         task_id = self._rng.randint(0, self._config.max_task_id)
+
         while task_id in self._task_ids:
+            attempt += 1
+            if attempt >= max_attempts:
+                # Fallback: find any unused ID by scanning
+                logger.warning(
+                    f"Failed to find unused task_id after {max_attempts} random attempts. "
+                    f"Current task_ids size: {len(self._task_ids)}, max_task_id: {self._config.max_task_id}. "
+                    f"Scanning for unused ID..."
+                )
+                # Linear search for unused ID
+                for candidate_id in range(self._config.max_task_id + 1):
+                    if candidate_id not in self._task_ids:
+                        task_id = candidate_id
+                        break
+                else:
+                    # All IDs exhausted - this should never happen with reasonable config
+                    raise RuntimeError(
+                        f"Task ID space exhausted! Cannot create new task. "
+                        f"task_ids size: {len(self._task_ids)}, max_task_id: {self._config.max_task_id}. "
+                        f"Reduce num_active_tasks or increase max_task_id."
+                    )
+                break
             task_id = self._rng.randint(0, self._config.max_task_id)
+
         self._task_ids.add(task_id)
         env_cfg = self._task_generator.get_task(task_id)
 
@@ -549,14 +593,30 @@ class Curriculum(StatsLogger):
             self._explore_pool.pop(task_id)
             self._exploit_pool[task_id] = task
             # Create new task in explore pool to maintain capacity
-            self._create_task(pool="explore")
-            success_indicator = 1.0
+            try:
+                self._create_task(pool="explore")
+            except Exception as e:
+                logger.error(f"Failed to create new explore task after promotion: {e}")
+                # Put the task back to prevent pool from shrinking
+                self._explore_pool[task_id] = task
+                self._exploit_pool.pop(task_id)
+                self._num_promotions_accepted -= 1
+                success_indicator = 0.0
+            else:
+                success_indicator = 1.0
         else:
             # Promotion rejected
             # Discard task from explore pool
             self._evict_from_pool(task_id, "explore")
             # Create new task in explore pool
-            self._create_task(pool="explore")
+            try:
+                self._create_task(pool="explore")
+            except Exception as e:
+                logger.error(f"Failed to create new explore task after rejection: {e}")
+                # Put the task back to prevent pool from shrinking
+                self._explore_pool[task_id] = task
+                self._task_ids.add(task_id)
+                self._num_evicted -= 1
             success_indicator = 0.0
 
         # Update P_accept with EMA
@@ -569,12 +629,21 @@ class Curriculum(StatsLogger):
             self._algorithm.on_task_evicted(task_id)
 
         # Remove from appropriate pool
+        task_was_in_pool = False
         if pool == "explore":
             if task_id in self._explore_pool:
                 self._explore_pool.pop(task_id)
+                task_was_in_pool = True
         elif pool == "exploit":
             if task_id in self._exploit_pool:
                 self._exploit_pool.pop(task_id)
+                task_was_in_pool = True
+
+        if not task_was_in_pool:
+            logger.warning(
+                f"Attempted to evict task {task_id} from {pool} pool, but it wasn't there. "
+                f"This may indicate a task management bug."
+            )
 
         # Remove from global task IDs
         self._task_ids.discard(task_id)
@@ -583,6 +652,24 @@ class Curriculum(StatsLogger):
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
         all_tasks = list(self._explore_pool.values()) + list(self._exploit_pool.values())
+
+        # Periodic integrity check (every ~100 stats calls to minimize overhead)
+        if self._num_created % 100 == 0:
+            pool_task_ids = set(self._explore_pool.keys()) | set(self._exploit_pool.keys())
+            if pool_task_ids != self._task_ids:
+                diff = (
+                    self._task_ids - pool_task_ids
+                    if len(self._task_ids) > len(pool_task_ids)
+                    else pool_task_ids - self._task_ids
+                )
+                logger.error(
+                    f"Task ID integrity check failed! "
+                    f"_task_ids size: {len(self._task_ids)}, pool IDs size: {len(pool_task_ids)}. "
+                    f"Difference: {diff}"
+                )
+                # Auto-fix: sync _task_ids with actual pools
+                self._task_ids = pool_task_ids.copy()
+
         base_stats: Dict[str, float] = {
             "num_created": float(self._num_created),
             "num_evicted": float(self._num_evicted),
@@ -595,6 +682,7 @@ class Curriculum(StatsLogger):
             "num_promotions_attempted": float(self._num_promotions_attempted),
             "num_promotions_accepted": float(self._num_promotions_accepted),
             "promotion_rate": float(self._num_promotions_accepted / max(1, self._num_promotions_attempted)),
+            "task_ids_size": float(len(self._task_ids)),  # Track for debugging
         }
 
         # Include algorithm stats if available
