@@ -248,6 +248,31 @@ def _resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
     raise ValueError(f"Initial weights path not found: {path}")
 
 
+# Mapping of shorthand policy names to full class paths
+POLICY_SHORTCUTS = {
+    "random": "cogames.policy.random.RandomPolicy",
+    "simple": "cogames.policy.simple.SimplePolicy",
+    "lstm": "cogames.policy.lstm.LSTMPolicy",
+}
+
+
+def resolve_policy_class_path(policy: str) -> str:
+    """Resolve a policy shorthand or full class path.
+
+    Args:
+        policy: Either a shorthand like "random", "simple", "lstm"
+                or a full class path like "cogames.policy.random.RandomPolicy"
+
+    Returns:
+        Full class path to the policy
+    """
+    # If it's a shorthand, expand it
+    if policy in POLICY_SHORTCUTS:
+        return POLICY_SHORTCUTS[policy]
+    # Otherwise assume it's already a full class path
+    return policy
+
+
 @app.callback(invoke_without_command=True)
 def default(
     ctx: typer.Context,
@@ -408,7 +433,7 @@ def play_cmd(
     ctx: typer.Context,
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
     policy_class_path: str = typer.Option(
-        "cogames.examples.random_policy.RandomPolicy", "--policy", help="Path to policy class"
+        "cogames.policy.random.RandomPolicy", "--policy", help="Path to policy class"
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
@@ -429,13 +454,15 @@ def play_cmd(
         assert resolved_game is not None
         env_cfg = game.get_game(resolved_game)
 
+        full_policy_path = resolve_policy_class_path(policy_class_path)
+
         console.print(f"[cyan]Playing {resolved_game}[/cyan]")
         console.print(f"Max Steps: {steps}, Interactive: {interactive}")
 
         play.play(
             console,
             env_cfg=env_cfg,
-            policy_class_path=policy_class_path,
+            policy_class_path=full_policy_path,
             policy_data_path=policy_data_path,
             max_steps=steps,
             seed=42,
@@ -493,7 +520,7 @@ def train_cmd(
     policy_class_path: Annotated[
         str,
         typer.Option("--policy", help="Path to policy class"),
-    ] = "cogames.examples.simple_policy.SimplePolicy",
+    ] = "cogames.policy.simple.SimplePolicy",
     initial_weights_path: Annotated[
         Optional[Path],
         typer.Option(
@@ -583,6 +610,8 @@ def train_cmd(
         )
         env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
 
+        representative_game = env_names[0] if env_names else None
+
         if env_cfgs:
             import math
 
@@ -655,9 +684,11 @@ def train_cmd(
 
         _dump_game_configs(env_cfgs, env_names, maps_dir)
 
+        full_policy_path = resolve_policy_class_path(policy_class_path)
+
         train.train(
             env_cfgs=env_cfgs,
-            policy_class_path=policy_class_path,
+            policy_class_path=full_policy_path,
             initial_weights_path=resolved_initial,
             device=device_obj,
             num_steps=steps,
@@ -670,6 +701,7 @@ def train_cmd(
             use_rnn=use_rnn,
             checkpoint_interval=checkpoint_interval,
             vector_backend=backend,
+            game_name=representative_game,
         )
 
         console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_dir}[/green]")

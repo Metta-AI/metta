@@ -4,8 +4,8 @@ import torch
 from typer.testing import CliRunner
 
 from cogames.cogs_vs_clips.scenarios import make_game
-from cogames.examples.simple_policy import SimplePolicy
 from cogames.main import app
+from cogames.policy.simple import SimplePolicy
 from cogames.serialization import bundle_policy, inspect_bundle, load_policy_from_bundle, save_policy
 from mettagrid import MettaGridEnv
 

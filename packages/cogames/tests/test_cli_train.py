@@ -136,7 +136,7 @@ def test_train_stateful_policy_with_curriculum(tmp_path: Path, monkeypatch: pyte
         [
             "machina_1",
             "--policy",
-            "cogames.examples.stateful_policy.StatefulPolicy",
+            "cogames.policy.lstm.LSTMPolicy",
             "--use-rnn",
             "--curriculum",
             f"{__name__}.fake_curriculum",

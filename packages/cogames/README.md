@@ -89,7 +89,7 @@ cogames train assembler_1_simple \
 
 # Stateful policy with a curriculum and the serial backend
 cogames train --curriculum myproject.curricula.cogs_vs_clips \
-  --policy cogames.examples.stateful_policy.StatefulPolicy \
+  --policy cogames.policy.lstm.LSTMPolicy \
   --use-rnn \
   --vector-backend serial \
   --steps 5000 \
@@ -153,7 +153,7 @@ Use `cogames policy` utilities to package checkpoints with their class paths and
 ```bash
 # Bundle an existing checkpoint into ./bundles/simple
 cogames policy export \
-  cogames.examples.simple_policy.SimplePolicy \
+  cogames.policy.simple.SimplePolicy \
   ./runs/basic/policy.pt \
   ./bundles/simple
 
