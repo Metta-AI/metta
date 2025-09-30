@@ -261,9 +261,9 @@ def play_eval() -> PlayTool:
     task_generator = AssemblyLinesTaskGenerator(
         make_task_generator_cfg(
             num_agents=[3],
-            chain_lengths=[2],
-            num_sinks=[1],
-            room_sizes=["medium"],
+            chain_lengths=[5],
+            num_sinks=[2],
+            room_sizes=["large"],
             positions=[["Any", "Any", "Any"]],
         )
     )

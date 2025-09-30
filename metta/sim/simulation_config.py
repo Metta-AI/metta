@@ -17,7 +17,7 @@ class SimulationConfig(Config):
 
     # Core simulation config
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
-    max_time_s: int = Field(default=120, description="Maximum time in seconds to run the simulation", ge=0)
+    max_time_s: int = Field(default=3600, description="Maximum time in seconds to run the simulation", ge=0)
 
     npc_policy_uri: Optional[str] = Field(default=None, description="URI of the policy to use for NPC agents")
     policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
