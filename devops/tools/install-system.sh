@@ -73,6 +73,9 @@ get_package_name() {
         *) echo "" ;;
       esac
       ;;
+    nimble)
+      get_package_name "nim" "$pkg_manager"
+      ;;
     *)
       echo "$tool"
       ;;
@@ -224,5 +227,7 @@ get_bazelisk_url() {
 ensure_tool "curl"
 ensure_tool "g++"
 ensure_tool "git"
+ensure_tool "nim"
+ensure_tool "nimble"
 ensure_bazel_setup
 ensure_uv_setup
