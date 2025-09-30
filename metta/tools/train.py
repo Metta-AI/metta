@@ -122,6 +122,38 @@ class TrainTool(Tool):
             if hint is not None and self.trainer.optimizer.learning_rate == default_lr:
                 self.trainer.optimizer.learning_rate = hint
 
+            default_opt_type = OptimizerConfig.model_fields["type"].default
+            if self.trainer.optimizer.type == default_opt_type:
+                self.trainer.optimizer.type = "adamw"
+            if self.trainer.optimizer.weight_decay == 0:
+                self.trainer.optimizer.weight_decay = 0.01
+            if self.trainer.optimizer.warmup_steps == 0:
+                self.trainer.optimizer.warmup_steps = 2_000
+            if self.trainer.optimizer.min_learning_rate == 0.0:
+                self.trainer.optimizer.min_learning_rate = self.trainer.optimizer.learning_rate * 0.05
+
+            sched_cfg = self.trainer.hyperparameter_scheduler
+            if not sched_cfg.enabled:
+                sched_cfg.enabled = True
+            if sched_cfg.schedule_type == "exponential":
+                sched_cfg.schedule_type = "cosine"
+            if sched_cfg.learning_rate_decay == 1.0:
+                sched_cfg.learning_rate_decay = 1.0
+            if sched_cfg.min_learning_rate == 0.0:
+                sched_cfg.min_learning_rate = self.trainer.optimizer.min_learning_rate
+            if sched_cfg.warmup_steps == 0:
+                sched_cfg.warmup_steps = self.trainer.optimizer.warmup_steps
+
+            seq_cfg = self.trainer.sequence_curriculum
+            if not seq_cfg.enabled:
+                seq_cfg.enabled = True
+            if seq_cfg.max_bptt < self.trainer.bptt_horizon:
+                seq_cfg.max_bptt = self.trainer.bptt_horizon
+            if seq_cfg.min_bptt >= seq_cfg.max_bptt:
+                seq_cfg.min_bptt = max(2, min(seq_cfg.max_bptt // 2, seq_cfg.max_bptt))
+            if seq_cfg.warmup_steps == 0:
+                seq_cfg.warmup_steps = 200_000
+
         return self
 
     def invoke(self, args: dict[str, str]) -> int | None:

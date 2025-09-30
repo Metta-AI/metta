@@ -17,6 +17,8 @@ class HyperparameterSchedulerConfig(Config):
     learning_rate_decay: float = 1.0
     ppo_clip_decay: float = 1.0
     ppo_ent_coef_decay: float = 1.0
+    warmup_steps: int = 0
+    min_learning_rate: float = 0.0
 
 
 class SchedulerConfig(Config):
@@ -82,12 +84,42 @@ class Scheduler(TrainerComponent):
         progress = min(current_step / max(total_timesteps, 1), 1.0)
         updates: dict[str, float] = {}
 
-        if cfg.learning_rate_decay < 1.0:
+        schedule_lr = (
+            cfg.learning_rate_decay < 1.0
+            or cfg.schedule_type in {"cosine", "linear"}
+            or cfg.warmup_steps > 0
+            or cfg.min_learning_rate > 0
+        )
+
+        if schedule_lr:
             base_lr = getattr(cfg, "_base_learning_rate", None)
             if base_lr is None:
                 base_lr = trainer_cfg.optimizer.learning_rate
                 cfg._base_learning_rate = base_lr
-            new_lr = cls._decay_value(base_lr, cfg.learning_rate_decay, progress, cfg.schedule_type)
+
+            warmup_steps = max(int(getattr(trainer_cfg.optimizer, "warmup_steps", 0) or cfg.warmup_steps), 0)
+            min_lr = max(float(getattr(trainer_cfg.optimizer, "min_learning_rate", cfg.min_learning_rate)), 0.0)
+
+            if warmup_steps > 0 and current_step < warmup_steps:
+                warmup_progress = current_step / max(warmup_steps, 1)
+                new_lr = max(base_lr * warmup_progress, min_lr)
+            else:
+                # Normalize progress after warmup to [0, 1]
+                decay_steps = max(total_timesteps - warmup_steps, 1)
+                decay_progress = min(
+                    max((current_step - warmup_steps) / decay_steps, 0.0),
+                    1.0,
+                )
+
+                if cfg.schedule_type == "cosine":
+                    cosine = (1 + math.cos(math.pi * decay_progress)) / 2
+                    new_lr = min_lr + (base_lr - min_lr) * cosine
+                elif cfg.schedule_type == "linear":
+                    new_lr = min_lr + (base_lr - min_lr) * (1 - decay_progress)
+                else:
+                    decayed = cls._decay_value(base_lr, cfg.learning_rate_decay, decay_progress, cfg.schedule_type)
+                    new_lr = max(decayed, min_lr)
+
             optimizer.param_groups[0]["lr"] = new_lr
             trainer_cfg.optimizer.learning_rate = new_lr
             updates["learning_rate"] = new_lr

@@ -17,6 +17,14 @@ def create_optimizer(cfg: OptimizerConfig, policy: Policy) -> torch.optim.Optimi
             eps=cfg.eps,
             weight_decay=cfg.weight_decay,
         )
+    elif optimizer_type == "adamw":
+        optimizer = torch.optim.AdamW(
+            policy.parameters(),
+            lr=cfg.learning_rate,
+            betas=(cfg.beta1, cfg.beta2),
+            eps=cfg.eps,
+            weight_decay=cfg.weight_decay,
+        )
     elif optimizer_type == "muon":
         optimizer = ForeachMuon(
             policy.parameters(),

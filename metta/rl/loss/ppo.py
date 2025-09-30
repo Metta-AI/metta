@@ -177,6 +177,11 @@ class PPO(Loss):
             prio_beta=self.anneal_beta,
         )
 
+        seq_len = minibatch.shape[1]
+        effective_tt = self._effective_sequence_len(context, seq_len)
+        if effective_tt < seq_len:
+            minibatch = minibatch[:, -effective_tt:]
+
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
 
@@ -190,6 +195,10 @@ class PPO(Loss):
         policy_td = policy_td.reshape(B * TT)
         policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
         policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
+
+        if TT > 1:
+            disable_memory = torch.ones((B * TT,), device=policy_td.device, dtype=torch.bool)
+            policy_td.set("_disable_transformer_memory", disable_memory)
 
         flat_actions = minibatch["actions"].reshape(B * TT, -1)
 
@@ -221,6 +230,24 @@ class PPO(Loss):
         )
 
         return loss, shared_loss_data, stop_update_epoch
+
+    def _effective_sequence_len(self, context: ComponentContext, tt: int) -> int:
+        """Compute the curriculum-adjusted sequence length for training."""
+
+        curriculum = getattr(self.trainer_cfg, "sequence_curriculum", None)
+        if curriculum is None or not getattr(curriculum, "enabled", False):
+            return tt
+
+        min_tt = max(1, int(curriculum.min_bptt))
+        max_tt = max(min_tt, int(curriculum.max_bptt))
+        if tt <= min_tt:
+            return tt
+
+        warmup_steps = max(int(curriculum.warmup_steps), 1)
+        progress = min(max(context.agent_step / warmup_steps, 0.0), 1.0)
+        target_tt = min_tt + int(round((max_tt - min_tt) * progress))
+
+        return min(tt, max(target_tt, min_tt))
 
     def on_train_phase_end(self, context: ComponentContext) -> None:
         with torch.no_grad():

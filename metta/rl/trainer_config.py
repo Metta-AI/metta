@@ -9,7 +9,7 @@ from mettagrid.config import Config
 
 
 class OptimizerConfig(Config):
-    type: Literal["adam", "muon"] = "adam"
+    type: Literal["adam", "adamw", "muon"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
     learning_rate: float = Field(default=0.001153637, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
@@ -20,6 +20,10 @@ class OptimizerConfig(Config):
     eps: float = Field(default=3.186531e-07, gt=0)
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
+    # Optional learning rate warmup steps for schedulers that support it
+    warmup_steps: int = Field(default=0, ge=0)
+    # Minimum learning rate to decay towards when using cosine schedules
+    min_learning_rate: float = Field(default=0.0, ge=0)
 
 
 class InitialPolicyConfig(Config):
@@ -46,6 +50,13 @@ class TorchProfilerConfig(Config):
         return self
 
 
+class SequenceLengthCurriculumConfig(Config):
+    enabled: bool = False
+    min_bptt: int = Field(default=2, ge=1)
+    max_bptt: int = Field(default=64, ge=1)
+    warmup_steps: int = Field(default=200_000, ge=0)
+
+
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
     losses: LossConfig = Field(default_factory=LossConfig)
@@ -67,7 +78,13 @@ class TrainerConfig(Config):
     memory_scheduler: MemorySchedulerConfig = Field(default_factory=MemorySchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
+    amp_enabled: bool = True
+    amp_dtype: Literal["auto", "float16", "bfloat16"] = "auto"
+    amp_init_scale: float = Field(default=2**16, gt=0)
+    amp_growth_interval: int = Field(default=2000, ge=1)
+
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
+    sequence_curriculum: SequenceLengthCurriculumConfig = Field(default_factory=SequenceLengthCurriculumConfig)
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -82,4 +99,8 @@ class TrainerConfig(Config):
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
+        if self.sequence_curriculum.enabled:
+            self.sequence_curriculum.max_bptt = max(self.sequence_curriculum.max_bptt, self.bptt_horizon)
+            if self.sequence_curriculum.min_bptt > self.sequence_curriculum.max_bptt:
+                raise ValueError("sequence_curriculum.min_bptt must be <= sequence_curriculum.max_bptt")
         return self

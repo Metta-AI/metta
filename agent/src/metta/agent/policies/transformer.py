@@ -503,6 +503,8 @@ class TransformerPolicy(Policy):
             self._diag_counter += 1
         if original_shape is not None:
             td = td.reshape(original_shape)
+        if "_disable_transformer_memory" in td.keys():
+            td.del_("_disable_transformer_memory")
         return td
 
     def _cast_floating_tensors(self, td: TensorDict) -> None:
@@ -524,6 +526,11 @@ class TransformerPolicy(Policy):
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
         use_memory = self._memory_enabled
+        disable_memory_tensor = td.get("_disable_transformer_memory", None)
+        if disable_memory_tensor is not None and disable_memory_tensor.numel() > 0:
+            disable_flag = disable_memory_tensor.bool()
+            if bool(disable_flag.any().item()):
+                use_memory = False
         env_ids = self._extract_env_id_list(td, batch_size) if use_memory else []
         device = latent.device
         dtype = latent.dtype
