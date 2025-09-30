@@ -114,13 +114,21 @@ class LSTMPolicyNet(torch.nn.Module):
 
         hidden, new_state = self._rnn(hidden, rnn_state)
 
-        # If state was passed as a dict with state keys, update it in-place with new state
-        if state_has_keys:
+        # If state was passed as a dict, update it in-place with new state
+        if state_is_dict:
             h, c = new_state
             # Transpose back to PufferLib format: (layers, batch, hidden) -> (batch, layers, hidden)
             if h.dim() == 3:
                 h = h.transpose(0, 1)
                 c = c.transpose(0, 1)
+            elif h.dim() == 2:
+                # (batch, hidden) -> (batch, layers=1, hidden)
+                h = h.unsqueeze(1)
+                c = c.unsqueeze(1)
+            elif h.dim() == 1:
+                # (hidden,) -> (batch=1, layers=1, hidden)
+                h = h.unsqueeze(0).unsqueeze(1)
+                c = c.unsqueeze(0).unsqueeze(1)
             state["lstm_h"], state["lstm_c"] = h, c
 
         hidden = rearrange(hidden, "b t h -> (b t) h")

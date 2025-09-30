@@ -198,7 +198,11 @@ def train_cmd(
         help="Path to save training data",
     ),
     steps: int = typer.Option(10000, "--steps", "-s", help="Number of training steps"),
-    device: str = typer.Option("cuda", "--device", help="Device to train on"),
+    device: str = typer.Option(
+        "auto",
+        "--device",
+        help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
+    ),
     seed: int = typer.Option(42, "--seed", help="Seed for training"),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training"),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
@@ -228,12 +232,40 @@ def train_cmd(
     # Resolve policy shorthand
     full_policy_path = resolve_policy_class_path(policy_class_path)
 
+    def _cuda_is_available() -> bool:
+        try:
+            return torch.cuda.is_available()
+        except (AssertionError, RuntimeError):
+            return False
+
+    device_lower = device.lower()
+    if device_lower == "auto":
+        if _cuda_is_available():
+            resolved_device_str = "cuda"
+        else:
+            resolved_device_str = "cpu"
+            console.print("[yellow]CUDA not available; falling back to CPU for training.[/yellow]")
+    else:
+        try:
+            requested_device = torch.device(device)
+        except (RuntimeError, ValueError):
+            console.print(f"[yellow]Warning: Unknown device '{device}'. Falling back to CPU.[/yellow]")
+            resolved_device_str = "cpu"
+        else:
+            if requested_device.type == "cuda" and not _cuda_is_available():
+                console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
+                resolved_device_str = "cpu"
+            else:
+                resolved_device_str = str(requested_device)
+
+    torch_device = torch.device(resolved_device_str)
+
     try:
         train_module.train(
             env_cfg=env_cfg,
             policy_class_path=full_policy_path,
             initial_weights_path=initial_weights_path,
-            device=torch.device(device),
+            device=torch_device,
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
             seed=seed,
