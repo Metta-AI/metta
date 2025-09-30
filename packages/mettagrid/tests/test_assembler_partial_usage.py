@@ -115,10 +115,23 @@ class TestAssemblerPartialUsage:
         assert iron_consumed == 20, f"Should consume 20 iron at full usage, consumed {iron_consumed}"
         assert steel_produced == 10, f"Should produce 10 steel at full usage, produced {steel_produced}"
 
+        # Verify assembler is on cooldown (should have 100 tick cooldown)
+        assembler = next((obj for _obj_id, obj in grid_objects.items() if obj.get("type_name") == "assembler"), None)
+        if assembler:
+            cooldown_remaining = assembler.get("cooldown_remaining", 0)
+            assert cooldown_remaining == 100, f"Assembler should have 100 tick cooldown, has {cooldown_remaining}"
+
         # Test at 12% progress (12 ticks into 100 tick cooldown)
         for _ in range(12):
             actions = np.array([[noop_idx, 0]], dtype=dtype_actions)
             obs, rewards, terminals, truncations, info = env.step(actions)
+
+        # Verify cooldown has decreased to 88 ticks remaining
+        grid_objects = env.grid_objects
+        assembler = next((obj for _obj_id, obj in grid_objects.items() if obj.get("type_name") == "assembler"), None)
+        if assembler:
+            cooldown_remaining = assembler.get("cooldown_remaining", 0)
+            assert cooldown_remaining == 88, f"After 12 ticks, cooldown should be 88, has {cooldown_remaining}"
 
         iron_before = agent["inventory"][iron_idx]
         steel_before = agent["inventory"][steel_idx]
