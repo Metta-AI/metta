@@ -113,6 +113,10 @@ public:
   unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
   unsigned int uses_count;  // Current number of times used
 
+  // Exhaustion tracking
+  float exhaustion;           // Exhaustion rate (0 = no exhaustion)
+  float cooldown_multiplier;  // Current cooldown multiplier from exhaustion
+
   // Grid access for finding surrounding agents
   class Grid* grid;
 
@@ -131,6 +135,8 @@ public:
         cooldown_end_timestep(0),
         max_uses(cfg.max_uses),
         uses_count(0),
+        exhaustion(cfg.exhaustion),
+        cooldown_multiplier(1.0f),
         grid(nullptr),
         current_timestep_ptr(nullptr),
         recipe_details_obs(cfg.recipe_details_obs),
@@ -222,8 +228,11 @@ public:
     }
     consume_resources_for_recipe(*recipe, surrounding_agents);
     give_output_to_agent(*recipe, actor);
+
+    // Apply cooldown with exhaustion multiplier
     if (recipe->cooldown > 0) {
-      cooldown_end_timestep = *current_timestep_ptr + recipe->cooldown;
+      unsigned int adjusted_cooldown = static_cast<unsigned int>(recipe->cooldown * cooldown_multiplier);
+      cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
     }
 
     // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
@@ -232,6 +241,11 @@ public:
       unclip_recipes.clear();
     } else {
       uses_count++;
+
+      // Apply exhaustion (increase cooldown multiplier exponentially)
+      if (exhaustion > 0.0f) {
+        cooldown_multiplier *= (1.0f + exhaustion);
+      }
     }
 
     return true;

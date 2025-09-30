@@ -19,7 +19,8 @@ struct AssemblerConfig : public GridObjectConfig {
         recipe_details_obs(false),
         input_recipe_offset(0),
         output_recipe_offset(0),
-        max_uses(0) {}  // 0 means unlimited uses
+        max_uses(0),         // 0 means unlimited uses
+        exhaustion(0.0f) {}  // 0 means no exhaustion
 
   // Recipes will be set separately via initialize_recipes()
   std::vector<std::shared_ptr<Recipe>> recipes;
@@ -31,6 +32,9 @@ struct AssemblerConfig : public GridObjectConfig {
 
   // Maximum number of uses (0 = unlimited)
   unsigned int max_uses;
+
+  // Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) each use
+  float exhaustion;
 };
 
 namespace py = pybind11;
@@ -46,7 +50,8 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("tag_ids", &AssemblerConfig::tag_ids)
       .def_readwrite("recipes", &AssemblerConfig::recipes)
       .def_readwrite("recipe_details_obs", &AssemblerConfig::recipe_details_obs)
-      .def_readwrite("max_uses", &AssemblerConfig::max_uses);
+      .def_readwrite("max_uses", &AssemblerConfig::max_uses)
+      .def_readwrite("exhaustion", &AssemblerConfig::exhaustion);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_CONFIG_HPP_

@@ -1585,3 +1585,73 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   EXPECT_EQ(agent->inventory.amount(TestItems::ORE), 7) << "Should still have 7 ore (no consumption)";
   EXPECT_EQ(agent->inventory.amount(TestItems::LASER), 3) << "Should still have 3 lasers (no production)";
 }
+
+TEST_F(MettaGridCppTest, AssemblerExhaustion) {
+  // Create a simple grid
+  Grid grid(10, 10);
+  unsigned int current_timestep = 0;
+
+  // Create an assembler with exhaustion enabled
+  AssemblerConfig config(1, "test_assembler", std::vector<int>{1, 2});
+  config.exhaustion = 0.5f;  // 50% exhaustion rate - multiplier grows by 1.5x each use
+
+  // Create recipe with cooldown
+  auto recipe = std::make_shared<Recipe>();
+  recipe->input_resources[TestItems::ORE] = 1;
+  recipe->output_resources[TestItems::LASER] = 1;
+  recipe->cooldown = 10;  // Base cooldown of 10 timesteps
+
+  config.recipes.resize(256);
+  for (int i = 0; i < 256; i++) {
+    config.recipes[i] = recipe;
+  }
+
+  Assembler assembler(5, 5, config);
+  assembler.set_grid(&grid);
+  assembler.set_current_timestep_ptr(&current_timestep);
+
+  // Create an agent with plenty of resources
+  AgentConfig agent_cfg = create_test_agent_config();
+  agent_cfg.initial_inventory[TestItems::ORE] = 10;
+
+  Agent* agent = new Agent(4, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->reward = &agent_reward;
+  grid.add_object(agent);
+
+  // Test 1: Verify initial state
+  EXPECT_EQ(assembler.exhaustion, 0.5f) << "Exhaustion rate should be 0.5";
+  EXPECT_EQ(assembler.cooldown_multiplier, 1.0f) << "Initial cooldown multiplier should be 1.0";
+
+  // Test 2: First use should have normal cooldown
+  bool success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "First use should succeed";
+  EXPECT_EQ(assembler.cooldown_end_timestep, 10) << "First cooldown should be 10 (base cooldown)";
+  EXPECT_EQ(assembler.cooldown_multiplier, 1.5f) << "Cooldown multiplier should be 1.5 after first use";
+
+  // Test 3: Wait for cooldown and use again
+  current_timestep = 10;
+  EXPECT_EQ(assembler.cooldown_remaining(), 0) << "Should have no cooldown at timestep 10";
+
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Second use should succeed";
+  // Second cooldown should be 10 * 1.5 = 15
+  EXPECT_EQ(assembler.cooldown_end_timestep, 25) << "Second cooldown should end at 25 (10 + 15)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 2.25f) << "Cooldown multiplier should be 2.25 after second use";
+
+  // Test 4: Third use should have even longer cooldown
+  current_timestep = 25;
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Third use should succeed";
+  // Third cooldown should be 10 * 2.25 = 22.5, rounded to 22
+  EXPECT_EQ(assembler.cooldown_end_timestep, 47) << "Third cooldown should end at 47 (25 + 22)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 3.375f) << "Cooldown multiplier should be 3.375 after third use";
+
+  // Test 5: Verify exhaustion grows exponentially
+  current_timestep = 47;
+  success = assembler.onUse(*agent, 0);
+  EXPECT_TRUE(success) << "Fourth use should succeed";
+  // Fourth cooldown should be 10 * 3.375 = 33.75, rounded to 33
+  EXPECT_EQ(assembler.cooldown_end_timestep, 80) << "Fourth cooldown should end at 80 (47 + 33)";
+  EXPECT_FLOAT_EQ(assembler.cooldown_multiplier, 5.0625f) << "Cooldown multiplier should be 5.0625 after fourth use";
+}
