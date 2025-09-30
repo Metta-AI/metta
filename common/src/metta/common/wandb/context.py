@@ -100,7 +100,6 @@ class WandbContext:
 
         try:
             tags = list(self.wandb_config.tags)
-            tags.append("user:" + os.environ.get("METTA_USER", "unknown"))
 
             # Build config dict
             config = None
