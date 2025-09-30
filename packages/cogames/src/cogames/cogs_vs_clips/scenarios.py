@@ -42,8 +42,6 @@ def make_game(
                 move=ActionConfig(consumed_resources={"energy": 1}),
                 noop=ActionConfig(),
                 change_glyph=ChangeGlyphActionConfig(number_of_glyphs=16),
-                put_items=ActionConfig(enabled=False),
-                get_items=ActionConfig(enabled=False),
             ),
             objects={
                 "wall": WallConfig(type_id=1),

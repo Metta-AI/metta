@@ -21,27 +21,26 @@ facilities from Clip infestation.
 
 ### Action Protocol (One Action Per Turn)
 
-**MOVE [Direction: N, NE, E, SE, S, SW, W, NW, or Last]**
+**MOVE [Direction: N, NE, E, SE, S, SW, W, NW]**
 
 - Empty space → You relocate to that position
 - Occupied space → You interact with the target:
   - Another Cog → Transfer some of your energy to them
   - Facility → Activate or operate the facility (see Interaction Protocols below)
 - Some movements consume energy from your battery
-- "Last" repeats your previous movement direction
 
-**DISPLAY [Symbol]**
+**EMOTE [Symbol]**
 
 - Update your visual communication display
 - Symbol remains visible to all Cogs until changed
 - No energy cost
 - Use for coordinating protocols, warning of threats, or team strategies
 
-**THINK**
+**REST**
 
-- Hold position and process tactical data
+- Hold position and conserve energy
 - No movement, no energy expenditure
-- Useful for timing coordination or conserving energy
+- Useful for timing coordination or waiting for teammates
 
 ### Interaction Protocols
 
@@ -162,14 +161,14 @@ different terminals and move into the Chest
 
 1. **Energy Support**: Move into low-battery teammates to share power
 2. **Protocol Formation**: Position around facilities before activation
-3. **Communication**: Update DISPLAY symbols for silent coordination
+3. **Communication**: Update EMOTE symbols for silent coordination
 4. **Resource Relay**: Form chains to efficiently move resources
 5. **Clip Response**: Coordinate unclipping formations rapidly
 
 ### Tactical Recommendations
 
 - Designate energy donors and facility operators
-- Use THINK action to synchronize complex maneuvers
+- Use REST action to synchronize complex maneuvers
 - Display symbols for: "Need Energy", "Ready", "Danger", "Wait"
 - Scout for new protocols through systematic formation testing
 - Maintain defensive positions near critical facilities
