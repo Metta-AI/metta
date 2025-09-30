@@ -4,6 +4,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 
@@ -112,17 +113,20 @@ def test_train_and_load_policy_data(test_env_config, temp_checkpoint_dir):
 
     # Verify the policy can be used for inference
     obs, _ = env.reset()
-    # Handle both dict-based (multi-agent) and array-based (vectorized) observations
+    # Handle dict-based (per-agent) or array observations where axis 0 indexes agents
     if isinstance(obs, dict):
-        for agent_id, agent_obs in obs.items():
-            agent_policy = policy.agent_policy(agent_id)
-            action = agent_policy.step(agent_obs)
-            assert action is not None
-            assert len(action) == len(env.single_action_space.nvec)
+        agent_items = list(obs.items())
     else:
-        # Single observation - test with agent 0
-        agent_policy = policy.agent_policy(0)
-        action = agent_policy.step(obs)
+        obs_array = np.asarray(obs)
+        obs_dims = len(env.single_observation_space.shape)
+        if obs_array.ndim > obs_dims:
+            agent_items = [(idx, obs_array[idx]) for idx in range(obs_array.shape[0])]
+        else:
+            agent_items = [(0, obs_array)]
+
+    for agent_id, agent_obs in agent_items:
+        agent_policy = policy.agent_policy(int(agent_id))
+        action = agent_policy.step(agent_obs)
         assert action is not None
         assert len(action) == len(env.single_action_space.nvec)
 
@@ -157,18 +161,18 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
 
     # Verify the policy can be used for inference with state
     obs, _ = env.reset()
-    # Handle both dict-based (multi-agent) and array-based (vectorized) observations
     if isinstance(obs, dict):
-        for agent_id, agent_obs in obs.items():
-            agent_policy = policy.agent_policy(agent_id)
-            # First step - no state
-            action = agent_policy.step(agent_obs)
-            assert action is not None
-            assert len(action) == len(env.single_action_space.nvec)
+        agent_items = list(obs.items())
     else:
-        # Single observation - test with agent 0
-        agent_policy = policy.agent_policy(0)
-        # First step - no state
-        action = agent_policy.step(obs)
+        obs_array = np.asarray(obs)
+        obs_dims = len(env.single_observation_space.shape)
+        if obs_array.ndim > obs_dims:
+            agent_items = [(idx, obs_array[idx]) for idx in range(obs_array.shape[0])]
+        else:
+            agent_items = [(0, obs_array)]
+
+    for agent_id, agent_obs in agent_items:
+        agent_policy = policy.agent_policy(int(agent_id))
+        action = agent_policy.step(agent_obs)
         assert action is not None
         assert len(action) == len(env.single_action_space.nvec)
