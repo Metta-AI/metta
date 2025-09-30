@@ -2,19 +2,45 @@
 import clsx from "clsx";
 import { createContext, FC, ReactNode, use } from "react";
 
+import jsonSchemas from "../lib/schemas.json" assert { type: "json" };
 import { RepoRootContext } from "./RepoRootContext";
 
 const YamlContext = createContext<{
   isSelected?: (key: string, value: string) => boolean;
   onSelectLine?: (key: string, value: string) => void;
   unsetFields: Set<string>;
+  kind?: string;
 }>({ unsetFields: new Set() });
+
+function getSchemaProperty(path: string, kind: string) {
+  const defs = jsonSchemas.$defs;
+  let currentKind = kind;
+  const parts = path.split(".");
+  let property: any = null;
+  for (const part of parts) {
+    const def = (defs as any)[currentKind];
+    if (!def) {
+      return null;
+    }
+    property = def.properties[part];
+    if (!property) {
+      return null;
+    }
+    if (property.$ref) {
+      currentKind = property.$ref.split("/").pop()!;
+    } else {
+      currentKind = "UNKNOWN";
+    }
+  }
+  return property;
+}
 
 const YamlKey: FC<{
   name: string;
+  tooltip?: string;
   disabled?: boolean;
 }> = ({ name, disabled }) => {
-  return (
+  const result = (
     <span
       className={clsx(
         disabled ? "text-gray-500" : "font-semibold text-blue-900"
@@ -23,6 +49,10 @@ const YamlKey: FC<{
       {name}:
     </span>
   );
+  if (tooltip) {
+    result = <Tooltip title={tooltip}>{result}</Tooltip>;
+  }
+  return result;
 };
 
 const YamlScalar: FC<{
@@ -218,15 +248,17 @@ export const ConfigViewer: FC<{
   // The fields that weren't set explicitly (so they can still have their default values, not necessarily null).
   // The prop name mirrors `model_fields_set` in Pydantic.
   unsetFields?: string[];
+  kind?: string;
   isSelected?: (key: string, value: string) => boolean;
   onSelectLine?: (key: string, value: string) => void;
-}> = ({ value, isSelected, onSelectLine, unsetFields }) => {
+}> = ({ value, isSelected, onSelectLine, unsetFields, kind }) => {
   return (
     <YamlContext.Provider
       value={{
         isSelected,
         onSelectLine,
         unsetFields: new Set(unsetFields ?? []),
+        kind,
       }}
     >
       <div className="overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs">
