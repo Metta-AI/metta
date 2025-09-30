@@ -164,6 +164,13 @@ class AssemblerConfig(Config):
         ),
     )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
+    exhaustion: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
+        ),
+    )
 
 
 class ChestConfig(Config):
