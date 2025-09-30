@@ -75,8 +75,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Multiprocessing synchronization
         self._lock = Lock()
 
-        # Initialize shared memory for learning progress data
-
         # Initialize scoring method (bidirectional by default)
         if hypers.use_bidirectional:
             self._init_bidirectional_scoring()
@@ -155,32 +153,31 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Initialize basic EMA tracking (fallback method)."""
         # EMA tracking for each task: task_id -> (ema_score, ema_squared, num_samples)
         self._task_emas: Dict[int, tuple[float, float, int]] = {}
-        # Ensure cache is initialized for basic scoring mode (only if not already initialized)
-        if not hasattr(self, "_score_cache"):
-            self._score_cache = {}
-        if not hasattr(self, "_cache_valid_tasks"):
-            self._cache_valid_tasks = set()
+        # Initialize cache for basic scoring mode
+        self._score_cache = getattr(self, "_score_cache", {})
+        self._cache_valid_tasks = getattr(self, "_cache_valid_tasks", set())
 
     def score_tasks(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using the configured method (bidirectional by default)."""
-        with self._lock:
-            if self.hypers.use_bidirectional:
-                return self._score_tasks_bidirectional(task_ids)
-            else:
-                return self._score_tasks_basic(task_ids)
+        if self.hypers.use_bidirectional:
+            return self._score_tasks_bidirectional(task_ids)
+        else:
+            return self._score_tasks_basic(task_ids)
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using bidirectional learning progress."""
         scores = {}
-        for task_id in task_ids:
-            scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
+        with self._lock:
+            for task_id in task_ids:
+                scores[task_id] = self._get_bidirectional_learning_progress_score(task_id)
         return scores
 
     def _score_tasks_basic(self, task_ids: List[int]) -> Dict[int, float]:
         """Score tasks using basic EMA variance method."""
         scores = {}
-        for task_id in task_ids:
-            scores[task_id] = self._get_basic_learning_progress_score(task_id)
+        with self._lock:
+            for task_id in task_ids:
+                scores[task_id] = self._get_basic_learning_progress_score(task_id)
         return scores
 
     def _get_bidirectional_learning_progress_score(self, task_id: int) -> float:
@@ -242,9 +239,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             # Learning progress is approximated by variance in performance
             learning_progress = std_dev
 
-            # Add exploration bonus for tasks with few samples
+            # For tasks with few samples, blend variance with exploration bonus
             if num_samples < 10:
-                learning_progress += self.hypers.exploration_bonus * (10 - num_samples) / 10
+                exploration_weight = (10 - num_samples) / 10
+                exploration_bonus = self.hypers.exploration_bonus * exploration_weight
+                # Blend variance-based score with exploration bonus, favoring variance as we get more data
+                learning_progress = learning_progress * (1 - exploration_weight * 0.5) + exploration_bonus
 
             score = learning_progress
 
@@ -318,16 +318,25 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def update_task_performance(self, task_id: int, score: float) -> None:
         """Update task performance using the appropriate scoring method."""
         with self._lock:
-            # Calculate learning progress score before updating tracker
-            if self.hypers.use_bidirectional:
-                lp_score = self._get_bidirectional_learning_progress_score(task_id)
-                self._update_bidirectional_ema(task_id, score)
-            else:
-                lp_score = self._get_basic_learning_progress_score(task_id)
-                self._update_basic_ema(task_id, score)
+            # Update task tracker first to ensure completion count is correct
+            self.task_tracker.update_task_performance(task_id, score)
 
-            # Update task tracker with score and LP score
-            self.task_tracker.update_task_performance(task_id, score, lp_score=lp_score)
+            # Update scoring method (this invalidates cache)
+            if self.hypers.use_bidirectional:
+                self._update_bidirectional_ema(task_id, score)
+                # Clear cache to ensure fresh calculation
+                self._cache_valid_tasks.discard(task_id)
+                self._score_cache.pop(task_id, None)
+                lp_score = self._get_bidirectional_learning_progress_score(task_id)
+            else:
+                self._update_basic_ema(task_id, score)
+                # Clear cache to ensure fresh calculation
+                self._cache_valid_tasks.discard(task_id)
+                self._score_cache.pop(task_id, None)
+                lp_score = self._get_basic_learning_progress_score(task_id)
+
+            # Update task tracker with the calculated LP score
+            self.task_tracker.update_lp_score(task_id, lp_score)
 
             # Invalidate stats cache
             self.invalidate_cache()
@@ -404,8 +413,16 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         else:
             ema_score, ema_squared, num_samples = self._task_emas[task_id]
 
-            # Update EMAs
-            alpha = min(1.0, self.hypers.ema_timescale * num_samples)
+            # Update EMAs with more responsive learning rate for small sample sizes
+            # Use higher learning rate initially, then decay to configured timescale
+            if num_samples < 10:
+                # Start with higher learning rate for better sensitivity
+                base_alpha = 0.3 / (1 + num_samples * 0.2)  # Starts at ~0.3, decays to ~0.05
+            else:
+                # Use configured timescale for larger samples
+                base_alpha = self.hypers.ema_timescale * num_samples
+
+            alpha = min(1.0, base_alpha)
             new_ema_score = (1 - alpha) * ema_score + alpha * score
             new_ema_squared = (1 - alpha) * ema_squared + alpha * (score * score)
 
@@ -738,14 +755,20 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._cache_valid_tasks = set(state["cache_valid_tasks"])
 
     def cleanup_shared_memory(self) -> None:
-        """Clean up shared memory resources."""
-        # Cleanup task tracker
-        if hasattr(self.task_tracker, "cleanup_shared_memory"):
-            self.task_tracker.cleanup_shared_memory()
+        """Clean up shared memory resources with better error handling."""
+        if not hasattr(self, "task_tracker"):
+            return
+
+        try:
+            if hasattr(self.task_tracker, "cleanup_shared_memory"):
+                self.task_tracker.cleanup_shared_memory()
+        except Exception as e:
+            # Log but don't raise - cleanup should be best-effort
+            import logging
+
+            logging.warning(f"Failed to cleanup shared memory: {e}")
 
     def __del__(self):
         """Cleanup when object is destroyed."""
-        try:
+        if hasattr(self, "hypers") and getattr(self.hypers, "use_shared_memory", False):
             self.cleanup_shared_memory()
-        except Exception:
-            pass
