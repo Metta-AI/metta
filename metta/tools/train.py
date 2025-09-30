@@ -51,6 +51,7 @@ from metta.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
+from metta.rl.training.memory_scheduler import MemoryScheduler
 from metta.tools.utils.auto_config import (
     auto_run_name,
     auto_stats_server_uri,
@@ -253,6 +254,10 @@ class TrainTool(Tool):
             interval = getattr(hyper_cfg, "epoch_interval", 1) or 1
             hyper_component = Scheduler(SchedulerConfig(interval=max(1, int(interval))))
             components.append(hyper_component)
+
+        mem_sched_cfg = getattr(self.trainer, "memory_scheduler", None)
+        if mem_sched_cfg and getattr(mem_sched_cfg, "enabled", False):
+            components.append(MemoryScheduler(mem_sched_cfg))
 
         stats_component: TrainerComponent | None = None
 

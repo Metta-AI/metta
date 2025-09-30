@@ -4,6 +4,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss import LossConfig
 from metta.rl.training import HeartbeatConfig, HyperparameterSchedulerConfig
+from metta.rl.training.memory_scheduler import MemorySchedulerConfig
 from mettagrid.config import Config
 
 
@@ -63,6 +64,7 @@ class TrainerConfig(Config):
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
 
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
+    memory_scheduler: MemorySchedulerConfig = Field(default_factory=MemorySchedulerConfig)
     heartbeat: Optional[HeartbeatConfig] = Field(default_factory=HeartbeatConfig)
 
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)

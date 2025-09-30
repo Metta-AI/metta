@@ -125,3 +125,22 @@ def test_transformer_reset_memory_is_noop():
 
     policy.clear_memory()
     assert policy._memory == {}
+
+
+def test_transformer_memory_len_update():
+    env_metadata = _build_env_metadata()
+    policy = trxl_policy_config().make_policy(env_metadata)
+    policy.initialize_to_environment(env_metadata, torch.device("cpu"))
+
+    td = _build_token_observations(batch_size=1, num_tokens=4)
+    ensure_sequence_metadata(td, batch_size=1, time_steps=1)
+    policy(td.clone())
+
+    original_len = policy.memory_len
+    target_len = max(0, original_len // 2)
+    policy.update_memory_len(target_len)
+    assert policy.memory_len == target_len
+
+    if original_len > 0:
+        with pytest.raises(ValueError):
+            policy.update_memory_len(original_len + 1)

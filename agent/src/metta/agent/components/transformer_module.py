@@ -35,6 +35,21 @@ def _make_layer_norm(d_model: int, use_fused: bool) -> nn.Module:
     return nn.LayerNorm(d_model)
 
 
+class TF32Context:
+    def __init__(self, enabled: bool) -> None:
+        self.enabled = enabled and torch.cuda.is_available()
+        self.prev = None
+
+    def __enter__(self):
+        if self.enabled:
+            self.prev = torch.backends.cuda.matmul.allow_tf32
+            torch.backends.cuda.matmul.allow_tf32 = True
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.enabled and self.prev is not None:
+            torch.backends.cuda.matmul.allow_tf32 = self.prev
+
+
 def empty_memory(
     num_layers: int,
     batch_size: int,
@@ -351,6 +366,7 @@ class GTrXLModule(nn.Module):
         activation_checkpoint: bool = False,
         use_flash_checkpoint: bool = False,
         use_fused_layernorm: bool = False,
+        allow_tf32: bool = True,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -369,6 +385,7 @@ class GTrXLModule(nn.Module):
         self.use_flash_checkpoint = use_flash_checkpoint
         self.use_fused_layernorm = use_fused_layernorm
         self.attn_dropout = attn_dropout
+        self.allow_tf32 = allow_tf32
 
         positional_max = max_seq_len + self.memory_len + 1024
         self.positional_encoding = FCPositionalEncoding(
@@ -407,7 +424,7 @@ class GTrXLModule(nn.Module):
         inputs: torch.Tensor,
         memory: Optional[Dict[str, Optional[List[torch.Tensor]]]] = None,
     ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        with _record_function("GTrXLModule/forward"):
+        with _record_function("GTrXLModule/forward"), TF32Context(self.allow_tf32):
             squeeze = False
             if inputs.dim() == 2:
                 inputs = inputs.unsqueeze(0)
@@ -529,10 +546,18 @@ class XLPositionalEmbedding(nn.Module):
 class XLPositionwiseFF(nn.Module):
     """Position-wise feed-forward layer for Transformer-XL."""
 
-    def __init__(self, d_model: int, d_inner: int, dropout: float, pre_lnorm: bool) -> None:
+    def __init__(
+        self,
+        d_model: int,
+        d_inner: int,
+        dropout: float,
+        pre_lnorm: bool,
+        *,
+        use_fused_layernorm: bool = False,
+    ) -> None:
         super().__init__()
         self.pre_lnorm = pre_lnorm
-        self.layer_norm = nn.LayerNorm(d_model)
+        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
         self.core = nn.Sequential(
             nn.Linear(d_model, d_inner),
             nn.ReLU(inplace=True),
@@ -560,6 +585,8 @@ class XLRelMultiHeadAttn(nn.Module):
         dropout: float,
         dropatt: float,
         pre_lnorm: bool,
+        *,
+        use_fused_layernorm: bool = False,
     ) -> None:
         super().__init__()
         self.n_head = n_head
@@ -572,7 +599,7 @@ class XLRelMultiHeadAttn(nn.Module):
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
-        self.layer_norm = nn.LayerNorm(d_model)
+        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
 
     @staticmethod
     def _rel_shift(x: torch.Tensor) -> torch.Tensor:
@@ -604,9 +631,22 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         dropout: float,
         dropatt: float,
         pre_lnorm: bool,
+        *,
+        use_flash_checkpoint: bool = False,
+        use_fused_layernorm: bool = False,
     ) -> None:
-        super().__init__(n_head, d_model, d_head, dropout, dropatt, pre_lnorm)
+        super().__init__(
+            n_head,
+            d_model,
+            d_head,
+            dropout,
+            dropatt,
+            pre_lnorm,
+            use_fused_layernorm=use_fused_layernorm,
+        )
         self.r_net = nn.Linear(d_model, n_head * d_head, bias=False)
+        self.layer_norm = _make_layer_norm(d_model, use_fused_layernorm)
+        self.use_flash_checkpoint = use_flash_checkpoint
 
     def forward(
         self,
@@ -723,10 +763,28 @@ class XLRelPartialLearnableDecoderLayer(nn.Module):
         dropout: float,
         dropatt: float,
         pre_lnorm: bool,
+        *,
+        use_flash_checkpoint: bool = False,
+        use_fused_layernorm: bool = False,
     ) -> None:
         super().__init__()
-        self.attn = XLRelPartialLearnableMultiHeadAttn(n_head, d_model, d_head, dropout, dropatt, pre_lnorm)
-        self.ff = XLPositionwiseFF(d_model, d_inner, dropout, pre_lnorm)
+        self.attn = XLRelPartialLearnableMultiHeadAttn(
+            n_head,
+            d_model,
+            d_head,
+            dropout,
+            dropatt,
+            pre_lnorm,
+            use_flash_checkpoint=use_flash_checkpoint,
+            use_fused_layernorm=use_fused_layernorm,
+        )
+        self.ff = XLPositionwiseFF(
+            d_model,
+            d_inner,
+            dropout,
+            pre_lnorm,
+            use_fused_layernorm=use_fused_layernorm,
+        )
 
     def forward(
         self,
@@ -760,6 +818,10 @@ class TransformerXLModule(nn.Module):
         clamp_len: int = -1,
         ext_len: int = 0,
         attn_type: int = 0,
+        activation_checkpoint: bool = False,
+        use_flash_checkpoint: bool = False,
+        use_fused_layernorm: bool = False,
+        allow_tf32: bool = True,
     ) -> None:
         super().__init__()
         if d_model % n_heads != 0:
@@ -777,6 +839,14 @@ class TransformerXLModule(nn.Module):
         self.clamp_len = clamp_len
         self.ext_len = ext_len
         self.attn_type = attn_type
+        self.use_activation_checkpoint = activation_checkpoint
+        self.use_flash_checkpoint = use_flash_checkpoint
+        self.use_fused_layernorm = use_fused_layernorm
+        self.allow_tf32 = allow_tf32
+        self.use_activation_checkpoint = activation_checkpoint
+        self.use_flash_checkpoint = use_flash_checkpoint
+        self.use_fused_layernorm = use_fused_layernorm
+        self.allow_tf32 = allow_tf32
 
         d_head = d_model // n_heads
 
@@ -794,6 +864,8 @@ class TransformerXLModule(nn.Module):
                     dropout,
                     dropatt,
                     pre_lnorm,
+                    use_flash_checkpoint=self.use_flash_checkpoint,
+                    use_fused_layernorm=self.use_fused_layernorm,
                 )
                 for _ in range(n_layers)
             ]
@@ -806,7 +878,7 @@ class TransformerXLModule(nn.Module):
     def forward(
         self, inputs: torch.Tensor, memory: Optional[Dict[str, List[torch.Tensor]]] = None
     ) -> Tuple[torch.Tensor, Dict[str, Optional[List[torch.Tensor]]]]:
-        with _record_function("TransformerXLModule/forward"):
+        with _record_function("TransformerXLModule/forward"), TF32Context(self.allow_tf32):
             if inputs.dim() == 2:
                 inputs = inputs.unsqueeze(0)
             if inputs.dim() != 3:
@@ -850,7 +922,29 @@ class TransformerXLModule(nn.Module):
             for layer_id, layer in enumerate(self.layers):
                 with _record_function(f"TransformerXLModule/layer_{layer_id}"):
                     mem_layer = mems[layer_id] if mem_enabled else None
-                    core_out = layer(core_out, pos_emb, self.r_w_bias, self.r_r_bias, attn_mask, mem_layer)
+
+                    if self.use_activation_checkpoint and core_out.requires_grad:
+                        placeholder = (
+                            mem_layer
+                            if mem_layer is not None
+                            else core_out.new_zeros(0, batch_size, self.d_model)
+                        )
+
+                        def _layer_run(
+                            inp,
+                            mem,
+                            _layer=layer,
+                            _pos=pos_emb,
+                            _rw=self.r_w_bias,
+                            _rr=self.r_r_bias,
+                            _mask=attn_mask,
+                        ):
+                            mem_in = None if mem.size(0) == 0 else mem
+                            return _layer(inp, _pos, _rw, _rr, _mask, mem_in)
+
+                        core_out = checkpoint(_layer_run, core_out, placeholder, use_reentrant=False)
+                    else:
+                        core_out = layer(core_out, pos_emb, self.r_w_bias, self.r_r_bias, attn_mask, mem_layer)
                     hiddens.append(core_out)
 
             with _record_function("TransformerXLModule/post"):

@@ -152,6 +152,7 @@ class TransformerBackboneConfig(ComponentConfig):
                 activation_checkpoint=bool(self.activation_checkpoint),
                 use_flash_checkpoint=bool(self.use_flash_checkpoint),
                 use_fused_layernorm=bool(self.use_fused_layernorm),
+                allow_tf32=bool(self.allow_tf32),
             )
         elif self.variant is TransformerBackboneVariant.TRXL:
             core = TransformerXLModule(
@@ -171,6 +172,7 @@ class TransformerBackboneConfig(ComponentConfig):
                 activation_checkpoint=bool(self.activation_checkpoint),
                 use_flash_checkpoint=bool(self.use_flash_checkpoint),
                 use_fused_layernorm=bool(self.use_fused_layernorm),
+                allow_tf32=bool(self.allow_tf32),
             )
         else:
             core = NvidiaTransformerModule(
@@ -188,6 +190,7 @@ class TransformerBackboneConfig(ComponentConfig):
                 activation_checkpoint=bool(self.activation_checkpoint),
                 use_flash_checkpoint=bool(self.use_flash_checkpoint),
                 use_fused_layernorm=bool(self.use_fused_layernorm),
+                allow_tf32=bool(self.allow_tf32),
             )
 
         return core

@@ -148,6 +148,7 @@ class TransformerPolicy(Policy):
         self.num_layers = max(env.feature_normalizations.keys()) + 1
         self._memory_len = int(getattr(self.transformer_cfg, "memory_len", 0) or 0)
         self._transformer_layers = int(getattr(self.transformer_cfg, "num_layers", 0) or 0)
+        self._memory_len_initial = self._memory_len
 
         encoder_out = self.config.obs_encoder.latent_dim
         if encoder_out != self.latent_size:
@@ -786,6 +787,27 @@ class TransformerPolicy(Policy):
     def clear_memory(self) -> None:
         """Explicitly clear cached transformer memory."""
 
+        self._memory_tensor = None
+        self._memory.clear()
+
+    def update_memory_len(self, new_len: int) -> None:
+        new_len = int(new_len)
+        if new_len < 0:
+            raise ValueError("memory length must be non-negative")
+        if new_len > self._memory_len_initial:
+            raise ValueError(
+                f"memory length {new_len} exceeds initial allocation {self._memory_len_initial}"
+            )
+        if new_len == self._memory_len:
+            return
+
+        self._memory_len = new_len
+        self.transformer_cfg.memory_len = new_len
+        if hasattr(self.transformer_module, "memory_len"):
+            self.transformer_module.memory_len = new_len  # type: ignore[assignment]
+        core = getattr(self.transformer_module, "core", None)
+        if core is not None and hasattr(core, "mem_len"):
+            core.mem_len = new_len  # type: ignore[assignment]
         self._memory_tensor = None
         self._memory.clear()
 
