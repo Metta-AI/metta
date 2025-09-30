@@ -1,17 +1,16 @@
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.util.constants import METTA_AWS_ACCOUNT_ID
+from metta.common.wandb.context import WandbConfig
 from metta.setup.components.aws import AWSSetup as _AWSSetup
-
-if TYPE_CHECKING:
-    from metta.common.wandb.context import WandbConfig
+from metta.setup.components.wandb import WandbSetup
 
 
 class SupportedWandbEnvOverrides(BaseSettings):
@@ -46,10 +45,7 @@ def _merge_wandb_settings(*settings_dicts: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def auto_wandb_config(run: str | None = None) -> "WandbConfig":
-    from metta.common.wandb.context import WandbConfig
-    from metta.setup.components.wandb import WandbSetup
-
+def auto_wandb_config(run: str | None = None, group: str | None = None, tags: list[str] | None = None) -> "WandbConfig":
     wandb_setup_module = WandbSetup()
     merged_settings = _merge_wandb_settings(
         WandbConfig.Off().model_dump(),
@@ -61,8 +57,13 @@ def auto_wandb_config(run: str | None = None) -> "WandbConfig":
 
     if run:
         cfg.run_id = run
-        cfg.group = run
         cfg.data_dir = f"./train_dir/{run}"
+
+    # Optional overrides
+    if group is not None:
+        cfg.group = group
+    if tags is not None:
+        cfg.tags = list(tags)
 
     return cfg
 
