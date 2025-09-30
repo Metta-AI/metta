@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, useEffect, useRef } from "react";
+import { createContext, FC, use, useEffect, useRef } from "react";
 
 import { useDrawer } from "@/components/MapViewer/hooks";
 import { Tooltip } from "@/components/Tooltip";
@@ -7,6 +7,12 @@ import { Shortcut, useGlobalShortcuts } from "@/hooks/useGlobalShortcut";
 import { Drawer } from "@/lib/draw/Drawer";
 import { MAP_BACKGROUND_COLOR } from "@/lib/draw/drawGrid";
 import { gridObjectRegistry } from "@/lib/gridObjectRegistry";
+
+const ObjectsPanelContext = createContext<{
+  enableHotkeys: boolean;
+}>({
+  enableHotkeys: false,
+});
 
 function useObjectShortcuts(
   setSelectedEntity: (entity: string) => void,
@@ -100,12 +106,17 @@ const ObjectIcon: FC<{
       />
     );
   }
+
+  const { enableHotkeys } = use(ObjectsPanelContext);
+
   return (
     <Tooltip
       render={() => (
         <div>
           <header>{name}</header>
-          <div>Hotkey: {gridObjectRegistry.objectByName(name)?.hotkey}</div>
+          {enableHotkeys && (
+            <div>Hotkey: {gridObjectRegistry.objectByName(name)?.hotkey}</div>
+          )}
         </div>
       )}
     >
@@ -141,7 +152,6 @@ const GroupedObjectEntry: FC<{
   names: string[];
   selected: string;
   onClick: (name: string) => void;
-  // isSelected: boolean;
   drawer: Drawer;
 }> = ({ groupName, names, selected, onClick, drawer }) => {
   return (
@@ -197,26 +207,28 @@ export const ObjectsPanel: FC<{
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      {basicNames.map((key) => (
-        <ObjectEntry
-          key={key}
-          name={key}
-          onClick={() => setSelectedEntity(key)}
-          isSelected={selectedEntity === key}
-          drawer={drawer}
-        />
-      ))}
-      {Object.entries(groupedNames).map(([key, names]) => (
-        <GroupedObjectEntry
-          key={key}
-          groupName={key}
-          names={names}
-          selected={selectedEntity}
-          onClick={setSelectedEntity}
-          drawer={drawer}
-        />
-      ))}
-    </div>
+    <ObjectsPanelContext.Provider value={{ enableHotkeys }}>
+      <div className="flex flex-col gap-1">
+        {basicNames.map((key) => (
+          <ObjectEntry
+            key={key}
+            name={key}
+            onClick={() => setSelectedEntity(key)}
+            isSelected={selectedEntity === key}
+            drawer={drawer}
+          />
+        ))}
+        {Object.entries(groupedNames).map(([key, names]) => (
+          <GroupedObjectEntry
+            key={key}
+            groupName={key}
+            names={names}
+            selected={selectedEntity}
+            onClick={setSelectedEntity}
+            drawer={drawer}
+          />
+        ))}
+      </div>
+    </ObjectsPanelContext.Provider>
   );
 };
