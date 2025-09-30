@@ -15,6 +15,9 @@ dependencies = ["torch", "pydantic>=2.11.5", "tensordict", "einops"]
 [project.optional-dependencies]
 triton = ["triton>=2.0.0; platform_system == 'Linux'"]
 
+[dependency-groups]
+dev = ["pytest>=8.3.3", "pytest-cov>=6.1.1", "pytest-xdist>=3.8.0"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["cortex", "cortex.*"]
