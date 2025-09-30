@@ -103,41 +103,6 @@ def _dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str],
         game.save_game_config(config_obj, candidate)
 
 
-def _default_device(explicit: Optional[str]) -> str:
-    if explicit is not None:
-        normalized = explicit.lower()
-
-        if normalized == "auto":
-            if torch.cuda.is_available():
-                return "cuda"
-            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                return "mps"
-            console.print("[yellow]CUDA/MPS unavailable; training will run on CPU.[/yellow]")
-            return "cpu"
-
-        try:
-            requested = torch.device(explicit)
-        except (RuntimeError, ValueError):
-            console.print(f"[yellow]Unknown device '{explicit}'. Falling back to CPU.[/yellow]")
-            return "cpu"
-
-        if requested.type == "cuda" and not torch.cuda.is_available():
-            console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
-            return "cpu"
-
-        if requested.type == "mps" and not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()):
-            console.print("[yellow]MPS requested but unavailable. Training will run on CPU instead.[/yellow]")
-            return "cpu"
-
-        return str(requested)
-
-    if torch.cuda.is_available():
-        return "cuda"
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
-
-
 def _resolve_run_dir(run_dir: Optional[Path]) -> Path:
     if run_dir is not None:
         return run_dir.expanduser().resolve()
@@ -616,47 +581,88 @@ def train_cmd(
         resolved_run_dir = _resolve_run_dir(run_dir)
         resolved_run_dir.mkdir(parents=True, exist_ok=True)
 
-        backend = vector_backend.lower()
-        resolved_device_name = _default_device(device)
-        resolved_num_envs, resolved_num_workers = _suggest_parallelism(resolved_device_name, num_envs, num_workers)
-        if vector_backend.lower() == "multiprocessing" and sys.platform == "darwin":
-            resolved_num_workers = 1
+    backend = vector_backend.lower()
 
-        fallback_curricula = resolved_run_dir / "curricula"
-        base_games = [game_name] if game_name is not None else []
-        if not base_games and curriculum is None and not fallback_curricula.exists():
-            base_games = ["assembler_1_simple"]
-        env_cfgs, env_names = _collect_configs(
-            base_games,
-            curriculum,
-            max(resolved_num_envs, 32),
-            fallback_folder=fallback_curricula,
-            game_param="game_name",
-        )
-        env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
+    def resolve_training_device(requested: str) -> torch.device:
+        normalized = requested.strip().lower()
 
-        representative_game = env_names[0] if env_names else None
+        def cuda_usable() -> bool:
+            cuda_backend = getattr(torch.backends, "cuda", None)
+            if cuda_backend is None or not getattr(cuda_backend, "is_built", lambda: False)():
+                return False
+            try:
+                return torch.cuda.is_available()
+            except (AssertionError, RuntimeError):
+                return False
 
-        if env_cfgs:
-            import math
+        def mps_usable() -> bool:
+            return hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
 
-            available = len(env_cfgs)
-            if num_envs is None:
-                resolved_num_envs = max(1, min(resolved_num_envs, available))
-            else:
-                resolved_num_envs = max(1, min(num_envs, available))
+        if normalized == "auto":
+            if cuda_usable():
+                return torch.device("cuda")
+            if mps_usable():
+                return torch.device("mps")
+            console.print("[yellow]CUDA/MPS unavailable; training will run on CPU.[/yellow]")
+            return torch.device("cpu")
 
-            if num_workers is None:
-                resolved_num_workers = max(1, min(resolved_num_workers, resolved_num_envs))
-            else:
-                resolved_num_workers = max(1, min(num_workers, resolved_num_envs))
+        try:
+            candidate = torch.device(requested)
+        except (RuntimeError, ValueError):
+            console.print(f"[yellow]Warning: Unknown device '{requested}'. Falling back to CPU.[/yellow]")
+            return torch.device("cpu")
 
-            if resolved_num_envs % resolved_num_workers != 0:
-                gcd = math.gcd(resolved_num_envs, resolved_num_workers)
-                resolved_num_workers = gcd or 1
+        if candidate.type == "cuda" and not cuda_usable():
+            console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
+            return torch.device("cpu")
 
-            env_cfgs = env_cfgs[:resolved_num_envs]
-            env_names = env_names[:resolved_num_envs]
+        if candidate.type == "mps" and not mps_usable():
+            console.print("[yellow]MPS requested but unavailable. Training will run on CPU instead.[/yellow]")
+            return torch.device("cpu")
+
+        return candidate
+
+    torch_device = resolve_training_device(device)
+    resolved_device_type = torch_device.type
+    resolved_num_envs, resolved_num_workers = _suggest_parallelism(resolved_device_type, num_envs, num_workers)
+    if vector_backend.lower() == "multiprocessing" and sys.platform == "darwin":
+        resolved_num_workers = 1
+
+    fallback_curricula = resolved_run_dir / "curricula"
+    base_games = [game_name] if game_name is not None else []
+    if not base_games and curriculum is None and not fallback_curricula.exists():
+        base_games = ["assembler_1_simple"]
+    env_cfgs, env_names = _collect_configs(
+        base_games,
+        curriculum,
+        max(resolved_num_envs, 32),
+        fallback_folder=fallback_curricula,
+        game_param="game_name",
+    )
+    env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
+
+    representative_game = env_names[0] if env_names else None
+
+    if env_cfgs:
+        import math
+
+        available = len(env_cfgs)
+        if num_envs is None:
+            resolved_num_envs = max(1, min(resolved_num_envs, available))
+        else:
+            resolved_num_envs = max(1, min(num_envs, available))
+
+        if num_workers is None:
+            resolved_num_workers = max(1, min(resolved_num_workers, resolved_num_envs))
+        else:
+            resolved_num_workers = max(1, min(num_workers, resolved_num_envs))
+
+        if resolved_num_envs % resolved_num_workers != 0:
+            gcd = math.gcd(resolved_num_envs, resolved_num_workers)
+            resolved_num_workers = gcd or 1
+
+        env_cfgs = env_cfgs[:resolved_num_envs]
+        env_names = env_names[:resolved_num_envs]
 
         if not env_cfgs:
             if game_name is None and curriculum is None:
@@ -694,8 +700,6 @@ def train_cmd(
         if backend == "ray" and not hasattr(train.pufferlib.vector, "Ray"):
             raise typer.BadParameter("Ray backend is not available", param_name="vector_backend")
 
-        device_obj = torch.device(resolved_device_name)
-
         if checkpoints_path is not None:
             checkpoints_dir = checkpoints_path.expanduser().resolve()
         else:
@@ -715,7 +719,7 @@ def train_cmd(
             env_cfgs=env_cfgs,
             policy_class_path=full_policy_path,
             initial_weights_path=resolved_initial,
-            device=device_obj,
+            device=torch_device,
             num_steps=steps,
             checkpoints_path=checkpoints_dir,
             seed=seed,
