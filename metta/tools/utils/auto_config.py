@@ -46,7 +46,7 @@ def _merge_wandb_settings(*settings_dicts: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def auto_wandb_config(run: str | None = None) -> WandbConfig:
+def auto_wandb_config(run: str | None = None, group: str | None = None, tags: list[str] | None = None) -> WandbConfig:
     wandb_setup_module = WandbSetup()
     merged_settings = _merge_wandb_settings(
         WandbConfig.Off().model_dump(),
@@ -58,8 +58,13 @@ def auto_wandb_config(run: str | None = None) -> WandbConfig:
 
     if run:
         cfg.run_id = run
-        cfg.group = run
         cfg.data_dir = f"./train_dir/{run}"
+
+    # Optional overrides
+    if group is not None:
+        cfg.group = group
+    if tags is not None:
+        cfg.tags = list(tags)
 
     return cfg
 
