@@ -19,6 +19,7 @@ struct AssemblerConfig : public GridObjectConfig {
         recipe_details_obs(false),
         input_recipe_offset(0),
         output_recipe_offset(0),
+        allow_partial_usage(false),
         max_uses(0),         // 0 means unlimited uses
         exhaustion(0.0f) {}  // 0 means no exhaustion
 
@@ -30,6 +31,8 @@ struct AssemblerConfig : public GridObjectConfig {
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
 
+  // Allow partial usage during cooldown
+  bool allow_partial_usage;
   // Maximum number of uses (0 = unlimited)
   unsigned int max_uses;
 
@@ -50,6 +53,7 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("tag_ids", &AssemblerConfig::tag_ids)
       .def_readwrite("recipes", &AssemblerConfig::recipes)
       .def_readwrite("recipe_details_obs", &AssemblerConfig::recipe_details_obs)
+      .def_readwrite("allow_partial_usage", &AssemblerConfig::allow_partial_usage)
       .def_readwrite("max_uses", &AssemblerConfig::max_uses)
       .def_readwrite("exhaustion", &AssemblerConfig::exhaustion);
 }
