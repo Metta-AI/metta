@@ -605,9 +605,8 @@ class TransformerPolicy(Policy):
                         )
 
                 if reset_mask is not None and reset_mask.any() and self._memory_tensor is not None:
-                    env_indices = env_indices or torch.tensor(
-                        env_ids, dtype=torch.long, device=self._memory_tensor.device
-                    )
+                    if env_indices is None:
+                        env_indices = torch.tensor(env_ids, dtype=torch.long, device=self._memory_tensor.device)
                     reset_env_indices = env_indices[reset_mask.to(self._memory_tensor.device, dtype=torch.bool)]
                     if reset_env_indices.numel() > 0:
                         self._memory_tensor.index_fill_(0, reset_env_indices, 0.0)
