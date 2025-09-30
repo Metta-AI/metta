@@ -46,7 +46,7 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
       : GridObject(),
         HasInventory(config.inventory_config),
         group(config.group_id),
@@ -62,7 +62,7 @@ public:
         color(0),
         glyph(0),
         agent_id(0),
-        stats(),  // default constructor
+        stats(resource_names),
         current_stat_reward(0),
         reward(nullptr),
         prev_location(r, c, GridLayer::AgentLayer),

@@ -102,7 +102,8 @@ protected:
 
 TEST_F(MettaGridCppTest, AgentRewards) {
   AgentConfig agent_cfg = create_test_agent_config();
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+  auto resource_names = create_test_resource_names();
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
 
   // Test reward values
   EXPECT_FLOAT_EQ(agent->stat_rewards[std::string(TestItemStrings::ORE) + ".amount"], 0.125f);
@@ -121,10 +122,8 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
 
   AgentConfig agent_cfg(
       0, "agent", 1, "test_group", 100, 0.0f, create_test_inventory_config(), rewards, stats_reward_max);
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
-
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
 
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
@@ -133,7 +132,7 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
   agent->stats.set("heart.amount", 5.0f);  // Agent has 5 hearts
 
   // Create an additional stats tracker (e.g., from game or chest)
-  StatsTracker additional_stats;
+  StatsTracker additional_stats(&resource_names);
   additional_stats.set("chest.heart.amount", 10.0f);  // Additional 10 chest hearts
 
   // Compute rewards without additional tracker
@@ -158,10 +157,8 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
 
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   AgentConfig agent_cfg = create_test_agent_config();
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
-
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
 
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
@@ -209,9 +206,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -277,9 +273,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -335,9 +330,8 @@ TEST_F(MettaGridCppTest, SharedInventoryLimits) {
 
   AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0.0f, inventory_config, rewards, stats_reward_max, 0.0f, {});
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   auto resource_names = create_test_resource_names();
-  agent->stats.set_resource_names(&resource_names);
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -407,7 +401,8 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
 
   // Create and add an agent
   AgentConfig agent_cfg = create_test_agent_config();
-  Agent* agent = new Agent(2, 3, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(2, 3, agent_cfg, &resource_names);
 
   grid.add_object(agent);
 
@@ -436,11 +431,12 @@ TEST_F(MettaGridCppTest, AttackAction) {
   // Create attacker and target
   AgentConfig attacker_cfg = create_test_agent_config();
   attacker_cfg.group_name = "red";
-  Agent* attacker = new Agent(2, 0, attacker_cfg);
   AgentConfig target_cfg = create_test_agent_config();
   target_cfg.group_name = "blue";
   target_cfg.group_id = 2;
-  Agent* target = new Agent(0, 0, target_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* attacker = new Agent(2, 0, attacker_cfg, &resource_names);
+  Agent* target = new Agent(0, 0, target_cfg, &resource_names);
 
   float attacker_reward = 0.0f;
   float target_reward = 0.0f;
@@ -500,7 +496,8 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.group_name = "red";
   agent_cfg.group_id = 1;
-  Agent* agent = new Agent(1, 0, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -553,7 +550,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.group_name = "red";
   agent_cfg.group_id = 1;
-  Agent* agent = new Agent(1, 0, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 0, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -599,7 +597,8 @@ TEST_F(MettaGridCppTest, ActionTracking) {
   Grid grid(10, 10);
 
   AgentConfig agent_cfg = create_test_agent_config();
-  Agent* agent = new Agent(5, 5, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(5, 5, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -653,7 +652,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -677,7 +677,7 @@ TEST_F(MettaGridCppTest, FractionalConsumptionProbability) {
   // Test that action fails when inventory is empty
   AgentConfig poor_cfg = create_test_agent_config();
   // Don't set initial_inventory so the agent starts with nothing
-  Agent* poor_agent = new Agent(2, 1, poor_cfg);
+  Agent* poor_agent = new Agent(2, 1, poor_cfg, &resource_names);
   float poor_reward = 0.0f;
   poor_agent->init(&poor_reward);
   grid.add_object(poor_agent);
@@ -692,7 +692,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionWithOverflow) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 5;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -718,7 +719,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionRequiresCeiledInventory) {
   // Create agent with only 1 resource
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 1;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -750,7 +752,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionZero) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -778,7 +781,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionInteger) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -805,7 +809,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionSmallFraction) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 20;  // Enough for test
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -839,7 +844,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionLargeFraction) {
   // Create agent with initial energy
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 50;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -875,7 +881,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionMultipleResources) {
   agent_cfg.initial_inventory[TestItems::ORE] = 50;
   agent_cfg.initial_inventory[TestItems::LASER] = 50;
   agent_cfg.initial_inventory[TestItems::ARMOR] = 50;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -914,13 +921,15 @@ TEST_F(MettaGridCppTest, FractionalConsumptionAttackAction) {
   // Create attacker with lasers
   AgentConfig attacker_cfg = create_test_agent_config();
   attacker_cfg.group_name = "red";
-  Agent* attacker = new Agent(2, 0, attacker_cfg);
 
   // Create target
   AgentConfig target_cfg = create_test_agent_config();
   target_cfg.group_name = "blue";
   target_cfg.group_id = 2;
-  Agent* target = new Agent(0, 0, target_cfg);
+
+  auto resource_names = create_test_resource_names();
+  Agent* attacker = new Agent(2, 0, attacker_cfg, &resource_names);
+  Agent* target = new Agent(0, 0, target_cfg, &resource_names);
 
   float attacker_reward = 0.0f;
   float target_reward = 0.0f;
@@ -966,7 +975,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionChangeGlyphAction) {
   // Create agent with resources
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 30;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -999,7 +1009,8 @@ TEST_F(MettaGridCppTest, FractionalConsumptionBoundaryValues) {
   // Create agent with exact boundary amount
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 1;
-  Agent* agent = new Agent(1, 1, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(1, 1, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
   grid.add_object(agent);
@@ -1030,12 +1041,14 @@ TEST_F(MettaGridCppTest, FractionalConsumptionDeterministicWithSameSeed) {
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 100;
 
-  Agent* agent1 = new Agent(1, 1, agent_cfg);
+  auto resource_names1 = create_test_resource_names();
+  Agent* agent1 = new Agent(1, 1, agent_cfg, &resource_names1);
   float reward1 = 0.0f;
   agent1->init(&reward1);
   grid1.add_object(agent1);
 
-  Agent* agent2 = new Agent(1, 1, agent_cfg);
+  auto resource_names2 = create_test_resource_names();
+  Agent* agent2 = new Agent(1, 1, agent_cfg, &resource_names2);
   float reward2 = 0.0f;
   agent2->init(&reward2);
   grid2.add_object(agent2);
@@ -1224,8 +1237,9 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   uint8_t pattern = assembler->get_agent_pattern_byte();
 
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
-  Agent* agent1 = new Agent(4, 5, agent_cfg);  // North of assembler
-  Agent* agent2 = new Agent(5, 6, agent_cfg);  // East of assembler
+  auto resource_names = create_test_resource_names();
+  Agent* agent1 = new Agent(4, 5, agent_cfg, &resource_names);  // North of assembler
+  Agent* agent2 = new Agent(5, 6, agent_cfg, &resource_names);  // East of assembler
 
   grid->add_object(agent1);
   grid->add_object(agent2);
@@ -1239,7 +1253,7 @@ TEST_F(MettaGridCppTest, AssemblerGetAgentPatternByte) {
   grid->move_object(*agent1, GridLocation(4, 4, GridLayer::AgentLayer));  // Move to NW
   grid->move_object(*agent2, GridLocation(6, 4, GridLayer::AgentLayer));  // Move to SW
 
-  Agent* agent3 = new Agent(6, 6, agent_cfg);  // SE of assembler
+  Agent* agent3 = new Agent(6, 6, agent_cfg, &resource_names);  // SE of assembler
   grid->add_object(agent3);                    // Add new agent
 
   pattern = assembler->get_agent_pattern_byte();
@@ -1278,7 +1292,8 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentRecipe) {
 
   // Add one agent at NW position (bit 0) - should get pattern 1 (recipe1)
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
-  Agent* agent = new Agent(4, 4, agent_cfg);  // NW of assembler
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(4, 4, agent_cfg, &resource_names);  // NW of assembler
   grid.add_object(agent);
 
   current_recipe = assembler->get_current_recipe();
@@ -1358,9 +1373,10 @@ TEST_F(MettaGridCppTest, AssemblerConsumeResourcesAcrossAgents) {
                            "agent",   // type_name
                            0,         // group_id
                            "agent");  // group_name
-  Agent agent1(0, 0, agent_config);
-  Agent agent2(0, 0, agent_config);
-  Agent agent3(0, 0, agent_config);
+  auto resource_names = create_test_resource_names();
+  Agent agent1(0, 0, agent_config, &resource_names);
+  Agent agent2(0, 0, agent_config, &resource_names);
+  Agent agent3(0, 0, agent_config, &resource_names);
 
   agent1.update_inventory(TestItems::ORE, 3);
   agent2.update_inventory(TestItems::ORE, 4);
@@ -1426,7 +1442,8 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
   agent_cfg.initial_inventory[TestItems::HEART] = 5;
 
-  Agent* agent = new Agent(4, 5, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(4, 5, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->reward = &agent_reward;
   grid.add_object(agent);
@@ -1520,7 +1537,8 @@ TEST_F(MettaGridCppTest, AssemblerMaxUses) {
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
 
-  Agent* agent = new Agent(4, 5, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(4, 5, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->reward = &agent_reward;
   grid.add_object(agent);
@@ -1614,7 +1632,8 @@ TEST_F(MettaGridCppTest, AssemblerExhaustion) {
   AgentConfig agent_cfg = create_test_agent_config();
   agent_cfg.initial_inventory[TestItems::ORE] = 10;
 
-  Agent* agent = new Agent(4, 5, agent_cfg);
+  auto resource_names = create_test_resource_names();
+  Agent* agent = new Agent(4, 5, agent_cfg, &resource_names);
   float agent_reward = 0.0f;
   agent->reward = &agent_reward;
   grid.add_object(agent);
