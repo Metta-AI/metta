@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Dict, Optional
 
 import numpy as np
 import torch
@@ -7,7 +7,7 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, TrainablePolicy
-from mettagrid import MettaGridEnv
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.simple_policy")
 
@@ -29,7 +29,9 @@ class SimplePolicyNet(torch.nn.Module):
         self.value_head = torch.nn.Linear(self.hidden_size, 1)
 
     def forward_eval(
-        self, observations: torch.Tensor, state: Optional[Any] = None
+        self,
+        observations: torch.Tensor,
+        state: Optional[Dict[str, torch.Tensor]] = None,
     ) -> tuple[list[torch.Tensor], torch.Tensor]:
         batch_size = observations.shape[0]
         obs_flat = observations.view(batch_size, -1).float() / 255.0
@@ -42,7 +44,9 @@ class SimplePolicyNet(torch.nn.Module):
 
     # We use this to work around a major torch perf issue
     def forward(
-        self, observations: torch.Tensor, state: Optional[Any] = None
+        self,
+        observations: torch.Tensor,
+        state: Optional[Dict[str, torch.Tensor]] = None,
     ) -> tuple[list[torch.Tensor], torch.Tensor]:
         return self.forward_eval(observations, state)
 
@@ -55,7 +59,7 @@ class SimpleAgentPolicyImpl(AgentPolicy):
         self._device = device
         self._action_nvec = action_nvec
 
-    def step(self, obs: Any) -> Any:
+    def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action for this agent."""
         obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
 

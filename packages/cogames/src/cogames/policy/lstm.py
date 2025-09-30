@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -8,7 +8,7 @@ from einops import rearrange
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
-from mettagrid import MettaGridEnv
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.lstm_policy")
 
@@ -161,8 +161,10 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
         return None
 
     def step_with_state(
-        self, obs: Any, state: Optional[Tuple[torch.Tensor, torch.Tensor]]
-    ) -> Tuple[Any, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+        self,
+        obs: Union[MettaGridObservation, torch.Tensor],
+        state: Optional[Tuple[torch.Tensor, torch.Tensor]],
+    ) -> Tuple[MettaGridAction, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Get action and update state for this agent."""
         # Convert single observation to batch of 1 for network forward pass
         if isinstance(obs, torch.Tensor):

@@ -1,15 +1,17 @@
 """Random policy implementation for CoGames."""
 
-from typing import Any, Optional
+from typing import Optional
 
-from cogames.policy.policy import Policy
-from mettagrid import MettaGridEnv
+import numpy as np
+
+from cogames.policy.policy import AgentPolicy, Policy
+from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 
-class RandomPolicy(Policy):
+class RandomPolicy(Policy, AgentPolicy):
     """Random policy that samples actions uniformly from the action space."""
 
-    def __init__(self, env: MettaGridEnv, device: Optional[Any] = None):
+    def __init__(self, env: MettaGridEnv, device: Optional[object] = None):
         """Initialize random policy.
 
         Args:
@@ -19,7 +21,10 @@ class RandomPolicy(Policy):
         self._env = env
         self._action_space = env.single_action_space
 
-    def step(self, obs: Any) -> Any:
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        return self
+
+    def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get random action.
 
         Args:
@@ -28,8 +33,8 @@ class RandomPolicy(Policy):
         Returns:
             A random action sampled from the action space
         """
-        # Return a random action
-        return self._action_space.sample()
+        sample = self._action_space.sample()
+        return np.asarray(sample, dtype=np.int32)
 
     def reset(self) -> None:
         """Reset the policy state (no-op for random policy)."""

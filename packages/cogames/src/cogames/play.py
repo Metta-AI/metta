@@ -71,10 +71,8 @@ def play(
         for agent_id in range(env.num_agents):
             agent_policies.append(policy_instance.agent_policy(agent_id))
     elif isinstance(policy_instance, Policy):
-        # Simple policy - use the same instance for all agents
-        # (like RandomPolicy which doesn't have agent-specific state)
-        for _ in range(env.num_agents):
-            agent_policies.append(policy_instance)
+        for agent_id in range(env.num_agents):
+            agent_policies.append(policy_instance.agent_policy(agent_id))
     else:
         raise ValueError("Policy class must implement either Policy or TrainablePolicy interface")
 

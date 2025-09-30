@@ -129,6 +129,27 @@ uv run cogames curricula --output-dir ./tmp/maps --game assembler_1_simple --gam
 
 The command writes each map configuration once (deduplicated by name) and prints the final output directory. `cogames train` automatically looks for maps in `packages/cogames/runs/default/curricula` when no `--curriculum` argument is provided.
 
+### Generating Map Variants
+
+Need a sweep of related maps? `cogames make-game` can generate a family of configurations by interpolating a configuration field across a range. The command accepts the same base options as before, plus:
+
+- `--num-variants` – how many variants to generate (defaults to 1)
+- `--key` – dotted path into the `MettaGridConfig` to modify (for example `game.map_builder.width`)
+- `--min` / `--max` – inclusive range values for the sweep
+
+When more than one variant is requested the `--output` argument must point to a directory; each variant is written as its own YAML file.
+
+```bash
+cogames make-game assembler_2_simple \
+  --output ./runs/map_variants \
+  --num-variants 3 \
+  --key game.map_builder.width \
+  --min 64 \
+  --max 192
+```
+
+The example above creates three maps with widths evenly spaced between 64 and 192 cells and writes them into `./runs/map_variants/`.
+
 ### Cleaning Run Artifacts
 
 If you need to reset the fallback run directories (for example, to clear out stale curricula that no longer match the latest game definitions), use `cogames clean`:

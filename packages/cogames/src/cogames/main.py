@@ -468,6 +468,13 @@ def make_scenario(
     width: int = typer.Option(10, "--width", "-w", help="Map width"),
     height: int = typer.Option(10, "--height", "-h", help="Map height"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
+    num_variants: Annotated[int, typer.Option("--num-variants", help="Number of map variants to generate")] = 1,
+    variant_key: Annotated[
+        Optional[str],
+        typer.Option("--key", help="Dot path to MettaGridConfig field to sweep (e.g. 'game.map.width')"),
+    ] = None,
+    variant_min: Annotated[Optional[float], typer.Option("--min", help="Minimum value for sweep")] = None,
+    variant_max: Annotated[Optional[float], typer.Option("--max", help="Maximum value for sweep")] = None,
 ) -> None:
     """Create a new game configuration."""
     with _command_timeout(ctx):
@@ -482,20 +489,111 @@ def make_scenario(
 
             from cogames.cogs_vs_clips.scenarios import make_game
 
-            new_config = make_game(
+            base_config = make_game(
                 num_cogs=num_agents,
                 num_assemblers=1,
                 num_chests=1,
             )
-            new_config.game.map_builder.width = width
-            new_config.game.map_builder.height = height
-            new_config.game.num_agents = num_agents
 
-            if output:
-                game.save_game_config(new_config, output)
-                console.print(f"[green]Game configuration saved to: {output}[/green]")
+            def apply_common_fields(cfg: MettaGridConfig) -> MettaGridConfig:
+                cfg.game.map_builder.width = width
+                cfg.game.map_builder.height = height
+                cfg.game.num_agents = num_agents
+                return cfg
+
+            def cast_variant_value(current: Any, raw: float) -> Any:
+                if isinstance(current, bool):
+                    return bool(raw)
+                if isinstance(current, int) and not isinstance(current, bool):
+                    return int(round(raw))
+                if isinstance(current, float):
+                    return float(raw)
+                return raw
+
+            def assign_attr(obj: Any, path: str, raw_value: float) -> Any:
+                parts = path.split(".")
+                target = obj
+                for part in parts[:-1]:
+                    if hasattr(target, part):
+                        target = getattr(target, part)
+                    else:
+                        raise typer.BadParameter(f"Unknown config key '{path}'.", param_name="key")
+
+                attr = parts[-1]
+                if not hasattr(target, attr):
+                    raise typer.BadParameter(f"Unknown config key '{path}'.", param_name="key")
+
+                current_value = getattr(target, attr)
+                casted_value = cast_variant_value(current_value, raw_value)
+                setattr(target, attr, casted_value)
+                return casted_value
+
+            if num_variants < 1:
+                raise typer.BadParameter("--num-variants must be >= 1", param_name="num_variants")
+
+            if num_variants > 1 and variant_key is None:
+                raise typer.BadParameter("Provide --key when generating multiple variants", param_name="key")
+
+            if num_variants > 1 and (variant_min is None or variant_max is None):
+                raise typer.BadParameter(
+                    "Provide both --min and --max when generating multiple variants",
+                    param_name="min",
+                )
+
+            variant_values: list[Optional[float]]
+            if variant_key:
+                if num_variants == 1:
+                    chosen = variant_min if variant_min is not None else variant_max
+                    variant_values = [chosen]
+                else:
+                    start = variant_min or 0.0
+                    end = variant_max or start
+                    denominator = max(num_variants - 1, 1)
+                    span = end - start
+                    variant_values = [start + span * (idx / denominator) for idx in range(num_variants)]
             else:
-                console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
+                variant_values = [None] * num_variants
+
+            variants: list[MettaGridConfig] = []
+            for raw_value in variant_values:
+                cfg = apply_common_fields(base_config.model_copy(deep=True))
+                if variant_key and raw_value is not None:
+                    assign_attr(cfg, variant_key, raw_value)
+                variants.append(cfg)
+
+            base_label = getattr(variants[0].game, "name", base_game or "map")
+            safe_base_label = _sanitize_filename(str(base_label)) or "map"
+
+            if num_variants > 1:
+                if output is None:
+                    raise typer.BadParameter(
+                        "Provide --output pointing to a directory when generating variants.",
+                        param_name="output",
+                    )
+                output_dir = output
+                if output_dir.suffix:
+                    raise typer.BadParameter(
+                        "--output must be a directory (no filename) when generating variants.",
+                        param_name="output",
+                    )
+                output_dir.mkdir(parents=True, exist_ok=True)
+                for idx, cfg in enumerate(variants):
+                    filename = output_dir / f"{safe_base_label}_{idx:03d}.yaml"
+                    game.save_game_config(cfg, filename)
+                console.print(f"[green]Generated {len(variants)} variants at: {output_dir}[/green]")
+            else:
+                cfg = variants[0]
+                if output:
+                    if output.is_dir() or not output.suffix:
+                        output.mkdir(parents=True, exist_ok=True)
+                        target_path = (output / f"{safe_base_label}.yaml").resolve()
+                    else:
+                        output.parent.mkdir(parents=True, exist_ok=True)
+                        target_path = output.resolve()
+                    game.save_game_config(cfg, target_path)
+                    console.print(f"[green]Game configuration saved to: {target_path}[/green]")
+                else:
+                    console.print("\n[yellow]To save this configuration, use the --output option.[/yellow]")
         except typer.BadParameter:
             raise
         except Exception as exc:  # pragma: no cover - defensive guard for CLI errors
@@ -581,88 +679,88 @@ def train_cmd(
         resolved_run_dir = _resolve_run_dir(run_dir)
         resolved_run_dir.mkdir(parents=True, exist_ok=True)
 
-    backend = vector_backend.lower()
+        backend = vector_backend.lower()
 
-    def resolve_training_device(requested: str) -> torch.device:
-        normalized = requested.strip().lower()
+        def resolve_training_device(requested: str) -> torch.device:
+            normalized = requested.strip().lower()
 
-        def cuda_usable() -> bool:
-            cuda_backend = getattr(torch.backends, "cuda", None)
-            if cuda_backend is None or not getattr(cuda_backend, "is_built", lambda: False)():
-                return False
+            def cuda_usable() -> bool:
+                cuda_backend = getattr(torch.backends, "cuda", None)
+                if cuda_backend is None or not getattr(cuda_backend, "is_built", lambda: False)():
+                    return False
+                try:
+                    return torch.cuda.is_available()
+                except (AssertionError, RuntimeError):
+                    return False
+
+            def mps_usable() -> bool:
+                return hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+
+            if normalized == "auto":
+                if cuda_usable():
+                    return torch.device("cuda")
+                if mps_usable():
+                    return torch.device("mps")
+                console.print("[yellow]CUDA/MPS unavailable; training will run on CPU.[/yellow]")
+                return torch.device("cpu")
+
             try:
-                return torch.cuda.is_available()
-            except (AssertionError, RuntimeError):
-                return False
+                candidate = torch.device(requested)
+            except (RuntimeError, ValueError):
+                console.print(f"[yellow]Warning: Unknown device '{requested}'. Falling back to CPU.[/yellow]")
+                return torch.device("cpu")
 
-        def mps_usable() -> bool:
-            return hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+            if candidate.type == "cuda" and not cuda_usable():
+                console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
+                return torch.device("cpu")
 
-        if normalized == "auto":
-            if cuda_usable():
-                return torch.device("cuda")
-            if mps_usable():
-                return torch.device("mps")
-            console.print("[yellow]CUDA/MPS unavailable; training will run on CPU.[/yellow]")
-            return torch.device("cpu")
+            if candidate.type == "mps" and not mps_usable():
+                console.print("[yellow]MPS requested but unavailable. Training will run on CPU instead.[/yellow]")
+                return torch.device("cpu")
 
-        try:
-            candidate = torch.device(requested)
-        except (RuntimeError, ValueError):
-            console.print(f"[yellow]Warning: Unknown device '{requested}'. Falling back to CPU.[/yellow]")
-            return torch.device("cpu")
+            return candidate
 
-        if candidate.type == "cuda" and not cuda_usable():
-            console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
-            return torch.device("cpu")
+        torch_device = resolve_training_device(device)
+        resolved_device_type = torch_device.type
+        resolved_num_envs, resolved_num_workers = _suggest_parallelism(resolved_device_type, num_envs, num_workers)
+        if vector_backend.lower() == "multiprocessing" and sys.platform == "darwin":
+            resolved_num_workers = 1
 
-        if candidate.type == "mps" and not mps_usable():
-            console.print("[yellow]MPS requested but unavailable. Training will run on CPU instead.[/yellow]")
-            return torch.device("cpu")
+        fallback_curricula = resolved_run_dir / "curricula"
+        base_games = [game_name] if game_name is not None else []
+        if not base_games and curriculum is None and not fallback_curricula.exists():
+            base_games = ["assembler_1_simple"]
+        env_cfgs, env_names = _collect_configs(
+            base_games,
+            curriculum,
+            max(resolved_num_envs, 32),
+            fallback_folder=fallback_curricula,
+            game_param="game_name",
+        )
+        env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
 
-        return candidate
+        representative_game = env_names[0] if env_names else None
 
-    torch_device = resolve_training_device(device)
-    resolved_device_type = torch_device.type
-    resolved_num_envs, resolved_num_workers = _suggest_parallelism(resolved_device_type, num_envs, num_workers)
-    if vector_backend.lower() == "multiprocessing" and sys.platform == "darwin":
-        resolved_num_workers = 1
+        if env_cfgs:
+            import math
 
-    fallback_curricula = resolved_run_dir / "curricula"
-    base_games = [game_name] if game_name is not None else []
-    if not base_games and curriculum is None and not fallback_curricula.exists():
-        base_games = ["assembler_1_simple"]
-    env_cfgs, env_names = _collect_configs(
-        base_games,
-        curriculum,
-        max(resolved_num_envs, 32),
-        fallback_folder=fallback_curricula,
-        game_param="game_name",
-    )
-    env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
+            available = len(env_cfgs)
+            if num_envs is None:
+                resolved_num_envs = max(1, min(resolved_num_envs, available))
+            else:
+                resolved_num_envs = max(1, min(num_envs, available))
 
-    representative_game = env_names[0] if env_names else None
+            if num_workers is None:
+                resolved_num_workers = max(1, min(resolved_num_workers, resolved_num_envs))
+            else:
+                resolved_num_workers = max(1, min(num_workers, resolved_num_envs))
 
-    if env_cfgs:
-        import math
+            if resolved_num_envs % resolved_num_workers != 0:
+                gcd = math.gcd(resolved_num_envs, resolved_num_workers)
+                resolved_num_workers = gcd or 1
 
-        available = len(env_cfgs)
-        if num_envs is None:
-            resolved_num_envs = max(1, min(resolved_num_envs, available))
-        else:
-            resolved_num_envs = max(1, min(num_envs, available))
-
-        if num_workers is None:
-            resolved_num_workers = max(1, min(resolved_num_workers, resolved_num_envs))
-        else:
-            resolved_num_workers = max(1, min(num_workers, resolved_num_envs))
-
-        if resolved_num_envs % resolved_num_workers != 0:
-            gcd = math.gcd(resolved_num_envs, resolved_num_workers)
-            resolved_num_workers = gcd or 1
-
-        env_cfgs = env_cfgs[:resolved_num_envs]
-        env_names = env_names[:resolved_num_envs]
+            env_cfgs = env_cfgs[:resolved_num_envs]
+            env_names = env_names[:resolved_num_envs]
 
         if not env_cfgs:
             if game_name is None and curriculum is None:
