@@ -118,3 +118,6 @@ cluster_test_jobs.json
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
+
+# Nim runtime
+.nim_runtime
