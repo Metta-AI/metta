@@ -3,15 +3,14 @@ import os
 import socket
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
 from wandb.sdk.wandb_run import Run as WandbRun
+
+from mettagrid.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-class WandbConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class WandbConfig(Config):
     enabled: bool
     project: str
     entity: str
@@ -55,7 +54,7 @@ class WandbContext:
     def __init__(
         self,
         wandb_config: WandbConfig,
-        run_config: BaseModel | dict[str, Any] | str | None = None,
+        run_config: Config | dict[str, Any] | str | None = None,
         timeout: int = 30,
         run_config_name: str | None = None,
     ):
@@ -107,7 +106,8 @@ class WandbContext:
                 if isinstance(self.run_config, dict):
                     key = self.run_config_name or "extra_config_dict"
                     config = {key: self.run_config}
-                elif isinstance(self.run_config, BaseModel):
+                elif isinstance(self.run_config, Config):
+                    # Assume it's a Config object with model_dump method
                     class_name = self.run_config.__class__.__name__
                     key = self.run_config_name or class_name or "extra_config_object"
                     config = {key: self.run_config.model_dump()}
