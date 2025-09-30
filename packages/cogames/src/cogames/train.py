@@ -119,26 +119,22 @@ def train(
     # PuffeRL enforces two simple rules:
     # 1. batch_size >= num_agents * bptt_horizon
     # 2. batch_size % (num_envs / num_workers) == 0
-    required_batch = max(batch_size, total_agents * bptt_horizon)
-    if required_batch != batch_size:
+    original_batch_size = batch_size
+    amended_batch_size = max(original_batch_size, total_agents * bptt_horizon)
+    remainder = amended_batch_size % envs_per_worker
+    if remainder:
+        amended_batch_size += envs_per_worker - remainder
+
+    if amended_batch_size != original_batch_size:
         logger.info(
-            "Raising batch_size from %s to %s to cover %s agents with horizon %s",
-            batch_size,
-            required_batch,
+            "Adjusted batch_size from %s to %s (agents=%s, horizon=%s, envs/worker=%s)",
+            original_batch_size,
+            amended_batch_size,
             total_agents,
             bptt_horizon,
-        )
-
-    remainder = required_batch % envs_per_worker
-    if remainder:
-        required_batch += envs_per_worker - remainder
-        logger.info(
-            "Rounding batch_size up to %s to stay divisible by envs/worker (%s)",
-            required_batch,
             envs_per_worker,
         )
 
-    amended_batch_size = required_batch
     amended_minibatch_size = min(minibatch_size, amended_batch_size)
     if amended_minibatch_size != minibatch_size:
         logger.info(
