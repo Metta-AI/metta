@@ -22,11 +22,13 @@ def navigation_env():
 
 @pytest.fixture(scope="function")
 def curriculum_config(arena_env):
-    """Create a basic curriculum configuration."""
+    """Create a basic curriculum configuration with two-pool setup."""
     return CurriculumConfig(
         task_generator=SingleTaskGenerator.Config(env=arena_env),
         max_task_id=1000,
         num_active_tasks=50,
+        explore_pool_capacity=5,
+        exploit_pool_capacity=45,
     )
 
 

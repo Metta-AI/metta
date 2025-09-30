@@ -59,12 +59,15 @@ class TestCurriculumStateSerialization:
         assert "seed" in state
         assert "num_created" in state
         assert "num_evicted" in state
-        assert "tasks" in state
+        assert "explore_pool" in state
+        assert "exploit_pool" in state
+        assert "P_accept" in state
         assert "algorithm_state" in state
 
-        # Verify task data is saved
-        assert len(state["tasks"]) > 0
-        for _task_id, task_data in state["tasks"].items():
+        # Verify task data is saved in both pools
+        all_tasks = {**state["explore_pool"], **state["exploit_pool"]}
+        assert len(all_tasks) > 0
+        for _task_id, task_data in all_tasks.items():
             assert "num_completions" in task_data
             assert "total_score" in task_data
             assert "mean_score" in task_data
@@ -389,7 +392,10 @@ class TestCheckpointManagerIntegration:
             loaded_curriculum_state = loaded_state["curriculum_state"]
             assert loaded_curriculum_state["num_created"] == curriculum_state["num_created"]
             assert loaded_curriculum_state["num_evicted"] == curriculum_state["num_evicted"]
-            assert len(loaded_curriculum_state["tasks"]) == len(curriculum_state["tasks"])
+            # Check both pools
+            loaded_all_tasks = {**loaded_curriculum_state["explore_pool"], **loaded_curriculum_state["exploit_pool"]}
+            original_all_tasks = {**curriculum_state["explore_pool"], **curriculum_state["exploit_pool"]}
+            assert len(loaded_all_tasks) == len(original_all_tasks)
 
     def test_checkpoint_manager_without_curriculum_state(self):
         """Test CheckpointManager works without curriculum state (backward compatibility)."""
@@ -525,7 +531,17 @@ class TestCurriculumRoundtripBehavior:
         curriculum2 = Curriculum(curriculum_config, seed=999)  # Different seed
         curriculum2.load_state(state)
 
-        # Continue activity and verify consistent behavior
+        # Verify state was restored correctly immediately after load
+        assert curriculum1._num_created == curriculum2._num_created, "Created count should match after load"
+        assert curriculum1._num_evicted == curriculum2._num_evicted, "Evicted count should match after load"
+        assert len(curriculum1._explore_pool) == len(curriculum2._explore_pool), (
+            "Explore pool size should match after load"
+        )
+        assert len(curriculum1._exploit_pool) == len(curriculum2._exploit_pool), (
+            "Exploit pool size should match after load"
+        )
+
+        # Continue activity to verify curriculum works correctly after restore
         post_restore_selections = []
         for _ in range(30):
             task = curriculum2.get_task()
@@ -536,14 +552,16 @@ class TestCurriculumRoundtripBehavior:
                 task.complete(score)
                 curriculum2.update_task_performance(task._task_id, score)
 
-        # Verify curriculum state consistency
-        assert curriculum1._num_created == curriculum2._num_created
-        assert curriculum1._num_evicted == curriculum2._num_evicted
-        assert len(curriculum1._tasks) == len(curriculum2._tasks)
+        # Verify curriculum continues to function correctly after restore
+        assert len(post_restore_selections) == 30, "Should select 30 tasks"
 
-        # Tasks should exist and be selectable
-        assert len(post_restore_selections) == 30
-        assert all(task_id in curriculum2._tasks for task_id in post_restore_selections)
+        # Pools should still be at capacity (two-pool system may create/evict tasks during promotion)
+        all_tasks_c2 = {**curriculum2._explore_pool, **curriculum2._exploit_pool}
+        assert len(all_tasks_c2) == curriculum_config.num_active_tasks, "Pools should be at capacity"
+
+        # At least some of the selected tasks should still exist (those selected near the end)
+        recent_selections = post_restore_selections[-10:]  # Last 10 selections
+        assert any(task_id in all_tasks_c2 for task_id in recent_selections), "Recent selections should exist"
 
     def test_learning_progress_curriculum_roundtrip(self):
         """Test roundtrip for learning progress curriculum with bidirectional scoring."""

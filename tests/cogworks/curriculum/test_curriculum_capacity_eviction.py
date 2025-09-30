@@ -16,6 +16,8 @@ class TestCurriculumCapacityAndEviction:
 
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 5  # Small for testing
+        config.explore_pool_capacity = 1  # 1 explore
+        config.exploit_pool_capacity = 4  # 4 exploit
 
         curriculum = config.make()
 
@@ -24,10 +26,13 @@ class TestCurriculumCapacityAndEviction:
         assert initial_stats["num_created"] == config.num_active_tasks
         assert initial_stats["num_active_tasks"] == config.num_active_tasks
         assert initial_stats["num_evicted"] == 0
+        # Check both pools are initialized
+        assert initial_stats["num_explore_tasks"] == 1
+        assert initial_stats["num_exploit_tasks"] == 4
 
     def test_algorithm_based_eviction_with_learning_progress(self):
-        """Test that algorithm-based eviction works with learning progress criteria."""
-        # Create a curriculum with algorithm-based eviction
+        """Test that two-pool promotion works with learning progress criteria."""
+        # Create a curriculum with two-pool configuration
         arena = make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 0.5, 1.0])
@@ -35,7 +40,9 @@ class TestCurriculumCapacityAndEviction:
 
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 8  # Small for testing
-        config.min_presentations_for_eviction = 10  # More presentations for realistic EMA timescales
+        config.explore_pool_capacity = 2  # 2 explore
+        config.exploit_pool_capacity = 6  # 6 exploit
+        config.promotion_threshold = 10  # More presentations for realistic EMA timescales
         config.algorithm_config = cc.LearningProgressConfig(
             ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100, use_shared_memory=False
         )
@@ -103,13 +110,15 @@ class TestCurriculumCapacityAndEviction:
         assert final_stats["num_created"] > config.num_active_tasks
 
     def test_curriculum_without_algorithm(self):
-        """Test that curriculum behavior without algorithm doesn't evict tasks."""
+        """Test that curriculum behavior without algorithm maintains two-pool structure."""
         arena = make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 1.0])
 
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 5
+        config.explore_pool_capacity = 1
+        config.exploit_pool_capacity = 4
         config.algorithm_config = None  # No algorithm
 
         curriculum = config.make()
@@ -129,83 +138,52 @@ class TestCurriculumCapacityAndEviction:
         assert final_stats["num_created"] == config.num_active_tasks
 
     def test_minimum_presentations_requirement(self):
-        """Test that tasks are only evicted after minimum presentations."""
+        """Test that tasks in explore pool reach promotion threshold before promotion attempts."""
         arena = make_arena(num_agents=4)
         bucketed_config = cc.bucketed(arena)
         bucketed_config.add_bucket("game.agent.rewards.inventory.ore_red", [0.0, 1.0])
 
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 3  # Very small for testing
-        config.min_presentations_for_eviction = 15  # Require 15 presentations for realistic EMA development
+        config.explore_pool_capacity = 1
+        config.exploit_pool_capacity = 2
+        config.promotion_threshold = 5  # Require 5 presentations before promotion
         config.algorithm_config = cc.LearningProgressConfig(
             ema_timescale=0.1, exploration_bonus=0.1, max_memory_tasks=100, use_shared_memory=False
         )
 
         curriculum = config.make()
 
-        # Get all task IDs and track presentations
-        all_task_ids = list(curriculum._tasks.keys())
+        # Track initial state
+        initial_stats = curriculum.stats()
+        assert initial_stats["num_promotions_attempted"] == 0
+        assert initial_stats["num_promotions_accepted"] == 0
 
-        # Give different performance patterns to create eviction candidates
-        # while testing minimum presentations requirement
-        for task_id in all_task_ids:
-            task = curriculum._tasks[task_id]
-            # Task 0 gets many presentations with poor performance
-            # Task 1 and 2 get fewer presentations with varying performance
-            if task_id == all_task_ids[0]:
-                # Give this task minimum+5 presentations with poor performance
-                for _ in range(config.min_presentations_for_eviction + 5):
-                    task.complete(0.1)  # Poor performance
-                    curriculum.update_task_performance(task_id, 0.1)
-            elif task_id == all_task_ids[1]:
-                # Give this task exactly minimum presentations with good performance
-                for _ in range(config.min_presentations_for_eviction):
-                    task.complete(0.8)  # Good performance
-                    curriculum.update_task_performance(task_id, 0.8)
-            else:
-                # Give this task fewer than minimum presentations
-                for _ in range(config.min_presentations_for_eviction - 5):
-                    task.complete(0.5)  # Medium performance
-                    curriculum.update_task_performance(task_id, 0.5)
+        # Get the explore pool task and schedule/complete it below threshold
+        explore_task_id = list(curriculum._explore_pool.keys())[0]
+        explore_task = curriculum._explore_pool[explore_task_id]
 
-        # Check eviction criteria before forcing more get_task() calls
-        algorithm = curriculum._algorithm
+        # Give the explore task exactly threshold - 1 presentations (scheduled + completed)
+        for _ in range(config.promotion_threshold - 1):
+            explore_task._num_scheduled += 1  # Increment num_scheduled (normally done in get_task)
+            explore_task.complete(0.8)
+            curriculum.update_task_performance(explore_task_id, 0.8)
 
-        # Task 0 should be evictable (meets min presentations + poor performance)
-        task_0_evictable = algorithm.should_evict_task(all_task_ids[0], config.min_presentations_for_eviction)
-        # Task 1 should not be evictable (meets min presentations but good performance)
-        task_1_evictable = algorithm.should_evict_task(all_task_ids[1], config.min_presentations_for_eviction)
-        # Task 2 should not be evictable (doesn't meet min presentations)
-        task_2_evictable = algorithm.should_evict_task(all_task_ids[2], config.min_presentations_for_eviction)
+        # Check that no promotions have been attempted yet
+        mid_stats = curriculum.stats()
+        assert mid_stats["num_promotions_attempted"] == 0, "No promotions should happen before threshold"
 
-        print(
-            f"Task 0 evictable: {task_0_evictable}, "
-            f"Task 1 evictable: {task_1_evictable}, "
-            f"Task 2 evictable: {task_2_evictable}"
-        )
+        # Now schedule and complete one more time to reach threshold
+        explore_task._num_scheduled += 1
+        explore_task.complete(0.8)
+        curriculum.update_task_performance(explore_task_id, 0.8)
 
-        # Force get_task() calls to trigger eviction
-        for _ in range(20):
-            task = curriculum.get_task()
-            # Maintain performance patterns
-            if task._task_id == all_task_ids[0]:
-                task.complete(0.1)  # Poor
-                curriculum.update_task_performance(task._task_id, 0.1)
-            elif task._task_id in all_task_ids[1:]:
-                task.complete(0.8)  # Good
-                curriculum.update_task_performance(task._task_id, 0.8)
-            else:
-                # New task - give medium performance
-                task.complete(0.5)
-                curriculum.update_task_performance(task._task_id, 0.5)
-
+        # Check that promotions have now been attempted
         final_stats = curriculum.stats()
-
-        # Should have evictions once tasks meet the presentation requirement
-        assert final_stats["num_evicted"] > 0
+        assert final_stats["num_promotions_attempted"] > 0, "Promotions should be attempted after threshold"
 
     def test_learning_progress_eviction_criteria(self):
-        """Test that tasks with low learning progress are preferentially evicted."""
+        """Test that tasks with low learning progress are less likely to be promoted."""
         import random
 
         # Set fixed seed for reproducible test behavior
@@ -217,7 +195,9 @@ class TestCurriculumCapacityAndEviction:
 
         config = bucketed_config.to_curriculum()
         config.num_active_tasks = 4
-        config.min_presentations_for_eviction = 3
+        config.explore_pool_capacity = 1
+        config.exploit_pool_capacity = 3
+        config.promotion_threshold = 3
         config.algorithm_config = cc.LearningProgressConfig(
             ema_timescale=0.1,  # Faster convergence for testing
             exploration_bonus=0.01,  # Minimal exploration bonus to see learning progress differences

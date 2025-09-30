@@ -241,6 +241,18 @@ class CurriculumConfig(Config):
         default=5, gt=0, description="Minimum task presentations before eviction"
     )
 
+    # Two-pool curriculum parameters
+    # Pool capacities auto-calculate if not provided (~4% explore, ~96% exploit)
+    explore_pool_capacity: Optional[int] = Field(
+        default=None, gt=0, description="Maximum number of tasks in explore pool (defaults to ~4% of num_active_tasks)"
+    )
+    exploit_pool_capacity: Optional[int] = Field(
+        default=None, gt=0, description="Maximum number of tasks in exploit pool (defaults to ~96% of num_active_tasks)"
+    )
+    promotion_threshold: int = Field(default=10, gt=0, description="Number of presentations before promotion attempt")
+    min_explore_rate: float = Field(default=0.01, gt=0, lt=1, description="Minimum guaranteed exploration probability")
+    alpha: float = Field(default=0.1, gt=0, lt=1, description="Smoothing factor for EMA of acceptance rate")
+
     algorithm_config: Optional[Union["DiscreteRandomConfig", "LearningProgressConfig"]] = Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
@@ -262,10 +274,49 @@ class CurriculumConfig(Config):
         """Validate configuration after initialization."""
         super().model_post_init(__context)
 
+        # Two-pool system requires at least 2 tasks - auto-adjust if needed
+        if self.num_active_tasks < 2:
+            logger.warning(
+                f"Two-pool curriculum requires num_active_tasks >= 2, got {self.num_active_tasks}. "
+                f"Auto-adjusting to 2 (min: 1 explore + 1 exploit)."
+            )
+            self.num_active_tasks = 2
+            # Also adjust max_task_id if needed
+            if self.max_task_id < self.num_active_tasks:
+                self.max_task_id = self.num_active_tasks
+
         if self.num_active_tasks > self.max_task_id:
             raise ValueError(
                 f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
             )
+
+        # Auto-calculate pool capacities if not provided
+        # Use ~4% for explore pool (min 1), rest for exploit pool
+        if self.explore_pool_capacity is None and self.exploit_pool_capacity is None:
+            # Neither provided - auto-calculate both
+            # For small values, use 1 explore task; for larger values use ~4%
+            self.explore_pool_capacity = max(1, min(int(self.num_active_tasks * 0.04), self.num_active_tasks - 1))
+            self.exploit_pool_capacity = self.num_active_tasks - self.explore_pool_capacity
+        elif self.explore_pool_capacity is None:
+            # Only exploit provided - calculate explore
+            self.explore_pool_capacity = self.num_active_tasks - self.exploit_pool_capacity
+        elif self.exploit_pool_capacity is None:
+            # Only explore provided - calculate exploit
+            self.exploit_pool_capacity = self.num_active_tasks - self.explore_pool_capacity
+
+        # Validate two-pool configuration
+        if self.explore_pool_capacity + self.exploit_pool_capacity != self.num_active_tasks:
+            raise ValueError(
+                f"explore_pool_capacity ({self.explore_pool_capacity}) + "
+                f"exploit_pool_capacity ({self.exploit_pool_capacity}) must equal "
+                f"num_active_tasks ({self.num_active_tasks})"
+            )
+
+        # Ensure both pools have at least 1 task
+        if self.explore_pool_capacity < 1:
+            raise ValueError(f"explore_pool_capacity must be at least 1, got {self.explore_pool_capacity}")
+        if self.exploit_pool_capacity < 1:
+            raise ValueError(f"exploit_pool_capacity must be at least 1, got {self.exploit_pool_capacity}")
 
     def make(self) -> "Curriculum":
         """Create a Curriculum from this configuration."""
@@ -273,11 +324,15 @@ class CurriculumConfig(Config):
 
 
 class Curriculum(StatsLogger):
-    """Base curriculum class that uses TaskGenerator to generate EnvConfigs and returns Tasks.
+    """Two-pool curriculum class with Explore/Exploit strategy.
 
-    Curriculum takes a CurriculumConfig, and supports get_task(). It uses the task generator
-    to generate the EnvConfig and then returns a Task(env_cfg). It can optionally use a
-    CurriculumAlgorithm for intelligent task selection.
+    Maintains two separate task pools:
+    - Explore pool: Small pool for newly created tasks
+    - Exploit pool: Larger pool for tasks with proven learning value
+
+    Tasks are promoted from explore to exploit based on Learning Progress Score (LPS).
+    The promotion acceptance rate (P_accept) is tracked via EMA to adaptively balance
+    exploration and exploitation.
 
     Inherits from StatsLogger to provide unified statistics interface.
     """
@@ -289,10 +344,24 @@ class Curriculum(StatsLogger):
         self._config = config
         self._task_generator = config.task_generator.create()
         self._rng = random.Random(seed)
-        self._tasks: dict[int, CurriculumTask] = {}
-        self._task_ids: set[int] = set()
         self._num_created = 0
         self._num_evicted = 0
+
+        # Two separate pools for explore/exploit
+        self._explore_pool: dict[int, CurriculumTask] = {}
+        self._exploit_pool: dict[int, CurriculumTask] = {}
+        self._task_ids: set[int] = set()
+
+        # Promotion acceptance rate (running EMA)
+        self._P_accept: float = 0.5
+
+        # Track number of promotions attempted and accepted
+        self._num_promotions_attempted = 0
+        self._num_promotions_accepted = 0
+
+        # For backward compatibility with tests, create _tasks property
+        # that merges both pools
+        self._tasks_property_warning_shown = False
 
         self._algorithm: Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
@@ -301,60 +370,70 @@ class Curriculum(StatsLogger):
             if hasattr(self._algorithm, "set_curriculum_reference"):
                 self._algorithm.set_curriculum_reference(self)
 
-        # Always initialize task pool at capacity
+        # Always initialize task pools at capacity
         self._initialize_at_capacity()
 
-    def get_task(self) -> CurriculumTask:
-        """Sample a task from the population."""
-        # Curriculum always manages the task pool - no delegation
-        if len(self._tasks) < self._config.num_active_tasks:
-            task = self._create_task()
-        else:
-            # At capacity - check if any task meets eviction criteria first
-            task = None
-            if self._algorithm is not None:
-                evictable_tasks = [
-                    tid
-                    for tid in self._tasks.keys()
-                    if self._algorithm.should_evict_task(tid, self._config.min_presentations_for_eviction)
-                ]
-                if evictable_tasks:
-                    # Evict a task that meets the criteria and create a new one
-                    evict_candidate = self._algorithm.recommend_eviction(evictable_tasks)
-                    if evict_candidate is not None:
-                        self._evict_specific_task(evict_candidate)
-                        task = self._create_task()
+    @property
+    def _tasks(self) -> dict[int, CurriculumTask]:
+        """Backward compatibility property that merges both pools.
 
-            # If no eviction happened, choose from existing tasks
-            if task is None:
-                task = self._choose_task()
+        This property is provided for backward compatibility with existing tests
+        and code that expects a single _tasks dict. It returns a merged view of
+        both explore and exploit pools.
+        """
+        if not self._tasks_property_warning_shown:
+            logger.warning(
+                "Accessing _tasks property for backward compatibility. "
+                "Please update code to use _explore_pool and _exploit_pool directly."
+            )
+            self._tasks_property_warning_shown = True
+        return {**self._explore_pool, **self._exploit_pool}
+
+    def get_task(self) -> CurriculumTask:
+        """Two-pool mode task selection."""
+        # Fill explore pool if not at capacity
+        if len(self._explore_pool) < self._config.explore_pool_capacity:
+            task = self._create_task(pool="explore")
+            task._num_scheduled += 1
+            return task
+
+        # Both pools should be at capacity at this point (or exploit pool filling)
+        if len(self._exploit_pool) < self._config.exploit_pool_capacity:
+            # Still filling exploit pool - create new tasks for it
+            task = self._create_task(pool="exploit")
+            task._num_scheduled += 1
+            return task
+
+        # Both pools at capacity - probabilistically choose pool
+        effective_explore_rate = max(self._P_accept, self._config.min_explore_rate)
+
+        if self._rng.random() < effective_explore_rate:
+            # Sample from explore pool
+            task = self._choose_task_from_pool(self._explore_pool)
+        else:
+            # Sample from exploit pool
+            task = self._choose_task_from_pool(self._exploit_pool)
 
         task._num_scheduled += 1
         return task
 
     def _initialize_at_capacity(self) -> None:
-        """Initialize the task pool to full capacity."""
-        while len(self._tasks) < self._config.num_active_tasks:
-            self._create_task()
+        """Initialize both task pools to full capacity."""
+        # Fill explore pool first
+        while len(self._explore_pool) < self._config.explore_pool_capacity:
+            self._create_task(pool="explore")
+        # Then fill exploit pool
+        while len(self._exploit_pool) < self._config.exploit_pool_capacity:
+            self._create_task(pool="exploit")
 
-    def _evict_specific_task(self, task_id: int) -> None:
-        """Evict a specific task by ID."""
-        if task_id not in self._tasks:
-            return
+    def _choose_task_from_pool(self, pool: dict[int, CurriculumTask]) -> CurriculumTask:
+        """Choose a task from a specific pool using algorithm guidance."""
+        if not pool:
+            raise ValueError("Cannot choose from empty pool")
 
-        # Notify algorithm of eviction
         if self._algorithm is not None:
-            self._algorithm.on_task_evicted(task_id)
-
-        self._task_ids.remove(task_id)
-        self._tasks.pop(task_id)
-        self._num_evicted += 1
-
-    def _choose_task(self) -> CurriculumTask:
-        """Choose a task from the population using algorithm guidance."""
-        if self._algorithm is not None:
-            # Get algorithm's task selection preferences
-            task_scores = self._algorithm.score_tasks(list(self._tasks.keys()))
+            # Get algorithm's task selection preferences for tasks in this pool
+            task_scores = self._algorithm.score_tasks(list(pool.keys()))
             if task_scores:
                 # Convert scores to probabilities for sampling
                 task_ids = list(task_scores.keys())
@@ -363,13 +442,17 @@ class Curriculum(StatsLogger):
                 if total_score > 0:
                     probabilities = [score / total_score for score in scores]
                     selected_id = self._rng.choices(task_ids, weights=probabilities)[0]
-                    return self._tasks[selected_id]
+                    return pool[selected_id]
 
-        # Fallback to random selection
-        return self._tasks[self._rng.choice(list(self._tasks.keys()))]
+        # Fallback to random selection from pool
+        return pool[self._rng.choice(list(pool.keys()))]
 
-    def _create_task(self) -> CurriculumTask:
-        """Create a new task."""
+    def _create_task(self, pool: str) -> CurriculumTask:
+        """Create a new task and add it to the specified pool.
+
+        Args:
+            pool: Which pool to add task to ("explore" or "exploit")
+        """
         task_id = self._rng.randint(0, self._config.max_task_id)
         while task_id in self._task_ids:
             task_id = self._rng.randint(0, self._config.max_task_id)
@@ -382,7 +465,15 @@ class Curriculum(StatsLogger):
             bucket_values = self._task_generator._last_bucket_values.copy()
 
         task = CurriculumTask(task_id, env_cfg, bucket_values)
-        self._tasks[task_id] = task
+
+        # Add to appropriate pool
+        if pool == "explore":
+            self._explore_pool[task_id] = task
+        elif pool == "exploit":
+            self._exploit_pool[task_id] = task
+        else:
+            raise ValueError(f"Invalid pool: {pool}. Must be 'explore' or 'exploit'")
+
         self._num_created += 1
 
         # Notify algorithm of new task
@@ -396,17 +487,114 @@ class Curriculum(StatsLogger):
         if self._algorithm is not None:
             self._algorithm.update_task_performance(task_id, score)
 
+        # Check for promotion
+        self._check_promotion(task_id)
+
         # Invalidate stats cache since task performance affects curriculum stats
         self.invalidate_cache()
 
+    def _check_promotion(self, task_id: int):
+        """Check if a task from explore pool should be promoted to exploit pool."""
+        # Only promote tasks from explore pool
+        if task_id not in self._explore_pool:
+            return
+
+        task = self._explore_pool[task_id]
+
+        # Check if task has reached promotion threshold
+        if task._num_scheduled < self._config.promotion_threshold:
+            return
+
+        # Task is ready for promotion attempt
+        self._num_promotions_attempted += 1
+
+        # Get LPS scores for promotion and comparison
+        if self._algorithm is None:
+            # Without algorithm, use random promotion
+            promote = self._rng.random() < 0.5
+        else:
+            # Find task with minimum LPS in exploit pool
+            if not self._exploit_pool:
+                # Exploit pool empty - auto-accept
+                promote = True
+            elif len(self._exploit_pool) < self._config.exploit_pool_capacity:
+                # Exploit pool not full - auto-accept
+                promote = True
+            else:
+                # Get scores for all tasks
+                exploit_scores = self._algorithm.score_tasks(list(self._exploit_pool.keys()))
+                promoted_task_score = self._algorithm.score_tasks([task_id]).get(task_id, 0.0)
+
+                # Find worst task in exploit pool
+                if exploit_scores:
+                    worst_exploit_id = min(exploit_scores.keys(), key=lambda tid: exploit_scores[tid])
+                    worst_exploit_score = exploit_scores[worst_exploit_id]
+
+                    # Promote if promoted task has higher LPS than worst exploit task
+                    if promoted_task_score > worst_exploit_score:
+                        promote = True
+                        # Remove worst task from exploit pool
+                        self._evict_from_pool(worst_exploit_id, "exploit")
+                    else:
+                        promote = False
+                else:
+                    # No scores available, use random
+                    promote = self._rng.random() < 0.5
+
+        # Execute promotion or rejection
+        if promote:
+            # Promotion accepted
+            self._num_promotions_accepted += 1
+            # Move task from explore to exploit pool
+            self._explore_pool.pop(task_id)
+            self._exploit_pool[task_id] = task
+            # Create new task in explore pool to maintain capacity
+            self._create_task(pool="explore")
+            success_indicator = 1.0
+        else:
+            # Promotion rejected
+            # Discard task from explore pool
+            self._evict_from_pool(task_id, "explore")
+            # Create new task in explore pool
+            self._create_task(pool="explore")
+            success_indicator = 0.0
+
+        # Update P_accept with EMA
+        self._P_accept = (1 - self._config.alpha) * self._P_accept + self._config.alpha * success_indicator
+
+    def _evict_from_pool(self, task_id: int, pool: str):
+        """Evict a task from a specific pool."""
+        # Notify algorithm of eviction
+        if self._algorithm is not None:
+            self._algorithm.on_task_evicted(task_id)
+
+        # Remove from appropriate pool
+        if pool == "explore":
+            if task_id in self._explore_pool:
+                self._explore_pool.pop(task_id)
+        elif pool == "exploit":
+            if task_id in self._exploit_pool:
+                self._exploit_pool.pop(task_id)
+
+        # Remove from global task IDs
+        self._task_ids.discard(task_id)
+        self._num_evicted += 1
+
     def get_base_stats(self) -> Dict[str, float]:
         """Get basic curriculum statistics."""
+        all_tasks = list(self._explore_pool.values()) + list(self._exploit_pool.values())
         base_stats: Dict[str, float] = {
             "num_created": float(self._num_created),
             "num_evicted": float(self._num_evicted),
-            "num_completed": float(sum(task._num_completions for task in self._tasks.values())),
-            "num_scheduled": float(sum(task._num_scheduled for task in self._tasks.values())),
-            "num_active_tasks": float(len(self._tasks)),
+            "num_completed": float(sum(task._num_completions for task in all_tasks)),
+            "num_scheduled": float(sum(task._num_scheduled for task in all_tasks)),
+            "num_active_tasks": float(len(all_tasks)),
+            "num_explore_tasks": float(len(self._explore_pool)),
+            "num_exploit_tasks": float(len(self._exploit_pool)),
+            "P_accept": float(self._P_accept),
+            "num_promotions_attempted": float(self._num_promotions_attempted),
+            "num_promotions_accepted": float(self._num_promotions_accepted),
+            "promotion_rate": float(self._num_promotions_accepted / max(1, self._num_promotions_attempted)),
         }
 
         # Include algorithm stats if available
@@ -428,12 +616,26 @@ class Curriculum(StatsLogger):
             "seed": self._rng.getstate(),
             "num_created": self._num_created,
             "num_evicted": self._num_evicted,
-            "tasks": {},
+            "P_accept": self._P_accept,
+            "num_promotions_attempted": self._num_promotions_attempted,
+            "num_promotions_accepted": self._num_promotions_accepted,
+            "explore_pool": {},
+            "exploit_pool": {},
         }
 
-        # Serialize task data (without env_cfg to save space)
-        for task_id, task in self._tasks.items():
-            state["tasks"][task_id] = {
+        # Serialize explore pool tasks
+        for task_id, task in self._explore_pool.items():
+            state["explore_pool"][task_id] = {
+                "num_completions": task._num_completions,
+                "total_score": task._total_score,
+                "mean_score": task._mean_score,
+                "num_scheduled": task._num_scheduled,
+                "slice_values": task._slice_values,
+            }
+
+        # Serialize exploit pool tasks
+        for task_id, task in self._exploit_pool.items():
+            state["exploit_pool"][task_id] = {
                 "num_completions": task._num_completions,
                 "total_score": task._total_score,
                 "mean_score": task._mean_score,
@@ -460,13 +662,17 @@ class Curriculum(StatsLogger):
         # Restore random state
         self._rng.setstate(state["seed"])
 
-        # Clear existing tasks
-        self._tasks.clear()
+        # Restore two-pool state
+        self._explore_pool.clear()
+        self._exploit_pool.clear()
         self._task_ids.clear()
 
-        # Restore tasks
-        for task_id_str, task_data in state["tasks"].items():
-            # Recreate env_cfg using task_id
+        self._P_accept = state.get("P_accept", 0.5)
+        self._num_promotions_attempted = state.get("num_promotions_attempted", 0)
+        self._num_promotions_accepted = state.get("num_promotions_accepted", 0)
+
+        # Restore explore pool
+        for task_id_str, task_data in state.get("explore_pool", {}).items():
             task_id = int(task_id_str)
             env_cfg = self._task_generator.get_task(task_id)
             task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
@@ -475,7 +681,20 @@ class Curriculum(StatsLogger):
             task._mean_score = task_data["mean_score"]
             task._num_scheduled = task_data["num_scheduled"]
 
-            self._tasks[task_id] = task
+            self._explore_pool[task_id] = task
+            self._task_ids.add(task_id)
+
+        # Restore exploit pool
+        for task_id_str, task_data in state.get("exploit_pool", {}).items():
+            task_id = int(task_id_str)
+            env_cfg = self._task_generator.get_task(task_id)
+            task = CurriculumTask(task_id, env_cfg, task_data["slice_values"])
+            task._num_completions = task_data["num_completions"]
+            task._total_score = task_data["total_score"]
+            task._mean_score = task_data["mean_score"]
+            task._num_scheduled = task_data["num_scheduled"]
+
+            self._exploit_pool[task_id] = task
             self._task_ids.add(task_id)
 
         # Restore algorithm state

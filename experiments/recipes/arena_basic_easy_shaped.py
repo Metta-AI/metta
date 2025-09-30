@@ -53,6 +53,12 @@ def make_curriculum(
     arena_env: Optional[MettaGridConfig] = None,
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
+    num_active_tasks: int = 260,
+    explore_pool_capacity: int = 10,
+    exploit_pool_capacity: int = 250,
+    promotion_threshold: int = 10,
+    min_explore_rate: float = 0.01,
+    alpha: float = 0.1,
 ) -> CurriculumConfig:
     arena_env = arena_env or make_mettagrid()
 
@@ -82,7 +88,16 @@ def make_curriculum(
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
 
-    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
+    return CurriculumConfig(
+        task_generator=arena_tasks,
+        num_active_tasks=num_active_tasks,
+        explore_pool_capacity=explore_pool_capacity,
+        exploit_pool_capacity=exploit_pool_capacity,
+        promotion_threshold=promotion_threshold,
+        min_explore_rate=min_explore_rate,
+        alpha=alpha,
+        algorithm_config=algorithm_config,
+    )
 
 
 def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
