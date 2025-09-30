@@ -1,7 +1,6 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_HPP_
 
-#include <cmath>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -114,14 +113,6 @@ public:
   // Usage tracking
   unsigned int uses_count;  // Current number of times used
   unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
-
-  // Exhaustion tracking
-  float exhaustion;           // Exhaustion rate (0 = no exhaustion)
-  float cooldown_multiplier;  // Current cooldown multiplier from exhaustion
-
-  // Usage tracking
-  unsigned int max_uses;    // Maximum number of uses (0 = unlimited)
-  unsigned int uses_count;  // Current number of times used
 
   // Exhaustion tracking
   float exhaustion;           // Exhaustion rate (0 = no exhaustion)
@@ -268,32 +259,6 @@ public:
     if (!grid || !current_timestep_ptr) {
       return false;
     }
-<<<<<<< HEAD
-    // Check if max uses has been reached
-    if (max_uses > 0 && uses_count >= max_uses) {
-      return false;
-    }
-    if (cooldown_remaining() > 0) {
-      return false;
-    }
-    const Recipe* recipe = get_current_recipe();
-    if (!recipe || (recipe->input_resources.empty() && recipe->output_resources.empty())) {
-      return false;
-    }
-    std::vector<Agent*> surrounding_agents = get_surrounding_agents();
-    if (!can_afford_recipe(*recipe, surrounding_agents)) {
-      return false;
-    }
-    consume_resources_for_recipe(*recipe, surrounding_agents);
-    give_output_to_agent(*recipe, actor);
-
-    // Apply cooldown with exhaustion multiplier
-    if (recipe->cooldown > 0) {
-      unsigned int adjusted_cooldown = static_cast<unsigned int>(recipe->cooldown * cooldown_multiplier);
-      cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
-    }
-
-=======
 
     if (max_uses > 0 && uses_count >= max_uses) {
       return false;
@@ -328,7 +293,6 @@ public:
       cooldown_end_timestep = *current_timestep_ptr + adjusted_cooldown;
     }
 
->>>>>>> be32742e73 (allow usage while cooling down)
     // If we were clipped and successfully used an unclip recipe, become unclipped. Also, don't count this as a use.
     if (is_clipped) {
       is_clipped = false;
