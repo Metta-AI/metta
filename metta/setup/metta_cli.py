@@ -17,7 +17,6 @@ from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
-from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
 
@@ -418,6 +417,8 @@ def cmd_status(
 
     console = Console()
     console.print(table)
+
+    from metta.tools.utils.auto_config import auto_policy_storage_decision
 
     policy_decision = auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:
