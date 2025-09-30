@@ -75,8 +75,18 @@ jobs:
             curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
-          CIBW_BEFORE_ALL_MACOS: python3 -m pip install "pip<25"
-          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0
+            export CHOOSENIM_NO_ANALYTICS=1
+            curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
+            export PATH="$HOME/.nimble/bin:$PATH"
+          CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.nimble/bin:$PATH"
+          CIBW_BEFORE_ALL_MACOS: |
+            python3 -m pip install "pip<25"
+            export CHOOSENIM_NO_ANALYTICS=1
+            curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
+            export PATH="$HOME/.nimble/bin:$PATH"
+          CIBW_ENVIRONMENT_MACOS: |
+            MACOSX_DEPLOYMENT_TARGET=11.0
+            PATH="$HOME/.nimble/bin:$PATH"
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
           CI: "true"
         with:
