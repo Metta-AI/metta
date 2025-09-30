@@ -356,6 +356,96 @@ def test_mlstm_state_reset() -> None:
     assert torch.all(reset_state["conv"][2:] == 1), "Last two batch elements of 'conv' should be unchanged"
 
 
+def test_mlstm_backward_sequential_vs_parallel() -> None:
+    """Test that backward pass gradients match between sequential and parallel implementations."""
+    torch.manual_seed(999)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    B = 2  # batch size
+    T = 32  # sequence length (keep small for numerical stability)
+    H = 64  # hidden size (head_dim must be >= 16 for triton)
+    num_heads = 4
+    chunk_size = 64  # Set chunk_size > T to use parallel_stabilized_simple path
+
+    cfg = mLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        chunk_size=chunk_size,
+        conv1d_kernel_size=4,
+    )
+
+    # Create two identical cells for parallel and sequential paths
+    cell_parallel = mLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_sequential = mLSTMCell(cfg).to(device=device, dtype=dtype)
+
+    # Ensure both cells have identical parameters
+    cell_sequential.load_state_dict(cell_parallel.state_dict())
+
+    # Set both to training mode
+    cell_parallel.train()
+    cell_sequential.train()
+
+    # Create identical input tensors that require gradients
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+    x_parallel = x.clone().requires_grad_(True)
+    x_sequential = x.clone().requires_grad_(True)
+
+    # Forward pass - parallel (uses triton kernels)
+    y_parallel, state_parallel = cell_parallel(x_parallel, state=None)
+
+    # Forward pass - sequential (step by step)
+    state = None
+    y_steps = []
+    for t in range(T):
+        y_t, state = cell_sequential(x_sequential[:, t, :], state)
+        y_steps.append(y_t)
+    y_sequential = torch.stack(y_steps, dim=1)
+
+    # Compute identical losses
+    loss_parallel = y_parallel.mean()
+    loss_sequential = y_sequential.mean()
+
+    # Backward pass
+    loss_parallel.backward()
+    loss_sequential.backward()
+
+    # Compare input gradients
+    assert x_parallel.grad is not None, "Parallel input should have gradients"
+    assert x_sequential.grad is not None, "Sequential input should have gradients"
+
+    torch.testing.assert_close(
+        x_parallel.grad,
+        x_sequential.grad,
+        rtol=1e-2,
+        atol=1e-2,
+        msg="Input gradients differ between sequential and parallel"
+    )
+
+    # Compare parameter gradients
+    for (name_p, param_p), (name_s, param_s) in zip(
+        cell_parallel.named_parameters(), cell_sequential.named_parameters()
+    ):
+        assert name_p == name_s, f"Parameter names don't match: {name_p} vs {name_s}"
+
+        if param_p.grad is not None and param_s.grad is not None:
+            # Use relaxed tolerances for gradients as they accumulate numerical differences
+            grad_diff_max = (param_p.grad - param_s.grad).abs().max().item()
+            grad_diff_rel = ((param_p.grad - param_s.grad).abs() / (param_p.grad.abs() + 1e-8)).max().item()
+
+            print(f"Gradient diff for {name_p}: max_abs={grad_diff_max:.6f}, max_rel={grad_diff_rel:.6f}")
+
+            # Check with relaxed tolerance
+            torch.testing.assert_close(
+                param_p.grad,
+                param_s.grad,
+                rtol=5e-2,
+                atol=5e-2,
+                msg=f"Gradients differ for parameter {name_p}"
+            )
+
+
 if __name__ == "__main__":
     # Run all tests
     test_mlstm_parallel_vs_sequential_close()
@@ -375,5 +465,8 @@ if __name__ == "__main__":
 
     test_mlstm_state_reset()
     print("✓ test_mlstm_state_reset passed")
+
+    test_mlstm_backward_sequential_vs_parallel()
+    print("✓ test_mlstm_backward_sequential_vs_parallel passed")
 
     print("\nAll tests passed!")

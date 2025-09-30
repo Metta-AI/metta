@@ -306,12 +306,14 @@ class sLSTMCell(MemoryCell):
         x_conv, conv_state_new = self._apply_conv(x_seq, conv_state_in, resets=resets)
 
         # Compute gate preactivations
-        i_pre = self.fgate(x_conv)
-        f_pre = self.igate(x_conv)
+        # Correct gate projections: input gate uses igate, forget gate uses fgate
+        i_pre = self.igate(x_conv)
+        f_pre = self.fgate(x_conv)
         z_pre = self.zgate(x_seq)
         o_pre = self.ogate(x_seq)
 
         # If Triton is available and conditions fit, run sequence via Triton kernel
+        # Use Triton on CUDA when head_dim is a power of 2.
         use_triton = (
             (not is_step)
             and TRITON_AVAILABLE
@@ -356,7 +358,8 @@ class sLSTMCell(MemoryCell):
 
             # Extract y over time and last states
             # all_states: (T, 4, B, NH, DH); last_state: (4, B, NH, DH)
-            y_seq = all_states[:, 0].permute(2, 0, 1, 3).reshape(B, T, H)
+            # Extract the h/y state over time and arrange as (B, T, H)
+            y_seq = all_states[:, 0].permute(1, 0, 2, 3).reshape(B, T, H)
             y_t = last_state[0].reshape(B, H)
             c_t = last_state[1].reshape(B, H)
             n_t = last_state[2].reshape(B, H)

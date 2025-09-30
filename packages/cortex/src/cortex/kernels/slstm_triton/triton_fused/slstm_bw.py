@@ -345,7 +345,7 @@ def _backward_sequence_kernel(
             base=delta_states_all_outside
             + idx_b_NH * str_delta_states_all_outside_NH
             + idx_t * str_delta_states_all_outside_T
-            + 1 * B * DH,
+            + 2 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -546,16 +546,25 @@ def _backward_sequence_kernel(
     tl.store(matDeltaR_o_ptr, matDeltaR_o.to(DTYPE))
 
     ## store the delta errors to the biases
-    vecDeltaB_i_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 0 * DH
+    vec_idx = tl.arange(0, DH)
+    vecDeltaB_i_ptr = (
+        delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 0 * DH + vec_idx
+    )
     tl.store(vecDeltaB_i_ptr, vecDeltaB_i.to(DTYPE))
 
-    vecDeltaB_f_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 1 * DH
+    vecDeltaB_f_ptr = (
+        delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 1 * DH + vec_idx
+    )
     tl.store(vecDeltaB_f_ptr, vecDeltaB_f.to(DTYPE))
 
-    vecDeltaB_z_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 2 * DH
+    vecDeltaB_z_ptr = (
+        delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 2 * DH + vec_idx
+    )
     tl.store(vecDeltaB_z_ptr, vecDeltaB_z.to(DTYPE))
 
-    vecDeltaB_o_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 3 * DH
+    vecDeltaB_o_ptr = (
+        delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 3 * DH + vec_idx
+    )
     tl.store(vecDeltaB_o_ptr, vecDeltaB_o.to(DTYPE))
 
 
@@ -696,4 +705,3 @@ def backward_sequence(
         delta_states_initial = delta_states_initial.unsqueeze(0)
 
     return delta_states_initial, delta_Wx, delta_R, delta_b
-

@@ -67,6 +67,8 @@ def _forward_sequence_kernel(
     NGI: tl.constexpr,  # number of gates that depend on input
     NGR: tl.constexpr,  # number of gates that depend on recurrent state
     siz_B: tl.constexpr,  # the number of batches per threadblock
+    TK: tl.constexpr,  # tile size along K dimension
+    TN: tl.constexpr,  # output-column tile size (must be const)
     OUTPUT_GATES: tl.constexpr,
     DTYPE: tl.constexpr = tl.float32,
 ):
@@ -180,138 +182,284 @@ def _forward_sequence_kernel(
     )
     tl.store(matMtrans_initial_store_ptr, matMtrans.to(DTYPE))
 
-    ## load recurrent weights only once
-    # load the recurrent weights
-    matRtrans_i_ptr = tl.make_block_ptr(
-        base=R + idx_b_NH * DH * NGR * DH + 0 * DH * DH,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    matRtrans_i = tl.load(matRtrans_i_ptr)  # (DHin, DHout)
+    ## recurrent weights will be processed in output-column tiles to reduce shared memory usage
 
-    matRtrans_f_ptr = tl.make_block_ptr(
-        base=R + idx_b_NH * DH * NGR * DH + 1 * DH * DH,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    matRtrans_f = tl.load(matRtrans_f_ptr)  # (DHin, DHout)
-
-    matRtrans_z_ptr = tl.make_block_ptr(
-        base=R + idx_b_NH * DH * NGR * DH + 2 * DH * DH,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    matRtrans_z = tl.load(matRtrans_z_ptr)  # (DHin, DHout)
-
-    matRtrans_o_ptr = tl.make_block_ptr(
-        base=R + idx_b_NH * DH * NGR * DH + 3 * DH * DH,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    matRtrans_o = tl.load(matRtrans_o_ptr)  # (DHin, DHout)
-
-    ## load the biases only once
-    vecB_i_ptr = b + idx_b_NH * NGI * DH + 0 * DH + tl.arange(0, DH)
-    vecB_i = tl.load(vecB_i_ptr)  # (DH,)
-
-    vecB_f_ptr = b + idx_b_NH * NGI * DH + 1 * DH + tl.arange(0, DH)
-    vecB_f = tl.load(vecB_f_ptr)  # (DH,)
-
-    vecB_z_ptr = b + idx_b_NH * NGI * DH + 2 * DH + tl.arange(0, DH)
-    vecB_z = tl.load(vecB_z_ptr)  # (DH,)
-
-    vecB_o_ptr = b + idx_b_NH * NGI * DH + 3 * DH + tl.arange(0, DH)
-    vecB_o = tl.load(vecB_o_ptr)  # (DH,)
+    ## bias base pointers (tile-wise loads later)
+    b_i_base = b + idx_b_NH * NGI * DH + 0 * DH
+    b_f_base = b + idx_b_NH * NGI * DH + 1 * DH
+    b_z_base = b + idx_b_NH * NGI * DH + 2 * DH
+    b_o_base = b + idx_b_NH * NGI * DH + 3 * DH
 
     for idx_t in range(T):
-        ## load gate preactivations Wx per time step
-        matIxtrans_ptr = tl.make_block_ptr(
-            base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 0 * B * DH,
-            shape=(B, DH),
-            strides=(DH, 1),
-            offsets=(idx_b_B * siz_B, 0),
-            block_shape=(siz_B, DH),
-            order=(0, 1),
-        )
-        matIxtrans = tl.load(matIxtrans_ptr)  # (B, DH)
+        # Tile across output columns N with constant TN
 
-        matFxtrans_ptr = tl.make_block_ptr(
-            base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 1 * B * DH,
-            shape=(B, DH),
-            strides=(DH, 1),
-            offsets=(idx_b_B * siz_B, 0),
-            block_shape=(siz_B, DH),
-            order=(0, 1),
-        )
-        matFxtrans = tl.load(matFxtrans_ptr)  # (B, DH)
+        for n0 in range(0, DH, TN):
+            # Load feed-forward tiles
+            matIx_tile_ptr = tl.make_block_ptr(
+                base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 0 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            matIx_tile = tl.load(matIx_tile_ptr)
 
-        matZxtrans_ptr = tl.make_block_ptr(
-            base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 2 * B * DH,
-            shape=(B, DH),
-            strides=(DH, 1),
-            offsets=(idx_b_B * siz_B, 0),
-            block_shape=(siz_B, DH),
-            order=(0, 1),
-        )
-        matZxtrans = tl.load(matZxtrans_ptr)  # (B, DH)
+            matFx_tile_ptr = tl.make_block_ptr(
+                base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 1 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            matFx_tile = tl.load(matFx_tile_ptr)
 
-        matOxtrans_ptr = tl.make_block_ptr(
-            base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 3 * B * DH,
-            shape=(B, DH),
-            strides=(DH, 1),
-            offsets=(idx_b_B * siz_B, 0),
-            block_shape=(siz_B, DH),
-            order=(0, 1),
-        )
-        matOxtrans = tl.load(matOxtrans_ptr)  # (B, DH)
+            matZx_tile_ptr = tl.make_block_ptr(
+                base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 2 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            matZx_tile = tl.load(matZx_tile_ptr)
 
-        ## compute recurrent gate preactivations (matrix multiplication)
-        matRhtrans_i = tl.dot(matHtrans.to(DTYPE), matRtrans_i)  # (B, DH)
-        matRhtrans_f = tl.dot(matHtrans.to(DTYPE), matRtrans_f)  # (B, DH)
-        matRhtrans_z = tl.dot(matHtrans.to(DTYPE), matRtrans_z)  # (B, DH)
-        matRhtrans_o = tl.dot(matHtrans.to(DTYPE), matRtrans_o)  # (B, DH)
+            matOx_tile_ptr = tl.make_block_ptr(
+                base=Wx + idx_b_NH * str_matWx_NH + idx_t * str_matWx_T + 3 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            matOx_tile = tl.load(matOx_tile_ptr)
 
-        ## compute the gate preactivations
-        matIbar = matIxtrans + matRhtrans_i + vecB_i[None, :]  # (B, DH)
-        matFbar = matFxtrans + matRhtrans_f + vecB_f[None, :]  # (B, DH)
-        matZbar = matZxtrans + matRhtrans_z + vecB_z[None, :]  # (B, DH)
-        matObar = matOxtrans + matRhtrans_o + vecB_o[None, :]  # (B, DH)
+            # Load R tiles (DH x TN) for each gate
+            matR_i_tile_ptr = tl.make_block_ptr(
+                base=R + idx_b_NH * DH * NGR * DH + 0 * DH * DH,
+                shape=(DH, DH),
+                strides=(DH, 1),
+                offsets=(0, n0),
+                block_shape=(DH, TN),
+                order=(0, 1),
+            )
+            matR_i_tile = tl.load(matR_i_tile_ptr)
 
-        ## compute the pointwise operations
-        matLogFplusM = matMtrans + tl.log(tl.sigmoid(matFbar))
+            matR_f_tile_ptr = tl.make_block_ptr(
+                base=R + idx_b_NH * DH * NGR * DH + 1 * DH * DH,
+                shape=(DH, DH),
+                strides=(DH, 1),
+                offsets=(0, n0),
+                block_shape=(DH, TN),
+                order=(0, 1),
+            )
+            matR_f_tile = tl.load(matR_f_tile_ptr)
 
-        # Match Python semantics: if ALL n==0 then use Ibar (we approximate with elementwise check here),
-        # else max(Ibar, m + log(sigmoid(Fbar)))
-        matMtrans_next = tl.where(
-            matNtrans == 0.0, matIbar, tl.maximum(matIbar, matLogFplusM)
-        )
+            matR_z_tile_ptr = tl.make_block_ptr(
+                base=R + idx_b_NH * DH * NGR * DH + 2 * DH * DH,
+                shape=(DH, DH),
+                strides=(DH, 1),
+                offsets=(0, n0),
+                block_shape=(DH, TN),
+                order=(0, 1),
+            )
+            matR_z_tile = tl.load(matR_z_tile_ptr)
 
-        # Python clamps gates to <= 1
-        matI = tl.minimum(tl.exp(matIbar - matMtrans_next), 1.0)
-        matF = tl.minimum(tl.exp(matLogFplusM - matMtrans_next), 1.0)
-        matZ = triton_tanh(matZbar)
-        matO = tl.sigmoid(matObar)
+            matR_o_tile_ptr = tl.make_block_ptr(
+                base=R + idx_b_NH * DH * NGR * DH + 3 * DH * DH,
+                shape=(DH, DH),
+                strides=(DH, 1),
+                offsets=(0, n0),
+                block_shape=(DH, TN),
+                order=(0, 1),
+            )
+            matR_o_tile = tl.load(matR_o_tile_ptr)
 
-        ## memory cell updates
-        matCtrans_next = matF * matCtrans + matI * matZ
-        # Python does NOT clamp n to >= 1
-        matNtrans_next = matF * matNtrans + matI
+            # Compute recurrent contributions for tile: (B, TN)
+            matRh_i_tile = tl.dot(matHtrans.to(DTYPE), matR_i_tile)
+            matRh_f_tile = tl.dot(matHtrans.to(DTYPE), matR_f_tile)
+            matRh_z_tile = tl.dot(matHtrans.to(DTYPE), matR_z_tile)
+            matRh_o_tile = tl.dot(matHtrans.to(DTYPE), matR_o_tile)
 
-        matHtrans_next = matO * (matCtrans_next / matNtrans_next)
+            # Bias tiles
+            cols = n0 + tl.arange(0, TN)
+            vecBi_tile = tl.load(b_i_base + cols)
+            vecBf_tile = tl.load(b_f_base + cols)
+            vecBz_tile = tl.load(b_z_base + cols)
+            vecBo_tile = tl.load(b_o_base + cols)
 
-        ## store the new states
+            # Current state tiles from time idx_t
+            c_t_tile_ptr = tl.make_block_ptr(
+                base=states_all
+                + idx_b_NH * str_matStatesAll_NH
+                + (idx_t) * str_matStatesAll_T
+                + 1 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            matC_t_tile = tl.load(c_t_tile_ptr)
+
+            n_t_tile_ptr = tl.make_block_ptr(
+                base=states_all
+                + idx_b_NH * str_matStatesAll_NH
+                + (idx_t) * str_matStatesAll_T
+                + 2 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            matN_t_tile = tl.load(n_t_tile_ptr)
+
+            m_t_tile_ptr = tl.make_block_ptr(
+                base=states_all
+                + idx_b_NH * str_matStatesAll_NH
+                + (idx_t) * str_matStatesAll_T
+                + 3 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            matM_t_tile = tl.load(m_t_tile_ptr)
+
+            # Gate preactivations for tile
+            matIbar_tile = matIx_tile + matRh_i_tile + vecBi_tile[None, :]
+            matFbar_tile = matFx_tile + matRh_f_tile + vecBf_tile[None, :]
+            matZbar_tile = matZx_tile + matRh_z_tile + vecBz_tile[None, :]
+            matObar_tile = matOx_tile + matRh_o_tile + vecBo_tile[None, :]
+
+            # Pointwise ops per tile
+            matLogFplusM_tile = matM_t_tile + tl.log(tl.sigmoid(matFbar_tile))
+            # First timestep uses Ibar, thereafter max(Ibar, m + log(sigmoid(Fbar)))
+            if idx_t == 0:
+                matM_next_tile = matIbar_tile
+            else:
+                matM_next_tile = tl.maximum(matIbar_tile, matLogFplusM_tile)
+
+            matI_tile = tl.minimum(tl.exp(matIbar_tile - matM_next_tile), 1.0)
+            matF_tile = tl.minimum(tl.exp(matLogFplusM_tile - matM_next_tile), 1.0)
+            matZ_tile = triton_tanh(matZbar_tile)
+            matO_tile = tl.sigmoid(matObar_tile)
+
+            matC_next_tile = matF_tile * matC_t_tile + matI_tile * matZ_tile
+            matN_next_tile = matF_tile * matN_t_tile + matI_tile
+            matH_next_tile = matO_tile * (matC_next_tile / matN_next_tile)
+
+            # Store next states tiles at time idx_t+1
+            h_next_tile_ptr = tl.make_block_ptr(
+                base=states_all
+                + idx_b_NH * str_matStatesAll_NH
+                + (idx_t + 1) * str_matStatesAll_T
+                + 0 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            tl.store(h_next_tile_ptr, matH_next_tile.to(DTYPE))
+
+            c_next_tile_ptr = tl.make_block_ptr(
+                base=states_all
+                + idx_b_NH * str_matStatesAll_NH
+                + (idx_t + 1) * str_matStatesAll_T
+                + 1 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            tl.store(c_next_tile_ptr, matC_next_tile.to(DTYPE))
+
+            n_next_tile_ptr = tl.make_block_ptr(
+                base=states_all
+                + idx_b_NH * str_matStatesAll_NH
+                + (idx_t + 1) * str_matStatesAll_T
+                + 2 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            tl.store(n_next_tile_ptr, matN_next_tile.to(DTYPE))
+
+            m_next_tile_ptr = tl.make_block_ptr(
+                base=states_all
+                + idx_b_NH * str_matStatesAll_NH
+                + (idx_t + 1) * str_matStatesAll_T
+                + 3 * B * DH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            tl.store(m_next_tile_ptr, matM_next_tile.to(DTYPE))
+
+            # [optional] store gates per tile
+            if OUTPUT_GATES:
+                gI_tile_ptr = tl.make_block_ptr(
+                    base=gates_all
+                    + idx_b_NH * str_matGatesAll_NH
+                    + idx_t * str_matGatesAll_T
+                    + 0 * B * DH,
+                    shape=(B, DH),
+                    strides=(DH, 1),
+                    offsets=(idx_b_B * siz_B, n0),
+                    block_shape=(siz_B, TN),
+                    order=(0, 1),
+                )
+                tl.store(gI_tile_ptr, matIbar_tile.to(DTYPE))
+
+                gF_tile_ptr = tl.make_block_ptr(
+                    base=gates_all
+                    + idx_b_NH * str_matGatesAll_NH
+                    + idx_t * str_matGatesAll_T
+                    + 1 * B * DH,
+                    shape=(B, DH),
+                    strides=(DH, 1),
+                    offsets=(idx_b_B * siz_B, n0),
+                    block_shape=(siz_B, TN),
+                    order=(0, 1),
+                )
+                tl.store(gF_tile_ptr, matFbar_tile.to(DTYPE))
+
+                gZ_tile_ptr = tl.make_block_ptr(
+                    base=gates_all
+                    + idx_b_NH * str_matGatesAll_NH
+                    + idx_t * str_matGatesAll_T
+                    + 2 * B * DH,
+                    shape=(B, DH),
+                    strides=(DH, 1),
+                    offsets=(idx_b_B * siz_B, n0),
+                    block_shape=(siz_B, TN),
+                    order=(0, 1),
+                )
+                tl.store(gZ_tile_ptr, matZ_tile.to(DTYPE))
+
+                gO_tile_ptr = tl.make_block_ptr(
+                    base=gates_all
+                    + idx_b_NH * str_matGatesAll_NH
+                    + idx_t * str_matGatesAll_T
+                    + 3 * B * DH,
+                    shape=(B, DH),
+                    strides=(DH, 1),
+                    offsets=(idx_b_B * siz_B, n0),
+                    block_shape=(siz_B, TN),
+                    order=(0, 1),
+                )
+                tl.store(gO_tile_ptr, matO_tile.to(DTYPE))
+
+        # Load next-step h,c,n,m fully for next iteration's recurrent mix
         matHtrans_next_ptr = tl.make_block_ptr(
             base=states_all
             + idx_b_NH * str_matStatesAll_NH
@@ -323,9 +471,9 @@ def _forward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        tl.store(matHtrans_next_ptr, matHtrans_next.to(DTYPE))
+        matHtrans = tl.load(matHtrans_next_ptr).to(tl.float32)
 
-        matCtrans_next_ptr = tl.make_block_ptr(
+        matCtrans_next_ptr_full = tl.make_block_ptr(
             base=states_all
             + idx_b_NH * str_matStatesAll_NH
             + (idx_t + 1) * str_matStatesAll_T
@@ -336,9 +484,9 @@ def _forward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        tl.store(matCtrans_next_ptr, matCtrans_next.to(DTYPE))
+        matCtrans = tl.load(matCtrans_next_ptr_full).to(tl.float32)
 
-        matNtrans_next_ptr = tl.make_block_ptr(
+        matNtrans_next_ptr_full = tl.make_block_ptr(
             base=states_all
             + idx_b_NH * str_matStatesAll_NH
             + (idx_t + 1) * str_matStatesAll_T
@@ -349,9 +497,9 @@ def _forward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        tl.store(matNtrans_next_ptr, matNtrans_next.to(DTYPE))
+        matNtrans = tl.load(matNtrans_next_ptr_full).to(tl.float32)
 
-        matMtrans_next_ptr = tl.make_block_ptr(
+        matMtrans_next_ptr_full = tl.make_block_ptr(
             base=states_all
             + idx_b_NH * str_matStatesAll_NH
             + (idx_t + 1) * str_matStatesAll_T
@@ -362,67 +510,7 @@ def _forward_sequence_kernel(
             block_shape=(siz_B, DH),
             order=(0, 1),
         )
-        tl.store(matMtrans_next_ptr, matMtrans_next.to(DTYPE))
-
-        ## [optional] store the gates
-        if OUTPUT_GATES:
-            matGatesItrans_ptr = tl.make_block_ptr(
-                base=gates_all
-                + idx_b_NH * str_matGatesAll_NH
-                + idx_t * str_matGatesAll_T
-                + 0 * B * DH,
-                shape=(B, DH),
-                strides=(DH, 1),
-                offsets=(idx_b_B * siz_B, 0),
-                block_shape=(siz_B, DH),
-                order=(0, 1),
-            )
-            tl.store(matGatesItrans_ptr, matIbar.to(DTYPE))
-
-            matGatesFtrans_ptr = tl.make_block_ptr(
-                base=gates_all
-                + idx_b_NH * str_matGatesAll_NH
-                + idx_t * str_matGatesAll_T
-                + 1 * B * DH,
-                shape=(B, DH),
-                strides=(DH, 1),
-                offsets=(idx_b_B * siz_B, 0),
-                block_shape=(siz_B, DH),
-                order=(0, 1),
-            )
-            tl.store(matGatesFtrans_ptr, matFbar.to(DTYPE))
-
-            matGatesZtrans_ptr = tl.make_block_ptr(
-                base=gates_all
-                + idx_b_NH * str_matGatesAll_NH
-                + idx_t * str_matGatesAll_T
-                + 2 * B * DH,
-                shape=(B, DH),
-                strides=(DH, 1),
-                offsets=(idx_b_B * siz_B, 0),
-                block_shape=(siz_B, DH),
-                order=(0, 1),
-            )
-            tl.store(matGatesZtrans_ptr, matZ.to(DTYPE))
-
-            matGatesOtrans_ptr = tl.make_block_ptr(
-                base=gates_all
-                + idx_b_NH * str_matGatesAll_NH
-                + idx_t * str_matGatesAll_T
-                + 3 * B * DH,
-                shape=(B, DH),
-                strides=(DH, 1),
-                offsets=(idx_b_B * siz_B, 0),
-                block_shape=(siz_B, DH),
-                order=(0, 1),
-            )
-            tl.store(matGatesOtrans_ptr, matO.to(DTYPE))
-
-        ## move the states to the next time step
-        matCtrans = matCtrans_next
-        matHtrans = matHtrans_next
-        matNtrans = matNtrans_next
-        matMtrans = matMtrans_next
+        matMtrans = tl.load(matMtrans_next_ptr_full).to(tl.float32)
 
 
 def forward_sequence(
@@ -519,6 +607,9 @@ def forward_sequence(
         g = (NH, triton.cdiv(B, siz_B))
         return g
 
+    # Choose an output tile size based on head_dim to reduce shared memory pressure
+    TN = 16 if DH >= 128 else 32
+
     _forward_sequence_kernel[grid](
         states_initial=states_initial_kshaped,
         Wx=Wx_kshaped,
@@ -533,6 +624,8 @@ def forward_sequence(
         DH=DH,
         NGI=NGI,
         NGR=NGR,
+        TK=32,
+        TN=TN,
         OUTPUT_GATES=output_gates_and_states_initial,
         DTYPE=torch2triton_dtype(dtype),
     )
