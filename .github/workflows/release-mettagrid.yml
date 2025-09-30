@@ -69,7 +69,7 @@ jobs:
           CIBW_BUILD: "cp311-* cp312-*"
           CIBW_SKIP: "*-musllinux* *i686"
           CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-14' && 'arm64' || 'x86_64' }}
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
           CIBW_BEFORE_ALL_LINUX: |
             python3 -m pip install "pip<25"
             curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
