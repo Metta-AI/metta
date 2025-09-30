@@ -543,27 +543,30 @@ class CentralizedTaskTracker(TaskTracker):
             task_data[4] = lp_score
 
     def get_task_stats(self, task_id: int) -> Optional[Dict[str, float]]:
-        """Get statistics for a specific task."""
-        with self._shared.acquire_lock():
-            if task_id not in self._task_id_to_index:
-                return None
+        """Get statistics for a specific task.
 
-            index = self._task_id_to_index[task_id]
-            task_data = self._shared.get_task_data(index)
+        Note: No locking - may read slightly stale data, but that's acceptable
+        for statistics queries to avoid lock contention.
+        """
+        if task_id not in self._task_id_to_index:
+            return None
 
-            if task_data[11] == 0:  # not active
-                return None
+        index = self._task_id_to_index[task_id]
+        task_data = self._shared.get_task_data(index)
 
-            creation_time = task_data[1]
-            completion_count = int(task_data[2])
-            reward_ema = task_data[3]
-            lp_score = task_data[4]
-            success_rate_ema = task_data[5]
-            total_score = task_data[6]
-            last_score = task_data[7]
-            success_threshold = task_data[8]
-            seed = task_data[9]
-            generator_type = task_data[10]
+        if task_data[11] == 0:  # not active
+            return None
+
+        creation_time = task_data[1]
+        completion_count = int(task_data[2])
+        reward_ema = task_data[3]
+        lp_score = task_data[4]
+        success_rate_ema = task_data[5]
+        total_score = task_data[6]
+        last_score = task_data[7]
+        success_threshold = task_data[8]
+        seed = task_data[9]
+        generator_type = task_data[10]
 
         if completion_count == 0:
             return {
@@ -593,9 +596,11 @@ class CentralizedTaskTracker(TaskTracker):
         }
 
     def get_all_tracked_tasks(self) -> List[int]:
-        """Get all currently tracked task IDs."""
-        with self._shared.acquire_lock():
-            return list(self._task_id_to_index.keys())
+        """Get all currently tracked task IDs.
+
+        Note: No locking - returns snapshot which may be slightly stale.
+        """
+        return list(self._task_id_to_index.keys())
 
     def remove_task(self, task_id: int) -> None:
         """Remove a task from tracking."""
@@ -607,68 +612,74 @@ class CentralizedTaskTracker(TaskTracker):
                 del self._task_id_to_index[task_id]
 
     def get_global_stats(self) -> Dict[str, float]:
-        """Get global performance statistics."""
-        with self._shared.acquire_lock():
-            # Get completion history
-            history = self._shared.get_completion_history()
-            completion_history = [score for score in history if score != 0.0]
+        """Get global performance statistics.
 
-            if not completion_history:
-                return {
-                    "mean_recent_score": 0.0,
-                    "total_tracked_tasks": 0,
-                    "total_completions": 0,
-                }
+        Note: No locking - statistics may be slightly inconsistent but acceptable
+        for monitoring purposes. Avoids lock contention on frequent stat queries.
+        """
+        # Get completion history
+        history = self._shared.get_completion_history()
+        completion_history = [score for score in history if score != 0.0]
 
-            # Calculate total completions
-            total_completions = 0
-            for index in self._task_id_to_index.values():
-                task_data = self._shared.get_task_data(index)
-                if task_data[11] > 0:  # is_active
-                    total_completions += int(task_data[2])
-
+        if not completion_history:
             return {
-                "mean_recent_score": sum(completion_history) / len(completion_history),
-                "total_tracked_tasks": len(self._task_id_to_index),
-                "total_completions": total_completions,
+                "mean_recent_score": 0.0,
+                "total_tracked_tasks": 0,
+                "total_completions": 0,
             }
+
+        # Calculate total completions
+        total_completions = 0
+        for index in self._task_id_to_index.values():
+            task_data = self._shared.get_task_data(index)
+            if task_data[11] > 0:  # is_active
+                total_completions += int(task_data[2])
+
+        return {
+            "mean_recent_score": sum(completion_history) / len(completion_history),
+            "total_tracked_tasks": len(self._task_id_to_index),
+            "total_completions": total_completions,
+        }
 
     def get_state(self) -> Dict[str, Any]:
-        """Get task tracker state for checkpointing."""
-        with self._shared.acquire_lock():
-            task_memory = {}
-            for task_id, index in self._task_id_to_index.items():
-                task_data = self._shared.get_task_data(index)
-                if task_data[11] > 0:  # is_active
-                    task_memory[task_id] = {
-                        "creation_time": task_data[1],
-                        "completion_count": int(task_data[2]),
-                        "reward_ema": task_data[3],
-                        "lp_score": task_data[4],
-                        "success_rate_ema": task_data[5],
-                        "total_score": task_data[6],
-                        "last_score": task_data[7],
-                        "success_threshold": task_data[8],
-                        "seed": task_data[9],
-                        "generator_type": task_data[10],
-                    }
+        """Get task tracker state for checkpointing.
 
-            # Get completion history
-            history = self._shared.get_completion_history()
-            completion_history = [score for score in history if score != 0.0]
+        Note: No locking - checkpoint may have minor inconsistencies if captured
+        during updates, but this is acceptable as checkpoints are infrequent.
+        """
+        task_memory = {}
+        for task_id, index in self._task_id_to_index.items():
+            task_data = self._shared.get_task_data(index)
+            if task_data[11] > 0:  # is_active
+                task_memory[task_id] = {
+                    "creation_time": task_data[1],
+                    "completion_count": int(task_data[2]),
+                    "reward_ema": task_data[3],
+                    "lp_score": task_data[4],
+                    "success_rate_ema": task_data[5],
+                    "total_score": task_data[6],
+                    "last_score": task_data[7],
+                    "success_threshold": task_data[8],
+                    "seed": task_data[9],
+                    "generator_type": task_data[10],
+                }
 
-            total_completions = sum(int(self._shared.get_task_data(idx)[2]) for idx in self._task_id_to_index.values())
+        # Get completion history
+        history = self._shared.get_completion_history()
+        completion_history = [score for score in history if score != 0.0]
 
-            return {
-                "max_memory_tasks": self.max_memory_tasks,
-                "tracker_type": "centralized",
-                "session_id": self._shared.session_id,
-                "task_memory": task_memory,
-                "completion_history": completion_history,
-                "task_creation_order": [],  # Not used in centralized mode
-                "cached_total_completions": total_completions,
-                "cache_valid": True,
-            }
+        total_completions = sum(int(self._shared.get_task_data(idx)[2]) for idx in self._task_id_to_index.values())
+
+        return {
+            "max_memory_tasks": self.max_memory_tasks,
+            "tracker_type": "centralized",
+            "session_id": self._shared.session_id,
+            "task_memory": task_memory,
+            "completion_history": completion_history,
+            "task_creation_order": [],  # Not used in centralized mode
+            "cached_total_completions": total_completions,
+            "cache_valid": True,
+        }
 
     def load_state(self, state: Dict[str, Any]) -> None:
         """Load task tracker state from checkpoint."""

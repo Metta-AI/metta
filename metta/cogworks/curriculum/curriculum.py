@@ -39,6 +39,8 @@ class CurriculumTask:
         self._total_score = 0.0
         self._mean_score = 0.0
         self._num_scheduled = 0
+        # Extract label from env config for per-label logging
+        self._label = getattr(env_cfg, "label", "unknown")
 
     def complete(self, score: float):
         """Complete the task with a score."""
@@ -57,6 +59,10 @@ class CurriculumTask:
     def get_bucket_values(self):
         """Get the slice values (backward compatibility alias)."""
         return self._slice_values
+
+    def get_label(self):
+        """Get the task label for per-label metrics."""
+        return self._label
 
 
 class CurriculumAlgorithmConfig(Config, ABC):
