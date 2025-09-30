@@ -117,6 +117,12 @@ class LSTMPolicyNet(torch.nn.Module):
             if h.dim() == 3:
                 h_store = h.transpose(0, 1)
                 c_store = c.transpose(0, 1)
+            elif h.dim() == 2:
+                h_store = h.unsqueeze(1)
+                c_store = c.unsqueeze(1)
+            elif h.dim() == 1:
+                h_store = h.unsqueeze(0).unsqueeze(1)
+                c_store = c.unsqueeze(0).unsqueeze(1)
             else:
                 h_store = h
                 c_store = c
@@ -166,8 +172,8 @@ class LSTMAgentPolicy(StatefulAgentPolicy[Tuple[torch.Tensor, torch.Tensor]]):
 
         with torch.no_grad():
             self._net.eval()
-            # For inference, we pass state as a tuple and get it back via dict
-            state_dict = {}
+            # For inference, we pass state through a dict so forward_eval can populate it
+            state_dict = {"lstm_h": None, "lstm_c": None}
             if state is not None:
                 state_dict["lstm_h"], state_dict["lstm_c"] = state
 

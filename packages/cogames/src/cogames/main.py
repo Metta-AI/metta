@@ -105,7 +105,32 @@ def _dump_game_configs(configs: Sequence[MettaGridConfig], names: Sequence[str],
 
 def _default_device(explicit: Optional[str]) -> str:
     if explicit is not None:
-        return explicit
+        normalized = explicit.lower()
+
+        if normalized == "auto":
+            if torch.cuda.is_available():
+                return "cuda"
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                return "mps"
+            console.print("[yellow]CUDA/MPS unavailable; training will run on CPU.[/yellow]")
+            return "cpu"
+
+        try:
+            requested = torch.device(explicit)
+        except (RuntimeError, ValueError):
+            console.print(f"[yellow]Unknown device '{explicit}'. Falling back to CPU.[/yellow]")
+            return "cpu"
+
+        if requested.type == "cuda" and not torch.cuda.is_available():
+            console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
+            return "cpu"
+
+        if requested.type == "mps" and not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()):
+            console.print("[yellow]MPS requested but unavailable. Training will run on CPU instead.[/yellow]")
+            return "cpu"
+
+        return str(requested)
+
     if torch.cuda.is_available():
         return "cuda"
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -533,7 +558,7 @@ def train_cmd(
         typer.Option("--checkpoints", help="Path to save training data"),
     ] = None,
     steps: Annotated[int, typer.Option("--steps", "-s", help="Number of training steps")] = 10000,
-    device: Annotated[Optional[str], typer.Option("--device", help="Device to train on")] = None,
+    device: Annotated[str, typer.Option("--device", help="Device to train on (e.g. 'auto', 'cpu', 'cuda')")] = "auto",
     seed: Annotated[int, typer.Option("--seed", help="Seed for training")] = 42,
     batch_size: Annotated[
         Optional[int],
