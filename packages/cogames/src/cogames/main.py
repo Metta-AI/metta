@@ -232,33 +232,36 @@ def train_cmd(
     # Resolve policy shorthand
     full_policy_path = resolve_policy_class_path(policy_class_path)
 
-    def _cuda_is_available() -> bool:
-        try:
+    def resolve_training_device(requested: str) -> torch.device:
+        normalized = requested.strip().lower()
+
+        def cuda_usable() -> bool:
+            cuda_backend = getattr(torch.backends, "cuda", None)
+            if cuda_backend is None or not cuda_backend.is_built():
+                return False
+            if not hasattr(torch._C, "_cuda_getDeviceCount"):
+                return False
             return torch.cuda.is_available()
-        except (AssertionError, RuntimeError):
-            return False
 
-    device_lower = device.lower()
-    if device_lower == "auto":
-        if _cuda_is_available():
-            resolved_device_str = "cuda"
-        else:
-            resolved_device_str = "cpu"
+        if normalized == "auto":
+            if cuda_usable():
+                return torch.device("cuda")
             console.print("[yellow]CUDA not available; falling back to CPU for training.[/yellow]")
-    else:
-        try:
-            requested_device = torch.device(device)
-        except (RuntimeError, ValueError):
-            console.print(f"[yellow]Warning: Unknown device '{device}'. Falling back to CPU.[/yellow]")
-            resolved_device_str = "cpu"
-        else:
-            if requested_device.type == "cuda" and not _cuda_is_available():
-                console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
-                resolved_device_str = "cpu"
-            else:
-                resolved_device_str = str(requested_device)
+            return torch.device("cpu")
 
-    torch_device = torch.device(resolved_device_str)
+        try:
+            candidate = torch.device(requested)
+        except (RuntimeError, ValueError):
+            console.print(f"[yellow]Warning: Unknown device '{requested}'. Falling back to CPU.[/yellow]")
+            return torch.device("cpu")
+
+        if candidate.type == "cuda" and not cuda_usable():
+            console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
+            return torch.device("cpu")
+
+        return candidate
+
+    torch_device = resolve_training_device(device)
 
     try:
         train_module.train(
