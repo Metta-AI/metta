@@ -294,7 +294,7 @@ def train(
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None
     )
-    from experiments.evals.in_context_learning.converter_chains import (
+    from experiments.evals.in_context_learning.converters.converter_chains import (
         make_converter_chain_eval_suite,
     )
 
@@ -327,7 +327,7 @@ def evaluate(
     simulations: Optional[Sequence[SimulationConfig]] = None,
 ) -> SimTool:
     # Local import to avoid circular import at module load time
-    from experiments.evals.in_context_learning.converter_chains import (
+    from experiments.evals.in_context_learning.converters.converter_chains import (
         make_converter_chain_eval_suite,
     )
 
