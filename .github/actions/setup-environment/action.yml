@@ -43,14 +43,10 @@ runs:
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
     - name: Set up nim
-      shell: bash
-      run: |
-        curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
-        export PATH=/home/runner/.nimble/bin:$PATH
-        echo "/home/runner/.nimble/bin" >> "$GITHUB_PATH"
-        nim --version
-        nimble --version
-        echo "Nim installed"
+      uses: jiro4989/setup-nim-action@v2
+      with:
+        nim-version: 2.2.4
+        repo-token: ${{ github.token }}
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
