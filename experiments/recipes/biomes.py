@@ -1,9 +1,13 @@
 from typing import List
 
+import numpy as np
+from pydantic import Field
+
 from cogames.cogs_vs_clips import stations as cvc_stations
 
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid import MettaGridConfig
+from mettagrid.config.config import Config
 from mettagrid.builder.envs import make_navigation
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution
@@ -15,7 +19,6 @@ from mettagrid.mapgen.scenes.biome_desert import BiomeDesert, BiomeDesertParams
 from mettagrid.mapgen.scenes.biome_forest import BiomeForest, BiomeForestParams
 from mettagrid.mapgen.scenes.bsp import BSP, BSPLayout, BSPLayoutParams, BSPParams
 from mettagrid.mapgen.scenes.fill_area import FillArea, FillAreaParams
-from mettagrid.mapgen.scenes.inline_ascii import InlineAscii, InlineAsciiParams
 from mettagrid.mapgen.scenes.layout import Layout, LayoutArea, LayoutParams
 from mettagrid.mapgen.scenes.make_connected import MakeConnected, MakeConnectedParams
 from mettagrid.mapgen.scenes.maze import Maze, MazeParams
@@ -141,6 +144,106 @@ def _add_extractor_objects(env: MettaGridConfig) -> None:
     objects.setdefault("silicon_extractor", cvc_stations.silicon_extractor())
 
 
+def _linspace_positions(count: int, interior_size: int) -> list[int]:
+    if count <= 0:
+        return []
+    if interior_size <= 0:
+        raise ValueError("interior_size must be positive")
+
+    if count >= interior_size:
+        return [i for i in range(1, interior_size + 1)]
+
+    step = (interior_size + 1) / (count + 1)
+    return [
+        1 + max(0, min(interior_size - 1, round(step * (i + 1)))) for i in range(count)
+    ]
+
+
+class UniformExtractorParams(Config):
+    rows: int = 4
+    cols: int = 4
+    jitter: int = 1
+    extractor_names: list[str] = Field(
+        default_factory=lambda: [
+            "carbon_extractor",
+            "oxygen_extractor",
+            "geranium_extractor",
+            "silicon_extractor",
+        ]
+    )
+
+
+class UniformExtractorScene(Scene[UniformExtractorParams]):
+    """Place extractor stations on a jittered uniform grid."""
+
+    def render(self):
+        params = self.params
+        if self.width < 3 or self.height < 3:
+            raise ValueError("Extractor map must be at least 3x3 to fit border walls")
+
+        # Fill the map with empty cells and frame it with walls.
+        self.grid[:, :] = "empty"
+        self.grid[0, :] = "wall"
+        self.grid[-1, :] = "wall"
+        self.grid[:, 0] = "wall"
+        self.grid[:, -1] = "wall"
+
+        interior_width = self.width - 2
+        interior_height = self.height - 2
+
+        row_positions = _linspace_positions(params.rows, interior_height)
+        col_positions = _linspace_positions(params.cols, interior_width)
+
+        if not row_positions or not col_positions:
+            raise ValueError("rows and cols must be positive for extractor placement")
+
+        # Deduplicate potential overlaps caused by rounding.
+        raw_positions = [(row, col) for row in row_positions for col in col_positions]
+        positions: list[tuple[int, int]] = []
+        seen = set()
+        for row, col in raw_positions:
+            if (row, col) not in seen:
+                seen.add((row, col))
+                positions.append((row, col))
+
+        if not positions:
+            return
+
+        extractor_names = params.extractor_names or ["carbon_extractor"]
+        assignments = [
+            extractor_names[i % len(extractor_names)] for i in range(len(positions))
+        ]
+        # Shuffle assignments so a new seed changes extractor distribution.
+        self.rng.shuffle(assignments)
+
+        jitter = max(0, params.jitter)
+        used_cells: set[tuple[int, int]] = set()
+        for (base_row, base_col), name in zip(positions, assignments):
+            row = int(base_row)
+            col = int(base_col)
+            if jitter:
+                for _ in range(5):
+                    offset_row = int(
+                        np.clip(
+                            row + self.rng.integers(-jitter, jitter + 1),
+                            1,
+                            self.height - 2,
+                        )
+                    )
+                    offset_col = int(
+                        np.clip(
+                            col + self.rng.integers(-jitter, jitter + 1),
+                            1,
+                            self.width - 2,
+                        )
+                    )
+                    if (offset_row, offset_col) not in used_cells:
+                        row, col = offset_row, offset_col
+                        break
+            used_cells.add((row, col))
+            self.grid[row, col] = name
+
+
 def make_extractor_showcase() -> MettaGridConfig:
     env = make_navigation(num_agents=4)
     _add_extractor_objects(env)
@@ -149,21 +252,22 @@ def make_extractor_showcase() -> MettaGridConfig:
     resources.update({"energy", "carbon", "oxygen", "geranium", "silicon"})
     env.game.resource_names = sorted(resources)
 
-    ascii_map = (
-        "###############\n"
-        "#.............#\n"
-        "#.....C.O.....#\n"
-        "#.............#\n"
-        "#.....E.I.....#\n"
-        "#.............#\n"
-        "###############"
-    )
-
-    lines = ascii_map.splitlines()
     env.game.map_builder = MapGen.Config(
-        width=len(lines[0]),
-        height=len(lines),
-        root=InlineAscii.factory(InlineAsciiParams(data=ascii_map)),
+        width=25,
+        height=25,
+        root=UniformExtractorScene.factory(
+            UniformExtractorParams(
+                rows=4,
+                cols=4,
+                jitter=1,
+                extractor_names=[
+                    "carbon_extractor",
+                    "oxygen_extractor",
+                    "geranium_extractor",
+                    "silicon_extractor",
+                ],
+            )
+        ),
     )
 
     return env
