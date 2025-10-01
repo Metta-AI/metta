@@ -47,7 +47,8 @@ class CurriculumEnv(PufferEnv):
 
         # Per-label metrics tracking
         self._per_label_lp_scores = {}
-        self._per_label_completion_counts = {}
+        self._per_label_completion_counts = {}  # Cumulative across all training
+        self._per_label_completion_counts_last_epoch = {}  # For computing deltas
 
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add curriculum statistics to info dictionary for logging.
@@ -68,10 +69,25 @@ class CurriculumEnv(PufferEnv):
             # Add per-label learning progress metrics
             if self._per_label_lp_scores:
                 info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_lp_scores"] = self._per_label_lp_scores.copy()
+
+            # Report per-epoch deltas (derivative) instead of cumulative counts
             if self._per_label_completion_counts:
-                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_completion_counts"] = (
+                # Compute delta since last epoch
+                per_epoch_counts = {}
+                for label, cumulative_count in self._per_label_completion_counts.items():
+                    last_count = self._per_label_completion_counts_last_epoch.get(label, 0)
+                    per_epoch_counts[label] = cumulative_count - last_count
+
+                # Log the per-epoch deltas (this is what you want to visualize)
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_samples_this_epoch"] = per_epoch_counts
+
+                # Also log cumulative for reference (optional, can be removed if not needed)
+                info_dict[self._CURRICULUM_STAT_PREFIX + "per_label_cumulative_samples"] = (
                     self._per_label_completion_counts.copy()
                 )
+
+                # Update last epoch counts for next delta computation
+                self._per_label_completion_counts_last_epoch = self._per_label_completion_counts.copy()
 
             self._stats_update_counter = 0
 
