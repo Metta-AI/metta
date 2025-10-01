@@ -204,12 +204,95 @@ evals = {
         "chest_positions": ["N"],
         "regeneration_rate": 10,
         "shareable_energy": False,
+<<<<<<< HEAD
+        "use_terrain": True,
+    },
+    "two_agent_pairs_terrain_small": {
+=======
+        "use_terrain": False,
+    },
+    "two_agent_pairs_no_terrain": {
+>>>>>>> 34b4f9ca3952cee907fd8bdf5fc41b66186dde1f
+        "num_cogs": 2,
+        "assembler_positions": ["Any", "Any"],
+        "num_obj_distribution": [5],
+        "charger_positions": ["Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+<<<<<<< HEAD
+        "use_terrain": True,
+    },
+    "three_agent_triplets_terrain_small": {
+        "num_cogs": 3,
+        "assembler_positions": ["Any", "Any", "Any"],
+        "num_obj_distribution": [5],
+=======
+        "use_terrain": False,
+    },
+    "three_agent_triplets_no_terrain": {
+        "num_cogs": 3,
+        "assembler_positions": ["Any", "Any", "Any"],
+        "num_chargers": 5,
+>>>>>>> 34b4f9ca3952cee907fd8bdf5fc41b66186dde1f
+        "charger_positions": ["Any", "Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S", "E"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+<<<<<<< HEAD
+        "use_terrain": True,
+    },
+    "many_agent_triplets_terrain_small": {
+=======
+        "use_terrain": False,
+    },
+    "many_agent_triplets_no_terrain": {
+>>>>>>> 34b4f9ca3952cee907fd8bdf5fc41b66186dde1f
+        "num_cogs": 12,
+        "assembler_positions": ["Any", "Any", "Any"],
+        "num_obj_distribution": [5],
+        "charger_positions": ["Any", "Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S", "E"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+<<<<<<< HEAD
+=======
+        "use_terrain": False,
+    },
+    "single_agent_terrain_small": {
+        "num_cogs": 1,
+        "assembler_positions": ["Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any"],
+        "carbon_extractor_positions": ["Any"],
+        "oxygen_extractor_positions": ["Any"],
+        "germanium_extractor_positions": ["Any"],
+        "silicon_extractor_positions": ["Any"],
+        "num_chests": 5,
+        "chest_positions": ["N"],
+        "regeneration_rate": 10,
+        "shareable_energy": False,
         "use_terrain": True,
     },
     "two_agent_pairs_terrain_small": {
         "num_cogs": 2,
         "assembler_positions": ["Any", "Any"],
-        "num_obj_distribution": [5],
+        "num_chargers": 5,
         "charger_positions": ["Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any"],
@@ -224,7 +307,7 @@ evals = {
     "three_agent_triplets_terrain_small": {
         "num_cogs": 3,
         "assembler_positions": ["Any", "Any", "Any"],
-        "num_obj_distribution": [5],
+        "num_chargers": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
@@ -239,7 +322,7 @@ evals = {
     "many_agent_triplets_terrain_small": {
         "num_cogs": 12,
         "assembler_positions": ["Any", "Any", "Any"],
-        "num_obj_distribution": [5],
+        "num_chargers": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
@@ -249,6 +332,7 @@ evals = {
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
+>>>>>>> 34b4f9ca3952cee907fd8bdf5fc41b66186dde1f
         "use_terrain": True,
     },
 }
@@ -489,13 +573,11 @@ def train(
 
 def make_env(
     num_cogs=1,
-    num_assemblers=1,
-    num_chargers=1,
+    num_obj_distribution=4,
     num_carbon_extractors=1,
     num_oxygen_extractors=1,
     num_germanium_extractors=1,
     num_silicon_extractors=1,
-    num_chests=1,
     chest_positions=["N"],
     assembler_positions=["Any"],
     charger_positions=["Any"],
@@ -510,15 +592,13 @@ def make_env(
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(
             num_cogs=[num_cogs],
-            num_assemblers=[num_assemblers],
-            num_chargers=[num_chargers],
             num_carbon_extractors=[num_carbon_extractors],
             num_oxygen_extractors=[num_oxygen_extractors],
             num_germanium_extractors=[num_germanium_extractors],
             num_silicon_extractors=[num_silicon_extractors],
-            num_chests=[num_chests],
             chest_positions=[chest_positions],
             assembler_positions=[assembler_positions],
+            num_obj_distribution=[num_obj_distribution],
             charger_positions=[charger_positions],
             carbon_extractor_positions=[carbon_extractor_positions],
             oxygen_extractor_positions=[oxygen_extractor_positions],

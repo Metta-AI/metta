@@ -141,6 +141,8 @@ find "/UI/Main":
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
 
+    onStepChanged()
+
   onFrame:
 
     playControls()
