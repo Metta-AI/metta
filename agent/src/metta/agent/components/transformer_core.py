@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from pydantic import Field, model_validator
 
@@ -19,6 +19,7 @@ class TransformerBackboneVariant(str, Enum):
     GTRXL = "gtrxl"
     TRXL = "trxl"
     TRXL_NVIDIA = "trxl_nvidia"
+    SLIDING = "sliding"
 
 
 _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
@@ -85,6 +86,19 @@ _VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
         "allow_tf32": True,
         "use_fused_layernorm": False,
     },
+    TransformerBackboneVariant.SLIDING: {
+        "latent_size": 64,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "n_heads": 1,
+        "d_ff": 256,
+        "dropout": 0.0,
+        "attn_dropout": 0.0,
+        "max_cache_size": 80,
+        "pool": "mean",
+        "use_gating": False,
+        "use_fused_layernorm": False,
+    },
 }
 
 
@@ -116,6 +130,8 @@ class TransformerBackboneConfig(ComponentConfig):
     use_flash_checkpoint: bool | None = None
     allow_tf32: bool | None = None
     use_fused_layernorm: bool | None = None
+    max_cache_size: int | None = None
+    pool: Literal["cls", "mean", "none"] | None = None
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerBackboneConfig":
@@ -174,7 +190,7 @@ class TransformerBackboneConfig(ComponentConfig):
                 use_fused_layernorm=bool(self.use_fused_layernorm),
                 allow_tf32=bool(self.allow_tf32),
             )
-        else:
+        elif self.variant is TransformerBackboneVariant.TRXL_NVIDIA:
             core = NvidiaTransformerModule(
                 d_model=self.hidden_size,
                 n_heads=self.n_heads,
@@ -191,6 +207,32 @@ class TransformerBackboneConfig(ComponentConfig):
                 use_flash_checkpoint=bool(self.use_flash_checkpoint),
                 use_fused_layernorm=bool(self.use_fused_layernorm),
                 allow_tf32=bool(self.allow_tf32),
+            )
+        else:
+            from .sliding_transformer import SlidingTransformer
+
+            hidden_size = self.hidden_size or self.latent_size
+            if hidden_size is None:
+                raise ValueError("hidden_size or latent_size must be set for sliding transformer")
+            input_dim = self.latent_size or hidden_size
+            feedforward = self.d_ff or hidden_size * 4
+            max_cache = int(self.max_cache_size or 0)
+            if max_cache <= 0:
+                raise ValueError("max_cache_size must be positive for sliding transformer variant")
+            pool = self.pool or "mean"
+
+            core = SlidingTransformer(
+                in_key=self.in_key,
+                out_key=self.out_key,
+                input_dim=input_dim,
+                hidden_size=hidden_size,
+                num_heads=self.n_heads or 1,
+                num_layers=self.num_layers or 2,
+                d_ff=feedforward,
+                max_cache_size=max_cache,
+                pool=pool,
+                use_fused_layernorm=bool(self.use_fused_layernorm),
+                env=env,
             )
 
         return core
