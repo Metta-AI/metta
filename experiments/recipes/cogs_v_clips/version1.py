@@ -210,13 +210,13 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
                 [0] + list(range(1, max_num_extractors + 1, 2))
             )
             num_oxygen_extractors = rng.choice(
-                [0] + list(range(max_num_extractors + 1, 2))
+                [0] + list(range(1, max_num_extractors + 1, 2))
             )
             num_germanium_extractors = rng.choice(
-                [0] + list(range(max_num_extractors + 1, 2))
+                [0] + list(range(1, max_num_extractors + 1, 2))
             )
             num_silicon_extractors = rng.choice(
-                [0] + list(range(max_num_extractors + 1, 2))
+                [0] + list(range(1, max_num_extractors + 1, 2))
             )
         else:
             num_carbon_extractors = num_oxygen_extractors = num_germanium_extractors = (
