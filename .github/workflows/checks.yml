@@ -330,7 +330,9 @@ jobs:
             exit 1
           elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
             echo "One or more test jobs were cancelled"
-            exit 1
+            # Indicates Github's "neutral" result
+            # https://github.com/actions/runner/issues/662
+            exit 78
           else
             echo "All test jobs completed successfully"
           fi
