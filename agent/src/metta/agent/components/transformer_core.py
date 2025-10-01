@@ -24,12 +24,12 @@ class TransformerBackboneVariant(str, Enum):
     def backbone_defaults(self) -> Dict[str, Any]:
         if self is TransformerBackboneVariant.GTRXL:
             return {
-                "latent_size": 36,
-                "hidden_size": 36,
-                "num_layers": 3,
+                "latent_size": 48,
+                "hidden_size": 48,
+                "num_layers": 2,
                 "n_heads": 4,
                 "d_ff": 128,
-                "max_seq_len": 80,
+                "max_seq_len": 72,
                 "memory_len": 20,
                 "dropout": 0.05,
                 "attn_dropout": 0.05,
@@ -46,12 +46,12 @@ class TransformerBackboneVariant(str, Enum):
             }
         if self is TransformerBackboneVariant.TRXL:
             return {
-                "latent_size": 36,
-                "hidden_size": 36,
-                "num_layers": 3,
+                "latent_size": 48,
+                "hidden_size": 48,
+                "num_layers": 2,
                 "n_heads": 4,
                 "d_ff": 128,
-                "max_seq_len": 80,
+                "max_seq_len": 72,
                 "memory_len": 20,
                 "dropout": 0.05,
                 "attn_dropout": 0.05,
