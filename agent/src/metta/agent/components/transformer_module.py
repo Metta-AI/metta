@@ -663,6 +663,8 @@ class XLRelPartialLearnableMultiHeadAttn(XLRelMultiHeadAttn):
         mems: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         qlen, rlen, batch_size = content.size(0), rel_pos.size(0), content.size(1)
+        if attn_mask is not None and attn_mask.device != content.device:
+            attn_mask = attn_mask.to(device=content.device)
 
         if mems is not None:
             cat = torch.cat([mems, content], dim=0)
