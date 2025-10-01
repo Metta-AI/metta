@@ -258,13 +258,15 @@ def make_icl_assembler(
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
-                get_items=ActionConfig(),
+                get_items=ActionConfig(enabled=False),
+                put_items=ActionConfig(enabled=False),
+                # noop=ActionConfig(enabled=True),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
                     stats={"chest.heart.amount": 1},
                     inventory_max={"heart": 15},
-                    inventory={"heart": 1},
+                    # inventory={"heart": 1},
                 ),
                 default_resource_limit=3,
                 resource_limits={"heart": 30},
