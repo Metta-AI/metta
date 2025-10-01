@@ -3,8 +3,9 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.transformer import (
-    TransformerPolicyConfig,
+    TransformerBackboneConfig,
     TransformerBackboneVariant,
+    TransformerPolicyConfig,
 )
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -22,6 +23,42 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
+
+
+_DEFAULT_POLICY_ARCHITECTURE: TransformerPolicyConfig = TransformerPolicyConfig(
+    variant=TransformerBackboneVariant.TRXL_NVIDIA,
+    transformer=TransformerBackboneConfig(
+        variant=TransformerBackboneVariant.TRXL_NVIDIA,
+        latent_size=48,
+        hidden_size=48,
+        num_layers=2,
+        n_heads=2,
+        d_ff=192,
+        max_seq_len=192,
+        memory_len=32,
+        dropout=0.05,
+        attn_dropout=0.0,
+        pre_lnorm=False,
+        same_length=False,
+        clamp_len=-1,
+        positional_scale=0.1,
+        use_gating=False,
+        ext_len=0,
+        activation_checkpoint=False,
+        use_flash_checkpoint=False,
+        allow_tf32=True,
+        use_fused_layernorm=False,
+    ),
+    critic_hidden_dim=288,
+    actor_hidden_dim=144,
+    action_embedding_dim=13,
+)
+
+
+def default_policy_architecture() -> TransformerPolicyConfig:
+    """Return a copy of the tuned NVIDIA TRXL policy configuration for ABES runs."""
+
+    return _DEFAULT_POLICY_ARCHITECTURE.model_copy(deep=True)
 
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -104,7 +141,7 @@ def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    policy_architecture: Optional[PolicyArchitecture] = None,
+    policy_architecture: PolicyArchitecture | str | None = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(
         enable_detailed_slice_logging=enable_detailed_slice_logging
@@ -115,10 +152,8 @@ def train(
         losses=LossConfig(),
     )
 
-    if policy_architecture is None:
-        policy_architecture = TransformerPolicyConfig(
-            variant=TransformerBackboneVariant.TRXL_NVIDIA
-        )
+    if policy_architecture is None or isinstance(policy_architecture, str):
+        policy_architecture = default_policy_architecture()
 
     return TrainTool(
         trainer=trainer_cfg,
