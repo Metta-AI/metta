@@ -28,13 +28,6 @@ class AgentPolicy:
         """
         raise NotImplementedError("Subclasses must implement step()")
 
-    def reset(self) -> None:
-        """Reset the policy state (e.g., for episodic tasks).
-
-        Default implementation does nothing.
-        """
-        pass  # Default: no-op for stateless policies
-
 
 class Policy:
     """Abstract base class for multi-agent policies.

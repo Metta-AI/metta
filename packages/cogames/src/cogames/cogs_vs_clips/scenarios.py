@@ -63,9 +63,10 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                     "energy": 100,
                 },
                 rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                    },
+                    stats={"chest.heart.amount": 1},
+                    # inventory={
+                    #     "heart": 1,
+                    # },
                 ),
                 initial_inventory={
                     "energy": 100,
@@ -115,7 +116,15 @@ def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
 
 
 def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
-    cfg = make_game(num_cogs=num_cogs, num_assemblers=1)
+    cfg = make_game(
+        num_cogs=num_cogs,
+        num_assemblers=1,
+        num_chests=1,
+        num_carbon_extractors=1,
+        num_oxygen_extractors=1,
+        num_germanium_extractors=1,
+        num_silicon_extractors=1,
+    )
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
         (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
