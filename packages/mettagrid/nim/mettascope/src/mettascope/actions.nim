@@ -1,7 +1,7 @@
 import
   std/[tables],
-  windy, fidget2,
-  common, replays
+  windy, fidget2, vmath,
+  common, replays, pathfinding
 
 type
   Orientation* = enum
@@ -96,13 +96,19 @@ proc agentControls*() =
         if agent != nil:
           let currentPos = agent.location.at(step).xy
           
-          if path[0] == currentPos and path.len > 1:
-            let nextPos = path[1]
-            let dx = nextPos.x - currentPos.x
-            let dy = nextPos.y - currentPos.y
-            let orientation = getOrientationFromDelta(dx.int, dy.int)
-            queueAction(agentId, replay.moveActionId, orientation.int)
-            agentPaths[agentId].delete(0)
+          # Check if the agent is still on the expected path
+          if path[0] == currentPos:
+            if path.len > 1:
+              let nextPos = path[1]
+              let dx = nextPos.x - currentPos.x
+              let dy = nextPos.y - currentPos.y
+              let orientation = getOrientationFromDelta(dx.int, dy.int)
+              queueAction(agentId, replay.moveActionId, orientation.int)
+              agentPaths[agentId].delete(0)
+            else:
+              recomputePath(agentId, currentPos)
+          else:
+            recomputePath(agentId, currentPos)
     
     if agentPaths.len > 0:
       lastPathQueuedStep = step
@@ -115,21 +121,25 @@ proc agentControls*() =
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
       sendAction(agent.agentId, replay.moveActionId, N.int)
       agentPaths.del(agent.agentId)
+      agentDestinations.del(agent.agentId)
       lastPathQueuedStep = -1
 
     elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
       sendAction(agent.agentId, replay.moveActionId, S.int)
       agentPaths.del(agent.agentId)
+      agentDestinations.del(agent.agentId)
       lastPathQueuedStep = -1
 
     elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
       sendAction(agent.agentId, replay.moveActionId, E.int)
       agentPaths.del(agent.agentId)
+      agentDestinations.del(agent.agentId)
       lastPathQueuedStep = -1
 
     elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
       sendAction(agent.agentId, replay.moveActionId, W.int)
       agentPaths.del(agent.agentId)
+      agentDestinations.del(agent.agentId)
       lastPathQueuedStep = -1
 
     # Put items

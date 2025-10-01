@@ -101,6 +101,8 @@ var
 
 ## Path queue for each agent. Maps agentId to a sequence of grid positions.
 var agentPaths* = initTable[int, seq[IVec2]]()
+## Destination queue for each agent. Maps agentId to a sequence of destinations.
+var agentDestinations* = initTable[int, seq[IVec2]]()
 
 proc at*[T](sequence: seq[T], step: int): T =
   # Get the value at the given step.

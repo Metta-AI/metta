@@ -1,7 +1,7 @@
 import
   std/[strformat, math, os, strutils, tables],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays
+  common, panels, actions, utils, replays, pathfinding
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -19,22 +19,6 @@ proc agentColor*(id: int): Color =
     n * sqrt(2.0) mod 1.0,
     1.0
   )
-
-proc isWalkablePos(pos: IVec2): bool =
-  ## Check if a position is walkable.
-  if pos.x < 0 or pos.x >= replay.mapSize[0] or pos.y < 0 or pos.y >= replay.mapSize[1]:
-    return false
-  
-  # Check if any non-agent object blocks this position
-  for obj in replay.objects:
-    if obj.location.at(step).xy == pos:
-      let typeName = replay.typeNames[obj.typeId]
-      # TODO agent handling is tricky.
-      # agents can block each other, but sometimes can move, but can deadlock.
-      if typeName != "agent":
-        return false
-  
-  return true
 
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
@@ -58,9 +42,10 @@ proc useSelections*(panel: Panel) =
       if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
         gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         let startPos = selection.location.at(step).xy
-        let path = findPath(startPos, gridPos, replay.mapSize[0], replay.mapSize[1], isWalkablePos)
+        let path = findPath(startPos, gridPos)
         if path.len > 0:
           agentPaths[selection.agentId] = path
+          agentDestinations[selection.agentId] = @[gridPos]
 
 proc drawFloor*() =
   # Draw the floor tiles.
