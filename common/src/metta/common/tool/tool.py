@@ -24,10 +24,10 @@ class Tool(Config):
 
     The function can optionally take arguments.
 
-    Auto-factory support:
-    Override the `auto_factory` class method to enable automatic tool generation
+    Inferred tool support:
+    Override the `infer` class method to enable automatic tool generation
     from recipe modules that define `mettagrid()` or `simulations()` functions.
-    If not overridden, the tool cannot be auto-generated from recipes.
+    If not overridden, the tool cannot be inferred from recipes.
     """
 
     # Required canonical name for discovery and display; not a Pydantic field
@@ -44,23 +44,23 @@ class Tool(Config):
             raise TypeError(f"Tool class {cls.__name__} must define a 'tool_name' class variable")
 
     @classmethod
-    def auto_factory(
+    def infer(
         cls,
         mettagrid: MettaGridConfig | None = None,
         simulations: list[SimulationConfig] | None = None,
     ) -> Tool | None:
         """Generate a tool instance from recipe configurations.
 
-        Override this method to support auto-generation from recipes.
+        Override this method to support automatic inference from recipes.
 
         Args:
             mettagrid: The base environment configuration from recipe.mettagrid()
             simulations: Simulation configs from recipe.simulations()
 
         Returns:
-            A configured tool instance, or None if auto-generation is not supported
+            A configured tool instance, or None if inference is not supported
         """
-        return None  # By default, tools don't support auto-factory
+        return None  # By default, tools don't support inference
 
     # Returns exit code, optionally.
     @abstractmethod

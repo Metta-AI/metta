@@ -51,12 +51,12 @@ class EvalTool(Tool):
     push_metrics_to_wandb: bool = False
 
     @classmethod
-    def auto_factory(
+    def infer(
         cls,
         mettagrid: MettaGridConfig | None = None,
         simulations: list[SimulationConfig] | None = None,
     ) -> "EvalTool | None":
-        """Generate EvalTool from recipe. Prefers simulations; falls back to mettagrid."""
+        """Infer EvalTool from recipe. Prefers simulations; falls back to mettagrid."""
         if simulations is not None:
             return cls(simulations=simulations)
         if mettagrid is not None:

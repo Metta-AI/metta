@@ -23,12 +23,12 @@ class EvalRemoteTool(Tool):
     simulations: Sequence[SimulationConfig]
 
     @classmethod
-    def auto_factory(
+    def infer(
         cls,
         mettagrid: Optional[MettaGridConfig] = None,
         simulations: Optional[list[SimulationConfig]] = None,
     ) -> Optional["EvalRemoteTool"]:
-        """Cannot auto-generate: requires explicit policy_uri."""
+        """Cannot infer: requires explicit policy_uri."""
         return None
 
     def invoke(self, args: dict[str, str]) -> int | None:

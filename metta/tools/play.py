@@ -40,12 +40,12 @@ class PlayTool(Tool):
         return self.stats_dir if self.stats_dir is not None else f"{self.system.data_dir}/stats"
 
     @classmethod
-    def auto_factory(
+    def infer(
         cls,
         mettagrid: Optional[MettaGridConfig] = None,
         simulations: Optional[list[SimulationConfig]] = None,
     ) -> Optional["PlayTool"]:
-        """Generate PlayTool from recipe. Prefers simulations[0]; falls back to mettagrid."""
+        """Infer PlayTool from recipe. Prefers simulations[0]; falls back to mettagrid."""
         # Prefer simulations()[0] if available; otherwise fall back to mettagrid()
         if simulations and len(simulations) > 0:
             return cls(sim=simulations[0])

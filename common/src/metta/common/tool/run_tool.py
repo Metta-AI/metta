@@ -22,13 +22,12 @@ from rich.console import Console
 from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
-from metta.common.tool.discover import (
-    generate_candidate_paths,
+from metta.common.tool.tool_registry import (
     get_available_tools,
-    get_tool_aliases,
     get_tool_name_map,
-    list_recipes_supporting_tool,
-    try_infer_tool_factory,
+    get_tool_registry,
+    infer_tool_from_recipe,
+    resolve_tool_path,
 )
 from metta.common.util.log_config import init_logging
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
@@ -494,29 +493,9 @@ constructor/function vs configuration overrides based on introspection.
 
     # Check if this is a bare tool name (e.g., 'train', 'evaluate', 'sweep')
     tool_path = known_args.tool_path  # The first positional arg (e.g., 'train' or 'arena.train')
-    # It's bare if: (1) it's a known tool name/alias AND (2) no second token was provided
-    # This handles: './tools/run.py train' (bare) vs './tools/run.py train arena' (two-part, not bare)
-    is_bare_tool = tool_path in get_tool_name_map() and two_part_second is None
-
-    # Handle special case: bare tool name with --help (show available options)
-    if known_args.help and is_bare_tool:
-        supported = list_recipes_supporting_tool(tool_path)
-        if supported:
-            console.print(f"\n[bold]Available '{tool_path}' implementations:[/bold]\n")
-            for item in supported:
-                # Show short form if possible
-                short = item.replace("experiments.recipes.", "")
-                console.print(f"  {short}")
-            console.print("\n[dim]To see arguments for a specific implementation:[/dim]")
-            # Show example using the first implementation
-            console.print(f"  ./tools/run.py {supported[0].replace('experiments.recipes.', '')} --help")
-        else:
-            console.print(f"\n[yellow]No implementations found for tool '{tool_path}'[/yellow]")
-            console.print("This might not be a valid tool type.")
-        return 0
 
     # Determine the tool path and adjust remaining args accordingly
-    candidate_paths = generate_candidate_paths(
+    candidate_paths = resolve_tool_path(
         known_args.tool_path,
         two_part_second,
     )
@@ -527,19 +506,6 @@ constructor/function vs configuration overrides based on introspection.
     if not candidate_paths:
         output_error(f"{red('Error:')} Missing tool path. See -h for usage.")
         return 2
-
-    # Handle special case: bare tool name with --list (same as --help for bare tools)
-    if known_args.list and is_bare_tool:
-        supported = list_recipes_supporting_tool(tool_path)
-        if supported:
-            console.print(f"\n[bold]Available '{tool_path}' implementations:[/bold]\n")
-            for item in supported:
-                # Show short form if possible
-                short = item.replace("experiments.recipes.", "")
-                console.print(f"  {short}")
-        else:
-            console.print(f"\n[yellow]No implementations found for tool '{tool_path}'[/yellow]")
-        return 0
 
     # If listing is requested for a module path
     if known_args.list:
@@ -560,7 +526,7 @@ constructor/function vs configuration overrides based on introspection.
             # Add inferred tools (canonical) when supported and inferable
             for canonical in set(get_tool_name_map().values()):
                 try:
-                    if canonical not in names and try_infer_tool_factory(mod, canonical):
+                    if canonical not in names and infer_tool_from_recipe(mod.__name__, canonical):
                         names.add(canonical)
                 except Exception:
                     # Ignore inference errors during listing
@@ -594,7 +560,7 @@ constructor/function vs configuration overrides based on introspection.
             except Exception as e:
                 load_errors.append((cand, e))
                 continue
-            factory = try_infer_tool_factory(mod, verb)
+            factory = infer_tool_from_recipe(module_name, verb)
             if factory is not None:
                 tool_maker = factory
                 resolved_path = cand
@@ -635,10 +601,11 @@ constructor/function vs configuration overrides based on introspection.
                     continue
                 if hasattr(mod, "mettagrid") or hasattr(mod, "simulations"):
                     output_info(f"\n{yellow('Hint:')} Recipe '{module_name}' exists but doesn't define '{verb}'.")
-                    # Build the available tools list from get_tool_aliases
-                    aliases = get_tool_aliases()
+                    # Build the available tools list from tool registry
+                    registry = get_tool_registry()
+                    alias_map = registry.get_tool_aliases()
                     tools_with_aliases = []
-                    for canonical, alias_list in sorted(aliases.items()):
+                    for canonical, alias_list in sorted(alias_map.items()):
                         if alias_list:
                             alias_str = "/".join([canonical] + alias_list)
                             tools_with_aliases.append(f"{alias_str}")

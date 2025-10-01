@@ -91,12 +91,12 @@ class TrainTool(Tool):
         return self
 
     @classmethod
-    def auto_factory(
+    def infer(
         cls,
         mettagrid: Optional[MettaGridConfig] = None,
         simulations: Optional[list[SimulationConfig]] = None,
     ) -> Optional["TrainTool"]:
-        """Generate TrainTool from recipe. Requires mettagrid; optionally uses simulations for evaluator."""
+        """Infer TrainTool from recipe. Requires mettagrid; optionally uses simulations for evaluator."""
         if mettagrid is None:
             return None
 
