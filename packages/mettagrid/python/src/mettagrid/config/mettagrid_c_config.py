@@ -209,7 +209,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 configured_resources.add(key)
             elif isinstance(key, tuple):
                 # Grouped resources with shared limit
-                resource_ids = [resource_name_to_id[name] for name in key if name in resource_name_to_id]
+                resource_ids = [resource_name_to_id[name] for name in key]
                 if resource_ids:
                     limits_list.append([resource_ids, limit_value])
                     configured_resources.update(key)
