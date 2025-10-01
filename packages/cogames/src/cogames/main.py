@@ -220,7 +220,7 @@ def play_cmd(
     ctx: typer.Context,
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
     policy_class_path: str = typer.Option(
-        "cogames.policy.lstm.LSTMPolicy", "--policy", help="Path to policy class"
+        "cogames.policy.simple.SimplePolicy", "--policy", help="Path to policy class"
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
@@ -430,7 +430,7 @@ def train_cmd(
     policy_class_path: Annotated[
         str,
         typer.Option("--policy", help="Path to policy class"),
-    ] = "cogames.policy.lstm.LSTMPolicy",
+    ] = "cogames.policy.simple.SimplePolicy",
     initial_weights_path: Annotated[
         Optional[Path],
         typer.Option(

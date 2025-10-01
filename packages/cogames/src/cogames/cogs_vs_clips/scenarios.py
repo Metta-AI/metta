@@ -29,8 +29,31 @@ from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 
 
+RESOURCE_REWARD_WEIGHTS: dict[str, float] = {
+    "carbon": 0.6,
+    "oxygen": 0.6,
+    "germanium": 0.8,
+    "silicon": 0.8,
+    "decoder": 1.0,
+    "modulator": 1.0,
+    "resonator": 1.0,
+    "scrambler": 1.0,
+}
+
+
 def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
     """Shared base configuration for all game types."""
+
+    heart_reward = 5.0
+    stats_rewards: dict[str, float] = {
+        "heart.gained": heart_reward,
+        "heart.put": heart_reward,
+    }
+
+    for resource, weight in RESOURCE_REWARD_WEIGHTS.items():
+        stats_rewards[f"{resource}.gained"] = weight
+        stats_rewards[f"{resource}.put"] = weight * 0.6
+
     return MettaGridConfig(
         game=GameConfig(
             resource_names=resources,
@@ -64,8 +87,9 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                 },
                 rewards=AgentRewards(
                     inventory={
-                        "heart": 1,
+                        "heart": heart_reward,
                     },
+                    stats=stats_rewards,
                 ),
                 initial_inventory={
                     "energy": 100,
