@@ -1,3 +1,18 @@
+# Level 1:
+# no buildings give you energy
+# resource give you energy of some amount
+# running out of energy is not super punishing
+
+
+# Level 2: now you can go out into the wilderness
+# resources can run out in a way that matters -> things in your base have max_uses,
+# slow regneration, different cooldowns,
+
+# Level 3: clipping happens, always have exactly the same item needed to unclip, always a magnetizer
+
+# Level 4: four potential resources that you need to do unclipping with
+
+
 # First experimrent: just a map with assemblers (input energy output hearts), chests (input hearts), and chargers (output energy)
 # curriculum over depletion rate, and number of these objects
 # if multiagent, option for agents to share energy with each other
@@ -37,6 +52,13 @@ from mettagrid.mapgen.mapgen import MapGen
 
 # ADDING TERRAIN
 
+# base has all the assemblers, in the middle, surrounded by walls
+# nano-assembler which maeks hearts
+# extractors are also in the base -> everything in the base
+
+# second -> in all the cardinal directions there are holes in the walls so you can go out and forage for resources
+# outside of the base there are assemblers with better recipes than assemblers in the base
+
 curriculum_args = {
     "multi_agent_singles": {
         "num_cogs": [2, 4, 6, 8, 12],
@@ -49,7 +71,7 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any"]],
         "num_chests": [1, 5, 10],
         "chest_positions": [["N"]],
-        "regeneration_rate": [5, 10, 15],
+        "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [False],
     },
     "multi_agent_pairs": {
@@ -63,7 +85,7 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any", "Any"]],
         "num_chests": [1, 5, 10],
         "chest_positions": [["N", "S"]],
-        "regeneration_rate": [5, 10, 15],
+        "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
     },
     "multi_agent_triplets": {
@@ -78,7 +100,7 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any", "Any", "Any"]],
         "num_chests": [1, 5, 10],
         "chest_positions": [["N", "S", "E"]],
-        "regeneration_rate": [5, 10, 15],
+        "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
     },
     # "test":
@@ -97,6 +119,13 @@ curriculum_args = {
     #     "shareable_energy": [True],
     #     }
 }
+
+
+# agent.inventory.resource_limits:
+# base resources to have a limit that would be a coule 100, second level things like pickaxe have 1 or 2
+# hearts have a limit of 5
+
+# resource limits should be a function of how many agents and how many assemblers are in the env
 
 evals = {
     "single_agent": {
@@ -272,7 +301,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         )
 
         env.game.inventory_regen_interval = regeneration_rate
-        env.game.inventory_regen_amounts = {"energy": 10}
+        env.game.inventory_regen_amounts = {"energy": 2}
         if shareable_energy:
             env.game.agent.shareable_resources = ["energy"]
         env.label = f"{env.game.num_agents}_cogs_{num_assemblers}_assemblers_{num_chargers}_chargers_{num_carbon_extractors + num_oxygen_extractors + num_germanium_extractors + num_silicon_extractors}_extractors_{num_chests}_chests_{env.game.inventory_regen_interval}_regeneration_rate"
@@ -331,6 +360,8 @@ def train(
         policy_config = FastLSTMResetConfig()
     elif architecture == "transformer":
         policy_config = ViTSlidingTransConfig()
+        trainer_cfg.batch_size = 131072
+        trainer_cfg.minibatch_size = 4096
     else:
         raise ValueError(f"Invalid architecture: {architecture}")
 
@@ -413,7 +444,7 @@ def experiment():
                 [
                     "./devops/skypilot/launch.py",
                     "experiments.recipes.cogs_v_clips.version1.train",
-                    f"run=daphne.cogs_v_clips.noterrain.{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                    f"run=daphne.cogs_v_clips.noterrain.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",
