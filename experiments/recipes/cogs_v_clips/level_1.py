@@ -504,6 +504,7 @@ def make_env(
     silicon_extractor_positions=["Any"],
     regeneration_rate=10,
     shareable_energy=False,
+    use_terrain=False,
 ):
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(
@@ -524,6 +525,7 @@ def make_env(
             silicon_extractor_positions=[silicon_extractor_positions],
             regeneration_rate=[regeneration_rate],
             shareable_energy=[shareable_energy],
+            use_terrain=[use_terrain],
         )
     )
     return task_generator.get_task(random.randint(0, 1000000))
