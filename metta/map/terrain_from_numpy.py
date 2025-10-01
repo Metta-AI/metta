@@ -1,6 +1,5 @@
 import os
 import random
-from tkinter.constants import FALSE
 import zipfile
 from typing import Optional
 
@@ -238,9 +237,6 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         valid_positions_set = set(valid_positions[num_agents:])
 
         if len(valid_positions_set) < sum(self.config.objects.values()):
-            print(
-                f"Not enough empty positions, carving out {sum(self.config.objects.values()) - len(valid_positions_set)} patches"
-            )
             grid, empty_centers = self.carve_out_patches(grid, valid_positions_set)
             valid_positions_set.update(empty_centers)
 
