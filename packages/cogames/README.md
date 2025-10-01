@@ -28,7 +28,7 @@ to achieve objectives. The environment features:
 **Station Types:**
 
 - **Charger**: Provides energy to agents
-- **Extractors** (Carbon/Oxygen/Geranium/Silicon): Convert energy into materials
+- **Extractors** (Carbon/Oxygen/Germanium/Silicon): Convert energy into materials
 - **Assembler**: Combines resources to create components or objectives
 - **Chest**: Storage for resource sharing between agents
 

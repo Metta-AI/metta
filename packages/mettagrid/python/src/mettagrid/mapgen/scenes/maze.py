@@ -183,20 +183,34 @@ class Maze(Scene[MazeParams]):
         self.grid[:] = "wall"
         visited = np.zeros((self.maze.rows, self.maze.cols), dtype=bool)
 
-        def carve_passages_from(i: int, j: int):
-            nonlocal visited
+        # Use iterative approach to avoid recursion depth limits for large mazes
+        stack = [(0, 0)]  # (i, j) coordinates
 
-            visited[j, i] = True
-            self.maze.carve_cell(i, j)
+        while stack:
+            i, j = stack[-1]
+
+            if not visited[j, i]:
+                visited[j, i] = True
+                self.maze.carve_cell(i, j)
+
+            # Get unvisited neighbors
             directions = self.maze.valid_directions(i, j)
             self.rng.shuffle(directions)
+            unvisited_neighbors = []
+
             for d in directions:
                 ni, nj = i + d[0], j + d[1]
                 if not visited[nj, ni]:
-                    self.maze.remove_wall_in_direction(i, j, d)
-                    carve_passages_from(ni, nj)
+                    unvisited_neighbors.append((d, ni, nj))
 
-        carve_passages_from(0, 0)
+            if unvisited_neighbors:
+                # Choose a random unvisited neighbor
+                d, ni, nj = unvisited_neighbors[self.rng.integers(0, len(unvisited_neighbors))]
+                self.maze.remove_wall_in_direction(i, j, d)
+                stack.append((ni, nj))
+            else:
+                # No unvisited neighbors, backtrack
+                stack.pop()
 
     def render(self):
         if self.params.algorithm == "kruskal":

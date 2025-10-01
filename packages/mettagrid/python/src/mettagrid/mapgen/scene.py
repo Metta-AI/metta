@@ -64,6 +64,8 @@ class SceneConfig(Config):
 
 class ChildrenAction(AreaQuery):
     scene: SceneConfig
+    # Deterministic seeding: optional additive offset applied to parent's seed
+    seed_offset: int = 0
 
 
 class Scene(Generic[ParamsT]):
@@ -131,7 +133,15 @@ class Scene(Generic[ParamsT]):
         self._areas = []
         self._locks = {}
 
-        self.rng = np.random.default_rng(seed)
+        # Ensure we always have an integer seed so children can derive deterministic seeds
+        if isinstance(seed, (int, np.integer)):
+            self.seed_int = int(seed)
+            self.rng = np.random.default_rng(self.seed_int)
+        else:
+            # Fall back (should not happen if SceneConfig.create passes an int)
+            self.rng = np.random.default_rng(seed)
+            # derive a reproducible int from the generator for child seeding
+            self.seed_int = int(self.rng.integers(0, 2**63 - 1, dtype=np.int64))
 
         self.post_init()
 
@@ -174,11 +184,17 @@ class Scene(Generic[ParamsT]):
     def render_with_children(self):
         self.render()
 
-        for action in self.get_children():
+        for action_idx, action in enumerate(self.get_children()):
             areas = self.select_areas(action)
-            for area in areas:
-                child_rng = self.rng.spawn(1)[0]
-                child_scene = action.scene.create(area, child_rng)
+            for area_idx, area in enumerate(areas):
+                # Deterministic, additive child seed from parent's seed
+                child_seed = (
+                    self.seed_int
+                    + 1000003 * int(action_idx)
+                    + 7919 * int(area_idx)
+                    + int(getattr(action, "seed_offset", 0))
+                ) & ((1 << 63) - 1)
+                child_scene = action.scene.create(area, child_seed)
                 self.children.append(child_scene)
                 child_scene.render_with_children()
 
