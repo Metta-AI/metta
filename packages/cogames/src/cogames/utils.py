@@ -1,9 +1,12 @@
 """Utility functions for CoGames CLI."""
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from cogames import game as game_module
+
+if TYPE_CHECKING:
+    from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
@@ -41,3 +44,11 @@ def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]
         return None, f"Ambiguous game name '{game_arg}'. Matches: {', '.join(matches)}"
     else:
         return None, f"Game '{game_arg}' not found. Use 'cogames games' to list available games."
+
+
+def get_game_config(game_arg: str) -> Tuple[str, "MettaGridConfig"]:
+    """Return a resolved game name and configuration or raise ValueError."""
+    resolved_game, error = resolve_game(game_arg)
+    if error or resolved_game is None:
+        raise ValueError(error or "Unknown game")
+    return resolved_game, game_module.get_game(resolved_game)

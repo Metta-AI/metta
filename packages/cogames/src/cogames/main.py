@@ -11,35 +11,13 @@ sys.path.insert(0, ".")
 import typer
 from rich.console import Console
 
+from cogames.policy.loader import instantiate_policy, load_policy_checkpoint
+from cogames.policy.registry import resolve_policy_class_path
+
 logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
 console = Console()
-
-# Mapping of shorthand policy names to full class paths
-POLICY_SHORTCUTS = {
-    "random": "cogames.policy.random.RandomPolicy",
-    "simple": "cogames.policy.simple.SimplePolicy",
-    "lstm": "cogames.policy.lstm.LSTMPolicy",
-    "claude": "cogames.policy.claude.ClaudePolicy",
-}
-
-
-def resolve_policy_class_path(policy: str) -> str:
-    """Resolve a policy shorthand or full class path.
-
-    Args:
-        policy: Either a shorthand like "random", "simple", "lstm"
-                or a full class path like "cogames.policy.random.RandomPolicy"
-
-    Returns:
-        Full class path to the policy
-    """
-    # If it's a shorthand, expand it
-    if policy in POLICY_SHORTCUTS:
-        return POLICY_SHORTCUTS[policy]
-    # Otherwise assume it's already a full class path
-    return policy
 
 
 @app.callback(invoke_without_command=True)
@@ -110,12 +88,11 @@ def play_cmd(
         return
 
     # Resolve game name
-    resolved_game, error = utils.resolve_game(game_name)
-    if error:
-        console.print(f"[red]Error: {error}[/red]")
-        raise typer.Exit(1)
-    assert resolved_game is not None
-    env_cfg = game.get_game(resolved_game)
+    try:
+        resolved_game, env_cfg = utils.get_game_config(game_name)
+    except ValueError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
     # Resolve policy shorthand
     full_policy_path = resolve_policy_class_path(policy_class_path)
@@ -225,12 +202,11 @@ def train_cmd(
         return
 
     # Resolve game name
-    resolved_game, error = utils.resolve_game(game_name)
-    if error:
-        console.print(f"[red]Error: {error}[/red]")
-        raise typer.Exit(1)
-    assert resolved_game is not None
-    env_cfg = game.get_game(resolved_game)
+    try:
+        resolved_game, env_cfg = utils.get_game_config(game_name)
+    except ValueError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
     # Resolve policy shorthand
     full_policy_path = resolve_policy_class_path(policy_class_path)
@@ -295,9 +271,9 @@ def evaluate(
         "--policy",
         help="Policy shorthand or full class path",
     ),
-    policy_data_path: Optional[Path] = typer.Option(  # noqa: B008
+    checkpoint_path: Optional[Path] = typer.Option(  # noqa: B008
         None,
-        "--policy-data",
+        "--checkpoint",
         help="Path to policy checkpoint (file or directory)",
     ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes"),
@@ -316,7 +292,6 @@ def evaluate(
     from cogames import game, utils
     from cogames.policy import AgentPolicy, Policy, TrainablePolicy
     from mettagrid import MettaGridEnv
-    from mettagrid.util.module import load_symbol
 
     if episodes <= 0:
         console.print("[red]Number of episodes must be greater than zero.[/red]")
@@ -329,49 +304,30 @@ def evaluate(
         console.print("\n[dim]Usage: cogames evaluate <game> [--policy ...][/dim]")
         return
 
-    resolved_game, error = utils.resolve_game(game_name)
-    if error:
-        console.print(f"[red]Error: {error}[/red]")
-        raise typer.Exit(1)
-    assert resolved_game is not None
-
-    env_cfg = game.get_game(resolved_game)
+    try:
+        resolved_game, env_cfg = utils.get_game_config(game_name)
+    except ValueError as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(1) from exc
     env = MettaGridEnv(env_cfg=env_cfg)
 
     resolved_policy_path = resolve_policy_class_path(policy_class_path)
     device = torch.device("cpu")
 
-    def _select_checkpoint(path: Path) -> Path:
-        if path.is_file():
-            return path
-        candidate_files = sorted((p for p in path.rglob("*.pt")), key=lambda p: p.stat().st_mtime)
-        if not candidate_files:
-            raise ValueError(f"No checkpoint files (*.pt) found in directory: {path}")
-        return candidate_files[-1]
-
-    policy_class = load_symbol(resolved_policy_path)
     try:
-        policy_instance: Policy = policy_class(env, device)
-    except Exception as exc:
+        policy_instance: Policy = instantiate_policy(resolved_policy_path, env, device)
+    except Exception as exc:  # pragma: no cover - defensive
         console.print(f"[red]Failed to instantiate policy class '{resolved_policy_path}' for evaluation: {exc}[/red]")
         raise typer.Exit(1) from exc
 
-    checkpoint_path: Optional[Path] = policy_data_path
+    resolved_checkpoint: Optional[Path] = None
     if checkpoint_path is not None:
-        if checkpoint_path.is_dir():
-            try:
-                checkpoint_path = _select_checkpoint(checkpoint_path)
-            except ValueError as exc:  # pragma: no cover - defensive
-                console.print(f"[red]{exc}[/red]")
-                raise typer.Exit(1) from exc
-        if not isinstance(policy_instance, TrainablePolicy):
-            console.print(
-                "[red]Policy data provided, but the selected policy does not support loading checkpoints.[/red]"
-            )
-            raise typer.Exit(1)
         try:
-            policy_instance.load_policy_data(str(checkpoint_path))
-        except Exception as exc:
+            resolved_checkpoint = load_policy_checkpoint(policy_instance, checkpoint_path)
+        except (FileNotFoundError, TypeError) as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
+        except Exception as exc:  # pragma: no cover - loading errors
             console.print(f"[red]Failed to load policy data from {checkpoint_path}: {exc}[/red]")
             raise typer.Exit(1) from exc
 
@@ -476,7 +432,7 @@ def evaluate(
     evaluation_metadata = {
         "game": resolved_game,
         "policy": resolved_policy_path,
-        "checkpoint": str(checkpoint_path) if checkpoint_path else None,
+        "checkpoint": str(resolved_checkpoint) if resolved_checkpoint else None,
         "episodes": episodes,
         "average_rewards": avg_rewards.tolist(),
     }

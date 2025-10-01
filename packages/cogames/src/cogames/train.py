@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from cogames.policy import TrainablePolicy
+from cogames.policy.loader import instantiate_policy, load_policy_checkpoint
 from mettagrid import MettaGridConfig, MettaGridEnv
-from mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
     import torch
@@ -102,8 +102,7 @@ def train(
     )
 
     # Load the TrainablePolicy class using the new API
-    policy_class = load_symbol(policy_class_path)
-    policy = policy_class(vecenv.driver_env, device)
+    policy = instantiate_policy(policy_class_path, vecenv.driver_env, device)
 
     # Ensure it implements the TrainablePolicy interface
     assert isinstance(policy, TrainablePolicy), (
@@ -112,7 +111,7 @@ def train(
 
     # Load initial weights if provided
     if initial_weights_path:
-        policy.load_policy_data(initial_weights_path)
+        load_policy_checkpoint(policy, Path(initial_weights_path))
 
     # Detect if policy uses RNN (e.g., LSTM)
     use_rnn = "lstm" in policy_class_path.lower() or "rnn" in policy_class_path.lower()
