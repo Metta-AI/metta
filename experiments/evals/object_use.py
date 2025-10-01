@@ -45,15 +45,13 @@ def make_object_use_env(
                 instances=num_instances,
                 border_width=6,
                 instance_border_width=3,
-                instance_map=MapGen.Config(
+                instance=MapGen.Config(
                     width=11,
                     height=11,
                     border_width=3,
-                    root=MeanDistance.factory(
-                        params=MeanDistance.Params(
-                            mean_distance=6,
-                            objects=map_objects,
-                        )
+                    instance=MeanDistance.Config(
+                        mean_distance=6,
+                        objects=map_objects,
                     ),
                 ),
             ),
@@ -91,7 +89,7 @@ def make_object_use_ascii_env(
                 instances=num_instances,
                 border_width=6,
                 instance_border_width=3,
-                instance_map=MapGen.Config.with_ascii_uri(
+                instance=MapGen.Config.with_ascii_uri(
                     f"packages/mettagrid/configs/maps/object_use/{ascii_map}.map",
                     border_width=1,
                 ),
