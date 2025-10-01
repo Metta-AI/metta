@@ -68,7 +68,7 @@ class FastDynamicsConfig(PolicyArchitecture):
             num_layers=2,
         ),
         LSTMConfig(
-            in_key="obs_latent_attn",
+            in_key="encoded_obs",
             out_key="core",
             latent_size=_latent_dim,
             hidden_size=_lstm_latent,
