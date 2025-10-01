@@ -216,14 +216,8 @@ Examples:
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
 
-    # Accept shorthand like 'arena.train' by trying the experiments.recipes prefix only here.
-    from metta.common.tool.discover import get_tool_aliases
-
-    if not validate_module_path(
-        args.module_path,
-        auto_prefixes=["experiments.recipes"],
-        verb_aliases=get_tool_aliases(),
-    ):
+    # Validate module path (supports shorthand like 'arena.train')
+    if not validate_module_path(args.module_path):
         sys.exit(1)
 
     assert commit_hash

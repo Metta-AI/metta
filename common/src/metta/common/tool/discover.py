@@ -57,12 +57,18 @@ def generate_candidate_paths(
     short_only: bool = True,
     verb_aliases: dict[str, list[str]] | None = None,
 ) -> list[str]:
-    """Generate ordered candidate import paths.
+    """Generate ordered candidate import paths for metta tools.
 
-    - primary: main symbol path like "arena.train" or fully-qualified.
-    - second: when provided, treats inputs like (x, y) as the sugar y.x.
-    - auto_prefixes: optional module prefixes to try (e.g., ["experiments.recipes"]).
-    - short_only: if True, only apply prefixes for short forms (<= 1 dot).
+    Uses metta-specific defaults for tool discovery:
+    - auto_prefixes defaults to ["experiments.recipes"]
+    - verb_aliases defaults to get_tool_aliases() (e.g., train/t, evaluate/eval)
+
+    Args:
+        primary: main symbol path like "arena.train" or fully-qualified.
+        second: when provided, treats inputs like (x, y) as the sugar y.x.
+        auto_prefixes: module prefixes to try. Pass [] to disable.
+        short_only: if True, only apply prefixes for short forms (<= 1 dot).
+        verb_aliases: tool alias mappings. Pass {} to disable.
     """
     if not primary:
         return []
@@ -73,10 +79,10 @@ def generate_candidate_paths(
         bases.append(f"{second}.{primary}")
     bases.append(primary)
 
-    # Expand with aliases and prefixes
+    # Expand with aliases and prefixes using metta-specific defaults
     candidates: list[str] = []
-    alias_map = verb_aliases or get_tool_aliases()
-    prefixes = auto_prefixes or []
+    alias_map = get_tool_aliases() if verb_aliases is None else verb_aliases
+    prefixes = ["experiments.recipes"] if auto_prefixes is None else auto_prefixes
 
     for base in bases:
         # Start with base and expand with verb aliases if present

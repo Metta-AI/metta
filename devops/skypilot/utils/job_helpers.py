@@ -1,4 +1,3 @@
-import importlib
 import netrc
 import os
 import re
@@ -18,6 +17,7 @@ from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.tool.discover import generate_candidate_paths
 from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+from mettagrid.util.module import load_symbol
 
 
 def get_devops_skypilot_dir() -> Path:
@@ -69,56 +69,29 @@ def check_git_state(commit_hash: str) -> str | None:
     return None
 
 
-def validate_module_path(
-    module_path: str,
-    *,
-    auto_prefixes: list[str] | None = None,
-    verb_aliases: dict[str, list[str]] | None = None,
-) -> bool:
+def validate_module_path(module_path: str) -> bool:
     """
     Validate a module path points to a callable function.
 
-    Optionally tries a list of `auto_prefixes` to resolve shorthand names.
-    Example: module_path='arena.train', auto_prefixes=['experiments.recipes']
-             will try 'arena.train' first, then 'experiments.recipes.arena.train'.
-
-    Note: Default behavior performs no auto-prefixing.
+    Uses generate_candidate_paths with its default metta-specific settings,
+    which automatically handles shorthand names like 'arena.train'.
     """
     try:
-
-        def candidates(path: str) -> list[str]:
-            # We only have a single token here (no two-part syntax in Skypilot CLI),
-            # but reuse the same generator for consistency. Also expand alias verbs.
-            return generate_candidate_paths(
-                path,
-                None,
-                auto_prefixes=auto_prefixes or [],
-                short_only=True,
-                verb_aliases=verb_aliases,
-            )
-
         last_error: Exception | None = None
-        for cand in candidates(module_path):
-            parts = cand.split(".")
-            if len(parts) < 2:
+        for cand in generate_candidate_paths(module_path, None, short_only=True):
+            if cand.count(".") < 1:
                 continue
-            module_name = ".".join(parts[:-1])
-            function_name = parts[-1]
 
-            # Try to import the module directly; file existence check can be misleading with packages
+            # Try to load the symbol using centralized logic
             try:
-                module = importlib.import_module(module_name)
-            except ImportError as e:
+                func = load_symbol(cand)
+            except (ImportError, ModuleNotFoundError, AttributeError, ValueError) as e:
                 last_error = e
                 continue
 
-            if not hasattr(module, function_name):
-                last_error = ValueError(f"Function '{function_name}' not found in module '{module_name}'")
-                continue
-
-            func = getattr(module, function_name)
+            # Check that it's callable
             if not callable(func):
-                last_error = TypeError(f"'{function_name}' exists but is not callable")
+                last_error = TypeError(f"'{cand}' exists but is not callable")
                 continue
 
             # Success

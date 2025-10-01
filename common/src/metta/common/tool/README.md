@@ -81,9 +81,3 @@ When present, the runner can infer common tools even if the module does not expo
 # Show classification with --verbose
 ./tools/run.py train arena run=test --verbose
 ```
-
-## Tips
-
-- Strings with spaces should be quoted: `notes="my run"`.
-- Booleans are lowercase: `true`, `false`.
-- If a numeric-looking value should be a string, quote it (e.g., `run="001"`).

@@ -48,6 +48,9 @@ check_cmd() {
   return $?
 }
 
+echo "Installing system dependencies..."
+./devops/tools/install-system.sh
+
 echo "Welcome to Metta!"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -55,6 +58,7 @@ sh "$SCRIPT_DIR/devops/tools/install-system.sh"
 
 for cmd in uv bazel git g++ nimble nim; do
   if ! check_cmd "$cmd"; then
+    # We just ran this, so this shouldn't happen, but just in-case...
     echo "$cmd not found. Consider running ./devops/tools/install-system.sh"
     exit 1
   fi
