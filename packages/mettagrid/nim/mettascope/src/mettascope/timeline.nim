@@ -1,7 +1,7 @@
 import
   std/[times, math],
   boxy, vmath, windy, fidget2, fidget2/[hybridrender, common],
-  common, panels, objectinfo
+  common, panels, actions, objectinfo
 
 const
   BgColor = parseHtmlColor("#1D1D1D")
@@ -29,6 +29,7 @@ proc onStepChanged*() =
   ## Must be called when the step changes so that UI is updated.
   echo "step: ", step
   updateObjectInfo()
+  processActions()
 
 proc bindTimelineNodes() =
   if nodesBound or globalTimelinePanel.isNil or globalTimelinePanel.node.isNil:
@@ -67,13 +68,11 @@ proc playControls*() =
         stepFloat = replay.maxSteps.float32 - 1
     step = stepFloat.int
     step = step.clamp(0, replay.maxSteps - 1)
-    onStepChanged()
 
   if window.buttonPressed[KeyLeftBracket]:
     step -= 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    onStepChanged()
   if window.buttonPressed[KeyRightBracket]:
     step += 1
     if playMode == Realtime and step >= replay.maxSteps:
@@ -81,7 +80,6 @@ proc playControls*() =
       step = replay.maxSteps - 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    onStepChanged()
 
 proc getStepFromX(localX, panelWidth: float32): int =
   ## Maps a local X coordinate within the timeline panel to a replay step.

@@ -606,7 +606,6 @@ proc drawWorldMap*(panel: Panel) =
 
   useSelections(panel)
   agentControls()
-  processActionQueue()
 
   if followSelection:
     centerAt(panel, selection)
