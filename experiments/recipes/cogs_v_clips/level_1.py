@@ -466,7 +466,7 @@ def train(
         max_slice_axes=3,
         enable_detailed_slice_logging=False,
         use_shared_memory=True,
-        session_id=f"cvc_{run}",  # Consistent session ID for multi-worker shared memory
+        session_id=f"cvc_{run}",
     )
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
