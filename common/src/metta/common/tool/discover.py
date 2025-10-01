@@ -156,8 +156,12 @@ def get_available_tools(module: ModuleType) -> list[tuple[str, Callable[[], obje
 # -----------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=128)
 def _resolve_mettagrid(module: ModuleType) -> MettaGridConfig | None:
-    """Safely call module.mettagrid() if it exists."""
+    """Safely call module.mettagrid() if it exists.
+
+    Cached to avoid repeated construction when checking multiple tools in same module.
+    """
     mg_fn = getattr(module, "mettagrid", None)
     if not callable(mg_fn):
         return None
@@ -169,8 +173,13 @@ def _resolve_mettagrid(module: ModuleType) -> MettaGridConfig | None:
         return None
 
 
+@lru_cache(maxsize=128)
 def _resolve_simulations(module: ModuleType) -> list[SimulationConfig] | None:
-    """Safely call module.simulations() if it exists."""
+    """Safely call module.simulations() if it exists.
+
+    Cached to avoid repeated construction when checking multiple tools in same module.
+    Performance optimization: simulations() can create hundreds of objects for eval suites.
+    """
     fn = getattr(module, "simulations", None)
     if not callable(fn):
         return None
@@ -312,7 +321,14 @@ def try_infer_tool_factory(module: ModuleType, verb: str) -> Optional[Callable[[
     if tool_class is None:
         return None
 
-    # Try to get recipe configurations
+    # Check if tool supports auto_factory before resolving configs (performance optimization)
+    # If auto_factory is not overridden from Tool base class, skip expensive config resolution
+    from metta.common.tool import Tool
+
+    if tool_class.auto_factory == Tool.auto_factory:
+        return None
+
+    # Try to get recipe configurations (only if tool supports auto_factory)
     sims = _resolve_simulations(module)
     mg = _resolve_mettagrid(module)
     if sims is None and mg is None:
