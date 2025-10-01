@@ -17,12 +17,20 @@ app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games"
 console = Console()
 
 
-def resolve_policy_class_path(value: str) -> str:
+def resolve_policy_class_path(policy: str) -> str:
+    """Resolve a policy shorthand or full class path.
+    Args:
+        policy: Either a shorthand like "random", "simple", "lstm"
+                or a full class path like "cogames.policy.random.RandomPolicy"
+    Returns:
+        Full class path to the policy
+    """
     return {
         "random": "cogames.policy.random.RandomPolicy",
         "simple": "cogames.policy.simple.SimplePolicy",
         "lstm": "cogames.policy.lstm.LSTMPolicy",
-    }.get(value, value)
+        "claude": "cogames.policy.claude.ClaudePolicy",
+    }.get(policy, policy)
 
 
 @app.callback(invoke_without_command=True)
