@@ -155,6 +155,7 @@ class TransformerPolicy(Policy):
 
         self._memory_tensor: torch.Tensor | None = None
         self._memory_cache: Dict[int, List[torch.Tensor]] = {}
+        self._memory = self._memory_cache  # backwards compatibility for older call sites
         self._aux_zero_cache: dict[tuple[torch.device, torch.dtype, tuple[int, ...]], torch.Tensor] = {}
 
         self._diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
@@ -487,13 +488,24 @@ class TransformerPolicy(Policy):
             raise ValueError("encoded_obs batch dimension must be divisible by bptt")
 
         if self._uses_sliding_backbone:
-            sliding_td = td.clone()
-            sliding_td.set(self.transformer_cfg.in_key, latent)
-            if "reward" not in sliding_td.keys() and "rewards" in sliding_td.keys():
-                sliding_td.set("reward", sliding_td.get("rewards"))
+            keys = {
+                self.transformer_cfg.in_key,
+                "reward",
+                "rewards",
+                "dones",
+                "truncateds",
+                "last_actions",
+                "training_env_ids",
+                "transformer_position",
+                "bptt",
+            }
+            existing_keys = tuple(key for key in keys if key in td.keys())
+            sliding_td = td.select(*existing_keys, strict=False).clone(False)
+            sliding_td.set_(self.transformer_cfg.in_key, latent)
+            if "reward" not in sliding_td.keys() and "rewards" in td.keys():
+                sliding_td.set_("reward", td.get("rewards"))
             self.transformer_module(sliding_td)
-            core_flat = sliding_td[self.transformer_cfg.out_key]
-            return core_flat
+            return sliding_td[self.transformer_cfg.out_key]
 
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
