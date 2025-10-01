@@ -10,7 +10,11 @@ import torch
 
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.policy_artifact import PolicyArtifact, load_policy_artifact, save_policy_artifact
+from metta.rl.policy_artifact import (
+    PolicyArtifact,
+    load_policy_artifact,
+    save_policy_artifact_safetensors,
+)
 from metta.rl.system_config import SystemConfig
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.file import local_copy, write_file
@@ -65,7 +69,7 @@ def _extract_run_and_epoch(path: Path) -> tuple[str, int] | None:
 def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
     parsed = ParsedURI.parse(uri)
     if parsed.scheme == "file" and parsed.local_path:
-        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.pt") if ckpt.stem]
+        checkpoint_files = [ckpt for ckpt in parsed.local_path.glob("*.mpt") if ckpt.stem]
     elif parsed.scheme == "s3" and parsed.bucket:
         s3_client = boto3.client("s3")
         prefix = parsed.key or ""
@@ -74,22 +78,21 @@ def _get_all_checkpoints(uri: str) -> list[PolicyMetadata]:
         if response["KeyCount"] == 0:
             return []
 
-        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".pt")]
+        checkpoint_files: list[Path] = [Path(obj["Key"]) for obj in response["Contents"] if obj["Key"].endswith(".mpt")]
     else:
         raise ValueError(f"Cannot get checkpoints from uri: {uri}")
 
     checkpoint_metadata: list[PolicyMetadata] = []
     for path in checkpoint_files:
-        if not path.name.endswith("trainer_state.pt"):
-            run_and_epoch = _extract_run_and_epoch(path)
-            if run_and_epoch:
-                path_uri = uri.rstrip("/") + "/" + path.name
-                metadata: PolicyMetadata = {
-                    "run_name": run_and_epoch[0],
-                    "epoch": run_and_epoch[1],
-                    "uri": path_uri,
-                }
-                checkpoint_metadata.append(metadata)
+        run_and_epoch = _extract_run_and_epoch(path)
+        if run_and_epoch:
+            path_uri = uri.rstrip("/") + "/" + path.name
+            metadata: PolicyMetadata = {
+                "run_name": run_and_epoch[0],
+                "epoch": run_and_epoch[1],
+                "uri": path_uri,
+            }
+            checkpoint_metadata.append(metadata)
 
     return checkpoint_metadata
 
@@ -279,9 +282,8 @@ class CheckpointManager:
         filename = f"{self.run_name}:v{epoch}.mpt"
         checkpoint_path = self.checkpoint_dir / filename
 
-        save_policy_artifact(
+        save_policy_artifact_safetensors(
             checkpoint_path,
-            policy=agent,
             policy_architecture=policy_architecture,
             state_dict=agent.state_dict(),
         )

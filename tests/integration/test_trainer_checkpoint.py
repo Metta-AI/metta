@@ -16,9 +16,10 @@ import torch
 from torch import nn
 
 from metta.agent.policies.fast import FastConfig
+from metta.agent.policy import Policy
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.policy_artifact import save_policy_artifact
+from metta.rl.policy_artifact import save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, ContextCheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
@@ -116,7 +117,9 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["agent_step"] > 0
         assert trainer_state["epoch"] > 0
 
-        policy_files = [f for f in Path(checkpoint_manager.checkpoint_dir).glob("*.mpt") if f.name != "trainer_state.pt"]
+        policy_files = [
+            f for f in Path(checkpoint_manager.checkpoint_dir).glob("*.mpt") if f.name != "trainer_state.pt"
+        ]
         assert policy_files, "No policy files found in checkpoint directory"
 
         first_run_agent_step = trainer_state["agent_step"]
@@ -191,15 +194,27 @@ class TestTrainerCheckpointIntegration:
 
         artifact = checkpoint_manager.load_from_uri(policy_uri)
         assert artifact.policy is not None
-        assert hasattr(artifact.policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
 
 
-class DummyPolicy(nn.Module):
+class DummyPolicy(Policy, nn.Module):
     """Lightweight torch module used to populate fake checkpoints quickly."""
 
     def __init__(self, epoch: int) -> None:
         super().__init__()
         self.register_buffer("epoch_tensor", torch.tensor(epoch, dtype=torch.float32))
+
+    def forward(self, td) -> None:
+        """Dummy forward method."""
+        pass
+
+    @property
+    def device(self) -> torch.device:
+        """Return device of the epoch tensor."""
+        return torch.device("cpu")
+
+    def reset_memory(self) -> None:
+        """Dummy reset_memory method."""
+        pass
 
 
 class _FastTrainTool(TrainTool):
@@ -237,6 +252,6 @@ class _FastTrainTool(TrainTool):
 
         policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
         policy = DummyPolicy(epoch)
-        save_policy_artifact(policy_path, policy=policy, include_policy=True)
+        save_policy_artifact_pt(policy_path, policy=policy)
 
         return 0

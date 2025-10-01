@@ -16,7 +16,7 @@ from metta.rl.policy_artifact import (
     load_policy_artifact,
     policy_architecture_from_string,
     policy_architecture_to_string,
-    save_policy_artifact,
+    save_policy_artifact_safetensors,
 )
 from metta.rl.training import EnvironmentMetaData
 from mettagrid.config import Config
@@ -82,10 +82,10 @@ def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     policy = architecture.make_policy(env_metadata)
 
     artifact_path = tmp_path / "artifact.zip"
-    artifact = save_policy_artifact(
+    artifact = save_policy_artifact_safetensors(
         artifact_path,
-        policy=policy,
         policy_architecture=architecture,
+        state_dict=policy.state_dict(),
     )
 
     assert artifact_path.exists()
@@ -109,20 +109,6 @@ def test_policy_artifact_rejects_policy_and_weights() -> None:
 
     with pytest.raises(ValueError):
         PolicyArtifact(policy_architecture=architecture, state_dict=state, policy=policy)
-
-
-def test_save_policy_artifact_rejects_include_policy_with_weights(tmp_path: Path) -> None:
-    env_metadata = _env_metadata()
-    architecture = DummyPolicyArchitecture()
-    policy = architecture.make_policy(env_metadata)
-
-    with pytest.raises(ValueError):
-        save_policy_artifact(
-            tmp_path / "invalid.mpt",
-            policy=policy,
-            policy_architecture=architecture,
-            include_policy=True,
-        )
 
 
 def test_policy_architecture_round_trip_vit() -> None:

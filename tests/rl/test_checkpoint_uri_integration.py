@@ -12,7 +12,7 @@ from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager, key_and_version
-from metta.rl.policy_artifact import save_policy_artifact
+from metta.rl.policy_artifact import save_policy_artifact_pt
 from metta.rl.system_config import SystemConfig
 from mettagrid.config import Config
 
@@ -24,7 +24,7 @@ def checkpoint_filename(run: str, epoch: int) -> str:
 def create_checkpoint(tmp_path: Path, filename: str, policy: MockAgent) -> Path:
     checkpoint_path = tmp_path / filename
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-    save_policy_artifact(checkpoint_path, policy=policy, include_policy=True)
+    save_policy_artifact_pt(checkpoint_path, policy=policy)
     return checkpoint_path
 
 

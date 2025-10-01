@@ -234,7 +234,32 @@ class PolicyArtifact:
         raise ValueError(msg)
 
 
-def save_policy_artifact(
+def save_policy_artifact_safetensors(
+    path: str | Path,
+    *,
+    policy_architecture: PolicyArchitecture,
+    state_dict: Mapping[str, torch.Tensor],
+    detach_buffers: bool = True,
+) -> PolicyArtifact:
+    """Persist weights + architecture using the safetensors format."""
+    return _save_policy_artifact(
+        path,
+        policy_architecture=policy_architecture,
+        state_dict=state_dict,
+        detach_buffers=detach_buffers,
+    )
+
+
+def save_policy_artifact_pt(
+    path: str | Path,
+    *,
+    policy: Policy,
+) -> PolicyArtifact:
+    """Persist a policy object with torch.save (.pt)."""
+    return _save_policy_artifact(path, policy=policy, include_policy=True)
+
+
+def _save_policy_artifact(
     path: str | Path,
     *,
     policy: Policy | None = None,
