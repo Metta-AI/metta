@@ -562,6 +562,8 @@ def make_env(
     regeneration_rate=10,
     shareable_energy=False,
     use_terrain=False,
+    use_base=True,
+    sizes=["small"],
 ):
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(
@@ -581,6 +583,8 @@ def make_env(
             regeneration_rate=[regeneration_rate],
             shareable_energy=[shareable_energy],
             use_terrain=[use_terrain],
+            use_base=[use_base],
+            sizes=[sizes],
         )
     )
     return task_generator.get_task(random.randint(0, 1000000))
