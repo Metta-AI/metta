@@ -278,6 +278,8 @@ class MettaGridConfig(Config):
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=ActionConfig(),
+            put_items=ActionConfig(enabled=True),
+            get_items=ActionConfig(enabled=True),
             rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         )
         objects = {}

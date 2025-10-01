@@ -111,7 +111,7 @@ def make_mettagrid(num_agents: int = 1, num_instances: int = 4) -> MettaGridConf
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
-                swap=ActionConfig(enabled=True),
+                swap=ActionConfig(),
             ),
             agent=AgentConfig(
                 default_resource_limit=50,
