@@ -3,8 +3,9 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.transformer import (
-    TransformerPolicyConfig,
+    TransformerBackboneConfig,
     TransformerBackboneVariant,
+    TransformerPolicyConfig,
 )
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -117,7 +118,32 @@ def train(
 
     if policy_architecture is None:
         policy_architecture = TransformerPolicyConfig(
-            variant=TransformerBackboneVariant.TRXL
+            variant=TransformerBackboneVariant.TRXL,
+            transformer=TransformerBackboneConfig(
+                variant=TransformerBackboneVariant.TRXL,
+                latent_size=36,
+                hidden_size=36,
+                num_layers=3,
+                n_heads=4,
+                d_ff=128,
+                max_seq_len=80,
+                memory_len=20,
+                dropout=0.05,
+                attn_dropout=0.05,
+                pre_lnorm=True,
+                same_length=False,
+                clamp_len=-1,
+                positional_scale=0.1,
+                use_gating=False,
+                ext_len=0,
+                activation_checkpoint=False,
+                use_flash_checkpoint=False,
+                allow_tf32=True,
+                use_fused_layernorm=False,
+            ),
+            critic_hidden_dim=288,
+            actor_hidden_dim=144,
+            action_embedding_dim=13,
         )
 
     return TrainTool(
