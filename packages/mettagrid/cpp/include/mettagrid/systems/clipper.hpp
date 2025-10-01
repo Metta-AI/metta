@@ -81,6 +81,21 @@ public:
     return nullptr;
   }
 
+  Assembler* pick_initial_assembler_to_clip(std::mt19937& rng) {
+    // Pick an assembler uniformly at random.
+    float total_weight = unclipped_assemblers.size();
+    float random_weight = std::generate_canonical<float, 10>(rng) * total_weight;
+    // Clearly we just want to get a random index and the pull that assembler, but we have a map, and we don't
+    // expect to have to do this too often.
+    for (auto& candidate_assembler : unclipped_assemblers) {
+      random_weight -= 1.0f;
+      if (random_weight <= 0.0f) {
+        return candidate_assembler;
+      }
+    }
+    return nullptr;
+  }
+
   void maybe_clip_new_assembler(std::mt19937& rng) {
     if (std::generate_canonical<float, 10>(rng) < clip_rate) {
       Assembler* assembler = pick_assembler_to_clip(rng);
