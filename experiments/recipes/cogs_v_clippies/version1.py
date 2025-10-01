@@ -29,11 +29,13 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.loss import LossConfig
 from metta.agent.policies.vit_reset import ViTResetConfig
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
+from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid.mapgen.mapgen import MapGen
 
-#ADDING TERRAIN
+# ADDING TERRAIN
 
 curriculum_args = {
     "multi_agent_singles": {
@@ -307,7 +309,9 @@ def play(curriculum_style: str = "multi_agent_pairs") -> PlayTool:
     )
 
 
-def train(curriculum_style: str = "multi_agent_pairs") -> TrainTool:
+def train(
+    curriculum_style: str = "multi_agent_pairs", architecture="vit_reset"
+) -> TrainTool:
     task_generator_cfg = CogsVsClippiesTaskGenerator.Config(
         **curriculum_args[curriculum_style]
     )
@@ -321,7 +325,14 @@ def train(curriculum_style: str = "multi_agent_pairs") -> TrainTool:
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
     )
-    policy_config = ViTResetConfig()
+    if architecture == "vit_reset":
+        policy_config = ViTResetConfig()
+    elif architecture == "lstm_reset":
+        policy_config = FastLSTMResetConfig()
+    elif architecture == "transformer":
+        policy_config = ViTSlidingTransConfig()
+    else:
+        raise ValueError(f"Invalid architecture: {architecture}")
 
     curriculum = CurriculumConfig(
         task_generator=task_generator_cfg,
@@ -397,17 +408,19 @@ def make_eval_suite():
 
 def experiment():
     for curriculum_style in curriculum_args:
-        subprocess.run(
-            [
-                "./devops/skypilot/launch.py",
-                "experiments.recipes.cogs_v_clippies.version1.train",
-                f"run=daphne.cogs_v_clippies.version1.{curriculum_style}.{time.strftime('%Y-%m-%d')}",
-                f"curriculum_style={curriculum_style}",
-                "--gpus=4",
-                "--heartbeat-timeout=3600",
-                "--skip-git-check",
-            ]
-        )
+        for architecture in ["vit_reset", "lstm_reset", "transformer"]:
+            subprocess.run(
+                [
+                    "./devops/skypilot/launch.py",
+                    "experiments.recipes.cogs_v_clippies.version1.train",
+                    f"run=daphne.cogs_v_clippies.noterrain.{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                    f"curriculum_style={curriculum_style}",
+                    f"architecture={architecture}",
+                    "--gpus=4",
+                    "--heartbeat-timeout=3600",
+                    "--skip-git-check",
+                ]
+            )
         time.sleep(1)
 
 

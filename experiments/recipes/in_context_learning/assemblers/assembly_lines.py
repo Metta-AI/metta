@@ -14,14 +14,13 @@ from mettagrid.config.mettagrid_config import (
     Position,
 )
 from experiments.recipes.in_context_learning.in_context_learning import (
-    num_agents_to_positions,
     ICLTaskGenerator,
     _BuildCfg,
     num_agents_to_positions,
     play_icl,
     replay_icl,
+    train_icl,
 )
-import os
 
 curriculum_args = {
     "train": {

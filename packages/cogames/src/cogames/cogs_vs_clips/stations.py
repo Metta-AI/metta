@@ -56,7 +56,7 @@ def oxygen_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="oxygen_extractor",
         type_id=3,
-        allow_partial_usage=True, #can use it while its on cooldown
+        allow_partial_usage=True,  # can use it while its on cooldown
         recipes=[
             (
                 ["Any"],
