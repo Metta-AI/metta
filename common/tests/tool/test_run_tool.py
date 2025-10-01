@@ -120,6 +120,24 @@ def test_two_token_form_resolves_correctly(invoke_run_tool):
     assert result.returncode == 0
 
 
+def test_two_token_not_treated_as_bare_tool(invoke_run_tool):
+    """Verify two-token form 'tool recipe' is not treated as bare tool.
+
+    Regression test for: when running './tools/run.py train experiments.recipes.ci --help',
+    it should show help for that specific tool, not list all train implementations.
+    """
+    # This should show help for the specific tool, not list all 'evaluate' implementations
+    result = invoke_run_tool("evaluate", "mypackage.recipes.demo", "--help")
+
+    assert result.returncode == 0
+    output = result.stdout + result.stderr
+
+    # Should NOT show "Available 'evaluate' implementations:" (bare tool behavior)
+    assert "Available 'evaluate' implementations:" not in output
+    # Should show help for the specific tool instead
+    assert "Available Arguments" in output or "Function Parameters" in output
+
+
 def test_inferred_evaluate_from_simulations(invoke_run_tool):
     """Verify evaluate tool is inferred when recipe provides simulations()."""
     result = invoke_run_tool("mypackage.recipes.demo.evaluate", "--dry-run")

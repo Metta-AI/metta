@@ -494,8 +494,9 @@ constructor/function vs configuration overrides based on introspection.
 
     # Check if this is a bare tool name (e.g., 'train', 'evaluate', 'sweep')
     tool_path = known_args.tool_path  # The first positional arg (e.g., 'train' or 'arena.train')
-    # It's a bare tool if it's just a known tool type name (canonical or alias) with no module path
-    is_bare_tool = tool_path in get_tool_name_map()
+    # It's bare if: (1) it's a known tool name/alias AND (2) no second token was provided
+    # This handles: './tools/run.py train' (bare) vs './tools/run.py train arena' (two-part, not bare)
+    is_bare_tool = tool_path in get_tool_name_map() and two_part_second is None
 
     # Handle special case: bare tool name with --help (show available options)
     if known_args.help and is_bare_tool:
@@ -507,6 +508,7 @@ constructor/function vs configuration overrides based on introspection.
                 short = item.replace("experiments.recipes.", "")
                 console.print(f"  {short}")
             console.print("\n[dim]To see arguments for a specific implementation:[/dim]")
+            # Show example using the first implementation
             console.print(f"  ./tools/run.py {supported[0].replace('experiments.recipes.', '')} --help")
         else:
             console.print(f"\n[yellow]No implementations found for tool '{tool_path}'[/yellow]")
