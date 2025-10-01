@@ -6,7 +6,7 @@ from typing import List, Optional
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from experiments.recipes import arena
-from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
+from metta.agent.policies.fast_dynamics import FastDynamicsConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -14,7 +14,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.loss_config import LossConfig
-from metta.rl.loss.ppo import PPOConfig
+from metta.rl.loss.muesli import MuesliConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -114,13 +114,14 @@ def train(
 
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
+        # losses=LossConfig(loss_configs={"ppo": PPOConfig()}),
+        losses=LossConfig(loss_configs={"muesli": MuesliConfig()}),
     )
-    # policy_config = FastDynamicsConfig()
+    policy_config = FastDynamicsConfig()
     # policy_config = FastLSTMResetConfig()
     # policy_config = FastConfig()
     # policy_config = ViTSmallConfig()
-    policy_config = ViTSlidingTransConfig()
+    # policy_config = ViTSlidingTransConfig()
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     evaluator = EvaluatorConfig(simulations=eval_simulations)
 

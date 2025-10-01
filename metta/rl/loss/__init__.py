@@ -12,16 +12,18 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from metta.rl.loss.loss import Loss
     from metta.rl.loss.loss_config import LossConfig
+    from metta.rl.loss.muesli import MuesliConfig
     from metta.rl.loss.ppo import PPOConfig
 
 _EXPORTS: dict[str, tuple[str, str | None]] = {
     "LossConfig": ("metta.rl.loss.loss_config", "LossConfig"),
     "Loss": ("metta.rl.loss.loss", "Loss"),
     "PPOConfig": ("metta.rl.loss.ppo", "PPOConfig"),
+    "MuesliConfig": ("metta.rl.loss.muesli", "MuesliConfig"),
 }
 
 # Explicitly define __all__ to help type checkers
-__all__ = ["LossConfig", "Loss", "PPOConfig"]
+__all__ = ["LossConfig", "Loss", "PPOConfig", "MuesliConfig"]
 
 
 def __getattr__(name: str) -> Any:
