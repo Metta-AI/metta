@@ -1,7 +1,7 @@
 import
   std/[strformat, math, os, strutils, tables],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays, pathfinding
+  common, panels, actions, utils, replays, objectinfo, pathfinding
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -31,7 +31,7 @@ proc useSelections*(panel: Panel) =
       gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
       for obj in replay.objects:
         if obj.location.at(step).xy == gridPos:
-          selection = obj
+          selectObject(obj)
           break
   
   if window.buttonPressed[MouseRight]:
@@ -509,47 +509,6 @@ proc drawThoughtBubbles*() =
         scale = 1/200/8
       )
 
-proc drawInfoText*() =
-
-  var info = ""
-
-  if selection != nil:
-    let typeName = replay.typeNames[selection.typeId]
-    case typeName
-    of "wall":
-      info = &"""
-Wall
-      """
-    of "agent":
-      info = &"""
-Agent
-  agentId: {selection.agentId}
-  orientation: {selection.orientation.at}
-  inventory: {selection.inventory.at}
-  reward: {selection.currentReward.at}
-  frozen: {selection.isFrozen.at}
-      """
-    else:
-      info = &"""
-{typeName}
-  inventory: {selection.inventory.at}
-      """
-  else:
-    info = &"""
-World
-  size: {replay.mapSize[0]}x{replay.mapSize[1]}
-  speed: {1/playSpeed:0.3f}
-  step: {step}
-    """
-  bxy.drawText(
-    "info",
-    translate(vec2(10, 10)),
-    typeface,
-    info,
-    16,
-    color(1, 1, 1, 1)
-  )
-
 proc drawWorldMini*() =
   let wallTypeId = replay.typeNames.find("wall")
   let agentTypeId = replay.typeNames.find("agent")
@@ -658,5 +617,3 @@ proc drawWorldMap*(panel: Panel) =
     drawWorldMain()
 
   panel.endPanAndZoom()
-
-  drawInfoText()

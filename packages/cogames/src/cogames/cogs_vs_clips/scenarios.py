@@ -92,6 +92,7 @@ def make_game(
         width=width,
         height=height,
         agents=num_cogs,
+        border_width=5,
         objects={
             "assembler": num_assemblers,
             "charger": num_chargers,
