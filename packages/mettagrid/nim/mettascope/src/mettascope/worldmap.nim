@@ -1,5 +1,5 @@
 import
-  std/[strformat, math, os, strutils],
+  std/[strformat, math, os, strutils, tables],
   boxy, vmath, windy, fidget2/[hybridrender, common],
   common, panels, actions, utils, replays
 
@@ -20,6 +20,18 @@ proc agentColor*(id: int): Color =
     1.0
   )
 
+proc isWalkablePos(pos: IVec2): bool =
+  ## Check if a position is walkable.
+  if pos.x < 0 or pos.x >= replay.mapSize[0] or pos.y < 0 or pos.y >= replay.mapSize[1]:
+    return false
+  
+  let wallTypeId = replay.typeNames.find("wall")
+  for obj in replay.objects:
+    if obj.typeId == wallTypeId and obj.location.at(step).xy == pos:
+      return false
+  
+  return true
+
 proc useSelections*(panel: Panel) =
   ## Reads the mouse position and selects the thing under it.
   if window.buttonPressed[MouseLeft]:
@@ -33,6 +45,18 @@ proc useSelections*(panel: Panel) =
         if obj.location.at(step).xy == gridPos:
           selection = obj
           break
+  
+  if window.buttonPressed[MouseRight]:
+    if selection != nil and selection.isAgent:
+      let
+        mousePos = bxy.getTransform().inverse * window.mousePos.vec2
+        gridPos = (mousePos + vec2(0.5, 0.5)).ivec2
+      if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
+        gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
+        let startPos = selection.location.at(step).xy
+        let path = findPath(startPos, gridPos, replay.mapSize[0], replay.mapSize[1], isWalkablePos)
+        if path.len > 0:
+          agentPaths[selection.agentId] = path
 
 proc drawFloor*() =
   # Draw the floor tiles.
@@ -323,6 +347,46 @@ proc drawInventory*() =
         )
         x += xAdvance
 
+proc drawPlannedPath*() =
+  ## Draw the planned path for the selected agent.
+  if selection != nil and selection.isAgent and agentPaths.hasKey(selection.agentId):
+    let path = agentPaths[selection.agentId]
+    if path.len > 1:
+      for i in 0 ..< path.len - 1:
+        let
+          pos0 = path[i]
+          pos1 = path[i + 1]
+          dx = pos1.x - pos0.x
+          dy = pos1.y - pos0.y
+        
+        var rotation: float32 = 0
+        if dx > 0 and dy == 0:
+          rotation = 0
+        elif dx < 0 and dy == 0:
+          rotation = Pi
+        elif dx == 0 and dy > 0:
+          rotation = -Pi / 2
+        elif dx == 0 and dy < 0:
+          rotation = Pi / 2
+        
+        let alpha = 0.6
+        bxy.drawImage(
+          "agents/path",
+          pos0.vec2,
+          angle = rotation,
+          scale = 1/200,
+          tint = color(0, 1, 0, alpha)
+        )
+      
+      let goalPos = path[path.len - 1]
+      bxy.drawImage(
+        "selection",
+        goalPos.vec2,
+        angle = 0,
+        scale = 1/200,
+        tint = color(0, 1, 0, 0.5)
+      )
+
 proc drawSelection*() =
   # Draw selection.
   if selection != nil:
@@ -551,6 +615,7 @@ proc drawWorldMain*() =
   drawActions()
   drawAgentDecorations()
   drawSelection()
+  drawPlannedPath()
   drawInventory()
   drawRewards()
 
@@ -593,6 +658,7 @@ proc drawWorldMap*(panel: Panel) =
 
   useSelections(panel)
   agentControls()
+  processActionQueue()
 
   if followSelection:
     centerAt(panel, selection)

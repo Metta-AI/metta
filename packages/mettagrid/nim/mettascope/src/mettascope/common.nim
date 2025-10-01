@@ -1,4 +1,5 @@
-import std/[times],
+import
+  std/[times, tables],
   boxy, windy, vmath, fidget2,
   replays
 
@@ -97,6 +98,9 @@ var
   followSelection*: bool = false
   mouseCaptured*: bool = false
   mouseCapturedPanel*: Panel = nil
+
+## Path queue for each agent. Maps agentId to a sequence of grid positions.
+var agentPaths* = initTable[int, seq[IVec2]]()
 
 proc at*[T](sequence: seq[T], step: int): T =
   # Get the value at the given step.
