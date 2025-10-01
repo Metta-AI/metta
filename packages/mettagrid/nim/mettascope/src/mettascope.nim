@@ -105,7 +105,7 @@ find "/UI/Main":
       )
       if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
         fitFullMap(worldMapPanel)
-      bxy.translate(worldMapPanel.rect.xy.vec2)
+      bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
 
@@ -118,7 +118,7 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      bxy.translate(minimapPanel.rect.xy.vec2)
+      bxy.translate(minimapPanel.rect.xy.vec2 * window.contentScale)
       drawMinimap(minimapPanel)
       bxy.restoreTransform()
 
@@ -131,7 +131,7 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      bxy.translate(agentTracesPanel.rect.xy.vec2)
+      bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 

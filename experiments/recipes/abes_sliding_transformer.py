@@ -8,9 +8,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
 )
-from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss import LossConfig
-from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig, OptimizerConfig
+from metta.rl.trainer_config import TrainerConfig, OptimizerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -72,15 +70,15 @@ def make_curriculum(
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    if algorithm_config is None:
-        algorithm_config = LearningProgressConfig(
-            use_bidirectional=True,  # Enable bidirectional learning progress by default
-            ema_timescale=0.001,
-            exploration_bonus=0.1,
-            max_memory_tasks=1000,
-            max_slice_axes=5,  # More slices for arena complexity
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-        )
+    # if algorithm_config is None:
+    #     algorithm_config = LearningProgressConfig(
+    #         use_bidirectional=True,  # Enable bidirectional learning progress by default
+    #         ema_timescale=0.001,
+    #         exploration_bonus=0.1,
+    #         max_memory_tasks=1000,
+    #         max_slice_axes=5,  # More slices for arena complexity
+    #         enable_detailed_slice_logging=enable_detailed_slice_logging,
+    #     )
 
     return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
 
@@ -109,29 +107,28 @@ def train(
 
     eval_simulations = make_evals()
     optimizer_cfg = OptimizerConfig(
-        learning_rate=0.0011
+        learning_rate=0.001153637
     )  # smaller batch size requires smaller learning rate
     trainer_cfg = TrainerConfig(
-        losses=LossConfig(),
         optimizer=optimizer_cfg,
         batch_size=131072,  # batch size is a quarter of the default. This hasn't been tuned.
         minibatch_size=4096,  # minibatch size is a quarter of the default. This hasn't been tuned.
     )
+    policy_config = policy_architecture or ViTSlidingTransConfig()
 
-    if policy_architecture is None:
-        policy_architecture = ViTSlidingTransConfig()
+    training_env = TrainingEnvironmentConfig(
+        curriculum=curriculum,
+        forward_pass_minibatch_target_size=1024,  # updated so that we shrink the num of envs to 1/4 of the default.
+    )
+    evaluator = EvaluatorConfig(
+        simulations=eval_simulations, epoch_interval=0
+    )  # deactivated evaluation
 
     return TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(
-            curriculum=curriculum,
-            forward_pass_minibatch_target_size=1024,  # updated so that we shrink the num of envs to 1/4 of the default.
-        ),
-        evaluator=EvaluatorConfig(
-            simulations=eval_simulations, epoch_interval=0
-        ),  # disabled evaluation
-        policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(),
+        training_env=training_env,
+        evaluator=evaluator,
+        policy_architecture=policy_config,
     )
 
 
