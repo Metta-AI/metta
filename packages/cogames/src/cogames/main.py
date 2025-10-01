@@ -543,13 +543,28 @@ def train_cmd(
             return candidate
 
         torch_device = resolve_training_device(device)
+        steps_source = ctx.get_parameter_source("steps") if ctx else None
+        batch_source = ctx.get_parameter_source("batch_size") if ctx else None
+        minibatch_source = ctx.get_parameter_source("minibatch_size") if ctx else None
+
         if torch_device.type == "cuda":
-            steps_source = ctx.get_parameter_source("steps") if ctx else None
             if steps_source in (None, ParameterSource.DEFAULT):
                 steps = 50_000_000
                 console.print(
                     "[cyan]Auto-adjusting training steps to 50,000,000 for CUDA runs. "
                     "Override with --steps if needed.[/cyan]"
+                )
+            if batch_source in (None, ParameterSource.DEFAULT):
+                batch_size = 524_288
+                console.print(
+                    "[cyan]Auto-adjusting batch size to 524,288 for CUDA runs. "
+                    "Override with --batch-size if needed.[/cyan]"
+                )
+            if minibatch_source in (None, ParameterSource.DEFAULT):
+                minibatch_size = 16_384
+                console.print(
+                    "[cyan]Auto-adjusting minibatch size to 16,384 for CUDA runs. "
+                    "Override with --minibatch-size if needed.[/cyan]"
                 )
         resolved_device_type = torch_device.type
         resolved_num_envs, resolved_num_workers = utils.suggest_parallelism(
@@ -655,7 +670,8 @@ def train_cmd(
         else:
             maps_dir = (resolved_run_dir / "curricula").resolve()
 
-        curriculum_utils.dump_game_configs(env_cfgs, env_names, maps_dir)
+        if not maps_dir.exists() or not any(maps_dir.glob("*.yaml")):
+            curriculum_utils.dump_game_configs(env_cfgs, env_names, maps_dir)
 
         full_policy_path = resolve_policy_class_path(policy_class_path)
 
