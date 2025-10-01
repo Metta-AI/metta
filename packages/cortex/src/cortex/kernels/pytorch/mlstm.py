@@ -13,13 +13,6 @@ from typing import Optional
 
 import torch
 
-try:
-    import triton
-
-    TRITON_AVAILABLE = torch.cuda.is_available()
-except ImportError:
-    TRITON_AVAILABLE = False
-
 
 def mlstm_recurrent_step_stabilized_simple(
     c_state: torch.Tensor,
@@ -399,28 +392,9 @@ def mlstm_chunkwise_triton(
     Returns:
         Output tensor (B, NH, S, DH) and optionally final states (C, n, m)
     """
-    if not TRITON_AVAILABLE:
-        # Fallback to simple implementation
-        return mlstm_chunkwise_simple(
-            queries=queries,
-            keys=keys,
-            values=values,
-            igate_preact=igate_preact,
-            fgate_preact=fgate_preact,
-            initial_C=initial_C,
-            initial_n=initial_n,
-            initial_m=initial_m,
-            reset_mask=reset_mask,
-            chunk_size=chunk_size,
-            return_last_state=return_last_state,
-            eps=eps,
-            **kwargs,
-        )
-
     # Lazy import to avoid loading unnecessary modules
-
     try:
-        from .mlstm_triton.torch import mlstm_chunkwise__xl_chunk
+        from cortex.kernels.triton.mlstm.torch import mlstm_chunkwise__xl_chunk
     except ImportError:
         # Fallback if triton kernels are not available
         return mlstm_chunkwise_simple(
@@ -530,7 +504,6 @@ def mlstm_chunkwise_triton(
 
 
 __all__ = [
-    "TRITON_AVAILABLE",
     "mlstm_chunkwise_simple",
     "mlstm_chunkwise_triton",
     "mlstm_recurrent_step_stabilized_simple",
