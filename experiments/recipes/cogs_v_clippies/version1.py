@@ -207,7 +207,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         silicon_extractor_position = rng.choice(self.config.silicon_extractor_positions)
         if include_extractors:
             num_carbon_extractors = rng.choice(
-                [0] + list(range(max_num_extractors + 1, 2))
+                [0] + list(range(1, max_num_extractors + 1, 2))
             )
             num_oxygen_extractors = rng.choice(
                 [0] + list(range(max_num_extractors + 1, 2))
@@ -285,8 +285,8 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         return env
 
     def _overwrite_positions(self, object, positions):
-        for recipe in object.recipes:
-            recipe = (positions, recipe[1])
+        for i, recipe in enumerate(object.recipes):
+            object.recipes[i] = (positions, recipe[1])
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         env = self._make_env_cfg(rng)
