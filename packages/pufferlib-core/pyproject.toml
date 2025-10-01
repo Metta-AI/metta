@@ -75,20 +75,13 @@ pufferlib = ["*.py", "*.so", "*.pyd"]
 build = [
   "cp311-manylinux_x86_64",
   "cp312-manylinux_x86_64",
-  "cp311-macosx_arm64",
-  "cp312-macosx_arm64",
 ]
 skip = [
   "*-musllinux*",
   "*i686",
-  "*-win32",
-  "*-win_amd64",
   "*-manylinux_ppc64le",
   "*-manylinux_s390x",
 ]
-
-[tool.cibuildwheel.macos]
-archs = ["arm64"]
 
 [tool.cibuildwheel.linux]
 manylinux-x86_64-image = "manylinux_2_34"

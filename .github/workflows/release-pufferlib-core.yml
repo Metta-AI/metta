@@ -52,7 +52,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-14]
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,10 +63,9 @@ jobs:
           package-dir: packages/pufferlib-core
           output-dir: wheelhouse
         env:
-          CIBW_BUILD: "cp311-* cp312-*"
-          CIBW_SKIP: "*-musllinux* *i686 *-win32 *-win_amd64 *-manylinux_ppc64le *-manylinux_s390x"
+          CIBW_BUILD: "cp311-manylinux_x86_64 cp312-manylinux_x86_64"
+          CIBW_SKIP: "*-musllinux* *i686 *-manylinux_ppc64le *-manylinux_s390x"
           CIBW_TEST_SKIP: "*"
-          CIBW_ARCHS_MACOS: "arm64"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
           CI: "true"
