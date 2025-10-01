@@ -146,10 +146,18 @@ def mlstm_chunkwise__parallel_fw_Hintra_kernel(
 
         # Reset-aware masking: forbid contributions across different segments within the chunk
         segQ_ptr = (
-            vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
+            vecSegId
+            + idx_b_BNH * str_vecSegId_B_NH
+            + idx_b_NC * str_vecSegId_NC
+            + idx_b_LQ * siz_b_LQ
+            + tl.arange(0, siz_b_LQ)
         )
         segK_ptr = (
-            vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LKV * siz_b_LKV + tl.arange(0, siz_b_LKV)
+            vecSegId
+            + idx_b_BNH * str_vecSegId_B_NH
+            + idx_b_NC * str_vecSegId_NC
+            + idx_b_LKV * siz_b_LKV
+            + tl.arange(0, siz_b_LKV)
         )
         segQ = tl.load(segQ_ptr).to(tl.int32)
         segK = tl.load(segK_ptr).to(tl.int32)
@@ -201,7 +209,11 @@ def mlstm_chunkwise__parallel_fw_Hintra_kernel(
     vecBbar_val = tl.exp(vecB_LQ_val + scaM_inter_km1_val - vecM_combine_val)
     # Zero inter-chunk carryover for rows with any reset in prefix (seg_id_inclusive > 0)
     segQ_ptr_full = (
-        vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
+        vecSegId
+        + idx_b_BNH * str_vecSegId_B_NH
+        + idx_b_NC * str_vecSegId_NC
+        + idx_b_LQ * siz_b_LQ
+        + tl.arange(0, siz_b_LQ)
     )
     segQ_full = tl.load(segQ_ptr_full).to(tl.int32)
     vecBbar_val = tl.where(segQ_full == 0, vecBbar_val, 0.0)

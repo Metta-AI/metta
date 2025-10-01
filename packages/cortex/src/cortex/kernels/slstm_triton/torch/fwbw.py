@@ -79,8 +79,5 @@ def slstm_tr_fwbw(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     slstm_func = slstm_pt_registry[autocast_kernel_dtype]
 
-    all_states, last_state = slstm_func.apply(
-        states_initial, Wx, R, b, backward_recurrent_clip_val
-    )
+    all_states, last_state = slstm_func.apply(states_initial, Wx, R, b, backward_recurrent_clip_val)
     return all_states, last_state
-

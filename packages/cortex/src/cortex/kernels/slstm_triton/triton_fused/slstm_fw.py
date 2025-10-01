@@ -44,9 +44,7 @@ if ENABLE_AUTOTUNING:
                             )
                         )
 else:
-    configs = [
-        triton.Config({"siz_B": 16, "TN": 32, "TK": 32}, num_stages=1, num_warps=4)
-    ]
+    configs = [triton.Config({"siz_B": 16, "TN": 32, "TK": 32}, num_stages=1, num_warps=4)]
 
 
 @triton.jit
@@ -136,10 +134,7 @@ def _forward_sequence_kernel(
     ## store initial states
     # store initial h state in states all
     matHtrans_initial_store_ptr = tl.make_block_ptr(
-        base=states_all
-        + idx_b_NH * str_matStatesAll_NH
-        + 0 * str_matStatesAll_T
-        + 0 * B * DH,
+        base=states_all + idx_b_NH * str_matStatesAll_NH + 0 * str_matStatesAll_T + 0 * B * DH,
         shape=(B, DH),
         strides=(DH, 1),
         offsets=(idx_b_B * siz_B, 0),
@@ -149,10 +144,7 @@ def _forward_sequence_kernel(
     tl.store(matHtrans_initial_store_ptr, matHtrans.to(DTYPE))
     # store initial c state in states all
     matCtrans_initial_store_ptr = tl.make_block_ptr(
-        base=states_all
-        + idx_b_NH * str_matStatesAll_NH
-        + 0 * str_matStatesAll_T
-        + 1 * B * DH,
+        base=states_all + idx_b_NH * str_matStatesAll_NH + 0 * str_matStatesAll_T + 1 * B * DH,
         shape=(B, DH),
         strides=(DH, 1),
         offsets=(idx_b_B * siz_B, 0),
@@ -162,10 +154,7 @@ def _forward_sequence_kernel(
     tl.store(matCtrans_initial_store_ptr, matCtrans.to(DTYPE))
     # store initial n state in states all
     matNtrans_initial_store_ptr = tl.make_block_ptr(
-        base=states_all
-        + idx_b_NH * str_matStatesAll_NH
-        + 0 * str_matStatesAll_T
-        + 2 * B * DH,
+        base=states_all + idx_b_NH * str_matStatesAll_NH + 0 * str_matStatesAll_T + 2 * B * DH,
         shape=(B, DH),
         strides=(DH, 1),
         offsets=(idx_b_B * siz_B, 0),
@@ -175,10 +164,7 @@ def _forward_sequence_kernel(
     tl.store(matNtrans_initial_store_ptr, matNtrans.to(DTYPE))
     # store initial m state in states all
     matMtrans_initial_store_ptr = tl.make_block_ptr(
-        base=states_all
-        + idx_b_NH * str_matStatesAll_NH
-        + 0 * str_matStatesAll_T
-        + 3 * B * DH,
+        base=states_all + idx_b_NH * str_matStatesAll_NH + 0 * str_matStatesAll_T + 3 * B * DH,
         shape=(B, DH),
         strides=(DH, 1),
         offsets=(idx_b_B * siz_B, 0),
@@ -296,10 +282,7 @@ def _forward_sequence_kernel(
 
             # Current state tiles from time idx_t
             c_t_tile_ptr = tl.make_block_ptr(
-                base=states_all
-                + idx_b_NH * str_matStatesAll_NH
-                + (idx_t) * str_matStatesAll_T
-                + 1 * B * DH,
+                base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 1 * B * DH,
                 shape=(B, DH),
                 strides=(DH, 1),
                 offsets=(idx_b_B * siz_B, n0),
@@ -309,10 +292,7 @@ def _forward_sequence_kernel(
             matC_t_tile = tl.load(c_t_tile_ptr)
 
             n_t_tile_ptr = tl.make_block_ptr(
-                base=states_all
-                + idx_b_NH * str_matStatesAll_NH
-                + (idx_t) * str_matStatesAll_T
-                + 2 * B * DH,
+                base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 2 * B * DH,
                 shape=(B, DH),
                 strides=(DH, 1),
                 offsets=(idx_b_B * siz_B, n0),
@@ -322,10 +302,7 @@ def _forward_sequence_kernel(
             matN_t_tile = tl.load(n_t_tile_ptr)
 
             m_t_tile_ptr = tl.make_block_ptr(
-                base=states_all
-                + idx_b_NH * str_matStatesAll_NH
-                + (idx_t) * str_matStatesAll_T
-                + 3 * B * DH,
+                base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 3 * B * DH,
                 shape=(B, DH),
                 strides=(DH, 1),
                 offsets=(idx_b_B * siz_B, n0),
@@ -359,10 +336,7 @@ def _forward_sequence_kernel(
 
             # Store next states tiles at time idx_t+1
             h_next_tile_ptr = tl.make_block_ptr(
-                base=states_all
-                + idx_b_NH * str_matStatesAll_NH
-                + (idx_t + 1) * str_matStatesAll_T
-                + 0 * B * DH,
+                base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 0 * B * DH,
                 shape=(B, DH),
                 strides=(DH, 1),
                 offsets=(idx_b_B * siz_B, n0),
@@ -372,10 +346,7 @@ def _forward_sequence_kernel(
             tl.store(h_next_tile_ptr, matH_next_tile.to(DTYPE))
 
             c_next_tile_ptr = tl.make_block_ptr(
-                base=states_all
-                + idx_b_NH * str_matStatesAll_NH
-                + (idx_t + 1) * str_matStatesAll_T
-                + 1 * B * DH,
+                base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 1 * B * DH,
                 shape=(B, DH),
                 strides=(DH, 1),
                 offsets=(idx_b_B * siz_B, n0),
@@ -385,10 +356,7 @@ def _forward_sequence_kernel(
             tl.store(c_next_tile_ptr, matC_next_tile.to(DTYPE))
 
             n_next_tile_ptr = tl.make_block_ptr(
-                base=states_all
-                + idx_b_NH * str_matStatesAll_NH
-                + (idx_t + 1) * str_matStatesAll_T
-                + 2 * B * DH,
+                base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 2 * B * DH,
                 shape=(B, DH),
                 strides=(DH, 1),
                 offsets=(idx_b_B * siz_B, n0),
@@ -398,10 +366,7 @@ def _forward_sequence_kernel(
             tl.store(n_next_tile_ptr, matN_next_tile.to(DTYPE))
 
             m_next_tile_ptr = tl.make_block_ptr(
-                base=states_all
-                + idx_b_NH * str_matStatesAll_NH
-                + (idx_t + 1) * str_matStatesAll_T
-                + 3 * B * DH,
+                base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 3 * B * DH,
                 shape=(B, DH),
                 strides=(DH, 1),
                 offsets=(idx_b_B * siz_B, n0),
@@ -413,10 +378,7 @@ def _forward_sequence_kernel(
             # [optional] store gates per tile
             if OUTPUT_GATES:
                 gI_tile_ptr = tl.make_block_ptr(
-                    base=gates_all
-                    + idx_b_NH * str_matGatesAll_NH
-                    + idx_t * str_matGatesAll_T
-                    + 0 * B * DH,
+                    base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 0 * B * DH,
                     shape=(B, DH),
                     strides=(DH, 1),
                     offsets=(idx_b_B * siz_B, n0),
@@ -426,10 +388,7 @@ def _forward_sequence_kernel(
                 tl.store(gI_tile_ptr, matIbar_tile.to(DTYPE))
 
                 gF_tile_ptr = tl.make_block_ptr(
-                    base=gates_all
-                    + idx_b_NH * str_matGatesAll_NH
-                    + idx_t * str_matGatesAll_T
-                    + 1 * B * DH,
+                    base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 1 * B * DH,
                     shape=(B, DH),
                     strides=(DH, 1),
                     offsets=(idx_b_B * siz_B, n0),
@@ -439,10 +398,7 @@ def _forward_sequence_kernel(
                 tl.store(gF_tile_ptr, matFbar_tile.to(DTYPE))
 
                 gZ_tile_ptr = tl.make_block_ptr(
-                    base=gates_all
-                    + idx_b_NH * str_matGatesAll_NH
-                    + idx_t * str_matGatesAll_T
-                    + 2 * B * DH,
+                    base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 2 * B * DH,
                     shape=(B, DH),
                     strides=(DH, 1),
                     offsets=(idx_b_B * siz_B, n0),
@@ -452,10 +408,7 @@ def _forward_sequence_kernel(
                 tl.store(gZ_tile_ptr, matZ_tile.to(DTYPE))
 
                 gO_tile_ptr = tl.make_block_ptr(
-                    base=gates_all
-                    + idx_b_NH * str_matGatesAll_NH
-                    + idx_t * str_matGatesAll_T
-                    + 3 * B * DH,
+                    base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 3 * B * DH,
                     shape=(B, DH),
                     strides=(DH, 1),
                     offsets=(idx_b_B * siz_B, n0),
@@ -466,10 +419,7 @@ def _forward_sequence_kernel(
 
         # Load next-step h,c,n,m fully for next iteration's recurrent mix
         matHtrans_next_ptr = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t + 1) * str_matStatesAll_T
-            + 0 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 0 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -479,10 +429,7 @@ def _forward_sequence_kernel(
         matHtrans = tl.load(matHtrans_next_ptr).to(tl.float32)
 
         matCtrans_next_ptr_full = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t + 1) * str_matStatesAll_T
-            + 1 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 1 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -492,10 +439,7 @@ def _forward_sequence_kernel(
         matCtrans = tl.load(matCtrans_next_ptr_full).to(tl.float32)
 
         matNtrans_next_ptr_full = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t + 1) * str_matStatesAll_T
-            + 2 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 2 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -505,10 +449,7 @@ def _forward_sequence_kernel(
         matNtrans = tl.load(matNtrans_next_ptr_full).to(tl.float32)
 
         matMtrans_next_ptr_full = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t + 1) * str_matStatesAll_T
-            + 3 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 3 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -540,9 +481,7 @@ def forward_sequence(
     # support the case where states initial has the time dimension explicitly
     T_dim_explicit = False
     if states_initial.ndim == 5:
-        assert (
-            states_initial.shape[0] == 1
-        ), f"states_initial.shape[0] must be 1: got {states_initial.shape}."
+        assert states_initial.shape[0] == 1, f"states_initial.shape[0] must be 1: got {states_initial.shape}."
         T_dim_explicit = True
         states_initial = states_initial[0]
     NS, B, NH, DH = states_initial.shape
@@ -574,29 +513,21 @@ def forward_sequence(
         Wx = torch.cat(
             [
                 Wx,
-                torch.zeros(
-                    [effective_B - B, T, NGI, NH, DH], device=device, dtype=dtype
-                ),
+                torch.zeros([effective_B - B, T, NGI, NH, DH], device=device, dtype=dtype),
             ],
             dim=0,
         )
     ## end of batch size padding
 
-    states_all = torch.empty(
-        [NH, T + 1, NS, effective_B, DH], device=device, dtype=dtype
-    )
+    states_all = torch.empty([NH, T + 1, NS, effective_B, DH], device=device, dtype=dtype)
 
     if output_gates_and_states_initial:
-        gates_all = torch.empty(
-            [NH, T, NGI, effective_B, DH], device=device, dtype=dtype
-        )
+        gates_all = torch.empty([NH, T, NGI, effective_B, DH], device=device, dtype=dtype)
     else:
         gates_all = None
 
     # reshape the inputs for the kernel (they must be contiguous)
-    states_initial_kshaped = rearrange(
-        states_initial, "ns b nh dh -> nh ns b dh"
-    ).contiguous()
+    states_initial_kshaped = rearrange(states_initial, "ns b nh dh -> nh ns b dh").contiguous()
 
     Wx_kshaped = rearrange(Wx, "b t ngi nh dh -> nh t ngi b dh").contiguous()
     R_kshaped = rearrange(R, "ngr nh dhout dhin -> nh ngr dhin dhout").contiguous()
@@ -643,9 +574,7 @@ def forward_sequence(
     states_out = rearrange(states_all, "nh t ns b dh -> t ns b nh dh", ns=NS, dh=DH)
 
     if output_gates_and_states_initial:
-        gates_out = rearrange(
-            gates_all, "nh t ngi b dh -> t ngi b nh dh", ngi=NGI, dh=DH
-        )
+        gates_out = rearrange(gates_all, "nh t ngi b dh -> t ngi b nh dh", ngi=NGI, dh=DH)
         if T_dim_explicit:
             return (states_out, states_out[-1:]), gates_out
         return (states_out, states_out[-1]), gates_out

@@ -153,9 +153,13 @@ def mlstm_chunkwise_bw(
         prefix_inclusive = torch.cumsum(seg, dim=-1)
         last_prefix = prefix_inclusive[..., -1:].expand_as(prefix_inclusive)
         last_mask = prefix_inclusive.eq(last_prefix)
-        vecA = vecA.masked_fill(~last_mask, float('-inf'))
+        vecA = vecA.masked_fill(~last_mask, float("-inf"))
     else:
-        vecSegId_intra = torch.zeros((B, NH, S // kernel_chunk_params.chunk_size_intra, kernel_chunk_params.chunk_size_intra), device=matQ.device, dtype=torch.int32)
+        vecSegId_intra = torch.zeros(
+            (B, NH, S // kernel_chunk_params.chunk_size_intra, kernel_chunk_params.chunk_size_intra),
+            device=matQ.device,
+            dtype=torch.int32,
+        )
     grad_output_dtype = matQ.dtype
     #! compute deltaV
     matDeltaV = mlstm_chunkwise__parallel_bw_dV(
