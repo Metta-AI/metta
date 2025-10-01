@@ -199,7 +199,7 @@ evals = {
         "regeneration_rate": 2,
         "shareable_energy": False,
         "use_terrain": True,
-        "sizes": ["small"],
+        "sizes": "small",
     },
     "two_agent_pairs_small": {
         "num_cogs": 2,
@@ -214,7 +214,7 @@ evals = {
         "regeneration_rate": 4,
         "shareable_energy": True,
         "use_terrain": True,
-        "sizes": ["small"],
+        "sizes": "small",
     },
     "three_agent_triplets_small": {
         "num_cogs": 3,
@@ -229,7 +229,7 @@ evals = {
         "regeneration_rate": 2,
         "shareable_energy": True,
         "use_terrain": True,
-        "sizes": ["small"],
+        "sizes": "small",
     },
     "many_agent_triplets_small": {
         "num_cogs": 12,
@@ -244,7 +244,7 @@ evals = {
         "regeneration_rate": 2,
         "shareable_energy": True,
         "use_terrain": True,
-        "sizes": ["small"],
+        "sizes": "small",
     },
     "single_agent_medium": {
         "num_cogs": 1,
@@ -259,7 +259,7 @@ evals = {
         "regeneration_rate": 2,
         "shareable_energy": False,
         "use_terrain": True,
-        "sizes": ["medium"],
+        "sizes": "medium",
     },
     "two_agent_pairs_medium": {
         "num_cogs": 2,
@@ -274,7 +274,7 @@ evals = {
         "regeneration_rate": 4,
         "shareable_energy": True,
         "use_terrain": True,
-        "sizes": ["medium"],
+        "sizes": "medium",
     },
     "three_agent_triplets_medium": {
         "num_cogs": 3,
@@ -289,7 +289,7 @@ evals = {
         "regeneration_rate": 2,
         "shareable_energy": True,
         "use_terrain": True,
-        "sizes": ["medium"],
+        "sizes": "medium",
     },
     "many_agent_triplets_medium": {
         "num_cogs": 12,
@@ -304,7 +304,7 @@ evals = {
         "regeneration_rate": 2,
         "shareable_energy": True,
         "use_terrain": True,
-        "sizes": ["medium"],
+        "sizes": "medium",
     },
 }
 
