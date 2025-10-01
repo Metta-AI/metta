@@ -73,7 +73,7 @@ To run the terminal simulation:
 
 ```bash
 ./tools/run.py experiments.recipes.arena.play run=demo_obstacles \
-renderer_job.environment.root.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
+renderer_job.environment.instance.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
 ### Evaluating a Model

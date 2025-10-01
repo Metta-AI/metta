@@ -41,7 +41,7 @@ def main(
     mapgen_cfg = MapGen.Config(
         width=width,
         height=height,
-        root=scene_cfg,
+        instance=scene_cfg,
     )
     storable_map = StorableMap.from_cfg(mapgen_cfg)
     show_map(storable_map, show_mode)

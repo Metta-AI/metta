@@ -1,7 +1,7 @@
 import
   std/[times, math],
   boxy, vmath, windy, fidget2, fidget2/[hybridrender, common],
-  common, panels
+  common, panels, objectinfo
 
 const
   BgColor = parseHtmlColor("#1D1D1D")
@@ -24,6 +24,10 @@ var
   nodeStepCounter: Node
   nodeScrubberBg: Node
   nodeScrubber: Node
+
+proc stepChanged() =
+  echo "step: ", step
+  updateObjectInfo()
 
 proc bindTimelineNodes() =
   if nodesBound or globalTimelinePanel.isNil or globalTimelinePanel.node.isNil:
@@ -62,17 +66,18 @@ proc playControls*() =
         stepFloat = replay.maxSteps.float32 - 1
     step = stepFloat.int
     step = step.clamp(0, replay.maxSteps - 1)
+    stepChanged()
 
   if window.buttonPressed[KeyLeftBracket]:
     step -= 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    echo "step: ", step
+    stepChanged()
   if window.buttonPressed[KeyRightBracket]:
     step += 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    echo "step: ", step
+    stepChanged()
 
 proc getStepFromX(localX, panelWidth: float32): int =
   ## Maps a local X coordinate within the timeline panel to a replay step.
@@ -219,7 +224,7 @@ proc drawTimeline*(panel: Panel) =
 
   # Handle mouse interactions.
   updateMouse(panel)
-  let localMouse = window.mousePos.vec2 - panel.rect.xy.vec2
+  let localMouse = window.logicalMousePos - panel.rect.xy.vec2
 
   if panel.hasMouse:
     if window.buttonPressed[MouseLeft]:

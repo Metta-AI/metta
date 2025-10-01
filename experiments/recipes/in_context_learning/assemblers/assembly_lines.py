@@ -13,10 +13,10 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
-
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     _BuildCfg,
+    num_agents_to_positions,
     play_icl,
     replay_icl,
     train_icl,
@@ -28,18 +28,40 @@ curriculum_args = {
         "chain_lengths": [2, 3, 4, 5],
         "num_sinks": [0, 1, 2],
         "room_sizes": ["small", "medium", "large"],
-        "positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
-        "num_chests": [0],
-    }
+        "positions": num_agents_to_positions[1]
+        + num_agents_to_positions[2]
+        + num_agents_to_positions[3],
+        "chest_positions": [["N"], ["N", "S"], ["N", "S", "E"]],
+        "num_chests": [2, 5, 8],
+    },
+    "train_pairs": {
+        "num_agents": [2, 6, 12],
+        "chain_lengths": [2, 3, 4, 5],
+        "num_sinks": [0, 1, 2],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[2],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
+    "train_triplets": {
+        "num_agents": [3, 6, 12],
+        "chain_lengths": [2, 3, 4, 5],
+        "num_sinks": [0, 1, 2],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[3],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
+    # "test": {
+    #     "num_agents": [2],
+    #     "chain_lengths": [2],
+    #     "num_sinks": [0],
+    #     "chest_positions": [["N"]],
+    #     "num_chests": [1],
+    #     "room_sizes": ["medium"],
+    #     "positions": [["Any", "Any"]],
+    # }
 }
-# "test": {
-#     "num_agents": [2],
-#     "chain_lengths": [5],
-#     "num_sinks": [2],
-#     "room_sizes": ["medium"],
-#     "positions": [["Any", "Any"]],
-# },
-# }
 
 
 def make_task_generator_cfg(
@@ -76,7 +98,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
         cfg: _BuildCfg,
         rng: random.Random,
     ):
-        cooldown = avg_hop * (len(resources) + 1)
+        cooldown = avg_hop * len(resources)
         resource_chain = ["nothing"] + list(resources) + ["heart"]
         for i in range(len(resource_chain) - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]

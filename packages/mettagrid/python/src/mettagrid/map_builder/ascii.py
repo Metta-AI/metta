@@ -12,6 +12,14 @@ class AsciiMapBuilder(MapBuilder):
     class Config(MapBuilderConfig["AsciiMapBuilder"]):
         map_data: list[list[str]]
 
+        @property
+        def width(self) -> int:
+            return len(self.map_data[0]) if self.map_data else 0
+
+        @property
+        def height(self) -> int:
+            return len(self.map_data)
+
         @classmethod
         def from_uri(cls, uri: str) -> "AsciiMapBuilder.Config":
             with open(uri, "r", encoding="utf-8") as f:

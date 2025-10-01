@@ -125,6 +125,9 @@ def test_successful_initialization_and_parameters(monkeypatch):
 
     # Test with missing METTA_USER
     monkeypatch.delenv("METTA_USER", raising=False)
+    # Ensure USER fallback is deterministic across CI environments
+    # CI often sets USER=runner; force to 'unknown' for this assertion
+    monkeypatch.setenv("USER", "unknown")
     init_calls.clear()
 
     cfg2 = WandbConfig(enabled=True, project="test", entity="test")

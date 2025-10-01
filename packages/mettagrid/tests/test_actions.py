@@ -42,13 +42,13 @@ def base_config():
         num_observation_tokens=100,
         resource_names=["laser", "armor"],
         actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
-            rotate=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
+            noop=ActionConfig(),
+            move=ActionConfig(),
+            rotate=ActionConfig(),
+            get_items=ActionConfig(),
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            put_items=ActionConfig(enabled=True),
-            swap=ActionConfig(enabled=True),
+            put_items=ActionConfig(),
+            swap=ActionConfig(),
         ),
         objects={
             "wall": WallConfig(type_id=1, swappable=False),
@@ -372,9 +372,9 @@ def test_noop_is_always_index_0():
         obs_height=3,
         num_observation_tokens=10,
         actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
-            rotate=ActionConfig(enabled=True),
+            noop=ActionConfig(),
+            move=ActionConfig(),
+            rotate=ActionConfig(),
         ),
     )
 
@@ -393,11 +393,11 @@ def test_noop_is_always_index_0():
         obs_height=3,
         num_observation_tokens=10,
         actions=ActionsConfig(
-            attack=AttackActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
-            rotate=ActionConfig(enabled=True),
-            noop=ActionConfig(enabled=True),  # noop listed last
-            swap=ActionConfig(enabled=True),
+            attack=AttackActionConfig(),
+            move=ActionConfig(),
+            rotate=ActionConfig(),
+            noop=ActionConfig(),  # noop listed last
+            swap=ActionConfig(),
         ),
     )
 
@@ -415,10 +415,10 @@ def test_noop_is_always_index_0():
         obs_height=3,
         num_observation_tokens=10,
         actions=ActionsConfig(
-            move=ActionConfig(enabled=True),
-            rotate=ActionConfig(enabled=True),
-            attack=AttackActionConfig(enabled=True),
-            # noop not included
+            noop=ActionConfig(enabled=False),
+            move=ActionConfig(),
+            rotate=ActionConfig(),
+            attack=AttackActionConfig(),
         ),
     )
 
@@ -426,5 +426,5 @@ def test_noop_is_always_index_0():
     env3 = MettaGrid(c_config3, map_data, 0)
 
     action_names3 = env3.action_names()
-    assert "noop" not in action_names3, "noop should not be present when not enabled"
+    assert "noop" not in action_names3, "noop should not be present when disabled"
     assert action_names3[0] != "noop", "First action should not be noop when noop is disabled"

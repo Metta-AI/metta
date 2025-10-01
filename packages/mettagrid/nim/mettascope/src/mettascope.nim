@@ -1,7 +1,7 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer]
+  worldmap, minimap, agenttraces, footer, objectinfo]
 
 var replay = ""
 
@@ -43,8 +43,6 @@ proc parseArgs() =
 find "/UI/Main":
 
   onLoad:
-    echo "onLoad"
-
     # We need to build the atlas before loading the replay.
     buildAtlas()
 
@@ -77,7 +75,7 @@ find "/UI/Main":
     rootArea.split = 0.20
 
     rootArea.areas[0].split(Horizontal)
-    rootArea.areas[0].split = 0.5
+    rootArea.areas[0].split = 0.8
 
     objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
     environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
@@ -104,7 +102,7 @@ find "/UI/Main":
       )
       if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
         fitFullMap(worldMapPanel)
-      bxy.translate(worldMapPanel.rect.xy.vec2)
+      bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
       drawWorldMap(worldMapPanel)
       bxy.restoreTransform()
 
@@ -116,7 +114,7 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      bxy.translate(minimapPanel.rect.xy.vec2)
+      bxy.translate(minimapPanel.rect.xy.vec2 * window.contentScale)
       drawMinimap(minimapPanel)
       bxy.restoreTransform()
 
@@ -128,7 +126,7 @@ find "/UI/Main":
         thisNode.size.x,
         thisNode.size.y
       )
-      bxy.translate(agentTracesPanel.rect.xy.vec2)
+      bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
       drawAgentTraces(agentTracesPanel)
       bxy.restoreTransform()
 
@@ -142,8 +140,6 @@ find "/UI/Main":
       )
       timeline.drawTimeline(globalTimelinePanel)
       bxy.restoreTransform()
-
-    echo "Loaded!"
 
   onFrame:
 
