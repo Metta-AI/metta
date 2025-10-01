@@ -300,7 +300,7 @@ def test_slstm_sequential_vs_parallel_long_sequence() -> None:
     # Compare final states with looser tolerance for accumulators
     assert state_parallel is not None and state is not None, "States should not be None"
 
-    print(f"[long sequence] Comparing final states")
+    print("[long sequence] Comparing final states")
     for key in ["c", "n", "m"]:
         if key in state_parallel and key in state:
             diff_rel = ((state_parallel[key] - state[key]).abs() / (state_parallel[key].abs() + 1e-8)).max().item()
@@ -556,7 +556,7 @@ def test_slstm_backward_sequential_vs_parallel() -> None:
 
     # Compare parameter gradients
     for (name_p, param_p), (name_s, param_s) in zip(
-        cell_parallel.named_parameters(), cell_sequential.named_parameters()
+        cell_parallel.named_parameters(), cell_sequential.named_parameters(), strict=False
     ):
         assert name_p == name_s, f"Parameter names don't match: {name_p} vs {name_s}"
 
@@ -570,6 +570,110 @@ def test_slstm_backward_sequential_vs_parallel() -> None:
             # Check with relaxed tolerance
             torch.testing.assert_close(
                 param_p.grad, param_s.grad, rtol=5e-2, atol=5e-2, msg=f"Gradients differ for parameter {name_p}"
+            )
+
+
+def test_slstm_triton_vs_pytorch_with_resets() -> None:
+    """Ensure Triton and PyTorch kernels match when per-timestep resets are applied."""
+    torch.manual_seed(888)
+
+    device = get_test_device()
+    dtype = torch.float32
+
+    # Skip if not on CUDA (Triton only runs on CUDA)
+    if not torch.cuda.is_available():
+        print("⊘ Skipping Triton vs PyTorch resets test (CUDA not available)")
+        return
+
+    B = 2
+    T = 16
+    H = 64  # head_dim should be power of 2 for Triton
+    num_heads = 4
+
+    cfg = sLSTMCellConfig(
+        hidden_size=H,
+        num_heads=num_heads,
+        conv1d_kernel_size=4,
+        dropout=0.0,
+    )
+
+    # Create two cells with identical weights
+    cell_triton = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_pytorch = sLSTMCell(cfg).to(device=device, dtype=dtype)
+    cell_pytorch.load_state_dict(cell_triton.state_dict())
+
+    cell_triton.train()  # Triton path used in parallel sequence mode
+    cell_pytorch.train()
+
+    # Create identical inputs
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+    x_triton = x.clone().requires_grad_(True)
+
+    # Create reset mask: reset batch 0 at timestep 8, batch 1 at timestep 12
+    resets = torch.zeros(B, T, device=device, dtype=torch.bool)
+    resets[0, 8] = True
+    resets[1, 12] = True
+
+    # Forward pass - Triton path (sequence mode on CUDA with power-of-2 head_dim)
+    y_triton, state_triton = cell_triton(x_triton, state=None, resets=resets)
+
+    # Forward pass - PyTorch path (forced by using CPU)
+    # To force PyTorch path, we can move to CPU (Triton requires CUDA)
+    cell_pytorch_cpu = cell_pytorch.cpu()
+    x_pytorch_cpu = x.detach().cpu().requires_grad_(True)
+    resets_cpu = resets.cpu()
+    y_pytorch, state_pytorch = cell_pytorch_cpu(x_pytorch_cpu, state=None, resets=resets_cpu)
+
+    # Compare forward outputs
+    torch.testing.assert_close(
+        y_triton.cpu(),
+        y_pytorch,
+        rtol=1e-3,
+        atol=1e-3,
+        msg="Forward outputs should match between Triton and PyTorch with resets",
+    )
+
+    # Compare final states
+    state_keys = ["y", "c", "n", "m"]
+    for key in state_keys:
+        torch.testing.assert_close(
+            state_triton[key].cpu(),
+            state_pytorch[key],
+            rtol=1e-3,
+            atol=1e-3,
+            msg=f"State '{key}' should match between Triton and PyTorch with resets",
+        )
+
+    # Backward pass
+    loss_triton = y_triton.mean()
+    loss_pytorch = y_pytorch.mean()
+
+    loss_triton.backward()
+    loss_pytorch.backward()
+
+    # Compare input gradients
+    torch.testing.assert_close(
+        x_triton.grad.cpu(),
+        x_pytorch_cpu.grad,
+        rtol=1e-3,
+        atol=1e-3,
+        msg="Input gradients should match between Triton and PyTorch with resets",
+    )
+
+    # Compare parameter gradients
+    for (name_t, param_t), (name_p, param_p) in zip(
+        cell_triton.named_parameters(), cell_pytorch_cpu.named_parameters(), strict=False
+    ):
+        assert name_t == name_p, f"Parameter names don't match: {name_t} vs {name_p}"
+        if param_t.grad is None or param_p.grad is None:
+            assert param_t.grad is param_p.grad, f"Gradient presence mismatch for parameter {name_t}"
+        else:
+            torch.testing.assert_close(
+                param_t.grad.cpu(),
+                param_p.grad,
+                rtol=1e-3,
+                atol=1e-3,
+                msg=f"Parameter gradient '{name_t}' should match",
             )
 
 
@@ -604,5 +708,8 @@ if __name__ == "__main__":
 
     test_slstm_backward_sequential_vs_parallel()
     print("✓ test_slstm_backward_sequential_vs_parallel passed")
+
+    test_slstm_triton_vs_pytorch_with_resets()
+    print("✓ test_slstm_triton_vs_pytorch_with_resets passed")
 
     print("\nAll tests passed!")

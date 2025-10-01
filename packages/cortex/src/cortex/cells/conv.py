@@ -123,7 +123,10 @@ class CausalConv1d(MemoryCell):
         # Use selected backend kernel
         assert self.conv is not None  # kernel_size > 0 guaranteed by early return
 
-        if self.backend_fn == causal_conv1d_pytorch:
+        # Use Triton only if tensors are on CUDA
+        use_triton = self.backend_fn == causal_conv1d_triton and x.is_cuda
+
+        if not use_triton:
             # PyTorch backend (supports all modes)
             y, conv_state = causal_conv1d_pytorch(
                 conv_state=conv_state,
