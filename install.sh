@@ -50,7 +50,8 @@ check_cmd() {
 
 echo "Welcome to Metta!"
 
-./devops/tools/install-system.sh
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+sh "$SCRIPT_DIR/devops/tools/install-system.sh"
 
 for cmd in uv bazel git g++ nimble nim; do
   if ! check_cmd "$cmd"; then
