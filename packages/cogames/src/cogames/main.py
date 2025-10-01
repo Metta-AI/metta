@@ -13,14 +13,14 @@ sys.path.insert(0, ".")
 
 import torch
 import typer
+from click.core import ParameterSource
 from rich.console import Console
 
 from cogames import curriculum as curriculum_utils
 from cogames import game, play, serialization, train, utils
-from click.core import ParameterSource
+from cogames.env import make_hierarchical_env
 from mettagrid import MettaGridConfig
 
-from cogames.env import make_hierarchical_env
 logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")

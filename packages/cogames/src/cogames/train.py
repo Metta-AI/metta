@@ -10,10 +10,9 @@ from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence, Tuple
 import numpy as np
 
 from cogames import serialization
+from cogames.env import HierarchicalActionMettaGridEnv, make_hierarchical_env
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig
-
-from cogames.env import HierarchicalActionMettaGridEnv, make_hierarchical_env
 
 if TYPE_CHECKING:
     import torch
