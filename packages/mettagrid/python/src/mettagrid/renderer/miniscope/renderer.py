@@ -4,17 +4,46 @@ from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
-from .buffer import build_grid_buffer, compute_bounds
+from mettagrid.config.mettagrid_config import GameConfig
+
+from .buffer import build_grid_buffer, compute_bounds, get_symbol_for_object
 from .info_panels import build_agent_info_panel, build_object_info_panel
 from .interactive import run_interactive_loop
-from .symbols import get_symbol_for_object
+
+DEFAULT_SYMBOL_MAP = {
+    # Terrain
+    "wall": "⬛",
+    "empty": "⬜",
+    "block": "📦",
+    # Agents
+    "agent": "🤖",
+    "agent.agent": "🤖",
+    "agent.team_1": "🔵",
+    "agent.team_2": "🔴",
+    "agent.team_3": "🟢",
+    "agent.team_4": "🟡",
+    "agent.prey": "🐰",
+    "agent.predator": "🦁",
+    # UI elements
+    "cursor": "🎯",
+    "?": "❓",
+}
 
 
 class MiniscopeRenderer:
     """Emoji-based renderer for MettaGridEnv with full-width emoji support."""
 
-    def __init__(self, object_type_names: List[str], map_height: int = 0, map_width: int = 0):
+    def __init__(
+        self,
+        object_type_names: list[str],
+        game_config: GameConfig,
+        map_height: int = 0,
+        map_width: int = 0,
+    ):
         self._object_type_names = object_type_names
+        self._symbol_map = DEFAULT_SYMBOL_MAP | {
+            **{o.name: o.render_symbol for o in game_config.objects.values()},
+        }
         self._min_row = 0
         self._min_col = 0
         self._height = map_height if map_height > 0 else 0
@@ -32,7 +61,7 @@ class MiniscopeRenderer:
 
     def _symbol_for(self, obj: dict) -> str:
         """Get the emoji symbol for an object (for backward compatibility with tests)."""
-        return get_symbol_for_object(obj, self._object_type_names)
+        return get_symbol_for_object(obj, self._object_type_names, self._symbol_map)
 
     def _compute_bounds(self, grid_objects: Dict[int, dict]):
         """Compute and update bounds (for backward compatibility with tests)."""
@@ -54,6 +83,7 @@ class MiniscopeRenderer:
         return build_grid_buffer(
             grid_objects,
             self._object_type_names,
+            self._symbol_map,
             self._min_row,
             self._min_col,
             self._height,
@@ -111,6 +141,7 @@ class MiniscopeRenderer:
         current_buffer = build_grid_buffer(
             grid_objects,
             self._object_type_names,
+            self._symbol_map,
             self._min_row,
             self._min_col,
             self._height,
@@ -140,6 +171,7 @@ class MiniscopeRenderer:
         return build_grid_buffer(
             grid_objects,
             self._object_type_names,
+            self._symbol_map,
             self._min_row,
             self._min_col,
             self._height,
@@ -169,4 +201,6 @@ class MiniscopeRenderer:
         Returns:
             Dict with final statistics
         """
-        return run_interactive_loop(env, self._object_type_names, get_actions_fn, max_steps, target_fps)
+        return run_interactive_loop(
+            env, self._object_type_names, self._symbol_map, get_actions_fn, max_steps, target_fps
+        )

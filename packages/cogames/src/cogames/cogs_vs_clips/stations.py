@@ -20,6 +20,8 @@ def charger(max_use: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="charger",
         type_id=5,
+        map_char="H",
+        render_symbol="⚡",
         recipes=[
             (
                 ["Any"],
@@ -38,6 +40,8 @@ def carbon_extractor(max_use: Optional[int] = 1) -> AssemblerConfig:
     return AssemblerConfig(
         name="carbon_extractor",
         type_id=2,
+        map_char="N",
+        render_symbol="⚫",
         recipes=[
             (
                 ["Any"],
@@ -56,6 +60,8 @@ def oxygen_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="oxygen_extractor",
         type_id=3,
+        map_char="O",
+        render_symbol="🔵",
         allow_partial_usage=True,  # can use it while its on cooldown
         recipes=[
             (
@@ -74,6 +80,8 @@ def germanium_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="germanium_extractor",
         type_id=4,
+        map_char="E",
+        render_symbol="🟣",
         recipes=[
             (
                 ["Any"],
@@ -92,6 +100,8 @@ def silicon_extractor(max_use: Optional[int] = None) -> AssemblerConfig:
     return AssemblerConfig(
         name="silicon_extractor",
         type_id=15,
+        map_char="I",
+        render_symbol="🔷",
         recipes=[
             (
                 ["Any"],
@@ -110,6 +120,8 @@ def silicon_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
         name="silicon_ex_dep",
         type_id=16,
+        map_char="V",
+        render_symbol="🔹",
         recipes=[
             (
                 ["Any"],
@@ -127,6 +139,8 @@ def germanium_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
         name="germanium_ex_dep",
         type_id=20,
+        map_char="Y",
+        render_symbol="🟪",
         recipes=[
             (["Any"], RecipeConfig(output_resources={"germanium": 1}, cooldown=1, max_use=5)),
         ],
@@ -137,6 +151,8 @@ def oxygen_ex_dep() -> ConverterConfig:
     return ConverterConfig(
         name="oxygen_ex_dep",
         type_id=18,
+        map_char="Q",
+        render_symbol="⬜",
         output_resources={"oxygen": 1},
         max_output=10,
         cooldown=10,
@@ -147,6 +163,8 @@ def carbon_ex_dep() -> AssemblerConfig:
     return AssemblerConfig(
         name="carbon_ex_dep",
         type_id=19,
+        map_char="K",
+        render_symbol="⬛",
         recipes=[
             (["Any"], RecipeConfig(output_resources={"carbon": 1}, cooldown=1, max_use=5)),
         ],
@@ -155,7 +173,10 @@ def carbon_ex_dep() -> AssemblerConfig:
 
 def chest() -> ChestConfig:
     return ChestConfig(
+        name="chest",
         type_id=17,
+        map_char="C",
+        render_symbol="📦",
         resource_type="heart",
         deposit_positions=["E"],
         withdrawal_positions=["W"],
@@ -166,6 +187,8 @@ def assembler() -> AssemblerConfig:
     return AssemblerConfig(
         name="assembler",
         type_id=8,
+        map_char="Z",
+        render_symbol="🔄",
         recipes=[
             (
                 ["E"],

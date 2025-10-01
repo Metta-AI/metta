@@ -58,6 +58,14 @@ class ObsFeature:
     name: str
 
 
+@dataclass
+class BoundingBox:
+    min_row: int
+    max_row: int
+    min_col: int
+    max_col: int
+
+
 class MettaGridCore:
     """
     Core MettaGrid functionality without any training features.
@@ -82,6 +90,7 @@ class MettaGridCore:
         self._render_mode = render_mode
         self._renderer = None
         self._current_seed: int = 0
+
         self._map_builder = self.__mg_config.game.map_builder.create()
 
         # Set by PufferBase
@@ -160,7 +169,9 @@ class MettaGridCore:
             if self._renderer_native:
                 self._renderer = self._renderer_class()
             else:
-                self._renderer = self._renderer_class(c_env.object_type_names(), c_env.map_height, c_env.map_width)
+                self._renderer = self._renderer_class(
+                    c_env.object_type_names(), self.__mg_config.game, c_env.map_height, c_env.map_width
+                )
 
         self.__c_env_instance = c_env
         return c_env
@@ -316,21 +327,19 @@ class MettaGridCore:
 
         return features
 
-    def grid_objects(
-        self, min_row: int = -1, max_row: int = -1, min_col: int = -1, max_col: int = -1
-    ) -> Dict[int, Dict[str, Any]]:
+    def grid_objects(self, bbox: Optional[BoundingBox] = None) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information, optionally filtered by bounding box.
+        The box must be fully specified, not just one dimension.
 
         Args:
-            min_row: Minimum row (inclusive), -1 for no limit
-            max_row: Maximum row (exclusive), -1 for no limit
-            min_col: Minimum column (inclusive), -1 for no limit
-            max_col: Maximum column (exclusive), -1 for no limit
+            bbox: Bounding box, None for no limit
 
         Returns:
             Dictionary mapping object IDs to object dictionaries
         """
-        return self.__c_env_instance.grid_objects(min_row, max_row, min_col, max_col)
+        if bbox is None:
+            bbox = BoundingBox(min_row=-1, max_row=-1, min_col=-1, max_col=-1)
+        return self.__c_env_instance.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col)
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

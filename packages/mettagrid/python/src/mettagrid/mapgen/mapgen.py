@@ -16,7 +16,6 @@ from mettagrid.mapgen.scenes.transplant_scene import TransplantScene
 from mettagrid.mapgen.types import Area, AreaWhere, MapGrid
 
 
-# Map generator based on scenes.
 class MapGen(MapBuilder):
     class Config(MapBuilderConfig["MapGen"]):
         ########## Global parameters ##########
@@ -135,9 +134,12 @@ class MapGen(MapBuilder):
             return self
 
         @classmethod
-        def with_ascii_uri(cls, ascii_map_uri: str, **kwargs) -> MapGen.Config:
+        def with_ascii_uri(
+            cls, ascii_map_uri: str, char_to_name_map: dict[str, str] | None = None, **kwargs
+        ) -> MapGen.Config:
             """Create a MapGenConfig with an ASCII map file as instance."""
-            kwargs["instance"] = AsciiMapBuilder.Config.from_uri(ascii_map_uri)
+
+            kwargs["instance"] = AsciiMapBuilder.Config.from_uri(ascii_map_uri, char_to_name_map)
             return cls(**kwargs)
 
         @classmethod
