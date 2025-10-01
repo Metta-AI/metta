@@ -78,7 +78,27 @@ class SlidingTransformerConfig(ComponentConfig):
     pool: Literal["cls", "mean", "none"] = "mean"
 
     def make_component(self, env=None):
-        return SlidingTransformer(config=self, env=env)
+        from metta.agent.components.transformer_core import (
+            TransformerBackboneConfig,
+            TransformerBackboneVariant,
+        )
+
+        hidden_size = self.output_dim
+        ff_mult = max(1, self.ff_mult)
+        backbone_cfg = TransformerBackboneConfig(
+            name=self.name,
+            in_key=self.in_key,
+            out_key=self.out_key,
+            variant=TransformerBackboneVariant.SLIDING,
+            latent_size=self.input_dim,
+            hidden_size=hidden_size,
+            num_layers=self.num_layers,
+            n_heads=self.num_heads,
+            d_ff=hidden_size * ff_mult,
+            max_cache_size=self.max_cache_size,
+            pool=self.pool,
+        )
+        return backbone_cfg.make_component(env)
 
 
 class SlidingTransformer(nn.Module):
