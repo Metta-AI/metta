@@ -39,7 +39,7 @@ def train(
     from pufferlib.pufferlib import set_buffers
 
 
-    reward_scale = 0.02
+    reward_scale = 0.01
 
     class RewardScalingHierarchicalEnv(HierarchicalActionMettaGridEnv):
         def __init__(self, env_cfg: MettaGridConfig, scale: float, *, buf: Optional[Any] = None) -> None:
@@ -49,6 +49,7 @@ def train(
         def step(self, actions: np.ndarray):  # type: ignore[override]
             obs, rewards, terminated, truncated, info = super().step(actions)
             scaled_rewards = np.asarray(rewards, dtype=np.float32) * self._reward_scale
+            scaled_rewards = np.clip(scaled_rewards, -1.0, 1.0, out=scaled_rewards)
             self.rewards = scaled_rewards
             if isinstance(info, dict):
                 info = {**info, "reward_scale": self._reward_scale}
@@ -138,13 +139,13 @@ def train(
 
     # Use RNN-specific hyperparameters if needed
     if use_rnn:
-        learning_rate = 0.0001  # Conservative LR for recurrent policies
+        learning_rate = 5e-5  # Conservative LR for recurrent policies
         bptt_horizon = 1  # Use bptt=1 for now (TODO: fix bptt>1 observation reshaping)
         optimizer = "adam"  # Adam is more stable for RNNs than Muon
         adam_eps = 1e-8  # Standard eps value, not too small
-        logger.info("Using RNN-specific hyperparameters: lr=0.0001, bptt=1, optimizer=adam")
+        logger.info("Using RNN-specific hyperparameters: lr=5e-5, bptt=1, optimizer=adam")
     else:
-        learning_rate = 0.0001
+        learning_rate = 5e-5
         bptt_horizon = 1
         optimizer = "muon"
         adam_eps = 1e-12
@@ -211,7 +212,7 @@ def train(
         gae_lambda=0.90,
         update_epochs=1,
         clip_coef=0.2,
-        vf_coef=0.5,
+        vf_coef=0.25,
         vf_clip_coef=0.05,
         max_grad_norm=1.5,
         ent_coef=0.001,
