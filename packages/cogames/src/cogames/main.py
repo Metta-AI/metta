@@ -198,7 +198,7 @@ def train_cmd(
         "--checkpoints",
         help="Path to save training data",
     ),
-    steps: int = typer.Option(50_000_000, "--steps", "-s", help="Number of training steps"),
+    steps: int = typer.Option(1_000_000_000, "--steps", "-s", help="Number of training steps"),
     device: str = typer.Option(
         "auto",
         "--device",

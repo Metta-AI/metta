@@ -121,13 +121,13 @@ def train(
 
     # Use RNN-specific hyperparameters if needed
     if use_rnn:
-        learning_rate = 1.5e-4  # Align with default PuffeRL configs
+        learning_rate = 1e-4  # Slightly gentler LR to keep critic stable
         bptt_horizon = 1  # TODO: revisit once observation reshaping supports >1
         optimizer = "adam"
         adam_eps = 1e-8
-        logger.info("Using RNN hyperparameters: lr=1.5e-4, bptt=1, optimizer=adam")
+        logger.info("Using RNN hyperparameters: lr=1e-4, bptt=1, optimizer=adam")
     else:
-        learning_rate = 1.5e-4
+        learning_rate = 1e-4
         bptt_horizon = 1
         optimizer = "muon"
         adam_eps = 1e-12
