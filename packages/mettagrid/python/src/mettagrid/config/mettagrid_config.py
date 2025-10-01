@@ -194,12 +194,36 @@ class ChestConfig(Config):
 
 
 class ClipperConfig(Config):
-    """Global clipper that probabilistically clips assemblers each tick."""
+    """
+    Global clipper that probabilistically clips assemblers each tick.
+
+    The clipper system uses a spatial diffusion process where clipping spreads
+    based on distance from already-clipped buildings. The length_scale parameter
+    controls the exponential decay: weight = exp(-distance / length_scale).
+
+    By default, length_scale is automatically calculated based on percolation theory
+    using the grid size and number of buildings. Set auto_length_scale=False to
+    use a manual length_scale value instead.
+    """
 
     recipe: RecipeConfig = Field(default_factory=RecipeConfig)
-    length_scale: float = Field(default=1.0, ge=0.0)
+    length_scale: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Controls spatial spread rate: weight = exp(-distance / length_scale). "
+        "Auto-calculated from percolation theory if auto_length_scale=True",
+    )
     cutoff_distance: float = Field(default=0.0, ge=0.0)
     clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    auto_length_scale: bool = Field(
+        default=True,
+        description="Automatically calculate length_scale from percolation theory based on grid density",
+    )
+    length_scale_factor: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Fudge factor for percolation-based length scale calculation (only used if auto_length_scale=True)",
+    )
 
 
 class GameConfig(Config):
@@ -274,6 +298,40 @@ class GameConfig(Config):
     allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
     reward_estimates: Optional[dict[str, float]] = Field(default=None)
+
+    @model_validator(mode="after")
+    def _auto_configure_clipper_length_scale(self) -> "GameConfig":
+        """Automatically calculate clipper length_scale from percolation theory if enabled."""
+        import numpy as np
+
+        if self.clipper is None or not self.clipper.auto_length_scale:
+            return self
+
+        # Get grid dimensions from map_builder
+        map_builder_config = self.map_builder
+        width = getattr(map_builder_config, "width", None)
+        height = getattr(map_builder_config, "height", None)
+
+        if width is None or height is None:
+            # Can't auto-calculate, leave length_scale as-is
+            return self
+
+        # Calculate grid size (use max dimension)
+        grid_size = max(width, height)
+
+        # Count assemblers in objects
+        num_buildings = sum(1 for obj in self.objects.values() if isinstance(obj, AssemblerConfig))
+
+        if num_buildings == 0:
+            # No buildings to base calculation on, leave default
+            return self
+
+        # Calculate percolation-based length scale
+        # Formula: (GRID_SIZE / sqrt(NUM_BUILDINGS)) * sqrt(4.51 / (4 * pi))
+        theoretical_length_scale = (grid_size / np.sqrt(num_buildings)) * np.sqrt(4.51 / (4 * np.pi))
+        self.clipper.length_scale = theoretical_length_scale * self.clipper.length_scale_factor
+
+        return self
 
 
 class MettaGridConfig(Config):
