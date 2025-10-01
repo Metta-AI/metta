@@ -39,13 +39,16 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
 class FastDynamicsConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
+    _hidden_size = 32
     _embedding_dim = 16
+
+    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+
+    _latent_dim = 64
     _token_embed_dim = 8
     _fourier_freqs = 3
-    _latent_dim = 64
+    _embed_dim = 16
     _lstm_latent = 32
-    _actor_hidden = 256
-    _critic_hidden = 1024
 
     components: List[ComponentConfig] = [
         ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
@@ -65,7 +68,7 @@ class FastDynamicsConfig(PolicyArchitecture):
             num_layers=2,
         ),
         LSTMConfig(
-            in_key="encoded_obs",
+            in_key="obs_latent_attn",
             out_key="core",
             latent_size=_latent_dim,
             hidden_size=_lstm_latent,
@@ -77,25 +80,15 @@ class FastDynamicsConfig(PolicyArchitecture):
             name="critic",
             in_features=_lstm_latent,
             out_features=1,
-            hidden_features=[_critic_hidden],
+            hidden_features=[1024],
         ),
-        MLPConfig(
-            in_key="core",
-            out_key="actor_hidden",
-            name="actor_mlp",
-            in_features=_lstm_latent,
-            hidden_features=[_actor_hidden],
-            out_features=_actor_hidden,
-        ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
-            in_key="actor_hidden", out_key="actor_query", hidden_size=_actor_hidden, embed_dim=_embedding_dim
-        ),
+        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
+        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_lstm_latent, embed_dim=_embed_dim),
         ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
             out_key="logits",
-            embed_dim=_embedding_dim,
+            embed_dim=_embed_dim,
         ),
     ]
 
@@ -105,7 +98,7 @@ class FastDynamicsConfig(PolicyArchitecture):
         AgentClass = load_symbol(self.class_path)
         policy = AgentClass(env_metadata, self)
 
-        pred_input_dim = self._lstm_latent + self._embedding_dim
+        pred_input_dim = self._hidden_size + self._embedding_dim
         returns_module = nn.Linear(pred_input_dim, 1)
         reward_module = nn.Linear(pred_input_dim, 1)
         policy.returns_pred = TDM(returns_module, in_keys=["pred_input"], out_keys=["returns_pred"])
