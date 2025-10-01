@@ -114,6 +114,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._stats_cache: Dict[str, Any] = {}
         self._stats_cache_valid = False
 
+        # Track task labels for pool composition and sampling stats
+        self._task_labels: Dict[int, str] = {}  # task_id -> label
+        self._label_completion_counts: Dict[str, int] = {}  # label -> count
+
     @property
     def lp_scorer(self):
         """Compatibility property for tests that expect lp_scorer attribute."""
@@ -133,10 +137,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
     def _score_cache(self):
         """Compatibility property for tests that access scorer's cache."""
         return self.scorer._score_cache
-
-    def get_base_stats(self) -> Dict[str, float]:
-        """Get basic statistics that all algorithms must provide."""
-        return self.stats_aggregator.get_base_stats()
 
     def stats(self, prefix: str = "") -> Dict[str, float]:
         """Get all statistics with optional prefix. Always includes learning progress stats."""
@@ -212,6 +212,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Learning progress specific cleanup
         self._remove_task_from_scoring(task_id)
 
+        # Remove from label tracking
+        self._task_labels.pop(task_id, None)
+
         # Invalidate stats cache when task state changes
         self.cache_coordinator.invalidate_stats_cache()
 
@@ -230,6 +233,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         # Single atomic update to task tracker with both score and LP score
         # This ensures consistency and avoids multiple writes to shared memory
         self.task_tracker.update_task_performance(task_id, score, lp_score=lp_score)
+
+        # Track completion counts by label
+        if task_id in self._task_labels:
+            label = self._task_labels[task_id]
+            self._label_completion_counts[label] = self._label_completion_counts.get(label, 0) + 1
 
         # Invalidate stats cache when task performance changes
         self.cache_coordinator.invalidate_stats_cache()
@@ -273,6 +281,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         """Handle task creation by tracking it."""
         self.task_tracker.track_task_creation(task._task_id)
 
+        # Track task label for pool composition stats
+        if hasattr(task, "get_label"):
+            label = task.get_label()
+            if label:
+                self._task_labels[task._task_id] = label
+
         # Extract and update slice values if available
         slice_values = task.get_slice_values()
         if slice_values:
@@ -281,6 +295,40 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Invalidate stats cache when task state changes
         self.cache_coordinator.invalidate_stats_cache()
+
+    def get_pool_composition_stats(self) -> Dict[str, Dict[str, int]]:
+        """Get pool composition and sampling statistics by label.
+
+        Returns:
+            Dictionary with 'pool_composition' and 'sampling_counts' keys,
+            each containing label->count mappings.
+        """
+        # Count labels currently in pool
+        pool_composition = {}
+        for label in self._task_labels.values():
+            pool_composition[label] = pool_composition.get(label, 0) + 1
+
+        return {
+            "pool_composition": pool_composition,
+            "sampling_counts": self._label_completion_counts.copy(),
+        }
+
+    def get_base_stats(self) -> Dict[str, float]:
+        """Get basic statistics that all algorithms must provide."""
+        stats = self.stats_aggregator.get_base_stats()
+
+        # Add pool composition stats (logged every epoch)
+        composition_data = self.get_pool_composition_stats()
+
+        # Add pool composition (number of each label in memory)
+        for label, count in composition_data["pool_composition"].items():
+            stats[f"pool_composition/{label}"] = float(count)
+
+        # Add sampling counts (number of times each label was sampled)
+        for label, count in composition_data["sampling_counts"].items():
+            stats[f"sampling_counts/{label}"] = float(count)
+
+        return stats
 
     def get_detailed_stats(self) -> Dict[str, float]:
         """Get detailed stats including learning progress and slice distribution analysis."""

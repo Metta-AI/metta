@@ -424,14 +424,14 @@ class LPParams:
         self,
         # Core bidirectional LP parameters
         use_bidirectional: bool = True,
-        ema_timescale: float = 0.001,
+        ema_timescale: float = 0.1,  # EMA learning rate (0.1 = updates in ~10 samples)
         slow_timescale_factor: float = 0.2,
-        exploration_bonus: float = 0.15,
-        progress_smoothing: float = 0.15,
+        exploration_bonus: float = 0.1,
+        progress_smoothing: float = 0.01,
         performance_bonus_weight: float = 0.0,
         # Task management
         num_active_tasks: int = 1000,
-        rand_task_rate: float = 0.25,
+        rand_task_rate: float = 0.01,
         sample_threshold: int = 10,
         memory: int = 25,
         eviction_threshold_percentile: float = 0.4,
@@ -440,7 +440,7 @@ class LPParams:
         basic_ema_alpha_decay: float = 0.2,
         exploration_blend_factor: float = 0.5,
         # Task tracker EMA
-        task_tracker_ema_alpha: float = 0.1,
+        task_tracker_ema_alpha: float = 0.02,
         # Memory and logging
         max_memory_tasks: int = 1000,
         max_slice_axes: int = 3,
