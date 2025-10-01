@@ -50,6 +50,15 @@ class CurriculumEnv(PufferEnv):
         self._per_label_completion_counts = {}  # Cumulative across all training
         self._per_label_completion_counts_last_epoch = {}  # For computing deltas
 
+    def reset_epoch_counters(self) -> None:
+        """Reset per-epoch tracking at the start of a new epoch.
+
+        This ensures that per-epoch delta calculations start fresh for each epoch,
+        preventing completions from one epoch leaking into the next.
+        """
+        # Reset the baseline for delta calculations
+        self._per_label_completion_counts_last_epoch = self._per_label_completion_counts.copy()
+
     def _add_curriculum_stats_to_info(self, info_dict: dict) -> None:
         """Add curriculum statistics to info dictionary for logging.
 

@@ -161,9 +161,9 @@ class TestMetricsFormattingMain:
 
         result = rl_stats.process_training_stats(raw_stats, losses, experience, trainer_config)
 
-        # Check that per-epoch samples are reorganized into epoch_samples_per_label/
-        assert result["mean_stats"]["epoch_samples_per_label/task_A"] == 110
-        assert result["mean_stats"]["epoch_samples_per_label/task_B"] == 70
+        # Check that per-epoch samples are summed (not averaged) into epoch_samples_per_label/
+        assert result["mean_stats"]["epoch_samples_per_label/task_A"] == 330  # Sum: 100 + 120 + 110
+        assert result["mean_stats"]["epoch_samples_per_label/task_B"] == 200  # Sum: 50 + 80 + 70
 
         # Check that averaged per-epoch samples are in mean_samples_per_label/
         assert abs(result["mean_stats"]["mean_samples_per_label/task_A"] - 110.0) < 0.01  # (100 + 120 + 110) / 3

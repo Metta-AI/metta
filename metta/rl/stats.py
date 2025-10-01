@@ -134,9 +134,10 @@ def process_training_stats(
 
             # Special reorganization for per_label metrics into their own sections
             if "per_label_samples_this_epoch" in k:
-                # Log the per-epoch deltas (derivative of cumulative counter)
-                for label, count in latest_snapshot.items():
-                    mean_stats[f"epoch_samples_per_label/{label}"] = count
+                # Sum the deltas across all stats updates in this epoch to get total completions
+                summed_dict = {key: np.sum(vals) for key, vals in aggregated.items()}
+                for label, total_count in summed_dict.items():
+                    mean_stats[f"epoch_samples_per_label/{label}"] = total_count
                 for label, avg_count in averaged_dict.items():
                     mean_stats[f"mean_samples_per_label/{label}"] = avg_count
             elif "per_label_cumulative_samples" in k:
