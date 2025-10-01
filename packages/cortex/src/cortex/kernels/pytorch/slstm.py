@@ -4,13 +4,6 @@ from typing import Tuple
 
 import torch
 
-try:
-    import triton  # noqa: F401
-
-    TRITON_AVAILABLE = torch.cuda.is_available()
-except Exception:  # pragma: no cover - import guard
-    TRITON_AVAILABLE = False
-
 
 def _slstm_pointwise(
     Wx: torch.Tensor,
@@ -206,10 +199,7 @@ def slstm_sequence_triton(
         all_states: (T, 4, B, NH, DH)
         last_state: (4, B, NH, DH)
     """
-    if not TRITON_AVAILABLE:
-        raise RuntimeError("Triton is not available or CUDA not enabled")
-
-    from .slstm_triton.torch import slstm_tr_fwbw
+    from cortex.kernels.triton.slstm.torch import slstm_tr_fwbw
 
     assert Wx.dim() == 5 and Wx.shape[2] == 4, f"Wx must be (B,T,4,NH,DH), got {Wx.shape}"
     assert R.shape[0] == 4, f"R must be (4,NH,DH,DH), got {R.shape}"
@@ -236,4 +226,4 @@ def slstm_sequence_triton(
     return all_states, last_state
 
 
-__all__ = ["TRITON_AVAILABLE", "slstm_sequence_pytorch", "slstm_sequence_triton"]
+__all__ = ["slstm_sequence_pytorch", "slstm_sequence_triton"]

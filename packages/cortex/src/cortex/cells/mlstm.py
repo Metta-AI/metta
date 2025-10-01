@@ -10,13 +10,13 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.conv import CausalConv1d
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig, mLSTMCellConfig
-from cortex.kernels import (
-    TRITON_AVAILABLE,
+from cortex.kernels.pytorch.mlstm import (
     mlstm_chunkwise_simple,
     mlstm_chunkwise_triton,
     mlstm_recurrent_step_stabilized_simple,
 )
 from cortex.types import MaybeState, ResetMask, Tensor
+from cortex.utils import select_backend
 
 
 def bias_linspace_init_(param: torch.Tensor, start: float = 3.4, end: float = 6.0) -> torch.Tensor:
@@ -122,13 +122,6 @@ class mLSTMCell(MemoryCell):
 
         # Output normalization
         self.outnorm = MultiHeadLayerNorm(cfg.hidden_size, weight=True, bias=False)
-
-        # Backend functions - use Triton if available, otherwise fall back to simple
-        if TRITON_AVAILABLE:
-            self.backend_fn = mlstm_chunkwise_triton
-        else:
-            self.backend_fn = mlstm_chunkwise_simple
-        self.backend_fn_step = mlstm_recurrent_step_stabilized_simple
 
         self.reset_parameters()
 
@@ -252,7 +245,8 @@ class mLSTMCell(MemoryCell):
                 # Accept [B] or [B, 1] and convert to [B]
                 reset_step = resets.view(B)
 
-            h_state, (c_new, n_new, m_new) = self.backend_fn_step(
+            # Step mode always uses PyTorch (no Triton step kernel)
+            h_state, (c_new, n_new, m_new) = mlstm_recurrent_step_stabilized_simple(
                 c_state=c_state,
                 n_state=n_state,
                 m_state=m_state,
@@ -290,7 +284,14 @@ class mLSTMCell(MemoryCell):
                     rm = resets
                 backend_kwargs["reset_mask"] = rm
 
-            backend_output = self.backend_fn(**backend_kwargs)
+            # Select backend at runtime based on device
+            backend_fn = select_backend(
+                triton_fn=mlstm_chunkwise_triton,
+                pytorch_fn=mlstm_chunkwise_simple,
+                tensor=x,
+                allow_triton=True,
+            )
+            backend_output = backend_fn(**backend_kwargs)
 
             h_state, (c_new, n_new, m_new) = backend_output
             # Attach conv buffer after sequence for continuity across calls

@@ -1,10 +1,10 @@
 from typing import Optional
 
 import torch
-from cortex.kernels.slstm_triton.triton_fused.slstm_bw import (
+from cortex.kernels.triton.slstm.triton_fused.slstm_bw import (
     backward_sequence as slstm_backward_sequence,
 )
-from cortex.kernels.slstm_triton.triton_fused.slstm_fw import (
+from cortex.kernels.triton.slstm.triton_fused.slstm_fw import (
     forward_sequence as slstm_forward_sequence,
 )
 from torch.amp import custom_bwd, custom_fwd

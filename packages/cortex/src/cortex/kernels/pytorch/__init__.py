@@ -1,8 +1,4 @@
-"""Kernel implementations for Cortex cells.
-
-This module contains various kernel implementations for cell computations,
-including custom PyTorch kernels, Triton implementations, and optimized routines.
-"""
+"""PyTorch kernel implementations for Cortex cells."""
 
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch, causal_conv1d_triton
 from cortex.kernels.pytorch.mlstm import (

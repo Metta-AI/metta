@@ -13,13 +13,11 @@ import torch.nn.functional
 
 from cortex.types import Tensor
 
-# Triton availability check
+# Lazy import of Triton implementation
 try:
-    from cortex.kernels.conv1d_triton import channelmix_causal_conv1d_with_resets_triton
-
-    TRITON_AVAILABLE = torch.cuda.is_available()
+    from cortex.kernels.triton.conv1d import channelmix_causal_conv1d_with_resets_triton
 except ImportError:
-    TRITON_AVAILABLE = False
+    channelmix_causal_conv1d_with_resets_triton = None  # type: ignore[assignment]
 
 
 def causal_conv1d_triton(
@@ -50,7 +48,7 @@ def causal_conv1d_triton(
         RuntimeError: If Triton is not available or conditions aren't met
         ValueError: If groups != 1
     """
-    if not TRITON_AVAILABLE:
+    if channelmix_causal_conv1d_with_resets_triton is None:
         raise RuntimeError("Triton is not available. Install triton package.")
 
     if groups != 1:
@@ -188,8 +186,4 @@ def causal_conv1d_pytorch(
     return y, new_conv_state
 
 
-__all__ = ["TRITON_AVAILABLE", "causal_conv1d_pytorch"]
-
-# Conditionally add Triton function to exports
-if TRITON_AVAILABLE:
-    __all__.append("causal_conv1d_triton")
+__all__ = ["causal_conv1d_pytorch", "causal_conv1d_triton"]
