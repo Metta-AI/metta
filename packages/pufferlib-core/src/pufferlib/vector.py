@@ -1,6 +1,7 @@
 # TODO: Check actions passed to envs are right shape? On first call at least
 
-
+import logging
+import sys
 import time
 
 import numpy as np
@@ -17,6 +18,9 @@ RECV = 3
 CLOSE = 4
 MAIN = 5
 INFO = 6
+
+
+logger = logging.getLogger(__name__)
 
 
 def recv_precheck(vecenv):
@@ -198,6 +202,14 @@ def _worker_process(
     is_native,
     seed,
 ):
+    # Ensure worker logs reach the remote console even if the parent configured logging differently
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        root_logger.addHandler(handler)
+    if root_logger.level > logging.INFO:
+        root_logger.setLevel(logging.INFO)
+
     # Environments read and write directly to shared memory
     shape = (num_workers, num_envs * num_agents)
     atn_arr = np.ndarray((*shape, *atn_shape), dtype=atn_dtype, buffer=shm["actions"])[worker_idx]
@@ -233,7 +245,18 @@ def _worker_process(
         start = time.time()
         if sem == RESET:
             seed = recv_pipe.recv()
+            logger.info(
+                "Worker %s received reset seed %s",  # makes stalls visible in remote logs
+                worker_idx,
+                seed,
+            )
+            reset_start = time.time()
             _, infos = envs.reset(seed=seed)
+            logger.info(
+                "Worker %s finished reset in %.3fs",  # allows diagnosing slow env initialization
+                worker_idx,
+                time.time() - reset_start,
+            )
         elif sem == STEP:
             _, _, _, _, infos = envs.step(atn_arr)
         elif sem == CLOSE:
@@ -406,10 +429,36 @@ class Multiprocessing:
 
         self.ready_workers = []
         self.waiting_workers = []
+        self._wait_log_interval: float = 60.0
+        self._next_wait_log: float | None = time.time() + self._wait_log_interval
+
+    def _log_waiting_state(self, stalled_seconds: float) -> None:
+        """Emit an info log describing the current multiprocessing wait state."""
+
+        semaphores = self.buf["semaphores"].astype(int).tolist()
+        processes_alive = [process.is_alive() for process in self.processes]
+        logger.info(
+            "Multiprocessing vecenv waiting %.1fs (workers_per_batch=%s, ready_workers=%s, "
+            "waiting_workers=%s, semaphores=%s, processes_alive=%s)",
+            stalled_seconds,
+            self.workers_per_batch,
+            list(self.ready_workers),
+            list(self.waiting_workers),
+            semaphores,
+            processes_alive,
+        )
 
     def recv(self):
         recv_precheck(self)
+        wait_start = time.time()
+        if self._wait_log_interval > 0:
+            self._next_wait_log = wait_start + self._wait_log_interval
         while True:
+            if self._wait_log_interval > 0 and self._next_wait_log is not None:
+                now = time.time()
+                if now >= self._next_wait_log:
+                    self._log_waiting_state(now - wait_start)
+                    self._next_wait_log = now + self._wait_log_interval
             # Bandaid patch for new experience buffer desync
             if self.sync_traj:
                 worker = self.waiting_workers[0]
@@ -477,6 +526,9 @@ class Multiprocessing:
                 break
 
         self.w_slice = w_slice
+        if self._wait_log_interval > 0:
+            self._next_wait_log = time.time() + self._wait_log_interval
+
         buf = self.buf
 
         o = buf["observations"][w_slice].reshape(self.obs_batch_shape)
