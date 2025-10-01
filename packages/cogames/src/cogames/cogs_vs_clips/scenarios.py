@@ -166,4 +166,9 @@ def games() -> dict[str, MettaGridConfig]:
         "machina_5_big": make_game_from_map("canidate3_500_stations.map"),
         "machina_6_bigger": make_game_from_map("canidate3_1000_stations.map"),
         "machina_7_big": make_game_from_map("canidate4_500_stations.map"),
+        "training_facility_1": make_game_from_map("training_facility_open_1.map"),
+        "training_facility_2": make_game_from_map("training_facility_open_2.map"),
+        "training_facility_3": make_game_from_map("training_facility_open_3.map"),
+        "training_facility_4": make_game_from_map("training_facility_tight_4.map"),
+        "training_facility_5": make_game_from_map("training_facility_tight_5.map"),
     }
