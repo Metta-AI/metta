@@ -5,6 +5,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
     ChestConfig,
+    ClipperConfig,
     ConverterConfig,
     GameConfig,
     Position,
@@ -16,6 +17,7 @@ from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
+from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
@@ -314,6 +316,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.recipes = cpp_recipes
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
+            cpp_assembler_config.exhaustion = object_config.exhaustion
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert resource type name to ID
@@ -424,6 +427,26 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Add resource_loss_prob
     game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
+
+    # Add clipper if configured
+    if game_config.clipper is not None:
+        clipper: ClipperConfig = game_config.clipper
+        clipper_recipe = CppRecipe(
+            input_resources={
+                resource_name_to_id[k]: v
+                for k, v in clipper.recipe.input_resources.items()
+                if v > 0 and k in resource_name_to_id
+            },
+            output_resources={
+                resource_name_to_id[k]: v
+                for k, v in clipper.recipe.output_resources.items()
+                if v > 0 and k in resource_name_to_id
+            },
+            cooldown=clipper.recipe.cooldown,
+        )
+        game_cpp_params["clipper"] = CppClipperConfig(
+            clipper_recipe, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
+        )
 
     # Set feature flags
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs

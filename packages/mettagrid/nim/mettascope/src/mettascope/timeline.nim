@@ -219,7 +219,7 @@ proc drawTimeline*(panel: Panel) =
 
   # Handle mouse interactions.
   updateMouse(panel)
-  let localMouse = window.mousePos.vec2 - panel.rect.xy.vec2
+  let localMouse = window.logicalMousePos - panel.rect.xy.vec2
 
   if panel.hasMouse:
     if window.buttonPressed[MouseLeft]:

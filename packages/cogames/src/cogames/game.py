@@ -170,7 +170,13 @@ def list_games(console: Console) -> Table:
 
     for game_name, game_config in all_games.items():
         num_agents = game_config.game.num_agents
-        map_size = f"{game_config.game.map_builder.width}x{game_config.game.map_builder.height}"
+
+        # Try to get map size if available
+        map_builder = game_config.game.map_builder
+        if hasattr(map_builder, "width") and hasattr(map_builder, "height"):
+            map_size = f"{map_builder.width}x{map_builder.height}"
+        else:
+            map_size = "N/A"
 
         table.add_row(game_name, str(num_agents), map_size)
 

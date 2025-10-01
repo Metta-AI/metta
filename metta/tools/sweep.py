@@ -15,7 +15,14 @@ from metta.common.tool import Tool
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
 from metta.sweep.protein_config import ParameterConfig, ProteinConfig
-from metta.sweep.schedulers.batched_synced import BatchedSyncedOptimizingScheduler, BatchedSyncedSchedulerConfig
+from metta.sweep.schedulers.async_capped import (
+    AsyncCappedOptimizingScheduler,
+    AsyncCappedSchedulerConfig,
+)
+from metta.sweep.schedulers.batched_synced import (
+    BatchedSyncedOptimizingScheduler,
+    BatchedSyncedSchedulerConfig,
+)
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
@@ -78,6 +85,13 @@ class DispatcherType(StrEnum):
     SKYPILOT = "skypilot"  # All jobs run on Skypilot
 
 
+class SweepSchedulerType(StrEnum):
+    """Available scheduler types for sweep orchestration."""
+
+    BATCHED_SYNCED = "batched_synced"
+    ASYNC_CAPPED = "async_capped"
+
+
 class SweepTool(Tool):
     """Tool for Bayesian hyperparameter optimization using adaptive experiments.
 
@@ -112,6 +126,12 @@ class SweepTool(Tool):
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
 
+    # Scheduler selection and async-specific settings
+    scheduler_type: SweepSchedulerType = SweepSchedulerType.BATCHED_SYNCED
+    # AsyncCapped-specific knobs
+    max_concurrent_evals: int = 1
+    liar_strategy: str = "best"  # one of: best | mean | worst
+
     # Controller settings
     max_parallel_jobs: int = 6
     monitoring_interval: int = 60
@@ -121,6 +141,9 @@ class SweepTool(Tool):
 
     # local test is similar to dry runs
     local_test: bool = False
+
+    # Force re-dispatch of evaluation jobs currently in IN_EVAL state on relaunch
+    force_eval: bool = False
 
     # Override configurations
     train_overrides: dict[str, Any] = {}  # Overrides to apply to all training jobs
@@ -201,6 +224,7 @@ class SweepTool(Tool):
         logger.info(f"[SweepTool] Max parallel jobs: {self.max_parallel_jobs}")
         logger.info(f"[SweepTool] Monitoring interval: {self.monitoring_interval}s")
         logger.info(f"[SweepTool] Dispatcher type: {self.dispatcher_type}")
+        logger.info(f"[SweepTool] Scheduler type: {self.scheduler_type}")
         logger.info("[SweepTool] " + "=" * 60)
 
         # Check for resumption using cogweb
@@ -235,24 +259,42 @@ class SweepTool(Tool):
         else:
             raise ValueError(f"Unsupported dispatcher type: {self.dispatcher_type}")
 
-        # Create scheduler configuration for Bayesian optimization
-        scheduler_config = BatchedSyncedSchedulerConfig(
-            max_trials=self.max_trials,
-            batch_size=self.batch_size,
-            recipe_module=self.recipe_module,
-            train_entrypoint=self.train_entrypoint,
-            eval_entrypoint=self.eval_entrypoint,
-            train_overrides=self.train_overrides,
-            eval_overrides=self.eval_overrides,
-            stats_server_uri=self.stats_server_uri,
-            gpus=self.gpus,
-            nodes=self.nodes,
-            experiment_id=self.sweep_name,
-            protein_config=self.protein_config,
-        )
-
-        # Create scheduler with Bayesian optimization
-        scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
+        # Create scheduler (batched synced or async capped)
+        if self.scheduler_type == SweepSchedulerType.BATCHED_SYNCED:
+            scheduler_config = BatchedSyncedSchedulerConfig(
+                max_trials=self.max_trials,
+                batch_size=self.batch_size,
+                recipe_module=self.recipe_module,
+                train_entrypoint=self.train_entrypoint,
+                eval_entrypoint=self.eval_entrypoint,
+                train_overrides=self.train_overrides,
+                eval_overrides=self.eval_overrides,
+                stats_server_uri=self.stats_server_uri,
+                gpus=self.gpus,
+                nodes=self.nodes,
+                experiment_id=self.sweep_name,
+                protein_config=self.protein_config,
+                force_eval=self.force_eval,
+            )
+            scheduler = BatchedSyncedOptimizingScheduler(scheduler_config)
+        else:
+            scheduler_config = AsyncCappedSchedulerConfig(
+                max_trials=self.max_trials,
+                recipe_module=self.recipe_module,
+                train_entrypoint=self.train_entrypoint,
+                eval_entrypoint=self.eval_entrypoint,
+                train_overrides=self.train_overrides,
+                eval_overrides=self.eval_overrides,
+                stats_server_uri=self.stats_server_uri,
+                gpus=self.gpus,
+                nodes=self.nodes,
+                experiment_id=self.sweep_name,
+                protein_config=self.protein_config,
+                force_eval=self.force_eval,
+                max_concurrent_evals=self.max_concurrent_evals,
+                liar_strategy=self.liar_strategy,
+            )
+            scheduler = AsyncCappedOptimizingScheduler(scheduler_config)
 
         # Create adaptive config
         adaptive_config = AdaptiveConfig(

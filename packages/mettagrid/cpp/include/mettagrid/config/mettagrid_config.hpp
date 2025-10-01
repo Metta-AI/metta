@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "core/types.hpp"
+#include "systems/clipper_config.hpp"
 
 // Forward declarations
 struct ActionConfig;
@@ -49,6 +50,9 @@ struct GameConfig {
   // term, this is a straightforward patch.
   std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts = {};  // Resources to regenerate and their amounts
   unsigned int inventory_regen_interval = 0;                                // Interval in timesteps (0 = disabled)
+
+  // Global clipper settings
+  std::shared_ptr<ClipperConfig> clipper = nullptr;
 };
 
 namespace py = pybind11;
@@ -90,7 +94,10 @@ inline void bind_game_config(py::module& m) {
 
                     // Inventory regeneration
                     const std::map<InventoryItem, InventoryQuantity>&,
-                    unsigned int>(),
+                    unsigned int,
+
+                    // Clipper
+                    const std::shared_ptr<ClipperConfig>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -112,7 +119,10 @@ inline void bind_game_config(py::module& m) {
 
            // Inventory regeneration
            py::arg("inventory_regen_amounts") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("inventory_regen_interval") = 0)
+           py::arg("inventory_regen_interval") = 0,
+
+           // Clipper
+           py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr))
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -139,7 +149,10 @@ inline void bind_game_config(py::module& m) {
 
       // Inventory regeneration
       .def_readwrite("inventory_regen_amounts", &GameConfig::inventory_regen_amounts)
-      .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval);
+      .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval)
+
+      // Clipper
+      .def_readwrite("clipper", &GameConfig::clipper);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_

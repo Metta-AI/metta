@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Literal, Optional
 
 import typer
 from rich.console import Console
@@ -17,7 +17,6 @@ from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
-from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
 
@@ -39,6 +38,7 @@ VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 PACKAGE_TAG_PREFIXES = {
     "mettagrid": "mettagrid-v",
     "cogames": "cogames-v",
+    "pufferlib-core": "pufferlib-core-v",
 }
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
@@ -419,6 +419,8 @@ def cmd_status(
     console = Console()
     console.print(table)
 
+    from metta.tools.utils.auto_config import auto_policy_storage_decision
+
     policy_decision = auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:
         if policy_decision.reason == "env_override":
@@ -517,7 +519,10 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
 
 @app.command(name="publish", help="Create and push a release tag for a package")
 def cmd_publish(
-    package: Annotated[str, typer.Argument(help="Package to publish (for example 'mettagrid' or 'cogames')")],
+    package: Annotated[
+        Literal["mettagrid", "cogames", "pufferlib-core"],
+        typer.Argument(help="Package to publish (for example 'mettagrid', 'cogames', or 'pufferlib-core')"),
+    ],
     version_override: Annotated[
         Optional[str],
         typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),

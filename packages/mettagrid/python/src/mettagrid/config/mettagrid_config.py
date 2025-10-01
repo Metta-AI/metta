@@ -1,11 +1,32 @@
-from typing import Any, Literal, Optional
+from __future__ import annotations
 
-from pydantic import ConfigDict, Field, model_validator
+from functools import lru_cache
+from typing import TYPE_CHECKING, Any, Literal, Optional
+
+from pydantic import ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 from mettagrid.config.config import Config
-from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+
+if TYPE_CHECKING:
+    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+else:
+    # Pydantic needs a value for this else we will get a PydanticUndefinedAnnotation error
+    # We have a field-validator to check that the value is a valid AnyMapBuilderConfig
+    AnyMapBuilderConfig = Any
+
+
+def _default_map_builder_config() -> "AnyMapBuilderConfig":
+    from mettagrid.map_builder.random import RandomMapBuilder
+
+    return RandomMapBuilder.Config(agents=24)
+
+
+@lru_cache(maxsize=1)
+def _map_builder_adapter() -> TypeAdapter["AnyMapBuilderConfig"]:
+    from mettagrid.map_builder.map_builder import AnyMapBuilderConfig as _AnyMapBuilderConfig
+
+    return TypeAdapter(_AnyMapBuilderConfig)
+
 
 # ===== Python Configuration Models =====
 
@@ -72,11 +93,11 @@ class ActionsConfig(Config):
     Omitted actions are disabled by default.
     """
 
-    noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
+    noop: ActionConfig = Field(default_factory=lambda: ActionConfig())
+    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
-    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
+    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
@@ -143,6 +164,13 @@ class AssemblerConfig(Config):
         ),
     )
     max_uses: int = Field(default=0, ge=0, description="Maximum number of uses (0 = unlimited)")
+    exhaustion: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Exhaustion rate - cooldown multiplier grows by (1 + exhaustion) after each use (0 = no exhaustion)"
+        ),
+    )
 
 
 class ChestConfig(Config):
@@ -157,6 +185,15 @@ class ChestConfig(Config):
         default_factory=list, description="Positions where agents can withdraw resources"
     )
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
+
+
+class ClipperConfig(Config):
+    """Global clipper that probabilistically clips assemblers each tick."""
+
+    recipe: RecipeConfig = Field(default_factory=RecipeConfig)
+    length_scale: float = Field(default=1.0, ge=0.0)
+    cutoff_distance: float = Field(default=0.0, ge=0.0)
+    clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 class GameConfig(Config):
@@ -206,8 +243,20 @@ class GameConfig(Config):
         default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
     )
 
+    # Global clipper system
+    clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
+
     # Map builder configuration - accepts any MapBuilder config
-    map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
+    map_builder: "AnyMapBuilderConfig" = Field(default_factory=_default_map_builder_config)
+
+    @field_validator("map_builder", mode="before")
+    @classmethod
+    def _coerce_map_builder(cls, value: Any) -> Any:
+        if value is None:
+            return value
+
+        adapter = _map_builder_adapter()
+        return adapter.validate_python(value)
 
     # Feature Flags
     track_movement_metrics: bool = Field(
@@ -233,6 +282,8 @@ class MettaGridConfig(Config):
         return self
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "MettaGridConfig":
+        from mettagrid.map_builder.ascii import AsciiMapBuilder
+
         self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
         return self
 
@@ -241,10 +292,11 @@ class MettaGridConfig(Config):
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
+        from mettagrid.map_builder.random import RandomMapBuilder
+
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=ActionConfig(),
-            rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         )
         objects = {}
         if border_width > 0 or with_walls:
