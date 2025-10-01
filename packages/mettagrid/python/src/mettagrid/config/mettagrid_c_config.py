@@ -418,13 +418,16 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add clipper if configured
     if game_config.clipper is not None:
         clipper: ClipperConfig = game_config.clipper
-        clipper_recipe = CppRecipe(
-            input_resources={resource_name_to_id[k]: v for k, v in clipper.recipe.input_resources.items()},
-            output_resources={resource_name_to_id[k]: v for k, v in clipper.recipe.output_resources.items()},
-            cooldown=clipper.recipe.cooldown,
-        )
+        clipper_recipes = []
+        for recipe_config in clipper.unclipping_recipes:
+            cpp_recipe = CppRecipe(
+                input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
+                output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
+                cooldown=recipe_config.cooldown,
+            )
+            clipper_recipes.append(cpp_recipe)
         game_cpp_params["clipper"] = CppClipperConfig(
-            clipper_recipe, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
+            clipper_recipes, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
         )
 
     # Set feature flags

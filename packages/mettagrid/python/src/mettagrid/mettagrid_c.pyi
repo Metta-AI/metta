@@ -139,12 +139,12 @@ class Recipe:
 class ClipperConfig:
     def __init__(
         self,
-        recipe: Recipe,
+        unclipping_recipes: list[Recipe],
         length_scale: float,
         cutoff_distance: float,
         clip_rate: float,
     ) -> None: ...
-    recipe: Recipe
+    unclipping_recipes: list[Recipe]
     length_scale: float
     cutoff_distance: float
     clip_rate: float
