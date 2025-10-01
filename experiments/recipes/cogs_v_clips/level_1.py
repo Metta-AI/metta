@@ -336,7 +336,6 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
             )
         else:
             width, height = 10, 10  # won't use for terrain
-        shareable_energy = rng.choice(self.config.shareable_energy)
 
         num_instances = 24 // num_cogs
 
@@ -375,7 +374,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
 
         env.game.inventory_regen_interval = regeneration_rate
         env.game.inventory_regen_amounts = {"energy": 1}
-        if shareable_energy:
+        if rng.choice(self.config.shareable_energy):
             env.game.agent.shareable_resources = ["energy"]
         env.label = f"{env.game.num_agents}_cogs_{num_assemblers}_assemblers_{num_chargers}_chargers_{num_carbon_extractors + num_oxygen_extractors + num_germanium_extractors + num_silicon_extractors}_extractors_{num_chests}_chests_{env.game.inventory_regen_interval}_regeneration_rate"
 
