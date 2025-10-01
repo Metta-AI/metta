@@ -169,13 +169,13 @@ def get_tool_fields(tool_class: type[Tool]) -> set[str]:
     return fields
 
 
-def get_function_params(make_tool_cfg: Any) -> set[str]:
+def get_function_params(tool_maker: Any) -> set[str]:
     """Get the parameters of a function or callable (not used for Tool classes)."""
-    if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
+    if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
         # Important: do NOT read Tool.__init__ for params (it's usually **data).
         return set()
     else:
-        return set(inspect.signature(make_tool_cfg).parameters.keys())
+        return set(inspect.signature(tool_maker).parameters.keys())
 
 
 def classify_remaining_args(remaining_args: dict[str, Any], tool_fields: set[str]) -> tuple[dict[str, Any], list[str]]:
@@ -265,14 +265,14 @@ def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> l
     return fields_info
 
 
-def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
+def list_tool_arguments(tool_maker: Any, console: Console) -> None:
     """List all available arguments for a tool."""
     console.print("\n[bold cyan]Available Arguments[/bold cyan]\n")
 
-    if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
+    if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
         console.print("[yellow]Tool Configuration Fields:[/yellow]\n")
 
-        fields_info = get_pydantic_field_info(make_tool_cfg)
+        fields_info = get_pydantic_field_info(tool_maker)
         grouped = {}
         for path, type_str, default, required in sorted(fields_info):
             top_level = path.split(".")[0]
@@ -313,7 +313,7 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
     else:
         console.print("[yellow]Function Parameters:[/yellow]\n")
 
-        sig = inspect.signature(make_tool_cfg)
+        sig = inspect.signature(tool_maker)
         for name, param in sig.parameters.items():
             console.print(f"  [bold]{name}[/bold]", end="")
 
@@ -356,15 +356,15 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
         try:
             with tempfile.TemporaryDirectory():
                 try:
-                    result = make_tool_cfg()
+                    result = tool_maker()
                 except TypeError:
-                    sig = inspect.signature(make_tool_cfg)
+                    sig = inspect.signature(tool_maker)
                     kwargs = {}
                     for name, param in sig.parameters.items():
                         if param.default is inspect._empty:
                             kwargs[name] = None
                     try:
-                        result = make_tool_cfg(**kwargs)
+                        result = tool_maker(**kwargs)
                     except Exception:
                         console.print("  [dim]Unable to determine Tool fields (function requires runtime values)[/dim]")
                         return
@@ -387,8 +387,7 @@ def list_tool_arguments(make_tool_cfg: Any, console: Console) -> None:
 
     console.print("\n[dim]Use these arguments with key=value format, e.g.:[/dim]")
     console.print(
-        f"[dim]  ./tools/run.py {make_tool_cfg.__module__}.{make_tool_cfg.__name__} "
-        f"run=test trainer.batch_size=1024[/dim]"
+        f"[dim]  ./tools/run.py {tool_maker.__module__}.{tool_maker.__name__} run=test trainer.batch_size=1024[/dim]"
     )
 
 
@@ -401,7 +400,7 @@ def main():
     """Main entry point using argparse."""
     parser = argparse.ArgumentParser(
         description="Run a tool with automatic argument classification",
-        add_help=False,
+        add_help=False,  # Custom help handling for tool-specific help
         formatter_class=argparse.RawDescriptionHelpFormatter,
         allow_abbrev=True,
         epilog="""
@@ -436,10 +435,10 @@ constructor/function vs configuration overrides based on introspection.
     )
 
     parser.add_argument(
-        "make_tool_cfg_path",
+        "tool_path",
         nargs="?",
         help=(
-            "Path or shorthand to the function or Tool class. Examples: "
+            "Path or shorthand to the tool maker (function or Tool class). Examples: "
             "'experiments.recipes.arena.train', 'arena.train', or two-part "
             "'train arena' (equivalent to 'arena.train')."
         ),
@@ -461,20 +460,8 @@ constructor/function vs configuration overrides based on introspection.
     console = Console()
 
     # If help is requested without a tool path, show general help
-    if known_args.help and not known_args.make_tool_cfg_path:
-        console.print("[bold]Tool Runner[/bold]\n")
-        console.print("Usage: ./tools/run.py <tool_path> [arguments]\n")
-        console.print(
-            "  tool_path: Path to the function or Tool class (e.g., arena.train or experiments.recipes.arena.train)"
-        )
-        console.print("  arguments: Arguments in key=value format\n")
-        console.print("Options:")
-        console.print("  -h, --help     Show help and list all available arguments for the tool")
-        console.print("  -v, --verbose  Show detailed argument classification")
-        console.print("  --dry-run      Validate the args and exit\n")
-        console.print("Examples:")
-        console.print("  ./tools/run.py arena.train -h")
-        console.print("  ./tools/run.py arena.train run=test trainer.batch_size=1024")
+    if known_args.help and not known_args.tool_path:
+        parser.print_help()
         return 0
 
     # Initialize logging and environment
@@ -489,7 +476,7 @@ constructor/function vs configuration overrides based on introspection.
             f"{red('Error:')} Unknown runner option(s): "
             + ", ".join(dash_unknowns)
             + "\nUse `--` to separate runner options from tool args, e.g.:\n"
-            + f"  {os.path.basename(sys.argv[0])} {known_args.make_tool_cfg_path} -- trainer.total_timesteps=100000"
+            + f"  {os.path.basename(sys.argv[0])} {known_args.tool_path} -- trainer.total_timesteps=100000"
         )
         return 2
     # Support shorthand syntax for tool path:
@@ -506,7 +493,7 @@ constructor/function vs configuration overrides based on introspection.
     signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(130))  # 130 = interrupted by Ctrl-C
 
     # Check if this is a bare tool name (e.g., 'train', 'evaluate', 'sweep')
-    tool_path = known_args.make_tool_cfg_path  # The first positional arg (e.g., 'train' or 'arena.train')
+    tool_path = known_args.tool_path  # The first positional arg (e.g., 'train' or 'arena.train')
     # It's a bare tool if it's just a known tool type name (canonical or alias) with no module path
     is_bare_tool = tool_path in get_tool_name_map()
 
@@ -527,16 +514,12 @@ constructor/function vs configuration overrides based on introspection.
         return 0
 
     # Determine the tool path and adjust remaining args accordingly
-    # Warn on ambiguous two-token like 'train train'
-    if two_part_second and known_args.make_tool_cfg_path == two_part_second:
-        output_info(yellow("Hint: two-token form looks ambiguous (e.g., 'train train')."))
-
     candidate_paths = generate_candidate_paths(
-        known_args.make_tool_cfg_path,
+        known_args.tool_path,
         two_part_second,
     )
     resolved_path: str | None = None
-    make_tool_cfg = None
+    tool_maker = None
     load_errors: list[tuple[str, Exception]] = []
 
     if not candidate_paths:
@@ -592,14 +575,14 @@ constructor/function vs configuration overrides based on introspection.
     # Try to load the symbol using the candidates in order (already alias-expanded)
     for cand in candidate_paths:
         try:
-            make_tool_cfg = load_symbol(cand)
+            tool_maker = load_symbol(cand)
             resolved_path = cand
             break
         except Exception as e:
             load_errors.append((cand, e))
 
     # If not found, attempt to infer a tool factory from a recipe module's mettagrid
-    if make_tool_cfg is None:
+    if tool_maker is None:
         for cand in candidate_paths:
             if "." not in cand:
                 continue
@@ -611,15 +594,15 @@ constructor/function vs configuration overrides based on introspection.
                 continue
             factory = try_infer_tool_factory(mod, verb)
             if factory is not None:
-                make_tool_cfg = factory
+                tool_maker = factory
                 resolved_path = cand
                 break
 
     # If we selected a two-part mapping, consume that second token from args; otherwise keep args untouched
     if resolved_path is not None and two_part_second is not None:
         # Two-part mapping yields either 'second.first' or 'experiments.recipes.second.first'
-        expected_a = f"{two_part_second}.{known_args.make_tool_cfg_path}"
-        expected_b = f"experiments.recipes.{two_part_second}.{known_args.make_tool_cfg_path}"
+        expected_a = f"{two_part_second}.{known_args.tool_path}"
+        expected_b = f"experiments.recipes.{two_part_second}.{known_args.tool_path}"
         if resolved_path in (expected_a, expected_b):
             # Now it's safe to consume the token
             raw_positional_args.pop(0)
@@ -637,8 +620,8 @@ constructor/function vs configuration overrides based on introspection.
     # Build nested payload from dotted paths for Pydantic validation
     nested_cli = nestify(cli_args)
 
-    if resolved_path is None or make_tool_cfg is None:
-        output_error(f"{red('Error:')} Could not find tool '{known_args.make_tool_cfg_path}'")
+    if resolved_path is None or tool_maker is None:
+        output_error(f"{red('Error:')} Could not find tool '{known_args.tool_path}'")
 
         # Check if it's a recipe that might need inference and suggest verbs
         for cand in candidate_paths:
@@ -679,7 +662,7 @@ constructor/function vs configuration overrides based on introspection.
 
     # If help flag is set, list arguments and exit
     if known_args.help:
-        list_tool_arguments(make_tool_cfg, console)
+        list_tool_arguments(tool_maker, console)
         return 0
 
     # List tools for the resolved recipe module
@@ -703,22 +686,22 @@ constructor/function vs configuration overrides based on introspection.
     # ----------------------------------------------------------------------------------
     func_args_for_invoke: dict[str, str] = {}  # what we pass to tool.invoke (as strings)
     try:
-        if inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool):
+        if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
             if known_args.verbose and nested_cli:
-                cls_name = make_tool_cfg.__name__
+                cls_name = tool_maker.__name__
                 output_info(f"\n{cyan(f'Creating {cls_name} from nested CLI payload:')}")
                 for k in sorted(nested_cli.keys()):
                     output_info(f"  {k} = {nested_cli[k]}")
-            tool_cfg = make_tool_cfg.model_validate(nested_cli)
+            tool_cfg = tool_maker.model_validate(nested_cli)
             remaining_args = {}  # all dotted/top-level consumed by model validation
         else:
             # Factory function that returns a Tool
-            sig = inspect.signature(make_tool_cfg)
+            sig = inspect.signature(tool_maker)
             func_kwargs: dict[str, Any] = {}
             consumed_keys: set[str] = set()
 
             if known_args.verbose and (cli_args or nested_cli):
-                func_name = getattr(make_tool_cfg, "__name__", str(make_tool_cfg))
+                func_name = getattr(tool_maker, "__name__", str(tool_maker))
                 output_info(f"\n{cyan(f'Creating {func_name}:')}")
 
             for name, p in sig.parameters.items():
@@ -774,7 +757,7 @@ constructor/function vs configuration overrides based on introspection.
                         output_info(f"  {name}={val!r}")
 
             # Construct via function
-            tool_cfg = make_tool_cfg(**func_kwargs)
+            tool_cfg = tool_maker(**func_kwargs)
 
             # Remaining args = anything not consumed as function params
             remaining_args = {k: v for k, v in cli_args.items() if k not in consumed_keys}
@@ -797,9 +780,7 @@ constructor/function vs configuration overrides based on introspection.
         return 1
 
     if not isinstance(tool_cfg, Tool):
-        output_error(
-            f"{red('Error:')} {known_args.make_tool_cfg_path} must return a Tool instance, got {type(tool_cfg)}"
-        )
+        output_error(f"{red('Error:')} {known_args.tool_path} must return a Tool instance, got {type(tool_cfg)}")
         return 1
 
     # ----------------------------------------------------------------------------------
@@ -811,9 +792,9 @@ constructor/function vs configuration overrides based on introspection.
     if unknown_args:
         output_info(f"\n{red('Error: Unknown arguments:')} {', '.join(unknown_args)}")
         # Only show function params list if the entrypoint is a function
-        if not (inspect.isclass(make_tool_cfg) and issubclass(make_tool_cfg, Tool)):
+        if not (inspect.isclass(tool_maker) and issubclass(tool_maker, Tool)):
             output_info(f"\n{yellow('Available function parameters:')}")
-            for param in get_function_params(make_tool_cfg):
+            for param in get_function_params(tool_maker):
                 output_info(f"  - {param}")
         output_info(f"\n{yellow('Available tool fields for overrides:')}")
         for field in sorted(tool_fields):
