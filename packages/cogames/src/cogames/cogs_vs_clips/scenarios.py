@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
