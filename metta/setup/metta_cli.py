@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Literal, Optional
 
 import typer
 from rich.console import Console
@@ -38,6 +38,7 @@ VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 PACKAGE_TAG_PREFIXES = {
     "mettagrid": "mettagrid-v",
     "cogames": "cogames-v",
+    "pufferlib-core": "pufferlib-core-v",
 }
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
@@ -518,7 +519,10 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
 
 @app.command(name="publish", help="Create and push a release tag for a package")
 def cmd_publish(
-    package: Annotated[str, typer.Argument(help="Package to publish (for example 'mettagrid' or 'cogames')")],
+    package: Annotated[
+        Literal["mettagrid", "cogames", "pufferlib-core"],
+        typer.Argument(help="Package to publish (for example 'mettagrid', 'cogames', or 'pufferlib-core')"),
+    ],
     version_override: Annotated[
         Optional[str],
         typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
