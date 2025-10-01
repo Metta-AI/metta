@@ -2,6 +2,7 @@
 
 import contextlib
 import logging
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -547,25 +548,6 @@ def train_cmd(
         batch_source = ctx.get_parameter_source("batch_size") if ctx else None
         minibatch_source = ctx.get_parameter_source("minibatch_size") if ctx else None
 
-        if torch_device.type == "cuda":
-            if steps_source in (None, ParameterSource.DEFAULT):
-                steps = 50_000_000
-                console.print(
-                    "[cyan]Auto-adjusting training steps to 50,000,000 for CUDA runs. "
-                    "Override with --steps if needed.[/cyan]"
-                )
-            if batch_source in (None, ParameterSource.DEFAULT):
-                batch_size = 524_288
-                console.print(
-                    "[cyan]Auto-adjusting batch size to 524,288 for CUDA runs. "
-                    "Override with --batch-size if needed.[/cyan]"
-                )
-            if minibatch_source in (None, ParameterSource.DEFAULT):
-                minibatch_size = 16_384
-                console.print(
-                    "[cyan]Auto-adjusting minibatch size to 16,384 for CUDA runs. "
-                    "Override with --minibatch-size if needed.[/cyan]"
-                )
         resolved_device_type = torch_device.type
         resolved_num_envs, resolved_num_workers = utils.suggest_parallelism(
             resolved_device_type,
@@ -601,6 +583,44 @@ def train_cmd(
             )
 
         representative_game = env_names[0] if env_names else None
+
+        if torch_device.type == "cuda":
+            if steps_source in (None, ParameterSource.DEFAULT):
+                steps = 50_000_000
+                console.print(
+                    "[cyan]Auto-adjusting training steps to 50,000,000 for CUDA runs. "
+                    "Override with --steps if needed.[/cyan]"
+                )
+            if batch_source in (None, ParameterSource.DEFAULT):
+                batch_size = 524_288
+                console.print(
+                    "[cyan]Auto-adjusting batch size to 524,288 for CUDA runs. "
+                    "Override with --batch-size if needed.[/cyan]"
+                )
+            if minibatch_source in (None, ParameterSource.DEFAULT):
+                minibatch_size = 16_384
+                console.print(
+                    "[cyan]Auto-adjusting minibatch size to 16,384 for CUDA runs. "
+                    "Override with --minibatch-size if needed.[/cyan]"
+                )
+
+            if num_envs is None and num_workers is None and env_cfgs:
+                async_factor = 2
+                forward_target = 4096
+                sample_agents = env_cfgs[0].game.num_agents
+                num_gpus = torch.cuda.device_count() or 1
+                cpu_count = os.cpu_count() or 1
+                auto_workers = max(1, (cpu_count // 2) // num_gpus)
+                target_envs = max(2, forward_target // sample_agents)
+                batch_envs = max(auto_workers, (target_envs // auto_workers) * auto_workers)
+                resolved_num_workers = auto_workers
+                resolved_num_envs = batch_envs * async_factor
+                console.print(
+                    "[cyan]Auto-adjusting to {envs} environments × {workers} workers for CUDA run.[/cyan]".format(
+                        envs=resolved_num_envs,
+                        workers=resolved_num_workers,
+                    )
+                )
 
         if env_cfgs:
             import math

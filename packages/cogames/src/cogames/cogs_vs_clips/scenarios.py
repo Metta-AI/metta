@@ -100,7 +100,7 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
 
 
 def make_game(
-    num_cogs: int = 4,
+    num_cogs: int = 8,
     width: int = 10,
     height: int = 10,
     num_assemblers: int = 1,
@@ -147,7 +147,7 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     return cfg
 
 
-def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
+def make_game_from_map(map_name: str, num_agents: int = 16) -> MettaGridConfig:
     """Create a game configuration from a map file."""
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / map_name
