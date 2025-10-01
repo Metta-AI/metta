@@ -33,6 +33,7 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid.mapgen.mapgen import MapGen
 
+#ADDING TERRAIN
 
 curriculum_args = {
     "multi_agent_singles": {
