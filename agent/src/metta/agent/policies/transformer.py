@@ -435,26 +435,27 @@ class TransformerPolicy(Policy):
             latent = td[encoded_key]
             if not self._uses_sliding_backbone:
                 latent = self.input_projection(latent)
-        aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
-        if aux_tokens is not None and not self._uses_sliding_backbone:
-            latent = latent + aux_tokens
+
+            aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
+            if aux_tokens is not None and not self._uses_sliding_backbone:
+                latent = latent + aux_tokens
 
             if self._diag_enabled and self._diag_counter < self._diag_limit:
                 logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(latent, "latent"))
 
-        core = self._forward_transformer(td, latent, batch_size, tt)
-        td["core"] = core
+            core = self._forward_transformer(td, latent, batch_size, tt)
+            td["core"] = core
 
-        self.actor_head(td)
-        self.critic_head(td)
-        self.value_head(td)
-        td["values"] = td["values"].flatten()
+            self.actor_head(td)
+            self.critic_head(td)
+            self.value_head(td)
+            td["values"] = td["values"].flatten()
 
-        self.action_embeddings(td)
-        self.actor_query(td)
-        self.actor_key(td)
+            self.action_embeddings(td)
+            self.actor_query(td)
+            self.actor_key(td)
 
-        td = self.action_probs(td, action)
+            td = self.action_probs(td, action)
         self._cast_floating_tensors(td)
         if self._diag_enabled and self._diag_counter < self._diag_limit:
             logits = td.get("logits")
