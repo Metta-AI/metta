@@ -772,6 +772,12 @@
       "title": "GlobalObsConfig",
       "type": "object"
     },
+    "MapBuilderConfig_Any_": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "MapBuilderConfig[Any]",
+      "type": "object"
+    },
     "MettaGridConfig": {
       "additionalProperties": false,
       "description": "Environment configuration.",
@@ -836,26 +842,13 @@
     "SceneConfig": {
       "additionalProperties": false,
       "properties": {
-        "type": {
-          "title": "Type"
-        },
-        "params": {
-          "$ref": "#/$defs/mettagrid__config__config__Config"
-        },
         "children": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/ChildrenAction"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Children"
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChildrenAction"
+          },
+          "title": "Children",
+          "type": "array"
         },
         "seed": {
           "anyOf": [
@@ -870,10 +863,6 @@
           "title": "Seed"
         }
       },
-      "required": [
-        "type",
-        "params"
-      ],
       "title": "SceneConfig",
       "type": "object"
     },
@@ -994,7 +983,7 @@
       "properties": {
         "border_width": {
           "default": 5,
-          "description": "Default border_width value guarantees that agents don't see beyond the outer walls. This value usually shouldn't be changed.",
+          "description": "Default value guarantees that agents don't see beyond the outer walls. This value usually shouldn't be changed.",
           "minimum": 0,
           "title": "Border Width",
           "type": "integer"
@@ -1013,6 +1002,33 @@
           "description": "Random seed. If not set, a random seed will be generated. Seeds for root scene and all its children will be derived from this seed, unless they set their own seeds.",
           "title": "Seed"
         },
+        "instance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SceneConfig"
+            },
+            {
+              "$ref": "#/$defs/MapBuilderConfig_Any_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instance"
+        },
+        "instance_map": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MapBuilderConfig_Any_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "deprecated": true
+        },
         "root": {
           "anyOf": [
             {
@@ -1022,7 +1038,8 @@
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "deprecated": true
         },
         "width": {
           "anyOf": [
@@ -1049,17 +1066,6 @@
           ],
           "default": null,
           "title": "Height"
-        },
-        "instance_map": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MapBuilderConfig_Any_"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         },
         "instances": {
           "anyOf": [

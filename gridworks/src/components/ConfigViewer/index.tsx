@@ -74,7 +74,7 @@ const YamlScalar: FC<{
     typeof value === "string" &&
     KNOWN_PACKAGES.some((p) => value.startsWith(p))
   ) {
-    // looks like a Hydra target - mod1.mod2.ClassName
+    // looks like a Python class name - mettagrid.mapgen.scenes.random.Random
     const parts = value.split(".");
     parts.pop();
     let filename = parts.join("/") + ".py";
