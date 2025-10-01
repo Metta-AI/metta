@@ -492,24 +492,11 @@ class TransformerPolicy(Policy):
             raise ValueError("encoded_obs batch dimension must be divisible by bptt")
 
         if self._uses_sliding_backbone:
-            keys = {
-                self.transformer_cfg.in_key,
-                "reward",
-                "rewards",
-                "dones",
-                "truncateds",
-                "last_actions",
-                "training_env_ids",
-                "transformer_position",
-                "bptt",
-            }
-            existing_keys = tuple(key for key in keys if key in td.keys())
-            sliding_td = td.select(*existing_keys, strict=False).clone(False)
-            sliding_td.set_(self.transformer_cfg.in_key, latent)
-            if "reward" not in sliding_td.keys() and "rewards" in td.keys():
-                sliding_td.set_("reward", td.get("rewards"))
-            self.transformer_module(sliding_td)
-            return sliding_td[self.transformer_cfg.out_key]
+            td.set_(self.transformer_cfg.in_key, latent)
+            if "reward" not in td.keys() and "rewards" in td.keys():
+                td.set_("reward", td.get("rewards"))
+            self.transformer_module(td)
+            return td[self.transformer_cfg.out_key]
 
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
