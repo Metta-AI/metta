@@ -92,6 +92,7 @@ def slstm_sequence_pytorch(
     R: torch.Tensor,  # (4, NH, DH, DH) recurrent weights per gate
     b: torch.Tensor,  # (4, NH, DH) bias per gate
     initial_states: torch.Tensor,  # (4, B, NH, DH) states (h, c, n, m)
+    resets: torch.Tensor | None = None,  # (B, T) reset mask
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Run sLSTM sequence using pure PyTorch (ground truth implementation).
 
@@ -102,6 +103,8 @@ def slstm_sequence_pytorch(
         R: (4, NH, DH, DH) recurrent weights per gate in order (i, f, z, o)
         b: (4, NH, DH) bias per gate in order (i, f, z, o)
         initial_states: (4, B, NH, DH) states (h, c, n, m)
+        resets: (B, T) reset mask, optional. If provided, states are zeroed for
+                batch elements where resets[:, t] is True at each timestep t.
 
     Returns:
         all_states: (T, 4, B, NH, DH) states at each timestep
@@ -112,6 +115,8 @@ def slstm_sequence_pytorch(
     assert R.shape == (4, NH, DH, DH), f"R must be (4,NH,DH,DH), got {R.shape}"
     assert b.shape == (4, NH, DH), f"b must be (4,NH,DH), got {b.shape}"
     assert initial_states.shape == (4, B, NH, DH), f"initial_states must be (4,B,NH,DH), got {initial_states.shape}"
+    if resets is not None:
+        assert resets.shape == (B, T), f"resets must be (B,T), got {resets.shape}"
 
     # Flatten bias: [4, NH, DH] -> [4*NH*DH]
     b_flat = b.reshape(4 * NH * DH)
@@ -125,6 +130,16 @@ def slstm_sequence_pytorch(
     all_states_list = []
 
     for t in range(T):
+        # Apply per-timestep resets before processing this timestep
+        if resets is not None:
+            # resets[:, t] is shape [B], need to broadcast to [B, NH, DH]
+            reset_mask = resets[:, t].view(B, 1, 1).to(dtype=y_t.dtype)  # [B, 1, 1]
+            # Zero out states where reset is True (mask value of 1 means reset)
+            y_t = y_t * (1.0 - reset_mask)
+            c_t = c_t * (1.0 - reset_mask)
+            n_t = n_t * (1.0 - reset_mask)
+            m_t = m_t * (1.0 - reset_mask)
+
         # Get preactivations for this timestep: [B, 4, NH, DH]
         Wx_t = Wx[:, t]  # [B, 4, NH, DH]
 
@@ -173,13 +188,23 @@ def slstm_sequence_triton(
     R: torch.Tensor,  # (4, NH, DH, DH) recurrent weights per gate
     b: torch.Tensor,  # (4, NH, DH) bias per gate
     initial_states: torch.Tensor,  # (4, B, NH, DH) states (h, c, n, m)
+    resets: torch.Tensor | None = None,  # (B, T) reset mask applied before each timestep
     autocast_kernel_dtype: str | None = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Run sLSTM sequence using Triton kernel.
 
-    Returns a tuple of:
-      - all_states: (T, 4, B, NH, DH)
-      - last_state: (4, B, NH, DH)
+    Args:
+        Wx: (B, T, 4, NH, DH) feed-forward preactivations in order (i, f, z, o)
+        R: (4, NH, DH, DH) recurrent weights per gate in order (i, f, z, o)
+        b: (4, NH, DH) bias per gate in order (i, f, z, o)
+        initial_states: (4, B, NH, DH) states (h, c, n, m)
+        resets: (B, T) reset mask, optional. When provided, states are zeroed for
+            entries where resets[:, t] is True prior to processing timestep t.
+        autocast_kernel_dtype: dtype for kernel computation
+
+    Returns:
+        all_states: (T, 4, B, NH, DH)
+        last_state: (4, B, NH, DH)
     """
     if not TRITON_AVAILABLE:
         raise RuntimeError("Triton is not available or CUDA not enabled")
@@ -205,6 +230,7 @@ def slstm_sequence_triton(
         Wx=Wx,
         R=R,
         b=b,
+        resets=resets,
         autocast_kernel_dtype=autocast_kernel_dtype,
     )
     return all_states, last_state
