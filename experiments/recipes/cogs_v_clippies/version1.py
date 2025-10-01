@@ -283,8 +283,8 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         return env
 
     def _overwrite_positions(self, object, positions):
-        for recipe in object.recipes:
-            recipe = (positions, recipe[1])
+        for i, recipe in enumerate(object.recipes):
+            object.recipes[i] = (positions, recipe[1])
 
     def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
         env = self._make_env_cfg(rng)
