@@ -128,3 +128,47 @@ class TestMetricsFormattingMain:
         assert result["mean_stats"]["reward"] == 2.0
         assert result["mean_stats"]["episode_length"] == 20
         assert result["mean_stats"]["single_value"] == 42
+
+    def test_process_training_stats_with_dict_values(self):
+        """Test that dictionary stats (like per_label_completion_counts) are handled correctly."""
+        raw_stats = {
+            "reward": [1.0, 2.0, 3.0],
+            # Simulate per_label_completion_counts being accumulated as list of dicts
+            "env_curriculum/per_label_completion_counts": [
+                {"task_A": 1, "task_B": 2},
+                {"task_A": 2, "task_B": 2},
+                {"task_A": 3, "task_B": 3},
+            ],
+            # Simulate per_label_lp_scores
+            "env_curriculum/per_label_lp_scores": [
+                {"task_A": 0.5, "task_B": 0.3},
+                {"task_A": 0.6, "task_B": 0.4},
+                {"task_A": 0.7, "task_B": 0.5},
+            ],
+        }
+
+        losses = MagicMock()
+        losses.stats.return_value = {}
+
+        experience = MagicMock()
+        experience.stats.return_value = {}
+
+        trainer_config = MagicMock()
+
+        result = rl_stats.process_training_stats(raw_stats, losses, experience, trainer_config)
+
+        # Check that completion counts are reorganized into epoch_samples_per_label/
+        assert result["mean_stats"]["epoch_samples_per_label/task_A"] == 3
+        assert result["mean_stats"]["epoch_samples_per_label/task_B"] == 3
+
+        # Check that averaged completion counts are in mean_samples_per_label/
+        assert abs(result["mean_stats"]["mean_samples_per_label/task_A"] - 2.0) < 0.01  # (1 + 2 + 3) / 3
+        assert abs(result["mean_stats"]["mean_samples_per_label/task_B"] - 2.333333333333333) < 0.01  # (2 + 2 + 3) / 3
+
+        # Check that LP scores are reorganized into epoch_lp_per_label/
+        assert abs(result["mean_stats"]["epoch_lp_per_label/task_A"] - 0.7) < 0.01
+        assert abs(result["mean_stats"]["epoch_lp_per_label/task_B"] - 0.5) < 0.01
+
+        # Check that averaged LP scores are in mean_lp_per_label/
+        assert abs(result["mean_stats"]["mean_lp_per_label/task_A"] - 0.6) < 0.01  # (0.5 + 0.6 + 0.7) / 3
+        assert abs(result["mean_stats"]["mean_lp_per_label/task_B"] - 0.4) < 0.01  # (0.3 + 0.4 + 0.5) / 3

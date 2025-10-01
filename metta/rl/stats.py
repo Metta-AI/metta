@@ -115,10 +115,45 @@ def process_training_stats(
     # Convert lists to means
     mean_stats = {}
     for k, v in raw_stats.items():
-        try:
-            mean_stats[k] = np.mean(v)
-        except (TypeError, ValueError):
-            mean_stats[k] = v
+        # Special handling for dictionary stats (e.g., per_label_completion_counts, per_label_lp_scores)
+        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
+            # Keep the latest snapshot as the primary value
+            latest_snapshot = v[-1]
+
+            # Also compute per-key averages across the rollout
+            # Aggregate all dictionaries into per-key lists
+            aggregated = {}
+            for dict_snapshot in v:
+                for key, val in dict_snapshot.items():
+                    if key not in aggregated:
+                        aggregated[key] = []
+                    aggregated[key].append(val)
+
+            # Compute means for each key
+            averaged_dict = {key: np.mean(vals) for key, vals in aggregated.items()}
+
+            # Special reorganization for per_label metrics into their own sections
+            if "per_label_completion_counts" in k:
+                # Unpack into individual metrics with proper prefixes
+                for label, count in latest_snapshot.items():
+                    mean_stats[f"epoch_samples_per_label/{label}"] = count
+                for label, avg_count in averaged_dict.items():
+                    mean_stats[f"mean_samples_per_label/{label}"] = avg_count
+            elif "per_label_lp_scores" in k:
+                # Similarly organize LP scores
+                for label, score in latest_snapshot.items():
+                    mean_stats[f"epoch_lp_per_label/{label}"] = score
+                for label, avg_score in averaged_dict.items():
+                    mean_stats[f"mean_lp_per_label/{label}"] = avg_score
+            else:
+                # For other dict metrics, keep old behavior
+                mean_stats[k] = latest_snapshot
+                mean_stats[f"{k}.averaged"] = averaged_dict
+        else:
+            try:
+                mean_stats[k] = np.mean(v)
+            except (TypeError, ValueError):
+                mean_stats[k] = v
 
     # Get loss and experience statistics
     experience_stats = experience.stats() if hasattr(experience, "stats") else {}
