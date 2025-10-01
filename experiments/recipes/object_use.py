@@ -216,8 +216,5 @@ def train(
     )
 
 
-"""Play/replay/evaluate are provided implicitly via inference using mettagrid()/simulations()."""
-
-
 def simulations() -> list[SimulationConfig]:
     return list(make_object_use_eval_suite())
