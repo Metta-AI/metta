@@ -6,7 +6,7 @@ The abstraction allows TaskTracker to work identically whether using in-process 
 
 from abc import ABC, abstractmethod
 from multiprocessing import RLock, shared_memory
-from typing import Optional
+from typing import Any, ContextManager, Optional
 
 import numpy as np
 
@@ -28,13 +28,18 @@ class TaskMemoryBackend(ABC):
     #                  seed, generator_type, is_active]
     # Note: Actual sizes are configured per instance in __init__
 
+    # Required attributes (must be set by subclasses)
+    max_tasks: int
+    task_struct_size: int
+    completion_history_size: int
+
     @abstractmethod
     def get_task_data(self, index: int) -> np.ndarray:
         """Get task data at given index (raw array view).
 
         Returns numpy array of length TASK_STRUCT_SIZE that can be read/written.
         """
-        pass
+        ...
 
     @abstractmethod
     def get_completion_history(self) -> np.ndarray:
@@ -42,26 +47,26 @@ class TaskMemoryBackend(ABC):
 
         Returns numpy array of length COMPLETION_HISTORY_SIZE that can be read/written.
         """
-        pass
+        ...
 
     @abstractmethod
-    def acquire_lock(self):
+    def acquire_lock(self) -> ContextManager[Any]:
         """Acquire lock for thread-safe access.
 
         Returns context manager for use with 'with' statement.
         For local backend, this may be a no-op lock.
         """
-        pass
+        ...
 
     @abstractmethod
-    def clear(self):
+    def clear(self) -> None:
         """Clear all memory data."""
-        pass
+        ...
 
     @abstractmethod
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up resources (close files, free memory, etc.)."""
-        pass
+        ...
 
 
 class LocalMemoryBackend(TaskMemoryBackend):
@@ -105,7 +110,7 @@ class LocalMemoryBackend(TaskMemoryBackend):
         """Get completion history array (raw view)."""
         return self._completion_history
 
-    def acquire_lock(self):
+    def acquire_lock(self) -> ContextManager[Any]:
         """Acquire lock (no-op for local memory)."""
         return self._lock
 
@@ -231,7 +236,7 @@ class SharedMemoryBackend(TaskMemoryBackend):
         """Get completion history array (raw view)."""
         return self._completion_history
 
-    def acquire_lock(self):
+    def acquire_lock(self) -> ContextManager[Any]:
         """Acquire the shared lock."""
         return self._lock
 

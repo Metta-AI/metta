@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
-from .task_tracker import CentralizedTaskTracker, LocalTaskTracker, TaskTracker
+from .task_tracker import TaskTracker
 
 # Constants for bidirectional learning progress
 DEFAULT_SUCCESS_RATE = 0.0
@@ -80,20 +80,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.num_tasks = num_tasks
         self.hypers: LearningProgressConfig = hypers
 
-        # Initialize task tracker with appropriate implementation
-        if hypers.use_shared_memory:
-            self.task_tracker: TaskTracker = CentralizedTaskTracker(
-                max_memory_tasks=hypers.max_memory_tasks,
-                session_id=hypers.session_id,
-                ema_alpha=hypers.task_tracker_ema_alpha,
-                task_struct_size=hypers.task_struct_size,
-                completion_history_size=hypers.completion_history_size,
-            )
-        else:
-            self.task_tracker = LocalTaskTracker(
-                max_memory_tasks=hypers.max_memory_tasks,
-                ema_alpha=hypers.task_tracker_ema_alpha,
-            )
+        # Initialize task tracker (unified implementation with configurable backend)
+        self.task_tracker = TaskTracker(
+            max_memory_tasks=hypers.max_memory_tasks,
+            ema_alpha=hypers.task_tracker_ema_alpha,
+            session_id=hypers.session_id if hypers.use_shared_memory else None,
+            use_shared_memory=hypers.use_shared_memory,
+            task_struct_size=hypers.task_struct_size,
+            completion_history_size=hypers.completion_history_size,
+        )
 
         # Note: slice_analyzer is already initialized in parent class via StatsLogger
 
@@ -728,7 +723,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         }
 
         # Save bidirectional scoring state
-        if hasattr(self, "_outcomes"):
+        if self.hypers.use_bidirectional:
             state.update(
                 {
                     "outcomes": {k: v for k, v in self._outcomes.items()},
@@ -776,9 +771,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return
 
         try:
-            # CentralizedTaskTracker has cleanup_shared_memory method
-            if isinstance(self.task_tracker, CentralizedTaskTracker):
-                self.task_tracker.cleanup_shared_memory()
+            # TaskTracker always has cleanup_shared_memory method
+            self.task_tracker.cleanup_shared_memory()
         except Exception as e:
             # Log but don't raise - cleanup should be best-effort
             import logging
