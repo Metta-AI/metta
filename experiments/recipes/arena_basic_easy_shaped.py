@@ -115,6 +115,9 @@ def train(
         losses=LossConfig(),
     )
 
+    # Coerce CLI-provided dict into a proper ViTDefaultConfig instance so Pydantic validates.
+    if isinstance(policy_architecture, dict):  # type: ignore[unreachable]
+        policy_architecture = ViTDefaultConfig(**policy_architecture)  # type: ignore[arg-type]
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
