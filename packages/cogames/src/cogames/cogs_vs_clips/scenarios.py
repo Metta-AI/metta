@@ -1,4 +1,6 @@
+from collections import deque
 from pathlib import Path
+from typing import Deque, Dict, Tuple
 
 from cogames.cogs_vs_clips.stations import (
     assembler,
@@ -27,6 +29,43 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.util.char_encoder import grid_object_to_char
+
+
+_RANDOM_MAP_CACHE: Dict[Tuple[int, int, int, Tuple[Tuple[str, int], ...]], Deque[AsciiMapBuilder.Config]] = {}
+_NUM_PREGENERATED_RANDOM_MAPS = 8
+
+
+def _game_map_to_ascii(game_map) -> list[list[str]]:
+    return [[grid_object_to_char(cell) for cell in row] for row in game_map.grid]
+
+
+def _materialize_random_map(
+    num_agents: int,
+    width: int,
+    height: int,
+    objects: dict[str, int],
+) -> AsciiMapBuilder.Config:
+    key = (num_agents, width, height, tuple(sorted(objects.items())))
+    cache = _RANDOM_MAP_CACHE.get(key)
+    if cache is None or not cache:
+        cache = deque()
+        base_seed = 42
+        for offset in range(_NUM_PREGENERATED_RANDOM_MAPS):
+            cfg = RandomMapBuilder.Config(
+                width=width,
+                height=height,
+                agents=num_agents,
+                objects=objects,
+                seed=base_seed + offset,
+            )
+            builder = cfg.create()
+            ascii_map = _game_map_to_ascii(builder.build())
+            cache.append(AsciiMapBuilder.Config(map_data=ascii_map))
+        _RANDOM_MAP_CACHE[key] = cache
+    ascii_cfg = cache[0]
+    cache.rotate(-1)
+    return ascii_cfg
 
 
 RESOURCE_REWARD_WEIGHTS: dict[str, float] = {
@@ -111,21 +150,16 @@ def make_game(
     num_silicon_extractors: int = 0,
     num_chests: int = 0,
 ) -> MettaGridConfig:
-    map_builder = RandomMapBuilder.Config(
-        width=width,
-        height=height,
-        agents=num_cogs,
-        objects={
-            "assembler": num_assemblers,
-            "charger": num_chargers,
-            "carbon_extractor": num_carbon_extractors,
-            "oxygen_extractor": num_oxygen_extractors,
-            "germanium_extractor": num_germanium_extractors,
-            "silicon_extractor": num_silicon_extractors,
-            "chest": num_chests,
-        },
-        seed=42,
-    )
+    objects = {
+        "assembler": num_assemblers,
+        "charger": num_chargers,
+        "carbon_extractor": num_carbon_extractors,
+        "oxygen_extractor": num_oxygen_extractors,
+        "germanium_extractor": num_germanium_extractors,
+        "silicon_extractor": num_silicon_extractors,
+        "chest": num_chests,
+    }
+    map_builder = _materialize_random_map(num_cogs, width, height, objects)
     return _base_game_config(num_cogs, map_builder)
 
 
