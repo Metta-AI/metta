@@ -80,6 +80,11 @@ proc playControls*() =
       step = replay.maxSteps - 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
+  
+  # Fire onStepChanged once and only once when step changes.
+  if step != previousStep:
+    previousStep = step
+    onStepChanged()
 
 proc getStepFromX(localX, panelWidth: float32): int =
   ## Maps a local X coordinate within the timeline panel to a replay step.
@@ -96,8 +101,11 @@ proc getStepFromX(localX, panelWidth: float32): int =
 proc onScrubberChange(localX, panelWidth: float32) =
   ## Updates global step based on local X.
   let s = getStepFromX(localX, panelWidth)
-  step = s
-  stepFloat = step.float32
+  if s != step:
+    step = s
+    stepFloat = step.float32
+    previousStep = step
+    onStepChanged()
 
 proc centerTracesOnStep(targetStep: int) =
   ## Recenters the Agent Traces panel on the given step.

@@ -82,6 +82,7 @@ var
 
   step*: int = 0
   stepFloat*: float32 = 0
+  previousStep*: int = -1
   replay*: Replay
   play*: bool
   playSpeed*: float32 = 0.1

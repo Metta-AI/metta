@@ -41,6 +41,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     common.replay.apply(replayStep)
     step = currentStep
     stepFloat = currentStep.float32
+    previousStep = currentStep
     onStepChanged()
     requestPython = false
     result = RenderResponse(shouldClose: false, actions: @[])
