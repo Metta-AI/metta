@@ -48,8 +48,6 @@ def make_arena(
                 "armor": 1,
             },
         ),
-        swap=ActionConfig(enabled=False),
-        change_color=ActionConfig(enabled=False),
     )
 
     if not combat:
@@ -114,7 +112,6 @@ def make_navigation(num_agents: int) -> MettaGridConfig:
             resource_names=["heart"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -151,7 +148,6 @@ def make_navigation_sequence(num_agents: int) -> MettaGridConfig:
             resource_names=["heart", "ore_red", "battery_red"],
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
@@ -208,7 +204,6 @@ def make_in_context_chains(
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),
@@ -255,10 +250,7 @@ def make_icl_assembler(
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
-                get_items=ActionConfig(enabled=False),
-                put_items=ActionConfig(enabled=False),
-                # noop=ActionConfig(enabled=True),
+                get_items=ActionConfig(),
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
@@ -294,7 +286,6 @@ def make_icl_with_numpy(
             ),
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),

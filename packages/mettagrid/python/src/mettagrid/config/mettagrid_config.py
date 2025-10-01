@@ -93,11 +93,11 @@ class ActionsConfig(Config):
     Omitted actions are disabled by default.
     """
 
-    noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
+    noop: ActionConfig = Field(default_factory=lambda: ActionConfig())
+    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
-    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))
+    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
@@ -285,9 +285,6 @@ class MettaGridConfig(Config):
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move=ActionConfig(),
-            put_items=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
-            rotate=ActionConfig(enabled=False),  # Disabled for unified movement system
         )
         objects = {}
         if border_width > 0 or with_walls:

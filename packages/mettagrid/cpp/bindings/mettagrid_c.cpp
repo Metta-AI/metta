@@ -33,7 +33,6 @@
 #include "objects/production_handler.hpp"
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
-#include "renderer/hermes.hpp"
 #include "systems/clipper.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/packed_coordinate.hpp"

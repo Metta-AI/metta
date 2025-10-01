@@ -12,11 +12,11 @@ COPTS = [
 
 # C++ test binaries that link with Python
 cc_binary(
-    name = "test_stats_tracker_bin",
-    srcs = ["test_stats_tracker.cpp"],
-    copts = COPTS + ["-Icpp/include/mettagrid", "-Itests"],
-    linkstatic = False,
-    deps = [
+    name="test_stats_tracker_bin",
+    srcs=["test_stats_tracker.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
@@ -24,11 +24,11 @@ cc_binary(
 )
 
 cc_binary(
-    name = "test_grid_object_bin",
-    srcs = ["test_grid_object.cpp"],
-    copts = COPTS + ["-Icpp/include/mettagrid", "-Itests"],
-    linkstatic = False,
-    deps = [
+    name="test_grid_object_bin",
+    srcs=["test_grid_object.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
@@ -36,20 +36,19 @@ cc_binary(
 )
 
 filegroup(
-    name = "mettagrid_sources",
-    srcs = [
+    name="mettagrid_sources",
+    srcs=[
         "//cpp:bindings/mettagrid_c.cpp",
         "//cpp:bindings/mettagrid_c.hpp",
-        "//cpp:src/renderer/hermes.cpp",
     ],
 )
 
 cc_binary(
-    name = "test_mettagrid_bin",
-    srcs = ["test_mettagrid.cpp"] + [":mettagrid_sources"],
-    copts = COPTS + ["-Icpp/include/mettagrid", "-Icpp", "-Itests"],
-    linkstatic = False,
-    deps = [
+    name="test_mettagrid_bin",
+    srcs=["test_mettagrid.cpp"] + [":mettagrid_sources"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Icpp", "-Itests"],
+    linkstatic=False,
+    deps=[
         "//:mettagrid_lib",  # For pybind11 headers
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
@@ -57,11 +56,11 @@ cc_binary(
 )
 
 cc_binary(
-    name = "test_observations_bin",
-    srcs = ["test_observations.cpp"],
-    copts = COPTS + ["-Icpp/include/mettagrid", "-Itests"],
-    linkstatic = False,
-    deps = [
+    name="test_observations_bin",
+    srcs=["test_observations.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
         "@rules_python//python/cc:current_py_cc_libs",
@@ -70,45 +69,45 @@ cc_binary(
 
 # Python test wrappers
 py_test(
-    name = "test_stats_tracker",
-    srcs = ["run_test.py"],
-    main = "run_test.py",
-    args = ["--bin=test_stats_tracker_bin"],
-    data = [":test_stats_tracker_bin"],
-    size = "small",
+    name="test_stats_tracker",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_stats_tracker_bin"],
+    data=[":test_stats_tracker_bin"],
+    size="small",
 )
 
 py_test(
-    name = "test_grid_object",
-    srcs = ["run_test.py"],
-    main = "run_test.py",
-    args = ["--bin=test_grid_object_bin"],
-    data = [":test_grid_object_bin"],
-    size = "small",
+    name="test_grid_object",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_grid_object_bin"],
+    data=[":test_grid_object_bin"],
+    size="small",
 )
 
 py_test(
-    name = "test_mettagrid",
-    srcs = ["run_test.py"],
-    main = "run_test.py",
-    args = ["--bin=test_mettagrid_bin"],
-    data = [":test_mettagrid_bin"],
-    size = "small",
+    name="test_mettagrid",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_mettagrid_bin"],
+    data=[":test_mettagrid_bin"],
+    size="small",
 )
 
 py_test(
-    name = "test_observations",
-    srcs = ["run_test.py"],
-    main = "run_test.py",
-    args = ["--bin=test_observations_bin"],
-    data = [":test_observations_bin"],
-    size = "small",
+    name="test_observations",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_observations_bin"],
+    data=[":test_observations_bin"],
+    size="small",
 )
 
 # Test suite that runs all tests
 test_suite(
-    name = "tests_all",
-    tests = [
+    name="tests_all",
+    tests=[
         ":test_stats_tracker",
         ":test_grid_object",
         ":test_mettagrid",
