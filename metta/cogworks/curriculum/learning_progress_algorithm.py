@@ -33,7 +33,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     performance_bonus_weight: float = 0.0  # Weight for performance bonus in LP calculation
 
     # Task distribution and sampling
-    num_active_tasks: int = 1000
+    num_active_tasks: int = 10000
     rand_task_rate: float = 0.01
     sample_threshold: int = 10
     memory: int = 25

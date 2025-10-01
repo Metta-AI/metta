@@ -334,7 +334,7 @@ def train(
         # Task tracker EMA
         task_tracker_ema_alpha=0.02,
         # Memory and logging
-        max_memory_tasks=1000,
+        max_memory_tasks=10000,  # Match num_active_tasks to avoid scanning unused slots
         max_slice_axes=3,
         enable_detailed_slice_logging=False,
         use_shared_memory=True,
