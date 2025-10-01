@@ -1,7 +1,7 @@
 import std/[os, strutils, parseopt, json],
   boxy, windy, windy/http, vmath, fidget2, fidget2/hybridrender,
   mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer, objectinfo]
+  worldmap, minimap, agenttraces, footer, objectinfo, envconfig]
 
 var replay = ""
 
@@ -142,6 +142,7 @@ find "/UI/Main":
       bxy.restoreTransform()
 
     onStepChanged()
+    updateEnvConfig()
 
   onFrame:
 
@@ -150,7 +151,6 @@ find "/UI/Main":
     if window.buttonReleased[MouseLeft]:
       mouseCaptured = false
       mouseCapturedPanel = nil
-
 
 when isMainModule:
 
