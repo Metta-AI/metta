@@ -25,10 +25,14 @@ proc isWalkablePos(pos: IVec2): bool =
   if pos.x < 0 or pos.x >= replay.mapSize[0] or pos.y < 0 or pos.y >= replay.mapSize[1]:
     return false
   
-  let wallTypeId = replay.typeNames.find("wall")
+  # Check if any non-agent object blocks this position
   for obj in replay.objects:
-    if obj.typeId == wallTypeId and obj.location.at(step).xy == pos:
-      return false
+    if obj.location.at(step).xy == pos:
+      let typeName = replay.typeNames[obj.typeId]
+      # TODO agent handling is tricky.
+      # agents can block each other, but sometimes can move, but can deadlock.
+      if typeName != "agent":
+        return false
   
   return true
 
