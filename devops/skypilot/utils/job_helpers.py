@@ -78,7 +78,7 @@ def validate_module_path(module_path: str) -> bool:
     """
     try:
         last_error: Exception | None = None
-        for cand in generate_candidate_paths(module_path, None, short_only=True):
+        for cand in generate_candidate_paths(module_path):
             if cand.count(".") < 1:
                 continue
 

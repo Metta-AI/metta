@@ -17,7 +17,8 @@ from metta.rl import stats as rl_stats
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid.util.uri import ParsedURI
+from metta.utils.uri import ParsedURI
+from mettagrid import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,21 @@ class EvalTool(Tool):
     register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
+
+    @classmethod
+    def auto_factory(
+        cls,
+        mettagrid: MettaGridConfig | None = None,
+        simulations: list[SimulationConfig] | None = None,
+    ) -> "EvalTool | None":
+        """Generate EvalTool from recipe. Prefers simulations; falls back to mettagrid."""
+        if simulations is not None:
+            return cls(simulations=simulations)
+        if mettagrid is not None:
+            # Create a default simulation from mettagrid
+            sim_cfg = SimulationConfig(suite="default", name="eval", env=mettagrid)
+            return cls(simulations=[sim_cfg])
+        return None
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if self.policy_uris is None:
