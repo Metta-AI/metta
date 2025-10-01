@@ -196,8 +196,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # Convert inventory regeneration amounts from names to IDs
         inventory_regen_amounts = {}
         for resource_name, amount in agent_props.get("inventory_regen_amounts", {}).items():
-            if resource_name in resource_name_to_id:
-                inventory_regen_amounts[resource_name_to_id[resource_name]] = amount
+            inventory_regen_amounts[resource_name_to_id[resource_name]] = amount
 
         # Build inventory config with support for grouped limits
         limits_list = []
