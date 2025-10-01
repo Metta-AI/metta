@@ -533,7 +533,6 @@ constructor/function vs configuration overrides based on introspection.
     candidate_paths = generate_candidate_paths(
         known_args.make_tool_cfg_path,
         two_part_second,
-        auto_prefixes=["experiments.recipes"],
         short_only=True,
     )
     resolved_path: str | None = None
