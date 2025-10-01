@@ -1,0 +1,137 @@
+name: Build and publish pufferlib-core
+
+on:
+  push:
+    tags:
+      - pufferlib-core-v*
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Enable publishing step"
+        required: false
+        default: "yes"
+        type: choice
+        options:
+          - "yes"
+          - "no"
+      target:
+        description: "Where to publish: testpypi (safe testing) or pypi (live release)"
+        required: false
+        default: testpypi
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+permissions:
+  contents: read
+  id-token: write
+  deployments: write
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+      - name: Install build tooling
+        run: python -m pip install --upgrade pip build twine
+      - name: Build distributions
+        run: python -m build --outdir dist packages/pufferlib-core
+      - name: Check distributions
+        run: python -m twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pufferlib-core-dist
+          path: dist/*
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ format('pufferlib-core-{0}', github.event_name == 'workflow_dispatch' && github.event.inputs.target || 'pypi') }}
+    env:
+      PUBLISH_TARGET: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target || 'pypi' }}
+      DEPLOY_ENV: ${{ format('pufferlib-core-{0}', github.event_name == 'workflow_dispatch' && github.event.inputs.target || 'pypi') }}
+      DEPLOY_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'testpypi' && 'https://test.pypi.org/project/pufferlib-core/' || 'https://pypi.org/project/pufferlib-core/' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pufferlib-core-dist
+          path: dist
+      - name: List distributions
+        run: ls -l dist
+      - name: Create deployment record
+        id: create_deployment
+        uses: actions/github-script@v7
+        if: ${{ env.PUBLISH_TARGET == 'pypi' }}
+        env:
+          DEPLOY_DESCRIPTION: ${{ format('Publishing pufferlib-core to {0}', env.PUBLISH_TARGET) }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const response = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.ref,
+              environment: process.env.DEPLOY_ENV,
+              auto_merge: false,
+              required_contexts: [],
+              description: process.env.DEPLOY_DESCRIPTION,
+              production_environment: process.env.PUBLISH_TARGET === 'pypi',
+            });
+
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: response.data.id,
+              state: 'in_progress',
+              log_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              environment_url: process.env.DEPLOY_URL,
+              description: 'Publishing in progress',
+            });
+
+            core.setOutput('deployment_id', response.data.id);
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: ${{ env.PUBLISH_TARGET == 'testpypi' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
+          skip-existing: ${{ env.PUBLISH_TARGET == 'testpypi' }}
+          verbose: true
+      - name: Mark deployment successful
+        if: ${{ env.PUBLISH_TARGET == 'pypi' && success() && steps.create_deployment.outputs.deployment_id != '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: Number('${{ steps.create_deployment.outputs.deployment_id }}'),
+              state: 'success',
+              log_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              environment_url: process.env.DEPLOY_URL,
+              description: 'Publish succeeded',
+            });
+      - name: Mark deployment failed
+        if: ${{ env.PUBLISH_TARGET == 'pypi' && failure() && steps.create_deployment.outputs.deployment_id != '' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: Number('${{ steps.create_deployment.outputs.deployment_id }}'),
+              state: 'failure',
+              log_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              environment_url: process.env.DEPLOY_URL,
+              description: 'Publish failed',
+            });
