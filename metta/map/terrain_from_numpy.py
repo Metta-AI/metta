@@ -85,7 +85,7 @@ class TerrainFromNumpy(MapBuilder):
                 logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
         return map_dir
 
-    def get_valid_positions(self, level, assemblers=False):
+    def get_valid_positions(self, level, assemblers=False, mass_in_center=False):
         # Create a boolean mask for empty cells
         empty_mask = level == "empty"
 
@@ -97,6 +97,34 @@ class TerrainFromNumpy(MapBuilder):
                 & np.roll(empty_mask, -1, axis=1)  # Check right
             )
             valid_mask = empty_mask & has_empty_neighbor
+
+            valid_positions = np.array(list(zip(*np.where(valid_mask), strict=False)))
+
+            if mass_in_center:
+                center_y, center_x = level.shape[0] / 2, level.shape[1] / 2
+                # Sort positions by distance from center
+
+                distances = (valid_positions[:, 0] - center_y)**2 + (valid_positions[:, 1] - center_x)**2
+                sorted_indices = np.argsort(distances)
+                valid_positions = valid_positions[sorted_indices]
+
+                # Create occupancy mask
+                occupied = np.zeros(level.shape, dtype=bool)
+                spaced_positions = []
+
+                for pos in valid_positions:
+                    y, x = pos
+                    # Check if position and neighbors are free
+                    y_min, y_max = max(0, y-1), min(level.shape[0], y+2)
+                    x_min, x_max = max(0, x-1), min(level.shape[1], x+2)
+
+                    if not np.any(occupied[y_min:y_max, x_min:x_max]):
+                        spaced_positions.append((y, x))
+                        # Mark position and neighbors as occupied
+                        occupied[y_min:y_max, x_min:x_max] = True
+
+                return spaced_positions
+
         else:
             has_empty_neighbor = (
                 np.roll(empty_mask, 1, axis=0)  # Check up
@@ -114,10 +142,13 @@ class TerrainFromNumpy(MapBuilder):
             valid_mask[:, -1] = False
 
         # Get coordinates of valid positions
-        valid_positions = list(zip(*np.where(valid_mask), strict=False))
+            valid_positions = list(zip(*np.where(valid_mask), strict=False))
+
+        self.config.rng.shuffle(list(valid_positions))
+
         return valid_positions
 
-    def clean_grid(self, grid, assemblers=True):
+    def clean_grid(self, grid, assemblers=True, mass_in_center=False):
         grid[grid == "agent.agent"] = "empty"
         if self.config.remove_altars:
             grid[grid == "altar"] = "empty"
@@ -128,8 +159,7 @@ class TerrainFromNumpy(MapBuilder):
         else:
             agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
 
-        valid_positions = self.get_valid_positions(grid, assemblers)
-        self.config.rng.shuffle(valid_positions)
+        valid_positions = self.get_valid_positions(grid, assemblers, mass_in_center)
         return grid, valid_positions, agent_labels
 
     def build(self):
@@ -158,6 +188,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
 
         # Convert to set for O(1) removal operations
         valid_positions_set = set(valid_positions[num_agents:])
+
 
         for obj_name, count in self.config.objects.items():
             count = count - np.where(grid == obj_name, 1, 0).sum()
@@ -225,29 +256,34 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
-        grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True)
+        grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True, mass_in_center=True)
         # breakpoint()
         num_agents = len(agent_labels)
-        # Place agents in first slice
-        agent_positions = valid_positions[:num_agents]
-        print(f"Placeing {num_agents} agents in {agent_positions}")
+
+        valid_positions = list(valid_positions)
+        # Place agents with bias towards the center
+        agent_position_possibities = valid_positions[:int(len(valid_positions)/2)] if len(valid_positions)/2 > num_agents else valid_positions
+        agent_positions = self.config.rng.sample(agent_position_possibities, num_agents)
+
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             grid[pos] = label
+            valid_positions.remove(pos)
 
-        # Convert to set for O(1) removal operations
-        valid_positions_set = set(valid_positions[num_agents:])
-
-        if len(valid_positions_set) < sum(self.config.objects.values()):
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions_set)
-            valid_positions_set.update(empty_centers)
+        if len(valid_positions) < sum(self.config.objects.values()):
+            grid, empty_centers = self.carve_out_patches(grid, valid_positions)
+            valid_positions.extend(empty_centers)
 
         for obj_name, count in self.config.objects.items():
-            # Sample from remaining valid positions
-            positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
-            # breakpoint()
-            for pos in positions:
-                grid[pos] = obj_name
-                valid_positions_set.remove(pos)
+            if count < 2:
+                position = valid_positions[0]
+                grid[position] = obj_name
+                valid_positions.remove(position)
+            else:
+                center_positions = valid_positions[:2]
+                other_positions = self.config.rng.sample(valid_positions[2:], count - 2)
+                for position in center_positions + other_positions:
+                    grid[position] = obj_name
+                    valid_positions.remove(position)
 
         return GameMap(grid=grid)
 
