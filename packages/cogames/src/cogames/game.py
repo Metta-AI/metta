@@ -151,7 +151,7 @@ def resolve_game_name(game_arg: Optional[str]) -> Optional[str]:
     return None
 
 
-def list_games(console: Console) -> Table:
+def list_games(console: Console) -> None:
     """Create a table listing all available games.
 
     Args:
@@ -180,7 +180,7 @@ def list_games(console: Console) -> Table:
 
         table.add_row(game_name, str(num_agents), map_size)
 
-    return table
+    return console.print(table)
 
 
 def describe_game(game_name: str, console: Console) -> None:

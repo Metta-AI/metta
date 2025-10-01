@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FUT_TIMEOUT
 from copy import deepcopy
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
+import typer
 from rich.console import Console
 from rich.table import Table
 
@@ -29,11 +32,8 @@ def evaluate(
     action_timeout_ms: int,
     seed: int = 42,
 ) -> None:
-    """Evaluate a policy on the requested game and render rich tables."""
-    if episodes <= 0:
-        raise ValueError("Number of episodes must be greater than zero")
-
     env = MettaGridEnv(env_cfg=env_cfg)
+    noop = np.zeros(env.action_space.shape, dtype=env.action_space.dtype)
 
     policy = instantiate_or_load_policy(policy_class_path, policy_data_path, env)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
@@ -41,25 +41,38 @@ def evaluate(
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list["EpisodeStats"] = []
 
-    for episode_idx in range(episodes):
-        obs, _ = env.reset(seed=seed + episode_idx)
-        for agent_policy in agent_policies:
-            agent_policy.reset()
+    with ThreadPoolExecutor(max_workers=env.num_agents) as pool:
+        progress_label = "Evaluating episodes"
+        with typer.progressbar(range(episodes), label=progress_label) as progress:
+            for episode_idx in progress:
+                obs, _ = env.reset(seed=seed + episode_idx)
+                for p in agent_policies:
+                    p.reset()
 
-        done = np.zeros(env.num_agents, dtype=bool)
-        truncated = np.zeros(env.num_agents, dtype=bool)
+                done = np.zeros(env.num_agents, dtype=bool)
+                truncated = np.zeros(env.num_agents, dtype=bool)
 
-        while not done.all() and not truncated.all():
-            action_list: list[np.ndarray] = []
-            for agent_id in range(env.num_agents):
-                action = agent_policies[agent_id].step(obs[agent_id])
-                action_list.append(np.array(action))
+                while not done.all() and not truncated.all():
+                    # submit one callable per agent
+                    futures = [pool.submit(agent_policies[i].step, obs[i]) for i in range(env.num_agents)]
 
-            actions = np.stack(action_list)
-            obs, rewards, done, truncated, _ = env.step(actions)
+                    actions = []
+                    for i, fut in enumerate(futures):
+                        try:
+                            a = fut.result(timeout=action_timeout_ms / 1000)
+                        except FUT_TIMEOUT:
+                            a = noop
+                            typer.echo(f"[yellow]agent {i} timed out; using noop[/yellow]")
+                        except Exception as e:
+                            a = noop
+                            typer.echo(f"[red]agent {i} failed: {e}; using noop[/red]")
+                        actions.append(np.asarray(a))
 
-        per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
-        per_episode_stats.append(deepcopy(env.get_episode_stats()))
+                    actions = np.stack(actions, axis=0)
+                    obs, rewards, done, truncated, _ = env.step(actions)
+
+            per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
+            per_episode_stats.append(deepcopy(env.get_episode_stats()))
 
     stacked_rewards = np.stack(per_episode_rewards)
     avg_rewards = stacked_rewards.mean(axis=0)

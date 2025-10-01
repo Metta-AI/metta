@@ -42,8 +42,7 @@ def games_cmd(
 
     if game_name is None:
         # List all games
-        table = game.list_games(console)
-        console.print(table)
+        game.list_games(console)
     else:
         # Get the game configuration
         try:
@@ -88,8 +87,7 @@ def play_cmd(
     # If no game specified, list games
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
+        game.list_games(console)
         console.print("\n[dim]Usage: cogames play <game>[/dim]")
         return
 
@@ -134,8 +132,7 @@ def evaluate_cmd(
 
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
+        game.list_games(console)
         console.print("\n[dim]Usage: cogames evaluate <game> [--policy ...][/dim]")
         return
 
@@ -189,8 +186,8 @@ def make_scenario(
         )
 
         # Update map dimensions
-        new_config.game.map_builder.width = width
-        new_config.game.map_builder.height = height
+        new_config.game.map_builder.width = width  # type: ignore[attr-defined]
+        new_config.game.map_builder.height = height  # type: ignore[attr-defined]
         new_config.game.num_agents = num_agents
 
         if output:
@@ -237,8 +234,7 @@ def train_cmd(
     # If no game specified, list games
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
+        game.list_games(console)
         console.print("\n[dim]Usage: cogames train <game>[/dim]")
         return
 
