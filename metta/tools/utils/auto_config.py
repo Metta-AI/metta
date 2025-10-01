@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.util.constants import METTA_AWS_ACCOUNT_ID
+from metta.setup.components.aws import AWSSetup as _AWSSetup
 
 if TYPE_CHECKING:
     from metta.common.wandb.context import WandbConfig
@@ -115,10 +116,11 @@ class SupportedAwsEnvOverrides(BaseSettings):
 
 supported_aws_env_overrides = SupportedAwsEnvOverrides()
 
+# Expose AWS setup factory at module scope so tests and consumers can override it.
+AWSSetup = _AWSSetup
+
 
 def auto_replay_dir() -> str:
-    from metta.setup.components.aws import AWSSetup
-
     aws_setup_module = AWSSetup()
     return {
         **aws_setup_module.to_config_settings(),  # type: ignore
@@ -157,8 +159,6 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
         cleaned = override_prefix.rstrip("/")
         remote = _join_prefix(cleaned, run) if run else None
         return PolicyStorageDecision(base_prefix=cleaned, remote_prefix=remote, reason="env_override")
-
-    from metta.setup.components.aws import AWSSetup
 
     aws_setup_module = AWSSetup()
     if not aws_setup_module.is_enabled():
