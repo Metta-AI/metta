@@ -26,9 +26,11 @@ Usage:
 import logging
 import os
 import sys
+import threading
 import time
+from collections import deque
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Deque, Optional
 
 import typer
 from rich.console import Console, Group
@@ -53,6 +55,71 @@ app = typer.Typer(
     rich_markup_mode="rich",
     context_settings={"help_option_names": ["-h", "--help"]},
 )
+
+
+class RateLimiter:
+    """Simple token-bucket limiter for global API RPM.
+
+    UI never blocks: use try_acquire() from render path.
+    Background tasks may use acquire() with a short timeout if needed.
+    """
+
+    def __init__(self, max_rpm: int = 60, burst_rpm: Optional[int] = None) -> None:
+        self.max_rpm = max(1, int(max_rpm))
+        self.capacity = int(burst_rpm) if burst_rpm is not None else self.max_rpm
+        self.tokens = float(self.capacity)
+        self.refill_per_sec = self.max_rpm / 60.0
+        self.last_refill = time.monotonic()
+        self._lock = threading.Lock()
+        # Stats
+        self._acquired_times: Deque[float] = deque()
+        self.calls_total: int = 0
+        self.errors_total: int = 0
+
+    def _refill(self) -> None:
+        now = time.monotonic()
+        elapsed = now - self.last_refill
+        if elapsed <= 0:
+            return
+        self.last_refill = now
+        self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_per_sec)
+
+    def try_acquire(self, tokens: float = 1.0) -> bool:
+        with self._lock:
+            self._refill()
+            if self.tokens >= tokens:
+                self.tokens -= tokens
+                self.calls_total += 1
+                self._note_acquire()
+                return True
+            return False
+
+    def acquire(self, tokens: float = 1.0, timeout: Optional[float] = None) -> bool:
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            with self._lock:
+                self._refill()
+                if self.tokens >= tokens:
+                    self.tokens -= tokens
+                    self.calls_total += 1
+                    self._note_acquire()
+                    return True
+            if deadline is not None and time.monotonic() >= deadline:
+                return False
+            time.sleep(0.05)
+
+    def _note_acquire(self) -> None:
+        now = time.time()
+        self._acquired_times.append(now)
+        cutoff = now - 60.0
+        while self._acquired_times and self._acquired_times[0] < cutoff:
+            self._acquired_times.popleft()
+
+    def rpm_current(self) -> float:
+        cutoff = time.time() - 60.0
+        while self._acquired_times and self._acquired_times[0] < cutoff:
+            self._acquired_times.popleft()
+        return float(len(self._acquired_times))
 
 
 def _get_status_color(status: "JobStatus") -> str:
@@ -141,6 +208,7 @@ def create_run_banner(
     runs: list["RunInfo"],
     display_limit: int = 10,
     score_metric: str = "env_agent/heart.get",
+    api_rpm: Optional[float] = None,
 ):
     """Create a banner with run information."""
 
@@ -217,9 +285,17 @@ def create_run_banner(
         f"📊 Runs: {total_runs} total | ✅ {completed_runs} completed | 🔄 {in_training} training"
         f" | ⏳ {pending} pending | ❌ {failed} failed",
         cost_line,
-        f"🔄 Last Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "─" * 100,
     ]
+
+    if api_rpm is not None:
+        banner_lines.append(f"📡 API: {api_rpm:.1f} req/min")
+
+    banner_lines.extend(
+        [
+            f"🔄 Last Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "─" * 100,
+        ]
+    )
 
     from rich.console import Group
 
@@ -236,6 +312,9 @@ def live_monitor_runs(
     display_limit: int = 10,
     fetch_limit: int = 50,
     score_metric: str = "env_agent/heart.get",
+    max_rpm: int = 60,
+    burst_rpm: Optional[int] = None,
+    runs_cache_ttl_sec: int = 60,
 ) -> None:
     """Live monitor runs with rich terminal display.
 
@@ -255,6 +334,13 @@ def live_monitor_runs(
         print("Error: Cannot import adaptive WandbStore. Make sure dependencies are installed.")
         sys.exit(1)
 
+    # Global rate limiter for all API calls in render path
+    limiter = RateLimiter(max_rpm=max_rpm, burst_rpm=burst_rpm)
+
+    # Simple cache for list_runs results to keep UI non-blocking when rate-limited
+    cached_all_runs: list["RunInfo"] = []
+    cached_at: float = 0.0
+
     def generate_display():
         try:
             # Build filters
@@ -265,7 +351,26 @@ def live_monitor_runs(
                 filters["name"] = {"regex": name_filter}
 
             # Fetch runs (already sorted by created_at newest first from WandB)
-            all_runs = store.fetch_runs(filters, limit=fetch_limit)
+            nonlocal cached_all_runs, cached_at
+            now = time.monotonic()
+            # Try to acquire a token without blocking UI
+            if limiter.try_acquire():
+                try:
+                    all_runs = store.fetch_runs(filters, limit=fetch_limit)
+                    cached_all_runs = all_runs
+                    cached_at = now
+                except Exception as e:
+                    # On transient error, keep cached data and record error
+                    logger.debug(f"Error fetching runs: {e}")
+                    limiter.errors_total += 1
+                    all_runs = cached_all_runs
+            else:
+                # No tokens available: reuse cached data if TTL not expired
+                if cached_all_runs and (now - cached_at) <= runs_cache_ttl_sec:
+                    all_runs = cached_all_runs
+                else:
+                    # Stale/no cache; show an informative message instead of blocking
+                    return Text("API rate limit in effect; waiting for budget...", style="bright_yellow")
             # Take only the display_limit for the table
             runs = all_runs[:display_limit]
 
@@ -286,7 +391,14 @@ def live_monitor_runs(
                 return Text(warning_msg, style="bright_yellow")
 
             # Create banner using all fetched runs for accurate statistics
-            banner = create_run_banner(group, name_filter, all_runs, display_limit, score_metric)
+            banner = create_run_banner(
+                group,
+                name_filter,
+                all_runs,
+                display_limit,
+                score_metric,
+                api_rpm=limiter.rpm_current(),
+            )
 
             # Create table
             table = make_rich_monitor_table(runs, score_metric)
@@ -454,6 +566,15 @@ def cli(
             help="Metric key in run.summary to use for score",
         ),
     ] = "env_agent/heart.get",
+    max_rpm: Annotated[int, typer.Option("--max-rpm", help="Global API request budget per minute")] = 60,
+    burst_rpm: Annotated[
+        Optional[int],
+        typer.Option("--burst-rpm", help="Optional burst capacity for the rate limiter"),
+    ] = None,
+    runs_cache_ttl_sec: Annotated[
+        int,
+        typer.Option("--runs-cache-ttl-sec", help="TTL for cached run list when rate-limited"),
+    ] = 60,
 ) -> None:
     """Default command for the live run monitor app."""
     # If a subcommand is provided, do nothing here
@@ -507,6 +628,9 @@ def cli(
             display_limit=display_limit,
             fetch_limit=fetch_limit,
             score_metric=score_metric,
+            max_rpm=max_rpm,
+            burst_rpm=burst_rpm,
+            runs_cache_ttl_sec=runs_cache_ttl_sec,
         )
     except KeyboardInterrupt:
         typer.echo("\nMonitoring stopped by user.")
