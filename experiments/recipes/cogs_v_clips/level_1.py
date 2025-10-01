@@ -169,7 +169,7 @@ evals = {
     },
     "three_agent_triplets_no_terrain": {
         "num_cogs": 3,
-        "assembler_positions": ["Any", "Any"],
+        "assembler_positions": ["Any", "Any", "Any"],
         "num_chargers": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
