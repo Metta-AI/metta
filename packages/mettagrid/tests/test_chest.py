@@ -47,7 +47,7 @@ class TestChest:
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check deposit happened
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
         chest = next(obj for _obj_id, obj in grid_objects.items() if obj["type"] == 10)
 
@@ -77,7 +77,7 @@ class TestChest:
         obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Check withdrawal happened
-        grid_objects_after = env.grid_objects
+        grid_objects_after = env.grid_objects()
         agent_after = next(obj for _obj_id, obj in grid_objects_after.items() if "agent_id" in obj)
         chest_after = next(obj for _obj_id, obj in grid_objects_after.items() if obj["type"] == 10)
 

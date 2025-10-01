@@ -44,7 +44,7 @@ class TestAssemblerPartialUsage:
         actions = np.array([[move_idx, 3]], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
 
         assert agent["inventory"][iron_idx] == 90, "Agent should have 90 iron after first use"
@@ -59,7 +59,7 @@ class TestAssemblerPartialUsage:
         actions = np.array([[move_idx, 1]], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
 
         # Resources should be unchanged
@@ -106,7 +106,7 @@ class TestAssemblerPartialUsage:
         actions = np.array([[move_idx, 3]], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
 
         iron_consumed = 100 - agent["inventory"][iron_idx]
@@ -127,7 +127,7 @@ class TestAssemblerPartialUsage:
             obs, rewards, terminals, truncations, info = env.step(actions)
 
         # Verify cooldown has decreased to 88 ticks remaining
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         assembler = next((obj for _obj_id, obj in grid_objects.items() if obj.get("type_name") == "assembler"), None)
         if assembler:
             cooldown_remaining = assembler.get("cooldown_remaining", 0)
@@ -139,7 +139,7 @@ class TestAssemblerPartialUsage:
         actions = np.array([[move_idx, 3]], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
-        grid_objects = env.grid_objects
+        grid_objects = env.grid_objects()
         agent = next(obj for _obj_id, obj in grid_objects.items() if "agent_id" in obj)
 
         # At 10% progress:

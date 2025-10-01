@@ -66,6 +66,9 @@ class AgentConfig(Config):
     shareable_resources: list[str] = Field(
         default_factory=list, description="Resources that will be shared when we use another agent"
     )
+    inventory_regen_amounts: dict[str, int] = Field(
+        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+    )
 
 
 class ActionConfig(Config):
@@ -196,7 +199,7 @@ class ChestConfig(Config):
 class ClipperConfig(Config):
     """Global clipper that probabilistically clips assemblers each tick."""
 
-    recipe: RecipeConfig = Field(default_factory=RecipeConfig)
+    unclipping_recipes: list[RecipeConfig] = Field(default_factory=list)
     length_scale: float = Field(default=1.0, ge=0.0)
     cutoff_distance: float = Field(default=0.0, ge=0.0)
     clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -241,10 +244,7 @@ class GameConfig(Config):
 
     resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
-    # Inventory regeneration settings
-    inventory_regen_amounts: dict[str, int] = Field(
-        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
-    )
+    # Inventory regeneration interval (global check timing)
     inventory_regen_interval: int = Field(
         default=0, ge=0, description="Interval in timesteps between regenerations (0 = disabled)"
     )
