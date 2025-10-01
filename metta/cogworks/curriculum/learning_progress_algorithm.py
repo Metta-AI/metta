@@ -48,7 +48,6 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     task_tracker_ema_alpha: float = 0.02  # Learning rate for task tracker EMAs (reward, success rate)
 
     # Performance and memory management
-    max_memory_tasks: int = 1000
     max_slice_axes: int = 3  # Updated terminology
 
     # Memory backend configuration
@@ -81,8 +80,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self.hypers: LearningProgressConfig = hypers
 
         # Initialize task tracker (unified implementation with configurable backend)
+        # Note: max_memory_tasks is automatically set to num_active_tasks
         self.task_tracker = TaskTracker(
-            max_memory_tasks=hypers.max_memory_tasks,
+            max_memory_tasks=hypers.num_active_tasks,
             ema_alpha=hypers.task_tracker_ema_alpha,
             session_id=hypers.session_id if hypers.use_shared_memory else None,
             use_shared_memory=hypers.use_shared_memory,

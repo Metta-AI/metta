@@ -21,7 +21,7 @@ def child_process_reader(
         # Create algorithm in child process - it should connect to existing shared memory
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=100,
+            num_active_tasks=100,
             use_shared_memory=True,
             session_id=session_id,  # Use same session ID as parent
         )
@@ -88,7 +88,7 @@ class TestSharedMemoryIntegration:
         # Create algorithm with shared memory enabled in parent process
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=100,
+            num_active_tasks=100,
             use_shared_memory=True,
             session_id=session_id,
         )
@@ -155,7 +155,7 @@ class TestSharedMemoryIntegration:
         # Create algorithm with shared memory in parent
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=100,
+            num_active_tasks=100,
             use_shared_memory=True,
             session_id=session_id,
         )
@@ -221,7 +221,7 @@ class TestSharedMemoryIntegration:
         # Create algorithm in parent
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=100,
+            num_active_tasks=100,
             use_shared_memory=True,
             session_id=session_id,
         )

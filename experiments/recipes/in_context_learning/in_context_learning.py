@@ -440,7 +440,6 @@ class LPParams:
         # Task tracker EMA
         task_tracker_ema_alpha: float = 0.02,
         # Memory and logging
-        max_memory_tasks: int = 1000,
         max_slice_axes: int = 3,
         enable_detailed_slice_logging: bool = False,
         use_shared_memory: bool = True,
@@ -461,7 +460,6 @@ class LPParams:
         self.basic_ema_alpha_decay = basic_ema_alpha_decay
         self.exploration_blend_factor = exploration_blend_factor
         self.task_tracker_ema_alpha = task_tracker_ema_alpha
-        self.max_memory_tasks = max_memory_tasks
         self.max_slice_axes = max_slice_axes
         self.enable_detailed_slice_logging = enable_detailed_slice_logging
         self.use_shared_memory = use_shared_memory

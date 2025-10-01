@@ -40,7 +40,6 @@ class TestLPConfigOverrides:
             # Task tracker EMA
             ("task_tracker_ema_alpha", 0.05, 0.05),
             # Memory and logging
-            ("max_memory_tasks", 500, 500),
             ("max_slice_axes", 5, 5),
             ("enable_detailed_slice_logging", True, True),
             ("use_shared_memory", False, False),
@@ -84,24 +83,24 @@ class TestLPConfigOverrides:
             "num_active_tasks should sync from algorithm_config to CurriculumConfig"
         )
 
-    def test_max_memory_tasks_reaches_task_tracker(self, task_generator_cfg):
-        """Test that max_memory_tasks reaches the TaskTracker backend."""
-        override_value = 2500
+    def test_max_memory_tasks_automatically_set_to_num_active_tasks(self, task_generator_cfg):
+        """Test that max_memory_tasks is automatically set equal to num_active_tasks."""
+        num_active_tasks_value = 2500
         curriculum_dict = {
             "task_generator": task_generator_cfg,
             "algorithm_config": {
                 "type": "learning_progress",
-                "max_memory_tasks": override_value,
-                "num_active_tasks": 1000,  # Required for algorithm creation
+                "num_active_tasks": num_active_tasks_value,
             },
         }
         curriculum_config = CurriculumConfig(**curriculum_dict)
 
-        # Create the algorithm to verify it reaches TaskTracker
+        # Create the algorithm to verify max_memory_tasks equals num_active_tasks
         algorithm = curriculum_config.algorithm_config.create(curriculum_config.num_active_tasks)
 
-        assert algorithm.task_tracker.max_memory_tasks == override_value
-        assert algorithm.task_tracker._backend.max_tasks == override_value
+        # Verify that max_memory_tasks was automatically set to num_active_tasks
+        assert algorithm.task_tracker.max_memory_tasks == num_active_tasks_value
+        assert algorithm.task_tracker._backend.max_tasks == num_active_tasks_value
 
     def test_task_tracker_ema_alpha_reaches_task_tracker(self, task_generator_cfg):
         """Test that task_tracker_ema_alpha reaches the TaskTracker."""
@@ -158,7 +157,6 @@ class TestLPConfigOverrides:
             "ema_timescale": 0.25,
             "exploration_bonus": 0.25,
             "num_active_tasks": 1500,
-            "max_memory_tasks": 1500,
             "task_tracker_ema_alpha": 0.04,
             "enable_detailed_slice_logging": True,
         }
@@ -175,7 +173,6 @@ class TestLPConfigOverrides:
         assert algo_config.ema_timescale == 0.25
         assert algo_config.exploration_bonus == 0.25
         assert algo_config.num_active_tasks == 1500
-        assert algo_config.max_memory_tasks == 1500
         assert algo_config.task_tracker_ema_alpha == 0.04
         assert algo_config.enable_detailed_slice_logging is True
 
@@ -207,5 +204,4 @@ class TestLPConfigOverrides:
         # Check that defaults are preserved for other parameters
         assert algo_config.use_bidirectional is True  # Default
         assert algo_config.exploration_bonus == 0.1  # Default
-        assert algo_config.num_active_tasks == 1000  # Default
-        assert algo_config.max_memory_tasks == 1000  # Default
+        assert algo_config.num_active_tasks == 10000  # Default

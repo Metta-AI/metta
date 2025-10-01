@@ -32,7 +32,7 @@ class TestCurriculumStateSerialization:
             task_generator=task_generator_config,
             num_active_tasks=10,
             algorithm_config=LearningProgressConfig(
-                num_active_tasks=10, max_memory_tasks=100, use_bidirectional=True, use_shared_memory=False
+                num_active_tasks=10, use_bidirectional=True, use_shared_memory=False
             ),
         )
 
@@ -140,7 +140,7 @@ class TestCurriculumStateSerialization:
             task_generator=task_generator_config,
             num_active_tasks=8,
             algorithm_config=LearningProgressConfig(
-                num_active_tasks=8, use_bidirectional=True, max_memory_tasks=50, use_shared_memory=False
+                num_active_tasks=8, use_bidirectional=True, use_shared_memory=False
             ),
         )
 
@@ -235,9 +235,7 @@ class TestCurriculumStateSerialization:
         curriculum_config = CurriculumConfig(
             task_generator=task_generator_config,
             num_active_tasks=1000,
-            algorithm_config=LearningProgressConfig(
-                num_active_tasks=1000, max_memory_tasks=5000, use_shared_memory=False
-            ),
+            algorithm_config=LearningProgressConfig(num_active_tasks=1000, use_shared_memory=False),
         )
 
         curriculum = Curriculum(curriculum_config, seed=456)
@@ -561,7 +559,6 @@ class TestCurriculumRoundtripBehavior:
             algorithm_config=LearningProgressConfig(
                 num_active_tasks=15,
                 use_bidirectional=True,
-                max_memory_tasks=100,
                 ema_timescale=0.01,
                 use_shared_memory=False,
             ),

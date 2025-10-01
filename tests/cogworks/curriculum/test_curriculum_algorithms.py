@@ -15,7 +15,6 @@ def learning_progress_config(request):
     use_bidirectional = request.param
     return LearningProgressConfig(
         ema_timescale=0.001,
-        max_memory_tasks=10,
         use_bidirectional=use_bidirectional,
         use_shared_memory=False,  # Disable shared memory for tests
     )
@@ -192,7 +191,7 @@ class TestLearningProgressCoreBehavior:
         """Test that the learning progress algorithm properly manages its task pool."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=5,
+            num_active_tasks=5,
             use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=10, hypers=config)
@@ -215,7 +214,7 @@ class TestLearningProgressCoreBehavior:
         """Test that EMA smoothing works correctly for learning progress calculation."""
         config = LearningProgressConfig(
             ema_timescale=0.1,  # Higher timescale for faster convergence in test
-            max_memory_tasks=10,
+            num_active_tasks=10,
             use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=1, hypers=config)
@@ -242,7 +241,7 @@ class TestLearningProgressCoreBehavior:
         """Test that eviction policy prefers tasks with low learning progress."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=10,
+            num_active_tasks=10,
             use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=3, hypers=config)
@@ -288,7 +287,7 @@ class TestLearningProgressProductionPatterns:
         """Test learning progress algorithm with production-like task counts."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=50,  # REDUCED from 100 for faster testing
+            num_active_tasks=50,  # REDUCED from 100 for faster testing
             enable_detailed_slice_logging=True,  # Enable detailed stats for testing,
             use_shared_memory=False,
         )
@@ -322,7 +321,7 @@ class TestLearningProgressProductionPatterns:
         """Test that memory management works under production load."""
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=10,  # Small limit to trigger cleanup,
+            num_active_tasks=10,  # Small limit to trigger cleanup,
             use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=20, hypers=config)
@@ -342,13 +341,13 @@ class TestLearningProgressProductionPatterns:
 
         # Check that memory limit is respected
         tracked_tasks = algorithm.task_tracker.get_all_tracked_tasks()
-        assert len(tracked_tasks) <= config.max_memory_tasks + 100  # Allow cleanup buffer
+        assert len(tracked_tasks) <= algorithm.task_tracker.max_memory_tasks + 100  # Allow cleanup buffer
 
     def test_learning_progress_task_sampling_distribution(self, random_seed):
         """Test that task sampling follows expected distribution patterns."""
         config = LearningProgressConfig(
             ema_timescale=0.01,  # Higher for faster convergence
-            max_memory_tasks=20,
+            num_active_tasks=20,
             use_shared_memory=False,
         )
         algorithm = LearningProgressAlgorithm(num_tasks=5, hypers=config)
@@ -463,7 +462,7 @@ class TestBidirectionalLearningProgressBehavior:
         # Bidirectional algorithm needs more data points to calculate meaningful progress
         config = LearningProgressConfig(
             ema_timescale=0.001,
-            max_memory_tasks=10,
+            num_active_tasks=10,
             use_bidirectional=True,
             use_shared_memory=False,
         )
@@ -498,7 +497,7 @@ class TestBidirectionalLearningProgressBehavior:
         """Test that bidirectional learning progress works with sufficient task data."""
         config = LearningProgressConfig(
             ema_timescale=0.01,  # Higher timescale for faster response
-            max_memory_tasks=10,
+            num_active_tasks=10,
             use_bidirectional=True,
             sample_threshold=5,  # Lower threshold for testing,
             use_shared_memory=False,
@@ -551,7 +550,7 @@ class TestBidirectionalLearningProgressBehavior:
         """Test that bidirectional learning progress provides expected statistics."""
         config = LearningProgressConfig(
             ema_timescale=0.01,
-            max_memory_tasks=10,
+            num_active_tasks=10,
             use_bidirectional=True,
             use_shared_memory=False,
         )
