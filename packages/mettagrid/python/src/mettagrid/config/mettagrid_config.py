@@ -196,7 +196,7 @@ class ChestConfig(Config):
 class ClipperConfig(Config):
     """Global clipper that probabilistically clips assemblers each tick."""
 
-    recipe: RecipeConfig = Field(default_factory=RecipeConfig)
+    unclipping_recipes: list[RecipeConfig] = Field(default_factory=list)
     length_scale: float = Field(default=1.0, ge=0.0)
     cutoff_distance: float = Field(default=0.0, ge=0.0)
     clip_rate: float = Field(default=0.0, ge=0.0, le=1.0)
