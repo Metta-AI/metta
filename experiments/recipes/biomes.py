@@ -178,6 +178,7 @@ class UniformExtractorParams(Config):
             "oxygen_extractor",
             "germanium_extractor",
             "silicon_extractor",
+            "charger",
         ]
     )
 
@@ -359,7 +360,7 @@ def make_extractor_showcase() -> MettaGridConfig:
     _add_extractor_objects(env)
 
     resources = set(env.game.resource_names)
-    resources.update({"energy", "carbon", "oxygen", "germanium", "silicon"})
+    resources.update({"energy", "carbon", "oxygen", "germanium", "silicon", "energy"})
     env.game.resource_names = sorted(resources)
 
     env.game.map_builder = MapGen.Config(
@@ -377,6 +378,7 @@ def make_extractor_showcase() -> MettaGridConfig:
                     "oxygen_extractor",
                     "germanium_extractor",
                     "silicon_extractor",
+                    "charger",
                 ],
             )
         ),
@@ -1336,6 +1338,7 @@ def make_mettagrid(
                                 "oxygen_extractor",
                                 "germanium_extractor",
                                 "silicon_extractor",
+                                "charger",
                             ],
                         )
                     ),
@@ -3664,6 +3667,91 @@ def make_mettagrid(
     )
 
 
+def make_sanctum_caves_test() -> MettaGridConfig:
+    env = make_navigation(num_agents=4)
+    _add_extractor_objects(env)
+
+    env.game.map_builder = MapGen.Config(
+        width=50,
+        height=50,
+        root=BiomeCaves.factory(
+            BiomeCavesParams(
+                fill_prob=0.45,
+                steps=4,
+                birth_limit=5,
+                death_limit=3,
+            ),
+            children_actions=[
+                # Spread resource extractors across the map uniformly
+                ChildrenAction(
+                    scene=UniformExtractorScene.factory(
+                        UniformExtractorParams(
+                            target_coverage=0.02,
+                            jitter=0,
+                            extractor_names=[
+                                "carbon_extractor",
+                                "oxygen_extractor",
+                                "germanium_extractor",
+                                "silicon_extractor",
+                                "charger",
+                            ],
+                        )
+                    ),
+                    where="full",
+                    order_by="first",
+                    limit=1,
+                ),
+                # Stamp a sanctum hub in the center (last so it isn't overwritten)
+                ChildrenAction(
+                    scene=Layout.factory(
+                        LayoutParams(
+                            areas=[
+                                LayoutArea(
+                                    width=15,
+                                    height=15,
+                                    placement="center",
+                                    tag="sanctum.center",
+                                )
+                            ]
+                        ),
+                        children_actions=[
+                            ChildrenAction(
+                                scene=BaseHub.factory(
+                                    BaseHubParams(
+                                        altar_object="altar",
+                                        include_inner_wall=True,
+                                        corner_objects=[
+                                            "carbon_ex_dep",
+                                            "oxygen_ex_dep",
+                                            "germanium_ex_dep",
+                                            "silicon_ex_dep",
+                                        ],
+                                    )
+                                ),
+                                where=AreaWhere(tags=["sanctum.center"]),
+                                limit=1,
+                            )
+                        ],
+                    ),
+                    where="full",
+                    order_by="last",
+                    lock="sanctum",
+                    limit=1,
+                ),
+                ChildrenAction(
+                    scene=MakeConnected.factory(MakeConnectedParams()),
+                    where="full",
+                    order_by="last",
+                    lock="connect",
+                    limit=1,
+                ),
+            ],
+        ),
+    )
+
+    return env
+
+
 def make_evals() -> List[SimulationConfig]:
     (
         env,
@@ -3677,6 +3765,7 @@ def make_evals() -> List[SimulationConfig]:
         astroid_big,
         extractor_showcase,
     ) = make_mettagrid()
+    sanctum_caves_test = make_sanctum_caves_test()
     return [
         SimulationConfig(suite="biomes", name="biomes_quadrants", env=env),
         SimulationConfig(suite="biomes", name="desert_noise", env=desert_noise),
@@ -3689,5 +3778,8 @@ def make_evals() -> List[SimulationConfig]:
         SimulationConfig(suite="biomes", name="astroid_big", env=astroid_big),
         SimulationConfig(
             suite="biomes", name="extractor_showcase", env=extractor_showcase
+        ),
+        SimulationConfig(
+            suite="biomes", name="sanctum_caves_test", env=sanctum_caves_test
         ),
     ]
