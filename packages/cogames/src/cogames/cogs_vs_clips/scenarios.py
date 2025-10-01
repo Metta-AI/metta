@@ -69,14 +69,14 @@ def _materialize_random_map(
 
 
 RESOURCE_REWARD_WEIGHTS: dict[str, float] = {
-    "carbon": 0.15,
-    "oxygen": 0.15,
-    "germanium": 0.2,
-    "silicon": 0.2,
-    "decoder": 0.25,
-    "modulator": 0.25,
-    "resonator": 0.25,
-    "scrambler": 0.25,
+    "carbon": 0.05,
+    "oxygen": 0.05,
+    "germanium": 0.08,
+    "silicon": 0.08,
+    "decoder": 0.1,
+    "modulator": 0.1,
+    "resonator": 0.1,
+    "scrambler": 0.1,
 }
 
 
@@ -86,12 +86,12 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
     heart_reward = 1.0
     stats_rewards: dict[str, float] = {
         "heart.gained": heart_reward,
-        "heart.put": heart_reward,
+        "heart.put": heart_reward * 0.5,
     }
 
     for resource, weight in RESOURCE_REWARD_WEIGHTS.items():
         stats_rewards[f"{resource}.gained"] = weight
-        stats_rewards[f"{resource}.put"] = weight * 0.4
+        stats_rewards[f"{resource}.put"] = weight * 0.25
 
     return MettaGridConfig(
         game=GameConfig(
