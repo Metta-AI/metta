@@ -169,7 +169,11 @@ function parseKind(kind: string): JsonSchema {
 }
 
 export function getSchema(path: string, kind: string): JsonSchema | undefined {
-  let currentType: JsonSchema = resolveType(parseKind(kind))!;
+  const initialType = resolveType(parseKind(kind));
+  if (!initialType) {
+    return undefined;
+  }
+  let currentType: JsonSchema = initialType;
 
   const parts = path.split(".");
   for (const part of parts) {
