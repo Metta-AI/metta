@@ -403,7 +403,6 @@ find "/UI/Main":
     panelTemplate = find("**/Panel").copy()
 
     objectInfoTemplate = find("../ObjectInfo").copy()
-    echo "objectInfoTemplate: ", objectInfoTemplate
 
     find("Area").remove()
 
