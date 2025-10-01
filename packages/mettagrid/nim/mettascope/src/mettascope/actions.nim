@@ -53,8 +53,6 @@ proc processActions*() =
   ## Process pathfinding and action queue. Called on step change.
   if not (play or requestPython):
     return
-
-  echo "processActions"
   
   for agentId, path in agentPaths:
     if path.len > 1:
