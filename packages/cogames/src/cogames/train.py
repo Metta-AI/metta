@@ -6,6 +6,8 @@ import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+import numpy as np
+
 from cogames.env import HierarchicalActionMettaGridEnv
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig
@@ -15,8 +17,6 @@ if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger("cogames.pufferlib")
-
-
 def train(
     env_cfg: MettaGridConfig,
     policy_class_path: str,
@@ -38,8 +38,24 @@ def train(
     from pufferlib import pufferl
     from pufferlib.pufferlib import set_buffers
 
+
+    reward_scale = 0.02
+
+    class RewardScalingHierarchicalEnv(HierarchicalActionMettaGridEnv):
+        def __init__(self, env_cfg: MettaGridConfig, scale: float, *, buf: Optional[Any] = None) -> None:
+            super().__init__(env_cfg=env_cfg, render_mode=None, buf=buf)
+            self._reward_scale = scale
+
+        def step(self, actions: np.ndarray):  # type: ignore[override]
+            obs, rewards, terminated, truncated, info = super().step(actions)
+            scaled_rewards = np.asarray(rewards, dtype=np.float32) * self._reward_scale
+            self.rewards = scaled_rewards
+            if isinstance(info, dict):
+                info = {**info, "reward_scale": self._reward_scale}
+            return obs, scaled_rewards, terminated, truncated, info
+
     def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
-        env = HierarchicalActionMettaGridEnv(env_cfg=cfg)
+        env = RewardScalingHierarchicalEnv(env_cfg=cfg, scale=reward_scale, buf=buf)
         set_buffers(env, buf)
         return env
 
