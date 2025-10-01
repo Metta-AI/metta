@@ -1,108 +1,102 @@
-"""Shared helpers for policy implementations."""
+"""Lightweight helpers for LSTM policy state handling."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, Union
 
 import torch
 
-# LSTM state is represented as a tuple of (hidden, cell) tensors.
-LSTMState = Tuple[torch.Tensor, torch.Tensor]
+LSTMStateTuple = Tuple[torch.Tensor, torch.Tensor]
 LSTMStateDict = Dict[str, torch.Tensor]
+LSTMStateLike = Union["LSTMState", LSTMStateTuple]
 
 
-class LSTMStateAdapter:
-    """Utility helpers to translate between tuple and dict LSTM states."""
+def _canonical_component(component: torch.Tensor, expected_layers: Optional[int]) -> torch.Tensor:
+    """Return a ``(layers, batch, hidden)`` tensor, adding axes as needed."""
+    if component.dim() > 3:
+        msg = f"Expected tensor with <=3 dims, got {component.dim()}"
+        raise ValueError(msg)
 
-    @staticmethod
-    def _ensure_three_dims(tensor: torch.Tensor) -> torch.Tensor:
-        dim = tensor.dim()
-        if dim == 3:
-            return tensor
-        if dim > 3:
-            msg = f"Expected tensor with <=3 dims, got {dim}"
+    while component.dim() < 3:
+        component = component.unsqueeze(0)
+
+    if expected_layers is not None:
+        if component.shape[0] != expected_layers and component.shape[1] == expected_layers:
+            component = component.transpose(0, 1)
+        if component.shape[0] != expected_layers:
+            msg = f"Hidden state has unexpected layer dimension. Expected {expected_layers}, got {component.shape[0]}."
             raise ValueError(msg)
-        # Prepend singleton dimensions until we reach (layers, batch, features).
-        prepend = (1,) * (3 - dim)
-        return tensor.reshape((*prepend, *tensor.shape))
 
-    @staticmethod
-    def _align_layers(tensor: torch.Tensor, expected_layers: int) -> torch.Tensor:
-        if tensor.shape[0] == expected_layers:
-            return tensor.contiguous()
-        if tensor.shape[1] == expected_layers:
-            return tensor.transpose(0, 1).contiguous()
-        return tensor.contiguous()
+    return component.contiguous()
+
+
+@dataclass
+class LSTMState:
+    """Canonical representation of an LSTM hidden state."""
+
+    hidden: torch.Tensor
+    cell: torch.Tensor
 
     @classmethod
-    def normalize_tuple(
+    def from_tuple(
         cls,
-        state: Optional[LSTMState],
-        expected_layers: Optional[int] = None,
-    ) -> Optional[LSTMState]:
+        state: Optional[LSTMStateTuple],
+        expected_layers: Optional[int],
+    ) -> Optional["LSTMState"]:
         if state is None:
             return None
         hidden, cell = state
-        hidden = cls._ensure_three_dims(hidden)
-        cell = cls._ensure_three_dims(cell)
-        if expected_layers is not None:
-            hidden = cls._align_layers(hidden, expected_layers)
-            cell = cls._align_layers(cell, expected_layers)
-        return hidden.contiguous(), cell.contiguous()
+        return cls(
+            _canonical_component(hidden, expected_layers),
+            _canonical_component(cell, expected_layers),
+        )
 
     @classmethod
     def from_dict(
         cls,
         state: LSTMStateDict,
-        expected_layers: Optional[int] = None,
-    ) -> Optional[LSTMState]:
+        expected_layers: Optional[int],
+    ) -> Optional["LSTMState"]:
         if not state:
             return None
         hidden = state.get("lstm_h")
         cell = state.get("lstm_c")
         if hidden is None or cell is None:
             return None
-        hidden = cls._ensure_three_dims(hidden)
-        cell = cls._ensure_three_dims(cell)
-        if expected_layers is None:
-            hidden_layers = hidden.transpose(0, 1).contiguous()
-            cell_layers = cell.transpose(0, 1).contiguous()
-        else:
-            hidden_layers = cls._align_layers(hidden, expected_layers)
-            cell_layers = cls._align_layers(cell, expected_layers)
-        return hidden_layers, cell_layers
+        return cls(
+            _canonical_component(hidden, expected_layers),
+            _canonical_component(cell, expected_layers),
+        )
 
     @classmethod
-    def unpack(
+    def from_any(
         cls,
-        state: Optional[Union[LSTMState, LSTMStateDict]],
-        expected_layers: Optional[int] = None,
-    ) -> Tuple[Optional[LSTMState], Optional[LSTMStateDict]]:
+        state: Optional[Union[LSTMStateLike, LSTMStateDict]],
+        expected_layers: Optional[int],
+    ) -> Optional["LSTMState"]:
         if state is None:
-            return None, None
-        if isinstance(state, tuple):
-            return cls.normalize_tuple(state, expected_layers), None
+            return None
+        if isinstance(state, LSTMState):
+            return state
         if isinstance(state, dict):
-            return cls.from_dict(state, expected_layers), state
+            return cls.from_dict(state, expected_layers)
+        if isinstance(state, tuple):
+            return cls.from_tuple(state, expected_layers)
         msg = f"Unsupported LSTM state container type: {type(state)!r}"
         raise TypeError(msg)
 
-    @classmethod
-    def update_dict(
-        cls,
-        target: LSTMStateDict,
-        state: Optional[LSTMState],
-        expected_layers: Optional[int] = None,
-    ) -> None:
+    def to_tuple(self) -> LSTMStateTuple:
+        return self.hidden, self.cell
+
+    def write_dict(self, target: LSTMStateDict) -> None:
+        """Populate ``target`` with tensors in batch-major form."""
         target.clear()
-        if state is None:
-            return
-        normalized = cls.normalize_tuple(state, expected_layers)
-        if normalized is None:
-            return
-        hidden, cell = normalized
-        target["lstm_h"] = hidden.transpose(0, 1).contiguous().detach()
-        target["lstm_c"] = cell.transpose(0, 1).contiguous().detach()
+        target["lstm_h"] = self.hidden.transpose(0, 1).contiguous().detach()
+        target["lstm_c"] = self.cell.transpose(0, 1).contiguous().detach()
+
+    def detach(self) -> "LSTMState":
+        return LSTMState(self.hidden.detach(), self.cell.detach())
 
 
-__all__ = ["LSTMState", "LSTMStateDict", "LSTMStateAdapter"]
+__all__ = ["LSTMState", "LSTMStateDict", "LSTMStateTuple"]

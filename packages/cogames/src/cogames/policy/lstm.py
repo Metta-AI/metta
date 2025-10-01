@@ -7,7 +7,7 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from cogames.policy.policy import AgentPolicy, StatefulAgentPolicy, TrainablePolicy
-from cogames.policy.utils import LSTMState, LSTMStateAdapter, LSTMStateDict
+from cogames.policy.utils import LSTMState, LSTMStateDict
 from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.lstm_policy")
@@ -62,8 +62,10 @@ class LSTMPolicyNet(torch.nn.Module):
         hidden = hidden.view(batch_size, bptt_horizon, self.hidden_size)
 
         expected_layers = self._rnn.num_layers * (2 if self._rnn.bidirectional else 1)
-        rnn_state = LSTMStateAdapter.normalize_tuple(state, expected_layers)
-        hidden, new_state = self._rnn(hidden, rnn_state)
+        canonical_state = LSTMState.from_any(state, expected_layers)
+        rnn_state = canonical_state.to_tuple() if canonical_state is not None else None
+        hidden, new_state_tuple = self._rnn(hidden, rnn_state)
+        new_state = LSTMState.from_tuple(new_state_tuple, expected_layers)
 
         hidden = hidden.view(batch_size * bptt_horizon, self.hidden_size)
         logits = self._action_head(hidden)
@@ -74,13 +76,15 @@ class LSTMPolicyNet(torch.nn.Module):
     def forward_eval(
         self,
         observations: torch.Tensor,
-        state: Optional[Union[LSTMState, LSTMStateDict]] = None,
+        state: Optional[Union[LSTMState, LSTMStateDict, Tuple[torch.Tensor, torch.Tensor]]] = None,
     ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor]:
         expected_layers = self._rnn.num_layers * (2 if self._rnn.bidirectional else 1)
-        tuple_state, dict_state = LSTMStateAdapter.unpack(state, expected_layers)
-        logits, values, new_state = self._forward_internal(observations, tuple_state)
-        if dict_state is not None:
-            LSTMStateAdapter.update_dict(dict_state, new_state, expected_layers)
+        dict_target: Optional[LSTMStateDict]
+        dict_target = state if isinstance(state, dict) else None
+        canonical_state = LSTMState.from_any(state, expected_layers)
+        logits, values, new_state = self._forward_internal(observations, canonical_state)
+        if dict_target is not None and new_state is not None:
+            new_state.write_dict(dict_target)
         return logits, values
 
     # We use this to work around a major torch perf issue
@@ -98,7 +102,7 @@ class LSTMPolicyNet(torch.nn.Module):
     ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor, Optional[LSTMState]]:
         logits, values, new_state = self._forward_internal(observations, state)
         if new_state is not None:
-            new_state = tuple(component.detach() for component in new_state)
+            new_state = new_state.detach()
         return logits, values, new_state
 
 
