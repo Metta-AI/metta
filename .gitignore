@@ -99,6 +99,7 @@ experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/example.py
 !experiments/recipes/scratchpad/ci.py
 packages/cogames/experiments
+packages/cogames/src/cogames/runs/
 
 resources
 LUNARVIM_CHEATSHEET.md
