@@ -549,7 +549,7 @@ def experiment():
                 [
                     "./devops/skypilot/launch.py",
                     "experiments.recipes.cogs_v_clips.version1.train",
-                    f"run=daphne.cogs_v_clips.noterrain.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
+                    f"run=daphne.cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",
