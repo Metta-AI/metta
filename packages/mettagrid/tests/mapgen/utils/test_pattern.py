@@ -138,7 +138,6 @@ class TestPatternsWithCounts:
         """
         patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="none")
 
-        print(patterns)
         # There should be 1 pattern (only one 2x2 pattern in a 2x2 source)
         assert len(patterns) == 1
 

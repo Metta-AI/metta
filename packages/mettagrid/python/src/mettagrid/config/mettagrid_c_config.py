@@ -5,6 +5,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
     ChestConfig,
+    ClipperConfig,
     ConverterConfig,
     GameConfig,
     Position,
@@ -16,6 +17,7 @@ from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
+from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
@@ -179,31 +181,41 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
         group_name = team_names.get(team_id, f"team_{team_id}")
         # Convert tag names to IDs for first agent in team
-        tag_ids = [tag_name_to_id[tag] for tag in first_agent.tags if tag in tag_name_to_id]
+        tag_ids = [tag_name_to_id[tag] for tag in first_agent.tags]
 
         # Convert soul bound resources from names to IDs
         soul_bound_resources = [
-            resource_name_to_id[resource_name]
-            for resource_name in agent_props.get("soul_bound_resources", [])
-            if resource_name in resource_name_to_id
+            resource_name_to_id[resource_name] for resource_name in agent_props.get("soul_bound_resources", [])
         ]
 
         # Convert shareable resources from names to IDs
         shareable_resources = [
-            resource_name_to_id[resource_name]
-            for resource_name in agent_props.get("shareable_resources", [])
-            if resource_name in resource_name_to_id
+            resource_name_to_id[resource_name] for resource_name in agent_props.get("shareable_resources", [])
         ]
 
-        inventory_config = CppInventoryConfig(
-            limits=[
-                [
-                    [resource_name_to_id[resource_name]],
-                    agent_props["resource_limits"].get(resource_name, default_resource_limit),
-                ]
-                for resource_name in resource_names
-            ]
-        )
+        # Build inventory config with support for grouped limits
+        limits_list = []
+
+        # First, handle explicitly configured limits (both individual and grouped)
+        configured_resources = set()
+        for key, limit_value in agent_props["resource_limits"].items():
+            if isinstance(key, str):
+                # Single resource limit
+                limits_list.append([[resource_name_to_id[key]], limit_value])
+                configured_resources.add(key)
+            elif isinstance(key, tuple):
+                # Grouped resources with shared limit
+                resource_ids = [resource_name_to_id[name] for name in key]
+                if resource_ids:
+                    limits_list.append([resource_ids, limit_value])
+                    configured_resources.update(key)
+
+        # Add default limits for unconfigured resources
+        for resource_name in resource_names:
+            if resource_name not in configured_resources:
+                limits_list.append([[resource_name_to_id[resource_name]], default_resource_limit])
+
+        inventory_config = CppInventoryConfig(limits=limits_list)
 
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],
@@ -236,21 +248,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     for object_type, object_config in game_config.objects.items():
         if isinstance(object_config, ConverterConfig):
             # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
             cpp_converter_config = CppConverterConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
-                input_resources={
-                    resource_name_to_id[k]: v
-                    for k, v in object_config.input_resources.items()
-                    if v > 0 and k in resource_name_to_id
-                },
-                output_resources={
-                    resource_name_to_id[k]: v
-                    for k, v in object_config.output_resources.items()
-                    if v > 0 and k in resource_name_to_id
-                },
+                input_resources={resource_name_to_id[k]: v for k, v in object_config.input_resources.items()},
+                output_resources={resource_name_to_id[k]: v for k, v in object_config.output_resources.items()},
                 max_output=object_config.max_output,
                 max_conversions=object_config.max_conversions,
                 conversion_ticks=object_config.conversion_ticks,
@@ -263,7 +267,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             objects_cpp_params[object_type] = cpp_converter_config
         elif isinstance(object_config, WallConfig):
             # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
             cpp_wall_config = CppWallConfig(
                 type_id=object_config.type_id,
@@ -283,16 +287,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
                 # Create C++ recipe
                 cpp_recipe = CppRecipe(
-                    input_resources={
-                        resource_name_to_id[k]: v
-                        for k, v in recipe_config.input_resources.items()
-                        if v > 0 and k in resource_name_to_id
-                    },
-                    output_resources={
-                        resource_name_to_id[k]: v
-                        for k, v in recipe_config.output_resources.items()
-                        if v > 0 and k in resource_name_to_id
-                    },
+                    input_resources={resource_name_to_id[k]: v for k, v in recipe_config.input_resources.items()},
+                    output_resources={resource_name_to_id[k]: v for k, v in recipe_config.output_resources.items()},
                     cooldown=recipe_config.cooldown,
                 )
 
@@ -306,7 +302,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 cpp_recipes[byte_pattern] = recipe
 
             # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
             cpp_assembler_config = CppAssemblerConfig(
                 type_id=object_config.type_id, type_name=object_type, tag_ids=tag_ids
@@ -314,13 +310,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.recipes = cpp_recipes
             cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
             cpp_assembler_config.max_uses = object_config.max_uses
+            cpp_assembler_config.exhaustion = object_config.exhaustion
+            cpp_assembler_config.clip_immune = object_config.clip_immune
             objects_cpp_params[object_type] = cpp_assembler_config
         elif isinstance(object_config, ChestConfig):
             # Convert resource type name to ID
             resource_type_id = resource_name_to_id.get(object_config.resource_type, 0)
 
             # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags if tag in tag_name_to_id]
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
             cpp_chest_config = CppChestConfig(
                 type_id=object_config.type_id,
@@ -371,19 +369,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 f"Either add these resources to resource_names or disable the action."
             )
 
-        consumed_resources = {
-            resource_name_to_id[k]: float(v)
-            for k, v in action_config["consumed_resources"].items()
-            if k in resource_name_to_id
-        }
+        consumed_resources = {resource_name_to_id[k]: float(v) for k, v in action_config["consumed_resources"].items()}
 
         required_source = action_config.get("required_resources")
         if not required_source:
             required_source = {k: math.ceil(v) for k, v in action_config["consumed_resources"].items()}
 
-        required_resources = {
-            resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items() if k in resource_name_to_id
-        }
+        required_resources = {resource_name_to_id[k]: int(math.ceil(v)) for k, v in required_source.items()}
 
         action_cpp_params = {
             "consumed_resources": consumed_resources,
@@ -392,9 +384,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         if action_name == "attack":
             action_cpp_params["defense_resources"] = {
-                resource_name_to_id[k]: v
-                for k, v in action_config["defense_resources"].items()
-                if k in resource_name_to_id
+                resource_name_to_id[k]: v for k, v in action_config["defense_resources"].items()
             }
             actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
         elif action_name == "change_glyph":
@@ -424,6 +414,18 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Add resource_loss_prob
     game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
+
+    # Add clipper if configured
+    if game_config.clipper is not None:
+        clipper: ClipperConfig = game_config.clipper
+        clipper_recipe = CppRecipe(
+            input_resources={resource_name_to_id[k]: v for k, v in clipper.recipe.input_resources.items()},
+            output_resources={resource_name_to_id[k]: v for k, v in clipper.recipe.output_resources.items()},
+            cooldown=clipper.recipe.cooldown,
+        )
+        game_cpp_params["clipper"] = CppClipperConfig(
+            clipper_recipe, clipper.length_scale, clipper.cutoff_distance, clipper.clip_rate
+        )
 
     # Set feature flags
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs

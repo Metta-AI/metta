@@ -77,8 +77,8 @@ def production_navigation_curriculum(navigation_env):
         for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
             maps.append(f"varied_terrain/{terrain}_{size}")
 
-    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
-    dense_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [Span(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance.dir", maps)
+    dense_tasks.add_bucket("game.map_builder.instance.objects.altar", [Span(3, 50)])
 
     # Sparse tasks
     sparse_env = navigation_env.model_copy()

@@ -1,10 +1,12 @@
+import os
 import random
 import subprocess
 import time
-import os
 from typing import Optional, Sequence
+
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.eval_remote import EvalRemoteTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
@@ -14,18 +16,17 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     Position,
 )
+
 from experiments.recipes.in_context_learning.in_context_learning import (
     ICLTaskGenerator,
     LPParams,
-    train_icl,
-    play_icl,
-    replay_icl,
     _BuildCfg,
     num_agents_to_positions,
+    play_icl,
+    replay_icl,
     room_size_templates,
+    train_icl,
 )
-from metta.tools.eval_remote import EvalRemoteTool
-
 
 curriculum_args = {
     "train": {
@@ -37,14 +38,33 @@ curriculum_args = {
         + num_agents_to_positions[2]
         + num_agents_to_positions[3],
         "max_recipe_inputs": [1, 2, 3],
-        "num_chests": [0],
-    }
+        "num_chests": [2, 5, 8],
+        "chest_positions": [["N"], ["N", "S"], ["N", "S", "E"]],
+    },
+    "train_pairs": {
+        "num_agents": [2, 6, 12],
+        "num_altars": [2, 5, 8],
+        "num_generators": [0, 1, 4],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[2],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
+    "train_triplets": {
+        "num_agents": [3, 6, 12],
+        "num_altars": [2, 5, 8],
+        "num_generators": [0, 1, 4],
+        "room_sizes": ["small", "medium", "large"],
+        "positions": num_agents_to_positions[3],
+        "chest_positions": [["N"]],
+        "num_chests": [2, 5, 8],
+    },
     # "test": {
     #     "num_agents": [3],
     #     "num_altars": [2],
     #     "num_generators": [2],
-    #     # "num_chests": [2],
-    #     # "chest_positions": [["N"]],
+    #     "num_chests": [2],
+    #     "chest_positions": [["N"]],
     #     "room_sizes": ["medium"],
     #     "positions": [["N", "S"]],
     # },
@@ -317,7 +337,7 @@ def evaluate(simulations: Optional[Sequence[SimulationConfig]] = None) -> SimToo
     policy_uris = []
     for curriculum_style in curriculum_args:
         policy_uris.append(
-            f"s3://softmax-public/policies/in_context.foraging_{curriculum_style}.eval_local.2025-09-27/in_context.foraging_{curriculum_style}.eval_local.2025-09-27:latest.pt"
+            f"s3://softmax-public/policies/in_context.foraging_{curriculum_style}.eval_local.2025-09-27/:latest"
         )
 
     print(f"Policy uris:{policy_uris}")

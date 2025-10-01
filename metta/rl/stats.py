@@ -31,9 +31,26 @@ def accumulate_rollout_stats(
     """Accumulate rollout statistics from info dictionaries."""
     infos = defaultdict(list)
 
+    # Keys that should be kept as dictionaries (not unrolled) for special processing
+    DICT_METRICS = {
+        "env_curriculum/per_label_samples_this_epoch",
+        "env_curriculum/per_label_cumulative_samples",
+        "env_curriculum/per_label_lp_scores",
+    }
+
     # Batch process info dictionaries
     for i in raw_infos:
+        # First, extract dict metrics that should not be unrolled
+        for key in DICT_METRICS:
+            if key in i and isinstance(i[key], dict):
+                infos[key].append(i[key])
+
+        # Then unroll the rest
         for k, v in unroll_nested_dict(i):
+            # Skip dict metrics that we already processed
+            if k in DICT_METRICS or any(k.startswith(f"{dm}/") for dm in DICT_METRICS):
+                continue
+
             # Detach any tensors before accumulating to prevent memory leaks
             if torch.is_tensor(v):
                 v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
