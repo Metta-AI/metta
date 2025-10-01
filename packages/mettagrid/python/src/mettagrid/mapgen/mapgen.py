@@ -1,15 +1,10 @@
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import numpy as np
 from pydantic import Field, model_validator
 
+from mettagrid.map_builder import AnyMapBuilderConfig, GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-
-if TYPE_CHECKING:
-    pass
-
-from mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.scene import ChildrenAction, SceneConfig
 from mettagrid.mapgen.scenes.copy_grid import CopyGrid
@@ -50,7 +45,7 @@ class MapGen(MapBuilder):
         # need to set `width` and `height` explicitly.
         # `instance_map` must point to a `MapBuilder` configuration, with the class name specified in `type`, and params
         # specified in `params` dict.
-        instance_map: Optional[AnyMapBuilderConfig] = Field(default=None)
+        instance_map: Optional["AnyMapBuilderConfig"] = Field(default=None)
 
         ########## Multiple instances parameters ##########
 

@@ -1,17 +1,17 @@
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.util.constants import METTA_AWS_ACCOUNT_ID
-from metta.common.wandb.context import WandbConfig
-from metta.setup.components.aws import AWSSetup
-from metta.setup.components.observatory_key import ObservatoryKeySetup
-from metta.setup.components.wandb import WandbSetup
+from metta.setup.components.aws import AWSSetup as _AWSSetup
+
+if TYPE_CHECKING:
+    from metta.common.wandb.context import WandbConfig
 
 
 class SupportedWandbEnvOverrides(BaseSettings):
@@ -46,7 +46,10 @@ def _merge_wandb_settings(*settings_dicts: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def auto_wandb_config(run: str | None = None) -> WandbConfig:
+def auto_wandb_config(run: str | None = None) -> "WandbConfig":
+    from metta.common.wandb.context import WandbConfig
+    from metta.setup.components.wandb import WandbSetup
+
     wandb_setup_module = WandbSetup()
     merged_settings = _merge_wandb_settings(
         WandbConfig.Off().model_dump(),
@@ -86,6 +89,8 @@ supported_observatory_env_overrides = SupportedObservatoryEnvOverrides()
 
 
 def auto_stats_server_uri() -> str | None:
+    from metta.setup.components.observatory_key import ObservatoryKeySetup
+
     return {
         **ObservatoryKeySetup().to_config_settings(),  # type: ignore
         **supported_observatory_env_overrides.to_config_settings(),
@@ -110,6 +115,9 @@ class SupportedAwsEnvOverrides(BaseSettings):
 
 
 supported_aws_env_overrides = SupportedAwsEnvOverrides()
+
+# Expose AWS setup factory at module scope so tests and consumers can override it.
+AWSSetup = _AWSSetup
 
 
 def auto_replay_dir() -> str:
