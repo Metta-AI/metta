@@ -55,14 +55,14 @@ class TestNewPolicySystem:
         """Test EvalTool with policy URIs."""
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
-        eval_tools = EvalTool(
+        eval_tool = EvalTool(
             simulations=[sim_config],
             policy_uris=["mock://test_policy"],
             stats_db_uri=None,
         )
 
-        assert eval_tools.simulations[0].name == "test_arena"
-        assert eval_tools.policy_uris == ["mock://test_policy"]
+        assert eval_tool.simulations[0].name == "test_arena"
+        assert eval_tool.policy_uris == ["mock://test_policy"]
 
     def test_policy_loading_interface(self):
         """Test that policy loading functions work with versioned URIs."""

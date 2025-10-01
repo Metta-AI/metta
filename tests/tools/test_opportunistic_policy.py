@@ -152,10 +152,10 @@ class TestBasicPolicyEnvironment:
         env_config = eb.make_arena(num_agents=4)
         sim_config = SimulationConfig(suite="test", name="test_arena", env=env_config)
 
-        eval_tools = EvalTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
+        eval_tool = EvalTool(simulations=[sim_config], policy_uris=["mock://test_policy"], stats_db_uri=None)
 
-        assert eval_tools.simulations[0].name == "test_arena"
-        assert eval_tools.policy_uris == ["mock://test_policy"]
+        assert eval_tool.simulations[0].name == "test_arena"
+        assert eval_tool.policy_uris == ["mock://test_policy"]
 
     def test_play_and_replay_tools_share_run_configuration(self):
         """Ensure basic tool wiring stays aligned with SimulationConfig usage."""
