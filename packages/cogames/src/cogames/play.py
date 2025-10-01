@@ -2,15 +2,16 @@
 
 import json
 import logging
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import torch
 from rich.console import Console
 
+from cogames import serialization
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
-from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger("cogames.play")
 
@@ -51,22 +52,18 @@ def play(
     env = MettaGridEnv(env_cfg=env_cfg)
     obs, _ = env.reset(seed=seed)
 
-    # Load and create policy
-    policy_class = load_symbol(policy_class_path)
+    # Load and create policy via shared serialization helpers
     device = torch.device("cpu")
+    weights_path = Path(policy_data_path) if policy_data_path else None
+    artifact = serialization.PolicyArtifact(policy_class=policy_class_path, weights_path=weights_path)
+    policy_instance = serialization.load_policy(artifact, env, device)
 
     # Check if this is a TrainablePolicy or a simple Policy
     from cogames.policy import Policy, TrainablePolicy
 
-    # Instantiate the policy
-    policy_instance = policy_class(env, device)
-
     # Create per-agent policies
     agent_policies = []
     if isinstance(policy_instance, TrainablePolicy):
-        # Load checkpoint if provided
-        if policy_data_path:
-            policy_instance.load_policy_data(policy_data_path)
         # Create per-agent policies from the trainable policy
         for agent_id in range(env.num_agents):
             agent_policies.append(policy_instance.agent_policy(agent_id))
