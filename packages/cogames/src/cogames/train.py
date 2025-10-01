@@ -6,9 +6,7 @@ import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-import numpy as np
-
-from cogames.env import HierarchicalActionMettaGridEnv
+from cogames.env import make_hierarchical_env
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig
 from mettagrid.util.module import load_symbol
@@ -39,24 +37,8 @@ def train(
     from pufferlib.pufferlib import set_buffers
 
 
-    reward_scale = 0.01
-
-    class RewardScalingHierarchicalEnv(HierarchicalActionMettaGridEnv):
-        def __init__(self, env_cfg: MettaGridConfig, scale: float, *, buf: Optional[Any] = None) -> None:
-            super().__init__(env_cfg=env_cfg, render_mode=None, buf=buf)
-            self._reward_scale = scale
-
-        def step(self, actions: np.ndarray):  # type: ignore[override]
-            obs, rewards, terminated, truncated, info = super().step(actions)
-            scaled_rewards = np.asarray(rewards, dtype=np.float32) * self._reward_scale
-            scaled_rewards = np.clip(scaled_rewards, -1.0, 1.0, out=scaled_rewards)
-            self.rewards = scaled_rewards
-            if isinstance(info, dict):
-                info = {**info, "reward_scale": self._reward_scale}
-            return obs, scaled_rewards, terminated, truncated, info
-
     def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
-        env = RewardScalingHierarchicalEnv(env_cfg=cfg, scale=reward_scale, buf=buf)
+        env = make_hierarchical_env(cfg, buf=buf)
         set_buffers(env, buf)
         return env
 
@@ -139,13 +121,13 @@ def train(
 
     # Use RNN-specific hyperparameters if needed
     if use_rnn:
-        learning_rate = 5e-5  # Conservative LR for recurrent policies
-        bptt_horizon = 1  # Use bptt=1 for now (TODO: fix bptt>1 observation reshaping)
-        optimizer = "adam"  # Adam is more stable for RNNs than Muon
-        adam_eps = 1e-8  # Standard eps value, not too small
-        logger.info("Using RNN-specific hyperparameters: lr=5e-5, bptt=1, optimizer=adam")
+        learning_rate = 1.5e-4  # Align with default PuffeRL configs
+        bptt_horizon = 1  # TODO: revisit once observation reshaping supports >1
+        optimizer = "adam"
+        adam_eps = 1e-8
+        logger.info("Using RNN hyperparameters: lr=1.5e-4, bptt=1, optimizer=adam")
     else:
-        learning_rate = 5e-5
+        learning_rate = 1.5e-4
         bptt_horizon = 1
         optimizer = "muon"
         adam_eps = 1e-12
@@ -208,14 +190,14 @@ def train(
         anneal_lr=True,
         precision="float32",
         learning_rate=learning_rate,
-        gamma=0.995,
-        gae_lambda=0.90,
+        gamma=0.998,
+        gae_lambda=0.95,
         update_epochs=1,
-        clip_coef=0.2,
-        vf_coef=0.25,
-        vf_clip_coef=0.05,
-        max_grad_norm=1.5,
-        ent_coef=0.001,
+        clip_coef=0.1,
+        vf_coef=0.5,
+        vf_clip_coef=0.1,
+        max_grad_norm=0.5,
+        ent_coef=0.01,
         adam_beta1=0.95,
         adam_beta2=0.999,
         adam_eps=adam_eps,
