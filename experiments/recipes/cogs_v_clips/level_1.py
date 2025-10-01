@@ -483,8 +483,8 @@ def train(
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(
             simulations=make_eval_suite(),
-            evaluate_remote=True,
-            evaluate_local=False,
+            evaluate_remote=False,
+            evaluate_local=True,
         ),
         stats_server_uri="https://api.observatory.softmax-research.net",
     )
@@ -549,7 +549,7 @@ def experiment():
                 [
                     "./devops/skypilot/launch.py",
                     "experiments.recipes.cogs_v_clips.level_1.train",
-                    f"run=cogs_v_clips.level_1.with_base_{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
+                    f"run=cogs_v_clips.level_1.with_base_{curriculum_style}_{architecture}.eval_local.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",
