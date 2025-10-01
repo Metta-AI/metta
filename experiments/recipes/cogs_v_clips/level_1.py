@@ -49,6 +49,7 @@ from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid.mapgen.mapgen import MapGen
+from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
 
 # ADDING TERRAIN
 
@@ -73,6 +74,8 @@ curriculum_args = {
         "chest_positions": [["N"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [False],
+        "use_terrain": [True, False],
+        "sizes": ["small", "medium"],
     },
     "multi_agent_pairs": {
         "num_cogs": [2, 4, 6, 8, 12],
@@ -87,6 +90,8 @@ curriculum_args = {
         "chest_positions": [["N", "S"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
+        "use_terrain": [True, False],
+        "sizes": ["small", "medium"],
     },
     "multi_agent_triplets": {
         "num_cogs": [3, 6, 8, 12, 24],
@@ -102,6 +107,8 @@ curriculum_args = {
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
+        "use_terrain": [True, False],
+        "sizes": ["small", "medium"],
     },
     # "test":
     #     {
@@ -117,6 +124,8 @@ curriculum_args = {
     #     "chest_positions": [["N"]],
     #     "regeneration_rate": [5],
     #     "shareable_energy": [True],
+    #     "use_terrain": [True],
+    #     "sizes": ["small"]
     #     }
 }
 
@@ -128,7 +137,7 @@ curriculum_args = {
 # resource limits should be a function of how many agents and how many assemblers are in the env
 
 evals = {
-    "single_agent": {
+    "single_agent_no_terrain": {
         "num_cogs": 1,
         "assembler_positions": ["Any"],
         "num_chargers": 5,
@@ -141,8 +150,9 @@ evals = {
         "chest_positions": ["N"],
         "regeneration_rate": 10,
         "shareable_energy": False,
+        "use_terrain": False,
     },
-    "two_agent_pairs": {
+    "two_agent_pairs_no_terrain": {
         "num_cogs": 2,
         "assembler_positions": ["Any", "Any"],
         "num_chargers": 5,
@@ -155,8 +165,9 @@ evals = {
         "chest_positions": ["N", "S"],
         "regeneration_rate": 10,
         "shareable_energy": True,
+        "use_terrain": False,
     },
-    "three_agent_triplets": {
+    "three_agent_triplets_no_terrain": {
         "num_cogs": 3,
         "assembler_positions": ["Any", "Any"],
         "num_chargers": 5,
@@ -169,8 +180,9 @@ evals = {
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
+        "use_terrain": False,
     },
-    "many_agent_triplets": {
+    "many_agent_triplets_no_terrain": {
         "num_cogs": 12,
         "assembler_positions": ["Any", "Any"],
         "num_chargers": 5,
@@ -183,6 +195,67 @@ evals = {
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
+        "use_terrain": False,
+    },
+    "single_agent_terrain_small": {
+        "num_cogs": 1,
+        "assembler_positions": ["Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any"],
+        "carbon_extractor_positions": ["Any"],
+        "oxygen_extractor_positions": ["Any"],
+        "germanium_extractor_positions": ["Any"],
+        "silicon_extractor_positions": ["Any"],
+        "num_chests": 5,
+        "chest_positions": ["N"],
+        "regeneration_rate": 10,
+        "shareable_energy": False,
+        "use_terrain": True,
+    },
+    "two_agent_pairs_terrain_small": {
+        "num_cogs": 2,
+        "assembler_positions": ["Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+        "use_terrain": True,
+    },
+    "three_agent_triplets_terrain_small": {
+        "num_cogs": 3,
+        "assembler_positions": ["Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S", "E"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+        "use_terrain": True,
+    },
+    "many_agent_triplets_terrain_small": {
+        "num_cogs": 12,
+        "assembler_positions": ["Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S", "E"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+        "use_terrain": True,
     },
 }
 
@@ -206,6 +279,8 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         chest_positions: list[list[Position]] = Field(default=[["N"]])
         regeneration_rate: list[int] = Field(default=[5])
         shareable_energy: list[bool] = Field(default=[True])
+        use_terrain: list[bool] = Field(default=[False])
+        sizes: list[str] = Field(default=["small"])
 
     def __init__(self, config: "TaskGenerator.Config"):
         super().__init__(config)
@@ -305,11 +380,37 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         if shareable_energy:
             env.game.agent.shareable_resources = ["energy"]
         env.label = f"{env.game.num_agents}_cogs_{num_assemblers}_assemblers_{num_chargers}_chargers_{num_carbon_extractors + num_oxygen_extractors + num_germanium_extractors + num_silicon_extractors}_extractors_{num_chests}_chests_{env.game.inventory_regen_interval}_regeneration_rate"
-        env.game.map_builder = MapGen.Config(
-            instances=num_instances,
-            instance_map=env.game.map_builder,
-            num_agents=24,
-        )
+
+        if self.config.use_terrain:
+            terrain_density = rng.choice(["sparse", "balanced", "dense"])
+            size = rng.choice(self.config.sizes)
+            map_builder = MapGen.Config(
+                instances=num_instances,
+                border_width=6,
+                instance_border_width=3,
+                instance=CogsVClippiesFromNumpy.Config(
+                    agents=num_cogs,
+                    objects={
+                        "assembler": num_assemblers,
+                        "charger": num_chargers,
+                        "carbon_extractor": num_carbon_extractors,
+                        "oxygen_extractor": num_oxygen_extractors,
+                        "germanium_extractor": num_germanium_extractors,
+                        "silicon_extractor": num_silicon_extractors,
+                        "chest": num_chests,
+                    },
+                    remove_altars=True,
+                    dir=f"varied_terrain/{terrain_density}_{size}",
+                    rng=rng,
+                ),
+            )
+            env.game.map_builder = map_builder
+        else:
+            env.game.map_builder = MapGen.Config(
+                instances=num_instances,
+                instance_map=env.game.map_builder,
+                num_agents=24,
+            )
         env.game.num_agents = 24
         return env
 
@@ -327,7 +428,7 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "multi_agent_pairs") -> PlayTool:
+def play(curriculum_style: str = "test") -> PlayTool:
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(**curriculum_args[curriculum_style])
     )
