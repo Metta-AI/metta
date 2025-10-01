@@ -24,7 +24,7 @@ resources, and manufacture as many HEARTs as possible while defending our facili
 
 ### Action Protocol (One Action Per Turn)
 
-**MOVE [Direction: N, S, E, W]**
+**MOVE [Direction: N, S, W, E]**
 
 - Empty space → You relocate to that position
 - Occupied space → You interact with the target:
