@@ -17,7 +17,6 @@ class ViTDefaultConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _embedding_dim = 16
-
     _token_embed_dim = 8
     _fourier_freqs = 3
     _latent_dim = 64
