@@ -38,9 +38,9 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
         "heart.put": heart_reward * 0.5,
         "energy.gained": 0.002,
     }
-    for resource in ("carbon", "oxygen", "germanium", "silicon"):
-        stats_rewards[f"{resource}.gained"] = 0.01
-        stats_rewards[f"{resource}.put"] = 0.0025
+    inventory_max_rewards: dict[str, float] = {
+        resource: 0.01 for resource in ("carbon", "oxygen", "germanium", "silicon")
+    }
 
     return MettaGridConfig(
         game=GameConfig(
@@ -75,6 +75,7 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                 },
                 rewards=AgentRewards(
                     stats={**stats_rewards, "chest.heart.amount": heart_reward},
+                    inventory_max=inventory_max_rewards,
                 ),
                 initial_inventory={
                     "energy": 100,
