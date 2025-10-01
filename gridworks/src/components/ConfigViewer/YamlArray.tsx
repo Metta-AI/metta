@@ -1,7 +1,7 @@
 "use client";
 import { FC } from "react";
 
-import { ConfigNode, extendPath } from "./utils";
+import { ConfigNode } from "./utils";
 import { YamlAny } from "./YamlAny";
 
 export const YamlArray: FC<{
@@ -12,7 +12,7 @@ export const YamlArray: FC<{
   }
 
   if (
-    node.path.includes(".map_data") &&
+    node.path[-1] === "map_data" &&
     node.value.every((v) => typeof v === "string" && v.length === 1)
   ) {
     // special case for readability - string[]
@@ -27,7 +27,7 @@ export const YamlArray: FC<{
           <YamlAny
             node={{
               value: v,
-              path: extendPath(node.path, String(i)),
+              path: [...node.path, String(i)],
               depth: node.depth + 1,
             }}
           />

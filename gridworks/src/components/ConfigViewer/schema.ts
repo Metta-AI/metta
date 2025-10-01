@@ -1,6 +1,7 @@
 import z from "zod/v4";
 
 import mettaSchema from "../../lib/schemas.json" assert { type: "json" };
+import { ConfigNode } from "./utils";
 
 const commonJsonMetaSchema = {
   title: z.string().optional(),
@@ -168,15 +169,17 @@ function parseKind(kind: string): JsonSchema {
   return { $ref: "#/$defs/" + kind };
 }
 
-export function getSchema(path: string, kind: string): JsonSchema | undefined {
+export function getSchema(
+  node: ConfigNode,
+  kind: string
+): JsonSchema | undefined {
   const initialType = resolveType(parseKind(kind));
   if (!initialType) {
     return undefined;
   }
   let currentType: JsonSchema = initialType;
 
-  const parts = path.split(".");
-  for (const part of parts) {
+  for (const part of node.path) {
     let nextType: JsonSchema | undefined;
 
     if (!("type" in currentType)) {

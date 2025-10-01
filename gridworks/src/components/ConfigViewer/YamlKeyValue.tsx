@@ -2,14 +2,7 @@
 import clsx from "clsx";
 import { FC, use } from "react";
 
-import { getSchema, JsonSchema } from "./schema";
-import {
-  ConfigNode,
-  extendPath,
-  isArrayNode,
-  isObjectNode,
-  isScalarNode,
-} from "./utils";
+import { ConfigNode, isArrayNode, isObjectNode, isScalarNode } from "./utils";
 import { YamlAny } from "./YamlAny";
 import { YamlContext } from "./YamlContext";
 import { YamlKey } from "./YamlKey";
@@ -20,18 +13,19 @@ export const YamlKeyValue: FC<{
   yamlKey: string;
 }> = ({ yamlKey, node }) => {
   const value = node.value[yamlKey];
-  const fullKey = extendPath(node.path, yamlKey);
 
   const { kind } = use(YamlContext);
 
-  const schema: JsonSchema | undefined = kind
-    ? getSchema(fullKey, kind)
-    : undefined;
+  const valueNode: ConfigNode = {
+    value,
+    path: [...node.path, yamlKey],
+    depth: node.depth + 1,
+  };
 
-  const valueNode: ConfigNode = { value, path: fullKey, depth: node.depth + 1 };
+  const fullKey = valueNode.path.join(".");
 
   if (isScalarNode(valueNode)) {
-    const { isSelected, onSelectLine, unsetFields } = use(YamlContext);
+    const { isSelected, onSelectLine } = use(YamlContext);
 
     const isActive = isSelected?.(fullKey, String(value));
 
@@ -48,11 +42,7 @@ export const YamlKeyValue: FC<{
         )}
         onClick={onClick}
       >
-        <YamlKey
-          name={yamlKey}
-          disabled={unsetFields.has(fullKey)}
-          schema={schema}
-        />
+        <YamlKey node={valueNode} />
         <YamlScalar node={valueNode} />
       </div>
     );
@@ -64,7 +54,7 @@ export const YamlKeyValue: FC<{
 
   return (
     <div className={clsx(singleLine && "flex gap-1")}>
-      <YamlKey name={yamlKey} schema={schema} />
+      <YamlKey node={valueNode} />
       <div className={clsx(!singleLine && "ml-[2ch]")}>
         <YamlAny node={valueNode} />
       </div>
