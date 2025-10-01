@@ -287,10 +287,19 @@ def train_cmd(
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
 
-@app.command()
+@app.command(no_args_is_help=True)
 def evaluate(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
-    policy: Optional[str] = typer.Argument(None, help="Path to policy checkpoint or 'random' for random policy"),
+    policy_class_path: str = typer.Option(  # noqa: B008
+        "cogames.policy.random.RandomPolicy",
+        "--policy",
+        help="Policy shorthand or full class path",
+    ),
+    policy_data_path: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--policy-data",
+        help="Path to policy checkpoint (file or directory)",
+    ),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes"),
 ) -> None:
     """Evaluate a policy on a game."""
@@ -298,14 +307,14 @@ def evaluate(
     from collections import defaultdict
     from copy import deepcopy
     from pathlib import Path
-    from typing import Dict, List, Tuple
+    from typing import Dict, List
 
     import numpy as np
     import torch
     from rich.table import Table
 
     from cogames import game, utils
-    from cogames.policy import Policy, TrainablePolicy
+    from cogames.policy import AgentPolicy, Policy, TrainablePolicy
     from mettagrid import MettaGridEnv
     from mettagrid.util.module import load_symbol
 
@@ -313,12 +322,11 @@ def evaluate(
         console.print("[red]Number of episodes must be greater than zero.[/red]")
         raise typer.Exit(1)
 
-    # If no game specified, list available games similar to other commands
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
         table = game.list_games(console)
         console.print(table)
-        console.print("\n[dim]Usage: cogames evaluate <game> [policy][/dim]")
+        console.print("\n[dim]Usage: cogames evaluate <game> [--policy ...][/dim]")
         return
 
     resolved_game, error = utils.resolve_game(game_name)
@@ -330,7 +338,7 @@ def evaluate(
     env_cfg = game.get_game(resolved_game)
     env = MettaGridEnv(env_cfg=env_cfg)
 
-    policy_spec = (policy or "random").strip()
+    resolved_policy_path = resolve_policy_class_path(policy_class_path)
     device = torch.device("cpu")
 
     def _select_checkpoint(path: Path) -> Path:
@@ -341,86 +349,43 @@ def evaluate(
             raise ValueError(f"No checkpoint files (*.pt) found in directory: {path}")
         return candidate_files[-1]
 
-    def _instantiate_policy(class_path: str) -> Policy:
-        policy_class = load_symbol(class_path)
-        return policy_class(env, device)
+    policy_class = load_symbol(resolved_policy_path)
+    try:
+        policy_instance: Policy = policy_class(env, device)
+    except Exception as exc:
+        console.print(f"[red]Failed to instantiate policy class '{resolved_policy_path}' for evaluation: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
-    checkpoint_path: Optional[Path] = None
-    policy_instance: Optional[Policy] = None
-    resolved_policy_path: Optional[str] = None
-    load_attempt_errors: List[Tuple[str, Exception]] = []
-
-    candidate = Path(policy_spec)
-
-    def _looks_like_path(spec: str, path: Path) -> bool:
-        if path.exists():
-            return path.is_file() or path.is_dir()
-        if spec.startswith(".") or spec.startswith("~"):
-            return True
-        if any(separator in spec for separator in ("/", "\\")):
-            return True
-        lowered = spec.lower()
-        return lowered.endswith(".pt") or lowered.endswith(".pth")
-
-    if _looks_like_path(policy_spec, candidate) and candidate.exists():
-        try:
-            checkpoint_path = _select_checkpoint(candidate)
-        except ValueError as exc:  # pragma: no cover - defensive
-            console.print(f"[red]{exc}[/red]")
-            raise typer.Exit(1) from exc
-
-        candidate_classes: List[str] = []
-        for shorthand in ("simple", "lstm", policy_spec):
-            class_path = resolve_policy_class_path(shorthand)
-            if class_path not in candidate_classes:
-                candidate_classes.append(class_path)
-
-        for class_path in candidate_classes:
+    checkpoint_path: Optional[Path] = policy_data_path
+    if checkpoint_path is not None:
+        if checkpoint_path.is_dir():
             try:
-                instance = _instantiate_policy(class_path)
-                if not isinstance(instance, TrainablePolicy):
-                    raise ValueError(f"Policy class {class_path} does not support loading checkpoints")
-                instance.load_policy_data(str(checkpoint_path))
-                policy_instance = instance
-                resolved_policy_path = class_path
-                break
-            except Exception as exc:  # pragma: no cover - error path
-                load_attempt_errors.append((class_path, exc))
-                continue
-
-        if policy_instance is None:
-            console.print("[red]Failed to load policy checkpoint for evaluation.[/red]")
-            console.print(f"Checkpoint: {checkpoint_path}")
-            if load_attempt_errors:
-                console.print("Attempted classes:")
-                for class_path, exc in load_attempt_errors:
-                    console.print(f"  [dim]{class_path}: {exc}[/dim]")
-            raise typer.Exit(1)
-    else:
-        resolved_policy_path = resolve_policy_class_path(policy_spec)
-        try:
-            policy_instance = _instantiate_policy(resolved_policy_path)
-        except Exception as exc:
+                checkpoint_path = _select_checkpoint(checkpoint_path)
+            except ValueError as exc:  # pragma: no cover - defensive
+                console.print(f"[red]{exc}[/red]")
+                raise typer.Exit(1) from exc
+        if not isinstance(policy_instance, TrainablePolicy):
             console.print(
-                f"[red]Failed to instantiate policy class '{resolved_policy_path}' for evaluation: {exc}[/red]"
+                "[red]Policy data provided, but the selected policy does not support loading checkpoints.[/red]"
             )
+            raise typer.Exit(1)
+        try:
+            policy_instance.load_policy_data(str(checkpoint_path))
+        except Exception as exc:
+            console.print(f"[red]Failed to load policy data from {checkpoint_path}: {exc}[/red]")
             raise typer.Exit(1) from exc
-
-    assert policy_instance is not None
-    assert resolved_policy_path is not None
 
     # Prepare per-agent policies
-    agent_policies = []
+    agent_policies: List[AgentPolicy] = []
     if isinstance(policy_instance, TrainablePolicy):
         for agent_id in range(env.num_agents):
             agent_policies.append(policy_instance.agent_policy(agent_id))
     elif isinstance(policy_instance, Policy):
         agent_policies = [policy_instance for _ in range(env.num_agents)]
-    else:  # pragma: no cover - defensive
+    else:
         console.print("[red]Policy must implement the Policy or TrainablePolicy interface.[/red]")
         raise typer.Exit(1)
 
-    # Run evaluation episodes
     per_episode_rewards: List[np.ndarray] = []
     per_episode_stats: List[Dict[str, object]] = []
 
@@ -434,7 +399,6 @@ def evaluate(
 
         while not done.all() and not truncated.all():
             action_list: List[np.ndarray] = []
-
             if isinstance(obs, dict):
                 for agent_id in range(env.num_agents):
                     action = agent_policies[agent_id].step(obs[agent_id])
@@ -450,12 +414,10 @@ def evaluate(
         per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
         per_episode_stats.append(deepcopy(env.get_episode_stats()))
 
-    # Aggregate rewards
     stacked_rewards = np.stack(per_episode_rewards)
     avg_rewards = stacked_rewards.mean(axis=0)
     total_rewards = stacked_rewards.sum(axis=1)
 
-    # Aggregate stats across episodes
     aggregated_game_stats: Dict[str, float] = defaultdict(float)
     aggregated_agent_stats: List[Dict[str, float]] = [defaultdict(float) for _ in range(env.num_agents)]
 
@@ -471,7 +433,6 @@ def evaluate(
             for key, value in agent_stats.items():
                 aggregated_agent_stats[agent_id][key] += float(value)
 
-    # Prepare reward summary table
     summary_table = Table(
         title=f"Evaluation Results for {resolved_game}",
         show_header=True,
@@ -488,12 +449,10 @@ def evaluate(
         summary_table.add_row(*row)
 
     console.print(summary_table)
-
     console.print(
         "Average reward per agent: " + ", ".join(f"Agent {idx}: {reward:.2f}" for idx, reward in enumerate(avg_rewards))
     )
 
-    # Display aggregated stats averaged over episodes for readability
     console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
     game_stats_table = Table(show_header=True, header_style="bold magenta")
     game_stats_table.add_column("Metric")
