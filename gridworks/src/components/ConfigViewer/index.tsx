@@ -23,7 +23,7 @@ export const ConfigViewer: FC<{
       }}
     >
       <div className="overflow-auto rounded border border-gray-200 bg-gray-50 p-4 font-mono text-xs">
-        <YamlAny node={{ value, path: "", depth: 0 }} />
+        <YamlAny node={{ value, path: [], depth: 0 }} />
       </div>
     </YamlContext.Provider>
   );

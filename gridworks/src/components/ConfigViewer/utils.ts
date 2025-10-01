@@ -14,7 +14,7 @@ export function isScalarNode(
 }
 
 export type ConfigNode<T = unknown> = {
-  path: string;
+  path: string[];
   depth: number;
   value: T;
 };
