@@ -99,7 +99,6 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightConfig]):
                     ],
                 ),
             ),
-            *self.config.children,
         ]
 
     def render(self):

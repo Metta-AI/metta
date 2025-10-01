@@ -27,7 +27,6 @@ class RandomObjects(Scene[RandomObjectsConfig]):
                 scene=Random.Config(objects=objects),
                 where="full",
             ),
-            *self.config.children,
         ]
 
     def render(self):
