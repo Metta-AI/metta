@@ -20,13 +20,19 @@ class MapGen(MapBuilder):
     class Config(MapBuilderConfig["MapGen"]):
         ########## Global parameters ##########
 
-        # Default border_width value guarantees that agents don't see beyond the outer walls.
-        # This value usually shouldn't be changed.
-        border_width: int = Field(default=5, ge=0)
+        border_width: int = Field(
+            default=5,
+            ge=0,
+            description="Default value guarantees that agents don't see beyond the outer walls. This value usually "
+            "shouldn't be changed.",
+        )
 
-        # Random seed. If not set, a random seed will be generated.
-        # Seeds for root scene and all its children will be derived from this seed, unless they set their own seeds.
-        seed: int | None = Field(default=None, ge=0)
+        seed: int | None = Field(
+            default=None,
+            ge=0,
+            description="Random seed. If not set, a random seed will be generated. Seeds for root"
+            " scene and all its children will be derived from this seed, unless they set their own seeds.",
+        )
 
         ########## Single instance parameters ##########
 
