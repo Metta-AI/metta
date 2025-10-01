@@ -8,6 +8,7 @@ from tensordict import TensorDict
 from metta.agent.policies.transformer import (
     TransformerBackboneVariant,
     TransformerPolicy,
+    TransformerPolicyConfig,
     gtrxl_policy_config,
     trxl_nvidia_policy_config,
     trxl_policy_config,
@@ -51,6 +52,10 @@ def _build_token_observations(batch_size: int, num_tokens: int) -> TensorDict:
         (gtrxl_policy_config, TransformerBackboneVariant.GTRXL),
         (trxl_policy_config, TransformerBackboneVariant.TRXL),
         (trxl_nvidia_policy_config, TransformerBackboneVariant.TRXL_NVIDIA),
+        (
+            lambda: TransformerPolicyConfig(variant=TransformerBackboneVariant.SLIDING),
+            TransformerBackboneVariant.SLIDING,
+        ),
     ],
 )
 def test_transformer_config_creates_policy(config_factory, variant):

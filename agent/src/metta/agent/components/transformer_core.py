@@ -21,85 +21,111 @@ class TransformerBackboneVariant(str, Enum):
     TRXL_NVIDIA = "trxl_nvidia"
     SLIDING = "sliding"
 
+    def backbone_defaults(self) -> Dict[str, Any]:
+        if self is TransformerBackboneVariant.GTRXL:
+            return {
+                "latent_size": 36,
+                "hidden_size": 36,
+                "num_layers": 3,
+                "n_heads": 4,
+                "d_ff": 128,
+                "max_seq_len": 80,
+                "memory_len": 20,
+                "dropout": 0.05,
+                "attn_dropout": 0.05,
+                "pre_lnorm": True,
+                "same_length": False,
+                "clamp_len": -1,
+                "positional_scale": 0.1,
+                "use_gating": True,
+                "ext_len": 0,
+                "activation_checkpoint": False,
+                "use_flash_checkpoint": False,
+                "allow_tf32": True,
+                "use_fused_layernorm": False,
+            }
+        if self is TransformerBackboneVariant.TRXL:
+            return {
+                "latent_size": 36,
+                "hidden_size": 36,
+                "num_layers": 3,
+                "n_heads": 4,
+                "d_ff": 128,
+                "max_seq_len": 80,
+                "memory_len": 20,
+                "dropout": 0.05,
+                "attn_dropout": 0.05,
+                "pre_lnorm": True,
+                "same_length": False,
+                "clamp_len": -1,
+                "positional_scale": 0.1,
+                "use_gating": False,
+                "ext_len": 0,
+                "activation_checkpoint": False,
+                "use_flash_checkpoint": False,
+                "allow_tf32": True,
+                "use_fused_layernorm": False,
+            }
+        if self is TransformerBackboneVariant.TRXL_NVIDIA:
+            return {
+                "latent_size": 48,
+                "hidden_size": 48,
+                "num_layers": 2,
+                "n_heads": 2,
+                "d_ff": 192,
+                "max_seq_len": 192,
+                "memory_len": 32,
+                "dropout": 0.05,
+                "attn_dropout": 0.0,
+                "pre_lnorm": False,
+                "same_length": False,
+                "clamp_len": -1,
+                "positional_scale": 0.1,
+                "use_gating": False,
+                "ext_len": 0,
+                "activation_checkpoint": False,
+                "use_flash_checkpoint": False,
+                "allow_tf32": True,
+                "use_fused_layernorm": False,
+            }
+        return {
+            "latent_size": 64,
+            "hidden_size": 16,
+            "num_layers": 2,
+            "n_heads": 1,
+            "d_ff": 64,
+            "dropout": 0.0,
+            "attn_dropout": 0.0,
+            "max_cache_size": 80,
+            "pool": "mean",
+            "use_gating": False,
+            "use_fused_layernorm": False,
+        }
 
-_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
-    TransformerBackboneVariant.GTRXL: {
-        "latent_size": 45,
-        "hidden_size": 45,
-        "num_layers": 2,
-        "n_heads": 3,
-        "d_ff": 128,
-        "max_seq_len": 64,
-        "memory_len": 20,
-        "dropout": 0.05,
-        "attn_dropout": 0.05,
-        "pre_lnorm": True,
-        "same_length": False,
-        "clamp_len": -1,
-        "positional_scale": 0.1,
-        "use_gating": True,
-        "ext_len": 0,
-        "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
-    },
-    TransformerBackboneVariant.TRXL: {
-        "latent_size": 45,
-        "hidden_size": 45,
-        "num_layers": 2,
-        "n_heads": 3,
-        "d_ff": 128,
-        "max_seq_len": 64,
-        "memory_len": 20,
-        "dropout": 0.05,
-        "attn_dropout": 0.05,
-        "pre_lnorm": True,
-        "same_length": False,
-        "clamp_len": -1,
-        "positional_scale": 0.1,
-        "use_gating": False,
-        "ext_len": 0,
-        "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
-    },
-    TransformerBackboneVariant.TRXL_NVIDIA: {
-        "latent_size": 48,
-        "hidden_size": 48,
-        "num_layers": 2,
-        "n_heads": 2,
-        "d_ff": 192,
-        "max_seq_len": 192,
-        "memory_len": 32,
-        "dropout": 0.05,
-        "attn_dropout": 0.0,
-        "pre_lnorm": False,
-        "same_length": False,
-        "clamp_len": -1,
-        "positional_scale": 0.1,
-        "use_gating": False,
-        "ext_len": 0,
-        "activation_checkpoint": False,
-        "use_flash_checkpoint": False,
-        "allow_tf32": True,
-        "use_fused_layernorm": False,
-    },
-    TransformerBackboneVariant.SLIDING: {
-        "latent_size": 64,
-        "hidden_size": 16,
-        "num_layers": 2,
-        "n_heads": 1,
-        "d_ff": 64,
-        "dropout": 0.0,
-        "attn_dropout": 0.0,
-        "max_cache_size": 80,
-        "pool": "mean",
-        "use_gating": False,
-        "use_fused_layernorm": False,
-    },
-}
+    def policy_defaults(self) -> Dict[str, Any]:
+        if self is TransformerBackboneVariant.GTRXL:
+            return {
+                "manual_init": False,
+                "strict_attr_indices": False,
+                "learning_rate_hint": 7.5e-4,
+            }
+        if self is TransformerBackboneVariant.TRXL:
+            return {
+                "manual_init": False,
+                "strict_attr_indices": False,
+                "learning_rate_hint": 9.0e-4,
+            }
+        if self is TransformerBackboneVariant.TRXL_NVIDIA:
+            return {
+                "manual_init": True,
+                "strict_attr_indices": True,
+                "learning_rate_hint": 3.0e-4,
+            }
+        return {
+            "manual_init": False,
+            "strict_attr_indices": False,
+            "learning_rate_hint": 7.5e-4,
+        }
 
 
 class TransformerBackboneConfig(ComponentConfig):
@@ -135,7 +161,7 @@ class TransformerBackboneConfig(ComponentConfig):
 
     @model_validator(mode="after")
     def _apply_variant_defaults(self) -> "TransformerBackboneConfig":
-        defaults = _VARIANT_DEFAULTS[self.variant]
+        defaults = self.variant.backbone_defaults()
         for field_name, default_value in defaults.items():
             if getattr(self, field_name) is None:
                 setattr(self, field_name, default_value)

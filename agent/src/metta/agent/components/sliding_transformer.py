@@ -8,6 +8,7 @@ from einops import rearrange
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.components.aux_tokens import prepare_auxiliary_signals
 from metta.agent.components.component_config import ComponentConfig
 
 
@@ -212,11 +213,22 @@ class SlidingTransformer(nn.Module):
 
         x = self.input_proj(x)
 
-        empty_tensor = torch.zeros(B * TT, device=td.device)
-        reward = td.get("reward", empty_tensor)  # scalar
-        last_actions = td.get("last_actions", torch.zeros(B * TT, 2, device=td.device))
-        dones = td.get("dones", empty_tensor)
-        truncateds = td.get("truncateds", empty_tensor)
+        device = x.device
+
+        def zeros_factory(shape: tuple[int, ...], dev: torch.device, dtype: torch.dtype) -> torch.Tensor:
+            return torch.zeros(shape, device=dev, dtype=dtype)
+
+        reward, resets, last_actions = prepare_auxiliary_signals(
+            td,
+            batch_size=B,
+            time_steps=TT,
+            action_dim=self.last_action_proj.in_features,
+            device=device,
+            reward_dtype=self.reward_proj.weight.dtype,
+            action_dtype=self.last_action_proj.weight.dtype,
+            zeros_factory=zeros_factory,
+            reward_keys=("reward", "rewards"),
+        )
 
         # Handle variable observation shapes [B, E] -> [B, 1, E]
         if x.dim() == 2 + (TT > 1):
@@ -224,16 +236,16 @@ class SlidingTransformer(nn.Module):
 
         # Reshape all inputs to be [B, TT, Seq, Dims]
         x = rearrange(x, "(b tt) ... d -> b tt (...) d", tt=TT)
-        reward = rearrange(reward, "(b tt) ... -> b tt (...) 1", tt=TT)
-        last_actions = rearrange(last_actions, "(b tt) ... d -> b tt (...) d", tt=TT)
-        resets = torch.logical_or(dones.bool(), truncateds.bool()).float()
-        resets = rearrange(resets, "(b tt) ... -> b tt (...) 1", tt=TT)
+        reward = reward.view(B, TT, -1, 1)
+        resets = resets.view(B, TT, -1, 1)
+        last_actions = last_actions.view(B, TT, -1, self.last_action_proj.in_features)
+        reset_flags = resets.squeeze(-1).squeeze(-1)
 
         # Project inputs to tokens
-        reward_token = self.reward_proj(reward)
-        reset_token = self.dones_truncateds_proj(resets)
-        reward_reset_token = (reward_token + reset_token).view(B, TT, 1, self.output_dim)
-        action_token = self.last_action_proj(last_actions.float()).view(B, TT, 1, self.output_dim)
+        reward_token = self.reward_proj(reward.reshape(B * TT, -1)).view(B, TT, 1, self.output_dim)
+        reset_token = self.dones_truncateds_proj(resets.reshape(B * TT, -1)).view(B, TT, 1, self.output_dim)
+        reward_reset_token = reward_token + reset_token
+        action_token = self.last_action_proj(last_actions.reshape(B * TT, -1)).view(B, TT, 1, self.output_dim)
 
         # Combine all tokens for each timestep
         cls_token = self.cls_token.expand(B, TT, -1, -1)
@@ -300,10 +312,8 @@ class SlidingTransformer(nn.Module):
 
             # 5. Update and reset position counter
             self.position_counter[training_env_ids] += 1
-            resets = torch.logical_or(dones.bool(), truncateds.bool()).squeeze()
-            if resets.dim() > 1:
-                resets = resets.squeeze(-1)
-            self.position_counter[training_env_ids] *= (~resets.bool()).long()
+            reset_step = reset_flags[:, 0].bool()
+            self.position_counter[training_env_ids] *= (~reset_step).long()
 
             return td
 

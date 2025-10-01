@@ -6,7 +6,7 @@ import contextlib
 import logging
 import math
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from einops import rearrange
@@ -24,6 +24,7 @@ from metta.agent.components.actor import (
     ActorQuery,
     ActorQueryConfig,
 )
+from metta.agent.components.aux_tokens import prepare_auxiliary_signals
 from metta.agent.components.heads import LinearHead, LinearHeadConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatent, ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokens, ObsShimTokensConfig
@@ -45,25 +46,6 @@ def _tensor_stats(tensor: torch.Tensor, name: str) -> str:
         f"std={tensor.float().std().item():.4f}, min={tensor.float().min().item():.4f}, "
         f"max={tensor.float().max().item():.4f})"
     )
-
-
-_POLICY_VARIANT_DEFAULTS: Dict[TransformerBackboneVariant, Dict[str, Any]] = {
-    TransformerBackboneVariant.GTRXL: {
-        "manual_init": False,
-        "strict_attr_indices": False,
-        "learning_rate_hint": 7.5e-4,
-    },
-    TransformerBackboneVariant.TRXL: {
-        "manual_init": False,
-        "strict_attr_indices": False,
-        "learning_rate_hint": 9.0e-4,
-    },
-    TransformerBackboneVariant.TRXL_NVIDIA: {
-        "manual_init": True,
-        "strict_attr_indices": True,
-        "learning_rate_hint": 3.0e-4,
-    },
-}
 
 
 class TransformerPolicyConfig(PolicyArchitecture):
@@ -114,13 +96,17 @@ class TransformerPolicyConfig(PolicyArchitecture):
         overrides["variant"] = self.variant
         self.transformer = TransformerBackboneConfig(**overrides)
 
-        defaults = _POLICY_VARIANT_DEFAULTS[self.variant]
+        defaults = self.variant.policy_defaults()
         if self.manual_init is None:
             self.manual_init = defaults.get("manual_init", False)
         if self.strict_attr_indices is None:
             self.strict_attr_indices = defaults.get("strict_attr_indices", False)
         if self.learning_rate_hint is None:
             self.learning_rate_hint = defaults.get("learning_rate_hint")
+
+        if self.variant is TransformerBackboneVariant.SLIDING:
+            self.obs_encoder.num_heads = max(1, self.transformer.n_heads or 1)
+            self.obs_encoder.latent_dim = self.transformer.latent_size or self.obs_encoder.latent_dim
 
         return self
 
@@ -143,6 +129,7 @@ class TransformerPolicy(Policy):
         self.transformer_cfg = self.config.transformer
         self.latent_size = self.transformer_cfg.latent_size
         self.hidden_size = self.transformer_cfg.hidden_size
+        self._uses_sliding_backbone = self.transformer_cfg.variant is TransformerBackboneVariant.SLIDING
         self.strict_attr_indices = getattr(self.config, "strict_attr_indices", False)
         self.use_aux_tokens = getattr(self.config, "use_aux_tokens", False)
         self.num_layers = max(env.feature_normalizations.keys()) + 1
@@ -189,7 +176,7 @@ class TransformerPolicy(Policy):
             self.input_projection = nn.Identity()
 
         self.action_dim = self._infer_action_dim()
-        if self.use_aux_tokens:
+        if self.use_aux_tokens and not self._uses_sliding_backbone:
             self.reward_proj = nn.Linear(1, self.hidden_size)
             self.reset_proj = nn.Linear(1, self.hidden_size)
             self.last_action_proj = nn.Linear(self.action_dim, self.hidden_size)
@@ -301,54 +288,22 @@ class TransformerPolicy(Policy):
     def _build_aux_tokens(self, td: TensorDict, batch_size: int, tt: int, device: torch.device) -> torch.Tensor | None:
         if not self.use_aux_tokens:
             return None
+        if self._uses_sliding_backbone:
+            return None
 
-        total = batch_size * tt
         proj_dtype = self.reward_proj.weight.dtype
         action_dtype = self.last_action_proj.weight.dtype
 
-        reward = td.get("rewards", None)
-        if reward is None:
-            reward = self._get_zero_buffer((total, 1), device, proj_dtype)
-        else:
-            reward = reward.view(total, -1).to(device=device, dtype=proj_dtype)
-            if reward.size(1) != 1:
-                reward = reward[:, :1]
-
-        dones = td.get("dones", None)
-        truncateds = td.get("truncateds", None)
-        if dones is None and truncateds is None:
-            resets = self._get_zero_buffer((total, 1), device, proj_dtype)
-        else:
-            if dones is None:
-                dones = torch.zeros_like(truncateds)
-            if truncateds is None:
-                truncateds = torch.zeros_like(dones)
-            resets = torch.logical_or(dones.bool(), truncateds.bool()).view(total, -1)
-            resets = resets.to(device=device, dtype=proj_dtype)
-            if resets.size(1) != 1:
-                resets = resets[:, :1]
-
-        last_actions = td.get("last_actions", None)
-        if last_actions is not None:
-            last_actions = last_actions.view(total, -1).to(device=device, dtype=action_dtype)
-        else:
-            actions = td.get("actions", None)
-            if actions is not None:
-                actions = actions.view(batch_size, tt, -1).to(device=device, dtype=action_dtype)
-                prev_actions = self._get_zero_buffer((batch_size, tt, actions.size(-1)), device, action_dtype)
-                if tt > 1:
-                    prev_actions[:, 1:] = actions[:, :-1]
-                last_actions = prev_actions.view(total, -1)
-            else:
-                last_actions = self._get_zero_buffer((total, self.action_dim), device, action_dtype)
-
-        if last_actions.size(1) != self.action_dim:
-            action_dim = last_actions.size(1)
-            if action_dim > self.action_dim:
-                last_actions = last_actions[:, : self.action_dim]
-            else:
-                pad = self._get_zero_buffer((total, self.action_dim - action_dim), device, action_dtype)
-                last_actions = torch.cat([last_actions, pad], dim=1)
+        reward, resets, last_actions = prepare_auxiliary_signals(
+            td,
+            batch_size=batch_size,
+            time_steps=tt,
+            action_dim=self.action_dim,
+            device=device,
+            reward_dtype=proj_dtype,
+            action_dtype=action_dtype,
+            zeros_factory=self._get_zero_buffer,
+        )
 
         aux = self.reward_proj(reward)
         aux.add_(self.reset_proj(resets))
@@ -471,27 +426,28 @@ class TransformerPolicy(Policy):
 
             encoded_key = self.config.obs_encoder.out_key
             latent = td[encoded_key]
-            latent = self.input_projection(latent)
-            aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
-            if aux_tokens is not None:
-                latent = latent + aux_tokens
+            if not self._uses_sliding_backbone:
+                latent = self.input_projection(latent)
+        aux_tokens = self._build_aux_tokens(td, batch_size, tt, latent.device)
+        if aux_tokens is not None and not self._uses_sliding_backbone:
+            latent = latent + aux_tokens
 
             if self._diag_enabled and self._diag_counter < self._diag_limit:
                 logger.info("[TRANSFORMER_DIAG] %s", _tensor_stats(latent, "latent"))
 
-            core = self._forward_transformer(td, latent, batch_size, tt)
-            td["core"] = core
+        core = self._forward_transformer(td, latent, batch_size, tt)
+        td["core"] = core
 
-            self.actor_head(td)
-            self.critic_head(td)
-            self.value_head(td)
-            td["values"] = td["values"].flatten()
+        self.actor_head(td)
+        self.critic_head(td)
+        self.value_head(td)
+        td["values"] = td["values"].flatten()
 
-            self.action_embeddings(td)
-            self.actor_query(td)
-            self.actor_key(td)
+        self.action_embeddings(td)
+        self.actor_query(td)
+        self.actor_key(td)
 
-            td = self.action_probs(td, action)
+        td = self.action_probs(td, action)
         self._cast_floating_tensors(td)
         if self._diag_enabled and self._diag_counter < self._diag_limit:
             logits = td.get("logits")
@@ -520,6 +476,15 @@ class TransformerPolicy(Policy):
         total_batch = latent.shape[0]
         if total_batch != batch_size * tt:
             raise ValueError("encoded_obs batch dimension must be divisible by bptt")
+
+        if self._uses_sliding_backbone:
+            sliding_td = td.clone()
+            sliding_td.set(self.transformer_cfg.in_key, latent)
+            if "reward" not in sliding_td.keys() and "rewards" in sliding_td.keys():
+                sliding_td.set("reward", sliding_td.get("rewards"))
+            self.transformer_module(sliding_td)
+            core_flat = sliding_td[self.transformer_cfg.out_key]
+            return core_flat
 
         latent_seq = latent.view(batch_size, tt, self.hidden_size).transpose(0, 1)
 
