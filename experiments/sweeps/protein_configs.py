@@ -58,6 +58,7 @@ def make_custom_protein_config(
         settings=base_config.settings,
     )
 
+
 PPO_CORE = ProteinConfig(
     metric="evaluator/eval_arena/score",  # Metric to optimize
     goal="maximize",
