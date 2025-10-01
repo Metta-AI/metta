@@ -6,8 +6,9 @@ import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+from cogames.env import HierarchicalActionMettaGridEnv
 from cogames.policy import TrainablePolicy
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid import MettaGridConfig
 from mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
@@ -38,7 +39,7 @@ def train(
     from pufferlib.pufferlib import set_buffers
 
     def env_creator(cfg: MettaGridConfig, buf: Optional[Any] = None, seed: Optional[int] = None):
-        env = MettaGridEnv(env_cfg=cfg)
+        env = HierarchicalActionMettaGridEnv(env_cfg=cfg)
         set_buffers(env, buf)
         return env
 
