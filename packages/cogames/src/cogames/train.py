@@ -195,7 +195,7 @@ def train(
         update_epochs=1,
         clip_coef=0.2,
         vf_coef=2.0,
-        vf_clip_coef=0.2,
+        vf_clip_coef=0.05,
         max_grad_norm=1.5,
         ent_coef=0.001,
         adam_beta1=0.95,
