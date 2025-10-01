@@ -749,20 +749,27 @@ class TransformerPolicy(Policy):
         env_tensor = env_tensor.detach()
         for env_offset, env_id in enumerate(env_ids):
             slice_tensor = env_tensor[env_offset]  # [layers, mem_len, hidden]
-            if slice_tensor.size(1) > self.memory_len:
-                slice_tensor = slice_tensor[:, -self.memory_len :, :]
-            elif slice_tensor.size(1) < self.memory_len:
-                missing = self.memory_len - slice_tensor.size(1)
-                if missing > 0:
-                    pad = torch.zeros(
-                        slice_tensor.size(0),
-                        missing,
-                        slice_tensor.size(2),
-                        device=slice_tensor.device,
-                        dtype=slice_tensor.dtype,
-                    )
-                    slice_tensor = torch.cat((pad, slice_tensor), dim=1)
-            self._memory_cache[env_id] = slice_tensor.contiguous()
+            cache_tensor = self._memory_cache.get(env_id)
+
+            if (
+                cache_tensor is None
+                or cache_tensor.shape != (self.transformer_layers, self.memory_len, self.hidden_size)
+                or cache_tensor.device != slice_tensor.device
+                or cache_tensor.dtype != slice_tensor.dtype
+            ):
+                cache_tensor = torch.zeros(
+                    self.transformer_layers,
+                    self.memory_len,
+                    self.hidden_size,
+                    device=slice_tensor.device,
+                    dtype=slice_tensor.dtype,
+                )
+                self._memory_cache[env_id] = cache_tensor
+
+            cache_tensor.zero_()
+            mem_len = min(slice_tensor.size(1), self.memory_len)
+            if mem_len > 0:
+                cache_tensor[:, -mem_len:, :].copy_(slice_tensor[:, -mem_len:, :])
 
     def _get_env_start(self, td: TensorDict) -> int:
         training_env_ids = td.get("training_env_ids", None)
