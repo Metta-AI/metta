@@ -432,7 +432,7 @@ def train_cmd(
     policy_class_path: Annotated[
         str,
         typer.Option("--policy", help="Path to policy class"),
-    ] = "cogames.policy.simple.SimplePolicy",
+    ] = "cogames.policy.lstm.LSTMPolicy",
     initial_weights_path: Annotated[
         Optional[Path],
         typer.Option(
