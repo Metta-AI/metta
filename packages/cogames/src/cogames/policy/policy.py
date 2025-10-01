@@ -25,7 +25,8 @@ class AgentPolicy:
 
     def reset(self) -> None:
         """Reset any per-agent state (no-op by default)."""
-        pass  # Default: no-op for stateless policies
+        # Default: no-op for stateless policies
+        return None
 
 
 class Policy:

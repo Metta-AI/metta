@@ -4,17 +4,15 @@ from mettagrid.test_support.mapgen import render_scene
 
 def test_basic():
     scene = render_scene(
-        ConvChain.factory(
-            ConvChain.Params(
-                pattern="""
-                    ##..#
-                    #....
-                    #####
-                """,
-                pattern_size=3,
-                iterations=10,
-                temperature=1,
-            )
+        ConvChain.Config(
+            pattern="""
+                ##..#
+                #....
+                #####
+            """,
+            pattern_size=3,
+            iterations=10,
+            temperature=1,
         ),
         (20, 20),
     )

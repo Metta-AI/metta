@@ -31,7 +31,6 @@ from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.util.char_encoder import grid_object_to_char
 
-
 _RANDOM_MAP_CACHE: Dict[Tuple[int, int, int, Tuple[Tuple[str, int], ...]], Deque[AsciiMapBuilder.Config]] = {}
 _NUM_PREGENERATED_RANDOM_MAPS = 8
 _MAX_BIOME_DIMENSION = 100
@@ -81,7 +80,7 @@ def _crop_ascii_map(map_data: List[List[str]], max_dim: int) -> List[List[str]]:
     crop_w = min(max_dim, width)
     top = max(0, (height - crop_h) // 2)
     left = max(0, (width - crop_w) // 2)
-    cropped = [row[left:left + crop_w] for row in map_data[top:top + crop_h]]
+    cropped = [row[left : left + crop_w] for row in map_data[top : top + crop_h]]
     return cropped
 
 
@@ -142,10 +141,8 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                     "energy": 100,
                 },
                 rewards=AgentRewards(
-                    inventory={
-                        "heart": heart_reward,
-                    },
-                    stats=stats_rewards,
+                    inventory={"heart": heart_reward},
+                    stats={**stats_rewards, "chest.heart.amount": heart_reward},
                 ),
                 initial_inventory={
                     "energy": 100,
@@ -156,7 +153,7 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
 
 
 def make_game(
-    num_cogs: int = 96,
+    num_cogs: int = 4,
     width: int = 10,
     height: int = 10,
     num_assemblers: int = 1,
@@ -190,7 +187,15 @@ def tutorial_assembler_simple(num_cogs: int = 1) -> MettaGridConfig:
 
 
 def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
-    cfg = make_game(num_cogs=num_cogs, num_assemblers=1)
+    cfg = make_game(
+        num_cogs=num_cogs,
+        num_assemblers=1,
+        num_chests=1,
+        num_carbon_extractors=1,
+        num_oxygen_extractors=1,
+        num_germanium_extractors=1,
+        num_silicon_extractors=1,
+    )
     cfg.game.objects["assembler"] = assembler()
     cfg.game.objects["assembler"].recipes = [
         (["Any"], RecipeConfig(input_resources={"battery_red": 3}, output_resources={"heart": 1}, cooldown=10))
@@ -198,7 +203,7 @@ def tutorial_assembler_complex(num_cogs: int = 1) -> MettaGridConfig:
     return cfg
 
 
-def make_game_from_map(map_name: str, num_agents: int = 96) -> MettaGridConfig:
+def make_game_from_map(map_name: str, num_agents: int = 4) -> MettaGridConfig:
     """Create a game configuration from a map file."""
     maps_dir = Path(__file__).parent.parent / "maps"
     map_path = maps_dir / map_name

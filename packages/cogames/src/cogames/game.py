@@ -32,7 +32,7 @@ def _map_builder_dimensions(map_builder: Any) -> Tuple[int, int]:
 
     # Fallback: attempt to create a builder from a deep copy to avoid mutating originals
     cfg = map_builder
-    copy_method = getattr(map_builder, 'model_copy', None)
+    copy_method = getattr(map_builder, "model_copy", None)
     if callable(copy_method):
         cfg = copy_method(deep=True)
 
@@ -42,11 +42,11 @@ def _map_builder_dimensions(map_builder: Any) -> Tuple[int, int]:
     except Exception:
         return 0, 0
 
-    grid = getattr(game_map, 'grid', None)
+    grid = getattr(game_map, "grid", None)
     if grid is None:
         return 0, 0
 
-    shape = getattr(grid, 'shape', None)
+    shape = getattr(grid, "shape", None)
     if isinstance(shape, tuple) and len(shape) >= 2:
         return int(shape[1]), int(shape[0])
 
@@ -58,7 +58,6 @@ def _map_builder_dimensions(map_builder: Any) -> Tuple[int, int]:
             return len(first), len(grid)
 
     return 0, 0
-
 
 
 def get_all_games() -> Dict[str, MettaGridConfig]:
@@ -218,7 +217,7 @@ def list_games(console: Console) -> Table:
     for game_name, game_config in all_games.items():
         num_agents = game_config.game.num_agents
         width, height = _map_builder_dimensions(game_config.game.map_builder)
-        map_size = f"{width}x{height}" if width and height else "unknown"
+        map_size = f"{width}x{height}" if width and height else "N/A"
 
         table.add_row(game_name, str(num_agents), map_size)
 

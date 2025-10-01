@@ -33,7 +33,6 @@
 #include "objects/production_handler.hpp"
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
-#include "renderer/hermes.hpp"
 #include "systems/clipper.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/packed_coordinate.hpp"
@@ -77,8 +76,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
 
   _event_manager = std::make_unique<EventManager>();
-  _stats = std::make_unique<StatsTracker>();
-  _stats->set_resource_names(&resource_names);
+  _stats = std::make_unique<StatsTracker>(&resource_names);
 
   _event_manager->init(_grid.get());
   _event_manager->event_handlers.insert(
@@ -187,13 +185,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config);
+        Agent* agent = new Agent(r, c, *agent_config, &resource_names);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
-        agent->stats.set_resource_names(&resource_names);
         // Only initialize visitation grid if visitation counts are enabled
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
@@ -221,7 +218,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const ChestConfig* chest_config = dynamic_cast<const ChestConfig*>(object_cfg);
       if (chest_config) {
-        Chest* chest = new Chest(r, c, *chest_config);
+        Chest* chest = new Chest(r, c, *chest_config, _stats.get());
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());

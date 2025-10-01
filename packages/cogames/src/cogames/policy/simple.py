@@ -74,10 +74,6 @@ class SimpleAgentPolicyImpl(AgentPolicy):
 
             return np.array(actions, dtype=np.int32)
 
-    def reset(self) -> None:
-        """No state to reset for feedforward policy."""
-        pass
-
 
 class SimplePolicy(TrainablePolicy):
     """Simple feedforward policy."""

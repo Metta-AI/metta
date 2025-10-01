@@ -9,12 +9,11 @@ import numpy as np
 import torch
 from rich.console import Console
 
-import mettagrid.mettascope as mettascope_module
+import mettagrid.mettascope as mettascope
 from cogames import serialization
+from cogames.env import make_hierarchical_env
 from mettagrid import MettaGridConfig
 from mettagrid.util.grid_object_formatter import format_grid_object
-
-from cogames.env import make_hierarchical_env
 
 logger = logging.getLogger("cogames.play")
 
@@ -47,28 +46,26 @@ def play(
 
     # Load and create policy via shared serialization helpers
     device = torch.device("cpu")
-    weights_path = Path(policy_data_path) if policy_data_path else None
-    artifact = serialization.PolicyArtifact(policy_class=policy_class_path, weights_path=weights_path)
-    policy_instance = serialization.load_policy(artifact, env, device)
+    policy_path = Path(policy_data_path) if policy_data_path else None
+    if policy_path and policy_path.is_dir():
+        policy_instance = serialization.load_policy_from_bundle(policy_path, env, device)
+    else:
+        artifact = serialization.PolicyArtifact(policy_class=policy_class_path, weights_path=policy_path)
+        policy_instance = serialization.load_policy(artifact, env, device)
 
-    # Check if this is a TrainablePolicy or a simple Policy
-    from cogames.policy import Policy, TrainablePolicy
+    from cogames.policy import AgentPolicy, Policy, TrainablePolicy
 
-    # Create per-agent policies
-    agent_policies = []
-    if isinstance(policy_instance, TrainablePolicy):
-        # Create per-agent policies from the trainable policy
-        for agent_id in range(env.num_agents):
-            agent_policies.append(policy_instance.agent_policy(agent_id))
-    elif isinstance(policy_instance, Policy):
+    agent_policies: list[AgentPolicy] = []
+    if isinstance(policy_instance, (TrainablePolicy, Policy)):
         for agent_id in range(env.num_agents):
             agent_policies.append(policy_instance.agent_policy(agent_id))
     else:
         raise ValueError("Policy class must implement either Policy or TrainablePolicy interface")
 
-    # Reset all agent policies
-    for policy in agent_policies:
-        policy.reset()
+    for agent_policy in agent_policies:
+        reset_method = getattr(agent_policy, "reset", None)
+        if callable(reset_method):
+            reset_method()
 
     # Run episode
     step_count = 0
@@ -89,7 +86,7 @@ def play(
         "objects": [],
     }
 
-    response = mettascope_module.init(replay=json.dumps(initial_replay))
+    response = mettascope.init(replay=json.dumps(initial_replay))
     if response.should_close:
         return
 
@@ -114,7 +111,7 @@ def play(
         for agent_id in range(num_agents):
             hierarchical_actions[agent_id] = agent_policies[agent_id].step(obs[agent_id])
 
-        response = mettascope_module.render(step_count, replay_step)
+        response = mettascope.render(step_count, replay_step)
         if response.should_close:
             break
         if response.action:
