@@ -288,7 +288,6 @@ class ICLTaskGenerator(TaskGenerator):
         cfg: _BuildCfg,
         chest_name: str | None = None,
     ):
-        print(f"Making chest with deposit positions {position}")
         chest = building.make_chest(
             resource_type="heart",
             type_id=26,
