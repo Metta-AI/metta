@@ -28,12 +28,11 @@ def default(ctx: typer.Context) -> None:
         print(ctx.get_help())
 
 
-@app.command("games")
+@app.command("games", help="List all available games or describe a specific game")
 def games_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to describe"),
     save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save game configuration to file (YAML or JSON)"),  # noqa: B008
 ) -> None:
-    """List all available games or describe a specific game."""
     from cogames import game
 
     if game_name is None:
@@ -65,7 +64,7 @@ def games_cmd(
                 raise typer.Exit(1) from e
 
 
-@app.command(name="play")
+@app.command(name="play", help="Play a game")
 def play_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
     policy_class_path: str = typer.Option(
@@ -76,7 +75,6 @@ def play_cmd(
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run"),
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
 ) -> None:
-    """Play a game."""
     from cogames import game, utils
 
     # If no game specified, list games
@@ -114,7 +112,7 @@ def play_cmd(
     )
 
 
-@app.command("make-game")
+@app.command("make-game", help="Create a new game configuration")
 def make_scenario(
     base_game: Optional[str] = typer.Argument(None, help="Base game to use as template"),
     num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents"),
@@ -122,7 +120,6 @@ def make_scenario(
     height: int = typer.Option(10, "--height", "-h", help="Map height"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
-    """Create a new game configuration."""
     from cogames import game, utils
 
     try:
@@ -163,7 +160,7 @@ def make_scenario(
         raise typer.Exit(1) from e
 
 
-@app.command(name="train")
+@app.command(name="train", help="Train a policy on a game")
 def train_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
     policy_class_path: str = typer.Option(
@@ -187,9 +184,6 @@ def train_cmd(
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training"),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
 ) -> None:
-    """Train a policy on a game."""
-    import torch
-
     from cogames import game, utils
     from cogames import train as train_module
 
@@ -210,37 +204,7 @@ def train_cmd(
 
     # Resolve policy shorthand
     full_policy_path = resolve_policy_class_path(policy_class_path)
-
-    def resolve_training_device(requested: str) -> torch.device:
-        normalized = requested.strip().lower()
-
-        def cuda_usable() -> bool:
-            cuda_backend = getattr(torch.backends, "cuda", None)
-            if cuda_backend is None or not cuda_backend.is_built():
-                return False
-            if not hasattr(torch._C, "_cuda_getDeviceCount"):
-                return False
-            return torch.cuda.is_available()
-
-        if normalized == "auto":
-            if cuda_usable():
-                return torch.device("cuda")
-            console.print("[yellow]CUDA not available; falling back to CPU for training.[/yellow]")
-            return torch.device("cpu")
-
-        try:
-            candidate = torch.device(requested)
-        except (RuntimeError, ValueError):
-            console.print(f"[yellow]Warning: Unknown device '{requested}'. Falling back to CPU.[/yellow]")
-            return torch.device("cpu")
-
-        if candidate.type == "cuda" and not cuda_usable():
-            console.print("[yellow]CUDA requested but unavailable. Training will run on CPU instead.[/yellow]")
-            return torch.device("cpu")
-
-        return candidate
-
-    torch_device = resolve_training_device(device)
+    torch_device = utils.resolve_training_device(console, device)
 
     try:
         train_module.train(
@@ -263,27 +227,16 @@ def train_cmd(
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
 
-@app.command(no_args_is_help=True)
+@app.command(no_args_is_help=True, help="Evaluate a policy on a game")
 def evaluate(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
-    policy_class_path: str = typer.Option(  # noqa: B008
-        "cogames.policy.random.RandomPolicy",
-        "--policy",
-        help="Policy shorthand or full class path",
+    policy_class_path: str = typer.Option(
+        "cogames.policy.random.RandomPolicy", "--policy", help="Path to policy class"
     ),
-    checkpoint_path: Optional[Path] = typer.Option(  # noqa: B008
-        None,
-        "--checkpoint",
-        help="Path to policy checkpoint (file or directory)",
-    ),
-    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes"),
+    policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
 ) -> None:
-    """Evaluate a policy on a game."""
     from cogames import game
-
-    if episodes <= 0:
-        console.print("[red]Number of episodes must be greater than zero.[/red]")
-        raise typer.Exit(1)
 
     if game_name is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
@@ -296,21 +249,12 @@ def evaluate(
         evaluate_module.evaluate(
             console,
             game_name=game_name,
-            policy_class_path=policy_class_path,
-            checkpoint_path=checkpoint_path,
+            policy_class_path=resolve_policy_class_path(policy_class_path),
+            policy_data_path=policy_data_path,
             episodes=episodes,
         )
-    except ValueError as exc:
+    except (ValueError, FileNotFoundError, TypeError, RuntimeError) as exc:
         console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
-    except FileNotFoundError as exc:
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(1) from exc
-    except TypeError as exc:
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(1) from exc
-    except RuntimeError as exc:
-        console.print(f"[red]Evaluation failed: {exc}[/red]")
         raise typer.Exit(1) from exc
 
 

@@ -9,9 +9,9 @@ import torch
 from rich.console import Console
 
 import mettagrid.mettascope as mettascope
+from cogames import utils
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
-from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger("cogames.play")
 
@@ -43,20 +43,8 @@ def play(
     env = MettaGridEnv(env_cfg=env_cfg, render_mode=render_mode)
 
     # Load and create policy
-    policy_class = load_symbol(policy_class_path)
     device = torch.device("cpu")
-
-    # Instantiate the policy
-    policy_instance = policy_class(env, device)
-
-    # Load checkpoint if provided
-    if policy_data_path:
-        policy_instance.load_policy_data(policy_data_path)
-
-    # Create per-agent policies
-    agent_policies = []
-    for agent_id in range(env.num_agents):
-        agent_policies.append(policy_instance.agent_policy(agent_id))
+    agent_policies = utils.load_agent_policies(policy_class_path, policy_data_path, env, device)
 
     # For text mode, use the interactive loop in miniscope
     if render == "text" and hasattr(env, "_renderer") and env._renderer:

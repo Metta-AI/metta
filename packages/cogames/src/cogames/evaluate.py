@@ -5,18 +5,13 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from copy import deepcopy
-from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
-import torch
 from rich.console import Console
 from rich.table import Table
 
 from cogames import utils
-from cogames.policy import AgentPolicy, Policy, TrainablePolicy
-from cogames.policy.loader import instantiate_policy, load_policy_checkpoint
-from cogames.policy.registry import resolve_policy_class_path
 from mettagrid import MettaGridEnv
 
 if TYPE_CHECKING:
@@ -25,10 +20,9 @@ if TYPE_CHECKING:
 
 def evaluate(
     console: Console,
-    *,
     game_name: str,
     policy_class_path: str,
-    checkpoint_path: Optional[Path],
+    policy_data_path: Optional[str],
     episodes: int,
     seed: int = 42,
 ) -> None:
@@ -39,35 +33,10 @@ def evaluate(
     resolved_game, env_cfg = utils.get_game_config(game_name)
     env = MettaGridEnv(env_cfg=env_cfg)
 
-    resolved_policy_path = resolve_policy_class_path(policy_class_path)
-    device = torch.device("cpu")
+    agent_policies = utils.load_agent_policies(policy_class_path, policy_data_path, env)
 
-    try:
-        policy_instance: Policy = instantiate_policy(resolved_policy_path, env, device)
-    except Exception as exc:  # pragma: no cover - defensive
-        msg = f"Failed to instantiate policy class '{resolved_policy_path}' for evaluation: {exc}"
-        raise RuntimeError(msg) from exc
-
-    resolved_checkpoint: Optional[Path] = None
-    if checkpoint_path is not None:
-        try:
-            resolved_checkpoint = load_policy_checkpoint(policy_instance, checkpoint_path)
-        except (FileNotFoundError, TypeError) as exc:
-            raise exc
-        except Exception as exc:  # pragma: no cover - loading errors
-            raise RuntimeError(f"Failed to load policy data from {checkpoint_path}: {exc}") from exc
-
-    agent_policies: List[AgentPolicy] = []
-    if isinstance(policy_instance, TrainablePolicy):
-        for agent_id in range(env.num_agents):
-            agent_policies.append(policy_instance.agent_policy(agent_id))
-    elif isinstance(policy_instance, Policy):
-        agent_policies = [policy_instance for _ in range(env.num_agents)]
-    else:
-        raise TypeError("Policy must implement the Policy or TrainablePolicy interface")
-
-    per_episode_rewards: List[np.ndarray] = []
-    per_episode_stats: List["EpisodeStats"] = []
+    per_episode_rewards: list[np.ndarray] = []
+    per_episode_stats: list["EpisodeStats"] = []
 
     for episode_idx in range(episodes):
         obs, _ = env.reset(seed=seed + episode_idx)
@@ -78,7 +47,7 @@ def evaluate(
         truncated = np.zeros(env.num_agents, dtype=bool)
 
         while not done.all() and not truncated.all():
-            action_list: List[np.ndarray] = []
+            action_list: list[np.ndarray] = []
             for agent_id in range(env.num_agents):
                 action = agent_policies[agent_id].step(obs[agent_id])
                 action_list.append(np.array(action))
@@ -93,8 +62,8 @@ def evaluate(
     avg_rewards = stacked_rewards.mean(axis=0)
     total_rewards = stacked_rewards.sum(axis=1)
 
-    aggregated_game_stats: Dict[str, float] = defaultdict(float)
-    aggregated_agent_stats: List[Dict[str, float]] = [defaultdict(float) for _ in range(env.num_agents)]
+    aggregated_game_stats: dict[str, float] = defaultdict(float)
+    aggregated_agent_stats: list[dict[str, float]] = [defaultdict(float) for _ in range(env.num_agents)]
 
     for stats in per_episode_stats:
         game_stats = stats.get("game", {}) if isinstance(stats, dict) else {}
@@ -147,8 +116,8 @@ def evaluate(
 
     evaluation_metadata = {
         "game": resolved_game,
-        "policy": resolved_policy_path,
-        "checkpoint": str(resolved_checkpoint) if resolved_checkpoint else None,
+        "policy": policy_class_path,
+        "policy_data": policy_data_path,
         "episodes": episodes,
         "average_rewards": avg_rewards.tolist(),
     }
