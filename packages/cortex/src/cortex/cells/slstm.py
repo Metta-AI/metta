@@ -11,7 +11,7 @@ from cortex.cells.conv import CausalConv1d
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig, sLSTMCellConfig
 from cortex.types import MaybeState, ResetMask, Tensor
-from cortex.kernels import TRITON_AVAILABLE, slstm_sequence_triton
+from cortex.kernels import TRITON_AVAILABLE, slstm_sequence_pytorch, slstm_sequence_triton
 
 # Reuse utilities from mLSTM for normalization and init
 from cortex.cells.mlstm import MultiHeadLayerNorm, bias_linspace_init_
@@ -56,48 +56,6 @@ class _HeadwiseLinearExpand(nn.Module):
         if self.bias is not None:
             y = y + self.bias
         return y
-
-
-def _slstm_pointwise(
-    Wx: torch.Tensor,
-    Ry: torch.Tensor,
-    b_flat: torch.Tensor,
-    states: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Vanilla sLSTM pointwise update (pure PyTorch).
-
-    Args:
-        Wx: [B, 4*H] feed-forward preactivations
-        Ry: [B, 4*H] recurrent preactivations
-        b_flat: [4*H] bias
-        states: [4, B, H] stacked (y, c, n, m)
-
-    Returns:
-        new_states: [4, B, H] stacked (y, c, n, m)
-        gates_dbg: [4, B, H] stacked (i, f, zraw, o)
-    """
-    raw = Wx + Ry + b_flat
-    y, c, n, m = torch.unbind(states, dim=0)
-
-    iraw, fraw, zraw, oraw = torch.unbind(raw.view(raw.shape[0], 4, -1), dim=1)
-
-    logfplusm = m + torch.nn.functional.logsigmoid(fraw)
-    if torch.all(n == 0.0):
-        mnew = iraw
-    else:
-        mnew = torch.maximum(iraw, logfplusm)
-
-    ogate = torch.sigmoid(oraw)
-    igate = torch.minimum(torch.exp(iraw - mnew), torch.ones_like(iraw))
-    fgate = torch.minimum(torch.exp(logfplusm - mnew), torch.ones_like(iraw))
-    cnew = fgate * c + igate * torch.tanh(zraw)
-    nnew = fgate * n + igate
-    ynew = ogate * cnew / nnew
-
-    return (
-        torch.stack((ynew, cnew, nnew, mnew), dim=0),
-        torch.stack((igate, fgate, zraw, ogate), dim=0),
-    )
 
 
 @register_cell(sLSTMCellConfig)
@@ -202,30 +160,6 @@ class sLSTMCell(MemoryCell):
             td.update(conv_state)
         return td
 
-    def _flatten_bias(self) -> torch.Tensor:
-        # [NH, 4, DH] -> [4*H]
-        NH, _, DH = self.bias.shape
-        return self.bias.permute(1, 0, 2).reshape(4 * NH * DH)
-
-    def _recurrent_mix(self, y: torch.Tensor) -> torch.Tensor:
-        """Compute Ry from previous y with per-head kernel.
-
-        Args:
-            y: [B, H]
-        Returns:
-            Ry: [B, 4*H]
-        """
-        B = y.shape[0]
-        NH, fourDH, DH = self.recurrent_kernel.shape
-        # y -> [B, NH, 1, DH]
-        yh = y.view(B, NH, 1, DH)
-        # R^T -> [NH, DH, 4*DH]
-        RT = self.recurrent_kernel.transpose(1, 2)
-        # matmul -> [B, NH, 1, 4*DH]
-        out = torch.matmul(yh, RT)
-        # -> [B, 4*H]
-        return out.reshape(B, NH * 4 * DH)
-
     def _apply_conv(
         self, x_seq: Tensor, conv_state: MaybeState, resets: Optional[ResetMask]
     ) -> tuple[Tensor, MaybeState]:
@@ -265,6 +199,10 @@ class sLSTMCell(MemoryCell):
         *,
         resets: Optional[ResetMask] = None,
     ) -> Tuple[Tensor, MaybeState]:
+        """Forward pass through sLSTM cell.
+
+        Dispatches to either Triton or PyTorch kernel based on device and shape constraints.
+        """
         # Handle [B, H] vs [B, T, H]
         is_step = x.dim() == 2
         if is_step:
@@ -273,6 +211,7 @@ class sLSTMCell(MemoryCell):
             x_seq = x
 
         B, T, H = x_seq.shape
+        NH, DH = self.num_heads, self.head_dim
 
         # Initialize state
         if state is None or not all(k in state for k in ("y", "c", "n", "m")):
@@ -304,14 +243,37 @@ class sLSTMCell(MemoryCell):
         x_conv, conv_state_new = self._apply_conv(x_seq, conv_state_in, resets=resets)
 
         # Compute gate preactivations
-        # Correct gate projections: input gate uses igate, forget gate uses fgate
         i_pre = self.igate(x_conv)
         f_pre = self.fgate(x_conv)
         z_pre = self.zgate(x_seq)
         o_pre = self.ogate(x_seq)
 
-        # If Triton is available and conditions fit, run sequence via Triton kernel
-        # Use Triton on CUDA when head_dim is a power of 2.
+        # Prepare inputs in unified format for kernel dispatch
+        # Wx as (B, T, 4, NH, DH) with order (i, f, z, o)
+        Wx_seq = torch.stack(
+            (
+                i_pre.view(B, T, NH, DH),
+                f_pre.view(B, T, NH, DH),
+                z_pre.view(B, T, NH, DH),
+                o_pre.view(B, T, NH, DH),
+            ),
+            dim=2,
+        )
+
+        # Recurrent weights R: (4, NH, DH, DH) in order (i, f, z, o)
+        R = self.recurrent_kernel.view(NH, 4, DH, DH).permute(1, 0, 2, 3).contiguous()
+        # Bias: (4, NH, DH) in order (i, f, z, o)
+        b = self.bias.permute(1, 0, 2).contiguous()
+
+        # Initial states (h, c, n, m) as (4, B, NH, DH)
+        y0 = y_prev.view(B, NH, DH)
+        c0 = c_prev.view(B, NH, DH)
+        n0 = n_prev.view(B, NH, DH)
+        m0 = m_prev.view(B, NH, DH)
+        states0 = torch.stack((y0, c0, n0, m0), dim=0)
+
+        # Dispatch to appropriate kernel
+        # Use Triton on CUDA when not in step mode and head_dim is power of 2
         use_triton = (
             (not is_step)
             and TRITON_AVAILABLE
@@ -320,77 +282,36 @@ class sLSTMCell(MemoryCell):
         )
 
         if use_triton:
-            # Prepare shapes for Triton slstm
-            B, T, H = x_seq.shape
-            NH, DH = self.num_heads, self.head_dim
-            # Initial states (h, c, n, m) as (4, B, NH, DH)
-            y0 = y_prev.view(B, NH, DH)
-            c0 = c_prev.view(B, NH, DH)
-            n0 = n_prev.view(B, NH, DH)
-            m0 = m_prev.view(B, NH, DH)
-            states0 = torch.stack((y0, c0, n0, m0), dim=0)
-
-            # Wx as (B, T, 4, NH, DH) with order (i, f, z, o)
-            Wx_seq = torch.stack(
-                (
-                    i_pre.view(B, T, NH, DH),
-                    f_pre.view(B, T, NH, DH),
-                    z_pre.view(B, T, NH, DH),
-                    o_pre.view(B, T, NH, DH),
-                ),
-                dim=2,
-            )
-
-            # Recurrent weights R: (4, NH, DH, DH)
-            R = self.recurrent_kernel.view(NH, 4, DH, DH).permute(1, 0, 2, 3).contiguous()
-            # Bias: (4, NH, DH)
-            b = self.bias.permute(1, 0, 2).contiguous()
-
-            # Run Triton sequence
+            # Run Triton kernel
             all_states, last_state = slstm_sequence_triton(
                 Wx=Wx_seq,
                 R=R,
                 b=b,
                 initial_states=states0,
             )
+        else:
+            # Run PyTorch kernel (ground truth)
+            all_states, last_state = slstm_sequence_pytorch(
+                Wx=Wx_seq,
+                R=R,
+                b=b,
+                initial_states=states0,
+            )
 
-            # Extract y over time and last states
-            # all_states: (T, 4, B, NH, DH); last_state: (4, B, NH, DH)
-            # Extract the h/y state over time and arrange as (B, T, H)
-            y_seq = all_states[:, 0].permute(1, 0, 2, 3).reshape(B, T, H)
-            y_t = last_state[0].reshape(B, H)
-            c_t = last_state[1].reshape(B, H)
-            n_t = last_state[2].reshape(B, H)
-            m_t = last_state[3].reshape(B, H)
+        # Extract outputs from kernel results
+        # all_states: (T, 4, B, NH, DH); last_state: (4, B, NH, DH)
+        y_seq = all_states[:, 0].permute(1, 0, 2, 3).reshape(B, T, H)
+        y_t = last_state[0].reshape(B, H)
+        c_t = last_state[1].reshape(B, H)
+        n_t = last_state[2].reshape(B, H)
+        m_t = last_state[3].reshape(B, H)
 
-            new_state = TensorDict({"y": y_t, "c": c_t, "n": n_t, "m": m_t}, batch_size=[B])
-            if conv_state_new is not None:
-                new_state.update(conv_state_new)
-
-            # Normalize + dropout
-            y_out = self._normalize_output(y_seq)
-            return y_out, new_state
-
-        # Fallback: vanilla recurrent loop
-        Wx_seq = torch.cat([i_pre, f_pre, z_pre, o_pre], dim=-1)  # [B, T, 4H]
-        b_flat = self._flatten_bias()  # [4H]
-
-        y_list = []
-        y_t, c_t, n_t, m_t = y_prev, c_prev, n_prev, m_prev
-        for t in range(T):
-            Wx_t = Wx_seq[:, t, :]
-            Ry_t = self._recurrent_mix(y_t)
-            states_stack = torch.stack((y_t, c_t, n_t, m_t), dim=0)
-            new_states, _ = _slstm_pointwise(Wx_t, Ry_t, b_flat, states_stack)
-            y_t, c_t, n_t, m_t = torch.unbind(new_states, dim=0)
-            y_list.append(y_t)
-
-        y_seq = torch.stack(y_list, dim=1)  # [B, T, H]
-
+        # Create new state
         new_state = TensorDict({"y": y_t, "c": c_t, "n": n_t, "m": m_t}, batch_size=[B])
         if conv_state_new is not None:
             new_state.update(conv_state_new)
 
+        # Apply normalization and dropout
         y_out = self._normalize_output(y_seq)
 
         if is_step:
