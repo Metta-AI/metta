@@ -101,7 +101,7 @@ def train(
         },
     )
 
-    policy = instantiate_or_load_policy(policy_class_path, vecenv.driver_env, device)
+    policy = instantiate_or_load_policy(policy_class_path, initial_weights_path, vecenv.driver_env, device)
     # Ensure it implements the TrainablePolicy interface
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"

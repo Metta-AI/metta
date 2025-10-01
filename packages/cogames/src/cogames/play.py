@@ -6,18 +6,23 @@ from typing import Literal, Optional
 
 import numpy as np
 from rich.console import Console
+from typing_extensions import TYPE_CHECKING
 
 import mettagrid.mettascope as mettascope
 from cogames.policy.loader import instantiate_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
 
+if TYPE_CHECKING:
+    from mettagrid import MettaGridConfig
+
+
 logger = logging.getLogger("cogames.play")
 
 
 def play(
     console: Console,
-    env_cfg: MettaGridConfig,
+    env_cfg: "MettaGridConfig",
     policy_class_path: str,
     policy_data_path: Optional[str] = None,
     max_steps: Optional[int] = None,

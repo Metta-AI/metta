@@ -49,11 +49,14 @@ def resolve_game(game_arg: Optional[str]) -> Tuple[Optional[str], Optional[str]]
         return None, f"Game '{game_arg}' not found. Use 'cogames games' to list available games."
 
 
-def get_game_config(game_arg: str) -> Tuple[str, "MettaGridConfig"]:
-    """Return a resolved game name and configuration or raise ValueError."""
+def get_game_config(console: "Console", game_arg: str) -> tuple[str, "MettaGridConfig"]:
+    """Return a resolved game name and configuration for cli usage."""
+    import typer
+
     resolved_game, error = resolve_game(game_arg)
     if error or resolved_game is None:
-        raise ValueError(error or "Unknown game")
+        console.print(f"[red]Error: {error or 'Unknown game'}[/red]")
+        raise typer.Exit(1) from ValueError(error)
     return resolved_game, game_module.get_game(resolved_game)
 
 

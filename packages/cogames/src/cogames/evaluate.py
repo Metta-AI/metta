@@ -11,27 +11,28 @@ import numpy as np
 from rich.console import Console
 from rich.table import Table
 
-from cogames import utils
 from cogames.policy.loader import instantiate_or_load_policy
 from mettagrid import MettaGridEnv
 
 if TYPE_CHECKING:
+    from mettagrid import MettaGridConfig
     from mettagrid.mettagrid_c import EpisodeStats
 
 
 def evaluate(
     console: Console,
-    game_name: str,
+    resolved_game: str,
+    env_cfg: "MettaGridConfig",
     policy_class_path: str,
     policy_data_path: Optional[str],
     episodes: int,
+    action_timeout_ms: int,
     seed: int = 42,
 ) -> None:
     """Evaluate a policy on the requested game and render rich tables."""
     if episodes <= 0:
         raise ValueError("Number of episodes must be greater than zero")
 
-    resolved_game, env_cfg = utils.get_game_config(game_name)
     env = MettaGridEnv(env_cfg=env_cfg)
 
     policy = instantiate_or_load_policy(policy_class_path, policy_data_path, env)

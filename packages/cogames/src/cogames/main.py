@@ -11,8 +11,6 @@ sys.path.insert(0, ".")
 import typer
 from rich.console import Console
 
-from cogames import evaluate as evaluate_module
-
 logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
@@ -71,7 +69,7 @@ def games_cmd(
                 raise typer.Exit(1) from e
 
 
-@app.command(name="play", help="Play a game")
+@app.command(name="play", no_args_is_help=True, help="Play a game")
 def play_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
     policy_class_path: str = typer.Option(
@@ -95,12 +93,7 @@ def play_cmd(
         console.print("\n[dim]Usage: cogames play <game>[/dim]")
         return
 
-    # Resolve game name
-    try:
-        resolved_game, env_cfg = utils.get_game_config(game_name)
-    except ValueError as exc:
-        console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
@@ -116,6 +109,50 @@ def play_cmd(
         seed=42,
         render=render,
         verbose=interactive,  # Use interactive flag for verbose output
+    )
+
+
+@app.command(name="evaluate", no_args_is_help=True, help="Evaluate a policy on a game")
+def evaluate_cmd(
+    game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
+    policy_class_path: str = typer.Option(
+        "cogames.policy.random.RandomPolicy",
+        "--policy",
+        help="Path to policy class",
+        callback=resolve_policy_class_path,
+    ),
+    policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
+) -> None:
+    from cogames import game, utils
+
+    if game_name is None:
+        console.print("[yellow]No game specified. Available games:[/yellow]")
+        table = game.list_games(console)
+        console.print(table)
+        console.print("\n[dim]Usage: cogames evaluate <game> [--policy ...][/dim]")
+        return
+
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
+    console.print(f"[cyan]Evaluating on {resolved_game}[/cyan]")
+    console.print(f"Episodes: {episodes}")
+
+    from cogames import evaluate as evaluate_module
+
+    evaluate_module.evaluate(
+        console,
+        resolved_game=resolved_game,
+        env_cfg=env_cfg,
+        policy_class_path=policy_class_path,
+        policy_data_path=policy_data_path,
+        action_timeout_ms=action_timeout_ms,
+        episodes=episodes,
     )
 
 
@@ -205,12 +242,7 @@ def train_cmd(
         console.print("\n[dim]Usage: cogames train <game>[/dim]")
         return
 
-    # Resolve game name
-    try:
-        resolved_game, env_cfg = utils.get_game_config(game_name)
-    except ValueError as exc:
-        console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
+    resolved_game, env_cfg = utils.get_game_config(console, game_name)
 
     torch_device = utils.resolve_training_device(console, device)
 
@@ -233,40 +265,6 @@ def train_cmd(
         raise typer.Exit(1) from e
 
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
-
-
-@app.command(no_args_is_help=True, help="Evaluate a policy on a game")
-def evaluate(
-    game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
-    policy_class_path: str = typer.Option(
-        "cogames.policy.random.RandomPolicy",
-        "--policy",
-        help="Path to policy class",
-        callback=resolve_policy_class_path,
-    ),
-    policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
-    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
-) -> None:
-    from cogames import game
-
-    if game_name is None:
-        console.print("[yellow]No game specified. Available games:[/yellow]")
-        table = game.list_games(console)
-        console.print(table)
-        console.print("\n[dim]Usage: cogames evaluate <game> [--policy ...][/dim]")
-        return
-
-    try:
-        evaluate_module.evaluate(
-            console,
-            game_name=game_name,
-            policy_class_path=policy_class_path,
-            policy_data_path=policy_data_path,
-            episodes=episodes,
-        )
-    except (ValueError, FileNotFoundError, TypeError, RuntimeError) as exc:
-        console.print(f"[red]Error: {exc}[/red]")
-        raise typer.Exit(1) from exc
 
 
 if __name__ == "__main__":
