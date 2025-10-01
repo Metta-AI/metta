@@ -1,3 +1,18 @@
+# Level 1:
+# no buildings give you energy
+# resource give you energy of some amount
+# running out of energy is not super punishing
+
+
+# Level 2: now you can go out into the wilderness
+# resources can run out in a way that matters -> things in your base have max_uses,
+# slow regneration, different cooldowns,
+
+# Level 3: clipping happens, always have exactly the same item needed to unclip, always a magnetizer
+
+# Level 4: four potential resources that you need to do unclipping with
+
+
 # First experimrent: just a map with assemblers (input energy output hearts), chests (input hearts), and chargers (output energy)
 # curriculum over depletion rate, and number of these objects
 # if multiagent, option for agents to share energy with each other
@@ -34,8 +49,16 @@ from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from mettagrid.mapgen.mapgen import MapGen
+from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
 
 # ADDING TERRAIN
+
+# base has all the assemblers, in the middle, surrounded by walls
+# nano-assembler which maeks hearts
+# extractors are also in the base -> everything in the base
+
+# second -> in all the cardinal directions there are holes in the walls so you can go out and forage for resources
+# outside of the base there are assemblers with better recipes than assemblers in the base
 
 curriculum_args = {
     "multi_agent_singles": {
@@ -49,8 +72,10 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any"]],
         "num_chests": [1, 5, 10],
         "chest_positions": [["N"]],
-        "regeneration_rate": [5, 10, 15],
+        "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [False],
+        "use_terrain": [True, False],
+        "sizes": ["small", "medium"],
     },
     "multi_agent_pairs": {
         "num_cogs": [2, 4, 6, 8, 12],
@@ -63,8 +88,10 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any", "Any"]],
         "num_chests": [1, 5, 10],
         "chest_positions": [["N", "S"]],
-        "regeneration_rate": [5, 10, 15],
+        "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
+        "use_terrain": [True, False],
+        "sizes": ["small", "medium"],
     },
     "multi_agent_triplets": {
         "num_cogs": [3, 6, 8, 12, 24],
@@ -78,8 +105,10 @@ curriculum_args = {
         "silicon_extractor_positions": [["Any", "Any", "Any"]],
         "num_chests": [1, 5, 10],
         "chest_positions": [["N", "S", "E"]],
-        "regeneration_rate": [5, 10, 15],
+        "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
+        "use_terrain": [True, False],
+        "sizes": ["small", "medium"],
     },
     # "test":
     #     {
@@ -95,11 +124,20 @@ curriculum_args = {
     #     "chest_positions": [["N"]],
     #     "regeneration_rate": [5],
     #     "shareable_energy": [True],
+    #     "use_terrain": [True],
+    #     "sizes": ["small"]
     #     }
 }
 
+
+# agent.inventory.resource_limits:
+# base resources to have a limit that would be a coule 100, second level things like pickaxe have 1 or 2
+# hearts have a limit of 5
+
+# resource limits should be a function of how many agents and how many assemblers are in the env
+
 evals = {
-    "single_agent": {
+    "single_agent_no_terrain": {
         "num_cogs": 1,
         "assembler_positions": ["Any"],
         "num_chargers": 5,
@@ -112,8 +150,9 @@ evals = {
         "chest_positions": ["N"],
         "regeneration_rate": 10,
         "shareable_energy": False,
+        "use_terrain": False,
     },
-    "two_agent_pairs": {
+    "two_agent_pairs_no_terrain": {
         "num_cogs": 2,
         "assembler_positions": ["Any", "Any"],
         "num_chargers": 5,
@@ -126,10 +165,11 @@ evals = {
         "chest_positions": ["N", "S"],
         "regeneration_rate": 10,
         "shareable_energy": True,
+        "use_terrain": False,
     },
-    "three_agent_triplets": {
+    "three_agent_triplets_no_terrain": {
         "num_cogs": 3,
-        "assembler_positions": ["Any", "Any"],
+        "assembler_positions": ["Any", "Any", "Any"],
         "num_chargers": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
@@ -140,8 +180,9 @@ evals = {
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
+        "use_terrain": False,
     },
-    "many_agent_triplets": {
+    "many_agent_triplets_no_terrain": {
         "num_cogs": 12,
         "assembler_positions": ["Any", "Any"],
         "num_chargers": 5,
@@ -154,6 +195,67 @@ evals = {
         "chest_positions": ["N", "S", "E"],
         "regeneration_rate": 10,
         "shareable_energy": True,
+        "use_terrain": False,
+    },
+    "single_agent_terrain_small": {
+        "num_cogs": 1,
+        "assembler_positions": ["Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any"],
+        "carbon_extractor_positions": ["Any"],
+        "oxygen_extractor_positions": ["Any"],
+        "germanium_extractor_positions": ["Any"],
+        "silicon_extractor_positions": ["Any"],
+        "num_chests": 5,
+        "chest_positions": ["N"],
+        "regeneration_rate": 10,
+        "shareable_energy": False,
+        "use_terrain": True,
+    },
+    "two_agent_pairs_terrain_small": {
+        "num_cogs": 2,
+        "assembler_positions": ["Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+        "use_terrain": True,
+    },
+    "three_agent_triplets_terrain_small": {
+        "num_cogs": 3,
+        "assembler_positions": ["Any", "Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S", "E"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+        "use_terrain": True,
+    },
+    "many_agent_triplets_terrain_small": {
+        "num_cogs": 12,
+        "assembler_positions": ["Any", "Any", "Any"],
+        "num_chargers": 5,
+        "charger_positions": ["Any", "Any", "Any"],
+        "carbon_extractor_positions": ["Any", "Any", "Any"],
+        "oxygen_extractor_positions": ["Any", "Any", "Any"],
+        "germanium_extractor_positions": ["Any", "Any", "Any"],
+        "silicon_extractor_positions": ["Any", "Any", "Any"],
+        "num_chests": 5,
+        "chest_positions": ["N", "S", "E"],
+        "regeneration_rate": 10,
+        "shareable_energy": True,
+        "use_terrain": True,
     },
 }
 
@@ -177,6 +279,8 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         chest_positions: list[list[Position]] = Field(default=[["N"]])
         regeneration_rate: list[int] = Field(default=[5])
         shareable_energy: list[bool] = Field(default=[True])
+        use_terrain: list[bool] = Field(default=[False])
+        sizes: list[str] = Field(default=["small"])
 
     def __init__(self, config: "TaskGenerator.Config"):
         super().__init__(config)
@@ -272,15 +376,41 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         )
 
         env.game.inventory_regen_interval = regeneration_rate
-        env.game.inventory_regen_amounts = {"energy": 10}
+        env.game.inventory_regen_amounts = {"energy": 2}
         if shareable_energy:
             env.game.agent.shareable_resources = ["energy"]
         env.label = f"{env.game.num_agents}_cogs_{num_assemblers}_assemblers_{num_chargers}_chargers_{num_carbon_extractors + num_oxygen_extractors + num_germanium_extractors + num_silicon_extractors}_extractors_{num_chests}_chests_{env.game.inventory_regen_interval}_regeneration_rate"
-        env.game.map_builder = MapGen.Config(
-            instances=num_instances,
-            instance_map=env.game.map_builder,
-            num_agents=24,
-        )
+
+        if self.config.use_terrain:
+            terrain_density = rng.choice(["sparse", "balanced", "dense"])
+            size = rng.choice(self.config.sizes)
+            map_builder = MapGen.Config(
+                instances=num_instances,
+                border_width=6,
+                instance_border_width=3,
+                instance=CogsVClippiesFromNumpy.Config(
+                    agents=num_cogs,
+                    objects={
+                        "assembler": num_assemblers,
+                        "charger": num_chargers,
+                        "carbon_extractor": num_carbon_extractors,
+                        "oxygen_extractor": num_oxygen_extractors,
+                        "germanium_extractor": num_germanium_extractors,
+                        "silicon_extractor": num_silicon_extractors,
+                        "chest": num_chests,
+                    },
+                    remove_altars=True,
+                    dir=f"varied_terrain/{terrain_density}_{size}",
+                    rng=rng,
+                ),
+            )
+            env.game.map_builder = map_builder
+        else:
+            env.game.map_builder = MapGen.Config(
+                instances=num_instances,
+                instance_map=env.game.map_builder,
+                num_agents=24,
+            )
         env.game.num_agents = 24
         return env
 
@@ -298,7 +428,7 @@ def make_mettagrid(task_generator) -> MettaGridConfig:
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def play(curriculum_style: str = "multi_agent_pairs") -> PlayTool:
+def play(curriculum_style: str = "test") -> PlayTool:
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(**curriculum_args[curriculum_style])
     )
@@ -321,6 +451,8 @@ def train(
         max_memory_tasks=1000,
         max_slice_axes=3,
         progress_smoothing=0.15,
+        num_active_tasks=1000,
+        rand_task_rate=0.25,
     )
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
@@ -331,6 +463,8 @@ def train(
         policy_config = FastLSTMResetConfig()
     elif architecture == "transformer":
         policy_config = ViTSlidingTransConfig()
+        trainer_cfg.batch_size = 131072
+        trainer_cfg.minibatch_size = 4096
     else:
         raise ValueError(f"Invalid architecture: {architecture}")
 
@@ -370,6 +504,7 @@ def make_env(
     silicon_extractor_positions=["Any"],
     regeneration_rate=10,
     shareable_energy=False,
+    use_terrain=False,
 ):
     task_generator = CogsVsClippiesTaskGenerator(
         config=CogsVsClippiesTaskGenerator.Config(
@@ -390,6 +525,7 @@ def make_env(
             silicon_extractor_positions=[silicon_extractor_positions],
             regeneration_rate=[regeneration_rate],
             shareable_energy=[shareable_energy],
+            use_terrain=[use_terrain],
         )
     )
     return task_generator.get_task(random.randint(0, 1000000))
@@ -412,13 +548,12 @@ def experiment():
             subprocess.run(
                 [
                     "./devops/skypilot/launch.py",
-                    "experiments.recipes.cogs_v_clips.version1.train",
-                    f"run=daphne.cogs_v_clips.noterrain.{curriculum_style}.{time.strftime('%Y-%m-%d')}",
+                    "experiments.recipes.cogs_v_clips.level_1.train",
+                    f"run=daphne.cogs_v_clips.level_1.{curriculum_style}_{architecture}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
                     "--gpus=4",
                     "--heartbeat-timeout=3600",
-                    "--skip-git-check",
                 ]
             )
         time.sleep(1)
