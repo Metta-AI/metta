@@ -536,7 +536,7 @@ def make_eval_suite():
 
 def experiment():
     for curriculum_style in curriculum_args:
-        for architecture in ["vit_reset", "lstm_reset", "transformer"]:
+        for architecture in ["vit_reset", "lstm_reset"]:
             subprocess.run(
                 [
                     "./devops/skypilot/launch.py",
