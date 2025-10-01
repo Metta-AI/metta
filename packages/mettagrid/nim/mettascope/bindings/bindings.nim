@@ -1,6 +1,6 @@
 import
   genny, fidget2, openGL, jsony, vmath,
-  ../src/mettascope, ../src/mettascope/[replays, common, worldmap]
+  ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline]
 
 type
   RenderResponse* = object
@@ -38,6 +38,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     common.replay.apply(replayStep)
     step = currentStep
     stepFloat = currentStep.float32
+    onStepChanged()
     requestPython = false
     while true:
       if window.closeRequested:

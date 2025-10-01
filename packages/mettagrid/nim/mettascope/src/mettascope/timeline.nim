@@ -25,7 +25,8 @@ var
   nodeScrubberBg: Node
   nodeScrubber: Node
 
-proc stepChanged() =
+proc onStepChanged*() =
+  ## Must be called when the step changes so that UI is updated.
   echo "step: ", step
   updateObjectInfo()
 
@@ -66,18 +67,18 @@ proc playControls*() =
         stepFloat = replay.maxSteps.float32 - 1
     step = stepFloat.int
     step = step.clamp(0, replay.maxSteps - 1)
-    stepChanged()
+    onStepChanged()
 
   if window.buttonPressed[KeyLeftBracket]:
     step -= 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    stepChanged()
+    onStepChanged()
   if window.buttonPressed[KeyRightBracket]:
     step += 1
     step = clamp(step, 0, replay.maxSteps - 1)
     stepFloat = step.float32
-    stepChanged()
+    onStepChanged()
 
 proc getStepFromX(localX, panelWidth: float32): int =
   ## Maps a local X coordinate within the timeline panel to a replay step.
