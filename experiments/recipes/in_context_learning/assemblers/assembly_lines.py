@@ -34,7 +34,7 @@ curriculum_args = {
         "num_chests": [0],
         # Special impossible task types (not combinatorial with above params)
         "impossible_tasks": ["deterministic", "noisy"],
-        "impossible_task_probability": 0.1,  # 10% chance to sample an impossible task
+        "impossible_task_probability": 0.01,  # 10% chance to sample an impossible task
     }
 }
 # "test": {
