@@ -31,6 +31,17 @@ app.add_typer(policy_app, name="policy")
 
 BASE_RUNS_DIR = (Path(__file__).resolve().parent / "runs").resolve()
 
+DEFAULT_BIOME_GAMES: tuple[str, ...] = (
+    "machina_1",
+    "machina_1_big",
+    "machina_2_bigger",
+    "machina_3_big",
+    "machina_4_bigger",
+    "machina_5_big",
+    "machina_6_bigger",
+    "machina_7_big",
+)
+
 
 @contextlib.contextmanager
 def _command_timeout(ctx: typer.Context):
@@ -746,7 +757,7 @@ def train_cmd(
         fallback_curricula = resolved_run_dir / "curricula"
         base_games = [game_name] if game_name is not None else []
         if not base_games and curriculum is None and not fallback_curricula.exists():
-            base_games = ["assembler_1_simple"]
+            base_games = list(DEFAULT_BIOME_GAMES)
         env_cfgs, env_names = _collect_configs(
             base_games,
             curriculum,
