@@ -9,7 +9,7 @@ from rich.console import Console
 from typing_extensions import TYPE_CHECKING
 
 import mettagrid.mettascope as mettascope
-from cogames.policy.loader import instantiate_or_load_policy
+from cogames.utils import instantiate_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 from mettagrid.util.grid_object_formatter import format_grid_object
 

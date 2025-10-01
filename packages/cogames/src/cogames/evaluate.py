@@ -14,7 +14,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from cogames.policy.loader import instantiate_or_load_policy
+from cogames.utils import instantiate_or_load_policy
 from mettagrid import MettaGridEnv
 
 if TYPE_CHECKING:

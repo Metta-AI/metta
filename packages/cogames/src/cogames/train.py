@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from cogames.policy import TrainablePolicy
-from cogames.policy.loader import instantiate_or_load_policy
+from cogames.utils import instantiate_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 
 if TYPE_CHECKING:
