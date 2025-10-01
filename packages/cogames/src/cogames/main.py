@@ -12,12 +12,19 @@ import typer
 from rich.console import Console
 
 from cogames import evaluate as evaluate_module
-from cogames.policy.registry import resolve_policy_class_path
 
 logger = logging.getLogger("cogames.main")
 
 app = typer.Typer(help="CoGames - Multi-agent cooperative and competitive games")
 console = Console()
+
+
+def resolve_policy_class_path(value: str) -> str:
+    return {
+        "random": "cogames.policy.random.RandomPolicy",
+        "simple": "cogames.policy.simple.SimplePolicy",
+        "lstm": "cogames.policy.lstm.LSTMPolicy",
+    }.get(value, value)
 
 
 @app.callback(invoke_without_command=True)
@@ -68,11 +75,14 @@ def games_cmd(
 def play_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to play"),
     policy_class_path: str = typer.Option(
-        "cogames.policy.random.RandomPolicy", "--policy", help="Path to policy class"
+        "cogames.policy.random.RandomPolicy",
+        "--policy",
+        help="Path to policy class",
+        callback=resolve_policy_class_path,
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     interactive: bool = typer.Option(True, "--interactive", "-i", help="Run in interactive mode"),
-    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run"),
+    steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: Literal["gui", "text"] = typer.Option("gui", "--render", "-r", help="Render mode: 'gui' or 'text'"),
 ) -> None:
     from cogames import game, utils
@@ -92,9 +102,6 @@ def play_cmd(
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
-    # Resolve policy shorthand
-    full_policy_path = resolve_policy_class_path(policy_class_path)
-
     console.print(f"[cyan]Playing {resolved_game}[/cyan]")
     console.print(f"Max Steps: {steps}, Interactive: {interactive}, Render: {render}")
 
@@ -103,7 +110,7 @@ def play_cmd(
     play_module.play(
         console,
         env_cfg=env_cfg,
-        policy_class_path=full_policy_path,
+        policy_class_path=policy_class_path,
         policy_data_path=policy_data_path,
         max_steps=steps,
         seed=42,
@@ -115,9 +122,9 @@ def play_cmd(
 @app.command("make-game", help="Create a new game configuration")
 def make_scenario(
     base_game: Optional[str] = typer.Argument(None, help="Base game to use as template"),
-    num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents"),
-    width: int = typer.Option(10, "--width", "-w", help="Map width"),
-    height: int = typer.Option(10, "--height", "-h", help="Map height"),
+    num_agents: int = typer.Option(2, "--agents", "-a", help="Number of agents", min=1),
+    width: int = typer.Option(10, "--width", "-w", help="Map width", min=1),
+    height: int = typer.Option(10, "--height", "-h", help="Map height", min=1),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (YAML or JSON)"),  # noqa: B008
 ) -> None:
     from cogames import game, utils
@@ -164,7 +171,10 @@ def make_scenario(
 def train_cmd(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to train on"),
     policy_class_path: str = typer.Option(
-        "cogames.policy.simple.SimplePolicy", "--policy", help="Path to policy class"
+        "cogames.policy.simple.SimplePolicy",
+        "--policy",
+        help="Path to policy class",
+        callback=resolve_policy_class_path,
     ),
     initial_weights_path: Optional[str] = typer.Option(
         None, "--initial-weights", help="Path to initial policy weights"
@@ -174,15 +184,15 @@ def train_cmd(
         "--checkpoints",
         help="Path to save training data",
     ),
-    steps: int = typer.Option(10000, "--steps", "-s", help="Number of training steps"),
+    steps: int = typer.Option(10000, "--steps", "-s", help="Number of training steps", min=1),
     device: str = typer.Option(
         "auto",
         "--device",
         help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
     ),
-    seed: int = typer.Option(42, "--seed", help="Seed for training"),
-    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training"),
-    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
+    seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
+    batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
+    minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training", min=1),
 ) -> None:
     from cogames import game, utils
     from cogames import train as train_module
@@ -202,14 +212,12 @@ def train_cmd(
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
-    # Resolve policy shorthand
-    full_policy_path = resolve_policy_class_path(policy_class_path)
     torch_device = utils.resolve_training_device(console, device)
 
     try:
         train_module.train(
             env_cfg=env_cfg,
-            policy_class_path=full_policy_path,
+            policy_class_path=policy_class_path,
             initial_weights_path=initial_weights_path,
             device=torch_device,
             num_steps=steps,
@@ -231,7 +239,10 @@ def train_cmd(
 def evaluate(
     game_name: Optional[str] = typer.Argument(None, help="Name of the game to evaluate"),
     policy_class_path: str = typer.Option(
-        "cogames.policy.random.RandomPolicy", "--policy", help="Path to policy class"
+        "cogames.policy.random.RandomPolicy",
+        "--policy",
+        help="Path to policy class",
+        callback=resolve_policy_class_path,
     ),
     policy_data_path: Optional[str] = typer.Option(None, "--policy-data", help="Path to initial policy weights"),
     episodes: int = typer.Option(10, "--episodes", "-e", help="Number of evaluation episodes", min=1),
@@ -249,7 +260,7 @@ def evaluate(
         evaluate_module.evaluate(
             console,
             game_name=game_name,
-            policy_class_path=resolve_policy_class_path(policy_class_path),
+            policy_class_path=policy_class_path,
             policy_data_path=policy_data_path,
             episodes=episodes,
         )

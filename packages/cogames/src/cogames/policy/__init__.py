@@ -9,7 +9,6 @@ from cogames.policy.policy import (
     TrainablePolicy,
 )
 from cogames.policy.random import RandomPolicy
-from cogames.policy.registry import POLICY_SHORTCUTS, resolve_policy_class_path
 from cogames.policy.simple import SimplePolicy
 
 __all__ = [
@@ -21,6 +20,4 @@ __all__ = [
     "LSTMPolicy",
     "RandomPolicy",
     "SimplePolicy",
-    "POLICY_SHORTCUTS",
-    "resolve_policy_class_path",
 ]
