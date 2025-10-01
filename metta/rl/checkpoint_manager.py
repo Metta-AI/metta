@@ -232,18 +232,31 @@ class CheckpointManager:
 
     @staticmethod
     def normalize_uri(uri: str) -> str:
-        """Convert paths to file:// URIs, and resolves :latest"""
+        """Convert paths to file:// URIs, and resolve :latest or :latest.pt selectors.
+
+        Accepts both forms:
+        - .../checkpoints/:latest
+        - .../checkpoints/<run>:latest.pt
+
+        For either form, we list checkpoints under the parent directory and return
+        the URI for the latest by epoch.
+        """
         parsed = ParsedURI.parse(uri)
-        if uri.endswith(":latest"):
-            # Remove ":latest" suffix to get the base URI
-            base_uri = uri[:-7]  # remove ":latest"
-            # Find the latest checkpoint in the base URI
-            latest_checkpoint = _latest_checkpoint(base_uri)
+
+        if uri.endswith(":latest") or uri.endswith(":latest.pt"):
+            # Use the directory as the base scope for listing checkpoints
+            # (strip the last path segment and keep trailing slash)
+            if "/" in uri:
+                base_dir_uri = uri.rsplit("/", 1)[0] + "/"
+            else:
+                base_dir_uri = uri  # Degenerate case, let _latest_checkpoint raise
+
+            latest_checkpoint = _latest_checkpoint(base_dir_uri)
             if not latest_checkpoint:
-                raise ValueError(f"No latest checkpoint found for {base_uri}")
+                raise ValueError(f"No latest checkpoint found for {base_dir_uri}")
             return latest_checkpoint["uri"]
-        else:
-            return parsed.canonical
+
+        return parsed.canonical
 
     @staticmethod
     def get_policy_metadata(uri: str) -> PolicyMetadata:
@@ -321,7 +334,7 @@ class CheckpointManager:
         local_max_checkpoint = _latest_checkpoint(f"file://{self.checkpoint_dir}")
         remote_max_checkpoint = None
         if self._remote_prefix:
-            _latest_checkpoint(self._remote_prefix)
+            remote_max_checkpoint = _latest_checkpoint(self._remote_prefix)
 
         if local_max_checkpoint:
             if remote_max_checkpoint and remote_max_checkpoint["epoch"] > local_max_checkpoint["epoch"]:
