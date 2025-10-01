@@ -1,27 +1,26 @@
 import random
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
-from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from pydantic import Field
-from mettagrid.builder import building, empty_converters
-from mettagrid.config.mettagrid_config import (
-    Position,
-    RecipeConfig,
-    MettaGridConfig,
-)
+from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.tools.train import TrainTool
-from metta.agent.policies.fast_lstm_reset import FastLSTMResetConfig
-from typing import Callable
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
+from metta.tools.train import TrainTool
+from mettagrid.builder import building, empty_converters
 from mettagrid.builder.envs import make_icl_with_numpy
+from mettagrid.config.mettagrid_config import (
+    MettaGridConfig,
+    Position,
+    RecipeConfig,
+)
+from pydantic import Field
 
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
@@ -58,6 +57,11 @@ ASSEMBLER_TYPES = {
     "mine_blue": building.assembler_mine_blue,
     "mine_green": building.assembler_mine_green,
     "altar": building.assembler_altar,
+    "factory": building.assembler_factory,
+    "temple": building.assembler_temple,
+    "armory": building.assembler_armory,
+    "lab": building.assembler_lab,
+    "lasery": building.assembler_lasery,
 }
 
 size_ranges = {
@@ -170,6 +174,14 @@ class ICLTaskGenerator(TaskGenerator):
             default=None,
             description="Directory for pre-generated maps (None to build procedurally).",
         )
+        num_chests: list[int] = Field(
+            default=[0],
+            description="Number of chests to include.",
+        )
+        chest_positions: list[list[Position]] = Field(
+            default=[["N"]],
+            description="Positions for chests.",
+        )
 
         # Unordered-only (ignored by Ordered subclasses)
         max_recipe_inputs: list[int] = Field(
@@ -270,6 +282,31 @@ class ICLTaskGenerator(TaskGenerator):
         else:
             cfg.map_builder_objects[assembler_name] = 1
 
+    def _add_chest(
+        self,
+        position,
+        cfg: _BuildCfg,
+        chest_name: str | None = None,
+    ):
+        print(f"Making chest with deposit positions {position}")
+        chest = building.make_chest(
+            resource_type="heart",
+            type_id=26,
+            deposit_positions=position,
+            withdrawal_positions=[],
+        )
+        chest_name = "chest"
+
+        if chest_name in cfg.map_builder_objects:
+            cfg.map_builder_objects[chest_name] += 1
+        else:
+            cfg.map_builder_objects[chest_name] = 1
+        cfg.game_objects[chest_name] = chest
+
+    def _make_chests(self, num_chests, cfg, position):
+        for _ in range(num_chests):
+            self._add_chest(position=position, cfg=cfg)
+
     def _get_width_and_height(self, room_size: str, rng: random.Random):
         lo, hi = size_ranges[room_size]
         width = rng.randint(lo, hi)
@@ -280,7 +317,7 @@ class ICLTaskGenerator(TaskGenerator):
         """Set the width and height of the environment to be at least the minimum area required for the number of agents, altars, and generators."""
         width, height = self._get_width_and_height(room_size, rng)
         area = width * height
-        minimum_area = (num_agents + num_objects) * 2
+        minimum_area = num_agents + num_objects * 9
         if area < minimum_area:
             width, height = minimum_area // 2, minimum_area // 2
         return width, height
@@ -329,6 +366,11 @@ class ICLTaskGenerator(TaskGenerator):
         max_steps = self.calculate_max_steps(
             num_resources, num_converters, width, height
         )
+
+        chest_position = rng.choice(
+            [p for p in self.config.chest_positions if len(p) <= num_agents]
+        )
+        num_chests = rng.choice(cfg.num_chests)
         return (
             num_agents,
             resources,
@@ -339,6 +381,8 @@ class ICLTaskGenerator(TaskGenerator):
             height,
             max_steps,
             recipe_position,
+            chest_position,
+            num_chests,
         )
 
     def load_from_numpy(
@@ -358,7 +402,7 @@ class ICLTaskGenerator(TaskGenerator):
             num_instances=num_instances,
             max_steps=max_steps,
             game_objects=game_objects,
-            instance_map=InContextLearningFromNumpy.Config(
+            instance=InContextLearningFromNumpy.Config(
                 agents=num_agents,
                 dir=dir,
                 objects=map_builder_objects,

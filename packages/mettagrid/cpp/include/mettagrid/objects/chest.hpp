@@ -14,9 +14,7 @@
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
-
-// Forward declaration
-class Agent;
+#include "systems/stats_tracker.hpp"
 
 class Chest : public GridObject, public Usable, public HasInventory {
 private:
@@ -68,10 +66,8 @@ private:
     InventoryDelta deposited = update_inventory(resource_type, 1);
     if (deposited == 1) {
       agent.update_inventory(resource_type, -1);
-      if (stats_tracker) {
-        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".deposited");
-        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".amount");
-      }
+      stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".deposited");
+      stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".amount");
       return true;
     }
     // Chest couldn't accept the resource, give it back to agent
@@ -88,10 +84,8 @@ private:
     InventoryDelta withdrawn = agent.update_inventory(resource_type, 1);
     if (withdrawn == 1) {
       update_inventory(resource_type, -1);
-      if (stats_tracker) {
-        stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn");
-        stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".amount", -1);
-      }
+      stats_tracker->incr("chest." + stats_tracker->resource_name(resource_type) + ".withdrawn");
+      stats_tracker->add("chest." + stats_tracker->resource_name(resource_type) + ".amount", -1);
       return true;
     }
     // Agent couldn't accept the resource, give it back to chest
@@ -107,12 +101,13 @@ public:
   // Grid access for finding agent positions
   class Grid* grid;
 
-  Chest(GridCoord r, GridCoord c, const ChestConfig& cfg)
+  Chest(GridCoord r, GridCoord c, const ChestConfig& cfg, StatsTracker* stats_tracker)
       : GridObject(),
         HasInventory(InventoryConfig()),  // Chests have nothing to configure in their inventory. Yet.
         resource_type(cfg.resource_type),
         deposit_positions(cfg.deposit_positions),
         withdrawal_positions(cfg.withdrawal_positions),
+        stats_tracker(stats_tracker),
         grid(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
   }

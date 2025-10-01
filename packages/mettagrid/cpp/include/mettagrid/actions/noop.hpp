@@ -4,8 +4,8 @@
 #include <string>
 
 #include "actions/action_handler.hpp"
-#include "objects/agent.hpp"
 #include "core/types.hpp"
+#include "objects/agent.hpp"
 
 class Noop : public ActionHandler {
 public:
@@ -16,7 +16,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* /*actor*/, ActionArg /*arg*/) override {
+  bool _handle_action(Agent& /*actor*/, ActionArg /*arg*/) override {
     return true;
   }
 };

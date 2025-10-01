@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import numpy.typing as npt
 from gymnasium import spaces
 
 from mettagrid.config.mettagrid_c_config import from_mettagrid_config
@@ -37,6 +38,17 @@ if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
 
 logger = logging.getLogger("MettaGridCore")
+
+
+# MettaGrid Type Definitions
+# Observations are token-based: shape (num_tokens, 3) where each token is [PackedCoordinate, key, value]
+# - PackedCoordinate: uint8 packed (x, y) coordinate
+# - key: uint8 feature key
+# - value: uint8 feature value
+MettaGridObservation = npt.NDArray[np.uint8]  # Shape: (num_tokens, 3)
+
+# Actions are MultiDiscrete: shape (num_action_dims,) where each dimension is an action choice
+MettaGridAction = npt.NDArray[np.int32]  # Shape: (num_action_dims,)
 
 
 @dataclass
@@ -107,11 +119,7 @@ class MettaGridCore:
         self._renderer = None
         self._renderer_class = None
         self._renderer_native = False
-        if self._render_mode == "human":
-            from mettagrid.renderer.nethack import NethackRenderer
-
-            self._renderer_class = NethackRenderer
-        elif self._render_mode == "miniscope":
+        if self._render_mode in ("human", "miniscope"):
             from mettagrid.renderer.miniscope import MiniscopeRenderer
 
             self._renderer_class = MiniscopeRenderer
@@ -139,6 +147,9 @@ class MettaGridCore:
         c_env = MettaGridCpp(c_cfg, game_map.grid.tolist(), self._current_seed)
         self._update_core_buffers()
 
+        # Validate that C++ environment conforms to expected types
+        self._validate_c_env_types(c_env)
+
         # Initialize renderer if needed
         if (
             self._render_mode is not None
@@ -149,10 +160,24 @@ class MettaGridCore:
             if self._renderer_native:
                 self._renderer = self._renderer_class()
             else:
-                self._renderer = self._renderer_class(c_env.object_type_names())
+                self._renderer = self._renderer_class(c_env.object_type_names(), c_env.map_height, c_env.map_width)
 
         self.__c_env_instance = c_env
         return c_env
+
+    def _validate_c_env_types(self, c_env: MettaGridCpp) -> None:
+        """Validate that the C++ environment conforms to expected MettaGrid types."""
+        from mettagrid.types import validate_action_space, validate_observation_space
+
+        try:
+            validate_observation_space(c_env.observation_space)
+        except TypeError as e:
+            raise TypeError(f"C++ environment observation space does not conform to MettaGrid types: {e}") from e
+
+        try:
+            validate_action_space(c_env.action_space)
+        except TypeError as e:
+            raise TypeError(f"C++ environment action space does not conform to MettaGrid types: {e}") from e
 
     def _update_core_buffers(self) -> None:
         if hasattr(self, "observations") and self.observations is not None:
@@ -291,10 +316,21 @@ class MettaGridCore:
 
         return features
 
-    @property
-    def grid_objects(self) -> Dict[int, Dict[str, Any]]:
-        """Get grid objects information."""
-        return self.__c_env_instance.grid_objects()
+    def grid_objects(
+        self, min_row: int = -1, max_row: int = -1, min_col: int = -1, max_col: int = -1
+    ) -> Dict[int, Dict[str, Any]]:
+        """Get grid objects information, optionally filtered by bounding box.
+
+        Args:
+            min_row: Minimum row (inclusive), -1 for no limit
+            max_row: Maximum row (exclusive), -1 for no limit
+            min_col: Minimum column (inclusive), -1 for no limit
+            max_col: Maximum column (exclusive), -1 for no limit
+
+        Returns:
+            Dictionary mapping object IDs to object dictionaries
+        """
+        return self.__c_env_instance.grid_objects(min_row, max_row, min_col, max_col)
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

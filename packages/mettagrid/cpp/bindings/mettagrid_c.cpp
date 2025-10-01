@@ -33,7 +33,8 @@
 #include "objects/production_handler.hpp"
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
-#include "renderer/hermes.hpp"
+#include "systems/clipper.hpp"
+#include "systems/clipper_config.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/packed_coordinate.hpp"
 #include "systems/stats_tracker.hpp"
@@ -50,7 +51,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
       _track_movement_metrics(game_config.track_movement_metrics),
-      _resource_loss_prob(game_config.resource_loss_prob) {
+      _resource_loss_prob(game_config.resource_loss_prob),
+      _inventory_regen_interval(game_config.inventory_regen_interval) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -74,8 +76,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _obs_encoder = std::make_unique<ObservationEncoder>(resource_names, game_config.recipe_details_obs);
 
   _event_manager = std::make_unique<EventManager>();
-  _stats = std::make_unique<StatsTracker>();
-  _stats->set_resource_names(&resource_names);
+  _stats = std::make_unique<StatsTracker>(&resource_names);
 
   _event_manager->init(_grid.get());
   _event_manager->event_handlers.insert(
@@ -184,13 +185,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config);
+        Agent* agent = new Agent(r, c, *agent_config, &resource_names);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
-        agent->stats.set_resource_names(&resource_names);
         // Only initialize visitation grid if visitation counts are enabled
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
@@ -218,7 +218,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
       const ChestConfig* chest_config = dynamic_cast<const ChestConfig*>(object_cfg);
       if (chest_config) {
-        Chest* chest = new Chest(r, c, *chest_config);
+        Chest* chest = new Chest(r, c, *chest_config, _stats.get());
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
@@ -247,6 +247,16 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   auto rewards = py::array_t<RewardType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
   set_buffers(observations, terminals, truncations, rewards);
+
+  // Initialize global systems
+  if (_game_config.clipper) {
+    auto& clipper_cfg = *_game_config.clipper;
+    if (clipper_cfg.unclipping_recipes.empty()) {
+      throw std::runtime_error("Clipper config provided but unclipping_recipes is empty");
+    }
+    _clipper = std::make_unique<Clipper>(
+        *_grid, clipper_cfg.unclipping_recipes, clipper_cfg.length_scale, clipper_cfg.cutoff_distance, clipper_cfg.clip_rate);
+  }
 }
 
 MettaGrid::~MettaGrid() = default;
@@ -456,15 +466,15 @@ void MettaGrid::_step(Actions actions) {
         continue;
       }
 
-      auto& agent = _agents[agent_idx];
+      auto* agent = _agents[agent_idx];
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       // note that handle_action will assign a penalty for attempting invalid actions as a side effect
-      _action_success[agent_idx] = handler->handle_action(agent->id, arg);
+      _action_success[agent_idx] = handler->handle_action(*agent, arg);
     }
   }
 
   // Handle resource loss
-  for (auto& agent : _agents) {
+  for (auto* agent : _agents) {
     if (_resource_loss_prob > 0.0f) {
       // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
       // Make a real copy of the agent's inventory map to avoid iterator invalidation
@@ -484,6 +494,22 @@ void MettaGrid::_step(Actions actions) {
         }
       }
     }
+  }
+
+  // Handle per-agent inventory regeneration (global interval check, per-agent amounts)
+  if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
+    for (auto* agent : _agents) {
+      if (!agent->inventory_regen_amounts.empty()) {
+        for (const auto& [item, amount] : agent->inventory_regen_amounts) {
+          agent->update_inventory(item, amount);
+        }
+      }
+    }
+  }
+
+  // Apply global systems
+  if (_clipper) {
+    _clipper->maybe_clip_new_assembler(_rng);
   }
 
   // Compute observations for next step
@@ -652,12 +678,23 @@ py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> acti
   return py::make_tuple(_observations, _rewards, _terminals, _truncations, py::dict());
 }
 
-py::dict MettaGrid::grid_objects() {
+py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col) {
   py::dict objects;
+
+  // Determine if bounding box filtering is enabled
+  bool use_bounds = (min_row >= 0 && max_row >= 0 && min_col >= 0 && max_col >= 0);
 
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
+
+    // Filter by bounding box if specified
+    if (use_bounds) {
+      if (obj->location.r < min_row || obj->location.r >= max_row ||
+          obj->location.c < min_col || obj->location.c >= max_col) {
+        continue;
+      }
+    }
 
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
@@ -678,6 +715,14 @@ py::dict MettaGrid::grid_objects() {
       obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
     }
 
+    if (auto* has_inventory = dynamic_cast<HasInventory*>(obj)) {
+      py::dict inventory_dict;
+      for (const auto& [resource, quantity] : has_inventory->inventory.get()) {
+        inventory_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["inventory"] = inventory_dict;
+    }
+
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
@@ -687,11 +732,6 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["freeze_duration"] = agent->freeze_duration;
       obj_dict["color"] = agent->color;
 
-      py::dict inventory_dict;
-      for (const auto& [resource, quantity] : agent->inventory.get()) {
-        inventory_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["inventory"] = inventory_dict;
       // We made resource limits more complicated than this, and need to review how to expose them.
       // py::dict resource_limits_dict;
       // for (const auto& [resource, quantity] : agent->inventory.limits) {
@@ -702,11 +742,6 @@ py::dict MettaGrid::grid_objects() {
     }
 
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
-      py::dict inventory_dict;
-      for (const auto& [resource, quantity] : converter->inventory.get()) {
-        inventory_dict[py::int_(resource)] = quantity;
-      }
-      obj_dict["inventory"] = inventory_dict;
       obj_dict["is_converting"] = converter->converting;
       obj_dict["is_cooling_down"] = converter->cooling_down;
       obj_dict["conversion_duration"] = converter->conversion_ticks;
@@ -873,7 +908,12 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("terminals").noconvert(),
            py::arg("truncations").noconvert(),
            py::arg("rewards").noconvert())
-      .def("grid_objects", &MettaGrid::grid_objects)
+      .def("grid_objects",
+           &MettaGrid::grid_objects,
+           py::arg("min_row") = -1,
+           py::arg("max_row") = -1,
+           py::arg("min_col") = -1,
+           py::arg("max_col") = -1)
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
@@ -917,6 +957,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_change_glyph_action_config(m);
   bind_global_obs_config(m);
+  bind_clipper_config(m);
   bind_game_config(m);
 
   // Export data types from types.hpp

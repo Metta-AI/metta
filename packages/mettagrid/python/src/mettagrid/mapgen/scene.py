@@ -1,87 +1,87 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Optional, Type, TypeVar, get_args, get_origin
+from typing import Any, ClassVar, Generic, TypeVar, get_args, get_origin
 
 import numpy as np
-from pydantic import FieldSerializationInfo, ValidationInfo, field_serializer, field_validator
+from pydantic import model_serializer
 
 from mettagrid.config.config import Config
-from mettagrid.mapgen.random.int import MaybeSeed
 from mettagrid.mapgen.types import Area, AreaQuery, MapGrid
 from mettagrid.util.module import load_symbol
 
-ParamsT = TypeVar("ParamsT", bound=Config)
-
-SceneT = TypeVar("SceneT", bound="Scene")
-
-
-def _ensure_scene_cls(v: Any) -> type[Scene]:
-    if isinstance(v, str):
-        v = load_symbol(v)
-    if not issubclass(v, Scene):
-        raise ValueError(f"Class {v} does not inherit from Scene")
-    return v
-
 
 class SceneConfig(Config):
-    type: type[Scene]
-    params: Config
-    children: list[ChildrenAction] | None = None
+    # will be defined by Scene.__init_subclass__ when the config is bound to a scene class
+    _scene_cls: ClassVar[type[Scene]] | None = None
+    children: list[ChildrenAction] = []
     seed: int | None = None
 
-    # Turn strings into classes, ensure subclass of Scene
-    @field_validator("type", mode="before")
-    @classmethod
-    def _validate_type(cls, v: Any) -> type[Scene]:
-        return _ensure_scene_cls(v)
+    @property
+    def scene_cls(self) -> type[Scene]:
+        if not self._scene_cls:
+            raise ValueError(f"{self.__class__.__name__} is not bound to a scene class")
+        return self._scene_cls
 
-    @field_serializer("type")
-    def _serialize_type(self, type: type[Scene], _info):
-        return f"{type.__module__}.{type.__name__}"
-
-    # Validate/convert params using the already-validated 'type'
-    @field_validator("params", mode="before")
-    @classmethod
-    def _validate_params(cls, v: Any, info: ValidationInfo) -> Any:
-        scene_cls = info.data.get("type")
-        if scene_cls is None:
-            # Shouldn't happen because "type" is defined before "params"
-            raise TypeError("'type' must be provided before 'params'")
-        scene_cls = _ensure_scene_cls(scene_cls)
-        return scene_cls.validate_params(v)
-
-    @field_serializer("params")
-    def _serialize_params(self, params: Config, _info: FieldSerializationInfo):
-        return params.model_dump(
-            exclude_unset=_info.exclude_unset,
-            exclude_defaults=_info.exclude_defaults,
-            # TODO - pass more? can we pass all flags?
-        )
+    @model_serializer(mode="wrap")
+    def _serialize_with_type(self, handler):
+        data = handler(self)
+        if not self._scene_cls:
+            raise ValueError(f"{self.__class__.__name__} is not bound to a scene class")
+        return {"type": f"{self._scene_cls.__module__}.{self._scene_cls.__name__}", **data}
 
     def create(self, area: Area, rng: np.random.Generator) -> Scene:
-        return self.type(area=area, params=self.params, seed=self.seed or rng, children_actions=self.children)
+        return self.scene_cls(area=area, config=self, rng=rng)
+
+
+def validate_any_scene_config(v: Any) -> SceneConfig:
+    # See also: _validate_open_map_builder in map_builder.py
+    # After Pydantic 2.12, we can simplify this by using SerializeAsAny.
+
+    if isinstance(v, SceneConfig):
+        return v
+
+    if not isinstance(v, dict):
+        raise ValueError("Scene config must be a dict")
+
+    t = v.get("type")
+    if t is None:
+        raise ValueError("'type' is required")
+
+    target = load_symbol(t) if isinstance(t, str) else t
+
+    if isinstance(target, type) and issubclass(target, Scene):
+        cfg_model = getattr(target, "Config", None)
+        if not (isinstance(cfg_model, type) and issubclass(cfg_model, SceneConfig)):
+            raise TypeError(f"{target.__name__} must define a nested class Config(SceneConfig).")
+        data = {k: v for k, v in v.items() if k != "type"}
+        return cfg_model.model_validate(data)
+
+    raise TypeError(f"'type' must point to a Scene subclass; got {target!r}")
 
 
 class ChildrenAction(AreaQuery):
     scene: SceneConfig
 
 
-class Scene(Generic[ParamsT]):
+ConfigT = TypeVar("ConfigT", bound=SceneConfig)
+
+SceneT = TypeVar("SceneT", bound="Scene")
+
+
+class Scene(Generic[ConfigT]):
     """
     Base class for all map scenes.
 
     Subclasses must:
-    1. Inherit from Scene[ParamsT], where ParamsT is a subclass of Config.
+    1. Inherit from Scene[ConfigT], where ConfigT is a subclass of SceneConfig.
     2. Define a `render()` method.
 
     If you need to perform additional initialization, override `post_init()` instead of `__init__`.
     """
 
-    Params: type[ParamsT]
-    params: ParamsT
+    Config: type[ConfigT]
 
     _areas: list[Area]
-    children_actions: list[ChildrenAction]
     children: list[Scene]
 
     # { "lock_name": [area_id1, area_id2, ...] }
@@ -89,35 +89,28 @@ class Scene(Generic[ParamsT]):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # walk the subclass’s __orig_bases__ looking for Scene[…]
-        for base in getattr(cls, "__orig_bases__", ()):
-            if get_origin(base) is Scene:
-                # pull out the single type argument
-                cls.Params = get_args(base)[0]
-                return
 
-        raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Params class parameter")
+        # Look for Scene base class
+        scene_bases = [base for base in getattr(cls, "__orig_bases__", ()) if get_origin(base) is Scene]
+        if len(scene_bases) != 1:
+            raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Config class parameter")
 
-    @classmethod
-    def validate_params(cls, params: Any) -> ParamsT:
-        return cls.Params.model_validate(params or {})
+        # Set the Config class - this allows to use Scene.Config shorthand
+        Config = get_args(scene_bases[0])[0]
+        if Config._scene_cls:
+            raise ValueError(f"{Config.__name__} is already bound to another scene class: {Config._scene_cls.__name__}")
+        Config._scene_cls = cls
+        cls.Config = Config
+        return
 
     def __init__(
         self,
         area: Area,
-        params: ParamsT | None = None,
-        children_actions: Optional[list[ChildrenAction]] = None,
-        seed: MaybeSeed = None,
+        rng: np.random.Generator,
+        config: ConfigT | None = None,
     ):
-        # Validate params - they can come from untyped yaml or from weakly typed dicts in python code.
-        self.params = self.validate_params(params)
-
-        children_actions = children_actions or []
-        self.children_actions = []
-        for action in children_actions:
-            if not isinstance(action, ChildrenAction):
-                action = ChildrenAction(**action)
-            self.children_actions.append(action)
+        # Validate config - they can come from untyped yaml or from weakly typed dicts in python code.
+        self.config = self.Config.model_validate(config or {})
 
         self.children = []
 
@@ -131,7 +124,7 @@ class Scene(Generic[ParamsT]):
         self._areas = []
         self._locks = {}
 
-        self.rng = np.random.default_rng(seed)
+        self.rng = np.random.default_rng(self.config.seed or rng)
 
         self.post_init()
 
@@ -143,25 +136,31 @@ class Scene(Generic[ParamsT]):
         """
         pass
 
-    # Subclasses can override this to provide a list of children actions.
-    # By default, children actions are static, which makes them configurable in the config file, but then can't depend
-    # on the specific generated content.
-    # TODO - rename to `get_children_actions()`?
     def get_children(self) -> list[ChildrenAction]:
-        return self.children_actions
+        """
+        Subclasses can override this method to provide a list of dynamically generated children actions.
+
+        The list of static children actions from scene config will always be appended to the list returned by this
+        method.
+
+        Examples:
+        1) `RandomScene` picks a random scene and proxies rendering to it with `where="full"`.
+        2) `Mirror` scene renders its child scene on a half of the grid and then mirrors it.
+        3) `Auto` scene encapsulates the complex scene tree through a simple top-level config.
+        """
+
+        return []
 
     def get_scene_tree(self) -> dict:
         return {
-            "type": self.__class__.__name__,
-            "params": self.params.model_dump(),
+            "config": self.config.model_dump(),
             "area": self.area.as_dict(),
             "children": [child.get_scene_tree() for child in self.children],
         }
 
     def print_scene_tree(self, indent=0):
-        print(" " * indent + self.__class__.__name__)
         print(" " * indent + f"area: {self.area.as_dict()}")
-        print(" " * indent + f"params: {self.params.model_dump()}")
+        print(" " * indent + f"config: {self.config.model_dump()}")
         for child in self.children:
             child.print_scene_tree(indent + 2)
 
@@ -172,9 +171,13 @@ class Scene(Generic[ParamsT]):
         raise NotImplementedError("Subclass must implement render method")
 
     def render_with_children(self):
+        # First, render the scene itself.
         self.render()
 
-        for action in self.get_children():
+        # Then, render the children scenes based on the children actions.
+        children_actions = self.get_children()
+        children_actions.extend(self.config.children)
+        for action in children_actions:
             areas = self.select_areas(action)
             for area in areas:
                 child_rng = self.rng.spawn(1)[0]
@@ -182,7 +185,7 @@ class Scene(Generic[ParamsT]):
                 self.children.append(child_scene)
                 child_scene.render_with_children()
 
-    def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[list[str]] = None) -> Area:
+    def make_area(self, x: int, y: int, width: int, height: int, tags: list[str] | None = None) -> Area:
         area = Area(
             x=x + self.area.x,
             y=y + self.area.y,
@@ -250,21 +253,7 @@ class Scene(Generic[ParamsT]):
         return selected_areas
 
     @classmethod
-    def factory(
-        cls: Type[SceneT],
-        params: ParamsT | None = None,
-        children_actions: Optional[list[ChildrenAction]] = None,
-        seed: int | None = None,
-    ) -> SceneConfig:
-        return SceneConfig(
-            type=cls,
-            params=params or cls.Params(),
-            children=children_actions,
-            seed=seed,
-        )
-
-    @classmethod
-    def intrinsic_size(cls, params: ParamsT) -> tuple[int, int] | None:
+    def intrinsic_size(cls, config: ConfigT) -> tuple[int, int] | None:
         """
         Some scenes have a fixed size, which can be used to compute the size of
         the map.
@@ -279,7 +268,7 @@ class Scene(Generic[ParamsT]):
         limited. The main way of sizing scenes is the top-down algorithm, where
         the size of the child scenes is computed based on the size of the parent
         scene, and the size of the top-level scene is determined by MapGen
-        params.
+        config.
 
         The returned pair is (height, width), same order as in numpy arrays.
         """

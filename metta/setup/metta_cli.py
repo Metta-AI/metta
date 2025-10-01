@@ -11,13 +11,13 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+import gitta as git
 from metta.common.util.fs import get_repo_root
 from metta.setup.components.base import SetupModuleStatus
 from metta.setup.local_commands import app as local_app
 from metta.setup.symlink_setup import app as symlink_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.utils import debug, error, info, success, warning
-from metta.tools.utils.auto_config import auto_policy_storage_decision
 from metta.utils.live_run_monitor import app as run_monitor_app
 from softmax.dashboard.report import app as softmax_system_health_app
 
@@ -36,9 +36,6 @@ PYTHON_TEST_FOLDERS = [
 ]
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
-PACKAGE_TAG_PREFIXES = {
-    "mettagrid": "mettagrid-v",
-}
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
 
@@ -151,18 +148,41 @@ app = typer.Typer(
 )
 
 
-def _run_git_command(args: list[str], *, capture_output: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", *args],
-        cwd=cli.repo_root,
-        capture_output=capture_output,
-        text=True,
-        check=True,
-    )
+def _partition_supported_lint_files(paths: list[str]) -> tuple[list[str], list[str]]:
+    python_files: list[str] = []
+    cpp_files: list[str] = []
+    seen: set[str] = set()
+
+    for raw_path in paths:
+        if not (raw_path and (path := raw_path.strip()) and path not in seen):
+            continue
+        seen.add(path)
+
+        suffix = Path(path).suffix.lower()
+        if path.endswith(".py"):
+            python_files.append(path)
+        elif suffix in {".cpp", ".hpp", ".h"}:
+            cpp_files.append(path)
+
+    return python_files, cpp_files
 
 
-def _get_git_output(args: list[str]) -> str:
-    return _run_git_command(args).stdout.strip()
+def _run_ruff(python_targets: list[str] | None, *, fix: bool) -> None:
+    check_cmd = ["uv", "run", "--active", "ruff", "check"]
+    format_cmd = ["uv", "run", "--active", "ruff", "format"]
+
+    if fix:
+        check_cmd.append("--fix")
+    else:
+        format_cmd.append("--check")
+
+    for cmd in [format_cmd, check_cmd]:
+        cmd.extend(python_targets or [])
+        info(f"Running: {' '.join(cmd)}")
+        try:
+            subprocess.run(cmd, cwd=cli.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            raise typer.Exit(e.returncode) from e
 
 
 def _bump_version(version: str) -> str:
@@ -178,8 +198,7 @@ def _validate_version_format(version: str) -> None:
 
 
 def _ensure_tag_unique(package: str, version: str) -> None:
-    prefix = PACKAGE_TAG_PREFIXES[package]
-    tag_name = f"{prefix}{version}"
+    tag_name = f"{package}-v{version}"
     result = subprocess.run(
         ["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag_name}"],
         cwd=cli.repo_root,
@@ -252,6 +271,15 @@ def _get_selected_modules(components: list[str] | None = None) -> list["SetupMod
         for m in get_all_modules()
         if (components is not None and m.name in components) or (components is None and m.is_enabled())
     ]
+
+
+def _get_all_package_names() -> list[str]:
+    """Return all valid package names in <repo_root>/packages/ (dirs with __init__.py or setup.py)."""
+    repo_root = cli.repo_root
+    packages_dir = repo_root / "packages"
+    if not packages_dir.exists():
+        return []
+    return sorted(p.name for p in packages_dir.iterdir() if p.is_dir() and not p.name.startswith("."))
 
 
 @app.command(name="install", help="Install or update components")
@@ -381,6 +409,8 @@ def cmd_status(
     console = Console()
     console.print(table)
 
+    from metta.tools.utils.auto_config import auto_policy_storage_decision
+
     policy_decision = auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:
         if policy_decision.reason == "env_override":
@@ -438,6 +468,16 @@ def cmd_run(
 
 @app.command(name="clean", help="Clean build artifacts and temporary files")
 def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose output")] = False):
+    def _remove_matching_dirs(base: Path, patterns: list[str], *, include_globs: bool = False) -> None:
+        for pattern in patterns:
+            candidates = base.glob(pattern) if include_globs else (base / pattern,)
+            for path in candidates:
+                if not path.exists() or not path.is_dir():
+                    continue
+                info(f"  Removing {path.relative_to(cli.repo_root)}...")
+                subprocess.run(["chmod", "-R", "u+w", str(path)], cwd=cli.repo_root, check=False)
+                subprocess.run(["rm", "-rf", str(path)], cwd=cli.repo_root, check=False)
+
     build_dir = cli.repo_root / "build"
     if build_dir.exists():
         info("  Removing root build directory...")
@@ -449,6 +489,12 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
         if build_path.exists():
             info(f"  Removing packages/mettagrid/{build_name}...")
             shutil.rmtree(build_path)
+
+    _remove_matching_dirs(cli.repo_root, ["bazel-*"], include_globs=True)
+    _remove_matching_dirs(cli.repo_root, [".bazel_output"])
+    if mettagrid_dir.exists():
+        _remove_matching_dirs(mettagrid_dir, ["bazel-*"], include_globs=True)
+        _remove_matching_dirs(mettagrid_dir, [".bazel_output"])
 
     cleanup_script = cli.repo_root / "devops" / "tools" / "cleanup_repo.py"
     if cleanup_script.exists():
@@ -463,7 +509,7 @@ def cmd_clean(verbose: Annotated[bool, typer.Option("--verbose", help="Verbose o
 
 @app.command(name="publish", help="Create and push a release tag for a package")
 def cmd_publish(
-    package: Annotated[str, typer.Argument(help="Package to publish (currently only 'mettagrid')")],
+    package: Annotated[str, typer.Argument(help="Package to publish")],
     version_override: Annotated[
         Optional[str],
         typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
@@ -473,21 +519,20 @@ def cmd_publish(
     force: Annotated[bool, typer.Option("--force", help="Bypass branch and clean checks")] = False,
 ):
     package = package.lower()
-    if package not in PACKAGE_TAG_PREFIXES:
-        error(f"Unsupported package '{package}'. Supported packages: {', '.join(sorted(PACKAGE_TAG_PREFIXES))}.")
+    if package not in _get_all_package_names():
+        error(f"Unsupported package '{package}'. Supported packages: {', '.join(sorted(_get_all_package_names()))}.")
         raise typer.Exit(1)
 
-    prefix = PACKAGE_TAG_PREFIXES[package]
-
+    prefix = f"{package}-v"
     try:
         info(f"Fetching tags from {remote}...")
-        _run_git_command(["fetch", remote, "--tags"], capture_output=False)
+        git.run_git("fetch", remote, "--tags", "--force")
     except subprocess.CalledProcessError as exc:
         error(f"Failed to fetch tags from {remote}: {exc}")
         raise typer.Exit(exc.returncode) from exc
 
     try:
-        status_output = _get_git_output(["status", "--porcelain"])
+        status_output = git.run_git("status", "--porcelain")
     except subprocess.CalledProcessError as exc:
         error(f"Failed to read git status: {exc}")
         raise typer.Exit(exc.returncode) from exc
@@ -497,8 +542,8 @@ def cmd_publish(
         raise typer.Exit(1)
 
     try:
-        current_branch = _get_git_output(["rev-parse", "--abbrev-ref", "HEAD"])
-        current_commit = _get_git_output(["rev-parse", "HEAD"])
+        current_branch = git.run_git("rev-parse", "--abbrev-ref", "HEAD")
+        current_commit = git.run_git("rev-parse", "HEAD")
     except subprocess.CalledProcessError as exc:
         error(f"Failed to determine git state: {exc}")
         raise typer.Exit(exc.returncode) from exc
@@ -508,7 +553,7 @@ def cmd_publish(
         raise typer.Exit(1)
 
     try:
-        tag_list_output = _get_git_output(["tag", "--list", f"{prefix}*", "--sort=-v:refname"])
+        tag_list_output = git.run_git("tag", "--list", f"{prefix}*", "--sort=-v:refname")
     except subprocess.CalledProcessError:
         tag_list_output = ""
 
@@ -553,8 +598,11 @@ def cmd_publish(
         return
 
     try:
-        _run_git_command(["tag", "-a", tag_name, "-m", f"Release {package} {target_version}"])
-        _run_git_command(["push", remote, tag_name], capture_output=False)
+        info(f"Pushing to {remote}...")
+        subprocess.run([f"{cli.repo_root}/devops/git/push_child_repo.py", package, "-y"], check=True)
+        info(f"Tagging {package} {target_version}...")
+        git.run_git("tag", "-a", tag_name, "-m", f"Release {package} {target_version}")
+        git.run_git("push", remote, tag_name)
     except subprocess.CalledProcessError as exc:
         error(f"Failed to publish: {exc}")
         raise typer.Exit(exc.returncode) from exc
@@ -568,45 +616,37 @@ def cmd_lint(
     fix: Annotated[bool, typer.Option("--fix", help="Apply fixes automatically")] = False,
     staged: Annotated[bool, typer.Option("--staged", help="Only lint staged files")] = False,
 ):
-    # Determine which files to lint
-    if files:
-        # Filter to only Python files
-        files = [f for f in files if f.endswith(".py")]
+    python_targets: list[str] | None
+    cpp_targets: list[str] | None
+
+    if files is not None:
+        python_targets, cpp_targets = _partition_supported_lint_files(files)
     elif staged:
-        # Discover staged files
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-            cwd=cli.repo_root,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
-
-    if files is not None and not files:
-        info("No Python files to lint")
-        return
-
-    # Build commands
-    check_cmd = ["uv", "run", "--active", "ruff", "check"]
-    format_cmd = ["uv", "run", "--active", "ruff", "format"]
-
-    if fix:
-        check_cmd.append("--fix")
+        staged_output = git.run_git("diff", "--cached", "--name-only", "--diff-filter=ACM")
+        staged_files = [f for f in staged_output.strip().split("\n") if f]
+        python_targets, cpp_targets = _partition_supported_lint_files(staged_files)
     else:
-        format_cmd.append("--check")
+        python_targets = None
+        cpp_targets = None
 
-    if files:
-        check_cmd.extend(files)
-        format_cmd.extend(files)
+    # Run ruff if the user specified targets that include python files or they did not specify any targets
+    if python_targets is not None and not python_targets:
+        info("No Python files to lint")
+    else:
+        _run_ruff(python_targets, fix=fix)
 
-    # Run commands
-    for cmd in [format_cmd, check_cmd]:
-        try:
-            info(f"Running: {' '.join(cmd)}")
-            subprocess.run(cmd, cwd=cli.repo_root, check=True)
-        except subprocess.CalledProcessError as e:
-            raise typer.Exit(e.returncode) from e
+    # Run cpplint if the user specified targets that include c++ files or they did not specify any targets
+    if cpp_targets is not None and not cpp_targets:
+        info("No C++ files to lint")
+    else:
+        script_path = cli.repo_root / "packages" / "mettagrid" / "tests" / "cpplint.sh"
+        res = subprocess.run(["bash", str(script_path)], cwd=cli.repo_root, check=False, capture_output=True)
+        if res.returncode != 0:
+            error("C++ linting failed")
+            info(res.stderr.decode("utf-8"))
+            raise typer.Exit(res.returncode)
+        else:
+            success("C++ linting passed!")
 
 
 @app.command(name="ci", help="Run all Python unit tests and all Mettagrid C++ tests")

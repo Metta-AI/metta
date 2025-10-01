@@ -7,7 +7,7 @@ import { FC, PropsWithChildren, Suspense } from "react";
 
 import { RepoRootProvider } from "@/components/RepoRootContext";
 import { getRepoRoot } from "@/lib/api";
-import { configsRoute, mapEditorRoute, storedMapsRoute } from "@/lib/routes";
+import { configsRoute, mapEditorRoute } from "@/lib/routes";
 
 import { TopMenuLink } from "./TopMenuLink";
 
@@ -34,9 +34,6 @@ const TopMenu: FC = () => {
       </Link>
       <TopMenuLink href={configsRoute()}>Config Makers</TopMenuLink>
       <TopMenuLink href={mapEditorRoute()}>Map Editor</TopMenuLink>
-      <TopMenuLink href={storedMapsRoute()}>
-        Stored Maps (Experimental)
-      </TopMenuLink>
     </div>
   );
 };

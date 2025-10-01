@@ -40,6 +40,7 @@ build-coverage/
 # Bazel build artifacts
 **/bazel-*
 **/.bazel_output/
+**/bazel-mettagrid/*
 
 # Node.js / Frontend
 node_modules/
@@ -118,3 +119,9 @@ cluster_test_jobs.json
 # MetaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
+mettascope.out
+!packages/mettagrid/nim/mettascope/data/resources/
+tmp/
+
+# Nim runtime
+.nim_runtime

@@ -1,12 +1,11 @@
-# MISSION BRIEFING: Operation HEARTS
+# MISSION BRIEFING: Machina VII Deployment
 
-## Holon Enabled Agent Replication System
+## Holon Enabled Agent Replication Templates (HEART) Infrastructure Team
 
-### Welcome, Cog Team!
+### Welcome to the Team, Cognitive!
 
-You are part of an elite unit of Cogs deployed to establish and maintain critical HEARTS infrastructure in this sector.
-Your mission: navigate the grid, collect vital resources, and manufacture as many hearts as possible while defending our
-facilities from Clip infestation.
+You are part of an elite unit of Cogs deployed to establish and maintain critical HEARTs infrastructure in this sector. As you know, each Cog depends in its core on a HEART that contains its essential Cognitive functions, so maintaining our HEARTs infrastructure is crucial to the long term success of the colony. 
+Your mission: navigate the grid, collect vital resources, and manufacture as many HEARTs as possible while defending our facilities from Clip infestation.
 
 ---
 
@@ -15,33 +14,35 @@ facilities from Clip infestation.
 ### Power Management
 
 - Your onboard battery stores limited **energy** - use it wisely!
-- Solar panels provide passive recharge during operations
-- Support your teammates: Move into an ally's position to transfer energy from your reserves to theirs
+- Your solar panels provide passive recharge during operations
+- To support intensive operations, supplement your own solar panels by retrieving energy from solar array facilities
+- Support your teammates: Move into an ally's position to transfer energy from your reserves to theirs, if they're stuck far from home
 - Many actions and facility operations require energy expenditure
 
 ### Action Protocol (One Action Per Turn)
 
-**MOVE [Direction: N, NE, E, SE, S, SW, W, NW, or Last]**
+**MOVE [Direction: N, NE, E, SE, S, SW, W, NW]**
 
 - Empty space → You relocate to that position
 - Occupied space → You interact with the target:
   - Another Cog → Transfer some of your energy to them
   - Facility → Activate or operate the facility (see Interaction Protocols below)
-- Some movements consume energy from your battery
-- "Last" repeats your previous movement direction
+- Movement consumes energy from your battery
 
-**DISPLAY [Symbol]**
+**EMOTE [Symbol]**
 
 - Update your visual communication display
 - Symbol remains visible to all Cogs until changed
 - No energy cost
 - Use for coordinating protocols, warning of threats, or team strategies
 
-**THINK**
+**REST**
 
-- Hold position and process tactical data
+- Hold position and conserve energy
 - No movement, no energy expenditure
-- Useful for timing coordination or conserving energy
+- Useful for timing coordination or waiting for teammates
+
+### Facilities
 
 ### Interaction Protocols
 
@@ -57,7 +58,7 @@ Your chassis has limited capacity for:
 
 - **Essential Resources**: Carbon, Oxygen, Germanium, Silicon
 - **Specialized Equipment**: Resonator, Modulator, Scrambler, Disruptor
-- **Mission Objective**: HEARTS units
+- **Mission Objective**: HEARTs units
 - **Energy** reserves (for transferring to facilities or teammates)
 
 ---
@@ -66,20 +67,22 @@ Your chassis has limited capacity for:
 
 ### Resource Acquisition
 
-Locate and operate extraction facilities by moving into them:
+Resources are stockpiled by automated extraction facilities called extractors. Extractors have finite storage capacity. If they have storage space remaining they will automatically produce and store resources until they are full.
 
-- **Carbon Collector** - Harvests carbon compounds
-- **Oxygen Optimizer** - Processes atmospheric oxygen
-- **Germanium Generator** - Extracts germanium deposits
-- **Silicon Smelter** - Refines silicon materials
-- **Energy Emitter** - Charges the activating Cog's battery
+Note: extractors are facilities, and may offer multi-Cog protocols as well.
 
-**Operating Instructions**: Move into the facility from an adjacent position. Resources or energy will be added to your
-cargo if successful.
+Common extractor types
+- **Carbon Furnace** - Harvests and purifies carbon compounds
+- **Oxygen Plant** - Processes hydrolyzed minerals for oxygen
+- **Germanium Smelter** - Extracts germanium from metal deposits
+- **Silicon Reducer** - Reduces silicon oxides into pure silicon
+- **Solar Array** - Collects and stores energy from the sun
+
+**Operating Instructions**: Move into the facility from any adjacent position. The resources or energy in storage will be added to your cargo if successful.  
 
 ### The Atomic Assembler - Heart Production Center
 
-This is your primary objective facility! The Assembler converts raw resources into equipment and precious HEARTS units.
+This is your primary objective facility! The Assembler converts raw resources into equipment and precious HEART units.
 
 **CRITICAL PROTOCOL SYSTEM**:
 
@@ -117,24 +120,24 @@ different terminals and move into the Chest
 
 ---
 
-## THREAT ADVISORY: CLIP CONTAMINATION
+## THREAT ADVISORY: FRIENDLY PAPERCLIP COMPANY OUTBREAK
 
-**WARNING**: Hostile Clips are actively attempting to infest our facilities!
+**WARNING**: The Friendly Paperclip Company's automated paperclip production nanoswarm has been sighted infesting our outlying extractors.  The Clips are actively attempting to infest our facilities and subvert them for optimal paperclip production.
 
 ### Clip Response Actions
 
-- **Identify**: Clipped buildings have altered appearance
-- **Approach**: Move adjacent to the infected facility
-- **Unclip**: Move into the facility to attempt special unclipping protocols
-- Different Cog formations may be required for different unclipping procedures
-- Act quickly - Clips drain resources from infected buildings!
+- **Identify**: Clipped facilities have altered appearance
+- **Prepare**: Reclaiming buildings from the Clips requires special tools, which can be produced at the Atomic Assembler. Make sure you have what you need. Some clipped facilities may require more than one Cog and more than one tool.
+- **Approach**: Move adjacent to the infested facility with your fellow Cogs and explore to find the reclamation protocol
+- **Reclaim**: Move into the facility to attempt a reclamation protocols
+
+- Act quickly: infestation levels may rise over time, requiring more difficult reclamation procedures, and the Clips will drain more and more resources from infected facilities over time!
 
 ### Infestation Patterns
 
-- Spreads primarily between nearby deposits
-- Assemblers and Chests have resistance but aren't immune
+- Spreads primarily between nearby extractors
 - Infestation rate may accelerate over time or come in waves
-- Left unchecked, Clips will fully consume a building
+- Left unchecked, Clips will fully consume all resources from an extractor and its deposit, leaving only a husk
 
 ---
 
@@ -142,13 +145,13 @@ different terminals and move into the Chest
 
 ### Success Metrics
 
-- Personal inventory: Each HEART in your cargo = 1 point
+- Individual achievement: Currently disabled
 - Team achievement: Each HEART in the Communal Chest = shared points among all Cogs
 
 ### Operational Constraints
 
 - Actions execute in unspecified order each turn - coordinate accordingly
-- Facilities may only activate once per turn (first mover wins)
+- Facilities may only activate once per turn (first mover is the activator)
 - Cooldown timers must expire before reactivation
 - Resource deposits become less productive with use
 - Some protocols may require specific equipment in addition to resources
@@ -162,17 +165,17 @@ different terminals and move into the Chest
 
 1. **Energy Support**: Move into low-battery teammates to share power
 2. **Protocol Formation**: Position around facilities before activation
-3. **Communication**: Update DISPLAY symbols for silent coordination
-4. **Resource Relay**: Form chains to efficiently move resources
+3. **Communication**: Update EMOTE symbols for silent coordination
+4. **Optimal Foraging**: Gather the resources that complement what the rest of the team is gathering
 5. **Clip Response**: Coordinate unclipping formations rapidly
 
 ### Tactical Recommendations
 
-- Designate energy donors and facility operators
-- Use THINK action to synchronize complex maneuvers
+- Use REST action to synchronize complex maneuvers
 - Display symbols for: "Need Energy", "Ready", "Danger", "Wait"
 - Scout for new protocols through systematic formation testing
 - Maintain defensive positions near critical facilities
+- Balance HEART production with extractor defense
 - Protocols may be keyed multiple ways - experiment!
 - Some buildings support up to 256 distinct protocols
 
@@ -183,6 +186,7 @@ different terminals and move into the Chest
 - Track input/output resource requirements
 - Share discoveries via display communication
 - Remember: protocols vary between missions
+
 
 ---
 

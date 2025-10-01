@@ -11,9 +11,10 @@
 #include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
+#include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
 
-class Agent : public GridObject, public HasInventory {
+class Agent : public GridObject, public HasInventory, public Usable {
 public:
   ObservationType group;
   short frozen;
@@ -28,6 +29,8 @@ public:
   std::string group_name;
   // We expect only a small number (single-digit) of soul-bound resources.
   std::vector<InventoryItem> soul_bound_resources;
+  // Resources that this agent will try to share when it uses another agent.
+  std::vector<InventoryItem> shareable_resources;
   ObservationType color;
   ObservationType glyph;
   // Despite being a GridObjectId, this is different from the `id` property.
@@ -42,8 +45,10 @@ public:
   GridLocation prev_location;
   std::string prev_action_name;
   unsigned int steps_without_motion;
+  // Inventory regeneration amounts (per-agent)
+  std::map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
 
-  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
       : GridObject(),
         HasInventory(config.inventory_config),
         group(config.group_id),
@@ -55,15 +60,17 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         soul_bound_resources(config.soul_bound_resources),
+        shareable_resources(config.shareable_resources),
         color(0),
         glyph(0),
         agent_id(0),
-        stats(),  // default constructor
+        stats(resource_names),
         current_stat_reward(0),
         reward(nullptr),
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
-        steps_without_motion(0) {
+        steps_without_motion(0),
+        inventory_regen_amounts(config.inventory_regen_amounts) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer), config.tag_ids);
   }
@@ -180,6 +187,23 @@ public:
 
   bool swappable() const override {
     return this->frozen;
+  }
+
+  // Implementation of Usable interface
+  bool onUse(Agent& actor, ActionArg arg) override {
+    // Share half of shareable resources from actor to this agent
+    for (InventoryItem resource : actor.shareable_resources) {
+      InventoryQuantity actor_amount = actor.inventory.amount(resource);
+      // Calculate half (rounded down)
+      InventoryQuantity share_attempted_amount = actor_amount / 2;
+      if (share_attempted_amount > 0) {
+        // The actor is trying to give us resources. We need to make sure we can take them.
+        InventoryDelta successful_share_amount = this->update_inventory(resource, share_attempted_amount);
+        actor.update_inventory(resource, -successful_share_amount);
+      }
+    }
+
+    return true;
   }
 
   std::vector<PartialObservationToken> obs_features() const override {

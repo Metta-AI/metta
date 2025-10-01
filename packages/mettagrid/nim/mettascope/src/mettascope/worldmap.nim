@@ -1,7 +1,7 @@
 import
   std/[strformat, math, os, strutils],
   boxy, vmath, windy, fidget2/[hybridrender, common],
-  common, panels, actions, utils, replays
+  common, panels, actions, utils, replays, objectinfo
 
 proc buildAtlas*() =
   ## Build the atlas.
@@ -12,11 +12,11 @@ proc buildAtlas*() =
 
 proc agentColor*(id: int): Color =
   ## Get the color for an agent.
-  let f = id.float32
+  let n = id.float32 + Pi + E + sqrt(2.0)
   color(
-    f * Pi mod 1.0,
-    f * E mod 1.0,
-    f * sqrt(2.0) mod 1.0,
+    n * Pi mod 1.0,
+    n * E mod 1.0,
+    n * sqrt(2.0) mod 1.0,
     1.0
   )
 
@@ -31,7 +31,7 @@ proc useSelections*(panel: Panel) =
       gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
       for obj in replay.objects:
         if obj.location.at(step).xy == gridPos:
-          selection = obj
+          selectObject(obj)
           break
 
 proc drawFloor*() =
@@ -456,47 +456,6 @@ proc drawThoughtBubbles*() =
         scale = 1/200/8
       )
 
-proc drawInfoText*() =
-
-  var info = ""
-
-  if selection != nil:
-    let typeName = replay.typeNames[selection.typeId]
-    case typeName
-    of "wall":
-      info = &"""
-Wall
-      """
-    of "agent":
-      info = &"""
-Agent
-  agentId: {selection.agentId}
-  orientation: {selection.orientation.at}
-  inventory: {selection.inventory.at}
-  reward: {selection.currentReward.at}
-  frozen: {selection.isFrozen.at}
-      """
-    else:
-      info = &"""
-{typeName}
-  inventory: {selection.inventory.at}
-      """
-  else:
-    info = &"""
-World
-  size: {replay.mapSize[0]}x{replay.mapSize[1]}
-  speed: {1/playSpeed:0.3f}
-  step: {step}
-    """
-  bxy.drawText(
-    "info",
-    translate(vec2(10, 10)),
-    typeface,
-    info,
-    16,
-    color(1, 1, 1, 1)
-  )
-
 proc drawWorldMini*() =
   let wallTypeId = replay.typeNames.find("wall")
   let agentTypeId = replay.typeNames.find("agent")
@@ -587,7 +546,6 @@ proc fitFullMap*(panel: Panel) =
   panel.pos.x = rectW / 2.0f - cx * z
   panel.pos.y = rectH / 2.0f - cy * z
 
-
 proc drawWorldMap*(panel: Panel) =
 
   panel.beginPanAndZoom()
@@ -604,5 +562,3 @@ proc drawWorldMap*(panel: Panel) =
     drawWorldMain()
 
   panel.endPanAndZoom()
-
-  drawInfoText()

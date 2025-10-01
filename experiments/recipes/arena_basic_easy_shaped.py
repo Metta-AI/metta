@@ -1,5 +1,6 @@
 from typing import List, Optional, Sequence
 
+from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -13,10 +14,11 @@ from metta.rl.loss import LossConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.sweep.protein_config import ParameterConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
-from metta.tools.sweep import SweepTool
+from metta.tools.sweep import SweepTool, SweepSchedulerType
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
@@ -189,17 +191,48 @@ def evaluate_in_sweep(
     )
 
 
-def sweep(total_timesteps: int = 2000000) -> SweepTool:
-    """Create a Protein sweep configuration for the arena easy shaped recipe."""
+def sweep_async_progressive(
+    min_timesteps: int,
+    max_timesteps: int,
+    initial_timesteps: int,
+    max_concurrent_evals: int = 1,
+    liar_strategy: str = "best",
+) -> SweepTool:
+    """Async-capped sweep that also sweeps over total timesteps.
 
-    protein_config = VIT_POLICY_BASE.model_copy(deep=True)
+    Args:
+        min_timesteps: Minimum trainer.total_timesteps to consider.
+        max_timesteps: Maximum trainer.total_timesteps to consider.
+        initial_timesteps: Initial/mean value for trainer.total_timesteps.
+        max_concurrent_evals: Max number of concurrent evals (default: 1).
+        liar_strategy: Constant Liar strategy (best|mean|worst).
+
+    Returns:
+        SweepTool configured for async-capped scheduling and progressive timesteps.
+    """
+
+    protein_cfg = make_custom_protein_config(
+        PPO_CORE,
+        {
+            "trainer.total_timesteps": ParameterConfig(
+                min=min_timesteps,
+                max=max_timesteps,
+                distribution="int_uniform",
+                mean=initial_timesteps,
+                scale="auto",
+            )
+        },
+    )
 
     return SweepTool(
-        protein_config=protein_config,
+        # Protein with swept timesteps
+        protein_config=protein_cfg,
+        # Recipe entrypoints
         recipe_module="experiments.recipes.arena_basic_easy_shaped",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
-        train_overrides={
-            "trainer.total_timesteps": total_timesteps,
-        },
+        # Async scheduler selection + knobs
+        scheduler_type=SweepSchedulerType.ASYNC_CAPPED,
+        max_concurrent_evals=max_concurrent_evals,
+        liar_strategy=liar_strategy,
     )
