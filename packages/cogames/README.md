@@ -69,17 +69,17 @@ CoGames integrates with standard RL training frameworks. Currently supports:
 
 ```bash
 # Train a PPO agent on a single-agent scenario
-cogames train assembler_1_simple --algorithm ppo --steps 50000 --save ./my_policy.pt
-
-# Train with Weights & Biases logging
-cogames train assembler_2_complex --algorithm ppo --steps 100000 --wandb my-project
+cogames train machina_1 --steps 50000
 ```
 
 ### Evaluating Policies
 
 ```bash
-# Evaluate a trained policy checkpoint
-cogames evaluate machina_1 --policy simple --policy-data ./my_policy.pt
+# Evaluate a specific trained policy checkpoint
+cogames evaluate machina_1 --policy simple --policy-data ./train_dir/my_policy.pt
+
+# Evaluate the latest policy checkpoint in a directory
+cogames evaluate machina_1 --policy simple --policy-data ./train_dir/
 
 # Baseline comparison with random policy
 cogames evaluate machina_1 --policy random
@@ -238,10 +238,10 @@ uv run ./tools/run.py experiments.recipes.cogames.distributed_train \
 
 ```bash
 # Interactive mode for debugging
-cogames play assembler_1_simple --interactive --render
+cogames play machina_1 --interactive
 
 # Step-by-step execution
-cogames play machina_2 --steps 10 --render --interactive
+cogames play machina_2 --steps 10
 ```
 
 ## 📝 Citation
