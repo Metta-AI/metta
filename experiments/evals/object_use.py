@@ -80,7 +80,6 @@ def make_object_use_ascii_env(
             objects=objects,
             actions=ActionsConfig(
                 move=ActionConfig(),
-                rotate=ActionConfig(enabled=False),
                 get_items=ActionConfig(),
                 put_items=ActionConfig(),
             ),
