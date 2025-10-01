@@ -61,6 +61,7 @@ class TerrainFromNumpy(MapBuilder):
         dir: str
         file: Optional[str] = None
         remove_altars: bool = False
+        mass_in_center: bool = False
         rng: random.Random = Field(default_factory=random.Random, exclude=True)
 
     def __init__(self, config: Config):
@@ -123,7 +124,7 @@ class TerrainFromNumpy(MapBuilder):
                         # Mark position and neighbors as occupied
                         occupied[y_min:y_max, x_min:x_max] = True
 
-                return spaced_positions
+                return list(spaced_positions)
 
         else:
             has_empty_neighbor = (
@@ -143,8 +144,8 @@ class TerrainFromNumpy(MapBuilder):
 
         # Get coordinates of valid positions
             valid_positions = list(zip(*np.where(valid_mask), strict=False))
-
-        self.config.rng.shuffle(list(valid_positions))
+        valid_positions = list(valid_positions)
+        self.config.rng.shuffle(valid_positions)
 
         return valid_positions
 
@@ -255,11 +256,9 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
-        grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True, mass_in_center=True)
+        grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True, mass_in_center=self.config.mass_in_center)
         # breakpoint()
         num_agents = len(agent_labels)
-
-        valid_positions = list(valid_positions)
 
         if len(valid_positions) < num_agents:
             grid, empty_centers = self.carve_out_patches(grid, valid_positions, num_agents - len(valid_positions))
@@ -267,6 +266,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
 
         # Place agents with bias towards the center
         agent_position_possibities = valid_positions[:int(len(valid_positions)/2)] if len(valid_positions)/2 > num_agents else valid_positions
+
         agent_positions = self.config.rng.sample(agent_position_possibities, num_agents)
 
         for pos, label in zip(agent_positions, agent_labels, strict=False):
