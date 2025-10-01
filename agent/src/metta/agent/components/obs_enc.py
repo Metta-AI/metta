@@ -282,8 +282,7 @@ class ObsPerceiverLatent(nn.Module):
 
         attn_bias = None
         if key_mask is not None:
-            mask_value = -torch.finfo(k.dtype).max
-            attn_bias = einops.rearrange(key_mask.to(torch.bool), "b m -> b 1 1 m").to(k.dtype) * mask_value
+            attn_bias = einops.rearrange(key_mask.to(torch.bool), "b m -> b 1 1 m")
 
         latents = self.latents.expand(x_features.shape[0], -1, -1)
 
