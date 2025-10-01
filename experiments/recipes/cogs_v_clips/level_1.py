@@ -229,7 +229,7 @@ evals = {
     },
     "three_agent_triplets_terrain_small": {
         "num_cogs": 3,
-        "assembler_positions": ["Any", "Any"],
+        "assembler_positions": ["Any", "Any", "Any"],
         "num_chargers": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
@@ -244,7 +244,7 @@ evals = {
     },
     "many_agent_triplets_terrain_small": {
         "num_cogs": 12,
-        "assembler_positions": ["Any", "Any"],
+        "assembler_positions": ["Any", "Any", "Any"],
         "num_chargers": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
@@ -554,7 +554,6 @@ def experiment():
                     f"architecture={architecture}",
                     "--gpus=4",
                     "--heartbeat-timeout=3600",
-                    "--skip-git-check",
                 ]
             )
         time.sleep(1)
