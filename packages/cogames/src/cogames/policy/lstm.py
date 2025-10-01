@@ -12,6 +12,7 @@ from mettagrid import MettaGridAction, MettaGridEnv, MettaGridObservation
 
 logger = logging.getLogger("cogames.policies.lstm_policy")
 
+
 class LSTMPolicyNet(torch.nn.Module):
     def __init__(self, env):
         super().__init__()
@@ -60,7 +61,8 @@ class LSTMPolicyNet(torch.nn.Module):
         hidden = self._net(obs_steps)
         hidden = hidden.view(batch_size, bptt_horizon, self.hidden_size)
 
-        rnn_state = LSTMStateAdapter.normalize_tuple(state)
+        expected_layers = self._rnn.num_layers * (2 if self._rnn.bidirectional else 1)
+        rnn_state = LSTMStateAdapter.normalize_tuple(state, expected_layers)
         hidden, new_state = self._rnn(hidden, rnn_state)
 
         hidden = hidden.view(batch_size * bptt_horizon, self.hidden_size)
@@ -74,10 +76,11 @@ class LSTMPolicyNet(torch.nn.Module):
         observations: torch.Tensor,
         state: Optional[Union[LSTMState, LSTMStateDict]] = None,
     ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor]:
-        tuple_state, dict_state = LSTMStateAdapter.unpack(state)
+        expected_layers = self._rnn.num_layers * (2 if self._rnn.bidirectional else 1)
+        tuple_state, dict_state = LSTMStateAdapter.unpack(state, expected_layers)
         logits, values, new_state = self._forward_internal(observations, tuple_state)
         if dict_state is not None:
-            LSTMStateAdapter.update_dict(dict_state, new_state)
+            LSTMStateAdapter.update_dict(dict_state, new_state, expected_layers)
         return logits, values
 
     # We use this to work around a major torch perf issue
