@@ -79,10 +79,10 @@ cogames train assembler_2_complex --algorithm ppo --steps 100000 --wandb my-proj
 
 ```bash
 # Evaluate a trained policy checkpoint
-cogames evaluate assembler_1_simple --policy simple --policy-data ./my_policy.pt --episodes 100
+cogames evaluate machina_1 --policy simple --policy-data ./my_policy.pt
 
 # Baseline comparison with random policy
-cogames evaluate assembler_1_simple --policy random --episodes 100
+cogames evaluate machina_1 --policy random
 ```
 
 ### Implementing Custom Policies
