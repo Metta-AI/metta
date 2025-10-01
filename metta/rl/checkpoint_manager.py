@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, TypedDict
 from zipfile import BadZipFile
 
+import boto3
 import torch
 
 from metta.agent.mocks import MockAgent

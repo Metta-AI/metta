@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+import torch.nn as nn
 from pydantic import Field
 
 from metta.agent.components.component_config import ComponentConfig
@@ -30,8 +31,8 @@ def create_checkpoint(tmp_path: Path, filename: str, policy: MockAgent) -> Path:
 class _MockActionComponentConfig(ComponentConfig):
     name: str = "mock"
 
-    def make_component(self, env=None):  # pragma: no cover - simple stub
-        return Mock()
+    def make_component(self, env=None) -> nn.Module:  # pragma: no cover - simple stub
+        return nn.Identity()
 
 
 class _MockAgentPolicyArchitecture(PolicyArchitecture):
@@ -43,24 +44,19 @@ class _MockAgentPolicyArchitecture(PolicyArchitecture):
 
 
 @pytest.fixture
-def mock_policy():
+def mock_policy() -> MockAgent:
     return MockAgent()
+
+
+@pytest.fixture
+def mock_policy_architecture() -> _MockAgentPolicyArchitecture:
+    return _MockAgentPolicyArchitecture()
 
 
 @pytest.fixture
 def test_system_cfg():
     with tempfile.TemporaryDirectory() as tmpdir:
         yield SystemConfig(data_dir=Path(tmpdir), local_only=True)
-
-
-@pytest.fixture
-def mock_agent_policy():
-    return MockAgent()
-
-
-@pytest.fixture
-def mock_policy_architecture():
-    return _MockAgentPolicyArchitecture()
 
 
 class TestFileURIs:
@@ -88,7 +84,7 @@ class TestFileURIs:
 
 class TestS3URIs:
     @patch("metta.rl.checkpoint_manager.local_copy")
-    def test_s3_download(self, mock_local_copy, mock_policy, tmp_path):
+    def test_s3_download(self, mock_local_copy, mock_policy, tmp_path: Path):
         checkpoint_file = create_checkpoint(tmp_path, checkpoint_filename("run", 12), mock_policy)
 
         mock_local_copy.return_value.__enter__ = Mock(return_value=str(checkpoint_file))
@@ -106,45 +102,24 @@ class TestS3URIs:
 
 
 class TestCheckpointManagerOperations:
-    def test_save_agent_returns_uri(
-        self,
-        test_system_cfg,
-        mock_agent_policy,
-        mock_policy_architecture,
-    ):
+    def test_save_agent_returns_uri(self, test_system_cfg, mock_policy, mock_policy_architecture):
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
-        uri = manager.save_agent(
-            mock_agent_policy,
-            epoch=1,
-            policy_architecture=mock_policy_architecture,
-        )
+        uri = manager.save_agent(mock_policy, epoch=1, policy_architecture=mock_policy_architecture)
         assert uri.startswith("file://")
         saved_path = Path(uri[7:])
         assert saved_path.exists()
 
-    def test_select_checkpoints_sorted(
-        self,
-        test_system_cfg,
-        mock_agent_policy,
-        mock_policy_architecture,
-    ):
+    def test_latest_checkpoint_sorted(self, test_system_cfg, mock_policy, mock_policy_architecture):
         manager = CheckpointManager(run="demo", system_cfg=test_system_cfg)
-        manager.save_agent(
-            mock_agent_policy,
-            epoch=1,
-            policy_architecture=mock_policy_architecture,
-        )
-        manager.save_agent(
-            mock_agent_policy,
-            epoch=3,
-            policy_architecture=mock_policy_architecture,
-        )
-        uris = manager.select_checkpoints(strategy="latest", count=1)
-        assert len(uris) == 1
-        assert uris[0].endswith(":v3.mpt")
+        manager.save_agent(mock_policy, epoch=1, policy_architecture=mock_policy_architecture)
+        manager.save_agent(mock_policy, epoch=3, policy_architecture=mock_policy_architecture)
+
+        uri = manager.get_latest_checkpoint()
+        assert uri is not None
+        assert uri.endswith(":v3.mpt")
 
     def test_normalize_uri(self, tmp_path: Path):
         path = tmp_path / "model.mpt"
-        save_policy_artifact(path, policy=MockAgent(), include_policy=True)
+        create_checkpoint(tmp_path, path.name, MockAgent())
         normalized = CheckpointManager.normalize_uri(str(path))
         assert normalized == f"file://{path}"

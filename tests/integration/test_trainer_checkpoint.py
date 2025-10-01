@@ -115,7 +115,7 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["agent_step"] > 0
         assert trainer_state["epoch"] > 0
 
-        policy_files = list(Path(checkpoint_manager.checkpoint_dir).glob("*.mpt"))
+        policy_files = [f for f in Path(checkpoint_manager.checkpoint_dir).glob("*.pt") if f.name != "trainer_state.pt"]
         assert policy_files, "No policy files found in checkpoint directory"
 
         first_run_agent_step = trainer_state["agent_step"]
@@ -140,7 +140,9 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state_2["agent_step"] > first_run_agent_step
         assert trainer_state_2["epoch"] >= first_run_epoch
 
-        policy_files_2 = list(Path(checkpoint_manager_2.checkpoint_dir).glob("*.mpt"))
+        policy_files_2 = [
+            f for f in Path(checkpoint_manager_2.checkpoint_dir).glob("*.pt") if f.name != "trainer_state.pt"
+        ]
         assert len(policy_files_2) >= len(policy_files)
 
     def test_checkpoint_fields_are_preserved(self) -> None:
@@ -163,8 +165,8 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["epoch"] > 0
         assert isinstance(trainer_state.get("optimizer_state"), dict)
 
-        policy_uris = checkpoint_manager.select_checkpoints()
-        assert policy_uris, "No policy checkpoints found"
+        policy_uri = checkpoint_manager.get_latest_checkpoint()
+        assert policy_uri, "No policy checkpoints found"
 
     def test_policy_loading_from_checkpoint(self) -> None:
         run_name = "test_policy_loading"
@@ -183,10 +185,13 @@ class TestTrainerCheckpointIntegration:
         trainer_state = checkpoint_manager.load_trainer_state()
         assert trainer_state is not None
 
-        policy_uris = checkpoint_manager.select_checkpoints()
-        assert policy_uris, "Expected at least one policy checkpoint"
+        policy_uri = checkpoint_manager.get_latest_checkpoint()
+        assert policy_uri, "Expected at least one policy checkpoint"
 
         # Load the latest policy to ensure it is valid
+        policy = checkpoint_manager.load_from_uri(policy_uri)
+        assert policy is not None
+        assert hasattr(policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
 
 
 class DummyPolicy(nn.Module):
@@ -230,7 +235,7 @@ class _FastTrainTool(TrainTool):
             trainer_state_path,
         )
 
-        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
+        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.pt"
         policy = DummyPolicy(epoch)
         torch.save(policy, policy_path)
 
