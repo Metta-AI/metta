@@ -197,15 +197,30 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name in resource_name_to_id
         ]
 
-        inventory_config = CppInventoryConfig(
-            limits=[
-                [
-                    [resource_name_to_id[resource_name]],
-                    agent_props["resource_limits"].get(resource_name, default_resource_limit),
-                ]
-                for resource_name in resource_names
-            ]
-        )
+        # Build inventory config with support for grouped limits
+        limits_list = []
+
+        # First, handle explicitly configured limits (both individual and grouped)
+        configured_resources = set()
+        for key, limit_value in agent_props["resource_limits"].items():
+            if isinstance(key, str):
+                # Single resource limit
+                if key in resource_name_to_id:
+                    limits_list.append([[resource_name_to_id[key]], limit_value])
+                    configured_resources.add(key)
+            elif isinstance(key, tuple):
+                # Grouped resources with shared limit
+                resource_ids = [resource_name_to_id[name] for name in key if name in resource_name_to_id]
+                if resource_ids:
+                    limits_list.append([resource_ids, limit_value])
+                    configured_resources.update(key)
+
+        # Add default limits for unconfigured resources
+        for resource_name in resource_names:
+            if resource_name not in configured_resources:
+                limits_list.append([[resource_name_to_id[resource_name]], default_resource_limit])
+
+        inventory_config = CppInventoryConfig(limits=limits_list)
 
         agent_cpp_params = {
             "freeze_duration": agent_props["freeze_duration"],

@@ -50,7 +50,10 @@ class AgentConfig(Config):
     """Python agent configuration."""
 
     default_resource_limit: int = Field(default=255, ge=0)
-    resource_limits: dict[str, int] = Field(default_factory=dict)
+    resource_limits: dict[str | tuple[str, ...], int] = Field(
+        default_factory=dict,
+        description="Resource limits - keys can be single resource names or tuples of names for shared limits",
+    )
     freeze_duration: int = Field(default=10, ge=-1)
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     action_failure_penalty: float = Field(default=0, ge=0)
