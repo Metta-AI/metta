@@ -456,8 +456,8 @@ def test_orientation_changes_on_failed_8way_movement():
             num_agents=1,
             allow_diagonals=True,  # Enable diagonal movements for this test
             actions=ActionsConfig(
-                rotate=ActionConfig(enabled=True),
-                move=ActionConfig(enabled=True),
+                rotate=ActionConfig(),
+                move=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
             map_builder=AsciiMapBuilder.Config(
