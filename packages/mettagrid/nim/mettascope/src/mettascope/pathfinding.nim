@@ -89,6 +89,11 @@ proc findPath*(start, goal: IVec2): seq[IVec2] =
         ))
   return @[]
 
+proc clearPath*(agentId: int) =
+  ## Clear the path and destination for an agent.
+  agentPaths.del(agentId)
+  agentDestinations.del(agentId)
+
 proc recomputePath*(agentId: int, currentPos: IVec2) =
   ## Recompute the path for an agent to their current destination.
   if not agentDestinations.hasKey(agentId) or agentDestinations[agentId].len == 0:
@@ -104,6 +109,5 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
   if newPath.len > 0:
     agentPaths[agentId] = newPath
   else:
-    agentPaths.del(agentId)
-    agentDestinations.del(agentId)
+    clearPath(agentId)
 

@@ -120,26 +120,22 @@ proc agentControls*() =
     # Move
     if window.buttonPressed[KeyW] or window.buttonPressed[KeyUp]:
       sendAction(agent.agentId, replay.moveActionId, N.int)
-      agentPaths.del(agent.agentId)
-      agentDestinations.del(agent.agentId)
+      clearPath(agent.agentId)
       lastPathQueuedStep = -1
 
     elif window.buttonPressed[KeyS] or window.buttonPressed[KeyDown]:
       sendAction(agent.agentId, replay.moveActionId, S.int)
-      agentPaths.del(agent.agentId)
-      agentDestinations.del(agent.agentId)
+      clearPath(agent.agentId)
       lastPathQueuedStep = -1
 
     elif window.buttonPressed[KeyD] or window.buttonPressed[KeyRight]:
       sendAction(agent.agentId, replay.moveActionId, E.int)
-      agentPaths.del(agent.agentId)
-      agentDestinations.del(agent.agentId)
+      clearPath(agent.agentId)
       lastPathQueuedStep = -1
 
     elif window.buttonPressed[KeyA] or window.buttonPressed[KeyLeft]:
       sendAction(agent.agentId, replay.moveActionId, W.int)
-      agentPaths.del(agent.agentId)
-      agentDestinations.del(agent.agentId)
+      clearPath(agent.agentId)
       lastPathQueuedStep = -1
 
     # Put items
