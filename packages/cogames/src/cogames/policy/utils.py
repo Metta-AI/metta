@@ -16,15 +16,15 @@ class LSTMStateAdapter:
 
     @staticmethod
     def _ensure_three_dims(tensor: torch.Tensor) -> torch.Tensor:
-        if tensor.dim() == 3:
+        dim = tensor.dim()
+        if dim == 3:
             return tensor
-        if tensor.dim() == 2:
-            return tensor.unsqueeze(0)
-        if tensor.dim() == 1:
-            return tensor.unsqueeze(0).unsqueeze(1)
-        if tensor.dim() == 0:
-            return tensor.unsqueeze(0).unsqueeze(0).unsqueeze(0)
-        return tensor
+        if dim > 3:
+            msg = f"Expected tensor with <=3 dims, got {dim}"
+            raise ValueError(msg)
+        # Prepend singleton dimensions until we reach (layers, batch, features).
+        prepend = (1,) * (3 - dim)
+        return tensor.reshape((*prepend, *tensor.shape))
 
     @staticmethod
     def _align_layers(tensor: torch.Tensor, expected_layers: int) -> torch.Tensor:
