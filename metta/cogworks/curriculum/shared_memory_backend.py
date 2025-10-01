@@ -78,15 +78,15 @@ class LocalMemoryBackend(TaskMemoryBackend):
 
     def __init__(
         self,
-        max_tasks: int = 10000,
-        task_struct_size: int = 12,
+        max_tasks: int,
+        task_struct_size: int = 13,
         completion_history_size: int = 1000,
     ):
         """Initialize local memory backend.
 
         Args:
-            max_tasks: Maximum number of tasks to track
-            task_struct_size: Size of each task's data structure (default: 12)
+            max_tasks: Maximum number of tasks to track (required, set from LearningProgressConfig)
+            task_struct_size: Size of each task's data structure (default: 13)
             completion_history_size: Size of completion history array (default: 1000)
         """
         self.max_tasks = max_tasks
@@ -137,19 +137,19 @@ class SharedMemoryBackend(TaskMemoryBackend):
 
     def __init__(
         self,
-        max_tasks: int = 10000,
+        max_tasks: int,
         session_id: Optional[str] = None,
-        task_struct_size: int = 12,
+        task_struct_size: int = 13,
         completion_history_size: int = 1000,
     ):
         """Initialize shared memory backend.
 
         Args:
-            max_tasks: Maximum number of tasks to track in shared memory
+            max_tasks: Maximum number of tasks to track in shared memory (required, set from LearningProgressConfig)
             session_id: Unique identifier for this shared memory session.
                        All processes sharing state must use the same session_id.
                        If None, creates a unique session (not shared across processes).
-            task_struct_size: Size of each task's data structure (default: 12)
+            task_struct_size: Size of each task's data structure (default: 13, includes ema_squared)
             completion_history_size: Size of completion history array (default: 1000)
         """
         self.max_tasks = max_tasks
