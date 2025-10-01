@@ -82,7 +82,7 @@ PPO_CORE = ProteinConfig(
         ),
     },
     settings=ProteinSettings(
-        num_random_samples=0,
+        num_random_samples=20,
         max_suggestion_cost=3600 * 6,
         resample_frequency=10,
         random_suggestions=15,
@@ -294,7 +294,7 @@ PPO_FULL = ProteinConfig(
 
 
 VIT_POLICY_BASE = make_custom_protein_config(
-    base_config=PPO_FULL,
+    base_config=PPO_CORE,
     parameters={
         "trainer.batch_size": ParameterConfig(
             distribution="uniform_pow2",

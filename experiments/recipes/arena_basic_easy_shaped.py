@@ -1,6 +1,6 @@
 from typing import List, Optional, Sequence
 
-from experiments.sweeps.protein_configs import PPO_CORE, make_custom_protein_config
+from experiments.sweeps.protein_configs import PPO_CORE, ViTBase, make_custom_protein_config
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -191,11 +191,11 @@ def evaluate_in_sweep(
     )
 
 
-def sweep_async_progressive(
+def sweep_async_progressive_vit(
     min_timesteps: int,
     max_timesteps: int,
     initial_timesteps: int,
-    max_concurrent_evals: int = 1,
+    max_concurrent_evals: int = 6,
     liar_strategy: str = "best",
 ) -> SweepTool:
     """Async-capped sweep that also sweeps over total timesteps.
@@ -211,18 +211,7 @@ def sweep_async_progressive(
         SweepTool configured for async-capped scheduling and progressive timesteps.
     """
 
-    protein_cfg = make_custom_protein_config(
-        PPO_CORE,
-        {
-            "trainer.total_timesteps": ParameterConfig(
-                min=min_timesteps,
-                max=max_timesteps,
-                distribution="int_uniform",
-                mean=initial_timesteps,
-                scale="auto",
-            )
-        },
-    )
+    protein_cfg = VIT_POLICY_BASE
 
     return SweepTool(
         # Protein with swept timesteps
