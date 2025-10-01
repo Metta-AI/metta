@@ -9,6 +9,11 @@ const commonJsonMetaSchema = {
   isTopLevelDef: z.boolean().optional(),
 };
 
+const nullJsonMetaSchema = z.object({
+  ...commonJsonMetaSchema,
+  type: z.literal("null"),
+});
+
 const stringJsonMetaSchema = z.object({
   ...commonJsonMetaSchema,
   type: z.literal("string"),
@@ -85,6 +90,7 @@ const arrayJsonMetaSchema = z.object({
 
 type TypedJsonMetaSchema = z.ZodDiscriminatedUnion<
   [
+    typeof nullJsonMetaSchema,
     typeof stringJsonMetaSchema,
     typeof numberJsonMetaSchema,
     typeof integerJsonMetaSchema,
@@ -95,6 +101,7 @@ type TypedJsonMetaSchema = z.ZodDiscriminatedUnion<
 >;
 
 const typedJsonMetaSchema: TypedJsonMetaSchema = z.discriminatedUnion("type", [
+  nullJsonMetaSchema,
   stringJsonMetaSchema,
   numberJsonMetaSchema,
   integerJsonMetaSchema,

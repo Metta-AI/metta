@@ -18,7 +18,7 @@ const JsonSchemaInfo: FC<{
 }> = ({ schema }) => {
   let typeStr = getSchemaTypeStr(schema);
   return (
-    <div className="text-xs">
+    <div className="max-w-[80ch] text-xs">
       <span className="font-semibold">Type:</span> {typeStr}
       <div>{"description" in schema && schema.description}</div>
     </div>
@@ -224,7 +224,7 @@ const YamlArray: FC<{
   }
 
   return (
-    <div className="-ml-[2ch]">
+    <div className="">
       {value.map((v, i) => (
         <div key={`${path}.${i}`} className="flex gap-[1ch]">
           <div className="font-semibold text-blue-900">-</div>

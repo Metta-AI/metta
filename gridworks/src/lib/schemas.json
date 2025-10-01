@@ -172,6 +172,21 @@
       "title": "AgentRewards",
       "type": "object"
     },
+    "AreaWhere": {
+      "additionalProperties": false,
+      "properties": {
+        "tags": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "title": "AreaWhere",
+      "type": "object"
+    },
     "AssemblerConfig": {
       "additionalProperties": false,
       "description": "Python assembler configuration.",
@@ -391,6 +406,81 @@
         "resource_type"
       ],
       "title": "ChestConfig",
+      "type": "object"
+    },
+    "ChildrenAction": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Offset"
+        },
+        "lock": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lock"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "const": "full",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/AreaWhere"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Where"
+        },
+        "order_by": {
+          "default": "random",
+          "enum": [
+            "random",
+            "first",
+            "last"
+          ],
+          "title": "Order By",
+          "type": "string"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneConfig"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "ChildrenAction",
       "type": "object"
     },
     "ConverterConfig": {
@@ -743,6 +833,50 @@
       "title": "RecipeConfig",
       "type": "object"
     },
+    "SceneConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "title": "Type"
+        },
+        "params": {
+          "$ref": "#/$defs/mettagrid__config__config__Config"
+        },
+        "children": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ChildrenAction"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Children"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "required": [
+        "type",
+        "params"
+      ],
+      "title": "SceneConfig",
+      "type": "object"
+    },
     "SimulationConfig": {
       "additionalProperties": false,
       "description": "Configuration for a single simulation run.",
@@ -846,6 +980,121 @@
         "type_id"
       ],
       "title": "WallConfig",
+      "type": "object"
+    },
+    "mettagrid__config__config__Config": {
+      "additionalProperties": false,
+      "description": "Common extension of Pydantic's BaseModel that:\n- sets `extra=\"forbid\"` by default\n- adds `override` and `update` methods for overriding values based on `path.to.value` keys",
+      "properties": {},
+      "title": "Config",
+      "type": "object"
+    },
+    "mettagrid__mapgen__mapgen__MapGen__Config": {
+      "additionalProperties": false,
+      "properties": {
+        "border_width": {
+          "default": 5,
+          "description": "Default border_width value guarantees that agents don't see beyond the outer walls. This value usually shouldn't be changed.",
+          "minimum": 0,
+          "title": "Border Width",
+          "type": "integer"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Random seed. If not set, a random seed will be generated. Seeds for root scene and all its children will be derived from this seed, unless they set their own seeds.",
+          "title": "Seed"
+        },
+        "root": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SceneConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height"
+        },
+        "instance_map": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MapBuilderConfig_Any_"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "instances": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instances"
+        },
+        "num_agents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Num Agents"
+        },
+        "instance_border_width": {
+          "default": 5,
+          "minimum": 0,
+          "title": "Instance Border Width",
+          "type": "integer"
+        }
+      },
+      "title": "Config",
       "type": "object"
     }
   },
