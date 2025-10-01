@@ -412,7 +412,7 @@ def experiment():
             subprocess.run(
                 [
                     "./devops/skypilot/launch.py",
-                    "experiments.recipes.cogs_v_clippies.version1.train",
+                    "experiments.recipes.cogs_v_clips.version1.train",
                     f"run=daphne.cogs_v_clips.noterrain.{curriculum_style}.{time.strftime('%Y-%m-%d')}",
                     f"curriculum_style={curriculum_style}",
                     f"architecture={architecture}",
