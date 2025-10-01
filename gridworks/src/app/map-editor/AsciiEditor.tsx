@@ -2,6 +2,7 @@ import { FC, useEffect, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 
 import { Button } from "@/components/Button";
+import encoding from "@/lib/encoding.json";
 import { MettaGrid } from "@/lib/MettaGrid";
 
 export const AsciiEditor: FC<{
@@ -22,7 +23,7 @@ export const AsciiEditor: FC<{
     <div>
       <TextareaAutosize
         value={ascii}
-        className="w-full font-mono"
+        className="w-full font-mono text-xs"
         onChange={(e) => {
           setAscii(e.target.value);
           setState({ type: "idle" });
@@ -53,6 +54,14 @@ export const AsciiEditor: FC<{
           Applied, go back to map editor tab to preview
         </div>
       )}
+      <pre className="mt-2 text-xs">
+        Symbols (be careful, ascii symbols can be different from hotkeys):
+        {Object.entries(encoding).map(([name, symbols]) => (
+          <div key={name}>
+            {symbols[0]}: {name}
+          </div>
+        ))}
+      </pre>
     </div>
   );
 };

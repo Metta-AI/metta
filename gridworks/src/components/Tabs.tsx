@@ -8,12 +8,17 @@ export type Tab = {
   content: ReactNode;
 };
 
+export type TabHandle = {
+  activeTabId: string;
+};
+
 type TabsProps = {
   tabs: Tab[];
   defaultTab?: string;
   additionalTabBarContent?: ReactNode;
   className?: string;
   topPadding?: boolean;
+  onTabChange?: (tabId: string) => void;
 };
 
 export const Tabs: FC<TabsProps> = ({
@@ -22,6 +27,7 @@ export const Tabs: FC<TabsProps> = ({
   additionalTabBarContent,
   className,
   topPadding = false,
+  onTabChange,
 }) => {
   const [activeTab, setActiveTab] = useState(
     defaultTab || (tabs.length > 0 ? tabs[0].id : "")
@@ -36,7 +42,10 @@ export const Tabs: FC<TabsProps> = ({
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+              onTabChange?.(tab.id);
+            }}
             className={clsx(
               "cursor-pointer px-4 py-2 text-sm font-medium",
               activeTab === tab.id
