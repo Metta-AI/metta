@@ -44,14 +44,19 @@ class SinusoidalPositionEmbedding(nn.Module):
 
 
 class XLPositionalEmbedding(nn.Module):
-    """Sinusoidal positional embedding identical to Transformer-XL."""
+    """Sinusoidal positional embedding identical to the original Transformer-XL implementation."""
 
     def __init__(self, d_model: int) -> None:
         super().__init__()
-        self.embedding = SinusoidalPositionEmbedding(d_model)
+        inv_freq = 1.0 / (10000 ** (torch.arange(0.0, d_model, 2.0) / d_model))
+        self.register_buffer("inv_freq", inv_freq)
 
     def forward(self, positions: torch.Tensor, batch_size: Optional[int] = None) -> torch.Tensor:
-        pos_emb = self.embedding(positions)
+        inv_freq = self.inv_freq
+        if inv_freq.device != positions.device or inv_freq.dtype != positions.dtype:
+            inv_freq = inv_freq.to(device=positions.device, dtype=positions.dtype)
+        sinusoid_inp = torch.outer(positions, inv_freq)
+        pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
         if batch_size is not None:
             return pos_emb[:, None, :].expand(-1, batch_size, -1)
         return pos_emb[:, None, :]
