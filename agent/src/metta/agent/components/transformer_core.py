@@ -17,12 +17,36 @@ class TransformerBackboneVariant(str, Enum):
     """Supported transformer backbone variants."""
 
     GTRXL = "gtrxl"
+    GTRXL_LARGE = "gtrxl_large"
     TRXL = "trxl"
+    TRXL_LARGE = "trxl_large"
     TRXL_NVIDIA = "trxl_nvidia"
     SLIDING = "sliding"
 
     def backbone_defaults(self) -> Dict[str, Any]:
         if self is TransformerBackboneVariant.GTRXL:
+            return {
+                "latent_size": 36,
+                "hidden_size": 36,
+                "num_layers": 3,
+                "n_heads": 4,
+                "d_ff": 128,
+                "max_seq_len": 80,
+                "memory_len": 20,
+                "dropout": 0.05,
+                "attn_dropout": 0.05,
+                "pre_lnorm": True,
+                "same_length": False,
+                "clamp_len": -1,
+                "positional_scale": 0.1,
+                "use_gating": True,
+                "ext_len": 0,
+                "activation_checkpoint": False,
+                "use_flash_checkpoint": False,
+                "allow_tf32": True,
+                "use_fused_layernorm": False,
+            }
+        if self is TransformerBackboneVariant.GTRXL_LARGE:
             return {
                 "latent_size": 48,
                 "hidden_size": 48,
@@ -45,6 +69,28 @@ class TransformerBackboneVariant(str, Enum):
                 "use_fused_layernorm": False,
             }
         if self is TransformerBackboneVariant.TRXL:
+            return {
+                "latent_size": 36,
+                "hidden_size": 36,
+                "num_layers": 3,
+                "n_heads": 4,
+                "d_ff": 128,
+                "max_seq_len": 80,
+                "memory_len": 20,
+                "dropout": 0.05,
+                "attn_dropout": 0.05,
+                "pre_lnorm": True,
+                "same_length": False,
+                "clamp_len": -1,
+                "positional_scale": 0.1,
+                "use_gating": False,
+                "ext_len": 0,
+                "activation_checkpoint": False,
+                "use_flash_checkpoint": False,
+                "allow_tf32": True,
+                "use_fused_layernorm": False,
+            }
+        if self is TransformerBackboneVariant.TRXL_LARGE:
             return {
                 "latent_size": 48,
                 "hidden_size": 48,
@@ -109,7 +155,19 @@ class TransformerBackboneVariant(str, Enum):
                 "strict_attr_indices": False,
                 "learning_rate_hint": 7.5e-4,
             }
+        if self is TransformerBackboneVariant.GTRXL_LARGE:
+            return {
+                "manual_init": False,
+                "strict_attr_indices": False,
+                "learning_rate_hint": 7.5e-4,
+            }
         if self is TransformerBackboneVariant.TRXL:
+            return {
+                "manual_init": False,
+                "strict_attr_indices": False,
+                "learning_rate_hint": 9.0e-4,
+            }
+        if self is TransformerBackboneVariant.TRXL_LARGE:
             return {
                 "manual_init": False,
                 "strict_attr_indices": False,
