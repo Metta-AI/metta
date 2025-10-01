@@ -141,6 +141,9 @@ def train(
     if remainder:
         vector_batch += envs_per_worker - remainder
 
+    if backend is pufferlib.vector.Serial:
+        vector_batch = max(requested_envs, envs_per_worker)
+
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         local_rank = torch.distributed.get_rank()
         if device.type == "cuda":

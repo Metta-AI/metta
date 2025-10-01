@@ -4,7 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import yaml
 from rich.console import Console
@@ -12,6 +12,53 @@ from rich.table import Table
 
 from cogames.cogs_vs_clips.scenarios import games as cogs_vs_clips_games
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
+
+
+def _map_builder_dimensions(map_builder: Any) -> Tuple[int, int]:
+    """Best-effort inference of map width/height for various map builder configs."""
+    width = getattr(map_builder, "width", None)
+    height = getattr(map_builder, "height", None)
+    if isinstance(width, int) and isinstance(height, int):
+        return width, height
+
+    map_data = getattr(map_builder, "map_data", None)
+    if isinstance(map_data, list) and map_data:
+        # Support nested lists as well as strings
+        first_row = next((row for row in map_data if isinstance(row, (list, tuple, str))), None)
+        if isinstance(first_row, str):
+            return len(first_row), len(map_data)
+        if isinstance(first_row, (list, tuple)):
+            return len(first_row), len(map_data)
+
+    # Fallback: attempt to create a builder from a deep copy to avoid mutating originals
+    cfg = map_builder
+    copy_method = getattr(map_builder, 'model_copy', None)
+    if callable(copy_method):
+        cfg = copy_method(deep=True)
+
+    try:
+        builder = cfg.create()  # type: ignore[attr-defined]
+        game_map = builder.build()
+    except Exception:
+        return 0, 0
+
+    grid = getattr(game_map, 'grid', None)
+    if grid is None:
+        return 0, 0
+
+    shape = getattr(grid, 'shape', None)
+    if isinstance(shape, tuple) and len(shape) >= 2:
+        return int(shape[1]), int(shape[0])
+
+    if isinstance(grid, list) and grid:
+        first = grid[0]
+        if isinstance(first, list):
+            return len(first), len(grid)
+        if isinstance(first, str):
+            return len(first), len(grid)
+
+    return 0, 0
+
 
 
 def get_all_games() -> Dict[str, MettaGridConfig]:
@@ -170,7 +217,8 @@ def list_games(console: Console) -> Table:
 
     for game_name, game_config in all_games.items():
         num_agents = game_config.game.num_agents
-        map_size = f"{game_config.game.map_builder.width}x{game_config.game.map_builder.height}"
+        width, height = _map_builder_dimensions(game_config.game.map_builder)
+        map_size = f"{width}x{height}" if width and height else "unknown"
 
         table.add_row(game_name, str(num_agents), map_size)
 
@@ -196,8 +244,12 @@ def describe_game(game_name: str, console: Console) -> None:
     # Display game configuration
     console.print("[bold]Game Configuration:[/bold]")
     console.print(f"  • Number of agents: {game_config.game.num_agents}")
-    console.print(f"  • Map size: {game_config.game.map_builder.width}x{game_config.game.map_builder.height}")
-    console.print(f"  • Number of agents on map: {game_config.game.map_builder.agents}")
+    width, height = _map_builder_dimensions(game_config.game.map_builder)
+    size_label = f"{width}x{height}" if width and height else "unknown"
+    console.print(f"  • Map size: {size_label}")
+    map_agents = getattr(game_config.game.map_builder, "agents", None)
+    if map_agents is not None:
+        console.print(f"  • Number of agents on map: {map_agents}")
 
     # Display available actions
     console.print("\n[bold]Available Actions:[/bold]")
