@@ -1,6 +1,6 @@
 from typing import List, Optional, Sequence
 
-from experiments.sweeps.protein_configs import PPO_CORE, ViTBase, make_custom_protein_config
+from experiments.sweeps.protein_configs import PPO_CORE, VIT_POLICY_BASE, make_custom_protein_config
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.vit import ViTDefaultConfig
