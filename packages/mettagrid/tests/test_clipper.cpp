@@ -24,8 +24,7 @@ protected:
     current_timestep = 0;
     unclip_recipe = std::make_shared<Recipe>(std::map<InventoryItem, InventoryQuantity>{{TestItems::ORE, 1}},
                                              std::map<InventoryItem, InventoryQuantity>{{TestItems::BATTERY, 1}},
-                                             10  // cooldown
-    );
+                                             10);
   }
 
   void TearDown() override {}
