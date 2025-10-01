@@ -179,29 +179,15 @@ def _run_mettascope_build() -> None:
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    def _run_nimble(args: list[str]) -> None:
-        result = subprocess.run(["nimble", *args], cwd=METTASCOPE_DIR, capture_output=True, text=True)
-        if result.stderr:
-            print(result.stderr, file=sys.stderr)
-        if result.stdout:
-            print(result.stdout, file=sys.stderr)
+    # Run the build script
+    for cmd in ["update", "install", "bindings"]:
+        result = subprocess.run(["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
+        print(result.stderr, file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
         if result.returncode != 0:
-            print(
-                f"Warning: Mettascope build failed. {' '.join(['nimble', *args])} failed.",
-                file=sys.stderr,
-            )
+            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
+            print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
             raise RuntimeError("Mettascope build failed")
-
-    # Refresh metadata, ensure windy is on a compatible version, then build bindings
-    nimble_steps = [
-        ["update", "-y"],
-        ["install", "windy@0.3.1", "-y"],
-        ["install", "-y"],
-        ["bindings", "-y"],
-    ]
-
-    for step in nimble_steps:
-        _run_nimble(step)
     print("Successfully built mettascope")
 
 
