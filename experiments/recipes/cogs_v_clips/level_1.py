@@ -137,7 +137,7 @@ evals = {
     "single_agent_no_terrain": {
         "num_cogs": 1,
         "assembler_positions": ["Any"],
-        "num_obj_distribution": [3],
+        "num_obj_distribution": 3,
         "charger_positions": ["Any"],
         "carbon_extractor_positions": ["Any"],
         "oxygen_extractor_positions": ["Any"],
@@ -151,7 +151,7 @@ evals = {
     "two_agent_pairs_no_terrain": {
         "num_cogs": 2,
         "assembler_positions": ["Any", "Any"],
-        "num_obj_distribution": [3],
+        "num_obj_distribution": 3,
         "charger_positions": ["Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any"],
@@ -165,7 +165,7 @@ evals = {
     "three_agent_triplets_no_terrain": {
         "num_cogs": 3,
         "assembler_positions": ["Any", "Any", "Any"],
-        "num_obj_distribution": [5],
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
@@ -179,7 +179,7 @@ evals = {
     "many_agent_triplets_no_terrain": {
         "num_cogs": 12,
         "assembler_positions": ["Any", "Any"],
-        "num_obj_distribution": [5],
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
@@ -194,7 +194,7 @@ evals = {
     "single_agent_terrain_small": {
         "num_cogs": 1,
         "assembler_positions": ["Any"],
-        "num_obj_distribution": [5],
+        "num_obj_distribution": 5,
         "charger_positions": ["Any"],
         "carbon_extractor_positions": ["Any"],
         "oxygen_extractor_positions": ["Any"],
@@ -209,7 +209,7 @@ evals = {
     "two_agent_pairs_terrain_small": {
         "num_cogs": 2,
         "assembler_positions": ["Any", "Any"],
-        "num_obj_distribution": [5],
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any"],
@@ -224,7 +224,7 @@ evals = {
     "three_agent_triplets_terrain_small": {
         "num_cogs": 3,
         "assembler_positions": ["Any", "Any", "Any"],
-        "num_obj_distribution": [5],
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
@@ -239,7 +239,7 @@ evals = {
     "many_agent_triplets_terrain_small": {
         "num_cogs": 12,
         "assembler_positions": ["Any", "Any", "Any"],
-        "num_obj_distribution": [5],
+        "num_obj_distribution": 5,
         "charger_positions": ["Any", "Any", "Any"],
         "carbon_extractor_positions": ["Any", "Any", "Any"],
         "oxygen_extractor_positions": ["Any", "Any", "Any"],
