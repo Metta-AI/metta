@@ -463,9 +463,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             terrain=terrain,
         )
 
-        icl_env.label = (
-            f"IMPOSSIBLE_DETERMINISTIC_{len(resources)}chain_{num_sinks}sinks_{terrain}"
-        )
+        icl_env.label = "impossible_deterministic"
         return icl_env
 
     def _generate_impossible_noisy_task_internal(
@@ -506,9 +504,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             terrain=terrain,
         )
 
-        icl_env.label = (
-            f"IMPOSSIBLE_NOISY_{len(resources)}chain_{num_sinks}sinks_{terrain}"
-        )
+        icl_env.label = "impossible_noisy"
         return icl_env
 
 
