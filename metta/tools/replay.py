@@ -34,12 +34,12 @@ class ReplayTool(Tool):
     open_browser_on_start: bool = True
 
     @classmethod
-    def auto_factory(
+    def infer(
         cls,
         mettagrid: Optional[MettaGridConfig] = None,
         simulations: Optional[list[SimulationConfig]] = None,
     ) -> Optional["ReplayTool"]:
-        """Generate ReplayTool from recipe. Prefers simulations[0]; falls back to mettagrid."""
+        """Infer ReplayTool from recipe. Prefers simulations[0]; falls back to mettagrid."""
         # Same logic as PlayTool - prefer simulations[0], fall back to mettagrid
         if simulations and len(simulations) > 0:
             return cls(sim=simulations[0])
