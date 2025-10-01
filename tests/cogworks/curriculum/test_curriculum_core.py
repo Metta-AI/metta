@@ -80,7 +80,7 @@ class TestCurriculumConfig:
         config = CurriculumConfig(task_generator=single_task_generator_config)
 
         assert config.max_task_id == 1000000
-        assert config.num_active_tasks == 10000
+        assert config.num_active_tasks == 1000
 
     @pytest.mark.parametrize(
         "max_task_id,num_active_tasks",

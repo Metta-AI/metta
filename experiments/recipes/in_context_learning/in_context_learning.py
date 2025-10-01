@@ -475,6 +475,7 @@ def setup_curriculum(task_generator_cfg, lp_params: LPParams) -> CurriculumConfi
     return CurriculumConfig(
         task_generator=task_generator_cfg,
         algorithm_config=algorithm_config,
+        num_active_tasks=lp_params.num_active_tasks,
     )
 
 

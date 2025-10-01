@@ -240,7 +240,7 @@ class CurriculumConfig(Config):
 
     task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
     max_task_id: int = Field(default=1000000, gt=0, description="Maximum task ID to generate")
-    num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
+    num_active_tasks: int = Field(default=1000, gt=0, description="Number of active tasks to maintain")
 
     # Curriculum behavior options
     min_presentations_for_eviction: int = Field(
