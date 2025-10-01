@@ -18,6 +18,7 @@ from torch import nn
 from metta.agent.policies.fast import FastConfig
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.policy_artifact import save_policy_artifact
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, ContextCheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
@@ -115,7 +116,7 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state["agent_step"] > 0
         assert trainer_state["epoch"] > 0
 
-        policy_files = [f for f in Path(checkpoint_manager.checkpoint_dir).glob("*.pt") if f.name != "trainer_state.pt"]
+        policy_files = [f for f in Path(checkpoint_manager.checkpoint_dir).glob("*.mpt") if f.name != "trainer_state.pt"]
         assert policy_files, "No policy files found in checkpoint directory"
 
         first_run_agent_step = trainer_state["agent_step"]
@@ -141,7 +142,7 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state_2["epoch"] >= first_run_epoch
 
         policy_files_2 = [
-            f for f in Path(checkpoint_manager_2.checkpoint_dir).glob("*.pt") if f.name != "trainer_state.pt"
+            f for f in Path(checkpoint_manager_2.checkpoint_dir).glob("*.mpt") if f.name != "trainer_state.pt"
         ]
         assert len(policy_files_2) >= len(policy_files)
 
@@ -188,10 +189,9 @@ class TestTrainerCheckpointIntegration:
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "Expected at least one policy checkpoint"
 
-        # Load the latest policy to ensure it is valid
-        policy = checkpoint_manager.load_from_uri(policy_uri)
-        assert policy is not None
-        assert hasattr(policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
+        artifact = checkpoint_manager.load_from_uri(policy_uri)
+        assert artifact.policy is not None
+        assert hasattr(artifact.policy, "state_dict"), "Loaded policy should be a torch.nn.Module"
 
 
 class DummyPolicy(nn.Module):
@@ -235,8 +235,8 @@ class _FastTrainTool(TrainTool):
             trainer_state_path,
         )
 
-        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.pt"
+        policy_path = checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}.mpt"
         policy = DummyPolicy(epoch)
-        torch.save(policy, policy_path)
+        save_policy_artifact(policy_path, policy=policy, include_policy=True)
 
         return 0
