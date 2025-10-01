@@ -25,42 +25,6 @@ from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
 
-_DEFAULT_POLICY_ARCHITECTURE: TransformerPolicyConfig = TransformerPolicyConfig(
-    variant=TransformerBackboneVariant.TRXL_NVIDIA,
-    transformer=TransformerBackboneConfig(
-        variant=TransformerBackboneVariant.TRXL_NVIDIA,
-        latent_size=48,
-        hidden_size=48,
-        num_layers=2,
-        n_heads=2,
-        d_ff=192,
-        max_seq_len=192,
-        memory_len=32,
-        dropout=0.05,
-        attn_dropout=0.0,
-        pre_lnorm=False,
-        same_length=False,
-        clamp_len=-1,
-        positional_scale=0.1,
-        use_gating=False,
-        ext_len=0,
-        activation_checkpoint=False,
-        use_flash_checkpoint=False,
-        allow_tf32=True,
-        use_fused_layernorm=False,
-    ),
-    critic_hidden_dim=288,
-    actor_hidden_dim=144,
-    action_embedding_dim=13,
-)
-
-
-def default_policy_architecture() -> TransformerPolicyConfig:
-    """Return a copy of the tuned NVIDIA TRXL policy configuration for ABES runs."""
-
-    return _DEFAULT_POLICY_ARCHITECTURE.model_copy(deep=True)
-
-
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
@@ -153,7 +117,34 @@ def train(
     )
 
     if policy_architecture is None or isinstance(policy_architecture, str):
-        policy_architecture = default_policy_architecture()
+        policy_architecture = TransformerPolicyConfig(
+            variant=TransformerBackboneVariant.TRXL_NVIDIA,
+            transformer=TransformerBackboneConfig(
+                variant=TransformerBackboneVariant.TRXL_NVIDIA,
+                latent_size=48,
+                hidden_size=48,
+                num_layers=2,
+                n_heads=2,
+                d_ff=192,
+                max_seq_len=192,
+                memory_len=32,
+                dropout=0.05,
+                attn_dropout=0.0,
+                pre_lnorm=False,
+                same_length=False,
+                clamp_len=-1,
+                positional_scale=0.1,
+                use_gating=False,
+                ext_len=0,
+                activation_checkpoint=False,
+                use_flash_checkpoint=False,
+                allow_tf32=True,
+                use_fused_layernorm=False,
+            ),
+            critic_hidden_dim=288,
+            actor_hidden_dim=144,
+            action_embedding_dim=13,
+        )
 
     return TrainTool(
         trainer=trainer_cfg,
