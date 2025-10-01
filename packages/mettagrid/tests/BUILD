@@ -67,6 +67,18 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name="test_clipper_bin",
+    srcs=["test_clipper.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkstatic=False,
+    deps=[
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
 # Python test wrappers
 py_test(
     name="test_stats_tracker",
@@ -104,7 +116,16 @@ py_test(
     size="small",
 )
 
-# Test suite that runs all tests
+py_test(
+    name="test_clipper",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_clipper_bin"],
+    data=[":test_clipper_bin"],
+    size="small",
+)
+
+# Test suite that r n  all tests
 test_suite(
     name="tests_all",
     tests=[
@@ -112,5 +133,6 @@ test_suite(
         ":test_grid_object",
         ":test_mettagrid",
         ":test_observations",
+        ":test_clipper",
     ],
 )

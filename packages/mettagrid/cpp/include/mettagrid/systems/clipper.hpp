@@ -58,7 +58,7 @@ public:
     to_infect.become_clipped(unclip_recipes, this);
   }
 
-  void on_unclip(Assembler& to_unclip) {
+  void on_unclip_assembler(Assembler& to_unclip) {
     for (auto& [other, weight] : assembler_infection_weight) {
       if (other == &to_unclip) continue;
       weight -= infection_weight(to_unclip, *other);

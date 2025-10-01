@@ -1464,9 +1464,9 @@ TEST_F(MettaGridCppTest, AssemblerClippingAndUnclipping) {
   unclip_recipe->cooldown = 0;
 
   std::vector<std::shared_ptr<Recipe>> unclip_recipes(256, unclip_recipe);
-  assembler.becomeClipped(unclip_recipes);
+  assembler.become_clipped(unclip_recipes, nullptr);
 
-  EXPECT_TRUE(assembler.is_clipped) << "Assembler should be clipped after becomeClipped()";
+  EXPECT_TRUE(assembler.is_clipped) << "Assembler should be clipped after become_clipped()";
   EXPECT_EQ(assembler.unclip_recipes.size(), 256) << "Should have unclip recipes set";
 
   // Test 4: Verify clipped observation feature

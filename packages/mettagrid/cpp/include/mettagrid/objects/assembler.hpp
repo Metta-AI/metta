@@ -373,7 +373,11 @@ public:
 inline void Assembler::become_unclipped() {
   is_clipped = false;
   unclip_recipes.clear();
-  clipper_ptr->on_unclip(*this);
+  if (clipper_ptr) {
+    // clipper_ptr might not be set if we're being unclipped as part of a test.
+    // Later, it might be because we started clipped.
+    clipper_ptr->on_unclip_assembler(*this);
+  }
   clipper_ptr = nullptr;
 }
 
