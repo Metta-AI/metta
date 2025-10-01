@@ -61,7 +61,7 @@ from metta.map.terrain_from_numpy import CogsVClippiesFromNumpy
 # outside of the base there are assemblers with better recipes than assemblers in the base
 
 curriculum_args = {
-    "multi_agent_singles": {
+    "multi_agent_singles_bases": {
         "num_cogs": [2, 4, 8, 12, 24],
         "assembler_positions": [["Any"]],
         "charger_positions": [["Any"]],
@@ -75,37 +75,89 @@ curriculum_args = {
         "shareable_energy": [False],
         "use_terrain": [True],
         "sizes": ["small", "medium"],
+        "use_base": [True],
     },
-    "multi_agent_pairs": {
+    "multi_agent_pairs_bases": {
         "num_cogs": [2, 4, 8, 12, 24],
-        "assembler_positions": [["Any", "Any"]],
-        "charger_positions": [["Any", "Any"]],
-        "carbon_extractor_positions": [["Any", "Any"]],
-        "oxygen_extractor_positions": [["Any", "Any"]],
-        "germanium_extractor_positions": [["Any", "Any"]],
-        "silicon_extractor_positions": [["Any", "Any"]],
+        "assembler_positions": [["Any"], ["Any", "Any"]],
+        "charger_positions": [["Any"], ["Any", "Any"]],
+        "carbon_extractor_positions": [["Any"], ["Any", "Any"]],
+        "oxygen_extractor_positions": [["Any"], ["Any", "Any"]],
+        "germanium_extractor_positions": [["Any"], ["Any", "Any"]],
+        "silicon_extractor_positions":[["Any"], ["Any", "Any"]],
         "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N", "S"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
         "use_terrain": [True],
         "sizes": ["small", "medium"],
+        "use_base": [True],
     },
-    "multi_agent_triplets": {
+    "multi_agent_triplets_bases": {
         "num_cogs": [2, 4, 8, 12, 24],
-        "assembler_positions": [["Any", "Any"]],
-        "charger_positions": [["Any", "Any", "Any"]],
-        "carbon_extractor_positions": [["Any", "Any", "Any"]],
-        "oxygen_extractor_positions": [["Any", "Any", "Any"]],
+        "assembler_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "charger_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "carbon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "oxygen_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "num_germanium_extractors": [0, 0, 0, 5, 10],
-        "germanium_extractor_positions": [["Any", "Any", "Any"]],
-        "silicon_extractor_positions": [["Any", "Any", "Any"]],
+        "germanium_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "silicon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
         "num_obj_distribution": [2, 4, 8, 12, 20],
         "chest_positions": [["N", "S", "E"]],
         "regeneration_rate": [2, 3, 4, 5],
         "shareable_energy": [True],
         "use_terrain": [True],
         "sizes": ["small", "medium"],
+        "use_base": [True],
+    },
+    "multi_agent_singles_uniform": {
+        "num_cogs": [2, 4, 8, 12, 24],
+        "assembler_positions": [["Any"]],
+        "charger_positions": [["Any"]],
+        "carbon_extractor_positions": [["Any"]],
+        "oxygen_extractor_positions": [["Any"]],
+        "germanium_extractor_positions": [["Any"]],
+        "silicon_extractor_positions": [["Any"]],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "chest_positions": [["N"]],
+        "regeneration_rate": [1, 2, 3, 4],
+        "shareable_energy": [False],
+        "use_terrain": [True],
+        "sizes": ["small", "medium"],
+        "use_base": [False],
+    },
+    "multi_agent_pairs_uniform": {
+        "num_cogs": [2, 4, 8, 12, 24],
+        "assembler_positions": [["Any"], ["Any", "Any"]],
+        "charger_positions": [["Any"], ["Any", "Any"]],
+        "carbon_extractor_positions": [["Any"], ["Any", "Any"]],
+        "oxygen_extractor_positions": [["Any"], ["Any", "Any"]],
+        "germanium_extractor_positions": [["Any"], ["Any", "Any"]],
+        "silicon_extractor_positions":[["Any"], ["Any", "Any"]],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "chest_positions": [["N", "S"]],
+        "regeneration_rate": [1, 2, 3, 4],
+        "shareable_energy": [True],
+        "use_terrain": [True],
+        "sizes": ["small", "medium"],
+        "use_base": [False],
+    },
+    "multi_agent_triplets_uniform": {
+        "num_cogs": [2, 4, 8, 12, 24],
+        "assembler_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "charger_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "carbon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "oxygen_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "num_germanium_extractors": [0, 0, 0, 5, 10],
+        "germanium_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "silicon_extractor_positions": [["Any"], ["Any", "Any"], ["Any", "Any", "Any"]],
+        "num_obj_distribution": [2, 4, 8, 12, 20],
+        "chest_positions": [["N", "S", "E"]],
+        "regeneration_rate": [2, 3, 4, 5],
+        "shareable_energy": [True],
+        "use_terrain": [True],
+        "sizes": ["small", "medium"],
+        "use_base": [False],
     },
     # "test":
     #     {
@@ -276,6 +328,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         shareable_energy: list[bool] = Field(default=[True])
         use_terrain: list[bool] = Field(default=[False])
         sizes: list[str] = Field(default=["small"])
+        use_base: list[bool] = Field(default=[True])
 
     def __init__(self, config: "TaskGenerator.Config"):
         super().__init__(config)
@@ -345,6 +398,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         else:
             width, height = 10, 10  # won't use for terrain
 
+        use_base = rng.choice(self.config.use_base)
         num_instances = 24 // num_cogs
 
         env = make_game(
@@ -404,6 +458,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
                     },
                     remove_altars=True,
                     dir=f"varied_terrain/{terrain_density}_{room_size}",
+                    mass_in_center=use_base,
                     rng=rng,
                 ),
             )
