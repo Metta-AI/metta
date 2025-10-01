@@ -40,10 +40,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11.7"
-      - name: Install build tooling
-        run: python -m pip install --upgrade pip build
       - name: Build sdist
-        run: python -m build --sdist --outdir dist packages/pufferlib-core
+        run: pipx run build --sdist --outdir dist packages/pufferlib-core
       - uses: actions/upload-artifact@v4
         with:
           name: pufferlib-core-sdist
@@ -60,18 +58,16 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-python@v5
+      - uses: pypa/cibuildwheel@v3.2.0
         with:
-          python-version: "3.11.7"
-      - name: Install cibuildwheel
-        run: python -m pip install --upgrade pip cibuildwheel
-      - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse packages/pufferlib-core
+          package-dir: packages/pufferlib-core
+          output-dir: wheelhouse
         env:
-          CIBW_BUILD: "cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp311-macosx_arm64 cp312-macosx_arm64"
-          CIBW_SKIP: "*-musllinux* *-win32 *-win_amd64 *-manylinux_ppc64le *-manylinux_s390x"
+          CIBW_BUILD: "cp311-* cp312-*"
+          CIBW_SKIP: "*-musllinux* *i686 *-win32 *-win_amd64 *-manylinux_ppc64le *-manylinux_s390x"
           CIBW_TEST_SKIP: "*"
           CIBW_ARCHS_MACOS: "arm64"
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
           CI: "true"
       - uses: actions/upload-artifact@v4
@@ -97,13 +93,8 @@ jobs:
           merge-multiple: true
       - name: List distributions
         run: ls -l dist
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
-      - name: Install Twine
-        run: python -m pip install --upgrade pip twine
       - name: Check distributions
-        run: python -m twine check dist/*
+        run: pipx run twine check dist/*
       - name: Create deployment record
         id: create_deployment
         uses: actions/github-script@v7
