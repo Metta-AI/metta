@@ -53,6 +53,8 @@ struct GameConfig {
 
   // Global clipper settings
   std::shared_ptr<Recipe> clipper_recipe = nullptr;
+  float clipper_length_scale = 1.0f;
+  float clipper_cutoff_distance = 0.0f;
   float clipper_clip_rate = 0.0f;
 };
 
@@ -99,6 +101,8 @@ inline void bind_game_config(py::module& m) {
 
                     // Clipper
                     const std::shared_ptr<Recipe>&,
+                    float,
+                    float,
                     float>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -125,6 +129,8 @@ inline void bind_game_config(py::module& m) {
 
            // Clipper
            py::arg("clipper_recipe") = std::shared_ptr<Recipe>(nullptr),
+           py::arg("clipper_length_scale") = 1.0f,
+           py::arg("clipper_cutoff_distance") = 0.0f,
            py::arg("clipper_clip_rate") = 0.0f)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
@@ -156,6 +162,8 @@ inline void bind_game_config(py::module& m) {
 
       // Clipper
       .def_readwrite("clipper_recipe", &GameConfig::clipper_recipe)
+      .def_readwrite("clipper_length_scale", &GameConfig::clipper_length_scale)
+      .def_readwrite("clipper_cutoff_distance", &GameConfig::clipper_cutoff_distance)
       .def_readwrite("clipper_clip_rate", &GameConfig::clipper_clip_rate);
 }
 
