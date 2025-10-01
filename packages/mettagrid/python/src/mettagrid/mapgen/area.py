@@ -46,6 +46,11 @@ class Area:
     ) -> Area:
         if width > self.width or height > self.height:
             raise ValueError(f"Area {self.width}x{self.height} is too large for sub-area {width}x{height}")
+        if x + width > self.width or y + height > self.height:
+            raise ValueError(
+                f"Subarea at ({x},{y}) with size {width}x{height} extends beyond parent area boundaries"
+                " {self.width}x{self.height}"
+            )
 
         return Area(
             outer_grid=self.outer_grid,
