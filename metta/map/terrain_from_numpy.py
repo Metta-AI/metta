@@ -207,11 +207,10 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
     def __init__(self, config: TerrainFromNumpy.Config):
         super().__init__(config)
 
-    def carve_out_patches(self, grid, valid_positions_set):
+    def carve_out_patches(self, grid, valid_positions_set, num_patches):
         # Carve out 9x9 empties at random coordinates (not in valid_positions_set) and gather the center points
         grid_shape = grid.shape
         empty_centers = []
-        num_patches = sum(self.config.objects.values()) - len(valid_positions_set)
         patch_size = 9
         half_patch = patch_size // 2
 
@@ -261,6 +260,11 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         num_agents = len(agent_labels)
 
         valid_positions = list(valid_positions)
+
+        if len(valid_positions) < num_agents:
+            grid, empty_centers = self.carve_out_patches(grid, valid_positions, num_agents - len(valid_positions))
+            valid_positions.extend(empty_centers)
+
         # Place agents with bias towards the center
         agent_position_possibities = valid_positions[:int(len(valid_positions)/2)] if len(valid_positions)/2 > num_agents else valid_positions
         agent_positions = self.config.rng.sample(agent_position_possibities, num_agents)
@@ -270,7 +274,7 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
             valid_positions.remove(pos)
 
         if len(valid_positions) < sum(self.config.objects.values()):
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions)
+            grid, empty_centers = self.carve_out_patches(grid, valid_positions, sum(self.config.objects.values()) - len(valid_positions))
             valid_positions.extend(empty_centers)
 
         for obj_name, count in self.config.objects.items():
