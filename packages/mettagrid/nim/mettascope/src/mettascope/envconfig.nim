@@ -8,7 +8,7 @@ var envConfig: Node
 
 find "/UI/EnvironmentInfo":
   onLoad:
-    envConfig = thisNode.copy()
+    envConfig = find("/UI/EnvironmentInfo").copy()
     envConfig.position = vec2(0, 0)
 
 find "/UI/Main/**/OpenConfig":
