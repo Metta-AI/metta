@@ -15,7 +15,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from cogames.utils import instantiate_or_load_policy
+from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridEnv
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ def evaluate(
     env = MettaGridEnv(env_cfg=env_cfg)
     noop = np.zeros(env.action_space.shape, dtype=env.action_space.dtype)
 
-    policy = instantiate_or_load_policy(policy_class_path, policy_data_path, env)
+    policy = initialize_or_load_policy(policy_class_path, policy_data_path, env)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env.num_agents)]
 
     per_episode_rewards: list[np.ndarray] = []

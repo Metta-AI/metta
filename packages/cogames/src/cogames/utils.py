@@ -94,7 +94,7 @@ def resolve_training_device(console: "Console", requested: str) -> "torch.device
     return candidate
 
 
-def instantiate_or_load_policy(
+def initialize_or_load_policy(
     policy_class_path: str, policy_data_path: Optional[str], env: Any, device: "torch.device | None" = None
 ) -> Policy:
     import torch

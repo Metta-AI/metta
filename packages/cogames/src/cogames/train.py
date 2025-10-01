@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from cogames.policy import TrainablePolicy
-from cogames.utils import instantiate_or_load_policy
+from cogames.utils import initialize_or_load_policy
 from mettagrid import MettaGridConfig, MettaGridEnv
 
 if TYPE_CHECKING:
@@ -101,7 +101,7 @@ def train(
         },
     )
 
-    policy = instantiate_or_load_policy(policy_class_path, initial_weights_path, vecenv.driver_env, device)
+    policy = initialize_or_load_policy(policy_class_path, initial_weights_path, vecenv.driver_env, device)
     # Ensure it implements the TrainablePolicy interface
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"

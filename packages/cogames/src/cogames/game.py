@@ -180,7 +180,7 @@ def list_games(console: Console) -> None:
 
         table.add_row(game_name, str(num_agents), map_size)
 
-    return console.print(table)
+    console.print(table)
 
 
 def describe_game(game_name: str, console: Console) -> None:
