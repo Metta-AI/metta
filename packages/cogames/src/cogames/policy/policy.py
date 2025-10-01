@@ -23,11 +23,6 @@ class AgentPolicy:
         """Return the action for the provided observation."""
         raise NotImplementedError("Subclasses must implement step()")
 
-    def reset(self) -> None:
-        """Reset any per-agent state (no-op by default)."""
-        # Default: no-op for stateless policies
-        return None
-
 
 class Policy:
     """Abstract base class for multi-agent policies.
