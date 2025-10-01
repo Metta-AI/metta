@@ -210,14 +210,14 @@ def sweep_async_progressive(
                 scale="auto",
             ),
             "temperature": ParameterConfig(
-                min=0,
+                min=0.0005,
                 max=0.5,
                 distribution="uniform",
                 mean=0.07,
                 scale="auto",
             ),
             "contrastive_coef": ParameterConfig(
-                min=0,
+                min=0.0005,
                 max=1.0,
                 distribution="uniform",
                 mean=0.5,
