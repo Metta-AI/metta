@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FUT_TIMEOUT
@@ -22,6 +23,9 @@ if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats
 
 
+_SKIP_STATS = ["action.invalid_arg.*"]
+
+
 def evaluate(
     console: Console,
     resolved_game: str,
@@ -32,6 +36,7 @@ def evaluate(
     action_timeout_ms: int,
     seed: int = 42,
 ) -> None:
+    # Load env and policies
     env = MettaGridEnv(env_cfg=env_cfg)
     noop = np.zeros(env.action_space.shape, dtype=env.action_space.dtype)
 
@@ -41,6 +46,7 @@ def evaluate(
     per_episode_rewards: list[np.ndarray] = []
     per_episode_stats: list["EpisodeStats"] = []
 
+    # Run episodes
     with ThreadPoolExecutor(max_workers=env.num_agents) as pool:
         progress_label = "Evaluating episodes"
         with typer.progressbar(range(episodes), label=progress_label) as progress:
@@ -74,6 +80,7 @@ def evaluate(
             per_episode_rewards.append(np.array(env.get_episode_rewards(), dtype=float))
             per_episode_stats.append(deepcopy(env.get_episode_stats()))
 
+    # Report results
     stacked_rewards = np.stack(per_episode_rewards)
     avg_rewards = stacked_rewards.mean(axis=0)
     total_rewards = stacked_rewards.sum(axis=1)
@@ -91,6 +98,8 @@ def evaluate(
             if agent_id >= env.num_agents:
                 continue
             for key, value in agent_stats.items():
+                if any(re.match(pattern, key) for pattern in _SKIP_STATS):
+                    continue
                 aggregated_agent_stats[agent_id][key] += float(value)
 
     summary_table = Table(
@@ -113,14 +122,6 @@ def evaluate(
         "Average reward per agent: " + ", ".join(f"Agent {idx}: {reward:.2f}" for idx, reward in enumerate(avg_rewards))
     )
 
-    console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
-    game_stats_table = Table(show_header=True, header_style="bold magenta")
-    game_stats_table.add_column("Metric")
-    game_stats_table.add_column("Average", justify="right")
-    for key, value in sorted(aggregated_game_stats.items()):
-        game_stats_table.add_row(key, f"{value / episodes:.2f}")
-    console.print(game_stats_table)
-
     console.print("\n[bold cyan]Average Agent Stats[/bold cyan]")
     for agent_id, stats in enumerate(aggregated_agent_stats):
         agent_table = Table(title=f"Agent {agent_id}", show_header=True, header_style="bold magenta")
@@ -129,6 +130,14 @@ def evaluate(
         for key, value in sorted(stats.items()):
             agent_table.add_row(key, f"{value / episodes:.2f}")
         console.print(agent_table)
+
+    console.print("\n[bold cyan]Average Game Stats[/bold cyan]")
+    game_stats_table = Table(show_header=True, header_style="bold magenta")
+    game_stats_table.add_column("Metric")
+    game_stats_table.add_column("Average", justify="right")
+    for key, value in sorted(aggregated_game_stats.items()):
+        game_stats_table.add_row(key, f"{value / episodes:.2f}")
+    console.print(game_stats_table)
 
     evaluation_metadata = {
         "game": resolved_game,
