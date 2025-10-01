@@ -93,7 +93,9 @@ class FastDynamicsConfig(PolicyArchitecture):
             out_features=_actor_hidden,
         ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_actor_hidden, embed_dim=_embedding_dim),
+        ActorQueryConfig(
+            in_key="actor_mlp", out_key="actor_query", hidden_size=_actor_hidden, embed_dim=_embedding_dim
+        ),
         ActorKeyConfig(
             query_key="actor_query",
             embedding_key="action_embedding",
