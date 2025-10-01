@@ -47,36 +47,9 @@ jobs:
           name: pufferlib-core-sdist
           path: dist/*.tar.gz
 
-  build-wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-      - uses: pypa/cibuildwheel@v3.2.0
-        with:
-          package-dir: packages/pufferlib-core
-          output-dir: wheelhouse
-        env:
-          CIBW_BUILD: "cp311-manylinux_x86_64 cp312-manylinux_x86_64"
-          CIBW_SKIP: "*-musllinux* *i686 *-manylinux_ppc64le *-manylinux_s390x"
-          CIBW_TEST_SKIP: "*"
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_34
-          PIP_DISABLE_PIP_VERSION_CHECK: "1"
-          CI: "true"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pufferlib-core-wheels-${{ matrix.os }}
-          path: wheelhouse/*.whl
-
   publish:
     name: Publish to PyPI
-    needs: [build-sdist, build-wheels]
+    needs: build-sdist
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     environment:
@@ -89,7 +62,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          merge-multiple: true
+          merge-multiple: false
       - name: List distributions
         run: ls -l dist
       - name: Check distributions

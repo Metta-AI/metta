@@ -70,18 +70,3 @@ describe_command = [
 
 [tool.setuptools.package-data]
 pufferlib = ["*.py", "*.so", "*.pyd"]
-
-[tool.cibuildwheel]
-build = [
-  "cp311-manylinux_x86_64",
-  "cp312-manylinux_x86_64",
-]
-skip = [
-  "*-musllinux*",
-  "*i686",
-  "*-manylinux_ppc64le",
-  "*-manylinux_s390x",
-]
-
-[tool.cibuildwheel.linux]
-manylinux-x86_64-image = "manylinux_2_34"
