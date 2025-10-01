@@ -46,19 +46,14 @@ proc render(currentStep: int, replayStep: string): seq[RenderResponse] =
         return
       mainLoop()
       if requestPython:
-        if requestAction:
+        for action in requestActions:
           result.add(RenderResponse(
-            actionAgentId: requestActionAgentId,
-            actionActionId: requestActionActionId,
-            actionArgument: requestActionArgument
+            actionAgentId: action.agentId,
+            actionActionId: action.actionId,
+            actionArgument: action.argument
           ))
-          requestAction = false
-          requestActionAgentId = 0
-          requestActionActionId = 0
-          requestActionArgument = 0
-          return
-        else:
-          return
+        requestActions.setLen(0)
+        return
   except Exception:
     echo "############## Error rendering Mettascope ##################"
     echo getCurrentException().getStackTrace()

@@ -90,10 +90,15 @@ var
 
   ## Signals when we want to give control back to Python (DLL mode only).
   requestPython*: bool = false
-  requestAction*: bool = false
-  requestActionAgentId*: int
-  requestActionActionId*: int
-  requestActionArgument*: int
+
+type
+  ActionRequest* = object
+    agentId*: int
+    actionId*: int
+    argument*: int
+
+var
+  requestActions*: seq[ActionRequest]
 
   followSelection*: bool = false
   mouseCaptured*: bool = false

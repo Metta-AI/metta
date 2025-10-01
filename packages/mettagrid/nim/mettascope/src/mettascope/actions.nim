@@ -29,10 +29,11 @@ proc queueAction(agentId, actionId, argument: int) =
 
 proc sendAction*(agentId, actionId, argument: int) =
   ## Send an action to the Python from the user.
-  requestAction = true
-  requestActionAgentId = agentId
-  requestActionActionId = actionId
-  requestActionArgument = argument
+  requestActions.add(ActionRequest(
+    agentId: agentId,
+    actionId: actionId,
+    argument: argument
+  ))
   requestPython = true
 
 proc getOrientationFromDelta(dx, dy: int): Orientation =
@@ -80,17 +81,14 @@ proc processActions*() =
           recomputePath(agentId, currentPos)
   
   
-  if requestAction:
-    return
-  
   if actionQueue.len > 0:
     for agentId, action in actionQueue:
-      requestAction = true
-      requestActionAgentId = action.agentId
-      requestActionActionId = action.actionId
-      requestActionArgument = action.argument
-      actionQueue.del(agentId)
-      break
+      requestActions.add(ActionRequest(
+        agentId: action.agentId,
+        actionId: action.actionId,
+        argument: action.argument
+      ))
+    actionQueue.clear()
 
 proc agentControls*() =
   ## Manual controls with WASD for selected agent.
