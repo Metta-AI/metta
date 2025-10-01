@@ -89,7 +89,7 @@ class PlayTool(Tool):
                         break
                 if should_close:
                     break
-                        
+
                 actions = sim.generate_actions()
                 # Just do random actions for now.
                 actions[:, 0] = np.random.randint(0, 5, size=len(actions))  # Random action types
