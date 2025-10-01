@@ -154,26 +154,6 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-### Observation Space
-
-Observations are dictionaries containing:
-
-- `rgb`: RGB image of the agent's view (H×W×3)
-- `inventory`: Agent's current resources
-- `position`: Agent's (x, y) coordinates
-- `orientation`: Agent's facing direction
-- `glyph`: Agent's current communication symbol
-
-### Action Space
-
-Available actions:
-
-- `0`: No-op (do nothing)
-- `1-4`: Move (forward, backward, left, right)
-- `5-8`: Rotate (turn left/right)
-- `9-24`: Change glyph (for communication)
-- Additional actions may be available based on scenario
-
 ## 📊 Available Scenarios
 
 ### Tutorial Scenarios
