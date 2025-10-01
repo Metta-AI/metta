@@ -119,11 +119,7 @@ class MettaGridCore:
         self._renderer = None
         self._renderer_class = None
         self._renderer_native = False
-        if self._render_mode == "human":
-            from mettagrid.renderer.nethack import NethackRenderer
-
-            self._renderer_class = NethackRenderer
-        elif self._render_mode == "miniscope":
+        if self._render_mode in ("human", "miniscope"):
             from mettagrid.renderer.miniscope import MiniscopeRenderer
 
             self._renderer_class = MiniscopeRenderer
@@ -164,7 +160,7 @@ class MettaGridCore:
             if self._renderer_native:
                 self._renderer = self._renderer_class()
             else:
-                self._renderer = self._renderer_class(c_env.object_type_names())
+                self._renderer = self._renderer_class(c_env.object_type_names(), c_env.map_height, c_env.map_width)
 
         self.__c_env_instance = c_env
         return c_env
@@ -320,10 +316,21 @@ class MettaGridCore:
 
         return features
 
-    @property
-    def grid_objects(self) -> Dict[int, Dict[str, Any]]:
-        """Get grid objects information."""
-        return self.__c_env_instance.grid_objects()
+    def grid_objects(
+        self, min_row: int = -1, max_row: int = -1, min_col: int = -1, max_col: int = -1
+    ) -> Dict[int, Dict[str, Any]]:
+        """Get grid objects information, optionally filtered by bounding box.
+
+        Args:
+            min_row: Minimum row (inclusive), -1 for no limit
+            max_row: Maximum row (exclusive), -1 for no limit
+            min_col: Minimum column (inclusive), -1 for no limit
+            max_col: Maximum column (exclusive), -1 for no limit
+
+        Returns:
+            Dictionary mapping object IDs to object dictionaries
+        """
+        return self.__c_env_instance.grid_objects(min_row, max_row, min_col, max_col)
 
     def set_inventory(self, agent_id: int, inventory: Dict[str, int]) -> None:
         """Set an agent's inventory by resource name.

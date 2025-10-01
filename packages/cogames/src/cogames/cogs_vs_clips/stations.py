@@ -168,12 +168,36 @@ def assembler() -> AssemblerConfig:
         type_id=8,
         recipes=[
             (
-                ["Any"],
+                ["E"],
                 RecipeConfig(
                     input_resources={"energy": 3},
                     output_resources={"heart": 1},
                     cooldown=1,
                 ),
-            )
+            ),
+            (
+                ["N"],
+                RecipeConfig(
+                    input_resources={"germanium": 1},
+                    output_resources={"decoder": 1},
+                    cooldown=1,
+                ),
+            ),
+            (
+                ["S"],
+                RecipeConfig(
+                    input_resources={"carbon": 3},
+                    output_resources={"modulator": 1},
+                    cooldown=1,
+                ),
+            ),
+            (
+                ["W"],
+                RecipeConfig(
+                    input_resources={"oxygen": 3},
+                    output_resources={"scrambler": 1},
+                    cooldown=1,
+                ),
+            ),
         ],
     )
