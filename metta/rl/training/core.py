@@ -93,7 +93,6 @@ class CoreTrainingLoop:
 
         # Get buffer for storing experience
         buffer_step = self.experience.buffer[self.experience.ep_indices, self.experience.ep_lengths - 1]
-        buffer_step = buffer_step.select(*self.policy_spec.keys())
 
         total_steps = 0
         last_env_id: slice | None = None
@@ -105,7 +104,7 @@ class CoreTrainingLoop:
             last_env_id = training_env_id
 
             # Prepare data for policy
-            td = buffer_step[training_env_id].clone()
+            td = buffer_step[training_env_id]
             target_device = td.device
             with context.stopwatch("rollout.tensor_transfer"):
                 td["env_obs"] = o.to(device=target_device, non_blocking=True)
