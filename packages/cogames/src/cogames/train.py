@@ -7,9 +7,9 @@ import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence, Tuple
 
+from cogames import serialization
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig, MettaGridEnv
-from mettagrid.util.module import load_symbol
 
 if TYPE_CHECKING:
     import torch
@@ -164,14 +164,20 @@ def train(
         backend=backend,
     )
 
-    policy_class = load_symbol(policy_class_path)
-    policy = policy_class(vecenv.driver_env, device)
+    weights_path: Optional[Path]
+    if initial_weights_path is None:
+        weights_path = None
+    else:
+        weights_path = Path(initial_weights_path)
+
+    artifact = serialization.PolicyArtifact(
+        policy_class=policy_class_path,
+        weights_path=weights_path,
+    )
+    policy = serialization.load_policy(artifact, vecenv.driver_env, device)
     assert isinstance(policy, TrainablePolicy), (
         f"Policy class {policy_class_path} must implement TrainablePolicy interface"
     )
-
-    if initial_weights_path:
-        policy.load_policy_data(str(initial_weights_path))
 
     auto_use_rnn = "lstm" in policy_class_path.lower() or "rnn" in policy_class_path.lower()
     use_rnn = use_rnn or auto_use_rnn

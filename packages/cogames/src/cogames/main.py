@@ -2,12 +2,10 @@
 
 import contextlib
 import logging
-import os
 import shutil
 import sys
-from collections import Counter
 from pathlib import Path
-from typing import Annotated, Any, Literal, Optional, Sequence, Tuple
+from typing import Annotated, Any, Literal, Optional
 
 # Always add current directory to Python path
 sys.path.insert(0, ".")
@@ -38,98 +36,6 @@ def _command_timeout(ctx: typer.Context):
         timeout = ctx.obj.get("timeout")
     with utils.cli_timeout(timeout):
         yield
-
-
-def _resolve_run_dir(run_dir: Optional[Path]) -> Path:
-    if run_dir is not None:
-        return run_dir.expanduser().resolve()
-    return (BASE_RUNS_DIR / "default").resolve()
-
-
-def _suggest_parallelism(
-    device: str,
-    requested_envs: Optional[int],
-    requested_workers: Optional[int],
-) -> Tuple[int, int]:
-    if requested_envs is not None and requested_workers is not None:
-        return requested_envs, requested_workers
-
-    cpu_count = os.cpu_count() or 4
-
-    if requested_envs is not None:
-        envs = max(1, requested_envs)
-    else:
-        if device == "cuda":
-            envs = min(max(cpu_count * 2, 8), 32)
-        else:
-            envs = min(max(cpu_count, 2), 16)
-
-    if requested_workers is not None:
-        workers = max(1, requested_workers)
-    else:
-        workers = max(1, min(envs, max(1, cpu_count // 2)))
-
-    if envs % workers != 0:
-        for candidate in range(workers, 0, -1):
-            if envs % candidate == 0:
-                workers = candidate
-                break
-        else:
-            workers = 1
-            envs = max(envs, workers)
-
-    return envs, workers
-
-
-def _filter_uniform_agent_count(
-    configs: Sequence[MettaGridConfig],
-    names: Sequence[str],
-) -> Tuple[list[MettaGridConfig], list[str]]:
-    if not configs:
-        return list(configs), list(names)
-
-    counts = [cfg.game.num_agents for cfg in configs]
-    if len(set(counts)) <= 1:
-        return list(configs), list(names)
-
-    most_common_count = Counter(counts).most_common(1)[0][0]
-    filtered_cfgs: list[MettaGridConfig] = []
-    filtered_names: list[str] = []
-    dropped = 0
-    for cfg, name, count in zip(configs, names, counts, strict=False):
-        if count == most_common_count:
-            filtered_cfgs.append(cfg)
-            filtered_names.append(name)
-        else:
-            dropped += 1
-
-    if dropped:
-        console.print(
-            "[yellow]Skipping {dropped} map(s) with mismatched agent counts. "
-            "Training will use configs with {agents} agent(s).[/yellow]".format(
-                dropped=dropped,
-                agents=most_common_count,
-            )
-        )
-
-    return filtered_cfgs, filtered_names
-
-
-def _resolve_initial_weights(path: Optional[Path]) -> Optional[Path]:
-    if path is None:
-        return None
-    if path.is_file():
-        return path
-    if path.is_dir():
-        candidates = sorted(
-            (candidate for candidate in path.iterdir() if candidate.is_file()),
-            key=lambda candidate: candidate.stat().st_mtime,
-        )
-        for candidate in reversed(candidates):
-            if candidate.suffix in {".pt", ".pth", ".ckpt"}:
-                return candidate
-        raise ValueError(f"No checkpoint files found in directory: {path}")
-    raise ValueError(f"Initial weights path not found: {path}")
 
 
 # Mapping of shorthand policy names to full class paths
@@ -238,7 +144,7 @@ def curricula_cmd(
         if output_dir is not None:
             destination = output_dir.expanduser().resolve()
         else:
-            destination = (_resolve_run_dir(None) / "curricula").resolve()
+            destination = (utils.resolve_run_dir(BASE_RUNS_DIR, None) / "curricula").resolve()
 
         curriculum_utils.dump_game_configs(env_cfgs, env_names, destination)
 
@@ -269,7 +175,7 @@ def clean_cmd(
         return
 
     with _command_timeout(ctx):
-        resolved_run_dir = _resolve_run_dir(run_dir)
+        resolved_run_dir = utils.resolve_run_dir(BASE_RUNS_DIR, run_dir)
         targets: list[Path] = []
 
         if remove_curricula:
@@ -590,7 +496,7 @@ def train_cmd(
 ) -> None:
     """Train a policy on a game."""
     with _command_timeout(ctx):
-        resolved_run_dir = _resolve_run_dir(run_dir)
+        resolved_run_dir = utils.resolve_run_dir(BASE_RUNS_DIR, run_dir)
         resolved_run_dir.mkdir(parents=True, exist_ok=True)
 
         backend = vector_backend.lower()
@@ -636,7 +542,11 @@ def train_cmd(
 
         torch_device = resolve_training_device(device)
         resolved_device_type = torch_device.type
-        resolved_num_envs, resolved_num_workers = _suggest_parallelism(resolved_device_type, num_envs, num_workers)
+        resolved_num_envs, resolved_num_workers = utils.suggest_parallelism(
+            resolved_device_type,
+            num_envs,
+            num_workers,
+        )
         if vector_backend.lower() == "multiprocessing" and sys.platform == "darwin":
             resolved_num_workers = 1
 
@@ -654,7 +564,16 @@ def train_cmd(
             )
         except curriculum_utils.CurriculumArgumentError as exc:
             raise typer.BadParameter(str(exc), param_name=exc.param_name or "game_name") from exc
-        env_cfgs, env_names = _filter_uniform_agent_count(env_cfgs, env_names)
+        env_cfgs, env_names, dropped = utils.filter_uniform_agent_count(env_cfgs, env_names)
+        if dropped:
+            agent_count = env_cfgs[0].game.num_agents if env_cfgs else "?"
+            console.print(
+                "[yellow]Skipping {dropped} map(s) with mismatched agent counts. "
+                "Training will use configs with {agents} agent(s).[/yellow]".format(
+                    dropped=dropped,
+                    agents=agent_count,
+                )
+            )
 
         representative_game = env_names[0] if env_names else None
 
@@ -696,7 +615,7 @@ def train_cmd(
 
         resolved_initial = None
         if initial_weights_path is not None:
-            resolved_initial = _resolve_initial_weights(initial_weights_path)
+            resolved_initial = utils.resolve_initial_weights(initial_weights_path)
 
         default_batch = max(resolved_num_envs * 32, 512)
         if batch_size is not None:
