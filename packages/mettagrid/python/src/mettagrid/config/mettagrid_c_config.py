@@ -205,9 +205,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for key, limit_value in agent_props["resource_limits"].items():
             if isinstance(key, str):
                 # Single resource limit
-                if key in resource_name_to_id:
-                    limits_list.append([[resource_name_to_id[key]], limit_value])
-                    configured_resources.add(key)
+                limits_list.append([[resource_name_to_id[key]], limit_value])
+                configured_resources.add(key)
             elif isinstance(key, tuple):
                 # Grouped resources with shared limit
                 resource_ids = [resource_name_to_id[name] for name in key if name in resource_name_to_id]
