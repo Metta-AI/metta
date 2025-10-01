@@ -88,7 +88,7 @@ curriculum_args = {
         "chest_positions": [["N", "S"]],
         "regeneration_rate": [1, 2, 3, 4],
         "shareable_energy": [True],
-        "use_terrain": [True, False],
+        "use_terrain": [False],
         "sizes": ["small", "medium"],
     },
     "multi_agent_triplets": {
