@@ -12,11 +12,9 @@ from tensordict import TensorDict
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig
-from cortex.kernels.conv1d import TRITON_AVAILABLE, causal_conv1d_pytorch
+from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch, causal_conv1d_triton
 from cortex.types import MaybeState, ResetMask, Tensor
-
-if TRITON_AVAILABLE:
-    from cortex.kernels.conv1d import causal_conv1d_triton
+from cortex.utils import select_backend
 
 
 class CausalConv1d(MemoryCell):
@@ -50,12 +48,6 @@ class CausalConv1d(MemoryCell):
                 groups=self.groups,
                 bias=cfg.causal_conv_bias,
             )
-
-        # Select backend: Triton if available and channel-mixing, else PyTorch
-        if TRITON_AVAILABLE and cfg.channel_mixing:
-            self.backend_fn = causal_conv1d_triton
-        else:
-            self.backend_fn = causal_conv1d_pytorch
 
         self.reset_parameters()
 
@@ -123,12 +115,20 @@ class CausalConv1d(MemoryCell):
         # Use selected backend kernel
         assert self.conv is not None  # kernel_size > 0 guaranteed by early return
 
-        # Use Triton only if tensors are on CUDA
-        use_triton = self.backend_fn == causal_conv1d_triton and x.is_cuda
+        # Triton is only available for channel-mixing mode
+        triton_fn = causal_conv1d_triton if self.cfg.channel_mixing else None
 
-        if not use_triton:
+        # Select backend at runtime
+        backend_fn = select_backend(
+            triton_fn=triton_fn,
+            pytorch_fn=causal_conv1d_pytorch,
+            tensor=x,
+            allow_triton=True,
+        )
+
+        if backend_fn == causal_conv1d_pytorch:
             # PyTorch backend (supports all modes)
-            y, conv_state = causal_conv1d_pytorch(
+            y, conv_state = backend_fn(
                 conv_state=conv_state,
                 x=x,
                 weight=self.conv.weight,
@@ -139,8 +139,8 @@ class CausalConv1d(MemoryCell):
                 resets=resets if not is_step else None,
             )
         else:
-            # Triton backend (channel-mixing only, requires per-timestep resets)
-            y, conv_state = causal_conv1d_triton(
+            # Triton backend (channel-mixing only)
+            y, conv_state = backend_fn(
                 conv_state=conv_state,
                 x=x,
                 weight=self.conv.weight,

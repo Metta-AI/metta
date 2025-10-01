@@ -13,8 +13,9 @@ from cortex.cells.conv import CausalConv1d
 from cortex.cells.mlstm import MultiHeadLayerNorm, bias_linspace_init_
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig, sLSTMCellConfig
-from cortex.kernels import TRITON_AVAILABLE, slstm_sequence_pytorch, slstm_sequence_triton
+from cortex.kernels.pytorch.slstm import slstm_sequence_pytorch, slstm_sequence_triton
 from cortex.types import MaybeState, ResetMask, Tensor
+from cortex.utils import select_backend
 
 
 class _HeadwiseLinearExpand(nn.Module):
@@ -287,31 +288,22 @@ class sLSTMCell(MemoryCell):
 
         # Dispatch to appropriate kernel
         # Use Triton on CUDA when not in step mode and head_dim is power of 2
-        use_triton = (
-            (not is_step)
-            and TRITON_AVAILABLE
-            and x_seq.is_cuda
-            and ((self.head_dim & (self.head_dim - 1)) == 0)  # power of 2
+        allow_triton = not is_step and ((self.head_dim & (self.head_dim - 1)) == 0)
+
+        backend_fn = select_backend(
+            triton_fn=slstm_sequence_triton,
+            pytorch_fn=slstm_sequence_pytorch,
+            tensor=x_seq,
+            allow_triton=allow_triton,
         )
 
-        if use_triton:
-            # Run Triton kernel
-            all_states, last_state = slstm_sequence_triton(
-                Wx=Wx_seq,
-                R=R,
-                b=b,
-                initial_states=states0,
-                resets=kernel_resets,
-            )
-        else:
-            # Run PyTorch kernel (ground truth)
-            all_states, last_state = slstm_sequence_pytorch(
-                Wx=Wx_seq,
-                R=R,
-                b=b,
-                initial_states=states0,
-                resets=kernel_resets,
-            )
+        all_states, last_state = backend_fn(
+            Wx=Wx_seq,
+            R=R,
+            b=b,
+            initial_states=states0,
+            resets=kernel_resets,
+        )
 
         # Extract outputs from kernel results
         # all_states: (T, 4, B, NH, DH); last_state: (4, B, NH, DH)
