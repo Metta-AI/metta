@@ -68,7 +68,7 @@ jobs:
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse packages/pufferlib-core
         env:
-          CIBW_BUILD: "cp311-* cp312-*"
+          CIBW_BUILD: "cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp311-macosx_arm64 cp312-macosx_arm64"
           CIBW_SKIP: "*-musllinux* *-win32 *-win_amd64 *-manylinux_ppc64le *-manylinux_s390x"
           CIBW_TEST_SKIP: "*"
           CIBW_ARCHS_MACOS: "arm64"
