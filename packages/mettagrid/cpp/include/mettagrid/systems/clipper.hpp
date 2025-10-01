@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <memory>
+#include <random>
 #include <vector>
 
 #include "core/grid.hpp"
@@ -10,7 +11,7 @@
 
 class Clipper {
 public:
-  std::shared_ptr<Recipe> recipe;
+  std::vector<std::shared_ptr<Recipe>> unclipping_recipes;
   std::map<Assembler*, float> assembler_infection_weight;
   std::set<Assembler*> unclipped_assemblers;
   float length_scale;
@@ -18,8 +19,8 @@ public:
   Grid& grid;
   float clip_rate;
 
-  Clipper(Grid& grid, std::shared_ptr<Recipe> recipe_ptr, float length_scale, float cutoff_distance, float clip_rate)
-      : recipe(std::move(recipe_ptr)),
+  Clipper(Grid& grid, std::vector<std::shared_ptr<Recipe>> recipe_ptrs, float length_scale, float cutoff_distance, float clip_rate)
+      : unclipping_recipes(std::move(recipe_ptrs)),
         length_scale(length_scale),
         cutoff_distance(cutoff_distance),
         grid(grid),
@@ -49,14 +50,21 @@ public:
     return std::sqrt(std::pow(location_a.r - location_b.r, 2) + std::pow(location_a.c - location_b.c, 2));
   }
 
-  void clip_assembler(Assembler& to_infect) {
+  void clip_assembler(Assembler& to_infect, std::mt19937& rng) {
     for (auto& [other, weight] : assembler_infection_weight) {
       if (other == &to_infect) continue;
       weight += infection_weight(to_infect, *other);
     }
     unclipped_assemblers.erase(&to_infect);
+
+    // Randomly select one recipe from the list
+    std::uniform_int_distribution<size_t> dist(0, unclipping_recipes.size() - 1);
+    size_t selected_idx = dist(rng);
+    std::shared_ptr<Recipe> selected_recipe = unclipping_recipes[selected_idx];
+
+    // Create a vector of 256 copies of the selected recipe
     std::vector<std::shared_ptr<Recipe>> unclip_recipes;
-    unclip_recipes.assign(256, recipe);
+    unclip_recipes.assign(256, selected_recipe);
     to_infect.become_clipped(unclip_recipes, this);
   }
 
@@ -101,7 +109,7 @@ public:
   void maybe_clip_new_assembler(std::mt19937& rng) {
     if (std::generate_canonical<float, 10>(rng) < clip_rate) {
       Assembler* assembler = pick_assembler_to_clip(rng);
-      if (assembler) clip_assembler(*assembler);
+      if (assembler) clip_assembler(*assembler, rng);
     }
   }
 };
