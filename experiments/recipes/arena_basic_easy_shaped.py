@@ -23,8 +23,6 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from mettagrid.config import ConverterConfig
 
-from experiments.sweeps.protein_configs import VIT_POLICY_BASE
-
 
 def make_mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
