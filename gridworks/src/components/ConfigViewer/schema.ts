@@ -5,6 +5,8 @@ import mettaSchema from "../../lib/schemas.json" assert { type: "json" };
 const commonJsonMetaSchema = {
   title: z.string().optional(),
   description: z.string().optional(),
+  // injected by TS code
+  isTopLevelDef: z.boolean().optional(),
 };
 
 const stringJsonMetaSchema = z.object({
@@ -135,29 +137,53 @@ const topLevelJsonMetaSchema = z.object({
 
 const mettaSchemas = topLevelJsonMetaSchema.parse(mettaSchema);
 
+function resolveType(type: JsonSchema): JsonSchema | undefined {
+  if ("$ref" in type) {
+    const ref: string | undefined = type.$ref.split("/").pop()!;
+    if (!ref) {
+      console.warn("Unknown ref", type.$ref);
+      return undefined;
+    }
+    if (!(ref in mettaSchemas.$defs)) {
+      console.warn("Unknown ref", type.$ref);
+      return undefined;
+    }
+    return { ...mettaSchemas.$defs[ref], isTopLevelDef: true };
+  }
+  return type;
+}
+
+function parseKind(kind: string): JsonSchema {
+  const listMatch = kind.match(/^List\[(\w+)\]$/);
+  if (listMatch) {
+    return { type: "array", items: parseKind(listMatch[1]) };
+  }
+  return { $ref: "#/$defs/" + kind };
+}
+
 export function getSchema(path: string, kind: string): JsonSchema | undefined {
-  const defs = mettaSchemas.$defs;
-  let currentType: JsonSchema = { $ref: "#/$defs/" + kind };
+  let currentType: JsonSchema = resolveType(parseKind(kind))!;
+
   const parts = path.split(".");
   for (const part of parts) {
     let nextType: JsonSchema | undefined;
 
-    if ("$ref" in currentType) {
-      const ref: string | undefined = currentType.$ref.split("/").pop()!;
-      if (!ref) {
-        console.warn("Unknown ref", currentType.$ref);
-        return undefined;
-      }
-      if (!(ref in defs)) {
-        console.warn("Unknown ref", currentType.$ref);
-        return undefined;
-      }
-      currentType = defs[ref];
-    }
-
     if (!("type" in currentType)) {
       return undefined;
     }
+
+    if (part.match(/^\d+$/)) {
+      if (currentType.type !== "array" || !currentType.items) {
+        return undefined;
+      }
+      nextType = currentType.items;
+      if (!nextType) {
+        return undefined;
+      }
+      currentType = resolveType(nextType)!;
+      continue;
+    }
+
     if (currentType.type !== "object") {
       return undefined;
     }
@@ -182,7 +208,7 @@ export function getSchema(path: string, kind: string): JsonSchema | undefined {
     }
 
     if (nextType) {
-      currentType = nextType;
+      currentType = resolveType(nextType)!;
     } else {
       return undefined;
     }
@@ -191,6 +217,14 @@ export function getSchema(path: string, kind: string): JsonSchema | undefined {
 }
 
 export function getSchemaTypeStr(property: JsonSchema): string {
+  if (
+    "isTopLevelDef" in property &&
+    "title" in property &&
+    property.isTopLevelDef &&
+    property.title
+  ) {
+    return property.title;
+  }
   if ("type" in property) {
     let typeStr: string = property.type;
     if (property.type === "array") {
