@@ -446,7 +446,7 @@ def train(
         max_memory_tasks=1000,
         max_slice_axes=3,
         progress_smoothing=0.15,
-        num_active_tasks=1000,
+        num_active_tasks=2000,
         rand_task_rate=0.25,
     )
     trainer_cfg = TrainerConfig(
