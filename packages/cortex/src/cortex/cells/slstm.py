@@ -136,9 +136,7 @@ class sLSTMCell(MemoryCell):
         super().__init__(hidden_size=cfg.hidden_size)
         self.cfg = cfg
 
-        assert (
-            cfg.hidden_size % cfg.num_heads == 0
-        ), "hidden_size must be divisible by num_heads"
+        assert cfg.hidden_size % cfg.num_heads == 0, "hidden_size must be divisible by num_heads"
         self.num_heads = cfg.num_heads
         self.head_dim = cfg.hidden_size // cfg.num_heads
 
@@ -166,9 +164,7 @@ class sLSTMCell(MemoryCell):
         self.ogate = _HeadwiseLinearExpand(H, cfg.num_heads, bias=False)
 
         # Recurrent kernel (per-head, per-gate). Shape: [NH, 4*DH, DH]
-        self.recurrent_kernel = nn.Parameter(
-            torch.zeros(self.num_heads, 4 * self.head_dim, self.head_dim)
-        )
+        self.recurrent_kernel = nn.Parameter(torch.zeros(self.num_heads, 4 * self.head_dim, self.head_dim))
         # Bias per gate per head: [NH, 4, DH]
         self.bias = nn.Parameter(torch.zeros(self.num_heads, 4, self.head_dim))
 
@@ -230,7 +226,9 @@ class sLSTMCell(MemoryCell):
         # -> [B, 4*H]
         return out.reshape(B, NH * 4 * DH)
 
-    def _apply_conv(self, x_seq: Tensor, conv_state: MaybeState, resets: Optional[ResetMask]) -> tuple[Tensor, MaybeState]:
+    def _apply_conv(
+        self, x_seq: Tensor, conv_state: MaybeState, resets: Optional[ResetMask]
+    ) -> tuple[Tensor, MaybeState]:
         # Ensure step inputs use the conv cell's step path so the ring buffer state is updated correctly.
         if self.conv1d_cell is None:
             return x_seq, conv_state
@@ -287,7 +285,7 @@ class sLSTMCell(MemoryCell):
         n_prev = st.get("n")
         m_prev = st.get("m")
 
-        # Resets (step-wise). For sequences, left as TODO similar to mLSTM.
+        # Resets (step-wise). For sequences, left as TODO
         if resets is not None and is_step:
             mask = resets.to(dtype=y_prev.dtype).view(B, 1)
             y_prev = y_prev * (1.0 - mask)

@@ -589,7 +589,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         output_sequential,
         rtol=1e-4,
         atol=1e-4,
-        msg="Simple backend should match sequential reference"
+        msg="Simple backend should match sequential reference",
     )
 
     torch.testing.assert_close(
@@ -597,7 +597,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         output_sequential,
         rtol=2e-2,
         atol=2e-2,
-        msg="Triton backend should be close to sequential reference"
+        msg="Triton backend should be close to sequential reference",
     )
 
     # Also verify simple and triton are close (independent implementations)
@@ -606,7 +606,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         output_simple_reset,
         rtol=2e-2,
         atol=2e-2,
-        msg="Triton and Simple should be close when reset_mask is used"
+        msg="Triton and Simple should be close when reset_mask is used",
     )
 
     # Test 6: Verify gradient flow with reset mask across all backends
@@ -752,7 +752,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         queries_grad_seq.grad,
         rtol=1e-3,
         atol=1e-3,
-        msg="Query gradients should match between simple and sequential backends"
+        msg="Query gradients should match between simple and sequential backends",
     )
 
     torch.testing.assert_close(
@@ -760,7 +760,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         keys_grad_seq.grad,
         rtol=1e-3,
         atol=1e-3,
-        msg="Key gradients should match between simple and sequential backends"
+        msg="Key gradients should match between simple and sequential backends",
     )
 
     torch.testing.assert_close(
@@ -768,7 +768,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         values_grad_seq.grad,
         rtol=1e-3,
         atol=1e-3,
-        msg="Value gradients should match between simple and sequential backends"
+        msg="Value gradients should match between simple and sequential backends",
     )
 
     # Triton gradients may have larger differences but should be in the same ballpark
@@ -777,7 +777,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         queries_grad_seq.grad,
         rtol=5e-2,
         atol=5e-2,
-        msg="Query gradients should be similar between triton and sequential backends"
+        msg="Query gradients should be similar between triton and sequential backends",
     )
 
     torch.testing.assert_close(
@@ -785,7 +785,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         keys_grad_seq.grad,
         rtol=5e-2,
         atol=5e-2,
-        msg="Key gradients should be similar between triton and sequential backends"
+        msg="Key gradients should be similar between triton and sequential backends",
     )
 
     torch.testing.assert_close(
@@ -793,7 +793,7 @@ def test_mlstm_reset_mask_functionality() -> None:
         values_grad_seq.grad,
         rtol=5e-2,
         atol=5e-2,
-        msg="Value gradients should be similar between triton and sequential backends"
+        msg="Value gradients should be similar between triton and sequential backends",
     )
 
     # Test 7: Verify within-chunk resets work correctly

@@ -169,10 +169,7 @@ def _backward_sequence_kernel(
         ## load gate activations G for the current time step idx_t
         # gates in float32 as tl.exp and tl.log are not supported in (b)float16
         matG_i_ptr = tl.make_block_ptr(
-            base=gates_all
-            + idx_b_NH * str_matGatesAll_NH
-            + idx_t * str_matGatesAll_T
-            + 0 * B * DH,
+            base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 0 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -182,10 +179,7 @@ def _backward_sequence_kernel(
         matG_ibar = tl.load(matG_i_ptr).to(tl.float32)  # (siz_B, DH)
 
         matG_f_ptr = tl.make_block_ptr(
-            base=gates_all
-            + idx_b_NH * str_matGatesAll_NH
-            + idx_t * str_matGatesAll_T
-            + 1 * B * DH,
+            base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 1 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -195,10 +189,7 @@ def _backward_sequence_kernel(
         matG_fbar = tl.load(matG_f_ptr).to(tl.float32)  # (siz_B, DH)
 
         matG_z_ptr = tl.make_block_ptr(
-            base=gates_all
-            + idx_b_NH * str_matGatesAll_NH
-            + idx_t * str_matGatesAll_T
-            + 2 * B * DH,
+            base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 2 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -208,10 +199,7 @@ def _backward_sequence_kernel(
         matG_z = tl.load(matG_z_ptr)  # (siz_B, DH)
 
         matG_o_ptr = tl.make_block_ptr(
-            base=gates_all
-            + idx_b_NH * str_matGatesAll_NH
-            + idx_t * str_matGatesAll_T
-            + 3 * B * DH,
+            base=gates_all + idx_b_NH * str_matGatesAll_NH + idx_t * str_matGatesAll_T + 3 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -223,10 +211,7 @@ def _backward_sequence_kernel(
         ## load the c_t, n_t, m_t states for the current time step idx_t from idx_t+1
         # (states_all contains the initial states at idx_t=0)
         matC_t_ptr = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t + 1) * str_matStatesAll_T
-            + 1 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 1 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -236,10 +221,7 @@ def _backward_sequence_kernel(
         matC_t = tl.load(matC_t_ptr)  # (siz_B, DH)
 
         matN_t_ptr = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t + 1) * str_matStatesAll_T
-            + 2 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 2 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -249,10 +231,7 @@ def _backward_sequence_kernel(
         matN_t = tl.load(matN_t_ptr)  # (siz_B, DH)
 
         matM_t_ptr = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t + 1) * str_matStatesAll_T
-            + 3 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t + 1) * str_matStatesAll_T + 3 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -263,10 +242,7 @@ def _backward_sequence_kernel(
 
         ## load the h_t-1, c_t-1, n_t-1, m_t-1 states for the previous time step idx_t-1 from idx_t
         matH_tminus1_ptr = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t) * str_matStatesAll_T
-            + 0 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 0 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -276,10 +252,7 @@ def _backward_sequence_kernel(
         matH_tminus1 = tl.load(matH_tminus1_ptr)  # (siz_B, DH)
 
         matC_tminus1_ptr = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t) * str_matStatesAll_T
-            + 1 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 1 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -289,10 +262,7 @@ def _backward_sequence_kernel(
         matC_tminus1 = tl.load(matC_tminus1_ptr)  # (siz_B, DH)
 
         matN_tminus1_ptr = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t) * str_matStatesAll_T
-            + 2 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 2 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -302,10 +272,7 @@ def _backward_sequence_kernel(
         matN_tminus1 = tl.load(matN_tminus1_ptr)  # (siz_B, DH)
 
         matM_tminus1_ptr = tl.make_block_ptr(
-            base=states_all
-            + idx_b_NH * str_matStatesAll_NH
-            + (idx_t) * str_matStatesAll_T
-            + 3 * B * DH,
+            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 3 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -361,9 +328,7 @@ def _backward_sequence_kernel(
 
         # slstm pointwise backward
         matDeltaC_t = matDeltaC_t + matDeltaH_t * (matG_o / matN_t)  # (siz_B, DH)
-        matDeltaN_t = matDeltaN_t - matDeltaH_t * (
-            matG_o * matC_t / (matN_t * matN_t)
-        )  # (siz_B, DH)
+        matDeltaN_t = matDeltaN_t - matDeltaH_t * (matG_o * matC_t / (matN_t * matN_t))  # (siz_B, DH)
 
         matG_i = tl.exp(matG_ibar - matM_t)  # (siz_B, DH)
         matG_logfplusm = matM_tminus1 + tl.log(tl.sigmoid(matG_fbar))  # (siz_B, DH)
@@ -385,18 +350,10 @@ def _backward_sequence_kernel(
         matDeltaH_tminus1 += tl.dot(matDeltaGO.to(DTYPE), matR_o)  # (siz_B, DHin)
 
         # compute the delta errors to the recurrent weights
-        matDeltaR_i += tl.dot(
-            tl.trans(matDeltaGI.to(DTYPE)), matH_tminus1
-        )  # (DHout, DHin)
-        matDeltaR_f += tl.dot(
-            tl.trans(matDeltaGF.to(DTYPE)), matH_tminus1
-        )  # (DHout, DHin)
-        matDeltaR_z += tl.dot(
-            tl.trans(matDeltaGZ.to(DTYPE)), matH_tminus1
-        )  # (DHout, DHin)
-        matDeltaR_o += tl.dot(
-            tl.trans(matDeltaGO.to(DTYPE)), matH_tminus1
-        )  # (DHout, DHin)
+        matDeltaR_i += tl.dot(tl.trans(matDeltaGI.to(DTYPE)), matH_tminus1)  # (DHout, DHin)
+        matDeltaR_f += tl.dot(tl.trans(matDeltaGF.to(DTYPE)), matH_tminus1)  # (DHout, DHin)
+        matDeltaR_z += tl.dot(tl.trans(matDeltaGZ.to(DTYPE)), matH_tminus1)  # (DHout, DHin)
+        matDeltaR_o += tl.dot(tl.trans(matDeltaGO.to(DTYPE)), matH_tminus1)  # (DHout, DHin)
 
         # compute the delta errors to the biases
         vecDeltaB_i += tl.sum(matDeltaGI, axis=0)  # (DH,)
@@ -406,10 +363,7 @@ def _backward_sequence_kernel(
 
         ## store the deltaGate errors
         matDeltaGI_ptr = tl.make_block_ptr(
-            base=delta_Wx
-            + idx_b_NH * str_matDeltaWx_NH
-            + idx_t * str_matDeltaWx_T
-            + 0 * B * DH,
+            base=delta_Wx + idx_b_NH * str_matDeltaWx_NH + idx_t * str_matDeltaWx_T + 0 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -419,10 +373,7 @@ def _backward_sequence_kernel(
         tl.store(matDeltaGI_ptr, matDeltaGI.to(DTYPE))
 
         matDeltaGF_ptr = tl.make_block_ptr(
-            base=delta_Wx
-            + idx_b_NH * str_matDeltaWx_NH
-            + idx_t * str_matDeltaWx_T
-            + 1 * B * DH,
+            base=delta_Wx + idx_b_NH * str_matDeltaWx_NH + idx_t * str_matDeltaWx_T + 1 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -432,10 +383,7 @@ def _backward_sequence_kernel(
         tl.store(matDeltaGF_ptr, matDeltaGF.to(DTYPE))
 
         matDeltaGZ_ptr = tl.make_block_ptr(
-            base=delta_Wx
-            + idx_b_NH * str_matDeltaWx_NH
-            + idx_t * str_matDeltaWx_T
-            + 2 * B * DH,
+            base=delta_Wx + idx_b_NH * str_matDeltaWx_NH + idx_t * str_matDeltaWx_T + 2 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -445,10 +393,7 @@ def _backward_sequence_kernel(
         tl.store(matDeltaGZ_ptr, matDeltaGZ.to(DTYPE))
 
         matDeltaGO_ptr = tl.make_block_ptr(
-            base=delta_Wx
-            + idx_b_NH * str_matDeltaWx_NH
-            + idx_t * str_matDeltaWx_T
-            + 3 * B * DH,
+            base=delta_Wx + idx_b_NH * str_matDeltaWx_NH + idx_t * str_matDeltaWx_T + 3 * B * DH,
             shape=(B, DH),
             strides=(DH, 1),
             offsets=(idx_b_B * siz_B, 0),
@@ -547,24 +492,16 @@ def _backward_sequence_kernel(
 
     ## store the delta errors to the biases
     vec_idx = tl.arange(0, DH)
-    vecDeltaB_i_ptr = (
-        delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 0 * DH + vec_idx
-    )
+    vecDeltaB_i_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 0 * DH + vec_idx
     tl.store(vecDeltaB_i_ptr, vecDeltaB_i.to(DTYPE))
 
-    vecDeltaB_f_ptr = (
-        delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 1 * DH + vec_idx
-    )
+    vecDeltaB_f_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 1 * DH + vec_idx
     tl.store(vecDeltaB_f_ptr, vecDeltaB_f.to(DTYPE))
 
-    vecDeltaB_z_ptr = (
-        delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 2 * DH + vec_idx
-    )
+    vecDeltaB_z_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 2 * DH + vec_idx
     tl.store(vecDeltaB_z_ptr, vecDeltaB_z.to(DTYPE))
 
-    vecDeltaB_o_ptr = (
-        delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 3 * DH + vec_idx
-    )
+    vecDeltaB_o_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 3 * DH + vec_idx
     tl.store(vecDeltaB_o_ptr, vecDeltaB_o.to(DTYPE))
 
 
@@ -586,7 +523,9 @@ def backward_sequence(
     # support the case where delta_states_last_outside has the time dimension explicitly
     T_dim_explicit = False
     if delta_states_last_outside.ndim == 5:
-        assert delta_states_last_outside.shape[0] == 1, f"states_initial.shape[0] must be 1: got {delta_states_last_outside.shape}."
+        assert delta_states_last_outside.shape[0] == 1, (
+            f"states_initial.shape[0] must be 1: got {delta_states_last_outside.shape}."
+        )
         T_dim_explicit = True
         delta_states_last_outside = delta_states_last_outside[0]
 
@@ -603,12 +542,12 @@ def backward_sequence(
 
     assert R.shape[1:] == (NH, DH, DH)
 
-    assert (
-        delta_states_all_outside.dtype == dtype
-    ), f"dtype mismatch: delta_states_all.dtype: {R.dtype}, R.dtype: {dtype}."
-    assert (
-        delta_states_last_outside.dtype == dtype
-    ), f"dtype mismatch: delta_states_last.dtype: {R.dtype}, R.dtype: {dtype}."
+    assert delta_states_all_outside.dtype == dtype, (
+        f"dtype mismatch: delta_states_all.dtype: {R.dtype}, R.dtype: {dtype}."
+    )
+    assert delta_states_last_outside.dtype == dtype, (
+        f"dtype mismatch: delta_states_last.dtype: {R.dtype}, R.dtype: {dtype}."
+    )
 
     assert is_power_of_2(DH), f"head dimension must be a power of 2, got {DH}."
 
@@ -619,18 +558,14 @@ def backward_sequence(
         delta_states_all_outside = torch.cat(
             [
                 delta_states_all_outside,
-                torch.zeros(
-                    [T, NS, effective_B - true_B, NH, DH], dtype=dtype, device=device
-                ),
+                torch.zeros([T, NS, effective_B - true_B, NH, DH], dtype=dtype, device=device),
             ],
             dim=2,
         )
         delta_states_last_outside = torch.cat(
             [
                 delta_states_last_outside,
-                torch.zeros(
-                    [NS, effective_B - true_B, NH, DH], dtype=dtype, device=device
-                ),
+                torch.zeros([NS, effective_B - true_B, NH, DH], dtype=dtype, device=device),
             ],
             dim=1,
         )
@@ -638,19 +573,11 @@ def backward_sequence(
     # Reshapes for kernel
     R_kshaped = rearrange(R, "ngr nh dout din -> nh ngr dout din").contiguous()
 
-    delta_states_all_outside_kshaped = rearrange(
-        delta_states_all_outside, "t ns b nh dh -> nh t ns b dh"
-    ).contiguous()
-    delta_states_last_outside_kshaped = rearrange(
-        delta_states_last_outside, "ns b nh dh -> nh ns b dh"
-    ).contiguous()
+    delta_states_all_outside_kshaped = rearrange(delta_states_all_outside, "t ns b nh dh -> nh t ns b dh").contiguous()
+    delta_states_last_outside_kshaped = rearrange(delta_states_last_outside, "ns b nh dh -> nh ns b dh").contiguous()
 
-    states_all_kshaped = rearrange(
-        states_all, "t ns b nh dh -> nh t ns b dh"
-    ).contiguous()
-    gates_all_kshaped = rearrange(
-        gates_all, "t ngi b nh dh -> nh t ngi b dh"
-    ).contiguous()
+    states_all_kshaped = rearrange(states_all, "t ns b nh dh -> nh t ns b dh").contiguous()
+    gates_all_kshaped = rearrange(gates_all, "t ngi b nh dh -> nh t ngi b dh").contiguous()
 
     # kernel call
     num_B = triton.cdiv(effective_B, siz_B)
@@ -658,9 +585,7 @@ def backward_sequence(
 
     # Allocate output tensors
     delta_Wx = torch.empty([NH, T, NGI, effective_B, DH], dtype=dtype, device=device)
-    delta_states_initial = torch.empty(
-        [NH, NS, effective_B, DH], dtype=dtype, device=device
-    )
+    delta_states_initial = torch.empty([NH, NS, effective_B, DH], dtype=dtype, device=device)
     delta_R = torch.empty([num_B, NH, NGR, DHout, DHin], dtype=dtype, device=device)
     delta_b = torch.empty([num_B, NH, NGI, DH], dtype=dtype, device=device)
 

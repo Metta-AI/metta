@@ -184,10 +184,18 @@ def mlstm_chunkwise__parallel_bw_dV_kernel(
 
         # Reset-aware mask: disallow contributions across different segments
         segQ_ptr = (
-            vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LQ * siz_b_LQ + tl.arange(0, siz_b_LQ)
+            vecSegId
+            + idx_b_BNH * str_vecSegId_B_NH
+            + idx_b_NC * str_vecSegId_NC
+            + idx_b_LQ * siz_b_LQ
+            + tl.arange(0, siz_b_LQ)
         )
         segK_ptr = (
-            vecSegId + idx_b_BNH * str_vecSegId_B_NH + idx_b_NC * str_vecSegId_NC + idx_b_LKV * siz_b_LKV + tl.arange(0, siz_b_LKV)
+            vecSegId
+            + idx_b_BNH * str_vecSegId_B_NH
+            + idx_b_NC * str_vecSegId_NC
+            + idx_b_LKV * siz_b_LKV
+            + tl.arange(0, siz_b_LKV)
         )
         segQ = tl.load(segQ_ptr).to(tl.int32)
         segK = tl.load(segK_ptr).to(tl.int32)

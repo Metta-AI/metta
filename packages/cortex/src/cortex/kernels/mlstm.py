@@ -21,7 +21,6 @@ except ImportError:
     TRITON_AVAILABLE = False
 
 
-
 def mlstm_recurrent_step_stabilized_simple(
     c_state: torch.Tensor,
     n_state: torch.Tensor,
