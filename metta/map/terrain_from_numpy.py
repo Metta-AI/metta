@@ -274,10 +274,11 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
             valid_positions.extend(empty_centers)
 
         for obj_name, count in self.config.objects.items():
-            if count < 2:
-                position = valid_positions[0]
-                grid[position] = obj_name
-                valid_positions.remove(position)
+            if count <= 2:
+                positions = valid_positions[:count]
+                for position in positions:
+                    grid[position] = obj_name
+                    valid_positions.remove(position)
             else:
                 center_positions = valid_positions[:2]
                 other_positions = self.config.rng.sample(valid_positions[2:], count - 2)
