@@ -1,7 +1,3 @@
-from collections import deque
-from pathlib import Path
-from typing import Deque, Dict, Tuple
-
 from cogames.cogs_vs_clips.stations import (
     assembler,
     carbon_ex_dep,
@@ -29,69 +25,10 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.random import RandomMapBuilder
-from mettagrid.util.char_encoder import grid_object_to_char
-
-_RANDOM_MAP_CACHE: Dict[Tuple[int, int, int, Tuple[Tuple[str, int], ...]], Deque[AsciiMapBuilder.Config]] = {}
-_NUM_PREGENERATED_RANDOM_MAPS = 8
-
-
-def _game_map_to_ascii(game_map) -> list[list[str]]:
-    return [[grid_object_to_char(cell) for cell in row] for row in game_map.grid]
-
-
-def _materialize_random_map(
-    num_agents: int,
-    width: int,
-    height: int,
-    objects: dict[str, int],
-) -> AsciiMapBuilder.Config:
-    key = (num_agents, width, height, tuple(sorted(objects.items())))
-    cache = _RANDOM_MAP_CACHE.get(key)
-    if cache is None or not cache:
-        cache = deque()
-        base_seed = 42
-        for offset in range(_NUM_PREGENERATED_RANDOM_MAPS):
-            cfg = RandomMapBuilder.Config(
-                width=width,
-                height=height,
-                agents=num_agents,
-                objects=objects,
-                seed=base_seed + offset,
-            )
-            builder = cfg.create()
-            ascii_map = _game_map_to_ascii(builder.build())
-            cache.append(AsciiMapBuilder.Config(map_data=ascii_map))
-        _RANDOM_MAP_CACHE[key] = cache
-    ascii_cfg = cache[0]
-    cache.rotate(-1)
-    return ascii_cfg
-
-
-RESOURCE_REWARD_WEIGHTS: dict[str, float] = {
-    "carbon": 0.05,
-    "oxygen": 0.05,
-    "germanium": 0.08,
-    "silicon": 0.08,
-    "decoder": 0.1,
-    "modulator": 0.1,
-    "resonator": 0.1,
-    "scrambler": 0.1,
-}
 
 
 def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
     """Shared base configuration for all game types."""
-
-    heart_reward = 1.0
-    stats_rewards: dict[str, float] = {
-        "heart.gained": heart_reward,
-        "heart.put": heart_reward * 0.5,
-    }
-
-    for resource, weight in RESOURCE_REWARD_WEIGHTS.items():
-        stats_rewards[f"{resource}.gained"] = weight
-        stats_rewards[f"{resource}.put"] = weight * 0.25
-
     return MettaGridConfig(
         game=GameConfig(
             resource_names=resources,
@@ -124,8 +61,10 @@ def _base_game_config(num_agents: int, map_builder) -> MettaGridConfig:
                     "energy": 100,
                 },
                 rewards=AgentRewards(
-                    inventory={"heart": heart_reward},
-                    stats={**stats_rewards, "chest.heart.amount": heart_reward},
+                    stats={"chest.heart.amount": 1},
+                    # inventory={
+                    #     "heart": 1,
+                    # },
                 ),
                 initial_inventory={
                     "energy": 100,
@@ -147,16 +86,21 @@ def make_game(
     num_silicon_extractors: int = 0,
     num_chests: int = 0,
 ) -> MettaGridConfig:
-    objects = {
-        "assembler": num_assemblers,
-        "charger": num_chargers,
-        "carbon_extractor": num_carbon_extractors,
-        "oxygen_extractor": num_oxygen_extractors,
-        "germanium_extractor": num_germanium_extractors,
-        "silicon_extractor": num_silicon_extractors,
-        "chest": num_chests,
-    }
-    map_builder = _materialize_random_map(num_cogs, width, height, objects)
+    map_builder = RandomMapBuilder.Config(
+        width=width,
+        height=height,
+        agents=num_cogs,
+        objects={
+            "assembler": num_assemblers,
+            "charger": num_chargers,
+            "carbon_extractor": num_carbon_extractors,
+            "oxygen_extractor": num_oxygen_extractors,
+            "germanium_extractor": num_germanium_extractors,
+            "silicon_extractor": num_silicon_extractors,
+            "chest": num_chests,
+        },
+        seed=42,
+    )
     return _base_game_config(num_cogs, map_builder)
 
 

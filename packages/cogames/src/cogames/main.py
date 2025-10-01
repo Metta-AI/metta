@@ -497,6 +497,16 @@ def train_cmd(
             help="Directory to export map configurations (defaults to run-dir/maps or checkpoints/maps)",
         ),
     ] = None,
+    vf_clip_coef: Annotated[
+        Optional[float],
+        typer.Option(
+            "--vf-clip-coef",
+            help=(
+                "Value-function clipping coefficient for PPO (default 0.05). "
+                "Lower values clamp critic updates more aggressively."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Train a policy on a game."""
     with _command_timeout(ctx):
@@ -705,6 +715,8 @@ def train_cmd(
 
         full_policy_path = resolve_policy_class_path(policy_class_path)
 
+        effective_vf_clip = vf_clip_coef if vf_clip_coef is not None else 0.05
+
         train.train(
             env_cfgs=env_cfgs,
             policy_class_path=full_policy_path,
@@ -721,6 +733,7 @@ def train_cmd(
             checkpoint_interval=checkpoint_interval,
             vector_backend=backend,
             game_name=representative_game,
+            vf_clip_coef=effective_vf_clip,
         )
 
         console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_dir}[/green]")
