@@ -125,6 +125,17 @@ class ActionConfig:
     required_resources: dict[int, int]
     consumed_resources: dict[int, float]
 
+class Recipe:
+    def __init__(
+        self,
+        input_resources: dict[int, int] = {},
+        output_resources: dict[int, int] = {},
+        cooldown: int = 0,
+    ) -> None: ...
+    input_resources: dict[int, int]
+    output_resources: dict[int, int]
+    cooldown: int
+
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
@@ -170,10 +181,15 @@ class GameConfig:
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
+        tag_id_map: dict[int, str] | None = None,
         track_movement_metrics: bool = False,
         recipe_details_obs: bool = False,
         allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
+        inventory_regen_amounts: dict[int, int] | None = None,
+        inventory_regen_interval: int = 0,
+        clipper_recipe: Optional[Recipe] = None,
+        clipper_clip_rate: float = 0.0,
     ) -> None: ...
     num_agents: int
     max_steps: int
@@ -189,6 +205,11 @@ class GameConfig:
     recipe_details_obs: bool
     allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
+    tag_id_map: dict[int, str]
+    inventory_regen_amounts: dict[int, int]
+    inventory_regen_interval: int
+    clipper_recipe: Optional[Recipe]
+    clipper_clip_rate: float
 
 class MettaGrid:
     obs_width: int

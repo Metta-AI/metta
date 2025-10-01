@@ -34,6 +34,7 @@
 #include "objects/recipe.hpp"
 #include "objects/wall.hpp"
 #include "renderer/hermes.hpp"
+#include "systems/clipper.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/packed_coordinate.hpp"
 #include "systems/stats_tracker.hpp"
@@ -249,6 +250,14 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   auto rewards = py::array_t<RewardType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
   set_buffers(observations, terminals, truncations, rewards);
+
+  // Initialize global systems
+  if (_game_config.clipper_clip_rate > 0.0f) {
+    if (!_game_config.clipper_recipe) {
+      throw std::runtime_error("Clipper clip rate is greater than 0.0f, but no clipper recipe is provided");
+    }
+    _clipper = std::make_unique<Clipper>(_game_config.clipper_recipe, _game_config.clipper_clip_rate);
+  }
 }
 
 MettaGrid::~MettaGrid() = default;
@@ -495,6 +504,11 @@ void MettaGrid::_step(Actions actions) {
         agent->update_inventory(item, amount);
       }
     }
+  }
+
+  // Apply global systems
+  if (_clipper) {
+    _clipper->clip_at_random(*_grid, _rng);
   }
 
   // Compute observations for next step

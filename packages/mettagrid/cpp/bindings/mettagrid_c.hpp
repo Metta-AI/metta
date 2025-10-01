@@ -24,6 +24,7 @@
 #include "core/types.hpp"
 #include "objects/assembler.hpp"
 #include "objects/chest.hpp"
+#include "systems/clipper.hpp"
 #include "systems/packed_coordinate.hpp"
 
 // Forward declarations of existing C++ classes
@@ -164,6 +165,9 @@ private:
   // Inventory regeneration
   std::map<InventoryItem, InventoryQuantity> _inventory_regen_amounts;
   unsigned int _inventory_regen_interval;
+
+  // Global systems
+  std::unique_ptr<Clipper> _clipper;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
