@@ -65,9 +65,10 @@ class CoreTrainingLoop:
 
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
+        self._metadata_cache: dict[tuple[str, tuple[int, ...], int, str], torch.Tensor] = {}
+
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
-        self._metadata_template = self._build_metadata_template()
 
     def rollout_phase(
         self,
@@ -92,6 +93,7 @@ class CoreTrainingLoop:
 
         # Get buffer for storing experience
         buffer_step = self.experience.buffer[self.experience.ep_indices, self.experience.ep_lengths - 1]
+        buffer_step = buffer_step.select(*self.policy_spec.keys())
 
         total_steps = 0
         last_env_id: slice | None = None
@@ -163,17 +165,6 @@ class CoreTrainingLoop:
             env_indices = env_indices.to(device=device)
         return env_indices
 
-    def _build_metadata_template(self) -> TensorDict:
-        return TensorDict(
-            {
-                "batch": torch.tensor(0, dtype=torch.long),
-                "bptt": torch.tensor(1, dtype=torch.long),
-                "training_env_id": torch.tensor(0, dtype=torch.long),
-                "training_env_id_start": torch.tensor(0, dtype=torch.long),
-            },
-            batch_size=(),
-        )
-
     def _ensure_rollout_metadata(self, td: TensorDict, training_env_id: slice) -> None:
         """Populate metadata fields needed downstream while reusing cached tensors."""
 
@@ -181,10 +172,10 @@ class CoreTrainingLoop:
         device = td.device
         diag_enabled = os.getenv("TRANSFORMER_DIAG", "0") == "1"
 
-        base_batch = self._metadata_template["batch"].to(device=device)
-        td.set("batch", base_batch.expand(batch_elems))
-        base_bptt = self._metadata_template["bptt"].to(device=device)
-        td.set("bptt", base_bptt.expand(batch_elems))
+        if "batch" not in td.keys():
+            td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
+        if "bptt" not in td.keys():
+            td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
 
         if diag_enabled:
             batch_tensor = td.get("batch")
@@ -195,13 +186,39 @@ class CoreTrainingLoop:
                 bptt_tensor[0].item() if bptt_tensor is not None and bptt_tensor.numel() else None,
             )
 
+        training_env_shape = tuple(int(dim) for dim in td.batch_size) or (batch_elems,)
         env_start = training_env_id.start if training_env_id.start is not None else 0
-        target_shape = td.batch_size if td.batch_dims > 0 else (batch_elems,)
 
-        base_env_id = self._metadata_template["training_env_id"].to(device=device)
-        td.set("training_env_id", base_env_id.expand(*target_shape) + env_start)
-        base_start = self._metadata_template["training_env_id_start"].to(device=device)
-        td.set("training_env_id_start", base_start.expand(*target_shape) + env_start)
+        if "training_env_id" not in td.keys():
+            td.set(
+                "training_env_id",
+                self._get_constant_tensor("training_env_id", training_env_shape, env_start, device),
+            )
+        if "training_env_id_start" not in td.keys():
+            td.set(
+                "training_env_id_start",
+                self._get_constant_tensor("training_env_id_start", training_env_shape, env_start, device),
+            )
+
+    def _get_constant_tensor(
+        self,
+        name: str,
+        shape: tuple[int, ...],
+        value: int,
+        device: torch.device,
+    ) -> torch.Tensor:
+        if not shape:
+            shape = (1,)
+        key = (name, shape, int(value), str(device))
+        cached = self._metadata_cache.get(key)
+        if cached is None or cached.device != device:
+            if value == 1:
+                tensor = torch.ones(shape, dtype=torch.long, device=device)
+            else:
+                tensor = torch.full(shape, value, dtype=torch.long, device=device)
+            self._metadata_cache[key] = tensor
+            return tensor
+        return cached
 
     def training_phase(
         self,
