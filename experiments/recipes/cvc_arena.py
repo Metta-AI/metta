@@ -162,9 +162,3 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=simulations(env_cfg)),
     )
-
-
-"""Play/replay/evaluate are provided implicitly via inference using mettagrid()/simulations()."""
-
-
-"""Explicit evaluate omitted; rely on inference using simulations()."""

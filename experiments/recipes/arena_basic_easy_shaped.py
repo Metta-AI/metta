@@ -127,9 +127,6 @@ def train(
     )
 
 
-"""Play/replay/evaluate are provided implicitly via inference using mettagrid()/simulations()."""
-
-
 def evaluate_in_sweep(
     policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
 ) -> EvalTool:
