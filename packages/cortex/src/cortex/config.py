@@ -72,7 +72,7 @@ class sLSTMCellConfig(CellConfig):
     """
 
     hidden_size: int = Field(ge=1)
-    num_heads: int = Field(default=4, ge=1) #Must be power of 2 for triton to work.
+    num_heads: int = Field(default=4, ge=1)  # Must be power of 2 for triton to work.
     # Optional depthwise causal conv to precondition inputs (0 disables)
     conv1d_kernel_size: int = Field(default=4, ge=0)
     # Dropout applied to the cell output prior to normalization

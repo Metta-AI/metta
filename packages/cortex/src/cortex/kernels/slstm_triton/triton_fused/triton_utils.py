@@ -21,4 +21,3 @@ def next_multiple_of(n, multiple_of):
     assert isinstance(n, int)
     assert isinstance(multiple_of, int)
     return ((n + multiple_of - 1) // multiple_of) * multiple_of
-

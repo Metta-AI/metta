@@ -551,7 +551,7 @@ def test_slstm_backward_sequential_vs_parallel() -> None:
         x_sequential.grad,
         rtol=1e-2,
         atol=1e-2,
-        msg="Input gradients differ between sequential and parallel"
+        msg="Input gradients differ between sequential and parallel",
     )
 
     # Compare parameter gradients
@@ -569,11 +569,7 @@ def test_slstm_backward_sequential_vs_parallel() -> None:
 
             # Check with relaxed tolerance
             torch.testing.assert_close(
-                param_p.grad,
-                param_s.grad,
-                rtol=5e-2,
-                atol=5e-2,
-                msg=f"Gradients differ for parameter {name_p}"
+                param_p.grad, param_s.grad, rtol=5e-2, atol=5e-2, msg=f"Gradients differ for parameter {name_p}"
             )
 
 
@@ -610,4 +606,3 @@ if __name__ == "__main__":
     print("✓ test_slstm_backward_sequential_vs_parallel passed")
 
     print("\nAll tests passed!")
-

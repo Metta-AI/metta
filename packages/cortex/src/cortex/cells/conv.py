@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional
 from tensordict import TensorDict
 
 from cortex.cells.base import MemoryCell
@@ -117,24 +118,19 @@ class CausalConv1d(MemoryCell):
             conv_state = torch.roll(conv_state, shifts=-1, dims=1)
             conv_state[:, -1:, :] = x
 
-            # Depthwise convolution via weighted sum
-            if self.groups == self.cfg.feature_dim:
-                # Depthwise: weight shape is (F, 1, KS) -> gather as (KS, F)
-                weight_kernel = self.conv.weight[:, 0, :].transpose(0, 1)  # [KS, F]
-            else:
-                # Channel mixing: need full conv operation
-                # For simplicity, we'll use the conv layer directly
-                x_conv_in = conv_state.transpose(1, 2)  # [B, F, KS]
-                y = self.conv(x_conv_in)[:, :, -1:]  # Take last timestep
-                y = y.transpose(1, 2)  # [B, 1, F]
-                new_state = TensorDict({"conv": conv_state}, batch_size=[B])
-                return y.squeeze(1), new_state
-
-            # Compute output for depthwise mode
-            y = (conv_state * weight_kernel).sum(dim=1, keepdim=True)  # [B, 1, F]
-
-            if self.cfg.causal_conv_bias and self.conv.bias is not None:
-                y = y + self.conv.bias.view(1, 1, F)
+            # One-step causal output via padding-free conv1d.
+            # Works for both depthwise (groups=F) and channel-mixing (groups=1).
+            # Input: [B, F, KS]  -> Output: [B, F, 1]
+            x_conv_in = conv_state.transpose(1, 2)  # [B, F, KS]
+            y = torch.nn.functional.conv1d(
+                x_conv_in,
+                self.conv.weight,
+                self.conv.bias if self.cfg.causal_conv_bias else None,
+                stride=1,
+                padding=0,
+                dilation=1,
+                groups=self.groups,
+            ).transpose(1, 2)  # [B, 1, F]
 
             new_state = TensorDict({"conv": conv_state}, batch_size=[B])
             return y.squeeze(1), new_state
