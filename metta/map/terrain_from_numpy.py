@@ -176,11 +176,10 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
     def __init__(self, config: TerrainFromNumpy.Config):
         super().__init__(config)
 
-    def carve_out_patches(self, grid, valid_positions_set):
+    def carve_out_patches(self, grid, valid_positions_set, num_patches):
         # Carve out 9x9 empties at random coordinates (not in valid_positions_set) and gather the center points
         grid_shape = grid.shape
         empty_centers = []
-        num_patches = sum(self.config.objects.values()) - len(valid_positions_set)
         patch_size = 9
         half_patch = patch_size // 2
 
@@ -228,26 +227,28 @@ class CogsVClippiesFromNumpy(TerrainFromNumpy):
         grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True)
         # breakpoint()
         num_agents = len(agent_labels)
+
+        if len(valid_positions) < num_agents:
+            grid, empty_centers = self.carve_out_patches(grid, valid_positions, num_agents - len(valid_positions))
+            valid_positions.extend(empty_centers)
+
         # Place agents in first slice
         agent_positions = valid_positions[:num_agents]
-        print(f"Placeing {num_agents} agents in {agent_positions}")
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             grid[pos] = label
+            valid_positions.remove(pos)
 
-        # Convert to set for O(1) removal operations
-        valid_positions_set = set(valid_positions[num_agents:])
-
-        if len(valid_positions_set) < sum(self.config.objects.values()):
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions_set)
-            valid_positions_set.update(empty_centers)
+        if len(valid_positions) < sum(self.config.objects.values()):
+            grid, empty_centers = self.carve_out_patches(grid, valid_positions, sum(self.config.objects.values()) - len(valid_positions))
+            valid_positions.extend(empty_centers)
 
         for obj_name, count in self.config.objects.items():
             # Sample from remaining valid positions
-            positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
+            positions = self.config.rng.sample(list(valid_positions), min(count, len(valid_positions)))
             # breakpoint()
             for pos in positions:
                 grid[pos] = obj_name
-                valid_positions_set.remove(pos)
+                valid_positions.remove(pos)
 
         return GameMap(grid=grid)
 
