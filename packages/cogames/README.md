@@ -54,56 +54,50 @@ cogames play assembler_1_simple --steps 100 --render
 cogames play assembler_2_complex --steps 200 --render
 
 # Run without rendering for faster execution
-cogames play machina_2 --no-render --steps 500
+cogames play machina_3_big --no-render --steps 500
 ```
 
 ## 🤖 For RL Researchers
 
 ### Training a Policy
 
-`cogames train` launches PuffeRL with a CoGames environment. Important defaults & flags:
+`cogames train` launches PuffeRL with a CoGames environment. Running `uv run cogames train` with no arguments now
+cycles through the eight Machina biome maps (`machina_1` … `machina_7_big`) and exports them into the run directory so
+subsequent commands reuse the same curriculum.
 
-- `--policy` selects the policy class (defaults to `SimplePolicy`).
-- `--use-rnn` enables recurrent policies such as `StatefulPolicy`.
-- `--curriculum module.symbol` loads a Python iterable or generator that yields `MettaGridConfig` instances for curricula.
-- `--vector-backend {multiprocessing,serial,ray}` chooses the vector environment implementation. Use `serial` for lightweight local runs or `ray` for distributed sampling when Ray is installed.
-- `--device` defaults to CUDA if available, otherwise MPS (macOS) or CPU.
-- `--num-envs`, `--num-workers`, `--batch-size`, and `--minibatch-size` tune rollout throughput. When omitted, the CLI picks values based on detected hardware (CPU cores / GPU); batch size defaults to `num_envs * 32` (minimum 512).
-- `--initial-weights` accepts either a specific checkpoint file or a directory; directories automatically load the newest `.pt/.pth/.ckpt` file.
-- `--checkpoint-interval` controls how frequently PuffeRL writes checkpoints into `--checkpoints`.
-- `--run-dir` specifies a run directory where `cogames train` will create a `checkpoints/` folder and refresh the `curricula/` map export. Default: `packages/cogames/runs/default`.
-- `--map-dump-dir` overrides where the exported maps are stored (relative paths are resolved under `run-dir`).
+Useful flags (kept intentionally short):
+
+- `--policy CLASS` selects the policy implementation (defaults to `SimplePolicy`). Add `--use-rnn` for recurrent
+  policies.
+- `--device VALUE` chooses the training device; `auto` prefers CUDA, then MPS, then CPU.
+- `--num-envs`, `--num-workers`, `--batch-size`, `--minibatch-size` tune throughput. Defaults scale with detected
+  hardware.
+- `--curriculum module.symbol` loads a Python iterable/generator of `MettaGridConfig` objects instead of the default
+  Machina set.
+- `--run-dir PATH` changes where checkpoints live (`checkpoints/`) and where exported maps are written (`curricula/`).
+- `--initial-weights PATH` and `--checkpoint-interval N` control PPO checkpointing.
 
 Examples:
 
 ```bash
-# Minimal CPU PPO run that saves checkpoints into ./runs/basic
-cogames train assembler_1_simple \
-  --device cpu \
-  --steps 2000 \
-  --num-envs 2 \
-  --num-workers 1 \
-  --batch-size 128 \
-  --minibatch-size 128 \
-  --checkpoints ./runs/basic
+# Default biome sweep with all defaults
+uv run cogames train
 
-# Stateful policy with a curriculum and the serial backend
-cogames train --curriculum myproject.curricula.cogs_vs_clips \
+# Two-worker CPU run that keeps checkpoints in ./runs/assembler_experiment
+uv run cogames train assembler_2_complex \
+  --device cpu \
+  --num-envs 4 \
+  --num-workers 2 \
+  --steps 2000 \
+  --run-dir ./runs/assembler_experiment
+
+# Curriculum-driven training with an LSTM policy
+uv run cogames train \
+  --curriculum myproject.curricula.cogs_vs_clips \
   --policy cogames.policy.lstm.LSTMPolicy \
   --use-rnn \
   --vector-backend serial \
-  --steps 5000 \
-  --run-dir ./runs/curriculum
-
-# Automatically create a run directory with checkpoints/ and curricula/ exports
-cogames train assembler_2_simple \
-  --run-dir ./runs/assembler_2_simple \
-  --device cpu \
-  --steps 2000
-
-# Multi-GPU run with torchrun (rank-aware seeding and device assignment)
-torchrun --standalone --nproc-per-node=2 -m cogames.main train \
-  assembler_1_simple --device cuda --num-envs 32 --num-workers 8
+  --steps 5000
 ```
 
 Every CLI command also accepts a global `--timeout` flag. Set it to automatically abort long-running invocations (useful in CI or quick smoke tests).
@@ -116,15 +110,15 @@ Use `cogames curricula` to materialize game and curriculum configurations into a
 # Dump every built-in Cogs vs Clips scenario into packages/cogames/runs/default/curricula
 uv run cogames curricula
 
-# Train with default settings (uses packages/cogames/runs/default for checkpoints and curricula)
-uv run cogames train assembler_1_simple
+# Train with default settings (exports Machina biome maps into the default run directory)
+uv run cogames train
 
 # Choose the destination explicitly and mix in a Python curriculum generator
 uv run cogames curricula --output-dir ./runs/curricula/all_maps \
   --curriculum myproject.curricula.cogs_vs_clips
 
 # Export a subset of games only
-uv run cogames curricula --output-dir ./tmp/maps --game assembler_1_simple --game machina_2
+uv run cogames curricula --output-dir ./tmp/maps --game assembler_1_simple --game machina_3_big
 ```
 
 The command writes each map configuration once (deduplicated by name) and prints the final output directory. `cogames train` automatically looks for maps in `packages/cogames/runs/default/curricula` when no `--curriculum` argument is provided.
@@ -283,8 +277,14 @@ Available actions:
 
 ### Competition Scenarios
 
-- `machina_1`: Single agent, full game mechanics
-- `machina_2`: 4 agents, full game mechanics
+- `machina_1`: Compact biome map with full mechanics
+- `machina_1_big`: Larger variant of `machina_1`
+- `machina_2_bigger`: Expanded station density
+- `machina_3_big`: Alternate layout with 500 stations
+- `machina_4_bigger`: Alternate layout with 1000 stations
+- `machina_5_big`: Third layout with 500 stations
+- `machina_6_bigger`: Third layout with 1000 stations
+- `machina_7_big`: Fourth layout with 500 stations
 
 Use `cogames games [scenario_name]` for detailed information about each scenario.
 
@@ -346,7 +346,7 @@ uv run ./tools/run.py experiments.recipes.cogames.train scenario=assembler_2_com
 # Distributed training with Metta
 uv run ./tools/run.py experiments.recipes.cogames.distributed_train \
     num_workers=4 \
-    scenario=machina_2
+    scenario=machina_3_big
 ```
 
 ## 📚 Additional Resources
@@ -362,7 +362,7 @@ uv run ./tools/run.py experiments.recipes.cogames.distributed_train \
 cogames play assembler_1_simple --interactive --render
 
 # Step-by-step execution
-cogames play machina_2 --steps 10 --render --interactive
+cogames play machina_4_bigger --steps 10 --render --interactive
 ```
 
 ## 📝 Citation
