@@ -97,7 +97,6 @@ ensure_tool() {
   fi
 
   if check_cmd "$tool"; then
-    echo "$tool found."
     return 0
   fi
 
