@@ -47,15 +47,15 @@ git push -u origin release-qual/<VERSION>
 
 - Pick any Job ID from 3.1
 - Verify job appears in W&B
-- Verify training metrics (need to define further)
-- Verify performance metrics: that SPS is near 40k and does not dip
-- Verify model checkpoints are saved correctly
+- Verify training metrics [define further]
+- Verify performance metrics [define further; one possibility: SPS near 40k and does not dip]
+- Verify model checkpoints are saved [define further]
 
 #### 3.3 Check Eval Workflow
 
 - Pick any Job ID from 3.1
 - Verify job appears in W&B
-- Verify evaluation results
+- Verify evaluation results [define further]
 - Verify evaluation reports are generated
 - Verify replay and replay link are generated
 
