@@ -7,6 +7,8 @@ import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Optional, Sequence, Tuple
 
+import numpy as np
+
 from cogames import serialization
 from cogames.policy import TrainablePolicy
 from mettagrid import MettaGridConfig
@@ -291,12 +293,19 @@ def train(
         rewards_tensor = getattr(trainer, "rewards", None)
         if rewards_tensor is None:
             continue
-        if not hasattr(rewards_tensor, "numel") or rewards_tensor.numel() == 0:
-            continue
-        rewards = rewards_tensor.detach() if hasattr(rewards_tensor, "detach") else torch.as_tensor(rewards_tensor)
-        trainer.stats["reward_mean"] = float(rewards.mean().item())
-        trainer.stats["reward_std"] = float(rewards.std(unbiased=False).item())
-        trainer.stats["reward_sum"] = float(rewards.sum().item())
+
+        if hasattr(rewards_tensor, "detach") and hasattr(rewards_tensor, "numel"):
+            if rewards_tensor.numel() == 0:
+                continue
+            rewards_array = rewards_tensor.detach().cpu().float().numpy()
+        else:
+            rewards_array = np.asarray(rewards_tensor, dtype=np.float32)
+            if rewards_array.size == 0:
+                continue
+
+        trainer.stats["reward_mean"] = float(np.mean(rewards_array))
+        trainer.stats["reward_std"] = float(np.std(rewards_array, ddof=0))
+        trainer.stats["reward_sum"] = float(np.sum(rewards_array))
 
         network: nn.Module = policy.network()
         has_nan = False
