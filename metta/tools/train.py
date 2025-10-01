@@ -44,11 +44,13 @@ from metta.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
+from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
     auto_run_name,
     auto_stats_server_uri,
     auto_wandb_config,
 )
+from mettagrid import MettaGridConfig
 
 logger = getRankAwareLogger(__name__)
 
@@ -87,6 +89,24 @@ class TrainTool(Tool):
                 )
 
         return self
+
+    @classmethod
+    def auto_factory(
+        cls,
+        mettagrid: Optional[MettaGridConfig] = None,
+        simulations: Optional[list[SimulationConfig]] = None,
+    ) -> Optional["TrainTool"]:
+        """Generate TrainTool from recipe. Requires mettagrid; optionally uses simulations for evaluator."""
+        if mettagrid is None:
+            return None
+
+        from metta.cogworks.curriculum import env_curriculum
+
+        kwargs = {}
+        if simulations is not None:
+            kwargs["evaluator"] = EvaluatorConfig(simulations=simulations)
+
+        return cls(training_env=TrainingEnvironmentConfig(curriculum=env_curriculum(mettagrid)), **kwargs)
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:

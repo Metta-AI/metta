@@ -9,7 +9,7 @@ from typing import Callable, Optional
 
 from metta.cogworks.curriculum import env_curriculum
 from metta.common.tool import Tool
-from metta.rl.training import EvaluatorConfig
+from metta.common.tool.tool_registry import get_tool_registry
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.analyze import AnalysisTool
@@ -22,11 +22,23 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
 # -----------------------------------------------------------------------------
-# Constants and Tool Class Registry
+# Tool Registration
 # -----------------------------------------------------------------------------
 
-# These tools can be automatically inferred from a recipe's `mettagrid` or `simulations` functions
-FACTORY_TOOL_CLASSES = (TrainTool, PlayTool, ReplayTool, EvalTool, EvalRemoteTool)
+# Register all tools explicitly
+_registry = get_tool_registry()
+_registry.register(TrainTool)
+_registry.register(EvalTool)
+_registry.register(EvalRemoteTool)
+_registry.register(PlayTool)
+_registry.register(ReplayTool)
+_registry.register(AnalysisTool)
+_registry.register(SweepTool)
+
+# -----------------------------------------------------------------------------
+# Constants
+# -----------------------------------------------------------------------------
+
 # This prefix can be omitted from the tool name in the CLI
 DEFAULT_RECIPE_PREFIX = "experiments.recipes"
 
@@ -36,39 +48,27 @@ DEFAULT_RECIPE_PREFIX = "experiments.recipes"
 
 
 def get_tool_aliases() -> dict[str, list[str]]:
-    """Build default alias map (canonical -> aliases) from Tool classes.
+    """Build default alias map (canonical -> aliases) from registered tools.
 
     Only includes tools that declare aliases via Tool.tool_aliases.
     """
-    mapping: dict[str, list[str]] = {}
-    for cls in FACTORY_TOOL_CLASSES:
-        name = getattr(cls, "tool_name", None)
-        aliases = getattr(cls, "tool_aliases", [])
-        if name and aliases:
-            mapping[name] = list(aliases)
-    return mapping
+    return get_tool_registry().get_tool_aliases()
 
 
 def generate_candidate_paths(
     primary: str | None,
     second: str | None = None,
-    *,
-    auto_prefixes: list[str] | None = None,
-    short_only: bool = True,
-    verb_aliases: dict[str, list[str]] | None = None,
 ) -> list[str]:
     """Generate ordered candidate import paths for metta tools.
 
-    Uses metta-specific defaults for tool discovery:
-    - auto_prefixes defaults to ["experiments.recipes"]
-    - verb_aliases defaults to get_tool_aliases() (e.g., train/t, evaluate/eval)
+    Automatically handles shorthand expansion:
+    - Adds "experiments.recipes" prefix for short forms (<= 1 dot)
+    - Expands tool aliases (e.g., train/t, evaluate/eval/sim)
+    - Supports two-token form (e.g., "train arena" → "arena.train")
 
     Args:
         primary: main symbol path like "arena.train" or fully-qualified.
         second: when provided, treats inputs like (x, y) as the sugar y.x.
-        auto_prefixes: module prefixes to try. Pass [] to disable.
-        short_only: if True, only apply prefixes for short forms (<= 1 dot).
-        verb_aliases: tool alias mappings. Pass {} to disable.
     """
     if not primary:
         return []
@@ -79,10 +79,10 @@ def generate_candidate_paths(
         bases.append(f"{second}.{primary}")
     bases.append(primary)
 
-    # Expand with aliases and prefixes using metta-specific defaults
+    # Expand with metta-specific aliases and prefixes
     candidates: list[str] = []
-    alias_map = get_tool_aliases() if verb_aliases is None else verb_aliases
-    prefixes = ["experiments.recipes"] if auto_prefixes is None else auto_prefixes
+    alias_map = get_tool_aliases()
+    prefixes = ["experiments.recipes"]
 
     for base in bases:
         # Start with base and expand with verb aliases if present
@@ -92,23 +92,16 @@ def generate_candidate_paths(
             for alias in alias_map.get(verb, []):
                 expanded.append(f"{module_name}.{alias}")
 
-        # Add each expansion with optional prefixes
+        # Add each expansion with prefixes for short forms
         for item in expanded:
             candidates.append(item)
-            # Apply prefixes for short forms
-            if (not short_only) or (item.count(".") <= 1):
+            # Apply prefixes only for short forms (<= 1 dot)
+            if item.count(".") <= 1:
                 for pref in prefixes:
                     if not item.startswith(pref + "."):
                         candidates.append(f"{pref}.{item}")
 
-    # Deduplicate preserving order
-    seen: set[str] = set()
-    result: list[str] = []
-    for c in candidates:
-        if c not in seen:
-            seen.add(c)
-            result.append(c)
-    return result
+    return list(dict.fromkeys(candidates))
 
 
 # -----------------------------------------------------------------------------
@@ -215,29 +208,10 @@ def _mettagrid_to_training_env(mg: MettaGridConfig) -> TrainingEnvironmentConfig
 def get_tool_name_map() -> dict[str, str]:
     """Map of every supported tool name and alias -> canonical name.
 
-    Built from Tool.tool_name and Tool.tool_aliases on ALL Tool subclasses.
-    Cached since this never changes at runtime.
+    Built from Tool.tool_name and Tool.tool_aliases on all registered tools.
+    Cached since the registry doesn't change at runtime.
     """
-    mapping: dict[str, str] = {}
-    # Include factory tools that can be inferred
-    for cls in FACTORY_TOOL_CLASSES:
-        tool_name = getattr(cls, "tool_name", None)
-        if not tool_name:
-            continue
-        mapping[tool_name] = tool_name
-        for alias in getattr(cls, "tool_aliases", []) or []:
-            mapping[alias] = tool_name
-
-    # Also include other known tool types (could be extended)
-    # These might not be in FACTORY_TOOL_CLASSES but still have tool_name
-    for cls in (AnalysisTool, SweepTool):
-        tool_name = getattr(cls, "tool_name", None)
-        if tool_name and tool_name not in mapping:
-            mapping[tool_name] = tool_name
-            for alias in getattr(cls, "tool_aliases", []) or []:
-                mapping[alias] = tool_name
-
-    return mapping
+    return get_tool_registry().get_tool_name_map()
 
 
 def _function_returns_tool_type(func_maker: Callable, tool_type_name: str) -> bool:
@@ -321,13 +295,21 @@ def list_recipes_supporting_tool(tool_name: str) -> list[str]:
 def try_infer_tool_factory(module: ModuleType, verb: str) -> Optional[Callable[[], object]]:
     """Return a zero-arg factory that creates a Tool inferred from the recipe module.
 
-    - Supports known tool classes and their aliases via `tool_name`/`tool_aliases`.
-    - Returns None if inference is not possible for the requested tool.
+    Delegates to the tool's auto_factory() class method.
+    Returns None if the tool doesn't support auto-factory or can't be inferred.
+
+    TODO: Move auto_factory logic to a Recipe base class. Instead of tools defining
+    how to construct themselves from recipes, recipes should define how to construct
+    each tool type. This would make recipes first-class and eliminate the need for
+    tools to know about recipe structure.
     """
     # Normalize tool name to canonical form
     normalized = get_tool_name_map().get(verb, verb)
-    inferable = set(get_tool_name_map().values())
-    if normalized not in inferable:
+
+    # Get the tool class from the registry
+    all_tools = get_tool_registry().get_all_tools()
+    tool_class = all_tools.get(normalized)
+    if tool_class is None:
         return None
 
     # Try to get recipe configurations
@@ -336,67 +318,10 @@ def try_infer_tool_factory(module: ModuleType, verb: str) -> Optional[Callable[[
     if sims is None and mg is None:
         return None
 
-    # Build factory based on tool type
-    if normalized == "train":
-        if mg is None:
-            return None
+    # Call the tool's auto_factory method
+    tool_instance = tool_class.auto_factory(mettagrid=mg, simulations=sims)
+    if tool_instance is None:
+        return None
 
-        def train_factory() -> TrainTool:
-            kwargs = {}
-            if sims is not None:
-                kwargs["evaluator"] = EvaluatorConfig(simulations=sims)
-            return TrainTool(training_env=_mettagrid_to_training_env(mg), **kwargs)
-
-        return train_factory
-
-    if normalized == "play":
-
-        def play_factory() -> PlayTool:
-            # Prefer simulations()[0] if available; otherwise fall back to mettagrid()
-            if sims and len(sims) > 0:
-                sim_cfg = sims[0]
-            elif mg is not None:
-                sim_cfg = _mettagrid_to_simulation(module, mg)
-            else:
-                raise ValueError("Cannot infer play: no simulations() provided and mettagrid() missing")
-            return PlayTool(sim=sim_cfg)
-
-        return play_factory
-
-    if normalized == "replay":
-
-        def replay_factory() -> ReplayTool:
-            # Prefer simulations()[0] if available; otherwise fall back to mettagrid()
-            if sims and len(sims) > 0:
-                sim_cfg = sims[0]
-            elif mg is not None:
-                sim_cfg = _mettagrid_to_simulation(module, mg)
-            else:
-                raise ValueError("Cannot infer replay: no simulations() provided and mettagrid() missing")
-            return ReplayTool(sim=sim_cfg)
-
-        return replay_factory
-
-    if normalized == "evaluate":
-
-        def eval_factory() -> EvalTool:
-            if sims is not None:
-                return EvalTool(simulations=sims)
-            assert mg is not None, "Cannot infer evaluate: mettagrid() missing"
-            sim_cfg = _mettagrid_to_simulation(module, mg)
-            return EvalTool(simulations=[sim_cfg])
-
-        return eval_factory
-
-    if normalized == "evaluate_remote":
-
-        def eval_remote_factory() -> EvalRemoteTool:
-            if sims is not None:
-                return EvalRemoteTool(simulations=sims)
-            assert mg is not None, "Cannot infer evaluate_remote: mettagrid() missing"
-            sim_cfg = _mettagrid_to_simulation(module, mg)
-            return EvalRemoteTool(simulations=[sim_cfg])
-
-        return eval_remote_factory
-
-    return None
+    # Return a zero-arg factory that returns the tool instance
+    return lambda: tool_instance

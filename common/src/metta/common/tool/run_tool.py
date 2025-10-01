@@ -25,6 +25,7 @@ from metta.common.tool import Tool
 from metta.common.tool.discover import (
     generate_candidate_paths,
     get_available_tools,
+    get_tool_aliases,
     get_tool_name_map,
     list_recipes_supporting_tool,
     try_infer_tool_factory,
@@ -533,7 +534,6 @@ constructor/function vs configuration overrides based on introspection.
     candidate_paths = generate_candidate_paths(
         known_args.make_tool_cfg_path,
         two_part_second,
-        short_only=True,
     )
     resolved_path: str | None = None
     make_tool_cfg = None
@@ -641,29 +641,37 @@ constructor/function vs configuration overrides based on introspection.
         output_error(f"{red('Error:')} Could not find tool '{known_args.make_tool_cfg_path}'")
 
         # Check if it's a recipe that might need inference and suggest verbs
-
-        module_cache: dict[str, object] = {}
         for cand in candidate_paths:
             if "." in cand:
                 module_name, verb = cand.rsplit(".", 1)
                 try:
-                    mod = module_cache.get(module_name) or importlib.import_module(module_name)
-                    module_cache[module_name] = mod
+                    mod = importlib.import_module(module_name)
                 except Exception:
                     continue
                 if hasattr(mod, "mettagrid") or hasattr(mod, "simulations"):
                     output_info(f"\n{yellow('Hint:')} Recipe '{module_name}' exists but doesn't define '{verb}'.")
-                    output_info(
-                        "Available inferred tools: train, play, replay, "
-                        "evaluate (or eval/sim), evaluate_remote (or eval_remote/sim_remote)"
-                    )
+                    # Build the available tools list from get_tool_aliases
+                    aliases = get_tool_aliases()
+                    tools_with_aliases = []
+                    for canonical, alias_list in sorted(aliases.items()):
+                        if alias_list:
+                            alias_str = "/".join([canonical] + alias_list)
+                            tools_with_aliases.append(f"{alias_str}")
+                        else:
+                            tools_with_aliases.append(canonical)
+                    output_info(f"Available inferred tools: {', '.join(tools_with_aliases)}")
                     break
 
-        # Show what was tried (first 3 attempts)
+        # Show what was tried (deduplicate by target to avoid showing same path twice)
         if load_errors:
             output_info(f"\n{yellow('Searched in:')}")
-            for i, (target, err) in enumerate(load_errors[:3]):
-                output_info(f"  {i + 1}. {target}: {str(err)[:80]}...")
+            seen_targets = set()
+            display_count = 0
+            for target, err in load_errors:
+                if target not in seen_targets:
+                    seen_targets.add(target)
+                    display_count += 1
+                    output_info(f"  {display_count}. {target}: {str(err)[:80]}...")
 
         return 1
 
@@ -686,11 +694,6 @@ constructor/function vs configuration overrides based on introspection.
         except Exception as e:
             output_exception(f"{red('Error listing tools for')} {module_name}: {e}")
             return 1
-        return 0
-
-    # Short-circuit for dry-run: verify resolution only, skip construction/validation
-    if known_args.dry_run:
-        output_info(f"\n{bold(green('✅ Resolution successful (dry run)'))}")
         return 0
 
     # ----------------------------------------------------------------------------------
@@ -848,11 +851,7 @@ constructor/function vs configuration overrides based on introspection.
     output_info(f"\n{bold(green('Running tool...'))}\n")
 
     try:
-        if known_args.dry_run:
-            output_info(bold(green("Dry run: exiting")))
-            result = 0
-        else:
-            result = tool_cfg.invoke(func_args_for_invoke)
+        result = tool_cfg.invoke(func_args_for_invoke)
     except KeyboardInterrupt:
         return 130  # Interrupted by Ctrl-C
     except Exception:

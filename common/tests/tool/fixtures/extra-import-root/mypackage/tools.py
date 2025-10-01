@@ -12,6 +12,8 @@ class NestedConfig(Config):
 
 
 class TestTool(Tool):
+    tool_name = "test"
+
     def invoke(self, args):
         print("TestTool invoked")
         return 0
@@ -20,6 +22,7 @@ class TestTool(Tool):
 class SimpleTestTool(Tool):
     """A simple tool with a field for testing."""
 
+    tool_name = "simple_test"
     value: str = "default"
     nested: NestedConfig = Field(default_factory=NestedConfig)
 
@@ -39,6 +42,7 @@ def make_test_tool(run: str = "default_run", count: int = 42) -> SimpleTestTool:
 class RequiredFieldTool(Tool):
     """Tool with a required field (no default). Used to verify constructor validation."""
 
+    tool_name = "required_field"
     x: int
 
     def invoke(self, args: dict[str, str]) -> int | None:
