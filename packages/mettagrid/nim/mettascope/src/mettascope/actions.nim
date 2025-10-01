@@ -78,7 +78,6 @@ proc processActions*() =
         else:
           recomputePath(agentId, currentPos)
   
-  
   if actionQueue.len > 0:
     for agentId, action in actionQueue:
       requestActions.add(ActionRequest(
