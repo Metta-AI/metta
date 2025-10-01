@@ -13,6 +13,52 @@ import torch
 import triton
 import triton.language as tl
 
+_TORCH_TO_TRITON_DTYPE = {
+    torch.float16: tl.float16,
+    torch.bfloat16: tl.bfloat16,
+    torch.float32: tl.float32,
+}
+
+
+def _torch_dtype_to_triton(dtype: torch.dtype) -> object:
+    """Map a torch dtype to its Triton counterpart for kernel compilation."""
+
+    if dtype not in _TORCH_TO_TRITON_DTYPE:
+        raise ValueError(f"Unsupported dtype {dtype} for causal conv1d Triton kernel")
+    return _TORCH_TO_TRITON_DTYPE[dtype]
+
+
+def _shared_memory_limit(device: torch.device) -> int:
+    """Return the per-block shared memory limit for the given CUDA device."""
+
+    props = torch.cuda.get_device_properties(device)
+    shared_optin = getattr(props, "shared_memory_per_block_optin", 0)
+    if shared_optin:
+        return int(shared_optin)
+    return int(props.shared_memory_per_block)
+
+
+def _resolve_reduce_t(block_fi: int, block_fo: int, reduce_t: int, device: torch.device) -> int:
+    """Choose a reduce_t that fits in shared memory by halving as needed."""
+
+    if device.type != "cuda":
+        return reduce_t
+
+    shared_limit = _shared_memory_limit(device)
+    current = reduce_t
+
+    def required_bytes(rt: int) -> int:
+        # Two tiles of size [rt, block] promoted to fp32 plus the fp32 accumulator tile.
+        return 4 * (rt * (block_fo + block_fi) + block_fo * block_fi)
+
+    while current > 1 and required_bytes(current) > shared_limit:
+        current //= 2
+
+    if required_bytes(current) > shared_limit:
+        raise RuntimeError("Unable to choose reduce_t within shared memory budget for Triton kernel")
+
+    return current
+
 
 def _make_seg(resets: torch.Tensor) -> torch.Tensor:
     """Convert resets [B, T] to segment IDs via cumsum."""
@@ -81,6 +127,7 @@ def _fwd_cm_kernel(
     # Loop over kernel taps
     for k in range(KS):
         ts = t_idx - k
+        k_rev = (KS - 1) - k
         mt_ts = (ts >= 0) & mt
         seg_src = tl.load(seg_b + ts * stride_s_t, mask=mt_ts, other=tl.full((), -1, tl.int32))
         mrow = mt_ts & (seg_t == seg_src)
@@ -95,7 +142,7 @@ def _fwd_cm_kernel(
             x_tile = tl.load(x_ptrs, mask=(mrow[:, None] & mfi[None, :]), other=0.0)
 
             # W tile: [BLOCK_FO, BLOCK_FI] @k
-            w_ptrs = W + fo_idx[:, None] * stride_w_fo + fi_idx[None, :] * stride_w_fi + k * stride_w_k
+            w_ptrs = W + fo_idx[:, None] * stride_w_fo + fi_idx[None, :] * stride_w_fi + k_rev * stride_w_k
             w_tile = tl.load(w_ptrs, mask=(mfo[:, None] & mfi[None, :]), other=0.0)
             w_tile_T = tl.trans(w_tile)
 
@@ -106,7 +153,7 @@ def _fwd_cm_kernel(
         acc += b_vals.to(tl.float32)
 
     y_ptrs = y_bt + t_idx[:, None] * stride_y_t + fo_idx[None, :] * stride_y_f
-    tl.store(y_ptrs, acc.to(tl.dtype_hint(X)), mask=(mt[:, None] & mfo[None, :]))
+    tl.store(y_ptrs, acc, mask=(mt[:, None] & mfo[None, :]))
 
 
 @triton.jit
@@ -124,6 +171,7 @@ def _bwd_cm_dx_kernel(
     BLOCK_FI: tl.constexpr,
     BLOCK_FO: tl.constexpr,
     N_FIB: tl.constexpr,
+    DTYPE_GX: tl.constexpr,
 ):
     """Backward kernel for computing gradient w.r.t. input x."""
     pid0 = tl.program_id(axis=0)
@@ -166,6 +214,7 @@ def _bwd_cm_dx_kernel(
 
     for k in range(KS):
         tout = t_idx + k
+        k_rev = (KS - 1) - k
         mt_out = (tout < T) & mt
         seg_out = tl.load(seg_b + tout * stride_s_t, mask=mt_out, other=tl.full((), -1, tl.int32))
         mrow = mt_out & (seg_out == seg_t0)
@@ -180,13 +229,13 @@ def _bwd_cm_dx_kernel(
             gy_tile = tl.load(gy_ptrs, mask=(mrow[:, None] & mfo[None, :]), other=0.0)
 
             # w tile [FO_blk, FI_blk] at k
-            w_ptrs = W + fo_idx[:, None] * stride_w_fo + fi_idx[None, :] * stride_w_fi + k * stride_w_k
+            w_ptrs = W + fo_idx[:, None] * stride_w_fo + fi_idx[None, :] * stride_w_fi + k_rev * stride_w_k
             w_tile = tl.load(w_ptrs, mask=(mfo[:, None] & mfi[None, :]), other=0.0)
 
             acc += tl.dot(gy_tile.to(tl.float32), w_tile.to(tl.float32))
 
     gx_ptrs = gx_bt + t_idx[:, None] * stride_x_t + fi_idx[None, :] * stride_x_f
-    tl.store(gx_ptrs, acc.to(tl.dtype_hint(GY)), mask=(mt[:, None] & mfi[None, :]))
+    tl.store(gx_ptrs, acc.to(DTYPE_GX), mask=(mt[:, None] & mfi[None, :]))
 
 
 @triton.jit
@@ -205,6 +254,7 @@ def _bwd_cm_dw_kernel(
     REDUCE_T: tl.constexpr,
     N_FOB: tl.constexpr,
     N_FIB: tl.constexpr,
+    DTYPE_GW: tl.constexpr,
 ):
     """Backward kernel for computing gradient w.r.t. weights."""
     pid0 = tl.program_id(axis=0)
@@ -238,6 +288,7 @@ def _bwd_cm_dw_kernel(
     # For each kernel tap k, accumulate one [FO_blk, FI_blk] tile across all B,T
     for k in range(KS):
         acc_k = tl.zeros((BLOCK_FO, BLOCK_FI), dtype=tl.float32)
+        k_rev = (KS - 1) - k
 
         # Sweep batches and time in chunks
         for b in range(B):
@@ -272,8 +323,8 @@ def _bwd_cm_dw_kernel(
                 acc_k += tl.dot(tl.trans(gy_tile), x_tile)
 
         # Store GW slice for tap k
-        gw_ptrs = GW + fo_idx[:, None] * stride_w_fo + fi_idx[None, :] * stride_w_fi + k * stride_w_k
-        tl.store(gw_ptrs, acc_k.to(tl.dtype_hint(X)), mask=(mfo[:, None] & mfi[None, :]))
+        gw_ptrs = GW + fo_idx[:, None] * stride_w_fo + fi_idx[None, :] * stride_w_fi + k_rev * stride_w_k
+        tl.store(gw_ptrs, acc_k.to(DTYPE_GW), mask=(mfo[:, None] & mfi[None, :]))
 
 
 @triton.jit
@@ -285,6 +336,7 @@ def _bwd_cm_bias_kernel(
     FO: tl.constexpr,
     BLOCK_FO: tl.constexpr,
     REDUCE_T: tl.constexpr,
+    DTYPE_GB: tl.constexpr,
 ):
     """Backward kernel for computing gradient w.r.t. bias."""
     pid = tl.program_id(axis=0)
@@ -307,7 +359,7 @@ def _bwd_cm_bias_kernel(
             gy_tile = tl.load(gy_ptrs, mask=(mt[:, None] & mfo[None, :]), other=0.0)
             acc += tl.sum(gy_tile.to(tl.float32), axis=0)
 
-    tl.store(GBIAS + fo_idx, acc.to(tl.dtype_hint(GY)), mask=mfo)
+    tl.store(GBIAS + fo_idx, acc.to(DTYPE_GB), mask=mfo)
 
 
 class _ChannelMixCausalResetFn(torch.autograd.Function):
@@ -316,6 +368,7 @@ class _ChannelMixCausalResetFn(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
+        state: torch.Tensor,
         x: torch.Tensor,
         w: torch.Tensor,
         bias: Optional[torch.Tensor],
@@ -325,31 +378,43 @@ class _ChannelMixCausalResetFn(torch.autograd.Function):
         block_fo: int,
         reduce_t: int,
     ):
-        assert x.is_cuda and w.is_cuda and resets.is_cuda
+        assert state.is_cuda and x.is_cuda and w.is_cuda and resets.is_cuda
+        assert state.is_contiguous(), "state must be contiguous [B,KS,FI]"
         assert x.is_contiguous(), "x must be contiguous [B,T,FI]"
         assert w.is_contiguous(), "w must be contiguous [FO,FI,KS]"
         if bias is not None:
             assert bias.is_cuda and bias.is_contiguous()
-        B, T, FI = x.shape
+        B, KS, FI_state = state.shape
+        Bx, T, FI = x.shape
+        assert B == Bx, "Batch mismatch between state and x"
+        assert FI_state == FI, "Feature mismatch between state and x"
         FO, FIw, KS = w.shape
         assert FI == FIw, "FI mismatch"
-        seg = _make_seg(resets.contiguous())
 
-        y = torch.empty((B, T, FO), device=x.device, dtype=x.dtype)
+        resets = resets.contiguous()
+        state_prefix = state.contiguous()
+        x_full = torch.cat([state_prefix, x], dim=1)
+        resets_prefix = torch.zeros((B, KS), dtype=resets.dtype, device=resets.device)
+        resets_full = torch.cat([resets_prefix, resets], dim=1)
+        seg = _make_seg(resets_full)
+
+        T_full = T + KS
+
+        y_full = torch.empty((B, T_full, FO), device=x.device, dtype=x.dtype)
 
         N_FOB = triton.cdiv(FO, block_fo)
-        grid = (B * N_FOB, triton.cdiv(T, block_t))
+        grid = (B * N_FOB, triton.cdiv(T_full, block_t))
         HAS_BIAS = bias is not None
         bias_ptr = bias if HAS_BIAS else x
 
         _fwd_cm_kernel[grid](
-            x,
+            x_full,
             w,
             bias_ptr,
             seg,
-            y,
+            y_full,
             B,
-            T,
+            T_full,
             FI,
             FO,
             KS,
@@ -360,7 +425,10 @@ class _ChannelMixCausalResetFn(torch.autograd.Function):
             HAS_BIAS=HAS_BIAS,
         )
 
+        y = y_full[:, KS:, :]
+
         ctx.save_for_backward(
+            state_prefix,
             x,
             w,
             seg,
@@ -371,12 +439,15 @@ class _ChannelMixCausalResetFn(torch.autograd.Function):
         ctx.block_fi = block_fi
         ctx.block_fo = block_fo
         ctx.reduce_t = reduce_t
+        ctx.KS = KS
+        ctx.T = T
         return y
 
     @staticmethod
     def backward(ctx, gy: torch.Tensor):
-        x, w, seg, _bias_saved = ctx.saved_tensors
-        B, T, FI = x.shape
+        state, x, w, seg, _bias_saved = ctx.saved_tensors
+        B, KS, FI = state.shape
+        _, T, _ = x.shape
         FO, FIw, KS = w.shape
         assert FI == FIw
         HAS_BIAS = ctx.has_bias
@@ -384,18 +455,28 @@ class _ChannelMixCausalResetFn(torch.autograd.Function):
         bfi = ctx.block_fi
         bfo = ctx.block_fo
         rt = ctx.reduce_t
+        T_full = T + KS
+
+        gx_dtype = _torch_dtype_to_triton(x.dtype)
+        gw_dtype = _torch_dtype_to_triton(w.dtype)
+        gy_dtype = _torch_dtype_to_triton(gy.dtype)
+
+        rt_effective = _resolve_reduce_t(bfi, bfo, rt, x.device)
+
+        x_full = torch.cat([state, x], dim=1)
+        gy_full = torch.cat([torch.zeros((B, KS, FO), device=gy.device, dtype=gy.dtype), gy], dim=1)
 
         # grad x
-        gx = torch.empty_like(x)
+        gx_full = torch.empty_like(x_full)
         N_FIB = triton.cdiv(FI, bfi)
-        grid_dx = (B * N_FIB, triton.cdiv(T, bt))
+        grid_dx = (B * N_FIB, triton.cdiv(T_full, bt))
         _bwd_cm_dx_kernel[grid_dx](
-            gy,
+            gy_full,
             w,
             seg,
-            gx,
+            gx_full,
             B,
-            T,
+            T_full,
             FI,
             FO,
             KS,
@@ -403,7 +484,10 @@ class _ChannelMixCausalResetFn(torch.autograd.Function):
             bfi,
             bfo,
             N_FIB,
+            DTYPE_GX=gx_dtype,
         )
+        gx_state = gx_full[:, :KS, :]
+        gx = gx_full[:, KS:, :]
 
         # grad w
         gw = torch.empty_like(w)
@@ -411,42 +495,45 @@ class _ChannelMixCausalResetFn(torch.autograd.Function):
         N_FIB = triton.cdiv(FI, bfi)
         grid_dw = (N_FOB, N_FIB)
         _bwd_cm_dw_kernel[grid_dw](
-            x,
-            gy,
+            x_full,
+            gy_full,
             seg,
             gw,
             B,
-            T,
+            T_full,
             FI,
             FO,
             KS,
             bfo,
             bfi,
-            rt,
+            rt_effective,
             N_FOB,
             N_FIB,
+            DTYPE_GW=gw_dtype,
         )
 
         # grad bias
         if HAS_BIAS:
-            gb = torch.empty((FO,), device=x.device, dtype=x.dtype)
+            gb = torch.empty((FO,), device=x.device, dtype=gy.dtype)
             grid_b = (triton.cdiv(FO, bfo),)
             _bwd_cm_bias_kernel[grid_b](
-                gy,
+                gy_full,
                 gb,
                 B,
-                T,
+                T_full,
                 FO,
                 bfo,
-                rt,
+                rt_effective,
+                DTYPE_GB=gy_dtype,
             )
         else:
             gb = None
 
-        return gx, gw, gb, None, None, None, None, None
+        return gx_state, gx, gw, gb, None, None, None, None, None
 
 
 def channelmix_causal_conv1d_with_resets_triton(
+    state: torch.Tensor,
     x: torch.Tensor,
     w: torch.Tensor,
     bias: Optional[torch.Tensor],
@@ -474,7 +561,7 @@ def channelmix_causal_conv1d_with_resets_triton(
     Returns:
         Output tensor [B, T, FO]
     """
-    return _ChannelMixCausalResetFn.apply(x, w, bias, resets, block_t, block_fi, block_fo, reduce_t)
+    return _ChannelMixCausalResetFn.apply(state, x, w, bias, resets, block_t, block_fi, block_fo, reduce_t)
 
 
 __all__ = ["channelmix_causal_conv1d_with_resets_triton"]
