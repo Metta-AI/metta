@@ -26,15 +26,15 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
 
     # Bidirectional learning progress settings (now default)
     use_bidirectional: bool = True
-    ema_timescale: float = 0.001
+    ema_timescale: float = 0.1  # EMA learning rate (0.1 = updates in ~10 samples)
     slow_timescale_factor: float = 0.2  # Multiplier for slow EMA timescale (slow = ema_timescale * this)
     exploration_bonus: float = 0.1
-    progress_smoothing: float = 0.05  # For bidirectional reweighting
+    progress_smoothing: float = 0.01  # For bidirectional reweighting
     performance_bonus_weight: float = 0.0  # Weight for performance bonus in LP calculation
 
     # Task distribution and sampling
-    num_active_tasks: int = 16
-    rand_task_rate: float = 0.25
+    num_active_tasks: int = 1000
+    rand_task_rate: float = 0.01
     sample_threshold: int = 10
     memory: int = 25
     eviction_threshold_percentile: float = 0.4  # Bottom percentile for task eviction
@@ -45,7 +45,7 @@ class LearningProgressConfig(CurriculumAlgorithmConfig):
     exploration_blend_factor: float = 0.5  # Blend factor for exploration in basic mode
 
     # Task tracker EMA configuration
-    task_tracker_ema_alpha: float = 0.1  # Learning rate for task tracker EMAs (reward, success rate)
+    task_tracker_ema_alpha: float = 0.02  # Learning rate for task tracker EMAs (reward, success rate)
 
     # Performance and memory management
     max_memory_tasks: int = 1000
