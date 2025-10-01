@@ -205,7 +205,7 @@ class CogsVsClippiesTaskGenerator(TaskGenerator):
         silicon_extractor_position = rng.choice(self.config.silicon_extractor_positions)
         if include_extractors:
             num_carbon_extractors = rng.choice(
-                [0] + list(range(max_num_extractors + 1, 2))
+                [0] + list(range(1, max_num_extractors + 1, 2))
             )
             num_oxygen_extractors = rng.choice(
                 [0] + list(range(max_num_extractors + 1, 2))
