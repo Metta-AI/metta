@@ -76,7 +76,6 @@ exportRefObject RenderResponse:
     shouldClose
     actions
 
-
 exportProcs:
   init
   render
