@@ -145,6 +145,14 @@ def train(
 
     if backend is pufferlib.vector.Serial:
         vector_batch = max(requested_envs, envs_per_worker)
+    elif backend is pufferlib.vector.Multiprocessing:
+        # PufferLib's zero-copy path requires num_envs to be divisible by batch_size.
+        # For modest env counts (our default heuristics pick 8 envs), the
+        # 128-sample fallback would violate that constraint and trigger an
+        # APIUsageError. Keep the batch aligned with the env count unless the
+        # caller explicitly overrides vector_batch_size.
+        if vector_batch > requested_envs or requested_envs % vector_batch != 0:
+            vector_batch = requested_envs
 
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         local_rank = torch.distributed.get_rank()
