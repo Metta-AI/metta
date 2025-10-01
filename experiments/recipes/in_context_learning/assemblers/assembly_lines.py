@@ -5,6 +5,7 @@ from experiments.recipes.in_context_learning.in_context_learning import (
     train_icl,
     play_icl,
     replay_icl,
+    LPParams,
 )
 from metta.tools.sim import SimTool
 import subprocess
@@ -510,6 +511,31 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
 
 def train(
     curriculum_style: str = "train",
+    # Core bidirectional LP parameters
+    use_bidirectional: bool = True,
+    ema_timescale: float = 0.1,
+    slow_timescale_factor: float = 0.2,
+    exploration_bonus: float = 0.1,
+    progress_smoothing: float = 0.01,
+    performance_bonus_weight: float = 0.0,
+    # Task management
+    num_active_tasks: int = 1000,
+    rand_task_rate: float = 0.01,
+    sample_threshold: int = 10,
+    memory: int = 25,
+    eviction_threshold_percentile: float = 0.4,
+    # Basic EMA mode (when use_bidirectional=False)
+    basic_ema_initial_alpha: float = 0.3,
+    basic_ema_alpha_decay: float = 0.2,
+    exploration_blend_factor: float = 0.5,
+    # Task tracker EMA
+    task_tracker_ema_alpha: float = 0.02,
+    # Memory and logging
+    max_memory_tasks: int = 1000,
+    max_slice_axes: int = 3,
+    enable_detailed_slice_logging: bool = False,
+    use_shared_memory: bool = True,
+    session_id: str | None = None,
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(
         **curriculum_args[curriculum_style], map_dir=None
@@ -518,7 +544,31 @@ def train(
         make_assembly_line_eval_suite,
     )
 
-    return train_icl(task_generator_cfg, make_assembly_line_eval_suite)
+    # Create LPParams with all curriculum learning parameters
+    lp_params = LPParams(
+        use_bidirectional=use_bidirectional,
+        ema_timescale=ema_timescale,
+        slow_timescale_factor=slow_timescale_factor,
+        exploration_bonus=exploration_bonus,
+        progress_smoothing=progress_smoothing,
+        performance_bonus_weight=performance_bonus_weight,
+        num_active_tasks=num_active_tasks,
+        rand_task_rate=rand_task_rate,
+        sample_threshold=sample_threshold,
+        memory=memory,
+        eviction_threshold_percentile=eviction_threshold_percentile,
+        basic_ema_initial_alpha=basic_ema_initial_alpha,
+        basic_ema_alpha_decay=basic_ema_alpha_decay,
+        exploration_blend_factor=exploration_blend_factor,
+        task_tracker_ema_alpha=task_tracker_ema_alpha,
+        max_memory_tasks=max_memory_tasks,
+        max_slice_axes=max_slice_axes,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        use_shared_memory=use_shared_memory,
+        session_id=session_id,
+    )
+
+    return train_icl(task_generator_cfg, make_assembly_line_eval_suite, lp_params)
 
 
 def play(curriculum_style: str = "test") -> PlayTool:
