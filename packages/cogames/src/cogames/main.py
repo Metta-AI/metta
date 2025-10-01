@@ -1,5 +1,6 @@
 """CLI for CoGames - collection of environments for multi-agent cooperative and competitive games."""
 
+import importlib
 import logging
 import sys
 from pathlib import Path
@@ -207,28 +208,79 @@ def train_cmd(
     seed: int = typer.Option(42, "--seed", help="Seed for training"),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training"),
     minibatch_size: int = typer.Option(4096, "--minibatch-size", help="Minibatch size for training"),
+    curriculum: Optional[str] = typer.Option(
+        None,
+        "--curriculum",
+        help="Python path to a callable returning MettaGridConfig instances",
+    ),
 ) -> None:
     """Train a policy on a game."""
     import torch
 
     from cogames import game, utils
     from cogames import train as train_module
+    from mettagrid import MettaGridConfig
 
-    # If no game specified, list games
-    if game_name is None:
+    curriculum_callable = None
+    representative_game: Optional[str] = None
+
+    if curriculum is not None:
+        if ":" not in curriculum:
+            raise typer.BadParameter(
+                "Curriculum must be provided as 'module:function'",
+                param_name="curriculum",
+            )
+        module_name, func_name = curriculum.split(":", 1)
+        try:
+            module = importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            raise typer.BadParameter(
+                f"Cannot import curriculum module '{module_name}'",
+                param_name="curriculum",
+            ) from exc
+        try:
+            candidate = getattr(module, func_name)
+        except AttributeError as exc:
+            raise typer.BadParameter(
+                f"Module '{module_name}' has no attribute '{func_name}'",
+                param_name="curriculum",
+            ) from exc
+        if not callable(candidate):
+            raise typer.BadParameter("Curriculum target must be callable", param_name="curriculum")
+
+        def curriculum_callable() -> MettaGridConfig:
+            cfg = candidate()
+            if not isinstance(cfg, MettaGridConfig):
+                raise typer.BadParameter(
+                    "Curriculum callable must return a MettaGridConfig",
+                    param_name="curriculum",
+                )
+            return cfg
+
+        representative_game = curriculum
+
+    # If no game specified and no curriculum, list games
+    if game_name is None and curriculum_callable is None:
         console.print("[yellow]No game specified. Available games:[/yellow]")
         table = game.list_games(console)
         console.print(table)
         console.print("\n[dim]Usage: cogames train <game>[/dim]")
         return
 
-    # Resolve game name
-    resolved_game, error = utils.resolve_game(game_name)
-    if error:
-        console.print(f"[red]Error: {error}[/red]")
-        raise typer.Exit(1)
-    assert resolved_game is not None
-    env_cfg = game.get_game(resolved_game)
+    env_cfg: Optional[MettaGridConfig] = None
+    resolved_game: Optional[str] = None
+    if curriculum_callable is None:
+        resolved_game, error = utils.resolve_game(game_name)
+        if error:
+            console.print(f"[red]Error: {error}[/red]")
+            raise typer.Exit(1)
+        assert resolved_game is not None
+        env_cfg = game.get_game(resolved_game)
+        representative_game = resolved_game
+    elif game_name is not None:
+        console.print(
+            "[yellow]Ignoring explicit game name because a curriculum was supplied.[/yellow]"
+        )
 
     # Resolve policy shorthand
     full_policy_path = resolve_policy_class_path(policy_class_path)
@@ -275,7 +327,8 @@ def train_cmd(
             seed=seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
-            game_name=resolved_game,
+            game_name=representative_game,
+            env_cfg_supplier=curriculum_callable,
         )
 
     except ValueError as e:
