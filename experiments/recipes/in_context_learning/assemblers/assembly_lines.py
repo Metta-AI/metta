@@ -483,6 +483,10 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             terrain=terrain,
         )
 
+        # Add unobtainium to resource_names for impossible task
+        if "unobtainium" not in icl_env.game.resource_names:
+            icl_env.game.resource_names.append("unobtainium")
+
         icl_env.label = "impossible_deterministic"
         return icl_env
 
@@ -524,6 +528,7 @@ class AssemblyLinesTaskGenerator(ICLTaskGenerator):
             terrain=terrain,
         )
 
+        # Note: Noisy impossible tasks don't use unobtainium, but ensure resource_names are valid
         icl_env.label = "impossible_noisy"
         return icl_env
 

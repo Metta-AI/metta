@@ -316,11 +316,26 @@ def train(
         **curriculum_args[curriculum_style]
     )
     algorithm_config = LearningProgressConfig(
-        ema_timescale=0.001,
-        exploration_bonus=0.15,
+        # Core bidirectional LP parameters
+        use_bidirectional=True,
+        ema_timescale=0.1,
+        slow_timescale_factor=0.2,
+        exploration_bonus=0.1,
+        progress_smoothing=0.01,
+        performance_bonus_weight=0.0,
+        # Task management
+        num_active_tasks=100,
+        rand_task_rate=0.01,
+        sample_threshold=10,
+        memory=25,
+        eviction_threshold_percentile=0.4,
+        # Task tracker EMA
+        task_tracker_ema_alpha=0.02,
+        # Memory and logging
         max_memory_tasks=1000,
         max_slice_axes=3,
-        progress_smoothing=0.15,
+        enable_detailed_slice_logging=False,
+        use_shared_memory=True,
     )
     trainer_cfg = TrainerConfig(
         losses=LossConfig(),
