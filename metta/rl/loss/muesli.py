@@ -165,9 +165,9 @@ class Muesli(Loss):
         cfg = self.loss_cfg
         stop_update_epoch = False
 
-        # Early stop by KL across minibatches in an epoch
-        if cfg.target_kl is not None and mb_idx > 0:
-            avg_kl = torch.tensor(shared_loss_data.get("muesli_avg_kl", 0.0)).item()
+        # Early stop by KL across minibatches in an epoch (use loss_tracker like PPO)
+        if cfg.target_kl is not None and mb_idx > 0 and self.loss_tracker["approx_kl"]:
+            avg_kl = float(np.mean(self.loss_tracker["approx_kl"]))
             if avg_kl > cfg.target_kl:
                 stop_update_epoch = True
 
@@ -205,8 +205,7 @@ class Muesli(Loss):
         for k, v in metrics.items():
             self.loss_tracker[k].append(float(v))
 
-        # Share KL to enable target_kl stop
-        shared_loss_data["muesli_avg_kl"] = metrics.get("approx_kl", 0.0)
+        # KL is tracked in loss_tracker; no need to write into shared_loss_data
 
         return loss, shared_loss_data, stop_update_epoch
 
