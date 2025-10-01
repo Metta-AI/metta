@@ -12,8 +12,11 @@ from tensordict import TensorDict
 from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import CausalConv1dConfig
-from cortex.kernels.conv1d import causal_conv1d_pytorch
+from cortex.kernels.conv1d import TRITON_AVAILABLE, causal_conv1d_pytorch
 from cortex.types import MaybeState, ResetMask, Tensor
+
+if TRITON_AVAILABLE:
+    from cortex.kernels.conv1d import causal_conv1d_triton
 
 
 class CausalConv1d(MemoryCell):
@@ -47,6 +50,12 @@ class CausalConv1d(MemoryCell):
                 groups=self.groups,
                 bias=cfg.causal_conv_bias,
             )
+
+        # Select backend: Triton if available and channel-mixing, else PyTorch
+        if TRITON_AVAILABLE and cfg.channel_mixing:
+            self.backend_fn = causal_conv1d_triton
+        else:
+            self.backend_fn = causal_conv1d_pytorch
 
         self.reset_parameters()
 
@@ -111,19 +120,31 @@ class CausalConv1d(MemoryCell):
                 mask = resets.to(dtype=x.dtype).view(B, 1, 1)
                 conv_state = conv_state * (1.0 - mask)
 
-        # Use unified kernel for all processing modes
+        # Use selected backend kernel
         assert self.conv is not None  # kernel_size > 0 guaranteed by early return
 
-        y, conv_state = causal_conv1d_pytorch(
-            conv_state=conv_state,
-            x=x,
-            weight=self.conv.weight,
-            bias=self.conv.bias if self.cfg.causal_conv_bias else None,
-            groups=self.groups,
-            pad=self.pad,
-            conv=self.conv,
-            resets=resets if not is_step else None,
-        )
+        if self.backend_fn == causal_conv1d_pytorch:
+            # PyTorch backend (supports all modes)
+            y, conv_state = causal_conv1d_pytorch(
+                conv_state=conv_state,
+                x=x,
+                weight=self.conv.weight,
+                bias=self.conv.bias if self.cfg.causal_conv_bias else None,
+                groups=self.groups,
+                pad=self.pad,
+                conv=self.conv,
+                resets=resets if not is_step else None,
+            )
+        else:
+            # Triton backend (channel-mixing only, requires per-timestep resets)
+            y, conv_state = causal_conv1d_triton(
+                conv_state=conv_state,
+                x=x,
+                weight=self.conv.weight,
+                bias=self.conv.bias if self.cfg.causal_conv_bias else None,
+                groups=self.groups,
+                resets=resets if not is_step else None,
+            )
 
         new_state = TensorDict({"conv": conv_state}, batch_size=[B])
         if is_step:

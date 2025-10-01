@@ -67,6 +67,7 @@ def causal_conv1d_triton(
 
     # Call Triton fused kernel
     y = channelmix_causal_conv1d_with_resets_triton(
+        conv_state.contiguous(),
         x.contiguous(),
         weight.contiguous(),
         bias.contiguous() if bias is not None else None,
@@ -115,7 +116,6 @@ def causal_conv1d_pytorch(
     """
     is_step = x.shape[1] == 1
     B, T, F = x.shape
-
     if is_step:
         # Step mode: single timestep processing
         # Update ring buffer: roll and append new input
@@ -137,18 +137,12 @@ def causal_conv1d_pytorch(
 
     # Sequence mode with per-timestep resets
     if resets is not None and resets.dim() == 2 and resets.shape[:2] == (B, T):
-        # Try Triton implementation if available and conditions are met
-        if TRITON_AVAILABLE and x.is_cuda and x.is_contiguous() and weight.is_contiguous() and groups == 1:
-            # Use Triton fused kernel for channel-mixing mode
-            return causal_conv1d_triton(conv_state, x, weight, bias, groups, resets)
-
         # Fallback: PyTorch scan through time
         y_steps = []
         for t in range(T):
             # Apply reset mask to conv_state before processing this timestep
             mask = resets[:, t].to(dtype=x.dtype).view(B, 1, 1)
             conv_state = conv_state * (1.0 - mask)
-
             # Update ring buffer: roll and append new input
             conv_state = torch.roll(conv_state, shifts=-1, dims=1)
             conv_state[:, -1:, :] = x[:, t : t + 1, :]
