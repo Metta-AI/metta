@@ -387,9 +387,57 @@ def make_extractor_showcase() -> MettaGridConfig:
     return env
 
 
+def make_basehub_showcase() -> MettaGridConfig:
+    env = make_navigation(num_agents=4)
+    _add_extractor_objects(env)
+
+    env.game.map_builder = MapGen.Config(
+        width=21,
+        height=21,
+        root=Layout.factory(
+            LayoutParams(
+                areas=[
+                    LayoutArea(
+                        width=21,
+                        height=21,
+                        placement="center",
+                        tag="sanctum.tight",
+                    )
+                ]
+            ),
+            children_actions=[
+                ChildrenAction(
+                    scene=FillArea.factory(FillAreaParams(value="empty")),
+                    where=AreaWhere(tags=["sanctum.tight"]),
+                ),
+                ChildrenAction(
+                    scene=BaseHub.factory(
+                        BaseHubParams(
+                            include_inner_wall=False,
+                            layout="tight",
+                            corner_objects=[
+                                "carbon_ex_dep",
+                                "oxygen_ex_dep",
+                                "germanium_ex_dep",
+                                "silicon_ex_dep",
+                            ],
+                        )
+                    ),
+                    where=AreaWhere(tags=["sanctum.tight"]),
+                    limit=1,
+                    order_by="last",
+                ),
+            ],
+        ),
+    )
+
+    return env
+
+
 def make_mettagrid(
     width: int = 500, height: int = 500
 ) -> tuple[
+    MettaGridConfig,
     MettaGridConfig,
     MettaGridConfig,
     MettaGridConfig,
@@ -3664,6 +3712,7 @@ def make_mettagrid(
         astroid,
         astroid_big,
         extractor_showcase,
+        make_basehub_showcase(),
     )
 
 
@@ -3764,6 +3813,7 @@ def make_evals() -> List[SimulationConfig]:
         astroid,
         astroid_big,
         extractor_showcase,
+        basehub_showcase,
     ) = make_mettagrid()
     sanctum_caves_test = make_sanctum_caves_test()
     return [
@@ -3782,4 +3832,5 @@ def make_evals() -> List[SimulationConfig]:
         SimulationConfig(
             suite="biomes", name="sanctum_caves_test", env=sanctum_caves_test
         ),
+        SimulationConfig(suite="biomes", name="basehub_showcase", env=basehub_showcase),
     ]
